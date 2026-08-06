@@ -4,18 +4,59 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   GOVERNANCE_POLICY_KINDS,
+  type DepartmentProjection,
+  type GovernancePolicyKind,
   type GovernancePolicyProjection,
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { FilterBar } from "../../../../components/ui/FilterBar";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useTenantGuard } from "../../../../lib/platform-context";
+
+/**
+ * PHASE 12B CLUSTER 10 — `GET /v1/governance/policies/effective`.
+ *
+ * The ORGANIZATION and WORKSPACE legs of the inheritance chain are derived
+ * SERVER-side from the caller's resolved workspace; the client may only
+ * narrow by department. `scope` echoes what the server actually resolved, so
+ * this page never has to (and never does) infer the chain itself.
+ */
+type EffectivePoliciesResponse = {
+  effective: ReadonlyArray<GovernancePolicyProjection>;
+  scope: {
+    organizationId: string;
+    departmentId: string | null;
+    workspaceId: string;
+  };
+};
+
+type ReadFailure = { kind: "denied" | "error"; message: string };
+
+function classifyReadFailure(err: unknown): ReadFailure {
+  const e = err as { statusCode?: number };
+  if (e?.statusCode === 403 || e?.statusCode === 404) {
+    return {
+      kind: "denied",
+      message:
+        "You do not have the governance permission required to resolve the effective policy chain in the current workspace.",
+    };
+  }
+  return {
+    kind: "error",
+    message: toSafeUserError(err, {
+      message: "Unable to resolve the effective policy chain.",
+    }).message,
+  };
+}
 
 type PermissionDenialState = {
   denial: string;
@@ -34,6 +75,24 @@ function Shell() {
   const [rows, setRows] = useState<ReadonlyArray<GovernancePolicyProjection>>([]);
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
+
+  // PHASE 12B CLUSTER 10 — tenant generation guard for the effective-chain
+  // reads: a response that lands after a workspace switch is dropped.
+  const { stamp, isStale } = useTenantGuard();
+
+  const [effective, setEffective] = useState<EffectivePoliciesResponse | null>(
+    null,
+  );
+  const [effectiveFailure, setEffectiveFailure] = useState<ReadFailure | null>(
+    null,
+  );
+  const [kindFilter, setKindFilter] = useState<GovernancePolicyKind | "ALL">(
+    "ALL",
+  );
+  const [departmentFilter, setDepartmentFilter] = useState<string>("");
+  const [departments, setDepartments] = useState<
+    ReadonlyArray<DepartmentProjection>
+  >([]);
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -75,9 +134,84 @@ function Shell() {
     }
   }, [refresh]);
 
+  const loadEffective = useCallback(async () => {
+    const captured = stamp();
+    setEffective(null);
+    setEffectiveFailure(null);
+    const params = new URLSearchParams();
+    if (kindFilter !== "ALL") params.set("kind", kindFilter);
+    if (departmentFilter) params.set("departmentId", departmentFilter);
+    const qs = params.toString();
+    try {
+      const res: EffectivePoliciesResponse = await apiFetch(
+        `/v1/governance/policies/effective${qs ? `?${qs}` : ""}`,
+        { method: "GET" },
+      );
+      if (isStale(captured)) return;
+      setEffective(res);
+    } catch (err) {
+      if (isStale(captured)) return;
+      setEffectiveFailure(classifyReadFailure(err));
+    }
+  }, [kindFilter, departmentFilter, stamp, isStale]);
+
+  // Departments only narrow the chain; a failure here must not blank the
+  // effective resolution, so it degrades to "no department narrowing".
+  const loadDepartments = useCallback(async () => {
+    const captured = stamp();
+    try {
+      const res = await apiFetch("/v1/governance/departments", { method: "GET" });
+      if (isStale(captured)) return;
+      setDepartments(
+        (res?.departments ?? []) as ReadonlyArray<DepartmentProjection>,
+      );
+    } catch {
+      if (isStale(captured)) return;
+      setDepartments([]);
+    }
+  }, [stamp, isStale]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void loadDepartments();
+  }, [loadDepartments]);
+
+  useEffect(() => {
+    void loadEffective();
+  }, [loadEffective]);
+
+  const effectiveColumns: DataTableColumn<GovernancePolicyProjection>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (p) => (
+        <span data-effective-policy-row={p.id} data-effective-policy-kind={p.kind}>
+          {p.name}
+        </span>
+      ),
+    },
+    { key: "kind", header: "Kind", render: (p) => <code>{p.kind}</code> },
+    { key: "slug", header: "Slug", render: (p) => <code>{p.slug}</code> },
+    {
+      key: "enforcementMode",
+      header: "Enforcement",
+      render: (p) => <Badge tone="governance">{p.enforcementMode}</Badge>,
+    },
+    { key: "version", header: "Version", render: (p) => `v${p.version}` },
+    {
+      key: "summary",
+      header: "Summary",
+      render: (p) =>
+        p.summary ? (
+          <span style={{ fontSize: 12 }}>{p.summary}</span>
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+  ];
 
   const columns: DataTableColumn<GovernancePolicyProjection>[] = [
     {
@@ -179,9 +313,98 @@ function Shell() {
           }
         />
       </div>
+
+      {/* PHASE 12B CLUSTER 10 — effective policy chain. What actually applies
+          after ORGANIZATION → DEPARTMENT → WORKSPACE inheritance and
+          overrides are resolved by the engine. This section reports the
+          engine's resolution; it never re-derives precedence client-side. */}
+      <PageSection
+        title="Effective policy"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="Kind"
+              showLabel
+              value={kindFilter}
+              onChange={(v) => setKindFilter(v as GovernancePolicyKind | "ALL")}
+              options={[
+                { value: "ALL", label: "All kinds" },
+                ...GOVERNANCE_POLICY_KINDS.map((k) => ({ value: k, label: k })),
+              ]}
+            />
+            <FilterBar.Select
+              label="Department"
+              showLabel
+              value={departmentFilter}
+              onChange={setDepartmentFilter}
+              options={[
+                { value: "", label: "No department narrowing" },
+                ...departments.map((d) => ({ value: d.id, label: d.name })),
+              ]}
+            />
+          </FilterBar>
+        }
+      >
+        {effectiveFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-effective-policies-failure={effectiveFailure.kind}
+          >
+            {effectiveFailure.message}
+          </Card>
+        ) : (
+          <>
+            {effective ? (
+              <p
+                style={{ ...mutedStyle, marginTop: 0 }}
+                data-effective-policy-scope-organization={
+                  effective.scope.organizationId
+                }
+                data-effective-policy-scope-workspace={
+                  effective.scope.workspaceId
+                }
+                data-effective-policy-scope-department={
+                  effective.scope.departmentId ?? ""
+                }
+              >
+                Resolved for organization{" "}
+                <code>{effective.scope.organizationId.slice(0, 8)}…</code>,
+                workspace <code>{effective.scope.workspaceId.slice(0, 8)}…</code>
+                {effective.scope.departmentId ? (
+                  <>
+                    , department{" "}
+                    <code>{effective.scope.departmentId.slice(0, 8)}…</code>
+                  </>
+                ) : null}
+                . Organization and workspace are derived server-side from your
+                active session.
+              </p>
+            ) : null}
+            <div data-effective-policies-table>
+              <DataTable<GovernancePolicyProjection>
+                ariaLabel="Effective governance policies"
+                columns={effectiveColumns}
+                rows={(effective?.effective ?? []) as GovernancePolicyProjection[]}
+                getRowId={(p) => p.id}
+                loading={!effective}
+                emptyState={
+                  <EmptyState
+                    title="No policy applies at this scope"
+                    purpose="No ACTIVE governance policy is assigned anywhere on this inheritance chain, so nothing is enforced at this scope."
+                  />
+                }
+              />
+            </div>
+          </>
+        )}
+      </PageSection>
     </PageShell>
   );
 }
+
+const mutedStyle: React.CSSProperties = { fontSize: 12, color: "#64748b" };
 
 function applyDenial(
   err: unknown,

@@ -17,7 +17,7 @@
  *     DRAFT.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 
@@ -28,15 +28,34 @@ type Region = {
   geometry: { x: number; y: number; width: number; height: number };
 };
 
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
 export function ImageRedactionViewer({
   evidenceId,
   versionId,
   versionLocked,
+  regions: projectedRegions,
   onChanged,
 }: {
   evidenceId: string;
   versionId: string;
   versionLocked: boolean;
+  /**
+   * PHASE 12B — regions come from the SERVER projection that the parent
+   * page already reads (`GET /v1/redaction/projects/:id` →
+   * versions[].regions). The viewer previously re-fetched
+   * `/v1/redaction/projects/${evidenceId}` — an evidenceId passed where a
+   * projectId belongs — and then discarded the result, so drawn regions
+   * were never rendered back. One read, one owner.
+   */
+  regions?: ReadonlyArray<{
+    id: string;
+    kind: string;
+    method: string;
+    geometry: Record<string, unknown>;
+  }>;
   onChanged: () => void;
 }) {
   const [method, setMethod] = useState<"BLUR" | "PIXELATE" | "BLACKOUT">(
@@ -51,34 +70,28 @@ export function ImageRedactionViewer({
     h: number;
   }>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [regions, setRegions] = useState<Region[]>([]);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await apiFetch(
-        `/v1/redaction/projects/${evidenceId}`,
-        { method: "GET" },
-      );
-      // The project endpoint returns the project; per-version regions
-      // are included via the projection. Pluck the matching version.
-      const project = res?.project;
-      const version = project?.versions?.find(
-        (v: { id: string }) => v.id === versionId,
-      );
-      // The projection does not currently expose regions inline; ship
-      // an explicit fetch when the dedicated endpoint lands. For now
-      // we render an empty list — the viewer is still authoritative
-      // for drawing new regions.
-      void version;
-      setRegions([]);
-    } catch {
-      setRegions([]);
-    }
-  }, [evidenceId, versionId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // Only normalized bounding boxes can be drawn as an overlay rectangle;
+  // other region kinds (text spans, audio ranges) are listed in the
+  // region panel instead of being painted on the image.
+  const regions = useMemo<Region[]>(() => {
+    void evidenceId;
+    return (projectedRegions ?? [])
+      .filter((r) => r.kind === "BBOX_NORMALIZED")
+      .map((r) => {
+        const g = r.geometry as Record<string, unknown>;
+        return {
+          id: r.id,
+          kind: r.kind,
+          method: r.method,
+          geometry: {
+            x: numberOr(g["x"], 0),
+            y: numberOr(g["y"], 0),
+            width: numberOr(g["width"], 0),
+            height: numberOr(g["height"], 0),
+          },
+        };
+      });
+  }, [evidenceId, projectedRegions]);
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {

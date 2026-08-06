@@ -285,11 +285,24 @@ describe("Phase P1.1 — Frontend surfaces", () => {
   });
 
   it("Sessions page wires a Session Timeline drawer per row", () => {
-    const p = readSource(
-      "../../../apps/web/app/(app)/admin/identity/sessions/page.tsx",
-    );
+    // PHASE 12B (2026-07-30): the sessions page was decomposed into an
+    // orchestrator + `_sections/*` (the established repo pattern once a page
+    // passes ~700 lines). The timeline drawer is still wired per row — it now
+    // lives in `_sections/ActiveSessionsSection.tsx` +
+    // `_sections/SessionTimelineDrawer.tsx`. The surface is asserted as the
+    // page PLUS its sections so the contract follows the decomposition
+    // instead of pinning a single file's line count.
+    const p = [
+      readSource("../../../apps/web/app/(app)/admin/identity/sessions/page.tsx"),
+      readSource(
+        "../../../apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+      ),
+      readSource(
+        "../../../apps/web/app/(app)/admin/identity/sessions/_sections/SessionTimelineDrawer.tsx",
+      ),
+    ].join("\n");
     expect(p).toContain("SessionTimelineDrawer");
-    expect(p).toContain("View timeline");
+    expect(p).toContain("Timeline");
     expect(p).toContain("/v1/identity/sessions/");
     expect(p).toContain("/timeline");
   });

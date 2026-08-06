@@ -403,9 +403,15 @@ test("evaluateJitProvisioning: domain blocked", () => {
 // SCIM catalogs
 // -----------------------------------------------------------------------------
 
-test("SCIM_SCOPES catalog (users.read/write/deactivate, groups.read)", () => {
+// `groups.write` is a DISTINCT scope on purpose: group mutations used to ride
+// on `users.write`, so a token issued for user provisioning could also create,
+// rename, re-member and delete groups — and membership changes propagate to
+// department/visibility scope. Separating it is a privilege reduction, so this
+// pin records the fifth scope rather than dropping to the old four.
+test("SCIM_SCOPES catalog (users.read/write/deactivate, groups.read/write)", () => {
   assert.deepEqual([...SCIM_SCOPES].sort(), [
     "groups.read",
+    "groups.write",
     "users.deactivate",
     "users.read",
     "users.write",

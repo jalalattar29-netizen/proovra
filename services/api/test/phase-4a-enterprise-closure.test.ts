@@ -239,18 +239,8 @@ describe("Phase 4A Closure — service module surface", () => {
     expect(typeof m.probeAll).toBe("function");
   });
 
-  it("security-claim-check service exposes run + list", async () => {
-    const m = await import(
-      "../src/services/trust/security-claim-check.service.js"
-    );
-    expect(typeof m.runSecurityClaimChecks).toBe("function");
-    expect(typeof m.listSecurityClaimChecks).toBe("function");
-  });
-
-  it("trust-drift service exposes scan + list + needs-review", async () => {
+  it("trust-drift service exposes needs-review", async () => {
     const m = await import("../src/services/trust/trust-drift.service.js");
-    expect(typeof m.runTrustArticleDriftScan).toBe("function");
-    expect(typeof m.listStaleTrustArticles).toBe("function");
     expect(typeof m.markArticleNeedsReview).toBe("function");
   });
 
@@ -268,12 +258,11 @@ describe("Phase 4A Closure — service module surface", () => {
     expect(typeof m.emitDepartmentEvent).toBe("function");
   });
 
-  it("access-review-escalation service exposes escalate + list", async () => {
+  it("access-review-escalation service exposes escalate", async () => {
     const m = await import(
       "../src/services/governance/access-review-escalation.service.js"
     );
     expect(typeof m.escalateAccessReviewItem).toBe("function");
-    expect(typeof m.listEscalatedItems).toBe("function");
   });
 });
 
@@ -301,27 +290,13 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
   });
 
   it("trust SEED POSTs are NOT delegated-tier-gated (workspace-member self-heal)", () => {
-    // Production fix — the canonical 15+9+12+18 platform-trust seed
-    // articles describe PROOVRA itself, not customer content. The
-    // prior gate locked PERSONAL workspaces out entirely (no delegated
-    // tier exists for PERSONAL) and locked most ORG members out,
-    // leaving the Trust Center permanently empty. The seed POSTs now
-    // accept any authenticated workspace member; AUTHORING remains
+    // Production fix — the canonical platform-trust seed subprocessors
+    // describe PROOVRA itself, not customer content. The prior gate
+    // locked PERSONAL workspaces out entirely (no delegated tier exists
+    // for PERSONAL) and locked most ORG members out. The seed POST now
+    // accepts any authenticated workspace member; AUTHORING remains
     // tier-gated (previous test). Pinned to fail-fast if a future
     // phase tries to re-add the gate.
-    const seedArticleIdx = src.indexOf('"/v1/trust/articles/seed"');
-    expect(seedArticleIdx).toBeGreaterThan(-1);
-    const seedArticleSlice = src.slice(seedArticleIdx, seedArticleIdx + 1500);
-    const nextRouteIdx = seedArticleSlice.search(
-      /\n\s{0,4}app\.(post|get|patch|delete)\(/,
-    );
-    const seedArticleHandler =
-      nextRouteIdx > 0
-        ? seedArticleSlice.slice(0, nextRouteIdx)
-        : seedArticleSlice;
-    expect(seedArticleHandler).toMatch(/preHandler:\s*requireAuth\b/);
-    expect(seedArticleHandler).not.toMatch(/requireDelegatedTier/);
-
     const seedSubIdx = src.indexOf('"/v1/trust/subprocessors/seed"');
     expect(seedSubIdx).toBeGreaterThan(-1);
     const seedSubSlice = src.slice(seedSubIdx, seedSubIdx + 1500);
@@ -332,18 +307,6 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
       nextSubIdx > 0 ? seedSubSlice.slice(0, nextSubIdx) : seedSubSlice;
     expect(seedSubHandler).toMatch(/preHandler:\s*requireAuth\b/);
     expect(seedSubHandler).not.toMatch(/requireDelegatedTier/);
-  });
-
-  it("status mutations are tier-gated", () => {
-    expect(src).toMatch(
-      /"\/v1\/trust\/status\/incidents"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/trust\/status\/incidents\/:id\/updates"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/trust\/status\/maintenance"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
   });
 
   it("department + delegated-admin + membership mutations are tier-gated", () => {
@@ -358,9 +321,6 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
     );
     expect(src).toMatch(
       /"\/v1\/governance\/departments\/:id\/memberships"[\s\S]{0,400}requireDelegatedTier\("DEPARTMENT_ADMIN"\)/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/departments\/memberships\/:id\/revoke"[\s\S]{0,400}requireDelegatedTier\("DEPARTMENT_ADMIN"\)/,
     );
   });
 
@@ -391,14 +351,6 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
     );
   });
 
-  it("drift + security-claims scan routes are tier-gated", () => {
-    expect(src).toMatch(
-      /"\/v1\/trust\/drift\/scan"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/trust\/security-claims\/scan"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -417,11 +369,6 @@ describe("Phase 4A Closure — trust mutation audit emissions", () => {
   it("subprocessor.service emits emitSubprocessorEvent", () => {
     const src = readSrc("../src/services/trust/subprocessor.service.ts");
     expect(src).toContain("emitSubprocessorEvent");
-  });
-
-  it("status-page.service emits emitStatusIncidentEvent", () => {
-    const src = readSrc("../src/services/trust/status-page.service.ts");
-    expect(src).toContain("emitStatusIncidentEvent");
   });
 
   it("cross-org-review.service emits emitCrossOrgEvent", () => {
@@ -849,100 +796,6 @@ describe("Phase 4A Closure — department scope", () => {
       allowedDepartmentIds: [],
     });
     expect(where).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 11. Security claim drift detection
-// ---------------------------------------------------------------------------
-
-describe("Phase 4A Closure — security claim drift detection", () => {
-  it("runSecurityClaimChecks persists one row per SECURITY section + SCIM is PARTIAL", async () => {
-    const { runSecurityClaimChecks } = await import(
-      "../src/services/trust/security-claim-check.service.js"
-    );
-    const { SECURITY_SECTIONS } = await import("@proovra/shared");
-
-    const upserted: Array<{
-      where: { teamId_controlKey: { teamId: string; controlKey: string } };
-    }> = [];
-    const prismaStub = {
-      trustCenterArticle: {
-        findMany: async () => [],
-      },
-      securityClaimCheck: {
-        upsert: async (args: {
-          where: { teamId_controlKey: { teamId: string; controlKey: string } };
-        }) => {
-          upserted.push(args);
-          return { id: "row-1" };
-        },
-      },
-    } as never;
-
-    const projections = await runSecurityClaimChecks({
-      prisma: prismaStub,
-      teamId: "team-1",
-      systemUserId: null,
-    });
-
-    expect(projections.length).toBe(SECURITY_SECTIONS.length);
-    expect(upserted.length).toBe(SECURITY_SECTIONS.length);
-    const scim = projections.find((p) => p.controlKey === "SCIM");
-    expect(scim).toBeDefined();
-    expect(scim?.confidence).toBe("PARTIAL");
-    expect(scim?.limitation).toBe("scim_subset_routes_require_configuration");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 12. Trust article drift detection
-// ---------------------------------------------------------------------------
-
-describe("Phase 4A Closure — trust article drift detection", () => {
-  it("runTrustArticleDriftScan flips an article with a missing reference to STALE", async () => {
-    const { runTrustArticleDriftScan } = await import(
-      "../src/services/trust/trust-drift.service.js"
-    );
-
-    const updates: Array<{
-      where: { id: string };
-      data: { driftState?: string };
-    }> = [];
-    const prismaStub = {
-      trustCenterArticle: {
-        findMany: async () => [
-          {
-            id: "art-1",
-            kind: "TRUST_CENTER",
-            slug: "platform-trust",
-            driftState: "CURRENT",
-            implementationReferences: [
-              "this/path/does/not/exist/phase-4a-closure-test-missing.ts",
-            ],
-          },
-        ],
-        update: async (args: {
-          where: { id: string };
-          data: { driftState?: string };
-        }) => {
-          updates.push(args);
-          return { id: args.where.id };
-        },
-      },
-      intelligenceActivityEvent: {
-        create: async () => ({ id: "evt-1" }),
-      },
-    } as never;
-
-    const res = await runTrustArticleDriftScan({
-      prisma: prismaStub,
-      teamId: "team-1",
-    });
-    expect(res.scanned).toBe(1);
-    expect(res.stale).toBe(1);
-    expect(updates.length).toBe(1);
-    expect(updates[0].data.driftState).toBe("STALE");
   });
 });
 

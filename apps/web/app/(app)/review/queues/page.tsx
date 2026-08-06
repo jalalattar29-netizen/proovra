@@ -58,7 +58,8 @@
  *     at the server-side 100-row bulk cap).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
@@ -85,6 +86,15 @@ import {
   bulkDecide,
   type BulkOutcome,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
+// PHASE 12B (Evidence Operations) — the reviewer console is the canonical
+// home for BOTH the server-side queue-intelligence projection and the
+// evidence-request review queue. Both modules are segment-private.
+import {
+  QueueIntelligenceNotice,
+  QueueSignalCell,
+  useQueueIntelligence,
+} from "./_queue-intelligence";
+import { EvidenceRequestReviewQueue } from "./_evidence-request-queue";
 
 type QueueRow = {
   id: string;
@@ -191,6 +201,16 @@ function QueuesShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = useActiveSpaceId();
+  // PHASE 12B — stale-context rejection. Every async read captures the
+  // teamId it was issued for and compares it against this ref when it
+  // resolves, so a response belonging to a previous workspace generation
+  // is DISCARDED instead of rendered under the new tenant. The ref is
+  // synced in the first effect below so it is already current before any
+  // data effect fires.
+  const activeTeamRef = useRef<string | null>(teamId);
+  useEffect(() => {
+    activeTeamRef.current = teamId;
+  }, [teamId]);
   const initialQueue = searchParams.get("queue");
   const initialFilter = REVIEWER_OPS_QUEUE_TYPES.includes(
     initialQueue as ReviewerOpsQueueType,
@@ -239,12 +259,18 @@ function QueuesShell() {
         return;
       }
 
+      // Captured for the stale-context comparison below. The URL keeps
+      // using `teamId` directly so the tenant-scoping contract stays
+      // literally visible in the request template.
+      const requestTeamId = teamId;
       const url =
         cursor === null
           ? `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}`
           : `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}&cursor=${encodeURIComponent(cursor)}`;
       try {
         const res = await apiFetch(url, { method: "GET" });
+        // Stale-context rejection — the workspace changed mid-flight.
+        if (requestTeamId !== activeTeamRef.current) return;
         const pageRows = (res?.rows ?? res?.workflows ?? []) as QueueRow[];
         const nextCursorValue =
           typeof res?.nextCursor === "string" && res.nextCursor.length > 0
@@ -270,6 +296,7 @@ function QueuesShell() {
         setRefreshError(null);
         setLastRefreshedAt(new Date().toISOString());
       } catch (err) {
+        if (requestTeamId !== activeTeamRef.current) return;
         // eslint-disable-next-line no-console
         console.warn("[reviewer-workspace] queue list refresh failed", {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,12 +367,15 @@ function QueuesShell() {
         setQcState({ kind: "ERROR", message: "Select a workspace before loading QC counts." });
         return;
       }
+      const requestTeamId = teamId;
       const res = await apiFetch(
-        `/v1/reviewer-ops/qc/pending-count?teamId=${encodeURIComponent(teamId)}`,
+        `/v1/reviewer-ops/qc/pending-count?teamId=${encodeURIComponent(requestTeamId)}`,
         {
           method: "GET",
         },
       );
+      // Stale-context rejection — discard a previous workspace's count.
+      if (requestTeamId !== activeTeamRef.current) return;
       const pendingCount =
         typeof res?.pendingCount === "number" && Number.isFinite(res.pendingCount)
           ? res.pendingCount
@@ -382,7 +412,10 @@ function QueuesShell() {
           "QC pending count could not be loaded. Try again shortly.",
       });
     }
-  }, []);
+    // `teamId` MUST be a dependency: with `[]` the callback captured the
+    // workspace id from first render and kept querying the previous
+    // tenant after a workspace switch (defect fixed in Phase 12B).
+  }, [teamId]);
 
   useEffect(() => {
     void refresh();
@@ -408,6 +441,11 @@ function QueuesShell() {
     () => (rows ?? []).map((r) => r.id),
     [rows],
   );
+  // PHASE 12B — server-side queue intelligence for the loaded rows. The
+  // projection is the ONLY source of priority band, stuck state, SLA,
+  // escalation and governance-blocker signals; the client never scores.
+  const { state: intelligenceState, refresh: refreshIntelligence } =
+    useQueueIntelligence(teamId, allVisibleIds, activeTeamRef);
   const allSelected =
     allVisibleIds.length > 0 &&
     allVisibleIds.every((id) => selected.has(id));
@@ -486,10 +524,16 @@ function QueuesShell() {
         });
         return;
       }
+      const requestTeamId = teamId;
       const res = await apiFetch(
-        `/v1/reviewer-ops/assignable-reviewers?teamId=${encodeURIComponent(teamId)}&limit=200`,
+        `/v1/reviewer-ops/assignable-reviewers?teamId=${encodeURIComponent(requestTeamId)}&limit=200`,
         { method: "GET" },
       );
+      // Stale-context rejection — never offer another tenant's reviewers.
+      if (requestTeamId !== activeTeamRef.current) {
+        setPickerState(null);
+        return;
+      }
       const reviewers =
         Array.isArray(res?.reviewers) ? (res.reviewers as AssignableReviewer[]) : [];
       setPickerState({ kind: "READY", reviewers });
@@ -524,7 +568,8 @@ function QueuesShell() {
           "Reviewer list could not be loaded. Try again or refresh the page.",
       });
     }
-  }, []);
+    // `teamId` MUST be a dependency — see the refreshQc note above.
+  }, [teamId]);
 
   if (!teamId) {
     return (
@@ -637,6 +682,16 @@ function QueuesShell() {
 
       <QcDiscoveryCard state={qcState} onRetry={() => void refreshQc()} />
 
+      {/* PHASE 12B — evidence-request review queue (GET /v1/review/queue).
+          A sibling domain to the workflow queue below, not a duplicate:
+          see _evidence-request-queue.tsx for the parity analysis. */}
+      <EvidenceRequestReviewQueue teamId={teamId} activeTeamRef={activeTeamRef} />
+
+      <QueueIntelligenceNotice
+        state={intelligenceState}
+        onRetry={refreshIntelligence}
+      />
+
       <BulkBar
         selectedCount={selected.size}
         onDecide={(verdict) =>
@@ -727,8 +782,10 @@ function QueuesShell() {
                 <th style={th}>Evidence</th>
                 <th style={th}>Status</th>
                 <th style={th}>Priority</th>
+                <th style={th}>Signals</th>
                 <th style={th}>Assignee</th>
                 <th style={th}>Due</th>
+                <th style={th}>Open</th>
               </tr>
             </thead>
             <tbody>
@@ -762,17 +819,41 @@ function QueuesShell() {
                   <td style={td}>{r.status}</td>
                   <td style={td}>{r.priority}</td>
                   <td style={td}>
+                    <QueueSignalCell
+                      state={intelligenceState}
+                      intelligence={
+                        intelligenceState.kind === "READY"
+                          ? intelligenceState.byWorkflowId.get(r.id)
+                          : undefined
+                      }
+                    />
+                  </td>
+                  <td style={td}>
                     {r.assignedToUserId ? r.assignedToUserId.slice(0, 8) + "…" : "—"}
                   </td>
                   <td style={td}>
                     {r.dueAt ? formatUserDate(r.dueAt) : "—"}
+                  </td>
+                  <td style={td} onClick={(e) => e.stopPropagation()}>
+                    {/* Canonical drill-down into the reviewer detail route. */}
+                    <Link
+                      href={`/reviewer-ops/${r.id}`}
+                      data-reviewer-queue-open={r.id}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--ink-primary, #0f172a)",
+                      }}
+                    >
+                      Open
+                    </Link>
                   </td>
                 </tr>
               ))}
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={9}
                     data-reviewer-queue-empty={filter}
                     style={{ padding: 0, border: "none" }}
                   >

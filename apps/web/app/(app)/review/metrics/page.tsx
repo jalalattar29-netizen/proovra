@@ -79,7 +79,10 @@ function MetricsShell() {
   const [state, setState] = useState<FetchState>({ kind: "LOADING" });
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // `isStale` lets the effect below discard a response that arrived after the
+  // workspace changed (or the page unmounted) — without it, a slow request for
+  // the PREVIOUS workspace would paint its metrics under the new one.
+  const load = useCallback(async (isStale?: () => boolean) => {
     if (!teamId) {
       setState({ kind: "ERROR" });
       return;
@@ -87,6 +90,7 @@ function MetricsShell() {
     setState({ kind: "LOADING" });
     try {
       const m = await fetchReviewerMetrics(teamId);
+      if (isStale?.()) return;
       setState({ kind: "READY", metrics: m });
       setLoadedAt(new Date().toISOString());
     } catch (err) {
@@ -100,20 +104,18 @@ function MetricsShell() {
         status,
         code,
       });
+      if (isStale?.()) return;
       if (status === 403 || code === "NOT_PERMITTED" || code === "FORBIDDEN") {
         setState({ kind: "FORBIDDEN" });
       } else {
         setState({ kind: "ERROR" });
       }
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      if (cancelled) return;
-      await load();
-    })();
+    void load(() => cancelled);
     return () => {
       cancelled = true;
     };

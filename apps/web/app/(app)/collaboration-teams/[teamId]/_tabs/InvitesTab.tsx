@@ -23,17 +23,11 @@ import {
   COLLABORATION_TEAM_ROLES,
   type CollaborationTeamRole,
 } from "@proovra/shared";
+import { type CollaborationTeamPlanLimits } from "@proovra/shared-billing";
 import {
-  getCollaborationTeamPlanLimits,
-  type CollaborationTeamPlanLimits,
-} from "@proovra/shared-billing";
-import {
-  useAccount,
   useActiveSpace,
-  useOrganizations,
-  usePersonalSpace,
+  useWorkspaceLimits,
 } from "../../../../../lib/platform-context";
-import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
 import {
   PlanGateBadge,
   type PlanTier,
@@ -446,9 +440,10 @@ function InviteRow({
 //
 // Data sources (NO new endpoint):
 //   - Counts are derived from `team.invites` already on the detail payload.
-//   - Caps are resolved from the canonical `getCollaborationTeamPlanLimits`
-//     via `useResolvedCollaborationTeamPlanLimits` (passed in by the tab).
-//     We do NOT fabricate caps and we do NOT re-fetch billing.
+//   - Caps come from the SERVER projection (`planFeatures.limits` for the
+//     ACTIVE workspace) via `useResolvedCollaborationTeamPlanLimits`. We do
+//     NOT fabricate caps, we do NOT re-derive them from a plan name, and we do
+//     NOT re-fetch billing.
 //
 // Upgrade CTA points at the canonical billing surface (/billing).
 // -----------------------------------------------------------------------------
@@ -549,66 +544,53 @@ function PendingInvitesBadge({
 }
 
 /**
- * Resolve the active-space plan from the canonical envelope hooks and
- * return the matching `CollaborationTeamPlanLimits`. Returns `null` while
- * the envelope is still loading so consumers do not show a fabricated
- * denominator (or a fabricated plan lock).
+ * PHASE 12 — POINT 7 (2026-08-05): READ the limits, do not resolve them.
  *
- * Plan-resolution order (matches the backend `resolveCollaborationTeamOwnerUserId`
- * → `resolveUserPlan` chain):
- *   1. Active organization's plan when an org is the active space.
- *   2. Personal-space plan when the active space is personal.
- *   3. Account-level plan fallback.
+ * These two hooks used to reconstruct the commercial subject in the browser —
+ * "active organization's plan, else personal-space plan, else the ACCOUNT
+ * plan" — and then key a limit table on the result. Three things were wrong
+ * with that, in increasing order of consequence:
+ *
+ *   the `?? account.accountPlan` tail is an OWNER-PLAN FALLBACK, so a
+ *   workspace with no commercial state of its own silently displayed its
+ *   owner's allowance;
+ *
+ *   the resolution order was a hand-maintained copy of a backend chain, and
+ *   copies drift — the server had already moved to a subject-correct
+ *   effective-plan policy in which an Owned Workspace never inherits the
+ *   owner's plan;
+ *
+ *   and it made the browser an authority on a commercial limit, which is the
+ *   metric Point 7 drives to zero.
+ *
+ * The server now projects both the numeric limits and the ACTIVE space's plan.
+ * `null` still means UNKNOWN, and call sites still render the unknown state
+ * rather than fabricating FREE — that part was right and is preserved.
  */
 function useResolvedCollaborationTeamPlanLimits():
   | CollaborationTeamPlanLimits
   | null {
-  const account = useAccount();
-  const personalSpace = usePersonalSpace();
-  const activeSpace = useActiveSpace();
-  const organizations = useOrganizations();
-
-  const plan: WorkspacePlan | null = useMemo(() => {
-    if (!activeSpace) return account?.accountPlan ?? null;
-    if (activeSpace.type === "ORGANIZATION") {
-      const org = organizations.find((o) => o.id === activeSpace.id);
-      return org?.plan ?? account?.accountPlan ?? null;
-    }
-    return personalSpace?.plan ?? account?.accountPlan ?? null;
-  }, [account, activeSpace, organizations, personalSpace]);
-
-  if (plan === null) return null;
-  return getCollaborationTeamPlanLimits(plan);
+  const limits = useWorkspaceLimits();
+  if (!limits) return null;
+  return {
+    maxTeams: limits.maxOwnedWorkspaces,
+    maxMembersPerTeam: limits.maxMembersPerTeam,
+    maxPendingInvitesPerTeam: limits.maxPendingInvitesPerTeam,
+    maxInvitesPer24h: limits.maxInvitesPer24h,
+  };
 }
 
 /**
- * Sibling hook returning the resolved active plan tier as the canonical
- * {@link PlanTier} vocabulary used by `PlanGateBadge`. `null` indicates
- * the envelope hasn't resolved a plan yet (degraded billing context) —
- * call sites must render an "unknown" gate state rather than
- * fabricating FREE.
+ * The ACTIVE space's plan, for the `PlanGateBadge` label vocabulary.
+ *
+ * Server-resolved, on the canonical section. `null` = unknown; callers render
+ * the unknown gate state rather than fabricating FREE.
  */
 function useResolvedActivePlanTier(): PlanTier | null {
-  const account = useAccount();
-  const personalSpace = usePersonalSpace();
   const activeSpace = useActiveSpace();
-  const organizations = useOrganizations();
-
-  return useMemo<PlanTier | null>(() => {
-    let plan: WorkspacePlan | null;
-    if (!activeSpace) {
-      plan = account?.accountPlan ?? null;
-    } else if (activeSpace.type === "ORGANIZATION") {
-      const org = organizations.find((o) => o.id === activeSpace.id);
-      plan = org?.plan ?? account?.accountPlan ?? null;
-    } else {
-      plan = personalSpace?.plan ?? account?.accountPlan ?? null;
-    }
-    if (plan === null) return null;
-    // WorkspacePlan vocabulary is a strict subset of PlanTier — narrow
-    // safely.
-    return plan as PlanTier;
-  }, [account, activeSpace, organizations, personalSpace]);
+  const plan = activeSpace?.plan ?? null;
+  // WorkspacePlan vocabulary is a strict subset of PlanTier — narrow safely.
+  return plan === null ? null : (plan as PlanTier);
 }
 
 function RoleSelect({

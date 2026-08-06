@@ -17,11 +17,12 @@
  *      bumping it requires bumping that constant.
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
+import { isDomainError } from "../errors.js";
 import { buildPlatformContext } from "../services/platform-context/platform-context.service.js";
 // P0 remediation (2026-07-21) — tenant-scoped context-switch audit events.
 // NOTE: the GET route remains strictly read-only/no-audit; only the
@@ -69,7 +70,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
   app.get(
     "/v1/platform/context",
     { preHandler: requireAuth },
-    async (req: any, reply) => {
+    async (req: FastifyRequest, reply) => {
       const userId = getAuthUserId(req);
       const jwtRole =
         typeof req.user?.role === "string" ? (req.user.role as string) : null;
@@ -103,7 +104,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
   app.post(
     "/v1/platform/context/switch-workspace",
     { preHandler: requireAuth },
-    async (req: any, reply) => {
+    async (req: FastifyRequest, reply) => {
       const userId = getAuthUserId(req);
       const jwtRole =
         typeof req.user?.role === "string" ? (req.user.role as string) : null;
@@ -195,6 +196,32 @@ export async function platformContextRoutes(app: FastifyInstance) {
             requestId: req.id,
           });
         }
+        // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): switching into a
+        // PERSONAL workspace BY ITS ID is the same act as switching with
+        // `workspaceId: null`, and must meet the same gate.
+        //
+        // Only the null form was guarded. A member of an Organization with
+        // `noPersonalSpace` could still switch into their grandfathered
+        // Personal Space by naming its UUID — an id their own client had
+        // cached from before the policy was switched on, or that anyone could
+        // read out of local storage. The policy blocked the front door and
+        // left the id-shaped one open, which is case 7 of the Point-7
+        // context-safety matrix: a stored workspace id must not bypass an
+        // Organization policy.
+        if (targetTeam.isPersonal) {
+          try {
+            await assertPersonalSpaceAllowed(userId);
+          } catch (err) {
+            const e = err as { statusCode?: number; code?: string; message?: string };
+            auditSwitch("denied", e.code ?? "personal_space_not_permitted");
+            return reply.code(e.statusCode ?? 403).send({
+              message: e.message ?? "A personal workspace is not available for this identity.",
+              code: e.code ?? "ORG_POLICY_NO_PERSONAL_SPACE",
+              requestId: req.id,
+            });
+          }
+        }
+
         if (
           !targetTeam.isPersonal &&
           targetTeam.organization &&
@@ -229,12 +256,36 @@ export async function platformContextRoutes(app: FastifyInstance) {
             });
           }
           const ssoConnId = req.user?.ssoConnId ?? null;
-          const loginGate = await evaluateOrgLoginMethod({
-            teamId: body.workspaceId,
-            userId,
-            method,
-            ssoConnId,
-          });
+          // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05). The
+          // organization-policy gates are wrapped from HERE, not from the
+          // session-context call further down.
+          //
+          // The first attempt at this fix wrapped only
+          // `establishOrganizationSessionContext`, and the reproduction showed
+          // why that was not enough: `evaluateOrgLoginMethod` resolves the same
+          // policy and throws FIRST, so an unprovisioned Organization never
+          // reached the narrower guard. Every gate that consults the policy is
+          // inside one boundary now, and they all answer with the same bounded
+          // shape as the route's other denials.
+          let loginGate: Awaited<ReturnType<typeof evaluateOrgLoginMethod>>;
+          try {
+            loginGate = await evaluateOrgLoginMethod({
+              teamId: body.workspaceId,
+              userId,
+              method,
+              ssoConnId,
+            });
+          } catch (err) {
+            if (isDomainError(err) && err.publicCode === "POLICY_NOT_PROVISIONED") {
+              auditSwitch("denied", "organization_security_policy_unavailable");
+              return reply.code(err.httpStatus).send({
+                message: err.publicMessage,
+                code: err.publicCode,
+                requestId: req.id,
+              });
+            }
+            throw err;
+          }
           if (!loginGate.allowed) {
             auditSwitch("denied", loginGate.reason);
             return reply.code(403).send({
@@ -249,12 +300,29 @@ export async function platformContextRoutes(app: FastifyInstance) {
           // this seam IS an active request, so "now" is the activity time.
           const authAt = Number(req.user?.authAt ?? 0);
           if (authAt > 0) {
-            const sessionGate = await evaluateSessionAgainstPolicy({
-              teamId: body.workspaceId,
-              issuedAtMs: authAt * 1000,
-              lastSeenAtMs: Date.now(),
-              sessionPolicyVersion: null, // global session — live policy is authoritative
-            });
+            // Same boundary as the login gate above — this reads the same
+            // policy and can raise the same unprovisioned condition.
+            let sessionGate: Awaited<
+              ReturnType<typeof evaluateSessionAgainstPolicy>
+            >;
+            try {
+              sessionGate = await evaluateSessionAgainstPolicy({
+                teamId: body.workspaceId,
+                issuedAtMs: authAt * 1000,
+                lastSeenAtMs: Date.now(),
+                sessionPolicyVersion: null, // global session — live policy is authoritative
+              });
+            } catch (err) {
+              if (isDomainError(err) && err.publicCode === "POLICY_NOT_PROVISIONED") {
+                auditSwitch("denied", "organization_security_policy_unavailable");
+                return reply.code(err.httpStatus).send({
+                  message: err.publicMessage,
+                  code: err.publicCode,
+                  requestId: req.id,
+                });
+              }
+              throw err;
+            }
             if (!sessionGate.allowed) {
               auditSwitch("denied", sessionGate.reason);
               return reply.code(401).send({
@@ -277,11 +345,43 @@ export async function platformContextRoutes(app: FastifyInstance) {
           // failures occur before any allowance is created). Denial performs
           // ZERO mutation (no currentWorkspaceId change).
           if (targetTeam.organizationId && req.user?.sessionIdHash) {
-            const seat = await establishOrganizationSessionContext({
-              userId,
-              organizationId: targetTeam.organizationId,
-              sessionIdHash: req.user.sessionIdHash,
-            });
+            let seat: Awaited<
+              ReturnType<typeof establishOrganizationSessionContext>
+            >;
+            try {
+              seat = await establishOrganizationSessionContext({
+                userId,
+                organizationId: targetTeam.organizationId,
+                sessionIdHash: req.user.sessionIdHash,
+              });
+            } catch (err) {
+              // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05). A CUSTOMER
+              // Organization with no provisioned security policy FAILS CLOSED
+              // here, at the route boundary, instead of escaping as an
+              // unhandled exception.
+              //
+              // It used to propagate out of the transaction, past a handler
+              // that recognised neither its shape nor its intent, and arrive
+              // as a 500 plus an error-level Sentry issue whose message
+              // carried the Organization UUID. Fail-closed was right; being
+              // unhandled meant the tenant saw a crash and an operator saw a
+              // page, for a condition that is simply "an administrator has
+              // not finished setting this organization up".
+              //
+              // Everything that must NOT happen still does not: the throw
+              // aborts the transaction before any session row is written, and
+              // this arm returns BEFORE the `currentWorkspaceId` update below,
+              // so the caller's previously-authorized context is untouched.
+              if (isDomainError(err) && err.publicCode === "POLICY_NOT_PROVISIONED") {
+                auditSwitch("denied", "organization_security_policy_unavailable");
+                return reply.code(err.httpStatus).send({
+                  message: err.publicMessage,
+                  code: err.publicCode,
+                  requestId: req.id,
+                });
+              }
+              throw err;
+            }
             if (!seat.allowed) {
               auditSwitch("denied", seat.reason);
               const status = seat.reason === "concurrent_session_limit_reached" ? 429 : 403;
@@ -292,6 +392,18 @@ export async function platformContextRoutes(app: FastifyInstance) {
                     : "Not a member of this workspace",
                 code: seat.reason,
                 requestId: req.id,
+              });
+            }
+            // PHASE 12 — POINT 7. The target's container is a SYSTEM
+            // organization (a self-service OWNED workspace), so there is no
+            // Organization context to establish. The session must still LEAVE
+            // whichever Customer Organization it was in, or it keeps counting
+            // against that Organization's concurrent-session limit from
+            // outside it.
+            if (seat.notApplicable) {
+              await releaseOrganizationSessionContext({
+                userId,
+                sessionIdHash: req.user.sessionIdHash,
               });
             }
           }

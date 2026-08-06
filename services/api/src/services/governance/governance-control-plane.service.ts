@@ -201,8 +201,9 @@ export async function buildGovernanceControlPlane(input: {
     // otherwise.
     let activeCaseLegalHoldsCount = 0;
     try {
-      activeCaseLegalHoldsCount = await prisma.caseLegalHold.count({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+      activeCaseLegalHoldsCount = await prisma.evidenceLegalHold.count({
+        // P12.3 canonical-only (scope='CASE').
+        where: { scope: "CASE", teamId: input.teamId, status: "ACTIVE" },
       });
     } catch (err) {
       if (isPrismaTableOrColumnMissing(err)) {
@@ -250,7 +251,11 @@ export async function buildGovernanceControlPlane(input: {
   let caseHolds: NonNullable<GovernanceControlPlaneEnvelope["sections"]["preservation"]["data"]>["caseHolds"] = [];
   try {
     const rows = await prisma.evidenceLegalHold.findMany({
-      where: { teamId: input.teamId },
+      // PHASE 12B CLUSTER 8 — this list is the EVIDENCE-hold half of the
+      // preservation section (`caseHolds` is the other half). Explicit scope
+      // keeps a nullable target from widening it into every hold in the
+      // workspace.
+      where: { teamId: input.teamId, scope: "EVIDENCE", historical: false },
       orderBy: { placedAtUtc: "desc" },
       take: HOLDS_LIMIT,
       select: {
@@ -262,21 +267,26 @@ export async function buildGovernanceControlPlane(input: {
         releasedAtUtc: true,
       },
     });
-    evidenceHolds = rows.map((r) => ({
-      id: r.id,
-      evidenceId: r.evidenceId,
-      reason: r.reason,
-      status: String(r.status),
-      placedAtUtc: r.placedAtUtc.toISOString(),
-      releasedAtUtc: r.releasedAtUtc ? r.releasedAtUtc.toISOString() : null,
-    }));
+    evidenceHolds = rows
+      .filter((r): r is typeof r & { evidenceId: string } =>
+        typeof r.evidenceId === "string",
+      )
+      .map((r) => ({
+        id: r.id,
+        evidenceId: r.evidenceId,
+        reason: r.reason,
+        status: String(r.status),
+        placedAtUtc: r.placedAtUtc.toISOString(),
+        releasedAtUtc: r.releasedAtUtc ? r.releasedAtUtc.toISOString() : null,
+      }));
     preservationOk = true;
   } catch {
     preservationFailed = true;
   }
   try {
-    const rows = await prisma.caseLegalHold.findMany({
-      where: { teamId: input.teamId },
+    const rows = await prisma.evidenceLegalHold.findMany({
+      // P12.3 canonical-only (scope='CASE').
+      where: { scope: "CASE", teamId: input.teamId },
       orderBy: { placedAtUtc: "desc" },
       take: HOLDS_LIMIT,
       select: {
@@ -288,9 +298,10 @@ export async function buildGovernanceControlPlane(input: {
         releasedAtUtc: true,
       },
     });
-    caseHolds = rows.map((r) => ({
+    // scope='CASE' guarantees a case target; narrow rather than assert.
+    caseHolds = rows.flatMap((r) => (r.caseId ? [r] : [])).map((r) => ({
       id: r.id,
-      caseId: r.caseId,
+      caseId: r.caseId as string,
       title: r.title,
       status: String(r.status),
       placedAtUtc: r.placedAtUtc.toISOString(),

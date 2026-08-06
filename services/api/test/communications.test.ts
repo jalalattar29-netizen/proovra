@@ -26,6 +26,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NoopMessagingProvider } from "../src/services/communications/noop-provider.js";
+import type { MessagingProvider } from "../src/services/communications/provider.js";
 import {
   TwilioMessagingProvider,
   readTwilioConfigFromEnv,
@@ -43,7 +44,7 @@ import { VerificationError } from "../src/services/communications/verification.s
 
 describe("NoopMessagingProvider — structured failure surface", () => {
   it("sendSms returns ok:false with provider_unconfigured", async () => {
-    const p = new NoopMessagingProvider("feature_disabled");
+    const p: MessagingProvider = new NoopMessagingProvider("feature_disabled");
     const r = await p.sendSms({ toE164: "+14155551234", body: "test" });
     expect(r.ok).toBe(false);
     if (!r.ok) {
@@ -53,13 +54,13 @@ describe("NoopMessagingProvider — structured failure surface", () => {
   });
 
   it("sendWhatsApp returns ok:false with provider_unconfigured", async () => {
-    const p = new NoopMessagingProvider("twilio_unconfigured");
+    const p: MessagingProvider = new NoopMessagingProvider("twilio_unconfigured");
     const r = await p.sendWhatsApp({ toE164: "+14155551234", body: "test" });
     expect(r.ok).toBe(false);
   });
 
   it("startVerification + checkVerification both fail closed", async () => {
-    const p = new NoopMessagingProvider("feature_disabled");
+    const p: MessagingProvider = new NoopMessagingProvider("feature_disabled");
     const start = await p.startVerification({
       toE164: "+14155551234",
       channel: "SMS",
@@ -73,7 +74,7 @@ describe("NoopMessagingProvider — structured failure surface", () => {
   });
 
   it("verifyWebhookSignature always returns false (no shared secret)", () => {
-    const p = new NoopMessagingProvider("feature_disabled");
+    const p: MessagingProvider = new NoopMessagingProvider("feature_disabled");
     const ok = p.verifyWebhookSignature({
       url: "https://api.example.com/v1/communications/webhooks/twilio/status",
       rawBody: "",
@@ -84,7 +85,7 @@ describe("NoopMessagingProvider — structured failure surface", () => {
   });
 
   it("parseDeliveryWebhook returns kind:ignored on noop", () => {
-    const p = new NoopMessagingProvider("feature_disabled");
+    const p: MessagingProvider = new NoopMessagingProvider("feature_disabled");
     const parsed = p.parseDeliveryWebhook({ fields: {} });
     expect(parsed.kind).toBe("ignored");
   });
@@ -563,16 +564,16 @@ describe("Public verify isolation — communications NOT exposed", () => {
 // -----------------------------------------------------------------------------
 
 describe("Phase 18 — untouched files invariant", () => {
-  it("services/worker/src/pdf/report.ts is NOT modified by Phase 18", async () => {
-    const { readFile } = await import("node:fs/promises");
+  it("services/worker/src/pdf/report.ts stays deleted (Phase 2 dead-code removal)", async () => {
+    const { existsSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
-    // Phase 2: services/worker/src/pdf/report.ts was deleted as
-
-    // confirmed dead code; the assertion is vacuously satisfied.
-
-    const src = "";
-    expect(src).not.toMatch(/Phase 18/);
-    expect(src).not.toMatch(/communicationMessage/);
+    // Phase 2 deleted this file as confirmed dead code. The original
+    // Phase-18 invariant ("this renderer is not touched by Phase 18") is
+    // now expressed as: it must not come back.
+    const legacyRenderer = fileURLToPath(
+      new URL("../../worker/src/pdf/report.ts", import.meta.url),
+    );
+    expect(existsSync(legacyRenderer)).toBe(false);
   });
 
   it("public verify route does not import any Phase 18 service", async () => {

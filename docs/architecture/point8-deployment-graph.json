@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "workflow": "ci.yml",
+      "triggers": [
+        "push",
+        "pull_request"
+      ],
+      "branchFilters": {},
+      "automatic": true,
+      "manualOnly": false,
+      "unknownTriggers": [],
+      "effects": [],
+      "productionDeliveryPath": false,
+      "environment": null
+    },
+    {
+      "workflow": "deploy-images.yml",
+      "triggers": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "branchFilters": {
+        "push": [
+          "main"
+        ]
+      },
+      "automatic": true,
+      "manualOnly": false,
+      "unknownTriggers": [],
+      "effects": [
+        "publishes-container-image",
+        "publishes-mutable-tag"
+      ],
+      "productionDeliveryPath": true,
+      "environment": null
+    },
+    {
+      "workflow": "deploy-staging.yml",
+      "triggers": [
+        "workflow_dispatch"
+      ],
+      "branchFilters": {},
+      "automatic": false,
+      "manualOnly": true,
+      "unknownTriggers": [],
+      "effects": [
+        "applies-migrations"
+      ],
+      "productionDeliveryPath": false,
+      "environment": "staging"
+    },
+    {
+      "workflow": "playwright-e2e.yml",
+      "triggers": [
+        "push",
+        "pull_request"
+      ],
+      "branchFilters": {},
+      "automatic": true,
+      "manualOnly": false,
+      "unknownTriggers": [],
+      "effects": [
+        "applies-migrations",
+        "publishes-mutable-tag"
+      ],
+      "productionDeliveryPath": false,
+      "environment": null
+    },
+    {
+      "workflow": "schema-reproducibility.yml",
+      "triggers": [
+        "push",
+        "pull_request"
+      ],
+      "branchFilters": {},
+      "automatic": true,
+      "manualOnly": false,
+      "unknownTriggers": [],
+      "effects": [
+        "applies-migrations"
+      ],
+      "productionDeliveryPath": false,
+      "environment": null
+    }
+  ],
+  "metrics": {
+    "workflows": 5,
+    "UnknownDeploymentTriggers": 0,
+    "productionDeliveryPaths": [
+      "deploy-images.yml"
+    ],
+    "StagingPathCanTriggerProduction": false
+  }
+}

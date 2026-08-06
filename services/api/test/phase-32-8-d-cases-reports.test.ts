@@ -53,7 +53,6 @@ const CASES_INDEX = readWeb("components/cases-experience/CasesIndex.tsx");
 const CASE_WORKSPACE = readWeb("components/cases-experience/MatterWorkspace.tsx");
 const REPORTS_INDEX = readWeb("components/reports-experience/ReportsIndex.tsx");
 const CASES_PAGE = readWeb("app/(app)/cases/page.tsx");
-const CASE_DETAIL_PAGE = readWeb("app/(app)/cases/[id]/page.tsx");
 const REPORTS_PAGE = readWeb("app/(app)/reports/page.tsx");
 
 // =============================================================================
@@ -123,8 +122,14 @@ describe("Phase 32.8D — case-workspace service contract", () => {
     // with the section status reduced from per-block ok/failed flags.
     expect(CASE_SVC).toMatch(/preservationAnyFailed/);
     expect(CASE_SVC).toMatch(/preservationAnyOk/);
-    expect(CASE_SVC).toMatch(/caseLegalHold/);
+    // PHASE 12 POINT 3 — both hold levels now live in the ONE canonical table.
+    // The aggregation is still INDEPENDENT (that is the invariant): the
+    // case-level read is scope-filtered, the evidence-level read is not, and a
+    // partial failure still degrades rather than reporting a clean record.
     expect(CASE_SVC).toMatch(/evidenceLegalHold/);
+    expect(CASE_SVC).toMatch(/scope: "CASE"/);
+    // The retired delegate may not reappear.
+    expect(CASE_SVC).not.toMatch(/prisma\.caseLegalHold\./);
   });
 
   it("timeline is built from real timestamps only (case + evidence + holds — no synthesized events)", () => {
@@ -332,30 +337,6 @@ describe("Phase 32.8D — /cases list page (CasesIndex)", () => {
     );
   });
 
-  // OBSOLETE — Phase 32.8D-frontend rebuilt CasesIndex as the Matter
-  // Operations Queue consuming /v1/cases/matter-queue. The new
-  // contract is asserted by phase-32-8-d-frontend-matter-workspace.test.ts.
-  it.skip("reads from /v1/cases/summary (the audit-free aggregator)", () => {});
-
-  it.skip("renders the operational summary tiles backed by real envelope data", () => {
-    for (const key of [
-      'data-cases-summary-key="total"',
-      'data-cases-summary-key="with_evidence"',
-    ]) {
-      expect(CASES_INDEX).toContain(key);
-    }
-    // Team-only summary cards are gated by `isTeam` AND reference the
-    // canonical workspace fields.
-    expect(CASES_INDEX).toMatch(/isTeam\s*\?[\s\S]{0,3000}casesWithActiveHolds/);
-    expect(CASES_INDEX).toMatch(/isTeam\s*\?[\s\S]{0,3000}casesWithPendingReview/);
-  });
-
-  // OBSOLETE — Phase 32.8D-frontend removed the inline "create case"
-  // button from the Matter Operations Queue. Case creation is driven
-  // from the evidence-detail flow / admin tooling. The new tests live
-  // in phase-32-8-d-frontend-matter-workspace.test.ts.
-  it.skip("gates the 'Create case' button by canonical CASES_MANAGE capability", () => {});
-
   it("create / archive / delete actions only fire on explicit user click (no mutation on page mount)", () => {
     // §3 overflow menu — the Matter Queue now surfaces per-row actions:
     // create case (POST /v1/cases via the modal), archive (POST
@@ -376,19 +357,6 @@ describe("Phase 32.8D — /cases list page (CasesIndex)", () => {
     );
   });
 
-  // OBSOLETE — Phase 32.8D-frontend replaced the all/with_evidence/
-  // with_holds/with_review filter set with the canonical matter-queue
-  // filters (status/riskLevel/assignedToMe/hasOpenIncidents/etc).
-  // See phase-32-8-d-frontend-matter-workspace.test.ts for the new
-  // filter contract.
-  it.skip("provides bounded filters: all / with_evidence / with_holds / with_review (last two team-only)", () => {});
-
-  // OBSOLETE — Phase 32.8D-frontend uses `QueueLoading`,
-  // `QueueAuthError`, `QueueUnavailable` shells. Personal mode now
-  // routes through CapabilityDegradedPanel rather than a dedicated
-  // CasesNoWorkspace shell.
-  it.skip("renders distinct loading / no-workspace / auth-error / unavailable states (no infinite loaders)", () => {});
-
   it("never contains fake metrics or hardcoded numeric values", () => {
     // No `value: N` literals or Math.random.
     expect(CASES_INDEX).not.toMatch(/Math\.random/);
@@ -401,47 +369,6 @@ describe("Phase 32.8D — /cases list page (CasesIndex)", () => {
 // =============================================================================
 
 describe("Phase 32.8D — /cases/[id] tabbed workspace (CaseWorkspace)", () => {
-  // OBSOLETE — Phase C1 made /cases/[id] the canonical Matter
-  // Workspace and moved the legacy CaseWorkspace scroll-spy surface
-  // to /cases/[id]/classic. The current contract is asserted by
-  // phase-c1-matter-workspace.test.ts.
-  it.skip("delegates the detail page to CaseWorkspace", () => {
-    expect(CASE_DETAIL_PAGE).toMatch(/<CaseWorkspace\s+caseId=\{caseId\}\s*\/>/);
-  });
-
-  // OBSOLETE — Phase 32.8D-frontend rewired CaseWorkspace to consume
-  // /v1/cases/:id/matter-workspace (the enterprise envelope), not the
-  // legacy /v1/cases/:id/workspace. The new contract is asserted by
-  // phase-32-8-d-frontend-matter-workspace.test.ts.
-  it.skip("fetches the workspace envelope from /v1/cases/:id/workspace (NOT /v1/cases/:id which is audited)", () => {});
-
-  it.skip("renders the canonical tabs: Overview, Linked Evidence, Timeline, Review Coordination, Legal Preservation, Activity", () => {
-    expect(CASE_WORKSPACE).toMatch(/label: "Overview"/);
-    expect(CASE_WORKSPACE).toMatch(/label: "Linked Evidence"/);
-    expect(CASE_WORKSPACE).toMatch(/label: "Timeline"/);
-    expect(CASE_WORKSPACE).toMatch(/label: "Review Coordination"/);
-    expect(CASE_WORKSPACE).toMatch(/label: "Legal Preservation"/);
-    expect(CASE_WORKSPACE).toMatch(/label: "Activity"/);
-  });
-
-  // OBSOLETE — Phase 32.8D-frontend replaced the tab-based workspace
-  // with the 11-section matter workspace. Reviewer + governance
-  // sections now use server-provided section status + capability
-  // gating instead of local `isTeam` short-circuits.
-  it.skip("Review Coordination + Activity tabs are gated by `isTeam` (personal cases short-circuit to neutral state)", () => {});
-
-  it.skip("personal-scope short-circuit copy: 'Personal case uses basic evidence controls.'", () => {});
-
-  // OBSOLETE — Phase 32.8D-frontend's timeline section uses new
-  // empty-state copy ("No timeline events in this view." /
-  // "No timeline events recorded for this matter.") and the
-  // 11-section matter workspace no longer has a separate Activity
-  // tab. Disclaimer language preserved in the Custody/Integrity
-  // section (asserted by phase-32-8-d-frontend-matter-workspace).
-  it.skip("Timeline tab handles the 'no events' state with honest copy (NOT fake events)", () => {});
-  it.skip("Activity tab handles the 'no events' state with honest copy", () => {});
-  it.skip("Preservation tab includes the no-legal-admissibility disclaimer", () => {});
-
   it("never makes legal overclaiming statements", () => {
     for (const banned of [
       "legally admissible",
@@ -491,7 +418,7 @@ describe("Phase 32.8D — /reports artifact lifecycle (ReportsIndex)", () => {
   // matching so the "on mount" check stays meaningful.
   function stripClickHandlers(src: string): string {
     return src.replace(
-      /const\s+(?:triggerReport|triggerPackage)\s*=\s*async[\s\S]*?\n  \};/g,
+      /const\s+(?:triggerReport|triggerPackage)\s*=\s*async[\s\S]*?\n {2}\};/g,
       "",
     );
   }
@@ -668,7 +595,7 @@ describe("Phase 32.8D — shared invariants", () => {
     // entry point for these endpoints.
     const stripDownloadHandlers = (s: string) =>
       s.replace(
-        /const\s+(?:triggerReport|triggerPackage)\s*=\s*async[\s\S]*?\n  \};/g,
+        /const\s+(?:triggerReport|triggerPackage)\s*=\s*async[\s\S]*?\n {2}\};/g,
         "",
       );
     const sources = {

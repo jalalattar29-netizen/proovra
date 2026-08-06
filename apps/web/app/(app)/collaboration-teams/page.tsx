@@ -51,14 +51,13 @@ import {
   listTeams,
   type CollaborationTeamSummary,
 } from "../../../lib/api/collaboration-teams";
-import { useAccount, usePersonalSpace } from "../../../lib/platform-context";
+import { useActiveSpace, useWorkspaceLimits } from "../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../lib/platform-context/types";
 import {
   COLLABORATION_TEAM_TYPES,
   type CollaborationTeamType,
   type CollaborationTeamStatus,
 } from "@proovra/shared";
-import { getCollaborationTeamPlanLimits } from "@proovra/shared-billing";
 
 export default function TeamsOverviewPage() {
   return (
@@ -108,27 +107,32 @@ function TeamsOverview() {
   const [sortKey, setSortKey] = useState<SortKey>("ACTIVITY_DESC");
 
   // Plan capacity is sourced from the canonical platform-context envelope
-  // (no fabricated counts). Plan resolution order:
-  //   1. account.accountPlan — the billing-bearing identity for owned teams.
-  //   2. personalSpace.plan  — fallback for envelopes that don't surface
-  //      `account` yet (back-compat with older envelope shape).
+  // (no fabricated counts): `account.accountPlan` is the billing-bearing
+  // identity for owned teams. `null` means the envelope has not loaded.
+  //
+  // Phase 12 Point 4 (Pass E) — the `personalSpace.plan` back-compat
+  // fallback for "envelopes that don't surface `account` yet" was removed;
+  // the API projects the Account section unconditionally.
+  //
   // The owned-team count is the number of non-archived rows the API
   // already returned from GET /v1/collaboration-teams (via `listTeams`);
   // we do NOT recount or invent any number.
-  const account = useAccount();
-  const personalSpace = usePersonalSpace();
-  const planForCapacity: WorkspacePlan | null =
-    account?.accountPlan ?? personalSpace?.plan ?? null;
-  const planLimits = useMemo(
-    () => getCollaborationTeamPlanLimits(planForCapacity),
-    [planForCapacity],
-  );
+  // PHASE 12 — POINT 7 (2026-08-05): the cap is READ from the server
+  // projection for the ACTIVE workspace, not computed from a plan name here.
+  //
+  // `getCollaborationTeamPlanLimits(account.accountPlan)` was a client-side
+  // limit authority keyed on the account rather than on the workspace the
+  // teams belong to. The count below is still the API's — we do not recount
+  // or invent any number — and `null` limits still mean UNKNOWN, so the page
+  // waits for the projection instead of rendering a fabricated capacity.
+  const serverLimits = useWorkspaceLimits();
+  const planForCapacity: WorkspacePlan | null = useActiveSpace()?.plan ?? null;
   const ownedTeamCount = useMemo(
     () => teams.filter((t) => t.status === "ACTIVE").length,
     [teams],
   );
-  const maxTeams = planLimits.maxTeams;
-  const planContextReady = planForCapacity !== null;
+  const maxTeams = serverLimits?.maxOwnedWorkspaces ?? 0;
+  const planContextReady = serverLimits !== null;
   // Entitlement Alignment (2026-07-14): FREE/PAYG include ZERO Teams.
   // When the resolved plan grants no Teams at all the page renders a
   // plan-locked landing (no Create button, honest copy, upgrade CTA);

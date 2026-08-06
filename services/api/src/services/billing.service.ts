@@ -247,7 +247,15 @@ export async function activateTeamPlan(params: {
 
   const caps = getPlanCapabilities(prismaPkg.PlanType.TEAM);
   const includedSeats = caps.includedSeats;
-  const overSeatLimit = team._count.members > includedSeats;
+  // PHASE 12 POINT 4 PASS C — third implementation of the same rule, folded
+  // into the shared policy. This one already counted ACTIVE members only, but
+  // it still lacked the `includedSeats > 0` unlimited guard, so a plan whose
+  // catalog entry carries no seat ceiling would have marked every workspace
+  // over the limit on activation.
+  const overSeatLimit = computeOverSeatLimit({
+    activeMemberCount: team._count.members,
+    includedSeats,
+  });
 
   const updated = await prisma.team.update({
     where: { id: params.teamId },
@@ -755,6 +763,28 @@ export async function syncTeamBillingSnapshot(params: {
   });
 }
 
+/**
+ * PHASE 12 POINT 4 PASS C — the ONE seat-limit policy.
+ *
+ * This rule was implemented twice with different behaviour: the canonical path
+ * below counted ACTIVE members only (the P5 domain remediation) and treated
+ * `includedSeats: 0` as unlimited, while the enterprise org-plan grant loop
+ * recomputed it inline over ALL members with no zero-guard. A suspended or
+ * revoked member therefore inflated the count on the provisioning path and
+ * could mark a workspace over its seat limit when it was not — a false
+ * commercial restriction, applied silently.
+ *
+ * Both callers now share this function so the two paths cannot diverge again.
+ */
+export function computeOverSeatLimit(input: {
+  activeMemberCount: number;
+  includedSeats: number;
+}): boolean {
+  // `includedSeats: 0` means "no seat ceiling", never "zero seats allowed".
+  if (input.includedSeats <= 0) return false;
+  return input.activeMemberCount > input.includedSeats;
+}
+
 export async function refreshTeamSeatState(teamId: string) {
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -772,8 +802,10 @@ export async function refreshTeamSeatState(teamId: string) {
 
   if (!team) return null;
 
-  const overSeatLimit =
-    team.includedSeats > 0 ? team._count.members > team.includedSeats : false;
+  const overSeatLimit = computeOverSeatLimit({
+    activeMemberCount: team._count.members,
+    includedSeats: team.includedSeats,
+  });
 
   const updated = await prisma.team.update({
     where: { id: teamId },

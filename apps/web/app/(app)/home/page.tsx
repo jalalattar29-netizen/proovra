@@ -2,19 +2,20 @@
  * Phase 32.8C — /home renders the Enterprise Evidence Operations
  * Command Center for enterprise users.
  *
- * Phase IA-home-fork — the /home surface decision is now a single,
- * unit-tested pure function (`resolveHomeSurface`). The previous fork
- * sent EVERY non-self-serve case — including `plan === null` (loading
- * or no-entitlement) — to `CommandCenter`, so self-serve users (and
- * every user during the envelope-loading window) saw the enterprise
- * dashboard. The corrected contract:
+ * Phase IA-home-fork — the /home surface decision is a single,
+ * unit-tested pure function (`resolveHomeSurface`).
  *
- *   - "command-center" → ONLY platform admin / enterprise workspace /
- *     `plan === "ENTERPRISE"`. CommandCenter is never a fallback.
- *   - "loading"        → `plan == null`. Render a skeleton, NEVER
+ * Track 1A (surface-tier removal, 2026-07-28) — the decision inputs are
+ * now SERVER-projected booleans only (platform.isPlatformAdmin +
+ * flags.isEnterpriseWorkspace + "has the envelope resolved a plan").
+ * The client never branches on a raw plan name:
+ *
+ *   - "command-center" → ONLY platform admin / enterprise workspace.
+ *     CommandCenter is never a fallback.
+ *   - "loading"        → envelope unresolved. Render a skeleton, NEVER
  *     CommandCenter.
- *   - "self-serve"     → every resolved non-enterprise user (FREE /
- *     PAYG / PRO / TEAM). The single Home V2.
+ *   - "self-serve"     → every resolved non-enterprise user. The
+ *     single Home V2.
  *
  * Hard rules carried from Phase 32.8C (still in force for the
  * enterprise CommandCenter branch):
@@ -35,24 +36,36 @@ import { CommandCenter } from "../../../components/command-center/CommandCenter"
 import { AccountPrioritiesBanner } from "../../../components/command-center/AccountPrioritiesBanner";
 import { SelfServeHomeDashboard } from "../../../components/home-experience/SelfServeHomeDashboard";
 import { HomeSkeleton } from "../../../components/home-experience/HomeSections";
-import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
-import { resolveHomeSurface } from "../../../lib/surface/resolveHomeSurface";
+import { resolveHomeSurface } from "../../../components/home-experience/resolveHomeSurface";
+import {
+  useActiveSpace,
+  usePlatformContext,
+} from "../../../lib/platform-context";
 
 export default function HomePage() {
-  const surfaceUserCtx = useSurfaceUserContext();
+  const { envelope } = usePlatformContext();
+  const activeSpace = useActiveSpace();
+
+  // "Has the envelope resolved a plan for the ACTIVE context?" — a null-check
+  // only (loading heuristic), never a plan-name branch.
+  //
+  // PHASE 12 — POINT 7: read the server-resolved plan of the active space
+  // directly. The previous three-branch chain ended in `?? account.accountPlan`,
+  // which is an owner-plan fallback: it reported "resolved" for a workspace
+  // that had resolved nothing, on the strength of the account that owns it.
+  const resolvedPlan = activeSpace?.plan ?? null;
 
   const decision = resolveHomeSurface({
-    plan: surfaceUserCtx.plan,
-    isPlatformAdmin: surfaceUserCtx.isPlatformAdmin,
-    isEnterpriseWorkspace: surfaceUserCtx.isEnterpriseWorkspace,
+    isPlatformAdmin: envelope?.platform?.isPlatformAdmin === true,
+    isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
+    planResolved: resolvedPlan !== null,
   });
 
   return (
     <PageRouteGate routeId="workspace.home">
       {decision === "command-center" ? (
-        // Enterprise ONLY (platform admin / enterprise workspace /
-        // ENTERPRISE plan). Never reached by self-serve or unresolved
-        // users.
+        // Enterprise ONLY (platform admin / enterprise workspace).
+        // Never reached by self-serve or unresolved users.
         <div data-home-page data-phase-a-1c-home>
           <AccountPrioritiesBanner />
           <CommandCenter />

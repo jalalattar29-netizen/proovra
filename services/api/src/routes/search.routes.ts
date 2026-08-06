@@ -15,10 +15,8 @@ import {
   type SearchFilterInput,
 } from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
-import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
-import { AppError, ErrorCode } from "../errors.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
@@ -50,12 +48,6 @@ import {
   resolveEmbeddingProviderFromEnv,
 } from "../services/search/embedding-provider.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
-
-async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
-  await requireAuth(req, reply);
-  if (reply.sent) return;
-  await requireLegalAcceptance(req, reply);
-}
 
 function readUserAgent(req: FastifyRequest): string | null {
   const ua = req.headers["user-agent"];
@@ -225,271 +217,29 @@ function parseStringList(value: unknown): string[] | undefined {
 }
 
 export async function searchRoutes(app: FastifyInstance) {
-  app.get(
-    "/v1/search/evidence",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      try {
-        const querySchema = z.object({
-          q: z.string().min(1).max(200).optional(),
-          type: z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]).optional(),
-          status: z.enum(["PENDING", "SIGNED", "ARCHIVED"]).optional(),
-          fromDate: z.string().datetime().optional(),
-          toDate: z.string().datetime().optional(),
-          caseId: z.string().uuid().optional(),
-          page: z.coerce.number().int().min(1).default(1),
-          limit: z.coerce.number().int().min(1).max(100).default(20),
-          sortBy: z.enum(["createdAt", "updatedAt", "type"]).default("createdAt"),
-          sortOrder: z.enum(["asc", "desc"]).default("desc"),
-        });
+  // PHASE 12B (Evidence Operations, 2026-07-29) — the owner-scoped
+  // GET /v1/search/evidence and GET /v1/search/cases primitives were
+  // DELETED. They were a SECOND public search authority over the same
+  // Evidence / Case data as the canonical unified GET /v1/search, and
+  // strictly weaker: they scoped by `ownerUserId` alone (no workspace
+  // anchoring, no ACTIVE-membership re-check, no reviewer-restriction
+  // gate, no governance/visibility fail-closed filtering) and matched
+  // only `id`/`mimeType` (evidence) or `name` (case).
+  //
+  // Parity was CLOSED before deletion, not assumed:
+  //   * caseId scoping        → `caseId` filter on SearchFilterSchema,
+  //                             applied against the indexed
+  //                             evidence_search_documents.case_id column.
+  //   * evidence type filter  → `evidenceTypes` is now actually APPLIED
+  //                             by executeSearch (it was previously
+  //                             accepted and silently ignored).
+  //   * date range            → updatedSinceUtc / updatedUntilUtc.
+  //   * owner scoping         → contributorScoped, which is the
+  //                             workspace-safe equivalent.
+  //   * pagination + sort     → cursor + SEARCH_SORT_MODES.
+  // The canonical authority is GET /v1/search below, consumed by
+  // apps/web/app/(app)/search/page.tsx.
 
-        const query = querySchema.parse(req.query);
-        const userId = req.user!.sub;
-
-        const where: Record<string, any> = {
-          ownerUserId: userId,
-          deletedAt: null,
-        };
-
-        if (query.type) {
-          where.type = query.type;
-        }
-
-        if (query.status) {
-          where.status = query.status;
-        }
-
-        if (query.caseId) {
-          where.caseId = query.caseId;
-        }
-
-        if (query.fromDate || query.toDate) {
-          where.createdAt = {};
-          if (query.fromDate) {
-            where.createdAt.gte = new Date(query.fromDate);
-          }
-          if (query.toDate) {
-            where.createdAt.lte = new Date(query.toDate);
-          }
-        }
-
-        if (query.q) {
-          where.OR = [
-            {
-              id: {
-                contains: query.q,
-                mode: "insensitive",
-              },
-            },
-            {
-              mimeType: {
-                contains: query.q,
-                mode: "insensitive",
-              },
-            },
-          ];
-        }
-
-        const total = await prisma.evidence.count({ where });
-        const skip = (query.page - 1) * query.limit;
-
-        const evidence = await prisma.evidence.findMany({
-          where,
-          select: {
-            id: true,
-            type: true,
-            status: true,
-            mimeType: true,
-            createdAt: true,
-            updatedAt: true,
-            caseId: true,
-          },
-          orderBy: {
-            [query.sortBy]: query.sortOrder,
-          },
-          skip,
-          take: query.limit,
-        });
-
-        auditSearchAction(req, {
-          userId,
-          action: "search.evidence",
-          outcome: "success",
-          metadata: {
-            q: query.q ?? null,
-            type: query.type ?? null,
-            status: query.status ?? null,
-            caseId: query.caseId ?? null,
-            page: query.page,
-            limit: query.limit,
-            total,
-          },
-        });
-
-        fireSearchAnalytics({
-          eventType: "evidence_search_performed",
-          userId,
-          req,
-          metadata: {
-            hasQuery: Boolean(query.q),
-            resultCount: evidence.length,
-            total,
-          },
-        });
-
-        return {
-          data: evidence,
-          pagination: {
-            page: query.page,
-            limit: query.limit,
-            total,
-            totalPages: Math.ceil(total / query.limit),
-          },
-        };
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          auditSearchAction(req, {
-            userId: req.user?.sub ?? null,
-            action: "search.evidence",
-            outcome: "failure",
-            severity: "warning",
-            metadata: { reason: "invalid_search_parameters" },
-          });
-
-          throw new AppError(
-            ErrorCode.VALIDATION_ERROR,
-            "Invalid search parameters",
-            { fields: error.flatten() }
-          );
-        }
-
-        auditSearchAction(req, {
-          userId: req.user?.sub ?? null,
-          action: "search.evidence",
-          outcome: "failure",
-          severity: "critical",
-          metadata: {
-            reason: error instanceof Error ? error.message : "unknown_error",
-          },
-        });
-
-        throw error;
-      }
-    }
-  );
-
-  app.get(
-    "/v1/search/cases",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      try {
-        const querySchema = z.object({
-          q: z.string().min(1).max(200).optional(),
-          page: z.coerce.number().int().min(1).default(1),
-          limit: z.coerce.number().int().min(1).max(100).default(20),
-          sortBy: z.enum(["createdAt", "name"]).default("createdAt"),
-          sortOrder: z.enum(["asc", "desc"]).default("desc"),
-        });
-
-        const query = querySchema.parse(req.query);
-        const userId = req.user!.sub;
-
-        const where: Record<string, any> = {
-          ownerUserId: userId,
-        };
-
-        if (query.q) {
-          where.OR = [
-            {
-              name: {
-                contains: query.q,
-                mode: "insensitive",
-              },
-            },
-          ];
-        }
-
-        const total = await prisma.case.count({ where });
-        const skip = (query.page - 1) * query.limit;
-
-        const cases = await prisma.case.findMany({
-          where,
-          select: {
-            id: true,
-            name: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: {
-            [query.sortBy]: query.sortOrder,
-          },
-          skip,
-          take: query.limit,
-        });
-
-        auditSearchAction(req, {
-          userId,
-          action: "search.cases",
-          outcome: "success",
-          metadata: {
-            q: query.q ?? null,
-            page: query.page,
-            limit: query.limit,
-            total,
-          },
-        });
-
-        fireSearchAnalytics({
-          eventType: "case_search_performed",
-          userId,
-          req,
-          metadata: {
-            hasQuery: Boolean(query.q),
-            resultCount: cases.length,
-            total,
-          },
-        });
-
-        return {
-          data: cases,
-          pagination: {
-            page: query.page,
-            limit: query.limit,
-            total,
-            totalPages: Math.ceil(total / query.limit),
-          },
-        };
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          auditSearchAction(req, {
-            userId: req.user?.sub ?? null,
-            action: "search.cases",
-            outcome: "failure",
-            severity: "warning",
-            metadata: { reason: "invalid_search_parameters" },
-          });
-
-          throw new AppError(
-            ErrorCode.VALIDATION_ERROR,
-            "Invalid search parameters",
-            { fields: error.flatten() }
-          );
-        }
-
-        auditSearchAction(req, {
-          userId: req.user?.sub ?? null,
-          action: "search.cases",
-          outcome: "failure",
-          severity: "critical",
-          metadata: {
-            reason: error instanceof Error ? error.message : "unknown_error",
-          },
-        });
-
-        throw error;
-      }
-    }
-  );
 
   // Phase SEARCH-REMEDIATION-CI-FIX — the legacy GET /v1/search/suggest
   // that lived here (querying `prisma.evidence` + `prisma.case` by
@@ -535,6 +285,9 @@ export async function searchRoutes(app: FastifyInstance) {
         q: typeof raw.q === "string" ? raw.q : undefined,
         documentTypes: parseStringList(raw.documentTypes),
         evidenceTypes: parseStringList(raw.evidenceTypes),
+        // PHASE 12B — case scoping absorbed from the deleted
+        // GET /v1/search/evidence primitive.
+        caseId: typeof raw.caseId === "string" ? raw.caseId : undefined,
         workflowStatuses: parseStringList(raw.workflowStatuses),
         reviewStatuses: parseStringList(raw.reviewStatuses),
         onLegalHold: parseBool(raw.onLegalHold),

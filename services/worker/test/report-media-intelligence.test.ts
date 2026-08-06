@@ -28,7 +28,7 @@ import type {
 } from "../src/report-v2";
 import { applyFlowAwareCustodyWording } from "../src/report-v2/normalizers";
 import { buildTimelineRows } from "../src/report-v2/custody-model";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const FULL_HASH_A =
@@ -818,53 +818,73 @@ describe("render-html.ts no longer wires the Media Intelligence section", () => 
 });
 
 // =============================================================================
-// The dormant section module remains anti-leak safe (retained, unwired)
+// The retired section module is gone, and the anti-leak contract moved to
+// the sections that actually render
 // =============================================================================
 
-describe("dormant media-intelligence section module — anti-leak contract", () => {
-  const src = readFileSync(
-    fileURLToPath(
-      new URL("../src/report-v2/sections/media-intelligence.ts", import.meta.url),
-    ),
-    "utf8",
-  );
-
-  it("no storage internals / signed URLs / private notes / raw GPS referenced", () => {
-    const noComments = src
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
-    for (const banned of [
-      "storageKey",
-      "storage_key",
-      "storageBucket",
-      "storage_bucket",
-      "multipartUploadId",
-      "multipart_upload_id",
-      "signedUrl",
-      "signed_url",
-      "presignedUrl",
-      "rawGps",
-      "raw_gps",
-      "privateNote",
-      "private_note",
-      "legalNote",
-      "legalNoteBody",
-    ]) {
-      expect(noComments, `section leaks ${banned}`).not.toContain(banned);
-    }
+describe("retired media-intelligence section module", () => {
+  it("stays removed", () => {
+    // Phase 12 Point 4 — the section was unwired above as a product
+    // decision and had zero remaining callers. Keeping a dormant
+    // renderer only preserved the risk that a later PR re-wires it.
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../src/report-v2/sections/media-intelligence.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
   });
 
-  it("no forbidden truth-claim vocabulary in any source literal", () => {
-    const noComments = src
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
-    const literals = noComments.match(/"[^"\n]+"/g) ?? [];
-    const forbidden =
-      /\b(tamper(ed|ing)?|forged|fake|authentic(ity)?|admissible|proves?|confirms?|manipulated|doctored)\b/i;
-    for (const lit of literals) {
-      expect(lit, `section uses forbidden wording: ${lit}`).not.toMatch(
-        forbidden,
-      );
+  it("no rendered report section leaks storage internals", () => {
+    // The anti-leak half of the contract the dormant module carried is
+    // retargeted to every section render-html actually wires, which is
+    // where a leak would reach a real PDF.
+    //
+    // The other half — the advisory truth-claim vocabulary list — is NOT
+    // portable to these sections and is deliberately not applied here:
+    // it was calibrated for media-intelligence *observations*, whereas
+    // the integrity sections legitimately state what a digest check
+    // confirms. Report-wide honesty wording is covered by the report
+    // copy tests (phase-a0-integrity-hard-gate, phase-a2-pdf-signing-
+    // outcome, phase-31-11-report-projection).
+    const sectionsDir = fileURLToPath(
+      new URL("../src/report-v2/sections", import.meta.url),
+    );
+    const renderSrc = readFileSync(
+      fileURLToPath(new URL("../src/report-v2/render-html.ts", import.meta.url)),
+      "utf8",
+    );
+    const wired = readdirSync(sectionsDir).filter((f) =>
+      renderSrc.includes(`sections/${f.replace(/\.ts$/, ".js")}`),
+    );
+    expect(wired.length).toBeGreaterThan(5);
+    for (const file of wired) {
+      const src = readFileSync(`${sectionsDir}/${file}`, "utf8");
+      const noComments = src
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
+      for (const banned of [
+        "storageKey",
+        "storage_key",
+        "storageBucket",
+        "storage_bucket",
+        "multipartUploadId",
+        "multipart_upload_id",
+        "signedUrl",
+        "signed_url",
+        "presignedUrl",
+        "rawGps",
+        "raw_gps",
+        "privateNote",
+        "private_note",
+        "legalNoteBody",
+      ]) {
+        expect(noComments, `${file} leaks ${banned}`).not.toContain(banned);
+      }
     }
   });
 });

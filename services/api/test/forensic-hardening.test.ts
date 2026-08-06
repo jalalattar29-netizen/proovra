@@ -12,7 +12,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
-  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 import { sanitizePageContextPath } from "../src/services/ai/ai-chat.service.js";
 import {

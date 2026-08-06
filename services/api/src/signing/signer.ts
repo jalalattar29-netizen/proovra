@@ -1,3 +1,5 @@
+import { assertNotCommittedFixture } from "@proovra/shared-runtime";
+
 import { ed25519SignHexWithKeyPath } from "../crypto.js";
 import { KmsEvidenceSigner } from "./kms-signer.js";
 
@@ -47,6 +49,15 @@ class LocalPemEvidenceSigner implements EvidenceSigner {
     if (!/^[a-f0-9]+$/.test(normalizedHex) || normalizedHex.length % 2 !== 0) {
       throw new Error("signFingerprintHex: messageHex must be valid hex");
     }
+
+    // Checked at the point of SIGNING, not only at boot: a signature made with
+    // the repository's committed fixture would be indistinguishable from a real
+    // one to a downstream verifier, so the refusal has to sit on the path that
+    // actually produces it.
+    assertNotCommittedFixture({
+      privateKeyPath: process.env.SIGNING_PRIVATE_KEY_PATH,
+      privateKeyPem: process.env.SIGNING_PRIVATE_KEY_PEM,
+    });
 
     const signatureBase64 = ed25519SignHexWithKeyPath(
       normalizedHex,

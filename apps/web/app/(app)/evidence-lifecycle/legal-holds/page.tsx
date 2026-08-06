@@ -28,6 +28,10 @@ import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
+// PHASE 12B CLUSTER 8 — ONE Legal-Hold surface. `/v1/lifecycle/legal-holds`
+// now serves EVERY scope (evidence / case / workspace) from the ONE canonical
+// authority, so this page is the single place an operator sees preservation
+// controls regardless of which surface placed them.
 interface LegalHold {
   id: string;
   kind: string;
@@ -37,7 +41,21 @@ interface LegalHold {
   scopeTargetId?: string | null;
   expiresAtUtc?: string | null;
   createdAtUtc: string;
+  /** Canonical scope. Present on canonical rows; `kind` is the legacy alias. */
+  scope?: "EVIDENCE" | "CASE" | "WORKSPACE";
+  /** Optimistic-concurrency token — echoed back on release so a stale
+   *  release is refused with 409 instead of overwriting a concurrent one. */
+  version?: number;
+  /** When true the workspace policy demands an explicit release approval. */
+  releaseApprovalRequired?: boolean;
 }
+
+const SCOPE_LABEL: Record<string, string> = {
+  EVIDENCE: "One record",
+  CASE: "Whole case",
+  WORKSPACE: "Whole workspace",
+  ORGANIZATION: "Whole workspace",
+};
 
 // Legal-hold `kind` is the SCOPE the hold applies to, and must match the
 // contract enum LEGAL_HOLD_KINDS validated by POST /v1/lifecycle/legal-holds.
@@ -111,6 +129,8 @@ function Shell() {
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
 
   // Create form state
   const [kind, setKind] = useState<string>(HOLD_KINDS[0]);
@@ -207,17 +227,58 @@ function Shell() {
     }
   }, [kind, name, reason, expiresAtUtc, scopeTargetId, refresh, stepUp, addToast, runGuarded]);
 
+  // PHASE 12B CLUSTER 8 — releasing a hold is a sensitive custody action:
+  // it runs through the same step-up flow as placement, carries a mandatory
+  // release note, and echoes the hold's version so a stale release is
+  // refused (409) rather than silently overwriting a concurrent decision.
   const release = useCallback(
-    async (id: string) => {
+    async (hold: LegalHold) => {
       setDenial(null);
+      setReleaseError(null);
+      const note = window.prompt(
+        `Why are you releasing "${hold.name}"? This note is recorded in the record's custody history.`,
+        "",
+      );
+      if (note === null) return;
+      if (note.trim().length === 0) {
+        setReleaseError("A release note is required before a hold can be released.");
+        return;
+      }
+      setReleasingId(hold.id);
       try {
-        await apiFetch(`/v1/lifecycle/legal-holds/${id}/release`, { method: "POST" });
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(`/v1/lifecycle/legal-holds/${hold.id}/release`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({
+              releaseNote: note,
+              approvalAcknowledged: true,
+              ...(typeof hold.version === "number"
+                ? { expectedVersion: hold.version }
+                : {}),
+            }),
+          }),
+        );
+        addToast("Legal hold released.", "success");
         await refresh();
       } catch (err) {
+        if ((err as { code?: string })?.code === "STEP_UP_CANCEL") {
+          addToast("Step-up cancelled — the hold is still in place.", "info");
+          return;
+        }
         applyDenial(err, setDenial);
+        const safe = toSafeUserError(err, {
+          message: "We couldn't release this legal hold.",
+        });
+        setReleaseError(safe.message);
+        notifyApiError(addToast, err, {
+          message: "We couldn't release this legal hold.",
+        });
+      } finally {
+        setReleasingId(null);
       }
     },
-    [refresh],
+    [refresh, stepUp, addToast],
   );
 
   // PHASE 7 §10.7/§10.G — re-scope on workspace switch: clear the prior
@@ -234,7 +295,15 @@ function Shell() {
       header: "Name",
       render: (h) => <span data-legal-hold-row={h.id}>{h.name}</span>,
     },
-    { key: "kind", header: "Kind", render: (h) => <code>{h.kind}</code> },
+    {
+      key: "kind",
+      header: "Scope",
+      render: (h) => (
+        <span data-legal-hold-scope={h.scope ?? h.kind}>
+          {SCOPE_LABEL[h.scope ?? h.kind] ?? h.kind}
+        </span>
+      ),
+    },
     { key: "reason", header: "Reason", render: (h) => h.reason },
     { key: "state", header: "State", render: (h) => <StatusBadge status={h.state} /> },
     { key: "scopeTarget", header: "Scope Target", render: (h) => h.scopeTargetId ?? "—" },
@@ -373,7 +442,25 @@ function Shell() {
           backend answers STEP_UP_REQUIRED for the create request. */}
       <StepUpModal control={stepUp} />
 
-      <PageSection title="Active legal holds">
+      {releaseError ? (
+        <div
+          data-legal-hold-release-error
+          role="alert"
+          style={{
+            padding: 10,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            borderRadius: 8,
+            fontSize: 12,
+            marginBottom: 10,
+          }}
+        >
+          {releaseError}
+        </div>
+      ) : null}
+
+      <PageSection title="Legal holds in this workspace">
         <DataTable<LegalHold>
           ariaLabel="Legal holds"
           columns={columns}
@@ -385,7 +472,9 @@ function Shell() {
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => void release(h.id)}
+                loading={releasingId === h.id}
+                disabled={releasingId !== null}
+                onClick={() => void release(h)}
               >
                 Release
               </Button>
@@ -394,10 +483,17 @@ function Shell() {
             )
           }
           emptyState={
-            <EmptyState
-              title="No legal holds active"
-              purpose="Place a legal hold above to prevent evidence from being deleted or destroyed while an investigation or litigation is ongoing."
-            />
+            busy ? (
+              <EmptyState
+                title="Loading legal holds…"
+                purpose="Reading the preservation controls that apply in this workspace."
+              />
+            ) : (
+              <EmptyState
+                title="No legal holds in this workspace"
+                purpose="Place a legal hold above to prevent records from being deleted or destroyed while an investigation or litigation is ongoing. A hold can cover one record, a whole case, or the whole workspace."
+              />
+            )
           }
         />
       </PageSection>

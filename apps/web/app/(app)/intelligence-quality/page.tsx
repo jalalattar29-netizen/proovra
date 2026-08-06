@@ -22,6 +22,7 @@ import {
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+import { IntelligenceRecordsPanel } from "./_sections/IntelligenceRecordsPanel";
 
 export default function IntelligenceQualityPage() {
   return (
@@ -145,6 +146,13 @@ function Shell() {
         <h2 style={{ fontSize: 14, marginTop: 0 }}>Workspace + case quality</h2>
         <TeamTable rows={teams?.rows ?? []} />
       </section>
+
+      {/* PHASE 12 — VERTICAL B. Record-level inspection + the immutable
+          correction chain. Mounted HERE, on the restricted governance
+          surface, rather than on a general reviewer page: a correction
+          rewrites what the platform believes an extraction says, and the
+          chain behind it is an audit artefact. */}
+      <IntelligenceRecordsPanel />
     </div>
   );
 }

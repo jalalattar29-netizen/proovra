@@ -1,7 +1,17 @@
 import * as prismaPkg from "@prisma/client";
+import {
+  AMBIGUOUS_ERROR_CODE,
+  AMBIGUOUS_RETRY_BACKOFF_MS,
+  outcomeCode,
+  type EmailDeliveryOutcome,
+} from "@proovra/shared-runtime";
+
 import { prisma } from "../db.js";
 import { getEmailService } from "./email.service.js";
 import { getDemoRequestQuickLinks } from "./demo-request-links.service.js";
+
+/** `eventType` under which demo follow-up attempts are recorded. */
+export const DEMO_FOLLOW_UP_EVENT_TYPE = "demo_request_follow_up";
 
 export type InitialRoutingResult = {
   routingTarget: prismaPkg.DemoRoutingTarget;
@@ -182,8 +192,33 @@ export async function sendDemoFollowUpById(params: {
 
   const quickLinks = getDemoRequestQuickLinks(item.workEmail);
 
-  await emailService.sendDemoRequestFollowUp({
+  // PHASE 12 POINT 5 — the durable delivery-attempt record.
+  //
+  // Created BEFORE the provider call so a crash mid-send is observable rather
+  // than invisible, and so an ambiguous outcome has somewhere honest to live.
+  // A DemoRequest is a PROSPECT record with no workspace, so `teamId` is null:
+  // there is no tenant to attribute the attempt to and none is invented.
+  const attemptRow = await prisma.notificationDelivery.create({
+    data: {
+      teamId: null,
+      eventType: DEMO_FOLLOW_UP_EVENT_TYPE,
+      channel: "EMAIL",
+      provider: "RESEND",
+      recipient: item.workEmail,
+      status: "PENDING",
+      templateKey: templateKeyForStep(nextStep),
+      nextAttemptAtUtc: new Date(Date.now() + FOLLOW_UP_CLAIM_LEASE_MS),
+      metadata: {
+        demoRequestId: item.id,
+        step: nextStep,
+      },
+    },
+    select: { id: true },
+  });
+
+  const outcome = await emailService.sendDemoRequestFollowUp({
     to: item.workEmail,
+    demoRequestId: item.id,
     fullName: firstNameFromFullName(item.fullName),
     step: nextStep,
     sampleReportUrl: quickLinks.sampleReportUrl,
@@ -194,6 +229,24 @@ export async function sendDemoFollowUpById(params: {
     requestDemoUrl: quickLinks.requestDemoUrl,
     contactSalesUrl: quickLinks.contactSalesUrl,
   });
+
+  // PHASE 12 POINT 5 — the outcome now DECIDES whether the step advanced.
+  //
+  // It used to be discarded. The old code awaited the send and advanced the
+  // step unconditionally, and the send itself returned the provider SDK's
+  // `{ data, error }` shape — so a rejected message resolved successfully and
+  // the prospect was recorded as having received a follow-up they never got.
+  // Only an acknowledged send may advance the step; everything else leaves the
+  // request retryable behind its lease.
+  //
+  // The retry is not a blind resend. `sendDemoRequestFollowUp` derives its
+  // provider idempotency key from (durable request id, step), both unchanged
+  // across attempts, so a retry after an ambiguous outcome reaches the
+  // provider as the SAME message and is collapsed rather than delivered twice.
+  await recordFollowUpAttemptOutcome(attemptRow.id, outcome);
+  if (outcome.kind !== "acknowledged") {
+    throw new Error(`FOLLOW_UP_NOT_ACKNOWLEDGED:${outcomeCode(outcome)}`);
+  }
 
   const now = new Date();
   const nextAt = nextFollowUpAtForStep(nextStep);
@@ -242,6 +295,86 @@ export async function sendDemoFollowUpById(params: {
   return updated;
 }
 
+/**
+ * Project one transport outcome onto the durable attempt row.
+ *
+ * The same five-way mapping the MFA digest uses, for the same reason: an
+ * ambiguous outcome must be storable as ambiguous. `RETRY_SCHEDULED` carrying
+ * the canonical `provider_ack_unknown` code says "the provider may hold this
+ * message" — which is neither delivered nor failed, and is the only truthful
+ * thing to write.
+ */
+async function recordFollowUpAttemptOutcome(
+  attemptId: string,
+  outcome: EmailDeliveryOutcome,
+): Promise<void> {
+  const now = new Date();
+  switch (outcome.kind) {
+    case "acknowledged":
+      await prisma.notificationDelivery.update({
+        where: { id: attemptId },
+        data: {
+          status: "SENT",
+          providerMessageId: outcome.providerMessageId,
+          sentAtUtc: now,
+          nextAttemptAtUtc: null,
+        },
+      });
+      return;
+    case "not_configured":
+      await prisma.notificationDelivery.update({
+        where: { id: attemptId },
+        data: {
+          status: "SKIPPED",
+          errorCode: "not_configured",
+          nextAttemptAtUtc: null,
+        },
+      });
+      return;
+    case "permanent":
+      await prisma.notificationDelivery.update({
+        where: { id: attemptId },
+        data: {
+          status: "FAILED",
+          errorCode: outcome.errorCode,
+          failedAtUtc: now,
+          nextAttemptAtUtc: null,
+        },
+      });
+      return;
+    case "retryable":
+      await prisma.notificationDelivery.update({
+        where: { id: attemptId },
+        data: {
+          status: "RETRY_SCHEDULED",
+          errorCode: outcome.errorCode,
+          nextAttemptAtUtc: now,
+        },
+      });
+      return;
+    case "ambiguous":
+      await prisma.notificationDelivery.update({
+        where: { id: attemptId },
+        data: {
+          status: "RETRY_SCHEDULED",
+          errorCode: AMBIGUOUS_ERROR_CODE,
+          errorMessage: outcome.errorCode,
+          nextAttemptAtUtc: new Date(now.getTime() + AMBIGUOUS_RETRY_BACKOFF_MS),
+        },
+      });
+      return;
+  }
+}
+
+/**
+ * How long a claimed follow-up is held before another tick may retry it.
+ *
+ * Ten minutes: long enough that a slow provider call cannot be double-sent,
+ * short enough that a crashed sender does not park the prospect until their
+ * next scheduled step.
+ */
+export const FOLLOW_UP_CLAIM_LEASE_MS = 10 * 60 * 1000;
+
 export async function processDueDemoFollowUps(params?: {
   limit?: number;
   actorUserId?: string | null;
@@ -273,6 +406,30 @@ export async function processDueDemoFollowUps(params?: {
   }> = [];
 
   for (const item of dueItems) {
+    // PHASE 12 POINT 5 — THE CLAIM.
+    //
+    // This loop had none. Two ticks — the worker's interval scheduler and an
+    // operator-triggered run, or two API instances — both selected the same
+    // due request and both called the provider, so a prospect received the
+    // same follow-up twice. The row's own `nextFollowUpAt` is the lease: the
+    // conditional UPDATE pushes it forward, and only the caller that matches
+    // exactly one row may send.
+    //
+    // The lease is deliberately short relative to the follow-up cadence: a
+    // caller that dies mid-send leaves the request recoverable on the next
+    // tick rather than stranded until its next scheduled step.
+    const claim = await prisma.demoRequest.updateMany({
+      where: {
+        id: item.id,
+        followUpStatus: prismaPkg.DemoFollowUpStatus.ACTIVE,
+        nextFollowUpAt: { lte: new Date() },
+      },
+      data: {
+        nextFollowUpAt: new Date(Date.now() + FOLLOW_UP_CLAIM_LEASE_MS),
+      },
+    });
+    if (claim.count !== 1) continue;
+
     try {
       await sendDemoFollowUpById({
         demoRequestId: item.id,

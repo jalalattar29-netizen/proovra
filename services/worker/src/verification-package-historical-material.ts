@@ -145,11 +145,16 @@ export async function buildHistoricalVerificationMaterial(input: {
               ? "degraded"
               : "active";
 
-        function entry(
+        // PHASE 12 POINT 3 — a const-bound function EXPRESSION, not a nested
+        // function declaration. It closes over `provider` from this block, so
+        // hoisting it to module scope would change what it reads; every call
+        // site is below its definition, so losing declaration hoisting is
+        // inert. Behaviour is identical.
+        const entry = (
           purpose: SignerPurpose,
           keyId: string | null,
           keyVersion: string | null,
-        ): HistoricalSignerEntry {
+        ): HistoricalSignerEntry => {
           return {
             signerPurpose: purpose,
             signerId: `${purpose}:${provider}:${keyId ?? "_"}:${
@@ -168,7 +173,7 @@ export async function buildHistoricalVerificationMaterial(input: {
             generatedFrom: extracted.generatedFrom,
             historicalOnly: true,
           };
-        }
+        };
 
         // Deterministic order: matches the bounded `SIGNER_PURPOSES`
         // enum order.

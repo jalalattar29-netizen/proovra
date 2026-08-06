@@ -31,7 +31,6 @@ import {
   parseMentionTokens,
   sanitiseDiscussionBody,
   type DiscussionMessageAuthorKind,
-  type DiscussionParticipantRole,
   type DiscussionThreadKind,
   type DiscussionThreadStatus,
   type DiscussionThreadVisibility,
@@ -677,64 +676,16 @@ export async function revokeContributorAccess(
 }
 
 // -----------------------------------------------------------------------------
-// Counts + safe projection
+// Safe projection
 // -----------------------------------------------------------------------------
-
-export type DiscussionThreadCounts = {
-  open: number;
-  inProgress: number;
-  resolved: number;
-  closed: number;
-  unresolvedAssignedToMe: number;
-  unresolvedMentions: number;
-};
-
-export async function countDiscussionThreads(
-  input: { teamId: string; meUserId?: string | null },
-  client: PrismaClient = defaultPrisma,
-): Promise<DiscussionThreadCounts> {
-  const rows = await client.discussionThread.groupBy({
-    by: ["status"],
-    where: { teamId: input.teamId },
-    _count: { _all: true },
-  });
-  const out: DiscussionThreadCounts = {
-    open: 0,
-    inProgress: 0,
-    resolved: 0,
-    closed: 0,
-    unresolvedAssignedToMe: 0,
-    unresolvedMentions: 0,
-  };
-  for (const r of rows) {
-    if (r.status === "OPEN") out.open = r._count._all;
-    else if (r.status === "IN_PROGRESS") out.inProgress = r._count._all;
-    else if (r.status === "RESOLVED") out.resolved = r._count._all;
-    else if (r.status === "CLOSED") out.closed = r._count._all;
-  }
-  if (input.meUserId) {
-    const [mine, mentions] = await Promise.all([
-      client.discussionThread.count({
-        where: {
-          teamId: input.teamId,
-          assignedToUserId: input.meUserId,
-          status: { notIn: ["RESOLVED", "CLOSED"] },
-        },
-      }),
-      client.discussionMention.count({
-        where: {
-          teamId: input.teamId,
-          mentionedUserId: input.meUserId,
-          notifiedAtUtc: null,
-        },
-      }),
-    ]);
-    out.unresolvedAssignedToMe = mine;
-    out.unresolvedMentions = mentions;
-  }
-  return out;
-}
-
+//
+// Phase 12 Point 4 (Pass E) — `DiscussionThreadCounts` +
+// `countDiscussionThreads` were removed with `GET /v1/collaboration/threads/
+// counts`. That endpoint served the workspace-wide thread counter on the
+// standalone `/collaboration` console, which the IA-collapse decision
+// retired behind a permanent redirect to /inbox; deleting the unreachable
+// page left the route with zero product consumers. Per-thread reads and
+// writes (the evidence-detail Discussion surface) are unaffected.
 export function projectDiscussionThread(t: DbThread): {
   id: string;
   evidenceId: string;

@@ -182,7 +182,7 @@ export async function captureExportSnapshot(
       where: { id: input.evidenceId, teamId: input.teamId },
       select: {
         id: true,
-        caseId: true,
+        caseLinks: { select: { caseId: true }, take: 100 },
         lifecycleState: true,
         retentionPolicyVersionId: true,
         anchor: { select: { anchorHash: true } },
@@ -219,16 +219,23 @@ export async function captureExportSnapshot(
       where: { evidenceId: ev.id, status: prismaPkg.LegalHoldStatus.ACTIVE },
       select: { id: true, placedAtUtc: true, caseId: true },
     });
+    // Track 1B closure — case-level holds are gathered from ALL linked
+    // cases (canonical CaseEvidenceLink), not a single primary case.
     let caseHolds: Array<{ id: string; placedAtUtc: Date; caseId: string }> = [];
-    if (ev.caseId) {
-      const ch = await client.caseLegalHold.findMany({
-        where: {
-          caseId: ev.caseId,
-          status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
+    const linkedCaseIds = ev.caseLinks.map((l) => l.caseId);
+    if (linkedCaseIds.length > 0) {
+      const ch = await client.evidenceLegalHold.findMany({
+        // P12.3 canonical-only (scope='CASE').
+        where: { scope: "CASE",
+          caseId: { in: linkedCaseIds },
+          status: prismaPkg.LegalHoldStatus.ACTIVE,
         },
         select: { id: true, placedAtUtc: true, caseId: true },
       });
-      caseHolds = ch;
+      // scope='CASE' guarantees a case target; narrow rather than assert.
+      caseHolds = ch.flatMap((h) =>
+        h.caseId ? [{ id: h.id, placedAtUtc: h.placedAtUtc, caseId: h.caseId }] : [],
+      );
     }
     activeHolds = [
       ...directHolds.map((h) => ({

@@ -197,7 +197,15 @@ export async function buildOrgGovernanceControlCenter(input: {
           where: { teamId: { in: teamIds }, status: "ACTIVE" },
         }),
         prisma.evidenceLegalHold.findMany({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
+          // PHASE 12B CLUSTER 8 — explicit EVIDENCE scope: this sample names
+          // records, so a nullable-target CASE / WORKSPACE hold must not
+          // appear in it. `activeCaseHoldCount` covers the case half.
+          where: {
+            teamId: { in: teamIds },
+            status: "ACTIVE",
+            scope: "EVIDENCE",
+            evidenceId: { not: null },
+          },
           orderBy: { placedAtUtc: "desc" },
           take: HOLDS_SAMPLE_LIMIT,
           select: {
@@ -210,7 +218,12 @@ export async function buildOrgGovernanceControlCenter(input: {
           },
         }),
         prisma.evidenceLegalHold.findMany({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
+          where: {
+            teamId: { in: teamIds },
+            status: "ACTIVE",
+            scope: "EVIDENCE",
+            evidenceId: { not: null },
+          },
           select: { evidenceId: true },
           distinct: ["evidenceId"],
         }),
@@ -221,8 +234,9 @@ export async function buildOrgGovernanceControlCenter(input: {
       // Case-level holds are an OPTIONAL Phase 14 subsystem — count them
       // best-effort and never let a schema-drift error fail the section.
       try {
-        activeCaseHoldCount = await prisma.caseLegalHold.count({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
+        activeCaseHoldCount = await prisma.evidenceLegalHold.count({
+          // P12.3 canonical-only (scope='CASE').
+          where: { scope: "CASE", teamId: { in: teamIds }, status: "ACTIVE" },
         });
       } catch {
         activeCaseHoldCount = 0;
@@ -234,7 +248,11 @@ export async function buildOrgGovernanceControlCenter(input: {
           activeCount: activeLegalHoldCount,
           activeCaseHoldCount,
           evidenceUnderHoldCount,
-          sample: holds.map((h) => ({
+          sample: holds
+            .filter((h): h is typeof h & { evidenceId: string } =>
+              typeof h.evidenceId === "string",
+            )
+            .map((h) => ({
             id: h.id,
             teamId: h.teamId,
             evidenceId: h.evidenceId,

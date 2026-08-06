@@ -76,12 +76,6 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-function buildFollowUpJobId(evidenceId: string): string {
-  // Mirrors `ots-upgrade.processor.ts:buildFollowUpJobId` so BullMQ
-  // deduplicates against any in-flight follow-up.
-  return `ots-upgrade-followup-${evidenceId}`;
-}
-
 // The classifier expects an `OtsUpgradeOutput`. At repair time we
 // don't run `ots upgrade` (the work was already done by the worker);
 // the relevant signals are the persisted txid + the fresh verify
@@ -216,9 +210,7 @@ async function main(): Promise<void> {
           // Defer the actual DB write + custody event + report-regen
           // to the canonical worker path. Re-enqueueing with the stable
           // jobId is idempotent — BullMQ collapses duplicate adds.
-          await enqueueOtsUpgradeJob(row.id, {
-            jobId: buildFollowUpJobId(row.id),
-          });
+          await enqueueOtsUpgradeJob(row.id, { traceId: "repair_script" });
           summary.enqueuedJobs += 1;
           console.log(
             `[repair-ots]   → enqueued ots-upgrade follow-up for ${idShort}`,
@@ -237,9 +229,7 @@ async function main(): Promise<void> {
             `verifyStatus=${verifyResult.status} reason="${classification.reason.slice(0, 120)}"`,
         );
         if (args.apply) {
-          await enqueueOtsUpgradeJob(row.id, {
-            jobId: buildFollowUpJobId(row.id),
-          });
+          await enqueueOtsUpgradeJob(row.id, { traceId: "repair_script" });
           summary.enqueuedJobs += 1;
           console.log(
             `[repair-ots]   → enqueued ots-upgrade follow-up for ${idShort}`,

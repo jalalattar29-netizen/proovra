@@ -57,7 +57,6 @@ import {
   mapEvidenceAssetKindLabel,
   mapIdentityLevelLabel,
   mapObjectLockModePublicLabel,
-  mapOtsStatusPublicLabel,
   mapOtsStatusPublicLabelWithTxid,
   mapRecordStatusLabel,
   mapTimestampStatusPublicLabel,
@@ -1801,9 +1800,6 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       input.evidence,
       externalMode,
       input.acquisition?.isIntake === true,
-      input.acquisition?.isIntake === true
-        ? (input.acquisition?.identityVerification ?? null)
-        : null,
       input.technicalSummary?.captureEnvironment?.uploadSource ?? null
     ),
     technicalFingerprintNarrative: buildFingerprintNarrative(

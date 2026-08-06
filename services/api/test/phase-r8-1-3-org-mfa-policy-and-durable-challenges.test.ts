@@ -29,7 +29,7 @@
  *   - No capture/upload/custody/report/package code was touched.
  */
 
-import { existsSync, readFileSync, statSync, readdirSync } from "node:fs";
+import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";

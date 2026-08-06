@@ -59,12 +59,6 @@ export class SamlMetadataError extends Error {
     this.name = "SamlMetadataError";
   }
 }
-
-// ---------------------------------------------------------------------------
-// SAML namespace constants
-// ---------------------------------------------------------------------------
-
-const NS_MD = "urn:oasis:names:tc:SAML:2.0:metadata";
 const BINDING_HTTP_REDIRECT =
   "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect";
 const BINDING_HTTP_POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST";
@@ -192,7 +186,7 @@ export function parseSamlMetadata(xmlString: string): SamlIdpMetadata {
   const parser = new DOMParser({
     // @xmldom/xmldom v0.9.x uses a single ErrorHandlerFunction
     // (level, msg, context) => void — not an object with separate methods.
-    errorHandler: (level, msg, _context) => {
+    errorHandler: (level, msg) => {
       if (level === "fatalError") {
         parseError = msg;
       }

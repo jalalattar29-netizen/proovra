@@ -87,7 +87,7 @@ export type WorkspaceFeatureFlags = {
   reportsIncluded?: boolean;
   verificationPackageIncluded?: boolean;
   publicVerifyIncluded?: boolean;
-  allowsPersonalWorkspace?: boolean;
+  allowsPersonalWorkspacePurchase?: boolean;
   allowsTeamWorkspace?: boolean;
 };
 

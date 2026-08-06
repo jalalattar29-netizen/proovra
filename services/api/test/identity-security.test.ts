@@ -24,7 +24,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   StepUpError,
+  consumeApprovedChallenge,
 } from "../src/services/identity-security/step-up.service.js";
+import type { PrismaClient } from "@prisma/client";
 import { projectTrustedDevice } from "../src/services/identity-security/trusted-device.service.js";
 import {
   projectRevokedSession,
@@ -482,5 +484,117 @@ describe("RBAC auto-revoke — suspend + revoke trigger session revocation", () 
     );
     expect(suspendBlock).not.toBeNull();
     expect(revokeBlock).not.toBeNull();
+  });
+});
+
+// -----------------------------------------------------------------------------
+// PHASE 12B — OrganizationSecurityPolicy step-up ACCEPTANCE (real authority).
+//
+// Drives the PRODUCTION consumeApprovedChallenge (the single-use binding the
+// canonical PATCH /v1/security-policy chain consumes via the step-up
+// middleware) with a mocked prisma TRANSPORT only. Proves the org-binding
+// matrix: a challenge minted for Org A's canonical team cannot mutate Org B,
+// replay is denied atomically, wrong purpose is denied, and the binding is
+// per-canonical-team (same-Organization different-Workspace admins bind to the
+// ONE canonical team via orgCanonicalTeamId, so the same challenge governs).
+// -----------------------------------------------------------------------------
+describe("PHASE 12B — org security policy step-up binding matrix (real consume authority)", () => {
+  const ORG_A_TEAM = "aaaa1111-1111-4111-8111-111111111111";
+  const ORG_B_TEAM = "bbbb2222-2222-4222-8222-222222222222";
+  const ACTOR = "user-admin-1";
+  const future = new Date(Date.now() + 5 * 60_000);
+
+  function challengeRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "chal-1",
+      teamId: ORG_A_TEAM,
+      initiatedByUserId: ACTOR,
+      status: "APPROVED",
+      expiresAtUtc: future,
+      purpose: "ORG_SECURITY_POLICY_UPDATE",
+      resourceId: null,
+      resourceKind: null,
+      ...overrides,
+    };
+  }
+
+  function client(rows: Array<Record<string, unknown>>, consumedIds: Set<string> = new Set()) {
+    return {
+      stepUpChallenge: {
+        // teamId-filtered lookup — THE cross-org binding.
+        findFirst: async (args: { where: { id: string; teamId: string } }) =>
+          rows.find(
+            (r) => r.id === args.where.id && r.teamId === args.where.teamId,
+          ) ?? null,
+        update: async () => ({}),
+        // Atomic consume: only one caller wins; replay sees count 0.
+        updateMany: async (args: { where: { id: string } }) => {
+          if (consumedIds.has(args.where.id)) return { count: 0 };
+          consumedIds.add(args.where.id);
+          return { count: 1 };
+        },
+        findUniqueOrThrow: async (args: { where: { id: string } }) => {
+          const row = rows.find((r) => r.id === args.where.id);
+          if (!row) throw new Error("not found");
+          return { ...row, status: "CANCELLED" };
+        },
+      },
+    } as unknown as PrismaClient;
+  }
+
+  it("Org-A challenge CANNOT be consumed against Org B's canonical team (even for a dual-org admin)", async () => {
+    const c = client([challengeRow()]);
+    await expect(
+      consumeApprovedChallenge(
+        { challengeId: "chal-1", teamId: ORG_B_TEAM, userId: ACTOR, purpose: "ORG_SECURITY_POLICY_UPDATE" },
+        c,
+      ),
+    ).rejects.toMatchObject({ code: "challenge_not_found" });
+  });
+
+  it("same-Organization binding: the canonical-team-bound challenge consumes exactly once for Org A", async () => {
+    const consumed = new Set<string>();
+    const c = client([challengeRow()], consumed);
+    const row = await consumeApprovedChallenge(
+      { challengeId: "chal-1", teamId: ORG_A_TEAM, userId: ACTOR, purpose: "ORG_SECURITY_POLICY_UPDATE" },
+      c,
+    );
+    expect(row.status).toBe("CANCELLED");
+    expect(consumed.has("chal-1")).toBe(true);
+  });
+
+  it("replay of an already-consumed challenge is DENIED (atomic single-use)", async () => {
+    const consumed = new Set<string>();
+    const c = client([challengeRow()], consumed);
+    await consumeApprovedChallenge(
+      { challengeId: "chal-1", teamId: ORG_A_TEAM, userId: ACTOR, purpose: "ORG_SECURITY_POLICY_UPDATE" },
+      c,
+    );
+    await expect(
+      consumeApprovedChallenge(
+        { challengeId: "chal-1", teamId: ORG_A_TEAM, userId: ACTOR, purpose: "ORG_SECURITY_POLICY_UPDATE" },
+        c,
+      ),
+    ).rejects.toMatchObject({ code: "challenge_consumed" });
+  });
+
+  it("wrong-purpose challenge is DENIED (no cross-purpose reuse)", async () => {
+    const c = client([challengeRow({ purpose: "LEGAL_HOLD_RELEASE" })]);
+    await expect(
+      consumeApprovedChallenge(
+        { challengeId: "chal-1", teamId: ORG_A_TEAM, userId: ACTOR, purpose: "ORG_SECURITY_POLICY_UPDATE" },
+        c,
+      ),
+    ).rejects.toMatchObject({ code: "challenge_purpose_mismatch" });
+  });
+
+  it("another user's challenge is DENIED (actor binding, anti-enumeration shape)", async () => {
+    const c = client([challengeRow({ initiatedByUserId: "someone-else" })]);
+    await expect(
+      consumeApprovedChallenge(
+        { challengeId: "chal-1", teamId: ORG_A_TEAM, userId: ACTOR, purpose: "ORG_SECURITY_POLICY_UPDATE" },
+        c,
+      ),
+    ).rejects.toMatchObject({ code: "challenge_not_found" });
   });
 });

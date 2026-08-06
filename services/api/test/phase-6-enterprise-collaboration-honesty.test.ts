@@ -37,6 +37,12 @@ const REDACTION_ROUTES = read(
 const REDACTION_DERIVATIVE = read(
   "../../../services/api/src/services/redaction/redaction-derivative.service.ts",
 );
+// PHASE 12B: READY/FAILED completion moved to the ONE worker-side authority;
+// the integrity invariants (original-object collision refusal, derivative-only
+// writes, render audit trail) are now pinned there.
+const REDACTION_WORKER_WRITER = read(
+  "../../../services/worker/src/redaction/redaction-derivative-writer.ts",
+);
 const MEDIA_INTEL_SVC = read(
   "../../../services/api/src/services/intelligence/media-intelligence.service.ts",
 );
@@ -211,31 +217,36 @@ describe("Phase 6 · SCOPE H — Intelligence honesty", () => {
 // ===========================================================================
 
 describe("Phase 6 · SCOPE I — Redaction original-evidence integrity", () => {
-  it("derivative orchestrator REFUSES to overwrite the original storage key", () => {
+  it("derivative completion writer REFUSES to overwrite the original storage key", () => {
     // The keystone integrity guard: a derivative whose storageBucket +
-    // storageKey collide with the original Evidence row is refused with
-    // POLICY_REJECTED. Proves the original bytes are never overwritten.
-    expect(REDACTION_DERIVATIVE).toMatch(
+    // storageKey collide with the original Evidence row is refused
+    // (original_object_collision). Proves the original bytes are never
+    // overwritten. Lives in the worker completion authority.
+    expect(REDACTION_WORKER_WRITER).toMatch(
       /evidence\.storageBucket\s*===\s*input\.storageBucket/,
     );
-    expect(REDACTION_DERIVATIVE).toMatch(
+    expect(REDACTION_WORKER_WRITER).toMatch(
       /evidence\.storageKey\s*===\s*input\.storageKey/,
     );
-    expect(REDACTION_DERIVATIVE).toMatch(/POLICY_REJECTED/);
+    expect(REDACTION_WORKER_WRITER).toMatch(/original_object_collision/);
   });
 
   it("derivative writes ONLY to redactionDerivative — never to the Evidence row", () => {
-    // Every persistence call in the derivative service targets the
-    // redactionDerivative table. It reads Evidence (findFirst) for the
-    // collision guard but NEVER updates/creates/deletes it.
+    // Every persistence call in BOTH the API request service and the worker
+    // completion writer targets the redactionDerivative table. The worker
+    // reads Evidence (findFirst) for the collision guard but NEVER
+    // updates/creates/deletes it.
     expect(REDACTION_DERIVATIVE).toMatch(/prisma\.redactionDerivative\.(create|update)/);
-    expect(REDACTION_DERIVATIVE).not.toMatch(/prisma\.evidence\.update/);
-    expect(REDACTION_DERIVATIVE).not.toMatch(/prisma\.evidence\.updateMany/);
-    expect(REDACTION_DERIVATIVE).not.toMatch(/prisma\.evidence\.create/);
-    expect(REDACTION_DERIVATIVE).not.toMatch(/prisma\.evidence\.delete/);
+    expect(REDACTION_WORKER_WRITER).toMatch(/prisma\.redactionDerivative\.updateMany/);
+    for (const src of [REDACTION_DERIVATIVE, REDACTION_WORKER_WRITER]) {
+      expect(src).not.toMatch(/prisma\.evidence\.update/);
+      expect(src).not.toMatch(/prisma\.evidence\.updateMany/);
+      expect(src).not.toMatch(/prisma\.evidence\.create/);
+      expect(src).not.toMatch(/prisma\.evidence\.delete/);
+    }
     // The derivative carries its OWN hash (fileSha256) distinct from the
     // original — the original's contentHash is never touched.
-    expect(REDACTION_DERIVATIVE).toMatch(/fileSha256:\s*input\.fileSha256/);
+    expect(REDACTION_WORKER_WRITER).toMatch(/fileSha256:\s*input\.fileSha256/);
   });
 
   it("every mutating redaction route is capability-gated before any DB read", () => {
@@ -258,14 +269,17 @@ describe("Phase 6 · SCOPE I — Redaction original-evidence integrity", () => {
   });
 
   it("derivative lifecycle emits an audit trail on every state change", () => {
+    // Request is audited API-side; render start/complete/fail are audited by
+    // the worker completion authority (machine attribution, actorUserId null).
+    expect(REDACTION_DERIVATIVE).toMatch(/"DERIVATIVE_REQUESTED"/);
     for (const code of [
-      "DERIVATIVE_REQUESTED",
       "DERIVATIVE_RENDER_STARTED",
       "DERIVATIVE_RENDER_COMPLETED",
       "DERIVATIVE_RENDER_FAILED",
     ]) {
-      expect(REDACTION_DERIVATIVE).toMatch(new RegExp(`"${code}"`));
+      expect(REDACTION_WORKER_WRITER).toMatch(new RegExp(`"${code}"`));
     }
+    expect(REDACTION_WORKER_WRITER).toMatch(/actorUserId:\s*null/);
     // Downloads bump an audit counter + emit DERIVATIVE_DOWNLOADED.
     expect(REDACTION_ROUTES).toMatch(/downloadCount:\s*\{\s*increment:\s*1\s*\}/);
     expect(REDACTION_ROUTES).toMatch(/"DERIVATIVE_DOWNLOADED"/);
@@ -276,21 +290,25 @@ describe("Phase 6 · SCOPE I — Redaction original-evidence integrity", () => {
   });
 
   it("public verify badge is unauthenticated + provenance-only (never mutating, never original bytes)", () => {
-    // The public route MUST NOT carry requireAuth and MUST surface the
-    // standing 'never modifies original' limitation.
-    // Capture the public-verify route block: from its path literal up to
-    // the start of the NEXT route registration (`app.get`/`app.post`).
-    const block =
-      REDACTION_ROUTES.match(
-        /"\/v1\/redaction\/public\/verify\/:evidenceId"[\s\S]*?(?=app\.(?:get|post|put|delete)\()/,
-      )?.[0] ?? "";
-    expect(block.length).toBeGreaterThan(0);
-    // The public badge route must NOT carry requireAuth (it is public).
-    expect(block).not.toMatch(/requireAuth/);
-    // …and it must surface the standing provenance-only limitations,
-    // including the never-modifies-original guarantee.
-    expect(block).toMatch(/REDACTION_NEVER_MODIFIES_ORIGINAL/);
-    expect(block).toMatch(/REDACTION_DERIVATIVE_IS_NOT_ORIGINAL/);
+    // PHASE 12B (Evidence Operations, 2026-07-29) — the anonymous
+    // `GET /v1/redaction/public/verify/:evidenceId` probe was DELETED and its
+    // fields converged into the token-bound Verify authority
+    // `GET /public/verify/:id` (the `redaction` key), which is rate-limited,
+    // publication-gated and audited. That is a STRICTER surface, not a
+    // weaker one, so the invariant is asserted against the surviving home:
+    // the badge is still public (no requireAuth on the composing read) and
+    // still carries the standing provenance-only limitations.
+    expect(REDACTION_ROUTES).not.toMatch(
+      /app\.get\(\s*"\/v1\/redaction\/public\/verify\/:evidenceId"/,
+    );
+    const PROJECTION = read(
+      "../../../services/api/src/services/redaction/verify-redaction-projection.service.ts",
+    );
+    expect(PROJECTION).toMatch(/REDACTION_NEVER_MODIFIES_ORIGINAL/);
+    expect(PROJECTION).toMatch(/REDACTION_DERIVATIVE_IS_NOT_ORIGINAL/);
+    // The projection is a pure read — it never mutates and never returns bytes.
+    expect(PROJECTION).not.toMatch(/prisma\.\w+\.(create|update|delete)\(/);
+    expect(PROJECTION).not.toMatch(/storageKey|signedUrl/);
   });
 
   it("redaction landing copy states the original is NEVER modified", () => {

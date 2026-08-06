@@ -1,4 +1,4 @@
-import { reportAssetDataUrl } from "./asset-data-url.js";
+
 import { escapeHtml } from "./formatters.js";
 import {
   getReviewerRelianceLabel,
@@ -31,8 +31,6 @@ function sanitizeClassName(value: string): string {
     .filter(Boolean)
     .join(" ");
 }
-
-const reportIconUrl = reportAssetDataUrl("icon-192.png");
 
 export function renderPageSection(
   title: string,

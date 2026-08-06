@@ -30,6 +30,7 @@ import type { PrismaClient } from "@prisma/client";
 import type * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { collapseControlCharacters } from "../../lib/text-sanitize.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { extractPrismaErrorDetail } from "./evidence-indexing.service.js";
@@ -41,7 +42,7 @@ const MAX_BODY = 16 * 1024;
 
 function clip(s: string | null | undefined, max: number): string | null {
   if (s == null) return null;
-  const t = String(s).replace(/[\x00-\x08\x0B-\x1F\x7F]+/g, " ").trim();
+  const t = collapseControlCharacters(String(s), { keep: [0x09, 0x0a] });
   if (t.length === 0) return null;
   if (t.length <= max) return t;
   return t.slice(0, Math.max(1, max - 1)) + "…";
@@ -86,7 +87,11 @@ export async function indexReport(
         evidence: {
           select: {
             teamId: true,
-            caseId: true,
+            caseLinks: {
+              orderBy: { linkedAtUtc: "asc" },
+              select: { caseId: true },
+              take: 1,
+            },
             title: true,
             displayFileName: true,
             originalFileName: true,
@@ -146,7 +151,7 @@ export async function indexReport(
     summary,
     searchableText,
     evidenceId: row.evidence ? row.evidenceId : null,
-    caseId: row.evidence.caseId ?? null,
+    caseId: row.evidence.caseLinks[0]?.caseId ?? null,
     workflowState: row.verificationStatusSnapshot ?? null,
     metadata: {
       reportVersion: row.version,
@@ -180,7 +185,11 @@ export async function indexPackage(
         evidence: {
           select: {
             teamId: true,
-            caseId: true,
+            caseLinks: {
+              orderBy: { linkedAtUtc: "asc" },
+              select: { caseId: true },
+              take: 1,
+            },
             title: true,
             displayFileName: true,
             originalFileName: true,
@@ -245,7 +254,7 @@ export async function indexPackage(
     summary: null,
     searchableText,
     evidenceId: row.evidenceId,
-    caseId: row.evidence.caseId ?? null,
+    caseId: row.evidence.caseLinks[0]?.caseId ?? null,
     workflowState: null,
     metadata: {
       packageVersion: row.version,

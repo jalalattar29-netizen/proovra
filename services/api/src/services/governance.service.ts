@@ -30,14 +30,28 @@ import {
 
 import { prisma as defaultPrisma } from "../db.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
+import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+import {
+  LegalHoldError,
+  placeCanonicalLegalHold,
+  releaseCanonicalLegalHold,
+} from "./governance/legal-hold.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 
 // -----------------------------------------------------------------------------
 // Default policy
 // -----------------------------------------------------------------------------
 
+/**
+ * PHASE 12B CLUSTER 9 — `version` is deliberately EXCLUDED from the effective
+ * policy shape. It is concurrency metadata, not a governance decision: the
+ * dozens of enforcement call sites that consume `EffectivePolicy` must never
+ * be able to branch on it, and the wire contract carries it as a sibling of
+ * `policy`, not a member of it. A workspace with no row at all reports
+ * `POLICY_VERSION_ABSENT` (0) — see `loadWorkspaceGovernancePolicyVersion`.
+ */
 export const DEFAULT_POLICY: Readonly<
-  Omit<DbPolicy, "id" | "teamId" | "updatedByUserId" | "createdAt" | "updatedAt" | "metadataRedactionDefault">
+  Omit<DbPolicy, "id" | "teamId" | "updatedByUserId" | "createdAt" | "updatedAt" | "metadataRedactionDefault" | "version">
 > = {
   defaultRetentionDays: null,
   evidenceDeletionMode: prismaPkg.EvidenceDeletionMode.ALLOWED,
@@ -120,44 +134,171 @@ export async function loadWorkspaceGovernancePolicy(
 // Upsert / read
 // -----------------------------------------------------------------------------
 
-export type UpsertGovernancePolicyInput = {
+export type GovernancePolicyPatch = Partial<{
+  defaultRetentionDays: number | null;
+  evidenceDeletionMode: prismaPkg.EvidenceDeletionMode;
+  requireLegalHoldApprovalForDeletion: boolean;
+  requireReviewBeforeReport: boolean;
+  requireReviewBeforePackage: boolean;
+  requireReviewBeforePublicVerify: boolean;
+  allowExternalIntake: boolean;
+  allowAnonymousIntake: boolean;
+  allowPublicVerify: boolean;
+  allowPackageDownload: boolean;
+  allowReportDownload: boolean;
+  allowOriginalDownload: boolean;
+  // Phase 14 — governance approval flags.
+  requirePublicationApproval: boolean;
+  requireLegalHoldReleaseApproval: boolean;
+}>;
+
+export type UpdateGovernancePolicyInput = {
   teamId: string;
   actorUserId: string;
-  patch: Partial<{
-    defaultRetentionDays: number | null;
-    evidenceDeletionMode: prismaPkg.EvidenceDeletionMode;
-    requireLegalHoldApprovalForDeletion: boolean;
-    requireReviewBeforeReport: boolean;
-    requireReviewBeforePackage: boolean;
-    requireReviewBeforePublicVerify: boolean;
-    allowExternalIntake: boolean;
-    allowAnonymousIntake: boolean;
-    allowPublicVerify: boolean;
-    allowPackageDownload: boolean;
-    allowReportDownload: boolean;
-    allowOriginalDownload: boolean;
-    // Phase 14 — governance approval flags.
-    requirePublicationApproval: boolean;
-    requireLegalHoldReleaseApproval: boolean;
-  }>;
+  patch: GovernancePolicyPatch;
+  /**
+   * The version the caller believes it is editing.
+   * `POLICY_VERSION_ABSENT` (0) means "I saw no policy row" — the write is then
+   * an INSERT whose uniqueness constraint on `team_id` is the concurrency guard.
+   */
+  expectedVersion: number;
 };
 
-export async function upsertWorkspaceGovernancePolicy(
-  input: UpsertGovernancePolicyInput,
+/**
+ * PHASE 12B CLUSTER 9 — the version reported for a workspace that has NO
+ * policy row. A caller that read `0` and then submits `expectedVersion: 0` is
+ * asserting "no policy existed when I looked"; if a row appeared in the
+ * meantime the INSERT loses on the unique index and the caller gets a 409.
+ */
+export const POLICY_VERSION_ABSENT = 0;
+
+export class GovernancePolicyVersionConflictError extends Error {
+  readonly code = "POLICY_VERSION_CONFLICT" as const;
+  readonly statusCode = 409 as const;
+  readonly expectedVersion: number;
+  readonly currentVersion: number | null;
+
+  constructor(expectedVersion: number, currentVersion: number | null) {
+    super("Workspace governance policy changed since it was read.");
+    this.name = "GovernancePolicyVersionConflictError";
+    this.expectedVersion = expectedVersion;
+    this.currentVersion = currentVersion;
+  }
+}
+
+/**
+ * Read ONLY the concurrency version of the workspace policy row.
+ * Returns `POLICY_VERSION_ABSENT` when the workspace has no row (which is a
+ * legitimate steady state — absence means `DEFAULT_POLICY`).
+ */
+export async function loadWorkspaceGovernancePolicyVersion(
+  teamId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<DbPolicy> {
-  return client.workspaceGovernancePolicy.upsert({
-    where: { teamId: input.teamId },
-    create: {
-      teamId: input.teamId,
-      updatedByUserId: input.actorUserId,
+): Promise<number> {
+  const row = await client.workspaceGovernancePolicy.findUnique({
+    where: { teamId },
+    select: { version: true },
+  });
+  return row?.version ?? POLICY_VERSION_ABSENT;
+}
+
+/** Names (never values) of the fields this patch actually writes. */
+export function changedGovernancePolicyFields(
+  patch: GovernancePolicyPatch,
+): string[] {
+  return Object.entries(patch)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => k)
+    .sort();
+}
+
+/**
+ * PHASE 12B CLUSTER 9 — the ONE versioned writer for
+ * `WorkspaceGovernancePolicy`.
+ *
+ * The predecessor (`upsertWorkspaceGovernancePolicy`) was an unconditional
+ * upsert. Two administrators editing the deletion mode and the legal-hold
+ * approval gate at the same time both received 200 and the second silently
+ * erased the first — a governance control reverting with no trace. That is the
+ * race this function closes, and it closes it in the DATABASE, not in a
+ * read-then-compare in application memory:
+ *
+ *   * existing row → `updateMany` predicated on BOTH `teamId` AND
+ *     `version: expectedVersion`, incrementing `version` in the same
+ *     statement. `count === 0` means somebody else moved the row: throw,
+ *     having written nothing.
+ *   * no row → `create`. The unique index on `team_id` is the guard; a
+ *     concurrent creator makes this throw P2002, which is the same conflict.
+ *
+ * There is deliberately NO fallback that writes without the precondition.
+ */
+export async function updateWorkspaceGovernancePolicyWithVersion(
+  input: UpdateGovernancePolicyInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  row: DbPolicy;
+  previousVersion: number;
+  newVersion: number;
+  changedFields: string[];
+}> {
+  const changedFields = changedGovernancePolicyFields(input.patch);
+
+  if (input.expectedVersion === POLICY_VERSION_ABSENT) {
+    try {
+      const row = await client.workspaceGovernancePolicy.create({
+        data: {
+          teamId: input.teamId,
+          updatedByUserId: input.actorUserId,
+          version: 1,
+          ...input.patch,
+        },
+      });
+      return {
+        row,
+        previousVersion: POLICY_VERSION_ABSENT,
+        newVersion: row.version,
+        changedFields,
+      };
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        // A row appeared between the caller's read and this write. The
+        // caller's view of "no policy" is stale — nothing was mutated.
+        throw new GovernancePolicyVersionConflictError(
+          input.expectedVersion,
+          await loadWorkspaceGovernancePolicyVersion(input.teamId, client),
+        );
+      }
+      throw err;
+    }
+  }
+
+  const written = await client.workspaceGovernancePolicy.updateMany({
+    where: { teamId: input.teamId, version: input.expectedVersion },
+    data: {
       ...input.patch,
-    },
-    update: {
-      ...input.patch,
       updatedByUserId: input.actorUserId,
+      version: { increment: 1 },
     },
   });
+  if (written.count === 0) {
+    throw new GovernancePolicyVersionConflictError(
+      input.expectedVersion,
+      await loadWorkspaceGovernancePolicyVersion(input.teamId, client),
+    );
+  }
+
+  const row = await client.workspaceGovernancePolicy.findUniqueOrThrow({
+    where: { teamId: input.teamId },
+  });
+  return {
+    row,
+    previousVersion: input.expectedVersion,
+    newVersion: row.version,
+    changedFields,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -185,68 +326,52 @@ export function requirePermission(
 // Legal hold helpers
 // -----------------------------------------------------------------------------
 
+/**
+ * PHASE 12B CLUSTER 8 — delegates to THE effective-hold evaluator
+ * (services/governance/effective-legal-hold.ts).
+ *
+ * This function used to hand-roll a partial union: it read
+ * `evidence_legal_holds` + the scope-generic `legal_holds`, but NEVER read
+ * `case_legal_holds`, and it swallowed EVERY error from the second half —
+ * a transient database failure silently reported "no hold" on the direct
+ * delete gate. Both defects are gone: the evaluator reads all three stores
+ * and only degrades on a genuinely-absent relation.
+ */
 export async function isUnderActiveLegalHold(
   evidenceId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
-  // --- Canonical delete-gate hold model: EvidenceLegalHold (Phase 27 / 4A) ---
-  // This is the per-record hold the trash/delete/archive UI writes via
-  // `placeLegalHold` (governance.routes.ts) and the worker-enforced lineage.
-  const row = await client.evidenceLegalHold.findFirst({
-    where: { evidenceId, status: prismaPkg.LegalHoldStatus.ACTIVE },
-    select: { id: true },
+  const ev = await client.evidence.findUnique({
+    where: { id: evidenceId },
+    select: {
+      teamId: true,
+      caseLinks: { select: { caseId: true }, take: 200 },
+    },
   });
-  if (row) return true;
 
-  // --- SCOPE-E gap closure: also consult the Phase 4B `LegalHold` model ---
-  // The Surface-A "Lifecycle Operations" UI (POST /v1/lifecycle/legal-holds)
-  // writes EVIDENCE/WORKSPACE/ORGANIZATION/CASE-scoped holds into the 4B
-  // `legal_holds` table (lifecycle/legal-hold.service.ts). Before this
-  // consult, a 4B EVIDENCE-scoped hold placed through that live UI would
-  // NOT block a `DELETE /v1/evidence/:id` — a deletion-blocking asymmetry,
-  // because the 4B canonical `isUnderLegalHold` reads BOTH models while this
-  // gate read only one. This union check makes the delete gate honour a hold
-  // placed by EITHER surface. Strictly ADDITIVE (fail-closed only gains block
-  // conditions); it never allows a deletion the prior code blocked.
-  //
-  // Tolerant of a missing/absent `legal_holds` table (older environments):
-  // a lookup failure degrades to "no 4B hold" so we never break the delete
-  // path — the EvidenceLegalHold check above already ran fail-closed.
-  try {
-    const ev = await client.evidence.findUnique({
-      where: { id: evidenceId },
-      select: { teamId: true, caseId: true },
-    });
-    if (!ev?.teamId) return false;
-
-    const orClauses: Array<Record<string, unknown>> = [
-      { kind: "EVIDENCE", scopeTargetId: evidenceId },
-      { kind: "WORKSPACE", scopeTargetId: ev.teamId },
-      { kind: "ORGANIZATION" },
-    ];
-    if (ev.caseId) {
-      orClauses.push({ kind: "CASE", scopeTargetId: ev.caseId });
-    }
-
-    const hold4B = await client.legalHold.findFirst({
-      where: { teamId: ev.teamId, state: "ACTIVE", OR: orClauses },
-      select: { id: true },
-    });
-    return Boolean(hold4B);
-  } catch {
-    // 4B `legal_holds` table may not exist in every environment — tolerate.
-    return false;
-  }
+  const result = await evaluateEffectiveLegalHold(client, {
+    teamId: ev?.teamId ?? null,
+    evidenceId,
+    caseIds: (ev?.caseLinks ?? []).map((l) => l.caseId),
+  });
+  return result.held;
 }
 
 export async function listLegalHoldsForEvidence(
   evidenceId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<DbLegalHold[]> {
-  return client.evidenceLegalHold.findMany({
-    where: { evidenceId },
+): Promise<Array<DbLegalHold & { evidenceId: string }>> {
+  const rows = await client.evidenceLegalHold.findMany({
+    // Explicit target — an evidence id predicate can never match a
+    // NULL-target CASE or WORKSPACE hold, but the scope filter states the
+    // intent so a future refactor cannot widen it by accident.
+    where: { evidenceId, scope: "EVIDENCE" },
     orderBy: { placedAtUtc: "desc" },
   });
+  return rows.filter(
+    (r): r is DbLegalHold & { evidenceId: string } =>
+      typeof r.evidenceId === "string",
+  );
 }
 
 // Phase 32.7.3 — explicit `select` clause to bound the query
@@ -281,6 +406,26 @@ export type LegalHoldProjection = Pick<
   keyof typeof LEGAL_HOLD_SELECT
 >;
 
+/**
+ * PHASE 12B CLUSTER 8 — `evidence_legal_holds.evidence_id` became NULLABLE
+ * when the table absorbed CASE and WORKSPACE scoped holds. Every reader in
+ * THIS module is an EVIDENCE-scope reader, so each query below is now
+ * EXPLICIT about scope (`scope: "EVIDENCE"` + `evidenceId: { not: null }`).
+ *
+ * That explicitness matters twice over: a nullable target must never widen a
+ * hold lookup into "matches everything", and an evidence surface must never
+ * render a workspace hold as if it named a record.
+ */
+export type EvidenceScopedLegalHoldProjection = LegalHoldProjection & {
+  evidenceId: string;
+};
+
+function isEvidenceScoped(
+  hold: LegalHoldProjection,
+): hold is EvidenceScopedLegalHoldProjection {
+  return typeof hold.evidenceId === "string" && hold.evidenceId.length > 0;
+}
+
 export async function listLegalHoldsForTeam(
   input: {
     teamId: string;
@@ -288,16 +433,20 @@ export async function listLegalHoldsForTeam(
     limit?: number;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<LegalHoldProjection[]> {
-  return client.evidenceLegalHold.findMany({
+): Promise<EvidenceScopedLegalHoldProjection[]> {
+  const rows = await client.evidenceLegalHold.findMany({
     where: {
       teamId: input.teamId,
+      scope: "EVIDENCE",
+      evidenceId: { not: null },
+      historical: false,
       ...(input.status ? { status: input.status } : {}),
     },
     orderBy: { placedAtUtc: "desc" },
     take: Math.min(Math.max(input.limit ?? 100, 1), 500),
     select: LEGAL_HOLD_SELECT,
   });
+  return rows.filter(isEvidenceScoped);
 }
 
 export type PlaceLegalHoldInput = {
@@ -309,65 +458,56 @@ export type PlaceLegalHoldInput = {
   caseId?: string | null;
 };
 
+/**
+ * PHASE 12B CLUSTER 8 — thin adapter over the ONE placement command
+ * (services/governance/legal-hold.service.ts). The workspace check, the
+ * custody event and the webhook fan-out all still happen — they now happen
+ * once, in the canonical service, for every scope. Only the legacy error
+ * codes are preserved here so existing callers keep their contract.
+ */
 export async function placeLegalHold(
   input: PlaceLegalHoldInput,
   client: PrismaClient = defaultPrisma,
-): Promise<DbLegalHold> {
-  // Verify the evidence belongs to the workspace before placing the hold.
-  const evidence = await client.evidence.findUnique({
-    where: { id: input.evidenceId },
-    select: { id: true, teamId: true },
-  });
-  if (!evidence || evidence.teamId !== input.teamId) {
-    throw Object.assign(new Error("evidence_not_in_workspace"), {
-      statusCode: 404,
-      code: "evidence_not_found",
-    });
+): Promise<EvidenceScopedLegalHoldProjection> {
+  try {
+    const hold = await placeCanonicalLegalHold(
+      {
+        teamId: input.teamId,
+        scope: "EVIDENCE",
+        evidenceId: input.evidenceId,
+        actorUserId: input.actorUserId,
+        title: input.title,
+        reason: input.reason ?? null,
+      },
+      client,
+    );
+    return {
+      id: hold.id,
+      teamId: hold.teamId,
+      evidenceId: hold.evidenceId ?? input.evidenceId,
+      caseId: input.caseId ?? hold.caseId,
+      title: hold.title,
+      reason: hold.reason,
+      status: hold.status as prismaPkg.LegalHoldStatus,
+      placedByUserId: hold.placedByUserId,
+      placedAtUtc: hold.placedAtUtc,
+      releasedByUserId: hold.releasedByUserId,
+      releasedAtUtc: hold.releasedAtUtc,
+      releaseNote: hold.releaseNote,
+    };
+  } catch (err) {
+    if (err instanceof LegalHoldError) {
+      throw Object.assign(new Error("evidence_not_in_workspace"), {
+        statusCode: err.statusCode,
+        code:
+          err.code === "target_not_in_workspace" ||
+          err.code === "scope_target_required"
+            ? "evidence_not_found"
+            : err.code,
+      });
+    }
+    throw err;
   }
-
-  const hold = await client.evidenceLegalHold.create({
-    data: {
-      teamId: input.teamId,
-      evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
-      title: input.title.slice(0, 180),
-      reason: input.reason?.slice(0, 4000) ?? null,
-      status: prismaPkg.LegalHoldStatus.ACTIVE,
-      placedByUserId: input.actorUserId,
-    },
-  });
-
-  // Emit a custody event into the existing forensic chain so the legal
-  // hold is visible in the same audit timeline as integrity events.
-  // Failures don't block — the hold is durable; chain emission is
-  // observability.
-  await appendCustodyEvent({
-    evidenceId: input.evidenceId,
-    eventType: prismaPkg.CustodyEventType.LEGAL_HOLD_PLACED,
-    payload: {
-      legalHoldId: hold.id,
-      title: hold.title,
-      placedByUserId: input.actorUserId,
-    },
-  }).catch(() => null);
-
-  // Phase 10 — fire `governance.legal_hold_placed`. Reason is NEVER
-  // emitted to the outbound payload (workspace-internal context).
-  await emitWebhookEvent({
-    teamId: input.teamId,
-    eventType: "governance.legal_hold_placed",
-    payload: {
-      legalHoldId: hold.id,
-      evidenceId: input.evidenceId,
-      title: hold.title,
-      caseId: hold.caseId,
-      placedAtUtc: hold.placedAtUtc.toISOString(),
-      // Deliberately NOT projected: reason.
-    },
-    attemptInline: false,
-  }).catch(() => null);
-
-  return hold;
 }
 
 export type ReleaseLegalHoldInput = {
@@ -375,53 +515,58 @@ export type ReleaseLegalHoldInput = {
   teamId: string;
   actorUserId: string;
   releaseNote: string;
+  /** CLUSTER 8 — optimistic concurrency; a stale value is a 409. */
+  expectedVersion?: number | null;
+  /** CLUSTER 8 — operator confirmation when the approval gate is armed. */
+  approvalAcknowledged?: boolean;
 };
 
+/**
+ * PHASE 12B CLUSTER 8 — thin adapter over the ONE release command. The
+ * release-approval policy gate and the optimistic-concurrency check now
+ * apply here too: this route previously enforced NEITHER, so an evidence
+ * hold placed under `requireLegalHoldReleaseApproval` could be released
+ * without the approval its case-scoped sibling demanded.
+ */
 export async function releaseLegalHold(
   input: ReleaseLegalHoldInput,
   client: PrismaClient = defaultPrisma,
-): Promise<DbLegalHold> {
-  const note = input.releaseNote.trim();
-  if (note.length === 0) {
-    throw Object.assign(new Error("release_note_required"), {
-      statusCode: 422,
-      code: "release_note_required",
-    });
+): Promise<EvidenceScopedLegalHoldProjection> {
+  try {
+    const released = await releaseCanonicalLegalHold(
+      {
+        teamId: input.teamId,
+        holdId: input.id,
+        actorUserId: input.actorUserId,
+        releaseNote: input.releaseNote,
+        expectedVersion: input.expectedVersion ?? null,
+        approvalAcknowledged: input.approvalAcknowledged === true,
+      },
+      client,
+    );
+    return {
+      id: released.id,
+      teamId: released.teamId,
+      evidenceId: released.evidenceId ?? "",
+      caseId: released.caseId,
+      title: released.title,
+      reason: released.reason,
+      status: released.status as prismaPkg.LegalHoldStatus,
+      placedByUserId: released.placedByUserId,
+      placedAtUtc: released.placedAtUtc,
+      releasedByUserId: released.releasedByUserId,
+      releasedAtUtc: released.releasedAtUtc,
+      releaseNote: released.releaseNote,
+    };
+  } catch (err) {
+    if (err instanceof LegalHoldError) {
+      throw Object.assign(new Error(err.code), {
+        statusCode: err.statusCode,
+        code: err.code === "hold_not_found" ? "legal_hold_not_found" : err.code,
+      });
+    }
+    throw err;
   }
-
-  const hold = await client.evidenceLegalHold.findUnique({
-    where: { id: input.id },
-  });
-  if (!hold || hold.teamId !== input.teamId) {
-    throw Object.assign(new Error("legal_hold_not_found"), {
-      statusCode: 404,
-      code: "legal_hold_not_found",
-    });
-  }
-  if (hold.status === prismaPkg.LegalHoldStatus.RELEASED) {
-    return hold;
-  }
-
-  const released = await client.evidenceLegalHold.update({
-    where: { id: input.id },
-    data: {
-      status: prismaPkg.LegalHoldStatus.RELEASED,
-      releasedAtUtc: new Date(),
-      releasedByUserId: input.actorUserId,
-      releaseNote: note.slice(0, 4000),
-    },
-  });
-
-  await appendCustodyEvent({
-    evidenceId: hold.evidenceId,
-    eventType: prismaPkg.CustodyEventType.LEGAL_HOLD_RELEASED,
-    payload: {
-      legalHoldId: hold.id,
-      releasedByUserId: input.actorUserId,
-    },
-  }).catch(() => null);
-
-  return released;
 }
 
 // -----------------------------------------------------------------------------
@@ -1152,7 +1297,11 @@ export function projectEffectivePolicy(policy: EffectivePolicy): EffectivePolicy
 // using the explicit `select` clause in `listLegalHoldsForTeam`
 // type-check correctly. Existing callers that pass a full
 // `DbLegalHold` continue to work (it's a superset).
-export function projectLegalHold(hold: LegalHoldProjection): {
+// PHASE 12B CLUSTER 8 — narrowed to the EVIDENCE-scoped projection. This
+// projector is the wire shape of /v1/governance/legal-holds, which is an
+// evidence-hold surface; accepting a nullable target here would let a CASE or
+// WORKSPACE hold be rendered as though it named a record.
+export function projectLegalHold(hold: EvidenceScopedLegalHoldProjection): {
   id: string;
   teamId: string;
   evidenceId: string;

@@ -80,21 +80,22 @@ test("fixture mirrors the canonical PLAN_CAPABILITIES catalog", () => {
 function ctxFor(
   plan: "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE",
 ): SurfaceUserContext {
+  // PHASE 12B Track 1A — the surface context carries SERVER-projected
+  // booleans only; ctxFor mirrors what the backend projects for each plan.
   if (plan === "ENTERPRISE") {
     return {
-      plan: "TEAM",
-      role: "MEMBER",
       isPlatformAdmin: false,
       isEnterpriseWorkspace: true,
-      planFeatures: { intakeIncluded: true },
+      planFeatures: { intakeIncluded: true, professionalSurfacesIncluded: true },
     };
   }
   return {
-    plan,
-    role: "OWNER",
     isPlatformAdmin: false,
     isEnterpriseWorkspace: false,
-    planFeatures: { intakeIncluded: PLAN_FEATURES[plan].intakeIncluded },
+    planFeatures: {
+      intakeIncluded: PLAN_FEATURES[plan].intakeIncluded,
+      professionalSurfacesIncluded: plan === "PRO" || plan === "TEAM",
+    },
   };
 }
 
@@ -134,16 +135,14 @@ test("unknown entitlement fails CLOSED to the tier fallback", () => {
   // Envelope still loading — PAYG without a known entitlement falls back
   // to the PROFESSIONAL tier (hidden), never open-by-default.
   const loading: SurfaceUserContext = {
-    plan: "PAYG",
-    role: "OWNER",
     isPlatformAdmin: false,
     isEnterpriseWorkspace: false,
-    planFeatures: { intakeIncluded: null },
+    planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false },
   };
   assert.equal(canAccessSurface(loading, "/intake-links"), false);
   // PRO stays visible through the tier fallback even while loading.
   assert.equal(
-    canAccessSurface({ ...loading, plan: "PRO" }, "/intake-links"),
+    canAccessSurface({ ...loading, planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true } }, "/intake-links"),
     true,
   );
 });
@@ -170,6 +169,16 @@ function sidebarRouteIds(plan: "FREE" | "PAYG" | "PRO" | "TEAM"): string[] {
       route,
       activeSpaceType: "PERSONAL",
       isPlatformAdmin: false,
+      // PHASE 12B Track 1A — mirror production (AppSidebarV2): the resolver
+      // consumes the SERVER-projected commercial entitlements.
+      isEnterpriseWorkspace: false,
+      planFeatures: {
+        intakeIncluded: PLAN_FEATURES[plan].intakeIncluded,
+        reportsIncluded: PLAN_FEATURES[plan].reportsIncluded,
+        verificationPackageIncluded: PLAN_FEATURES[plan].verificationPackageIncluded,
+        casesIncluded: PLAN_FEATURES[plan].casesIncluded,
+        professionalSurfacesIncluded: plan === "PRO" || plan === "TEAM",
+      },
       capabilities: {
         DASHBOARD_VIEW: true,
         EVIDENCE_VIEW: true,

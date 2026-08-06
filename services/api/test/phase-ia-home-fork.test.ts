@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveHomeSurface,
   type HomeSurfaceInput,
-} from "../../../apps/web/lib/surface/resolveHomeSurface";
+} from "../../../apps/web/components/home-experience/resolveHomeSurface";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -28,82 +28,44 @@ function readWeb(rel: string): string {
   );
 }
 
-const SELF_SERVE: Omit<HomeSurfaceInput, "plan"> = {
+// PHASE 12B Track 1A — the decision input is SERVER-projected booleans only
+// (isPlatformAdmin / isEnterpriseWorkspace [backend ENTERPRISE_PLAN_KEYS =
+// {"ENTERPRISE"}] / planResolved). The old raw-plan table maps exactly onto
+// these booleans; every original case is preserved below.
+const SELF_SERVE: HomeSurfaceInput = {
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  planResolved: true,
 };
 
-// ============================================================================
-// 1. The decision function — every required case
-// ============================================================================
-
-describe("Phase IA-home-fork — resolveHomeSurface", () => {
-  it("plan null → loading skeleton (NEVER CommandCenter)", () => {
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: null })).toBe("loading");
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: undefined })).toBe("loading");
+describe("Phase IA-home-fork — resolveHomeSurface (server-projected booleans)", () => {
+  it("plan unresolved (envelope loading) → loading skeleton (NEVER CommandCenter)", () => {
+    expect(resolveHomeSurface({ ...SELF_SERVE, planResolved: false })).toBe("loading");
   });
 
-  it("PRO → self-serve Home V2", () => {
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: "PRO" })).toBe("self-serve");
+  it("every self-serve resolved context (old FREE/PAYG/PRO/TEAM) → self-serve Home V2", () => {
+    // FREE/PAYG/PRO/TEAM all project isEnterpriseWorkspace=false — one case.
+    expect(resolveHomeSurface(SELF_SERVE)).toBe("self-serve");
   });
 
-  it("TEAM → self-serve Home V2", () => {
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: "TEAM" })).toBe("self-serve");
-  });
-
-  it("FREE → self-serve Home V2", () => {
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: "FREE" })).toBe("self-serve");
-  });
-
-  it("PAYG → self-serve Home V2", () => {
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: "PAYG" })).toBe("self-serve");
-  });
-
-  it("platform admin → command-center", () => {
+  it("platform admin → command-center (even while the plan is unresolved)", () => {
     expect(
-      resolveHomeSurface({ plan: null, isPlatformAdmin: true, isEnterpriseWorkspace: false }),
+      resolveHomeSurface({ isPlatformAdmin: true, isEnterpriseWorkspace: false, planResolved: false }),
     ).toBe("command-center");
-    // Even with a self-serve plan, a platform admin still gets CC.
     expect(
-      resolveHomeSurface({ plan: "PRO", isPlatformAdmin: true, isEnterpriseWorkspace: false }),
+      resolveHomeSurface({ isPlatformAdmin: true, isEnterpriseWorkspace: false, planResolved: true }),
     ).toBe("command-center");
   });
 
-  it("enterprise workspace → command-center", () => {
+  it("enterprise workspace (backend flag from the ENTERPRISE plan) → command-center", () => {
     expect(
-      resolveHomeSurface({ plan: "PRO", isPlatformAdmin: false, isEnterpriseWorkspace: true }),
+      resolveHomeSurface({ isPlatformAdmin: false, isEnterpriseWorkspace: true, planResolved: true }),
     ).toBe("command-center");
   });
 
-  it("TEAM plan + isEnterpriseWorkspace flag → STILL self-serve (flag means TEAM-billed, not Enterprise)", () => {
-    // The backend derives flags.isEnterpriseWorkspace from
-    // ENTERPRISE_PLAN_KEYS = {"TEAM"} — every TEAM-billed workspace
-    // raises it. The Home contract counts TEAM as self-serve, so the
-    // flag alone must not route a TEAM workspace to CommandCenter.
-    expect(
-      resolveHomeSurface({ plan: "TEAM", isPlatformAdmin: false, isEnterpriseWorkspace: true }),
-    ).toBe("self-serve");
-  });
-
-  it("ENTERPRISE plan → command-center", () => {
-    expect(resolveHomeSurface({ ...SELF_SERVE, plan: "ENTERPRISE" })).toBe(
-      "command-center",
-    );
-  });
-
-  it("a self-serve user NEVER resolves to command-center for any self-serve plan", () => {
-    for (const plan of ["FREE", "PAYG", "PRO", "TEAM"]) {
-      expect(resolveHomeSurface({ ...SELF_SERVE, plan })).not.toBe("command-center");
-    }
-  });
-
-  it("CommandCenter is reachable ONLY via an explicit enterprise signal", () => {
-    // No enterprise signal of any kind ⇒ never command-center, whatever
-    // the plan string (incl. unknown future plans).
-    for (const plan of [null, undefined, "FREE", "PAYG", "PRO", "TEAM", "SOMETHING_NEW"]) {
-      const d = resolveHomeSurface({ ...SELF_SERVE, plan });
-      expect(d).not.toBe("command-center");
-    }
+  it("CommandCenter is reachable ONLY via an explicit enterprise signal (no fallback)", () => {
+    expect(resolveHomeSurface(SELF_SERVE)).not.toBe("command-center");
+    expect(resolveHomeSurface({ ...SELF_SERVE, planResolved: false })).not.toBe("command-center");
   });
 });
 

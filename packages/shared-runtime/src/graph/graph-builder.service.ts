@@ -164,7 +164,7 @@ export async function reconcileTeamGraph(
       )
         .toString()
         .slice(0, 240);
-      const visibility = evidenceVisibility(ev.status);
+      const visibility = evidenceVisibility();
       const upserted = await upsertNode(
         client,
         teamId,
@@ -1821,6 +1821,16 @@ const DUPLICATE_EDGE_TYPES = [
   "POSSIBLE_DERIVATIVE_OF",
 ] as const;
 
+/**
+ * The duplicate-edge vocabulary rendered for the two raw queries below, which
+ * previously repeated the same literal list inline. Built from the constant
+ * above so the vocabulary has ONE definition; every element is a compile-time
+ * literal from the `as const` tuple, so nothing untrusted reaches the SQL.
+ */
+const DUPLICATE_EDGE_TYPE_SQL_LIST = DUPLICATE_EDGE_TYPES.map(
+  (edgeType) => `'${edgeType}'`,
+).join(",");
+
 export async function listDuplicateEdges(
   input: ListDuplicateEdgesInput,
   client: PrismaClient = getRegisteredPrisma(),
@@ -1856,7 +1866,7 @@ export async function listDuplicateEdges(
             AND nt."team_id" = $1
             AND ns."node_kind" = 'EVIDENCE'
             AND nt."node_kind" = 'EVIDENCE'
-            AND e."edge_type" IN ('SAME_HASH_AS','SIMILAR_TO','POSSIBLE_DERIVATIVE_OF')
+            AND e."edge_type" IN (${DUPLICATE_EDGE_TYPE_SQL_LIST})
             AND (ns."external_id" = $2 OR nt."external_id" = $2)
           ORDER BY e."updated_at_utc" DESC
           LIMIT $3`,
@@ -1882,7 +1892,7 @@ export async function listDuplicateEdges(
             AND nt."team_id" = $1
             AND ns."node_kind" = 'EVIDENCE'
             AND nt."node_kind" = 'EVIDENCE'
-            AND e."edge_type" IN ('SAME_HASH_AS','SIMILAR_TO','POSSIBLE_DERIVATIVE_OF')
+            AND e."edge_type" IN (${DUPLICATE_EDGE_TYPE_SQL_LIST})
           ORDER BY e."updated_at_utc" DESC
           LIMIT $2`,
         input.teamId,
@@ -2041,10 +2051,12 @@ function projectEdge(raw: RawEdgeRow): GraphEdge {
   };
 }
 
-function evidenceVisibility(_status: string): GraphVisibilityScope {
-  // Today we treat every evidence node as WORKSPACE_INTERNAL.
-  // Future phases that need narrower visibility (e.g.
-  // REVIEWER_RESTRICTED for sensitive content) wire that here.
+function evidenceVisibility(): GraphVisibilityScope {
+  // Today EVERY evidence node is WORKSPACE_INTERNAL, unconditionally — the
+  // function takes no input because none is consulted. A future phase that
+  // needs a narrower scope (e.g. REVIEWER_RESTRICTED for sensitive content)
+  // introduces the input it actually reads at that point; declaring an ignored
+  // parameter today only pretends the decision already depends on status.
   return "WORKSPACE_INTERNAL";
 }
 

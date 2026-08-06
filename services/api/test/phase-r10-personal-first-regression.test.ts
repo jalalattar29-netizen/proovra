@@ -41,7 +41,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -61,8 +61,6 @@ function readWeb(rel: string): string {
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
-
-const RESOLVER_SRC = readWeb("lib/navigation/routeAccessResolver.ts");
 const ROUTE_REGISTRY_SRC = readWeb("lib/navigation/routeRegistry.ts");
 const PAGE_GATE_SRC = readWeb("components/navigation/PageRouteGate.tsx");
 const APP_SIDEBAR_SRC = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
@@ -83,9 +81,6 @@ const PLATFORM_CTX_API_SRC = readApi(
 );
 const PLATFORM_CTX_TYPES_API_SRC = readApi(
   "src/services/platform-context/types.ts",
-);
-const CAPABILITY_REGISTRY_SRC = readApi(
-  "src/services/platform-context/capability-registry.ts",
 );
 
 // =============================================================================
@@ -306,7 +301,10 @@ describe("Phase R10 — Stage 2: hardcoded /ops links sit behind useCan() checks
   // so personal users don't see operator deep-links they cannot use.
   const STAGE_2_FILES = [
     "app/(app)/investigation/page.tsx",
-    "components/reviewer-experience/ReviewerCommandConsole.tsx",
+    // Phase 12 Point 4 — the reviewer operator deep-link moved onto the
+    // canonical `/review` console when the unmounted command console
+    // was deleted; the useCan() gating relationship is preserved.
+    "components/reviewer-experience/ReviewerConsole.tsx",
     "components/command-center/CommandCenter.tsx",
     "components/governance-experience/GovernanceControlPlane.tsx",
     "components/operational/RuntimeStatusBanner.tsx",
@@ -761,7 +759,7 @@ describe("Phase R10 — registry-page-existence invariant", () => {
       // contain a `:param` or `[param]`. Skip them with a hard
       // expectation that they are dynamic — otherwise a typo would
       // pass silently.
-      if (/[:\[]/.test(r.href)) {
+      if (/[:[]/.test(r.href)) {
         // Force the test author to add new dynamic routes to the
         // allowlist explicitly.
         missing.push({ id: r.id, href: `${r.href} (dynamic — needs allowlist entry)` });

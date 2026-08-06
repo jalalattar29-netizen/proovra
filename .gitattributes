@@ -1,0 +1,52 @@
+# PHASE 12 — POINT 8: pin line endings for checksum-bearing files.
+#
+# WHY THIS FILE EXISTS
+# ---------------------------------------------------------------------------
+# Prisma records `_prisma_migrations.checksum` as a hash over the RAW BYTES of
+# the `migration.sql` it applied. Without a `.gitattributes`, a checkout on a
+# machine with `core.autocrlf=true` (the default on Windows, and the setting on
+# at least one machine that works on this repository) materialises those files
+# with CRLF, while CI's Linux checkout materialises them with LF. The commit is
+# identical; the bytes are not.
+#
+# The consequence is not cosmetic. A database migrated from the LF artifact and
+# then deployed from the CRLF one fails with "migration ... was modified after
+# it was applied", and `prisma migrate deploy` stops — mid-release, on the
+# migration it refuses to re-apply. It was measured, not theorised: `git
+# archive` on this repository injected 21 CR bytes into
+# `20270924000000_drop_workspace_persona_profiles`, whose canonical blob has
+# none.
+#
+# So every file whose bytes are hashed, signed, or compared is pinned to LF.
+
+* text=auto eol=lf
+
+# Migration SQL — hashed into `_prisma_migrations.checksum`.
+*.sql text eol=lf
+
+# Fixture and evidence artifacts that are digested or byte-compared.
+*.json text eol=lf
+*.toml text eol=lf
+*.pem text eol=lf
+
+# Shell scripts must keep LF or they fail to execute on Linux with
+# "bad interpreter: /bin/bash^M".
+*.sh text eol=lf
+
+# Binary — never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.mp4 binary
+*.mov binary
+*.mp3 binary
+*.wav binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+*.gz binary
+*.tar binary

@@ -26,6 +26,9 @@ import type {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// PHASE 12 POINT 4 PASS C1 — the ONE assignment authority (transition rule +
+// lifecycle event + SLA stamps + assignee notification).
+import { assignReviewer } from "../review-operations/review-operations.service.js";
 import { writeCodingValue } from "./coding-value.service.js";
 
 export type BulkItemOutcome = {
@@ -61,22 +64,30 @@ export async function bulkAssign(input: {
   for (const id of input.workflowIds) {
     const row = await prisma.evidenceReviewWorkflow.findFirst({
       where: { id, teamId: input.teamId },
-      select: { id: true },
+      select: { id: true, evidenceId: true },
     });
     if (!row) {
       outcomes.push({ workflowId: id, ok: false, denial: "WORKFLOW_NOT_FOUND" });
       continue;
     }
     try {
-      await prisma.evidenceReviewWorkflow.update({
-        where: { id: row.id },
-        data: {
+      // PHASE 12 POINT 4 PASS C1 — go through the canonical assignment
+      // authority, as this file's own contract requires.
+      //
+      // This loop used to write `status: "ASSIGNED"` (plus the assignment
+      // columns) straight onto the row. That skipped the stage-transition
+      // rule, the ASSIGNED/REASSIGNED lifecycle event, the SLA stamps and the
+      // assignee notification — so a bulk assignment and a single assignment
+      // produced materially different records, and a workflow could be forced
+      // from a terminal stage back to ASSIGNED with no history of it.
+      await assignReviewer(
+        {
+          evidenceId: row.evidenceId,
           assignedToUserId: input.assigneeUserId,
-          assignedByUserId: input.actorUserId,
-          assignedAtUtc: new Date(),
-          status: "ASSIGNED",
+          actorUserId: input.actorUserId,
         },
-      });
+        prisma,
+      );
       outcomes.push({ workflowId: id, ok: true });
     } catch {
       outcomes.push({ workflowId: id, ok: false, denial: "POLICY_REJECTED" });

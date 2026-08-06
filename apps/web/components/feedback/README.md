@@ -66,5 +66,5 @@ Never invent fake progress.
 ## Do not break existing enterprise systems
 
 `AccessGate`, `PageRouteGate`, `OperationalEmptyState`, `RuntimeStatusBanner`,
-`LimitReachedNotice`, `EvidenceLifecycleError`, `InvestigationError` are already
-strong. Reuse their tokens; do not replace them with weaker primitives.
+`EvidenceLifecycleError`, `InvestigationError` are already strong. Reuse their
+tokens; do not replace them with weaker primitives.

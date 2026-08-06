@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
@@ -24,10 +24,9 @@ import {
   type CollaborationTeamRole,
 } from "@proovra/shared";
 import {
-  getCollaborationTeamPlanLimits,
-  type CollaborationTeamPlanLimits,
-} from "@proovra/shared-billing";
-import { useAccount } from "../../../../../lib/platform-context";
+  useActiveSpace,
+  useWorkspaceLimits,
+} from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
 import type { TabId } from "../page";
 
@@ -59,24 +58,31 @@ function MembersTab({
   const activeLeadCount = team.members.filter(
     (m) => m.role === "LEAD" && m.status === "ACTIVE",
   ).length;
-  // Phase 10 UX — visible per-team member capacity. The cap is derived
-  // from the plan via the SAME shared SoT (`getCollaborationTeamPlanLimits`)
-  // that backend billing-guards use, so this surface never disagrees with
-  // the 409 the server would emit.  The plan is read from
-  // `useAccount().accountPlan` (canonical envelope) — we never invent counts.
-  const account = useAccount();
-  const planForLimits: WorkspacePlan | null = account?.accountPlan ?? null;
-  const limits: CollaborationTeamPlanLimits = useMemo(
-    () => getCollaborationTeamPlanLimits(planForLimits),
-    [planForLimits],
-  );
+  // PHASE 12 — POINT 7 (2026-08-05). The cap is READ from the server
+  // projection for the ACTIVE workspace, not computed here.
+  //
+  // It used to be `getCollaborationTeamPlanLimits(useAccount().accountPlan)`.
+  // The intent was right — agree with the 409 the server would emit — but the
+  // mechanism made the browser a limit authority, and it asked the wrong
+  // subject: a collaboration team lives in a WORKSPACE, and a workspace's
+  // commercial state is its own. On an unsubscribed Owned Workspace this
+  // showed the OWNER's Pro allowance and left the invite button enabled right
+  // up to the refusal it was supposed to anticipate.
+  //
+  // `null` means UNKNOWN (envelope loading, degraded, or older than the
+  // projection): no badge, no "at capacity" claim, no fabricated number.
+  const limits = useWorkspaceLimits();
+  // Presentation only: the plan NAME shown in the badge copy. It comes from
+  // the ACTIVE space (the workspace the team belongs to), which is the same
+  // subject the limits above were resolved for — not from the account.
+  const planLabel: WorkspacePlan | null = useActiveSpace()?.plan ?? null;
   const activeMemberCount = team.members.filter(
     (m) => m.status === "ACTIVE",
   ).length;
-  const maxMembersPerTeam = limits.maxMembersPerTeam;
+  const maxMembersPerTeam = limits?.maxMembersPerTeam ?? 0;
   const atCapacity =
-    planForLimits !== null && activeMemberCount >= maxMembersPerTeam;
-  const capacityKnown = planForLimits !== null && maxMembersPerTeam > 0;
+    limits !== null && activeMemberCount >= maxMembersPerTeam;
+  const capacityKnown = limits !== null && maxMembersPerTeam > 0;
   return (
     <section data-testid="tab-members-content" className="app-panel">
       <div className="app-panel__head" style={{ flexWrap: "wrap" }}>
@@ -87,7 +93,7 @@ function MembersTab({
               memberCount={activeMemberCount}
               maxMembersPerTeam={maxMembersPerTeam}
               atCapacity={atCapacity}
-              plan={planForLimits}
+              plan={planLabel}
             />
           ) : null}
         </div>
@@ -133,7 +139,7 @@ function MembersTab({
           >
             <span>
               Team is at capacity for your plan
-              {planForLimits ? ` (${planForLimits})` : ""}. Upgrade to add more.
+              {planLabel ? ` (${planLabel})` : ""}. Upgrade to add more.
             </span>
             <Link
               href="/billing"

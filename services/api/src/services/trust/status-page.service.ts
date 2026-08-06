@@ -124,11 +124,35 @@ export type CreateIncidentInput = {
   authoredByUserId?: string | null;
 };
 
-export async function createIncident(input: CreateIncidentInput) {
+export type CreateIncidentResult = {
+  id: string;
+  /** True when an existing incident with the same `externalRef` was returned. */
+  reused: boolean;
+};
+
+/**
+ * PHASE 12 VERTICAL C — the ONE status-incident creator.
+ *
+ * Idempotent on `externalRef`: a retried submit (double-click, network
+ * retry, operator script) with the SAME externalRef inside the same
+ * workspace returns the incident that already exists instead of
+ * publishing a duplicate incident to the status page. Without an
+ * externalRef there is no retry key, so every call creates.
+ */
+export async function createIncident(
+  input: CreateIncidentInput,
+): Promise<CreateIncidentResult> {
   if (!(STATUS_INCIDENT_SEVERITIES as ReadonlyArray<string>).includes(input.severity)) {
     throw new Error(`status-page: bad severity ${input.severity}`);
   }
   const prisma = input.prisma ?? defaultPrisma;
+  if (input.externalRef) {
+    const existing = await prisma.statusIncident.findFirst({
+      where: { teamId: input.teamId, externalRef: input.externalRef },
+      select: { id: true },
+    });
+    if (existing) return { id: existing.id, reused: true };
+  }
   const incident = await prisma.statusIncident.create({
     data: {
       teamId: input.teamId,
@@ -158,7 +182,7 @@ export async function createIncident(input: CreateIncidentInput) {
     code: "STATUS_INCIDENT_CREATED",
     actorUserId: input.authoredByUserId ?? null,
   }).catch(() => {});
-  return incident;
+  return { id: incident.id, reused: false };
 }
 
 export type AppendIncidentUpdateInput = {
@@ -169,25 +193,66 @@ export type AppendIncidentUpdateInput = {
   body: string;
   authoredByUserId?: string | null;
   postmortemUrl?: string | null;
+  /**
+   * Optimistic concurrency. The state the console rendered when the
+   * operator composed this update. A mismatch means somebody else moved
+   * the incident in the meantime — the write is rejected with ZERO
+   * mutation so a stale tab can never re-open a resolved incident.
+   */
+  expectedState?: StatusIncidentState | null;
 };
 
-export async function appendIncidentUpdate(input: AppendIncidentUpdateInput) {
+export type AppendIncidentUpdateResult =
+  | { ok: true; state: StatusIncidentState }
+  | { ok: false; denial: "NOT_FOUND" }
+  | { ok: false; denial: "STALE_STATE"; currentState: StatusIncidentState };
+
+/**
+ * PHASE 12 VERTICAL C — the ONE status-incident update writer.
+ *
+ * Two defects closed here:
+ *
+ *   1. CROSS-TENANT WRITE. The prior implementation resolved the
+ *      incident with `statusIncident.update({ where: { id } })` — the
+ *      workspace never entered the predicate, so an authorized operator
+ *      in workspace A could append an update to (and RESOLVE) an
+ *      incident belonging to workspace B by id alone. The row is now
+ *      loaded workspace-scoped first and the transactional update is
+ *      keyed on `{ id, teamId }` via `updateMany`, so a foreign id
+ *      matches nothing.
+ *   2. NO STALE GUARD. Two operators could both append to the same
+ *      incident and silently clobber each other's state transition.
+ */
+export async function appendIncidentUpdate(
+  input: AppendIncidentUpdateInput,
+): Promise<AppendIncidentUpdateResult> {
   if (!(STATUS_INCIDENT_STATES as ReadonlyArray<string>).includes(input.state)) {
     throw new Error(`status-page: bad state ${input.state}`);
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // Workspace-scoped resolution. A foreign incident id is indistinguishable
+  // from a missing one.
+  const current = await prisma.statusIncident.findFirst({
+    where: { id: input.incidentId, teamId: input.teamId },
+    select: { id: true, state: true },
+  });
+  if (!current) return { ok: false, denial: "NOT_FOUND" };
+  const currentState = current.state as StatusIncidentState;
+  if (input.expectedState && input.expectedState !== currentState) {
+    return { ok: false, denial: "STALE_STATE", currentState };
+  }
   await prisma.$transaction(async (tx) => {
     await tx.statusIncidentUpdate.create({
       data: {
         teamId: input.teamId,
-        incidentId: input.incidentId,
+        incidentId: current.id,
         body: input.body.slice(0, 2000),
         state: input.state,
         authoredByUserId: input.authoredByUserId ?? null,
       },
     });
-    await tx.statusIncident.update({
-      where: { id: input.incidentId },
+    await tx.statusIncident.updateMany({
+      where: { id: current.id, teamId: input.teamId },
       data: {
         state: input.state,
         resolvedAtUtc:
@@ -199,11 +264,12 @@ export async function appendIncidentUpdate(input: AppendIncidentUpdateInput) {
   void emitStatusIncidentEvent({
     prisma,
     teamId: input.teamId,
-    incidentId: input.incidentId,
+    incidentId: current.id,
     code: "STATUS_INCIDENT_UPDATED",
     actorUserId: input.authoredByUserId ?? null,
     reason: input.state,
   }).catch(() => {});
+  return { ok: true, state: input.state };
 }
 
 // ---------------------------------------------------------------------------
@@ -218,11 +284,28 @@ export type CreateMaintenanceWindowInput = {
   componentKeys: ReadonlyArray<StatusComponentKey>;
   startsAtUtc: Date;
   endsAtUtc: Date;
+  authoredByUserId?: string | null;
 };
 
+export type CreateMaintenanceWindowResult =
+  | { ok: true; id: string }
+  | { ok: false; denial: "INVALID_WINDOW" };
+
+/**
+ * PHASE 12 VERTICAL C — the ONE maintenance-window writer. Rejects an
+ * inverted or zero-length window rather than publishing a nonsense
+ * schedule to the public status page.
+ */
 export async function createMaintenanceWindow(
   input: CreateMaintenanceWindowInput,
-) {
+): Promise<CreateMaintenanceWindowResult> {
+  if (
+    Number.isNaN(input.startsAtUtc.getTime()) ||
+    Number.isNaN(input.endsAtUtc.getTime()) ||
+    input.endsAtUtc.getTime() <= input.startsAtUtc.getTime()
+  ) {
+    return { ok: false, denial: "INVALID_WINDOW" };
+  }
   const prisma = input.prisma ?? defaultPrisma;
   const w = await prisma.maintenanceWindow.create({
     data: {
@@ -239,8 +322,9 @@ export async function createMaintenanceWindow(
     teamId: input.teamId,
     incidentId: w.id,
     code: "STATUS_MAINTENANCE_SCHEDULED",
+    actorUserId: input.authoredByUserId ?? null,
   }).catch(() => {});
-  return w;
+  return { ok: true, id: w.id };
 }
 
 // ---------------------------------------------------------------------------

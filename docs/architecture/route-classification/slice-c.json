@@ -1,0 +1,224 @@
+[
+  {
+    "route": "/v1/reviewer-ops/runtime-probe",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "live integration harness (RUN_LIVE_INTEGRATION)",
+    "authMode": "requireAuth",
+    "evidence": "phase-37-95 live verification probe by design",
+    "proofSuite": "test/phase25-reviewer-ops-runtime-probe.test.ts",
+    "owner": "reviewer-ops platform",
+    "productReason": "live tenant-isolation verification probe"
+  },
+  {
+    "route": "/v1/runtime/otel-health",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/runtime-otel-health.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "platform operator curl",
+    "authMode": "requireAuth + requireOpsReader",
+    "evidence": "documented Grafana-operator diagnostics",
+    "proofSuite": null,
+    "owner": "platform-observability",
+    "productReason": "OTEL export diagnostics; API-only by design"
+  },
+  {
+    "route": "/v1/runtime/secrets-health",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/runtime-secrets-health.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "platform operator curl",
+    "authMode": "requireAuth + requireOpsReader",
+    "evidence": "secrets-manager rollout diagnostics per config docs",
+    "proofSuite": "test/phase-p2-0-secrets-manager.test.ts",
+    "owner": "platform-observability",
+    "productReason": "P2.0 secrets diagnostics; API-only"
+  },
+  {
+    "route": "/v1/search/reindex/evidence/:id",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/search.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "search operator (manual remediation)",
+    "authMode": "requireAuth + requireSearchOperator",
+    "evidence": "production paths are /v1/internal/search/reindex (cron-secret) + CLI backfill",
+    "proofSuite": "test/phase24-search.test.ts",
+    "owner": "search platform",
+    "productReason": "per-document operator escape hatch"
+  },
+  {
+    "route": "/v1/search/reindex/workflow/:id",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/search.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "search operator",
+    "authMode": "requireAuth + requireSearchOperator",
+    "evidence": "same",
+    "proofSuite": "test/phase24-search.test.ts",
+    "owner": "search platform",
+    "productReason": "per-workflow operator escape hatch"
+  },
+  {
+    "route": "/v1/support-access/enter",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "platform support staff (§10.8)",
+    "authMode": "requireAuth + identity.org_policy.manage + grant revalidation; mints session-bound support token",
+    "evidence": "customer UI renders only the SupportAccessBanner from the platform-context projection",
+    "proofSuite": "test/phase-10-support-context-token.test.ts",
+    "owner": "platform support (§10.8)",
+    "productReason": "staff-side operational surface"
+  },
+  {
+    "route": "/v1/support-access/revoke",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "platform support staff",
+    "authMode": "requireAuth + identity.org_policy.manage",
+    "evidence": "staff surface; runtime guard in support-runtime.service",
+    "proofSuite": "test/phase-10-support-enforcement.test.ts",
+    "owner": "platform support (§10.8)",
+    "productReason": "staff grant revocation"
+  },
+  {
+    "route": "/v1/support-access/start",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "platform support staff",
+    "authMode": "requireAuth + identity.org_policy.manage; expiring grant",
+    "evidence": "actor=support user, subject=customer org — staff workflow",
+    "proofSuite": "test/phase-10-support-runtime.test.ts",
+    "owner": "platform support (§10.8)",
+    "productReason": "staff grant minting; customer sees banner only"
+  },
+  {
+    "route": "/v1/users/me/password/change",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/users.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone",
+    "authMode": "requireAuth → unconditional 410 + legacy-endpoint audit event",
+    "evidence": "Final-D5-PT2 retirement; canonical = /v1/identity-security/password",
+    "proofSuite": "test/phase-final-d5-pt2-no-legacy-personal-security.test.ts",
+    "owner": "identity-security",
+    "productReason": "deliberate tombstone emitting audit on legacy calls"
+  },
+  {
+    "route": "/v1/users/me/sessions",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/users.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone",
+    "authMode": "requireAuth → 410",
+    "evidence": "canonical = /v1/identity-security/my-sessions (consumed)",
+    "proofSuite": "test/phase-final-d5-pt2-no-legacy-personal-security.test.ts",
+    "owner": "identity-security",
+    "productReason": "deliberate tombstone"
+  },
+  {
+    "route": "/v1/users/me/sessions/:id",
+    "methods": [
+      "DELETE"
+    ],
+    "registeringFile": "services/api/src/routes/users.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone",
+    "authMode": "requireAuth → 410",
+    "evidence": "canonical = identity-security revoke routes",
+    "proofSuite": "test/phase-final-d5-pt2-no-legacy-personal-security.test.ts",
+    "owner": "identity-security",
+    "productReason": "deliberate tombstone"
+  },
+  {
+    "route": "/v2/scim/Groups",
+    "methods": [
+      "POST",
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/scim.routes.ts",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "customer IdP SCIM client (Okta/Entra); base URL surfaced in /admin/identity/scim page",
+    "authMode": "SCIM bearer token (authenticateScimRequest) + Enterprise ssoScim gate",
+    "evidence": "external SCIM contract; scim+json errors",
+    "proofSuite": "test/phase26_5-identity-hardening.test.ts"
+  },
+  {
+    "route": "/v2/scim/Groups/:id",
+    "methods": [
+      "GET",
+      "PATCH",
+      "DELETE"
+    ],
+    "registeringFile": "services/api/src/routes/scim.routes.ts",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "customer IdP SCIM client",
+    "authMode": "SCIM bearer + scopes + gate",
+    "evidence": "group PATCH drives managed-role mapping",
+    "proofSuite": "test/phase26_5-identity-hardening.test.ts"
+  },
+  {
+    "route": "/v2/scim/Users",
+    "methods": [
+      "POST",
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/scim.routes.ts",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "customer IdP SCIM client",
+    "authMode": "SCIM bearer + scopes + gate; idempotent on externalId",
+    "evidence": "admin surfaces report scim.enabled/lastSyncAt",
+    "proofSuite": "test/phase26-identity-governance.test.ts"
+  },
+  {
+    "route": "/v2/scim/Users/:id",
+    "methods": [
+      "GET",
+      "PATCH",
+      "DELETE"
+    ],
+    "registeringFile": "services/api/src/routes/scim.routes.ts",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "customer IdP SCIM client",
+    "authMode": "SCIM bearer + scopes + gate; DELETE = soft deactivate",
+    "evidence": "external SCIM contract",
+    "proofSuite": "test/phase-10-scim-managed-ownership.test.ts"
+  },
+  {
+    "route": "/v1/billing/plan",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/billing.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "dev/test harness only - route REGISTRATION is wrapped in devAuthEnabled() (NODE_ENV!=production AND DEV_AUTH_ENABLED=true), so production registration is 0. Real plan changes go through POST /v1/billing/checkout/{stripe,paypal}.",
+    "authMode": "requireAuth + requireLegalAcceptance + assertOwnedTeamForCheckout (TEAM target) / assertPersonalSpaceAllowed (personal target)",
+    "evidence": "Layer-1 registration guard + Layer-2 handler guard in billing.routes.ts; behavioral proof asserts the route is ABSENT (404) outside the dev boundary and commercially governed inside it.",
+    "proofSuite": "services/api/test/phase-12-platform-core-matrix.test.ts",
+    "owner": "billing platform",
+    "productReason": "dev/test-only direct plan mutation kept beside its governance guards; never a product surface"
+  }
+]

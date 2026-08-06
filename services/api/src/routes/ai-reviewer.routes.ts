@@ -13,6 +13,9 @@ import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { buildBaseContext, buildEvidenceContext } from "../services/ai/ai-context-resolver.service.js";
 import type { ReviewerContext } from "../services/ai/ai-context-resolver.service.js";
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+// PHASE 12 — VERTICAL B. The ONE disclosure authority. Observation
+// surfaces read from it; they never author their own AI claims.
+import { resolveAiCapabilityDisclosure } from "../services/ai/ai-capability-disclosure.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import { runReviewerCopilot } from "../services/ai/reviewer-copilot.service.js";
 import { buildReviewerCopilotProvider, ReviewerCopilotProviderUnavailable } from "../services/ai/reviewer-copilot-provider.js";
@@ -68,7 +71,8 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       where: { id: { in: ids }, teamId, deletedAt: null },
       select: {
         id: true, teamId: true, title: true, type: true, mimeType: true, status: true,
-        verificationStatus: true, caseId: true, verificationPackageVersion: true, latestReportVersion: true,
+        verificationStatus: true, verificationPackageVersion: true, latestReportVersion: true,
+        caseLinks: { select: { caseId: true }, take: 1 },
       },
     });
     if (rows.length !== ids.length) return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
@@ -84,7 +88,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     };
     const selectedEvidence = rows.map((r) => buildEvidenceContext({ ...base, routeClass: "EVIDENCE" }, {
       id: r.id, teamId: r.teamId, title: r.title, type: r.type, mimeType: r.mimeType, status: r.status,
-      verificationStatus: r.verificationStatus, caseLinked: Boolean(r.caseId),
+      verificationStatus: r.verificationStatus, caseLinked: r.caseLinks.length > 0,
       verificationPackageVersion: r.verificationPackageVersion, latestReportVersion: r.latestReportVersion,
     }));
     const resolveCitation = buildCitationResolver(buildWorkspaceCitationLookups(prisma as unknown as CitationPrisma, teamId));
@@ -289,7 +293,17 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       editedText: z.string().max(600).optional(),
     }).parse(req.body ?? {});
 
-    const run = await prisma.aiCopilotRun.findUnique({ where: { id: runId }, select: { workspaceId: true } });
+    // PHASE 12 — VERTICAL B. The workspace is derived from the PERSISTED
+    // run row, never from the request.
+    const run = await prisma.aiCopilotRun.findUnique({
+      where: { id: runId },
+      select: {
+        workspaceId: true,
+        feature: true,
+        workspacePolicyVersion: true,
+        status: true,
+      },
+    });
     if (!run) return reply.code(404).send({ error: { code: "run_not_found" } });
     // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
     // against the run's workspace (ACTIVE membership + org lifecycle +
@@ -300,6 +314,29 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
+
+    // PHASE 12 — VERTICAL B. Observation review runs through the ONE
+    // canonical AI policy + disclosure authority. There is deliberately
+    // NO second policy engine here.
+    //
+    // The decision is RECORDED, not used to block: accepting, editing,
+    // or rejecting an observation is a HUMAN act of control over an
+    // already-generated run. Blocking it because the workspace later
+    // disabled AI would strand the human in the loop, which inverts the
+    // platform's human-control guarantee. What the authority governs is
+    // GENERATION (`/copilot`, already gated above at run time); what it
+    // contributes here is the defensibility stamp + the disclosure the
+    // operator sees alongside their own verdict.
+    const membership = await prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId: run.workspaceId, userId } },
+      select: { role: true },
+    });
+    const policyDecision = await evaluateWorkspaceAiPolicy({
+      teamId: run.workspaceId,
+      feature: "REVIEWER_COPILOT",
+      dataClass: "METADATA",
+      userRole: membership?.role ?? null,
+    });
 
     const row = await recordObservationInteraction({
       copilotRunId: runId,
@@ -318,8 +355,48 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       resourceType: "ai_copilot_run",
       resourceId: runId,
       correlationId: req.id ?? null,
-      metadata: { observationId: body.observationId, state: body.state },
+      metadata: {
+        observationId: body.observationId,
+        state: body.state,
+        // Defensibility: which policy version governed the run the human
+        // acted on, and what the canonical authority says right now.
+        runPolicyVersion: run.workspacePolicyVersion,
+        currentPolicyDecision: policyDecision.decision,
+        currentPolicyVersion: policyDecision.policyVersion,
+      },
     });
-    return reply.code(200).send({ id: row.id, state: row.state });
+
+    // Bounded disclosure for the reviewer surface. Sourced from the
+    // canonical `resolveAiCapabilityDisclosure` authority — the UI never
+    // composes its own AI claims.
+    const disclosure = await resolveAiCapabilityDisclosure(run.workspaceId)
+      .then((rows) =>
+        rows
+          .filter((d) => d.capability.toLowerCase().includes("reviewer"))
+          .map((d) => ({
+            capability: d.capability,
+            provider: d.provider,
+            dataCategory: d.dataCategory,
+            rawContent: d.rawContent,
+            operationalStatus: d.operationalStatus,
+            trainingMode: d.trainingMode,
+            retentionMode: d.retentionMode,
+          })),
+      )
+      .catch(() => []);
+
+    return reply.code(200).send({
+      id: row.id,
+      state: row.state,
+      aiPolicy: {
+        decision: policyDecision.decision,
+        allowed: policyDecision.allowed,
+        policyVersion: policyDecision.policyVersion,
+        runPolicyVersion: run.workspacePolicyVersion,
+      },
+      disclosure,
+      advisoryBoundary:
+        "AI assistance is advisory only. The recorded verdict is the reviewer's, not the model's.",
+    });
   });
 }

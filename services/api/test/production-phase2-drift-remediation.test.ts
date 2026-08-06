@@ -664,14 +664,6 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
   },
 ];
 
-function migrationById(id: string): MigrationDescriptor {
-  const found = PHASE2_MIGRATIONS.find((m) => m.id === id);
-  if (!found) {
-    throw new Error(`Unknown Phase 2 migration: ${id}`);
-  }
-  return found;
-}
-
 // =============================================================================
 // GROUP A — Inventory + decision artifact pins
 // =============================================================================
@@ -1084,7 +1076,16 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // Rebaselined 2026-07-23 (PHASE 10 §Step-4): +1 for enterprise-security.routes.ts
 // (break-glass activation surface, registered in server.ts). Argued for in the
 // Phase-10 brief; the pin continues to detect further unaudited route adds.
-const ROUTE_COUNT_PHASE_2_BASELINE = 124;
+// Rebaselined 2026-07-31 (PHASE 12B C6): +1 for scim-admin.routes.ts — the
+// operator-session SCIM administration legs (managed-membership visibility +
+// provisioning-credential rotation). It is deliberately a SEPARATE file from
+// scim.routes.ts: the RFC 7644 protocol surface is bearer-token-only by
+// contract, and "SCIM routes NEVER use requireAuth" is machine-guarded as an
+// absolute file-level assertion. Merging the two authentication models into
+// one file would weaken that guard to a per-route scan, so the route ADD is
+// the safer shape (124 → 125). The pin continues to detect further unaudited
+// route adds.
+const ROUTE_COUNT_PHASE_2_BASELINE = 125;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

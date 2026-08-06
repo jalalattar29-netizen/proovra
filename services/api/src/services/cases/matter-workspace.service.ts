@@ -12,8 +12,8 @@
  *   - Each section is wrapped in try/catch so a single failure
  *     degrades the section, never the envelope.
  *   - Bounded queries (take caps) and bounded operator-safe strings.
- *   - Evidence reads UNION `Evidence.caseId` + `CaseEvidenceLink`
- *     per the Phase 32.8D backward-compatibility decision.
+ *   - Evidence reads come from the canonical `CaseEvidenceLink` table
+ *     (Track 1B closure — the legacy Evidence column was dropped).
  *   - Risk engine writes an advisory CaseRiskSnapshot (best-effort).
  *   - NO signed URL generation, NO custody event emission, NO
  *     report/package generation, NO queue enqueues.
@@ -150,11 +150,10 @@ export type MatterWorkspaceEnvelope = {
         reportReady: boolean;
         packageReady: boolean;
         /**
-         * Phase 32.8D-frontend-closure — when present, the canonical
+         * Phase 32.8D-frontend-closure — the canonical
          * `CaseEvidenceLink.id` for this evidence's link to the case.
-         * Null when the evidence is attached only via the legacy
-         * `Evidence.caseId` column (no CaseEvidenceLink row). The
-         * frontend renders a disabled Unlink button in that case.
+         * Track 1B closure: the link table is the ONE relationship
+         * source, so this is expected to always be present.
          */
         linkId: string | null;
         linkRole: string | null;
@@ -583,14 +582,17 @@ async function runCommandSummary(
       prisma.caseEvidenceLink.count({
         where: { caseId, linkedAtUtc: { gte: since7d } },
       }),
-      prisma.caseLegalHold.count({
-        where: { caseId, status: "ACTIVE" },
+      // P12.3 canonical-only: case holds are scope='CASE' canonical rows.
+      prisma.evidenceLegalHold.count({
+        where: { caseId, scope: "CASE", status: "ACTIVE" },
       }),
       evidenceIds.length === 0
         ? Promise.resolve(0)
         : prisma.evidenceLegalHold.count({
             where: {
               status: "ACTIVE",
+              // PHASE 12B CLUSTER 8 — explicit EVIDENCE scope.
+              scope: "EVIDENCE",
               evidenceId: { in: evidenceIds },
             },
           }),
@@ -641,9 +643,9 @@ async function runEvidenceBoard(
   }
   try {
     const items = await prisma.evidence.findMany({
-      // Phase R9 (F22) — a CaseEvidenceLink (or legacy caseId) can point at
-      // a soft-deleted evidence row; exclude it from the matter evidence
-      // board so deleted evidence never renders as linked.
+      // Phase R9 (F22) — a CaseEvidenceLink can point at a soft-deleted
+      // evidence row; exclude it from the matter evidence board so
+      // deleted evidence never renders as linked.
       where: { id: { in: evidenceIds }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: SECTION_EVIDENCE_LIMIT,
@@ -674,11 +676,7 @@ async function runEvidenceBoard(
       },
     });
     // Look up linkId/linkRole/linkSource for the items present so the
-    // Evidence Board can offer direct "Unlink" actions per row. When a
-    // row's evidence is only attached via the legacy Evidence.caseId
-    // column (no CaseEvidenceLink row), linkId is `null`, which the
-    // frontend renders as a disabled Unlink button with an
-    // explanation rather than calling the wrong DELETE endpoint.
+    // Evidence Board can offer direct "Unlink" actions per row.
     const links = await prisma.caseEvidenceLink.findMany({
       where: { caseId, evidenceId: { in: items.map((e) => e.id) } },
       select: { id: true, evidenceId: true, role: true, source: true },
@@ -1074,7 +1072,7 @@ async function runReviewerCoordination(
 
     // Reviewer capacity: pull active workflow owners on this case + their
     // freshest snapshot per reviewer.
-    let reviewerCapacity: MatterWorkspaceEnvelope["sections"]["reviewerCoordination"]["reviewerCapacity"] =
+    const reviewerCapacity: MatterWorkspaceEnvelope["sections"]["reviewerCoordination"]["reviewerCapacity"] =
       [];
     if (teamId) {
       try {
@@ -1190,17 +1188,36 @@ async function runGovernance(
   auditReadinessScore: number | null,
 ): Promise<MatterWorkspaceEnvelope["sections"]["governance"]> {
   try {
-    const [caseHolds, evidenceHolds, governanceWorkflows] = await Promise.all([
-      prisma.caseLegalHold.findMany({
-        where: { caseId },
+    const [canonicalCaseHolds, evidenceHolds, governanceWorkflows] =
+      await Promise.all([
+      // P12.3 canonical-only: the legacy `case_legal_holds` read that sat
+      // alongside this one is gone. The backfill converted every legacy row
+      // into a scope='CASE' canonical row, so the old union (and its
+      // sourceRowId dedupe) only re-read rows this query already returns.
+      // PHASE 12B CLUSTER 8 — CASE-scoped holds in the canonical table. The
+      // Case detail Holds tab must show a hold placed through the ONE
+      // canonical surface, not only rows still sitting in the legacy store.
+      prisma.evidenceLegalHold.findMany({
+        where: { caseId, scope: "CASE", historical: false },
         orderBy: { placedAtUtc: "desc" },
         take: 25,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          placedAtUtc: true,
+          releasedAtUtc: true,
+          sourceRowId: true,
+        },
       }),
       evidenceIds.length === 0
         ? Promise.resolve([])
         : prisma.evidenceLegalHold.findMany({
             where: {
               evidenceId: { in: evidenceIds },
+              // PHASE 12B CLUSTER 8 — explicit EVIDENCE scope; CASE-scoped
+              // holds are surfaced by `caseHolds`, not folded in here.
+              scope: "EVIDENCE",
               status: "ACTIVE",
             },
             orderBy: { createdAt: "desc" },
@@ -1250,19 +1267,33 @@ async function runGovernance(
 
     return {
       status: "ok",
-      caseHolds: caseHolds.map((h) => ({
-        id: h.id,
-        title: h.title,
-        status: String(h.status),
-        placedAtUtc: h.placedAtUtc.toISOString(),
-        releasedAtUtc: h.releasedAtUtc?.toISOString() ?? null,
-      })),
-      evidenceHolds: evidenceHolds.map((h) => ({
-        id: h.id,
-        evidenceId: h.evidenceId,
-        status: String(h.status),
-        createdAt: h.createdAt.toISOString(),
-      })),
+      // Canonical rows first, then any legacy row the backfill has not
+      // converted yet (deduplicated on the provenance key so a converted
+      // hold is never listed twice).
+      caseHolds: [
+        ...canonicalCaseHolds.map((h) => ({
+          id: h.id,
+          title: h.title,
+          status: String(h.status),
+          placedAtUtc: h.placedAtUtc.toISOString(),
+          releasedAtUtc: h.releasedAtUtc?.toISOString() ?? null,
+        })),
+      ],
+      // PHASE 12B CLUSTER 8 — a hold with a NULL evidence target is not an
+      // evidence hold and is dropped from this list rather than rendered
+      // with an empty record id.
+      evidenceHolds: evidenceHolds.flatMap((h) =>
+        typeof h.evidenceId === "string"
+          ? [
+              {
+                id: h.id,
+                evidenceId: h.evidenceId,
+                status: String(h.status),
+                createdAt: h.createdAt.toISOString(),
+              },
+            ]
+          : [],
+      ),
       governanceWorkflows: governanceWorkflows.map((w) => ({
         id: w.id,
         workflowType: String(w.workflowType),
@@ -1273,8 +1304,11 @@ async function runGovernance(
         dueAtUtc: w.dueAtUtc?.toISOString() ?? null,
       })),
       auditReadinessScore,
+      // PHASE 12B CLUSTER 8 — an ACTIVE hold is a blocker whichever store it
+      // currently lives in. Counting only the legacy store would have
+      // under-reported blockers once holds move to the canonical table.
       blockerCount:
-        caseHolds.filter((h) => h.status === "ACTIVE").length +
+        canonicalCaseHolds.filter((h) => String(h.status) === "ACTIVE").length +
         governanceWorkflows.length,
     };
   } catch {

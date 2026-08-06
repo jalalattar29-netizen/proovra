@@ -31,6 +31,16 @@
       "types": "./dist/ops/index.d.ts",
       "import": "./dist/ops/index.js",
       "default": "./dist/ops/index.js"
+    },
+    "./notifications": {
+      "types": "./dist/notifications/index.d.ts",
+      "import": "./dist/notifications/index.js",
+      "default": "./dist/notifications/index.js"
+    },
+    "./reports": {
+      "types": "./dist/reports/index.d.ts",
+      "import": "./dist/reports/index.js",
+      "default": "./dist/reports/index.js"
     }
   },
   "files": [
@@ -38,7 +48,8 @@
   ],
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",
-    "typecheck": "pnpm exec tsc --noEmit"
+    "typecheck": "pnpm exec tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@prisma/client": "^7.3.0",
@@ -46,6 +57,10 @@
     "exifr": "^7.1.3"
   },
   "devDependencies": {
+    "@eslint/js": "^8.57.1",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^8.57.0",
     "typescript": "^5.9.3"
   }
 }

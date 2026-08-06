@@ -231,6 +231,74 @@ export const STEP_UP_PURPOSES = [
   // VARCHAR(64) (not an enum), so adding this value (17 chars) requires NO
   // migration.
   "REDACTION_PUBLISH",
+  // PHASE 12B (Evidence Operations) — revoking a redaction policy
+  // assignment removes the detection policy that governs FUTURE redaction
+  // work at that scope (GLOBAL / WORKSPACE / CASE / PROJECT). It silently
+  // widens what an operator may publish without detection review, so it is
+  // gated by a fresh step-up AFTER the `redaction.administer` RBAC check
+  // and BEFORE the revoke. It follows org MFA policy (it is deliberately
+  // NOT in ACTIONS_FORCING_MFA — it is a scope change, not a disclosure).
+  // `step_up_challenges.purpose` is VARCHAR(64) (not an enum), so this
+  // 34-char value needs NO migration.
+  "REDACTION_POLICY_ASSIGNMENT_REVOKE",
+  // PHASE 12B CLUSTER 14 (Evidence Operations) — department membership
+  // governance. A department membership is the unit the department-scope
+  // resolver reads to decide WHICH evidence a non-admin operator may see
+  // (`resolveUserDepartmentScope`). Granting one widens an operator's
+  // evidence visibility; revoking one narrows it and can strand in-flight
+  // review work. Both are therefore gated by a fresh step-up AFTER the
+  // `governance.policy.manage` capability check + DEPARTMENT_ADMIN
+  // delegated-tier check and BEFORE the membership write. Read paths
+  // (membership list, effective scope) are NEVER gated.
+  //
+  // `step_up_challenges.purpose` is VARCHAR(64) (not a Postgres enum), so
+  // these values (28 / 29 chars) require NO migration.
+  "DEPARTMENT_MEMBERSHIP_GRANT",
+  "DEPARTMENT_MEMBERSHIP_REVOKE",
+  // PHASE 12B C3/C4 — MFA and device administration. These five actions were
+  // previously forced to borrow `MFA_POLICY_UPDATE` / `SESSION_SANITY_CHECK`,
+  // which conflated unrelated sensitive actions on the audit trail AND meant an
+  // approval for one satisfied the gate on another: a challenge approved to
+  // change the workspace MFA policy could also be spent to revoke a specific
+  // member's second factor. Each now has its own purpose so a challenge is
+  // bound to the action the operator actually confirmed.
+  //
+  //   MFA_FACTOR_REVOKE          — removing a member's enrolled second factor.
+  //   MFA_REENROLLMENT_REQUIRE   — forcing a member to re-enrol (locks them out
+  //                                of MFA-gated operations until they do).
+  //   MFA_TRUSTED_DEVICE_RESET   — clearing a member's remembered devices, so
+  //                                every device must re-prove.
+  //   TRUSTED_DEVICE_TRUST       — marking the CALLER's own device trusted,
+  //                                which suppresses future prompts on it.
+  //   IDENTITY_RUNTIME_RECONCILE — an operator-triggered identity/session
+  //                                reconcile sweep that mutates rows in bulk.
+  //
+  // `step_up_challenges.purpose` is VARCHAR(64) (not a Postgres enum), so these
+  // values (longest 26 chars) require NO migration.
+  "MFA_FACTOR_REVOKE",
+  "MFA_REENROLLMENT_REQUIRE",
+  "MFA_TRUSTED_DEVICE_RESET",
+  "TRUSTED_DEVICE_TRUST",
+  "IDENTITY_RUNTIME_RECONCILE",
+  // PHASE 12 TRUST_ADMINISTRATION — trust-content and status-page publication.
+  // These previously borrowed `PUBLIC_VERIFY_PUBLISH`, which was made safe by
+  // target binding but conflated two unrelated families on the audit trail: a
+  // reviewer auditing "who published what" could not tell an evidence
+  // verify-page publication from a trust-article seed or a status-page
+  // incident. Each publication family now has its own purpose.
+  //
+  //   TRUST_CONTENT_PUBLISH       — seeding/publishing Trust Center content.
+  //   STATUS_INCIDENT_PUBLISH     — publishing a status incident or an update
+  //                                 to one (customer-visible availability
+  //                                 communication).
+  //   STATUS_MAINTENANCE_PUBLISH  — scheduling a customer-visible maintenance
+  //                                 window.
+  //
+  // `step_up_challenges.purpose` is VARCHAR(64) (not a Postgres enum), so these
+  // values (longest 26 chars) require NO migration.
+  "TRUST_CONTENT_PUBLISH",
+  "STATUS_INCIDENT_PUBLISH",
+  "STATUS_MAINTENANCE_PUBLISH",
 ] as const;
 export const StepUpPurposeSchema = z.enum(STEP_UP_PURPOSES);
 export type StepUpPurpose = z.infer<typeof StepUpPurposeSchema>;
@@ -376,7 +444,7 @@ export function isValidDeviceCookieValue(value: string | null | undefined): bool
   if (!value) return false;
   const t = value.trim();
   if (t.length < 16 || t.length > 256) return false;
-  return /^[A-Za-z0-9_\-]+$/.test(t);
+  return /^[A-Za-z0-9_-]+$/.test(t);
 }
 
 // -----------------------------------------------------------------------------

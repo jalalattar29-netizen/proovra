@@ -51,16 +51,14 @@ const PRIVACY_SECTION = read("app/(app)/settings/_sections/PrivacySection.tsx");
 // 1. The internal reader route exists, is registered, and stays in-shell
 // ---------------------------------------------------------------------------
 
-test("route registry carries the internal legal reader (both twins)", () => {
+test("route registry carries the internal legal reader", () => {
+  // PHASE 12 — the compiled routeRegistry.js twin was deleted; the .ts
+  // registry is the ONLY source (API tests resolve it directly).
   const entry = ROUTE_REGISTRY.find((r) => r.id === "account.legal_document");
   assert.ok(entry, "account.legal_document must be registered");
   assert.equal(entry?.href, "/settings/legal/:slug");
   assert.equal(entry?.domain, "ACCOUNT");
   assert.equal(entry?.requiredActiveSpace, "NONE");
-  // The CRLF runtime twin consumed by the API tests carries it too.
-  const twin = read("lib/navigation/routeRegistry.js");
-  assert.ok(twin.includes('"account.legal_document"'), "js twin has the entry");
-  assert.ok(twin.includes('"/settings/legal/:slug"'), "js twin has the href");
 });
 
 test("internal reader renders the SHARED content source through the authenticated shell", () => {

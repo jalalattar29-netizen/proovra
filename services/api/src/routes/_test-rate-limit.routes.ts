@@ -58,7 +58,10 @@
  */
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import { shouldBypassAuthRateLimit } from "../services/auth-test-bypass.js";
+import {
+  buildBypassLogPayload,
+  shouldBypassAuthRateLimit,
+} from "../services/auth-test-bypass.js";
 import { clearAllRateLimitBuckets } from "../services/rate-limit.js";
 
 export async function testRateLimitRoutes(app: FastifyInstance) {
@@ -73,8 +76,12 @@ export async function testRateLimitRoutes(app: FastifyInstance) {
 
     const { memoryCleared, redisCleared } = await clearAllRateLimitBuckets();
 
+    // The canonical bypass log payload (route + headerPresent, never the
+    // secret) so an honored bypass is searchable in the audit log; the
+    // bucket stays distinct from the guest-auth bypass surface.
     req.log.info(
       {
+        ...buildBypassLogPayload(req),
         bucket: "e2e-rate-limit-reset",
         memoryCleared,
         redisCleared,

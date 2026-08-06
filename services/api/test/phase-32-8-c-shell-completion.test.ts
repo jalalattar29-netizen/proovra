@@ -55,8 +55,6 @@ describe("Phase 32.8C FINAL-4 — topbar workspace cluster", () => {
   // OBSOLETE — Phase 32.8 Foundation removed the literal "Member"
   // fallback. The scope-line now reports "Role unavailable" if role
   // can't be resolved. See phase-32-8-foundation-platform-context.test.ts.
-  it.skip("scope-line label uses distinct copy from the name slot", () => {});
-
   it("never repeats 'Workspace' as a literal twice in the label fallback chain", () => {
     // The bug was: `name: "Workspace"` AND `scopeLine: "Workspace"`.
     // Verify the label resolver no longer emits two "Workspace" literals.

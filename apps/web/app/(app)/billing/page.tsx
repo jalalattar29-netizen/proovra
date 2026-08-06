@@ -16,8 +16,11 @@ import { parseBillingWorkspaceLocator } from "../../../lib/navigation/billingWor
 import { PersonalWorkspaceCard } from "../../../components/billing/PersonalWorkspaceCard";
 import { TeamWorkspaceCard } from "../../../components/billing/TeamWorkspaceCard";
 import { CheckoutPanel } from "../../../components/billing/CheckoutPanel";
-import { BillingHistoryCard } from "../../../components/billing/BillingHistoryCard";
 import { StorageAddonsPanel } from "../../../components/billing/StorageAddonsPanel";
+// PHASE 12 VERTICAL A (2026-07-30) — payment ledger + entitlement re-sync.
+// Owns GET /v1/billing/payments and POST /v1/billing/restore, and reloads
+// this page's overview projection after a successful re-sync.
+import { PaymentsSection } from "./_sections/PaymentsSection";
 import type {
   BillingOverviewResponse,
   PersonalWorkspaceSummary,
@@ -172,7 +175,9 @@ function BillingPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+    // The locator IS the parsed form of `searchParams` (memoised on it above),
+    // so depending on the locator is both honest and exactly as stable.
+  }, [workspaceLocator]);
 
   useEffect(() => {
     void loadOverview();
@@ -559,7 +564,7 @@ function BillingPageInner() {
           </PageSection>
 
           <PageSection>
-            <BillingHistoryCard items={payments} />
+            <PaymentsSection onEntitlementRestored={loadOverview} />
           </PageSection>
         </>
       )}

@@ -37,7 +37,6 @@ import {
   filterNavigationRegistry,
 } from "./navigation-registry.js";
 import {
-  AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
   isWorkspaceRole,
@@ -209,23 +208,52 @@ export async function buildPlatformContext(
     },
   };
 
+  // ---------------------------------------------------------------------------
+  // PHASE 12 — POINT 7 (2026-08-05): resolve the Personal-Space PERMISSION
+  // ONCE, before anything can select, heal into, or persist a personal
+  // context.
+  //
+  // It used to be resolved near the very end of this function, purely to
+  // decide whether the switcher OFFERED a Personal option — while three
+  // earlier code paths had already selected the personal workspace and one of
+  // them had written `User.currentWorkspaceId` to it. So a user whose
+  // Organization was suspended, whose membership went inactive, or whose
+  // pointer went stale was durably moved into a Personal Space the same
+  // envelope then declined to offer. Resolving it here makes the permission an
+  // input to selection instead of a footnote about presentation.
+  //
+  // Degrades to `true` (unchanged legacy behavior) on a resolution failure:
+  // the personal-scope MUTATION guards remain the authority and each of them
+  // resolves this independently, so a read-path outage must not lock a
+  // STANDARD user out of their own workspace.
+  // ---------------------------------------------------------------------------
+  let personalSpaceAllowedFlag = true;
+  try {
+    personalSpaceAllowedFlag = await resolvePersonalSpaceAllowed(userRow.id);
+  } catch {
+    personalSpaceAllowedFlag = true;
+  }
+
   // Step 1 — ensure the user has a personal workspace. This is
   // idempotent (the loser of a concurrent insert race re-fetches the
   // winner). The personal team is the fallback target whenever the
-  // selected `currentWorkspaceId` is missing or stale.
+  // selected `currentWorkspaceId` is missing or stale — but ONLY when this
+  // identity is permitted a Personal Space at all.
   let personalTeamId: string | null = null;
   let personalTeamName: string | null = null;
-  try {
-    bootstrap.attempted = true;
-    const personal = await ensurePersonalWorkspace({ userId: userRow.id });
-    personalTeamId = personal.teamId;
-    personalTeamName = personal.name;
-    bootstrap.created = personal.created;
-    bootstrap.reused = !personal.created;
-  } catch {
-    // Bootstrap failed — degraded but recoverable. The workspace
-    // section falls through to the synthetic personal mode below.
-    workspaceStatus = "degraded";
+  if (personalSpaceAllowedFlag) {
+    try {
+      bootstrap.attempted = true;
+      const personal = await ensurePersonalWorkspace({ userId: userRow.id });
+      personalTeamId = personal.teamId;
+      personalTeamName = personal.name;
+      bootstrap.created = personal.created;
+      bootstrap.reused = !personal.created;
+    } catch {
+      // Bootstrap failed — degraded but recoverable. The workspace
+      // section falls through to the synthetic personal mode below.
+      workspaceStatus = "degraded";
+    }
   }
 
   if (userRow.currentWorkspaceId) {
@@ -258,10 +286,15 @@ export async function buildPlatformContext(
       if (!team || !memberOk) {
         // `currentWorkspaceId` points to a deleted team OR the user
         // is no longer an ACTIVE member. Clear the stale pointer and
-        // fall through to the personal workspace.
+        // fall through to the personal workspace — but ONLY when this
+        // identity is permitted one. POINT 7: an Organization going
+        // suspended, or a membership going inactive, must not durably
+        // relocate a `noPersonalSpace` identity into a Personal Space.
+        // `personalTeamId` is already null in that case, so the write below
+        // cannot fire; the guard is stated for the reader.
         workspaceStatus = "degraded";
         workspaceSource = "personal_bootstrap_after_stale";
-        if (personalTeamId) {
+        if (personalTeamId && personalSpaceAllowedFlag) {
           try {
             await prisma.user.update({
               where: { id: userRow.id },
@@ -334,7 +367,7 @@ export async function buildPlatformContext(
           // non-fatal
         }
       }
-    } else {
+    } else if (personalSpaceAllowedFlag) {
       // Bootstrap genuinely failed (DB unavailable etc.). Surface a
       // synthetic personal-mode envelope so the frontend renders a
       // recovery shell — but DO NOT pretend the workspace is broken.
@@ -351,6 +384,29 @@ export async function buildPlatformContext(
           memberCount: 1,
         },
       };
+    } else {
+      // PHASE 12 — POINT 7. Personal Space is NOT permitted for this identity
+      // and no authorized workspace was selected. The honest answer is "no
+      // workspace", and it is the one answer this branch used to be incapable
+      // of giving: it fabricated an active PERSONAL shape with a null id, and
+      // every consumer that only reads `workspace.status` read that as a
+      // healthy personal context. `workspace` keeps its initial `no-workspace`
+      // value; `personalSpaceAllowed: false` on the envelope drives the
+      // canonical unavailable panel.
+      workspace = {
+        status: "no-workspace",
+        id: null,
+        name: null,
+        scope: null,
+        plan: null,
+        membership: {
+          role: null,
+          isOwner: false,
+          isAdmin: false,
+          memberCount: 0,
+        },
+      };
+      workspaceStatus = "degraded";
     }
   }
 
@@ -457,9 +513,53 @@ export async function buildPlatformContext(
     intakeIncluded: planCaps.intakeIncluded,
     casesIncluded: planCaps.casesIncluded,
     reviewerOperationsIncluded: planCaps.reviewerOperationsIncluded,
+    // PHASE 12B Track 1A — server-projected surface-tier entitlement (the ONE
+    // commercial catalog decides; the frontend never branches on plan names).
+    professionalSurfacesIncluded: planCaps.professionalSurfacesIncluded,
     reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
     teamCollaborationIncluded: planCaps.maxOwnedTeams > 0,
     aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
+    // PHASE 12 POINT 4 PASS C0 — server-projected guest-invitation eligibility.
+    //
+    // The Exchange/collaboration surface previously decided this in the browser
+    // with a hardcoded `plan === "PRO" || plan === "TEAM"`, which (a) made the
+    // client the commercial authority and (b) wrongly excluded ENTERPRISE.
+    // `allowsTeamWorkspace` is the SAME catalog value the server enforces in
+    // collaboration-completion.service#inviteGuest via `canPlanUseTeams`, so
+    // the projection and the enforcement cannot disagree.
+    //
+    // The subject is the ACTIVE workspace's resolved commercial state — for a
+    // PERSONAL workspace that is the user's own entitlement (applied above),
+    // for an ORGANIZATION workspace the org contract carried on the team row.
+    // There is no owner-plan fallback for an OWNED workspace.
+    canInviteGuests: planCaps.allowsTeamWorkspace,
+    /**
+     * PHASE 12 — POINT 7 (2026-08-05): the NUMERIC limits, projected.
+     *
+     * Three collaboration surfaces used to compute these in the browser:
+     * `MembersTab`, `InvitesTab` and the collaboration-teams index each called
+     * `getCollaborationTeamPlanLimits(useAccount().accountPlan)` and gated the
+     * invite affordance on the result. Two things were wrong with that, and
+     * only the second is obvious.
+     *
+     * The obvious one: it made the client a limit authority.
+     *
+     * The subtler one: the subject was the ACCOUNT plan. A collaboration team
+     * lives inside a WORKSPACE, and a workspace's commercial state is its own —
+     * an Owned Workspace does not inherit its owner's personal plan. So the
+     * capacity badge on an unsubscribed workspace showed the OWNER's Pro
+     * allowance, and the invite button stayed enabled right up to a 409 the
+     * server was always going to return.
+     *
+     * These are the same catalog values `billing-guards` enforces, resolved on
+     * the ACTIVE workspace. The client renders them; it no longer derives them.
+     */
+    limits: {
+      maxOwnedWorkspaces: planCaps.maxOwnedTeams,
+      maxMembersPerTeam: planCaps.maxMembersPerTeam,
+      maxPendingInvitesPerTeam: planCaps.maxPendingInvitesPerTeam,
+      maxInvitesPer24h: planCaps.maxInvitesPer24h,
+    },
   };
 
   // -------------------------------------------------------------------------
@@ -762,6 +862,13 @@ export async function buildPlatformContext(
       id: workspace.id as string,
       displayName: workspace.name ?? "Organization workspace",
       roleLabel: workspace.membership.role,
+      // PHASE 12 POINT 4 STEP 1 — the SERVER-resolved plan of the ACTIVE
+      // space, on the CANONICAL section. Consumers that need the active plan
+      // (the Billing capacity chips) read it here instead of re-deriving it
+      // from account/personalSpace/organizations with an owner-account
+      // fallback, and without reaching into the deprecated legacy
+      // `workspace` section.
+      plan: workspace.plan,
     };
   } else {
     // PERSONAL — pick the best available id; ALWAYS emit type=PERSONAL.
@@ -773,6 +880,8 @@ export async function buildPlatformContext(
       id: personalId,
       displayName: "Personal Space",
       roleLabel: "Owner",
+      // Same SERVER-resolved active plan (personal Entitlement overlay).
+      plan: workspace.plan,
     };
   }
 
@@ -833,16 +942,11 @@ export async function buildPlatformContext(
   // NEW creation, not an existing row's read). Suppress the switcher option
   // here so the client never offers a Personal choice the server guards
   // (workspace-bootstrap.service.ts / platform-context.routes.ts
-  // switch-workspace) would deny. Read-only signal; degrades to `true`
-  // (unchanged legacy behavior) on any resolution failure — the mutation
-  // guards remain the authority, this only affects what the UI offers.
-  let personalSpaceAllowedFlag = true;
-  try {
-    personalSpaceAllowedFlag = await resolvePersonalSpaceAllowed(userRow.id);
-  } catch {
-    personalSpaceAllowedFlag = true;
-  }
-
+  // switch-workspace) would deny.
+  //
+  // POINT 7 — `personalSpaceAllowedFlag` is now resolved ONCE at the top of
+  // this function, BEFORE selection, so it governs bootstrap, stale-pointer
+  // healing and the no-healthy-selection fallback as well as this list.
   const contextOptions = {
     personalSpace: personalTeamId && personalSpaceAllowedFlag
       ? {
@@ -877,7 +981,13 @@ export async function buildPlatformContext(
   // ===========================================================================
   const availableWorkspaces: PlatformContextAvailableWorkspace[] = [];
   // Personal first (always uses the real Team id).
-  if (personalTeamId) {
+  // POINT 7 — this legacy list used to offer the Personal workspace
+  // unconditionally while `contextOptions.personalSpace` correctly withheld
+  // it, so a consumer still reading the compatibility section was handed a
+  // selectable option the server would then refuse. The permission gate is
+  // stated here too rather than relying on `personalTeamId` happening to be
+  // null: two lists that disagree is exactly the bug being closed.
+  if (personalTeamId && personalSpaceAllowedFlag) {
     availableWorkspaces.push({
       id: personalTeamId,
       name: personalSpace.label,

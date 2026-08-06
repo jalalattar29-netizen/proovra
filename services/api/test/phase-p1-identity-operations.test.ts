@@ -163,25 +163,23 @@ describe("Phase IA-collapse — standalone /collaboration retired", () => {
     );
   });
 
-  it("workspace.collaboration registry entry is hidden from sidebar/cmd-K/All Tools", () => {
-    // The registry entry remains (page file + backend + DiscussionThread
-    // model are all preserved). The route is intentionally invisible to
-    // discovery surfaces because the URL redirects before the page ever
-    // renders.
+  it("the workspace.collaboration registry entry is gone entirely", () => {
+    // Phase 12 Point 4 (Pass E) — strengthened from "hidden from every
+    // discovery surface" to "absent". The entry's own comment conceded it
+    // was "preserved so the route id, href, and existing contract tests
+    // stay green" — a route row kept alive for its tests, pointing at a
+    // page the redirect made unreachable. The page is deleted and the row
+    // with it; three visibility flags set to false is a weaker guarantee
+    // than the row not existing.
+    //
+    // The backend is untouched: DiscussionThread / DiscussionMessage and
+    // the per-thread `/v1/collaboration/threads/*` routes still power the
+    // evidence-detail Discussion surface.
     const registry = readSource(
       "../../../apps/web/lib/navigation/routeRegistry.ts",
     );
-    // Find the workspace.collaboration block. We slice generously
-    // because the in-entry comment block explaining why the route is
-    // retired pushes the visibility flags >1KB past the id line.
-    const idx = registry.indexOf('id: "workspace.collaboration"');
-    expect(idx, "workspace.collaboration not found in registry").toBeGreaterThan(
-      -1,
-    );
-    const block = registry.slice(idx, idx + 3000);
-    expect(block).toMatch(/commandPaletteVisible:\s*false/);
-    expect(block).toMatch(/allToolsVisible:\s*false/);
-    expect(block).toMatch(/sidebarEligible:\s*false/);
+    expect(registry.indexOf('id: "workspace.collaboration"')).toBe(-1);
+    expect(registry).not.toMatch(/href:\s*["']\/collaboration["']/);
   });
 });
 
@@ -283,8 +281,10 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
     const saml = readSource(
       "../../../apps/web/app/(app)/settings/security/saml/page.tsx",
     );
-    // SAML page docstring must name the metadata + cert + health endpoints
-    expect(saml).toContain("/v1/admin/identity/sso/providers");
+    // SAML page docstring must name the metadata + cert + health endpoints.
+    // Canonical route is /v1/admin/identity/providers (admin-identity.routes.ts);
+    // the page consumes it. (The "/sso/providers" spelling was never registered.)
+    expect(saml).toContain("/v1/admin/identity/providers");
     expect(saml).toContain("/v1/auth/saml/");
     expect(saml).toContain("test-connection");
     expect(saml).toContain("certificate-next");

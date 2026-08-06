@@ -341,20 +341,22 @@ export async function resolveEffectiveRetention(input: {
 }): Promise<EffectiveRetention> {
   const prisma = input.prisma ?? defaultPrisma;
 
-  // If caseId / departmentId weren't supplied, hydrate from evidence.
-  let caseId = input.caseId ?? null;
-  let departmentId = input.departmentId ?? null;
-  if (!caseId || !departmentId) {
-    const ev = await prisma.evidence
-      .findUnique({
-        where: { id: input.evidenceId },
+  // If caseId / departmentId weren't supplied, hydrate from the
+  // canonical CaseEvidenceLink table. Track 1B closure — retention
+  // scope considers ALL linked cases (the strictest matching policy
+  // wins in the walk below), not a single legacy primary case.
+  const departmentId = input.departmentId ?? null;
+  let caseIds: string[] = input.caseId ? [input.caseId] : [];
+  if (caseIds.length === 0) {
+    const links = await prisma.caseEvidenceLink
+      .findMany({
+        where: { evidenceId: input.evidenceId },
         select: { caseId: true },
+        take: 100,
       })
-      .catch(() => null);
-    if (ev) {
-      caseId = caseId ?? ev.caseId ?? null;
-      // departmentId is not stored on Evidence; caller must supply it if needed
-    }
+      .catch(() => []);
+    caseIds = links.map((l) => l.caseId);
+    // departmentId is not stored on Evidence; caller must supply it if needed
   }
 
   const orClauses: Array<{ scopeKind: string; scopeTargetId: string | null }> = [
@@ -363,8 +365,8 @@ export async function resolveEffectiveRetention(input: {
   if (departmentId) {
     orClauses.push({ scopeKind: "DEPARTMENT", scopeTargetId: departmentId });
   }
-  if (caseId) {
-    orClauses.push({ scopeKind: "CASE", scopeTargetId: caseId });
+  for (const cid of caseIds) {
+    orClauses.push({ scopeKind: "CASE", scopeTargetId: cid });
   }
   orClauses.push({ scopeKind: "EVIDENCE", scopeTargetId: input.evidenceId });
 
@@ -461,7 +463,7 @@ export async function gateRetention(input: {
   const ev = await prisma.evidence
     .findUnique({
       where: { id: input.evidenceId },
-      select: { id: true, createdAt: true, caseId: true },
+      select: { id: true, createdAt: true },
     })
     .catch(() => null);
   if (!ev) {
@@ -471,11 +473,12 @@ export async function gateRetention(input: {
       reason: "evidence_not_found",
     };
   }
+  // caseId deliberately omitted — resolveEffectiveRetention hydrates
+  // ALL linked cases from the canonical link table.
   const effective = await resolveEffectiveRetention({
     prisma,
     teamId: input.teamId,
     evidenceId: ev.id,
-    caseId: ev.caseId ?? undefined,
   });
   if (effective.effectiveYears <= 0) {
     // No policy or 0-year policy = no retention floor; allow.

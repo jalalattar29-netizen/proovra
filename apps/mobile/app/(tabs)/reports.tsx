@@ -1,6 +1,6 @@
 // D:\digital-witness\apps\mobile\app\(tabs)\reports.tsx
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { colors, spacing } from "@proovra/ui";
+import { spacing } from "@proovra/ui";
 import { BottomNav, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { useRouter } from "expo-router";

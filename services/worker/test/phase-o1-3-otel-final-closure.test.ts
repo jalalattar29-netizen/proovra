@@ -289,22 +289,39 @@ describe("O1.3 — enqueue paths inject OTEL context", () => {
     expect(queueSrc).toContain("injectOtelContextIntoJobData");
   });
 
-  it("enqueueReportJob threads payload through injectOtelContextIntoJobData", () => {
-    // Bounded scoping: find the function block and assert the helper
-    // is invoked before queue.add.
-    const start = queueSrc.indexOf("export async function enqueueReportJob");
+  /**
+   * PHASE 12 — POINT 5 moved the carrier, so these two moved with it.
+   *
+   * They used to require each producer to call
+   * `injectOtelContextIntoJobData(...)` before its own `queue.add(...)` — a
+   * per-call-site audit, because there were fifteen hand-rolled `.add` calls
+   * and each could forget. There is now ONE `.add`, inside the shared
+   * `enqueueCanonicalJob`, and the carrier is a validated `traceparent` field
+   * on the canonical envelope rather than an unbounded `_otel` blob bolted
+   * onto the payload.
+   *
+   * The property is the same and is now asserted once: the producer supplies
+   * the active trace context, and the enqueue authority puts it on the wire.
+   */
+  it("the report producer reaches the enqueue authority with a trace context", () => {
+    const start = queueSrc.indexOf(
+      "export async function enqueueReportGenerationRequest",
+    );
     expect(start).toBeGreaterThan(-1);
-    const tail = queueSrc.slice(start, start + 4000);
-    expect(tail).toMatch(/injectOtelContextIntoJobData\(/);
-    expect(tail).toMatch(/reportQueue\.add\(/);
+    // The producer delegates; the traceparent is supplied by the one
+    // `enqueueWork` helper every producer in this file routes through.
+    expect(queueSrc.slice(start, start + 1200)).toMatch(/enqueueWork\(/);
+    expect(queueSrc).toMatch(/traceparent: currentTraceparent\(\)/);
   });
 
-  it("enqueueOtsUpgradeJob threads payload through injectOtelContextIntoJobData", () => {
-    const start = queueSrc.indexOf("export async function enqueueOtsUpgradeJob");
+  it("the OTS producer reaches the enqueue authority with a trace context", () => {
+    const start = queueSrc.indexOf(
+      "export async function enqueueOtsUpgradeJob",
+    );
     expect(start).toBeGreaterThan(-1);
-    const tail = queueSrc.slice(start, start + 4000);
-    expect(tail).toMatch(/injectOtelContextIntoJobData\(/);
-    expect(tail).toMatch(/otsUpgradeQueue\.add\(/);
+    const tail = queueSrc.slice(start, start + 1600);
+    expect(tail).toMatch(/enqueueCanonicalJob\(/);
+    expect(tail).toMatch(/traceparent: currentTraceparent\(\)/);
   });
 });
 

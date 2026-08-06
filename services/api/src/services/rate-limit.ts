@@ -114,6 +114,24 @@ async function enforceMemoryRateLimit(params: {
   };
 }
 
+/**
+ * PHASE 12 — POINT 7 (2026-08-05): the limiter's Redis KEYSPACE.
+ *
+ * Callers pass domain-shaped keys (`auth:email-register:ip:…`,
+ * `verify:ip:…`), and this module used to write them to Redis VERBATIM —
+ * while `clearAllRateLimitBuckets` scan-deleted `ratelimit:*`. The two never
+ * intersected, so the reset endpoint's Redis half was a no-op from the day it
+ * shipped: it always reported `redisCleared: 0` and the buckets it was built
+ * to clear survived untouched. The in-memory half worked, which is why it went
+ * unnoticed — the failure only appears once Redis is actually configured.
+ *
+ * Prefixing here, at the ONE place keys enter Redis, makes the writer and the
+ * cleaner agree by construction. It is internal: no caller passes or reads a
+ * Redis key, and the in-memory store keeps the unprefixed key because it is
+ * cleared wholesale.
+ */
+const REDIS_KEY_PREFIX = "ratelimit:";
+
 async function enforceRedisRateLimit(params: {
   key: string;
   max: number;
@@ -122,6 +140,7 @@ async function enforceRedisRateLimit(params: {
 }): Promise<RateLimitResult> {
   const now = Date.now();
   const fallbackResetAtMs = buildWindowReset(now, params.windowSec);
+  const redisKey = `${REDIS_KEY_PREFIX}${params.key}`;
 
   try {
     if (params.redisClient.status === "wait") {
@@ -129,8 +148,8 @@ async function enforceRedisRateLimit(params: {
     }
 
     const pipeline = params.redisClient.pipeline();
-    pipeline.incr(params.key);
-    pipeline.pttl(params.key);
+    pipeline.incr(redisKey);
+    pipeline.pttl(redisKey);
 
     const result = await pipeline.exec();
 
@@ -145,7 +164,7 @@ async function enforceRedisRateLimit(params: {
     }
 
     if (current === 1 || ttl < 0) {
-      await params.redisClient.pexpire(params.key, params.windowSec * 1000);
+      await params.redisClient.pexpire(redisKey, params.windowSec * 1000);
     }
 
     const allowed = current <= params.max;

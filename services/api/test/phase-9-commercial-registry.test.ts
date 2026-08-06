@@ -102,7 +102,16 @@ describe("Phase 9 §12 — commercial-reader classification registry", () => {
   it("the scanner is non-vacuous (matches the real decision surface) and every hit is classified", () => {
     // Guard against a broken regex silently passing: the raw-decision
     // surface is real and non-trivial.
-    expect(rawDecisionFiles.length).toBeGreaterThanOrEqual(5);
+    //
+    // PHASE 12 POINT 4 PASS C5 — floor lowered 5 → 4 by a RATCHET REDUCTION,
+    // not a rebaseline: `billing-enforcement.service.ts` and
+    // `enterprise-gate-resolvers.service.ts` each carried a byte-identical
+    // raw `billingStatus` comparison that fell back to the OWNER's personal
+    // entitlement. Both now resolve the effective plan from
+    // `resolveCommercialContext` with an explicit WORKSPACE subject, so
+    // neither makes a raw commercial decision any more. The floor tracks the
+    // remaining surface; it may only go DOWN.
+    expect(rawDecisionFiles.length).toBeGreaterThanOrEqual(4);
     const unclassified = rawDecisionFiles.filter((f) => !REGISTRY[f]);
     expect(unclassified).toEqual([]);
   });

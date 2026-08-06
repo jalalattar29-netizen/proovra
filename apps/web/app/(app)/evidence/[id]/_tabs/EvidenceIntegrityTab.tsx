@@ -35,6 +35,7 @@ import {
   formatValue,
   type EvidenceDetailCtx,
 } from "./_lib";
+import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   displayCaptureMethod,
@@ -50,10 +51,17 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     otsStatusPresentation,
     showManualLatestStatusCheck,
     loadWorkspace,
+    evidenceId,
   } = ctx;
 
   return (
     <>
+      {/* PHASE 12B — canonical provenance-chain surface. Reads the
+          server projection GET /v1/provenance/:evidenceId; the section
+          owns its own loading / empty / denial / error states and drops
+          responses that land after a workspace switch. */}
+      <EvidenceProvenanceChainSection evidenceId={evidenceId} />
+
       <section className="evidence-detail-section">
         <div className="evidence-detail-section-header">
           <SectionHeading
@@ -200,7 +208,13 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             {
               label: "Fingerprint hash",
-              value: preservation.fingerprintHashRecorded ? "Recorded" : "Not recorded",
+              value: preservation.fingerprintHashRecorded
+                ? preservation.fingerprintCanonicalHashMatches === true
+                  ? "Recorded and matches the canonical fingerprint"
+                  : preservation.fingerprintCanonicalHashMatches === false
+                    ? "Recorded but does not match the canonical fingerprint"
+                    : "Recorded"
+                : "Not recorded",
             },
             {
               label: "Signature",

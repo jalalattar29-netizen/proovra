@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-const H = vi.hoisted(() => ({ calls: [] as any[] }));
-vi.mock("../src/services/platform-audit-log.service.js", () => ({ appendPlatformAuditLog: async (p: any) => { H.calls.push(p); } }));
+type AuditRow = Record<string, unknown>;
+const H = vi.hoisted(() => ({ calls: [] as AuditRow[] }));
+vi.mock("../src/services/platform-audit-log.service.js", () => ({ appendPlatformAuditLog: async (p: AuditRow) => { H.calls.push(p); } }));
 import { emitTenantAudit } from "../src/services/audit/tenant-audit.service.js";
-const emit = async (o: any) => { H.calls.length = 0; await emitTenantAudit({ sourceApp: "API", actorUserId: "u1", workspaceId: "t1", ...o }); return H.calls[0].severity; };
+type TenantAuditInput = Parameters<typeof emitTenantAudit>[0];
+const emit = async (o: Partial<TenantAuditInput> & Pick<TenantAuditInput, "action" | "outcome">) => { H.calls.length = 0; await emitTenantAudit({ sourceApp: "API", actorUserId: "u1", workspaceId: "t1", ...o }); return H.calls[0]!.severity; };
 describe("§2 — severity policy (elevate-only, security floors)", () => {
   it("break-glass action floors at critical regardless of caller", async () => {
     expect(await emit({ action: "break_glass.session.revoke", outcome: "success" })).toBe("critical");

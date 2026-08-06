@@ -50,7 +50,6 @@ vi.mock(
   }),
 );
 
-const legacyRecordReviewDecisionMock = vi.fn();
 const legacyProjectReviewWorkflowMock = vi.fn(() => ({
   workflowId: "wf-1",
   stage: "APPROVED",
@@ -65,9 +64,33 @@ vi.mock("../src/services/review-operations/review-operations.service.js", () => 
   listReviewQueue: vi.fn(),
   projectReviewWorkflow: legacyProjectReviewWorkflowMock,
   reconcileReviewSlas: vi.fn(),
-  recordReviewDecision: legacyRecordReviewDecisionMock,
   updateReviewSla: vi.fn(),
 }));
+
+// Track 1C — the engine records verdicts through the canonical
+// decision authority (immutable decision row + derived projection in
+// one transaction). The mock returns the authority result envelope.
+const canonicalRecordReviewDecisionMock = vi.fn();
+vi.mock("../src/services/reviewer-ops/review-decision.service.js", () => ({
+  ReviewDecisionAuthorityError: class ReviewDecisionAuthorityError extends Error {
+    constructor(
+      public readonly code: string,
+      public readonly details?: Record<string, unknown>,
+    ) {
+      super(code);
+    }
+  },
+  recordReviewDecision: canonicalRecordReviewDecisionMock,
+}));
+
+function authorityResult(workflow: Record<string, unknown>) {
+  return {
+    workflow,
+    decision: { id: "dec-1" },
+    state: "resolved",
+    idempotent: false,
+  };
+}
 
 const findOpenEscalationForWorkflowMock = vi.fn(async () => null);
 vi.mock("../src/services/reviewer-ops/escalation-engine.service.js", () => ({
@@ -201,7 +224,7 @@ function makeCtx() {
 
 beforeEach(() => {
   sampleClosedWorkflowMock.mockReset();
-  legacyRecordReviewDecisionMock.mockReset();
+  canonicalRecordReviewDecisionMock.mockReset();
   findOpenEscalationForWorkflowMock.mockReset();
   findOpenEscalationForWorkflowMock.mockResolvedValue(null);
   safeEmitSecurityEventMock.mockReset();
@@ -219,8 +242,8 @@ describe("Phase 3 — approveReview wires sampleClosedWorkflow", () => {
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce(
       makeWorkflowRow(),
     );
-    legacyRecordReviewDecisionMock.mockResolvedValueOnce(
-      makeWorkflowRow({ status: "APPROVED_INTERNAL" }),
+    canonicalRecordReviewDecisionMock.mockResolvedValueOnce(
+      authorityResult(makeWorkflowRow({ status: "APPROVED_INTERNAL" })),
     );
     sampleClosedWorkflowMock.mockResolvedValueOnce({ sampleId: "qc-1" });
 
@@ -241,8 +264,8 @@ describe("Phase 3 — approveReview wires sampleClosedWorkflow", () => {
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce(
       makeWorkflowRow(),
     );
-    legacyRecordReviewDecisionMock.mockResolvedValueOnce(
-      makeWorkflowRow({ status: "APPROVED_INTERNAL" }),
+    canonicalRecordReviewDecisionMock.mockResolvedValueOnce(
+      authorityResult(makeWorkflowRow({ status: "APPROVED_INTERNAL" })),
     );
     sampleClosedWorkflowMock.mockRejectedValueOnce(new Error("qc service down"));
 
@@ -253,7 +276,7 @@ describe("Phase 3 — approveReview wires sampleClosedWorkflow", () => {
 
     // Approve still succeeded — the close transaction is NOT rolled back.
     expect(result).toBeDefined();
-    expect(legacyRecordReviewDecisionMock).toHaveBeenCalledTimes(1);
+    expect(canonicalRecordReviewDecisionMock).toHaveBeenCalledTimes(1);
     // And the engine logged a structured warn so operators see the
     // sampling failure surface rather than silently swallowing.
     expect(logWarnMock).toHaveBeenCalled();
@@ -265,8 +288,8 @@ describe("Phase 3 — approveReview wires sampleClosedWorkflow", () => {
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce(
       makeWorkflowRow(),
     );
-    legacyRecordReviewDecisionMock.mockResolvedValueOnce(
-      makeWorkflowRow({ status: "APPROVED_INTERNAL" }),
+    canonicalRecordReviewDecisionMock.mockResolvedValueOnce(
+      authorityResult(makeWorkflowRow({ status: "APPROVED_INTERNAL" })),
     );
     sampleClosedWorkflowMock.mockResolvedValueOnce(null);
 
@@ -291,8 +314,8 @@ describe("Phase 3 — rejectReview wires sampleClosedWorkflow", () => {
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce(
       makeWorkflowRow(),
     );
-    legacyRecordReviewDecisionMock.mockResolvedValueOnce(
-      makeWorkflowRow({ status: "REJECTED_INSUFFICIENT" }),
+    canonicalRecordReviewDecisionMock.mockResolvedValueOnce(
+      authorityResult(makeWorkflowRow({ status: "REJECTED_INSUFFICIENT" })),
     );
     sampleClosedWorkflowMock.mockResolvedValueOnce({ sampleId: "qc-2" });
 
@@ -316,8 +339,8 @@ describe("Phase 3 — rejectReview wires sampleClosedWorkflow", () => {
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce(
       makeWorkflowRow(),
     );
-    legacyRecordReviewDecisionMock.mockResolvedValueOnce(
-      makeWorkflowRow({ status: "REJECTED_INSUFFICIENT" }),
+    canonicalRecordReviewDecisionMock.mockResolvedValueOnce(
+      authorityResult(makeWorkflowRow({ status: "REJECTED_INSUFFICIENT" })),
     );
     sampleClosedWorkflowMock.mockRejectedValueOnce(
       new Error("qc service down"),
@@ -329,7 +352,7 @@ describe("Phase 3 — rejectReview wires sampleClosedWorkflow", () => {
     });
 
     expect(result).toBeDefined();
-    expect(legacyRecordReviewDecisionMock).toHaveBeenCalledTimes(1);
+    expect(canonicalRecordReviewDecisionMock).toHaveBeenCalledTimes(1);
     expect(logWarnMock).toHaveBeenCalled();
     const warnTags = logWarnMock.mock.calls.map((c) => c[0]);
     expect(warnTags).toContain("qc.sample_on_close.failed");

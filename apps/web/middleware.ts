@@ -118,8 +118,10 @@ function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: b
   return base.join("; ");
 }
 
-function applySecurityHeaders(response: NextResponse, nonce: string, isProd: boolean, relaxed: boolean, allowEval: boolean) {
-  const csp = buildCsp(nonce, isProd, relaxed, allowEval);
+function applySecurityHeaders(response: NextResponse, csp: string) {
+  // The policy is BUILT ONCE per request and passed in, so the header the
+  // browser enforces and the header the render read are the same string with
+  // the same nonce. Building it twice was safe only by coincidence.
   response.headers.set("Content-Security-Policy", csp);
 
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -133,9 +135,25 @@ function applySecurityHeaders(response: NextResponse, nonce: string, isProd: boo
   // response.headers.set("x-nonce", nonce);
 }
 
-function nextWithNonce(req: NextRequest, nonce: string) {
+/**
+ * PHASE 12 — POINT 7 (final pass): the CSP must reach the RENDER, not only the
+ * browser.
+ *
+ * Next.js takes the nonce for its own inline RSC/bootstrap scripts from the
+ * `Content-Security-Policy` header on the REQUEST — `x-nonce` is a convention
+ * for application code, and Next does not read it. With the policy set only on
+ * the response, Next emitted its scripts with no nonce while the browser was
+ * told to require one, so `script-src 'self' 'nonce-…'` blocked every inline
+ * script and nothing hydrated.
+ *
+ * This is one half of the fix. The other half is that a page rendered at BUILD
+ * time cannot carry a per-request nonce at all — see the `dynamic` export in
+ * `app/layout.tsx`.
+ */
+function nextWithNonce(req: NextRequest, nonce: string, csp: string) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
@@ -170,6 +188,10 @@ export function middleware(req: NextRequest) {
     const allowEval = process.env.CSP_ALLOW_EVAL === "true";
 
     const nonce = btoa(crypto.randomUUID());
+    // ONE policy per request, built once and used for BOTH the request context
+    // (so the render can read the nonce) and the response header (so the
+    // browser enforces it). Two builds could drift; one cannot.
+    const csp = buildCsp(nonce, isProd, relaxed, allowEval);
 
     const host = req.headers.get("host");
     const pathname = req.nextUrl.pathname;
@@ -180,8 +202,8 @@ export function middleware(req: NextRequest) {
 
     // dev / vercel preview: no host switching
     if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
-      const res = nextWithNonce(req, nonce);
-      if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+      const res = nextWithNonce(req, nonce, csp);
+      if (isProd) applySecurityHeaders(res, csp);
       return res;
     }
 
@@ -189,8 +211,8 @@ export function middleware(req: NextRequest) {
     const webBaseUrl = normalizeBaseUrl(WEB_BASE);
 
     if (!appBaseUrl && !webBaseUrl) {
-      const res = nextWithNonce(req, nonce);
-      if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+      const res = nextWithNonce(req, nonce, csp);
+      if (isProd) applySecurityHeaders(res, csp);
       return res;
     }
 
@@ -222,13 +244,13 @@ export function middleware(req: NextRequest) {
           const target = req.nextUrl.clone();
           target.pathname = `/settings/legal/${internalSlug}`;
           const res = NextResponse.redirect(target, 308);
-          if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+          if (isProd) applySecurityHeaders(res, csp);
           return res;
         }
       }
 
-      const res = nextWithNonce(req, nonce);
-      if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+      const res = nextWithNonce(req, nonce, csp);
+      if (isProd) applySecurityHeaders(res, csp);
       return res;
     }
 
@@ -237,7 +259,7 @@ export function middleware(req: NextRequest) {
       const target = new URL(req.url);
       target.pathname = "/home";
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+      if (isProd) applySecurityHeaders(res, csp);
       return res;
     }
 
@@ -247,7 +269,7 @@ export function middleware(req: NextRequest) {
       target.pathname = pathname;
       req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+      if (isProd) applySecurityHeaders(res, csp);
       return res;
     }
 
@@ -317,7 +339,7 @@ export function middleware(req: NextRequest) {
       const target = new URL(appBaseUrl);
       target.pathname = pathname;
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+      if (isProd) applySecurityHeaders(res, csp);
       return res;
     }
 
@@ -329,13 +351,13 @@ export function middleware(req: NextRequest) {
     if (isAppHost) {
       const tierGated = applySurfaceTierGate(req, pathname);
       if (tierGated) {
-        if (isProd) applySecurityHeaders(tierGated, nonce, isProd, relaxed, allowEval);
+        if (isProd) applySecurityHeaders(tierGated, csp);
         return tierGated;
       }
     }
 
-    const res = nextWithNonce(req, nonce);
-    if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
+    const res = nextWithNonce(req, nonce, csp);
+    if (isProd) applySecurityHeaders(res, csp);
     return res;
   } catch {
     return NextResponse.next();

@@ -177,12 +177,10 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.evidence", "CASES"],
   ["workspace.search", "CASES"],
   ["workspace.reports", "CASES"],
-  // Phase IA-collapse — `workspace.collaboration` stays in CASES even
-  // though the standalone page now redirects to /inbox. The registry
-  // entry is preserved for backward-compat tests and the underlying
-  // /v1/collaboration/threads/* service still powers Evidence Detail
-  // → Discussion (a CASES-pillar surface).
-  ["workspace.collaboration", "CASES"],
+  // Phase 12 Point 4 (Pass E) — `workspace.collaboration` removed with
+  // its deleted page. The `/v1/collaboration/threads/*` service is
+  // untouched; it still powers Evidence Detail → Discussion, which is
+  // mapped through `workspace.evidence` above.
   // Phase IA-collapse — `workspace.communications` moved from CASES
   // to OPERATIONS. It is operator-facing SMS/WhatsApp/OTP delivery
   // state, not a daily case work surface.
@@ -266,6 +264,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organization-detail", "ADMIN"],
   ["account.organization-setup", "ADMIN"],
   ["platform.provisioning", "ADMIN"],
+  // PHASE 12B C10 — restricted internal-staff support/break-glass surface.
+  ["platform.support_access", "ADMIN"],
   // Platform Admin Control Center — read-only admin surfaces.
   ["platform.organizations", "ADMIN"],
   ["platform.organization_detail", "ADMIN"],

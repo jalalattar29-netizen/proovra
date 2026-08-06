@@ -68,15 +68,29 @@ describe("Phase IA-intake-personal-space-fix — guard semantics", () => {
     expect(PAGE).toMatch(/active\.type === "PERSONAL"[\s\S]{0,200}"Personal Space"/);
   });
 
-  it("the legacy `workspace.scope === \"TEAM\"` branch was widened to accept any active workspace", () => {
-    // The fallback that reads the deprecated `workspace` field now
-    // accepts ANY non-empty workspace id (PERSONAL or TEAM), not just
-    // the TEAM scope. The conditional must NOT carry the `=== "TEAM"`
-    // gate anymore.
-    const fallback =
-      PAGE.match(/const ws = ctxEnvelope\.workspace;[\s\S]{0,500}\}/)?.[0] ?? "";
-    expect(fallback).not.toMatch(/scope === "TEAM"/);
-    expect(fallback).toMatch(/ws\.status === "active" && ws\.id/);
+  it("the deprecated `workspace.scope` field is not consulted at all", () => {
+    // Phase 12 Point 4 (Pass E) — this used to assert that the fallback
+    // branch reading the deprecated `workspace` envelope had been WIDENED
+    // from `scope === "TEAM"` to accept any active workspace, which is what
+    // originally stranded Personal Space users on "Switch to a workspace".
+    //
+    // That branch existed only to cover "older deployments that haven't
+    // projected `activeSpace` yet"; the API projects `activeSpace` on every
+    // envelope build, so the branch was unreachable and has been deleted.
+    // The bug it was widened to fix can no longer recur, because the only
+    // path left is the canonical one asserted above — and the file's own
+    // guidance ("the legacy `workspace.scope` field is deprecated and
+    // should not be consulted here") is now literally true.
+    // Comments are stripped: the file documents the historical bug, and
+    // that history is worth keeping. What must be gone is the code.
+    const executable = PAGE.split("\n")
+      .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
+      .join("\n");
+    expect(executable).not.toMatch(/const ws = ctxEnvelope\.workspace;/);
+    expect(executable).not.toMatch(/scope === "TEAM"/);
+    // The single remaining resolution path falls through to null rather
+    // than guessing a workspace.
+    expect(PAGE).toMatch(/setCurrentTeam\(null\);/);
   });
 });
 

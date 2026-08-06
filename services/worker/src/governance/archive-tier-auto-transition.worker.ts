@@ -100,9 +100,26 @@ async function sweepTeam(teamId: string): Promise<number> {
     //    importing the canonical service implementation. Dynamic import keeps
     //    the worker bundle free of a static dependency on the api package.
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // @ts-ignore — cross-package dynamic import; module resolves at runtime but TS cannot trace the path
-      const mod = await import("../../api/src/services/lifecycle/archive-tier.service.js").catch(() => null) as any;
+      // The cross-package module resolves at RUNTIME but TypeScript cannot
+      // trace the path, so the import is typed as `unknown` and narrowed to the
+      // ONE function this worker actually consumes. That is the whole surface
+      // it needs; `any` would have silently accepted any shape the module
+      // happened to expose, including a renamed or missing entry point — the
+      // exact failure the `mod?.transitionEvidenceTier` guard below exists to
+      // catch.
+      type ArchiveTierTransitionModule = {
+        transitionEvidenceTier?: (input: {
+          prisma: typeof prisma;
+          teamId: string;
+          evidenceId: string;
+          toTier: ArchiveTier;
+          reason: string;
+        }) => Promise<unknown>;
+      };
+      const loaded: unknown = await
+        // @ts-expect-error — cross-package dynamic import; module resolves at runtime but TS cannot trace the path
+        import("../../api/src/services/lifecycle/archive-tier.service.js").catch(() => null);
+      const mod = (loaded ?? null) as ArchiveTierTransitionModule | null;
       if (mod?.transitionEvidenceTier) {
         await mod.transitionEvidenceTier({
           prisma,
@@ -116,21 +133,34 @@ async function sweepTeam(teamId: string): Promise<number> {
         // Fallback: write a PENDING transition row directly so the audit
         // trail exists even if the API service module isn't importable from
         // the worker bundle.
-        await (prisma.archiveTierTransition as any).create({
-          data: {
-            teamId,
-            evidenceId: ev.id,
-            fromTier: currentTier,
-            toTier: targetTier,
-            reason: "AUTO_TRANSITION_PENDING",
-            costEstimateUsdMicros: 0n,
-            initiatedByUserId: null,
-            state: "PENDING",
-            storageClassBefore: null,
-            storageClassAfter: null,
-          },
-        }).catch(() => null);
-        scheduled += 1;
+        // PHASE 12 POINT 5 — the counter now follows the write.
+        //
+        // This was `.catch(() => null)` followed by an unconditional
+        // `scheduled += 1`, so a refused or failed INSERT was still reported
+        // as a scheduled transition. The count is what an operator reads to
+        // decide whether tiering is working; it must mean rows exist.
+        //
+        // The INSERT is also the claim here: the partial unique index
+        // permits one non-terminal transition per evidence, so an overlapping
+        // tick is refused rather than writing a second one.
+        const written = await prisma.archiveTierTransition
+          .create({
+            data: {
+              teamId,
+              evidenceId: ev.id,
+              fromTier: currentTier,
+              toTier: targetTier,
+              reason: "AUTO_TRANSITION_PENDING",
+              costEstimateUsdMicros: 0n,
+              initiatedByUserId: null,
+              state: "PENDING",
+              storageClassBefore: null,
+              storageClassAfter: null,
+            },
+            select: { id: true },
+          })
+          .catch(() => null);
+        if (written) scheduled += 1;
       }
     } catch {
       // One evidence failure must not abort the remaining batch.
@@ -143,14 +173,20 @@ async function sweepTeam(teamId: string): Promise<number> {
 export async function runArchiveTierAutoTransitions(opts: {
   trigger: string;
 }): Promise<{ teamsProcessed: number; totalScheduled: number }> {
-  const teams = await prisma.team
-    .findMany({
-      where: { isPersonal: false },
-      select: { id: true },
-      orderBy: { createdAt: "asc" },
-      take: MAX_TEAMS_PER_SWEEP,
-    })
-    .catch(() => [] as { id: string }[]);
+  // PHASE 12 POINT 5 — a database failure is not an empty workspace list.
+  //
+  // This read used to end in `.catch(() => [])`, which turned any connection
+  // or schema error into "there are no workspaces to sweep". The tick then
+  // logged `sweep_completed` with zero teams and zero transitions — a total
+  // outage of retention tiering that is indistinguishable, in every log and
+  // metric, from a healthy run with nothing to do. The error now propagates
+  // to the scheduler, which records a failed tick.
+  const teams = await prisma.team.findMany({
+    where: { isPersonal: false },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: MAX_TEAMS_PER_SWEEP,
+  });
 
   let teamsProcessed = 0;
   let totalScheduled = 0;

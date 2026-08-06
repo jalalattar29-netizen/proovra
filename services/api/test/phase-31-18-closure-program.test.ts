@@ -72,23 +72,11 @@ function stripComments(s: string): string {
     .replace(/\/\/[^\n]*/g, "");
 }
 
-// Flatten whitespace so JSX text that wraps across lines still
-// matches simple substring/regex assertions.
-function flat(s: string): string {
-  return s.replace(/\s+/g, " ");
-}
-
 const RECONCILER_SRC = readSource(
   "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
 );
 const GRAPH_ROUTES_SRC = readSource("../src/routes/graph.routes.ts");
 const MI_ROUTES_SRC = readSource("../src/routes/media-intelligence.routes.ts");
-
-// Pre-strip comments so forbidden-wording checks don't catch
-// documentation comments that intentionally reference the words.
-const RECONCILER_CODE = stripComments(RECONCILER_SRC);
-const GRAPH_ROUTES_CODE = stripComments(GRAPH_ROUTES_SRC);
-const MI_ROUTES_CODE = stripComments(MI_ROUTES_SRC);
 
 // =============================================================================
 // PART 1 — EXTERNAL_REVIEW graph domain reconciler
@@ -275,7 +263,22 @@ describe("Phase 31.18 — listDuplicateEdges helper", () => {
     );
     expect(idxEnd).toBeGreaterThan(idx);
     const slice = RECONCILER_SRC.slice(idx, idxEnd);
-    expect(slice).toMatch(/'SAME_HASH_AS','SIMILAR_TO','POSSIBLE_DERIVATIVE_OF'/);
+    // Phase 12 Point 4: the vocabulary had been written twice — an unused
+    // `DUPLICATE_EDGE_TYPES` constant AND the same literal list inline in both
+    // raw queries. The constant is now the ONE definition both queries render
+    // from, so the requirement is that the queries bind to it (and that the
+    // constant still declares exactly these three kinds), not that the literal
+    // is duplicated into the SQL text.
+    expect(slice).toMatch(/edge_type"? IN \(\$\{DUPLICATE_EDGE_TYPE_SQL_LIST\}\)/);
+    const vocab = RECONCILER_SRC.slice(
+      RECONCILER_SRC.indexOf("const DUPLICATE_EDGE_TYPES = ["),
+      RECONCILER_SRC.indexOf("] as const;", RECONCILER_SRC.indexOf("const DUPLICATE_EDGE_TYPES = [")),
+    );
+    expect(vocab).toMatch(/"SAME_HASH_AS"/);
+    expect(vocab).toMatch(/"SIMILAR_TO"/);
+    expect(vocab).toMatch(/"POSSIBLE_DERIVATIVE_OF"/);
+    // Nothing else may enter the bounded vocabulary.
+    expect(vocab.match(/"[A-Z_]+"/g) ?? []).toHaveLength(3);
     expect(slice).toMatch(/ns\."node_kind" = 'EVIDENCE'/);
     expect(slice).toMatch(/nt\."node_kind" = 'EVIDENCE'/);
   });

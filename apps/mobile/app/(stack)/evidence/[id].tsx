@@ -1,18 +1,24 @@
-import { Linking, ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator } from "react-native";
-import { colors, spacing, typography } from "@proovra/ui";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { spacing, typography } from "@proovra/ui";
 import { Badge, BottomNav, Button, Card, StatusPill } from "../../../components/ui";
 import { useLocale } from "../../../src/locale-context";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../src/api";
 
-interface AIAnalysis {
-  classification?: { category: string; confidence: number };
-  metadata?: { objects_detected: string[]; text_content?: string };
-  description?: { title: string; summary: string };
-  moderation?: { risk_level: string; is_safe: boolean };
-  tags?: { tags: string[] };
-}
+/**
+ * Phase 12 Point 4 (Pass E) — the on-screen "AI Analysis" section was
+ * removed. It called `GET /v1/evidence/:id/analysis` and
+ * `POST /v1/evidence/:id/analyze`, neither of which is registered on the
+ * API. The GET's rejection was swallowed with a "not yet available"
+ * comment, so a removed endpoint rendered as an empty state inviting the
+ * operator to press "Analyze Evidence" — a visible product action that
+ * could only ever fail. The canonical intelligence projection is
+ * `GET /v1/intelligence/evidence/:id` (workspace-scoped, advisory,
+ * entities/extracted-text shaped); it is a different contract than this
+ * screen rendered, so no mobile surface is claimed here. Re-adding a
+ * mobile intelligence surface is product work, not dead-code cleanup.
+ */
 
 export default function EvidenceDetailScreen() {
   const { t, fontFamilyBold, fontFamily, isRTL } = useLocale();
@@ -24,9 +30,6 @@ export default function EvidenceDetailScreen() {
   const [type, setType] = useState<string>("Evidence");
   const [fileSha, setFileSha] = useState<string | null>(null);
   const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
-  const [aiAnalysis, setAIAnalysis] = useState<AIAnalysis | null>(null);
-  const [aiLoading, setAILoading] = useState(false);
-  const [aiError, setAIError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!params.id) return;
@@ -44,46 +47,13 @@ export default function EvidenceDetailScreen() {
     apiFetch(`/v1/evidence/${params.id}/report/latest`)
       .then((data) => setReportUrl(data.url ?? null))
       .catch(() => setReportUrl(null));
-
-    apiFetch(`/v1/evidence/${params.id}/analysis`)
-      .then((data) => {
-        if (data.data) {
-          setAIAnalysis(data.data);
-        }
-      })
-      .catch(() => {
-        // Analysis not yet available, will offer to run
-      });
   }, [params.id]);
-
-  const handleRunAnalysis = async () => {
-    if (!params.id) return;
-    setAILoading(true);
-    setAIError(null);
-    try {
-      const result = await apiFetch(`/v1/evidence/${params.id}/analyze`, { method: "POST" });
-      if (result.data) {
-        setAIAnalysis(result.data);
-      }
-    } catch (error) {
-      setAIError(error instanceof Error ? error.message : "Failed to analyze evidence");
-    } finally {
-      setAILoading(false);
-    }
-  };
 
   const statusTone = useMemo(() => {
     if (status === "SIGNED") return "signed" as const;
     if (status === "PROCESSING") return "processing" as const;
     return "ready" as const;
   }, [status]);
-
-  const getRiskColor = (riskLevel?: string) => {
-    if (!riskLevel) return "rgba(245,251,255,0.90)";
-    if (riskLevel === "high") return "rgba(239, 68, 68, 0.95)";
-    if (riskLevel === "medium") return "rgba(245, 158, 11, 0.95)";
-    return "rgba(34, 197, 94, 0.95)";
-  };
 
   return (
     <View style={styles.container}>
@@ -103,113 +73,6 @@ export default function EvidenceDetailScreen() {
             {createdAt ? `Created ${new Date(createdAt).toISOString()}` : "—"}
           </Text>
         </View>
-
-        {/* AI Analysis Section */}
-        {aiAnalysis ? (
-          <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
-            <Text style={[styles.detailsTitle, { fontFamily: fontFamilyBold, marginBottom: spacing.md }]}>
-              AI Analysis
-            </Text>
-
-            {aiAnalysis.description && (
-              <View style={styles.aiSection}>
-                <Text style={[styles.aiLabel, { fontFamily }]}>Summary</Text>
-                <Text style={[styles.aiValue, { fontFamily }]}>
-                  {aiAnalysis.description.summary}
-                </Text>
-              </View>
-            )}
-
-            {aiAnalysis.classification && (
-              <View style={styles.aiSection}>
-                <Text style={[styles.aiLabel, { fontFamily }]}>Classification</Text>
-                <View style={styles.classificationPill}>
-                  <Text style={[styles.classificationText, { fontFamily: fontFamilyBold }]}>
-                    {aiAnalysis.classification.category}
-                  </Text>
-                  <Text style={[styles.confidenceText, { fontFamily }]}>
-                    {Math.round(aiAnalysis.classification.confidence * 100)}% confidence
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {aiAnalysis.metadata?.objects_detected && aiAnalysis.metadata.objects_detected.length > 0 && (
-              <View style={styles.aiSection}>
-                <Text style={[styles.aiLabel, { fontFamily }]}>Objects Detected</Text>
-                <View style={styles.tagRow}>
-                  {aiAnalysis.metadata.objects_detected.slice(0, 5).map((obj, idx) => (
-                    <View key={idx} style={styles.tag}>
-                      <Text style={[styles.tagText, { fontFamily }]}>{obj}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {aiAnalysis.moderation && (
-              <View style={styles.aiSection}>
-                <Text style={[styles.aiLabel, { fontFamily }]}>Content Safety</Text>
-                <View
-                  style={[
-                    styles.safetyRow,
-                    { backgroundColor: aiAnalysis.moderation.is_safe ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)" }
-                  ]}
-                >
-                  <View style={[styles.safetyDot, { backgroundColor: getRiskColor(aiAnalysis.moderation.risk_level) }]} />
-                  <Text style={[styles.safetyText, { fontFamily, color: getRiskColor(aiAnalysis.moderation.risk_level) }]}>
-                    {aiAnalysis.moderation.is_safe ? "Safe" : "Unsafe"} - {aiAnalysis.moderation.risk_level || "unknown"}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {aiAnalysis.tags?.tags && aiAnalysis.tags.tags.length > 0 && (
-              <View style={styles.aiSection}>
-                <Text style={[styles.aiLabel, { fontFamily }]}>Auto-Generated Tags</Text>
-                <View style={styles.tagRow}>
-                  {aiAnalysis.tags.tags.slice(0, 6).map((tag, idx) => (
-                    <View key={idx} style={[styles.tag, styles.tagDark]}>
-                      <Text style={[styles.tagText, { fontFamily, color: "rgba(245,251,255,0.92)" }]}>
-                        #{tag}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-          </Card>
-        ) : aiLoading ? (
-          <Card style={[styles.darkCard, { marginTop: spacing.md, alignItems: "center", paddingVertical: spacing.lg }]}>
-            <ActivityIndicator size="large" color="#65ebff" />
-            <Text style={[styles.loadingText, { fontFamily, marginTop: spacing.md }]}>
-              Analyzing evidence...
-            </Text>
-          </Card>
-        ) : (
-          <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyTitle, { fontFamily: fontFamilyBold }]}>
-                No AI Analysis Yet
-              </Text>
-              <Text style={[styles.emptySubtitle, { fontFamily }]}>
-                Run AI analysis to get insights about this evidence
-              </Text>
-              <Pressable
-                style={[styles.analyzeButton, aiError && { opacity: 0.6 }]}
-                onPress={handleRunAnalysis}
-                disabled={aiLoading}
-              >
-                <Text style={[styles.analyzeButtonText, { fontFamily: fontFamilyBold }]}>
-                  🤖 Analyze Evidence
-                </Text>
-              </Pressable>
-              {aiError && (
-                <Text style={[styles.errorText, { fontFamily }]}>{aiError}</Text>
-              )}
-            </View>
-          </Card>
-        )}
 
         <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
           <View style={styles.detailsTop}>
@@ -236,6 +99,14 @@ export default function EvidenceDetailScreen() {
           </View>
         </Card>
 
+        {/* Phase 12 Point 4 (Pass E) — the "Share Link" button next to
+            Download Report was removed. It had NO `onPress` at all (the
+            mobile Button's handler is optional), so it rendered a fully
+            styled, pressable control that did nothing. Mobile has no
+            share/public-verification surface to wire it to: there is no
+            verification-link fetch anywhere in apps/mobile, and the
+            evidence detail response this screen reads carries no share
+            URL. Building one is product work, not dead-code cleanup. */}
         <View style={styles.buttonRow}>
           <Button
             label={t("downloadReport")}
@@ -243,7 +114,6 @@ export default function EvidenceDetailScreen() {
               if (reportUrl) void Linking.openURL(reportUrl);
             }}
           />
-          <Button label={t("shareLink")} variant="secondary" />
         </View>
       </ScrollView>
 
@@ -306,73 +176,5 @@ const styles = StyleSheet.create({
   k: { fontSize: 11, color: "rgba(219,235,248,0.70)" },
   v: { marginTop: 4, fontSize: 13, color: "rgba(245,251,255,0.92)" },
 
-  buttonRow: { marginTop: spacing.lg, gap: spacing.sm },
-
-  // AI Analysis Styles (dark)
-  aiSection: { marginBottom: spacing.lg },
-  aiLabel: { fontSize: 11, color: "rgba(219,235,248,0.64)", marginBottom: spacing.xs, textTransform: "uppercase" },
-  aiValue: { fontSize: 13, color: "rgba(245,251,255,0.86)", lineHeight: 20 },
-
-  classificationPill: {
-    backgroundColor: "rgba(6, 13, 31, 0.52)",
-    borderRadius: 12,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.14)"
-  },
-  classificationText: { fontSize: 13, color: "rgba(101,235,255,0.96)" },
-  confidenceText: { fontSize: 11, color: "rgba(219,235,248,0.66)" },
-
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  tag: {
-    backgroundColor: "rgba(6, 13, 31, 0.52)",
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.12)"
-  },
-  tagDark: {
-    backgroundColor: "rgba(101,235,255,0.12)",
-    borderColor: "rgba(101,235,255,0.22)"
-  },
-  tagText: { fontSize: 11, color: "rgba(245,251,255,0.90)" },
-
-  safetyRow: {
-    borderRadius: 12,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.12)"
-  },
-  safetyDot: { width: 8, height: 8, borderRadius: 4 },
-  safetyText: { fontSize: 13 },
-
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: spacing.lg
-  },
-  emptyTitle: { fontSize: 14, color: "rgba(245,251,255,0.92)", marginBottom: spacing.xs },
-  emptySubtitle: { fontSize: 12, color: "rgba(219,235,248,0.70)", marginBottom: spacing.md, maxWidth: "85%" },
-
-  analyzeButton: {
-    backgroundColor: "rgba(6, 13, 31, 0.62)",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.22)"
-  },
-  analyzeButtonText: { color: "rgba(245,251,255,0.92)", fontSize: 12 },
-
-  errorText: { fontSize: 11, color: "rgba(239, 68, 68, 0.95)", marginTop: spacing.xs },
-  loadingText: { fontSize: 12, color: "rgba(219,235,248,0.78)" }
+  buttonRow: { marginTop: spacing.lg, gap: spacing.sm }
 });

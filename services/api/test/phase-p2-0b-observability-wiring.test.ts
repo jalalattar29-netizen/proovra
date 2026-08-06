@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   __resetSecretsManagerForTests,
@@ -291,6 +291,11 @@ describe("Phase P2.0B — Expanded migrated secrets allowlist", () => {
         "STRIPE_SECRET_KEY",
         "PAYPAL_SECRET",
         "RESEND_API_KEY",
+        // PHASE 12 POINT 5 — the dedicated provider idempotency secret. It is
+        // in the migrated set for the same reason RESEND_API_KEY is: it is a
+        // production secret resolved through the secret manager, and the
+        // deployment cannot send email without it.
+        "EMAIL_IDEMPOTENCY_SECRET",
         // Second wave (P2.0B)
         "STRIPE_WEBHOOK_SECRET",
         "PAYPAL_CLIENT_ID",

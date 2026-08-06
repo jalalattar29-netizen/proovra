@@ -38,7 +38,6 @@ import { COLLECTION_PLAN_TEMPLATES } from "../app/(app)/capture/_lib/templates";
 import { buildSessionReadiness } from "../app/(app)/capture/_lib/session-readiness";
 import type { SessionItem } from "../app/(app)/capture/_lib/types";
 
-const PROFILE = "VERIFICATION_DOCUMENTATION" as const;
 
 function makeItem(overrides: Partial<SessionItem>): SessionItem {
   return {

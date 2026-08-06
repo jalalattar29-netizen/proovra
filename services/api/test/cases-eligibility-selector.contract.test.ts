@@ -121,11 +121,11 @@ describe("Eligibility branch — memberships, evidence guard, case query", () =>
     expect(BLOCK).toMatch(
       /activeMemberTeamIds\.length > 0\s*\n?\s*\?\s*\[\{\s*teamId:\s*\{\s*in:\s*activeMemberTeamIds\s*\}\s*\}\]/,
     );
-    // Evidence has no Prisma navigation field to Case, so case-based
-    // access is expressed via a pre-computed `accessibleCaseIds`
-    // list and the FK column `caseId IN (...)`.
+    // Track 1B closure — case-based access is expressed via the
+    // canonical caseLinks relation over the pre-computed
+    // `accessibleCaseIds` list.
     expect(BLOCK).toMatch(
-      /accessibleCaseIds\.length > 0\s*\n?\s*\?\s*\[\{\s*caseId:\s*\{\s*in:\s*accessibleCaseIds\s*\}\s*\}\]/,
+      /accessibleCaseIds\.length > 0\s*\n?\s*\?\s*\[\{\s*caseLinks:\s*\{\s*some:\s*\{\s*caseId:\s*\{\s*in:\s*accessibleCaseIds\s*\}\s*\}\s*\}\s*\}\]/,
     );
   });
 

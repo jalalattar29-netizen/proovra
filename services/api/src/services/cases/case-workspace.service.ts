@@ -240,10 +240,9 @@ export async function buildCasesSummary(input: {
           // joining on `Evidence` directly:
           id: {
             in: (
-              await prisma.evidence.findMany({
+              await prisma.caseEvidenceLink.findMany({
                 where: {
-                  teamId: input.teamId,
-                  caseId: { not: null },
+                  evidence: { teamId: input.teamId },
                 },
                 select: { caseId: true },
                 distinct: ["caseId"],
@@ -252,14 +251,13 @@ export async function buildCasesSummary(input: {
                 // beyond the dashboard's display capacity anyway.
                 take: 2000,
               })
-            )
-              .map((e) => e.caseId)
-              .filter((v): v is string => v !== null),
+            ).map((l) => l.caseId),
           },
         },
       }),
-      prisma.caseLegalHold.findMany({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+      // P12.3 canonical-only: case holds are scope='CASE' canonical rows.
+      prisma.evidenceLegalHold.findMany({
+        where: { teamId: input.teamId, scope: "CASE", status: "ACTIVE" },
         select: { caseId: true },
         distinct: ["caseId"],
         take: 2000,
@@ -271,14 +269,15 @@ export async function buildCasesSummary(input: {
             status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
             evidenceId: { not: undefined },
           },
-          select: { evidence: { select: { caseId: true } } },
+          select: {
+            evidence: { select: { caseLinks: { select: { caseId: true } } } },
+          },
           take: 1000,
         })
         .then((rows) => {
           const ids = new Set<string>();
           for (const r of rows) {
-            const cid = r.evidence?.caseId;
-            if (typeof cid === "string") ids.add(cid);
+            for (const l of r.evidence?.caseLinks ?? []) ids.add(l.caseId);
           }
           return ids.size;
         })
@@ -319,13 +318,14 @@ export async function buildCasesSummary(input: {
       const caseIds = rawCases.map((c) => c.id);
       const [evidenceCounts, holdsByCase, recentReviewByCase] =
         await Promise.all([
-          prisma.evidence.groupBy({
+          prisma.caseEvidenceLink.groupBy({
             by: ["caseId"],
             where: { caseId: { in: caseIds } },
             _count: { _all: true },
           }),
-          prisma.caseLegalHold.findMany({
-            where: { caseId: { in: caseIds }, status: "ACTIVE" },
+          // P12.3 canonical-only: case holds are scope='CASE' canonical rows.
+          prisma.evidenceLegalHold.findMany({
+            where: { caseId: { in: caseIds }, scope: "CASE", status: "ACTIVE" },
             select: { caseId: true },
             // Bounded — the caller already bounded `caseIds` to
             // SUMMARY_CASES_LIMIT.
@@ -337,9 +337,20 @@ export async function buildCasesSummary(input: {
               status: {
                 in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
               },
-              evidence: { caseId: { in: caseIds } },
+              evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
             },
-            select: { evidence: { select: { caseId: true } } },
+            select: {
+              evidence: {
+                select: {
+                  caseLinks: {
+                    where: { caseId: { in: caseIds } },
+                    orderBy: { linkedAtUtc: "asc" },
+                    select: { caseId: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
             take: 500,
           }),
         ]);
@@ -348,10 +359,11 @@ export async function buildCasesSummary(input: {
         if (row.caseId) evidenceCountByCase.set(row.caseId, row._count._all);
       }
       const holdsSet = new Set<string>();
-      for (const h of holdsByCase) holdsSet.add(h.caseId);
+      // scope='CASE' guarantees a case target; narrow rather than assert.
+      for (const h of holdsByCase) if (h.caseId) holdsSet.add(h.caseId);
       const reviewCountByCase = new Map<string, number>();
       for (const r of recentReviewByCase) {
-        const cid = r.evidence?.caseId;
+        const cid = r.evidence?.caseLinks[0]?.caseId;
         if (typeof cid === "string") {
           reviewCountByCase.set(cid, (reviewCountByCase.get(cid) ?? 0) + 1);
         }
@@ -442,32 +454,41 @@ export async function buildCaseWorkspace(input: {
       openEscalationsCount,
     ] = await Promise.all([
       // Phase R9 (F22) — exclude soft-deleted evidence from case counts.
-      // A trashed evidence row keeps its legacy `caseId`, so without the
+      // A trashed evidence row keeps its case links, so without the
       // `deletedAt: null` filter these counts (and the linked list below)
       // reported deleted evidence as still linked to the case.
-      prisma.evidence.count({ where: { caseId: input.caseId, deletedAt: null } }),
       prisma.evidence.count({
-        where: { caseId: input.caseId, deletedAt: null, createdAt: { gte: since7d } },
+        where: { caseLinks: { some: { caseId: input.caseId } }, deletedAt: null },
       }),
-      prisma.caseLegalHold.count({
-        where: { caseId: input.caseId, status: "ACTIVE" },
+      prisma.evidence.count({
+        where: {
+          caseLinks: { some: { caseId: input.caseId } },
+          deletedAt: null,
+          createdAt: { gte: since7d },
+        },
+      }),
+      // P12.3 canonical-only: case holds are scope='CASE' canonical rows.
+      prisma.evidenceLegalHold.count({
+        where: { caseId: input.caseId, scope: "CASE", status: "ACTIVE" },
       }),
       prisma.evidenceLegalHold.count({
         where: {
           status: "ACTIVE",
-          evidence: { caseId: input.caseId },
+          evidence: { caseLinks: { some: { caseId: input.caseId } } },
         },
       }),
       prisma.evidenceReviewWorkflow.count({
         where: {
-          evidence: { caseId: input.caseId },
+          evidence: { caseLinks: { some: { caseId: input.caseId } } },
           status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
         },
       }),
       prisma.reviewEscalation.count({
         where: {
           status: "OPEN",
-          workflow: { evidence: { caseId: input.caseId } },
+          workflow: {
+            evidence: { caseLinks: { some: { caseId: input.caseId } } },
+          },
         },
       }),
     ]);
@@ -495,7 +516,7 @@ export async function buildCaseWorkspace(input: {
     const items = await prisma.evidence.findMany({
       // Phase R9 (F22) — soft-deleted evidence must not appear in the case
       // workspace linked-evidence list.
-      where: { caseId: input.caseId, deletedAt: null },
+      where: { caseLinks: { some: { caseId: input.caseId } }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: CASE_EVIDENCE_LIMIT,
       select: {
@@ -570,32 +591,51 @@ export async function buildCaseWorkspace(input: {
   let caseHolds: PreservationData["caseHolds"] = [];
   let evidenceHolds: PreservationData["evidenceHolds"] = [];
   try {
-    const rows = await prisma.caseLegalHold.findMany({
-      where: { caseId: input.caseId },
-      orderBy: { placedAtUtc: "desc" },
-      take: CASE_HOLDS_LIMIT,
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        placedAtUtc: true,
-        releasedAtUtc: true,
-      },
-    });
-    caseHolds = rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      status: String(r.status),
-      placedAtUtc: r.placedAtUtc.toISOString(),
-      releasedAtUtc: r.releasedAtUtc ? r.releasedAtUtc.toISOString() : null,
-    }));
+    // PHASE 12B CLUSTER 8 — canonical CASE-scoped rows UNIONed with any
+    // legacy row the backfill has not converted yet, deduplicated on the
+    // provenance key. A hold placed through the ONE canonical surface must
+    // appear on the Case preservation panel immediately.
+    // P12.3 canonical-only: the legacy `case_legal_holds` sibling read is
+    // gone. The backfill converted every legacy row into a scope='CASE'
+    // canonical row, so the old union and its sourceRowId dedupe only
+    // re-read rows this query already returns.
+    const [canonicalRows] = await Promise.all([
+      prisma.evidenceLegalHold.findMany({
+        where: { caseId: input.caseId, scope: "CASE", historical: false },
+        orderBy: { placedAtUtc: "desc" },
+        take: CASE_HOLDS_LIMIT,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          placedAtUtc: true,
+          releasedAtUtc: true,
+          sourceRowId: true,
+        },
+      }),
+    ]);
+    caseHolds = [
+      ...canonicalRows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        status: String(r.status),
+        placedAtUtc: r.placedAtUtc.toISOString(),
+        releasedAtUtc: r.releasedAtUtc ? r.releasedAtUtc.toISOString() : null,
+      })),
+    ];
     preservationAnyOk = true;
   } catch {
     preservationAnyFailed = true;
   }
   try {
     const rows = await prisma.evidenceLegalHold.findMany({
-      where: { evidence: { caseId: input.caseId } },
+      // PHASE 12B CLUSTER 8 — explicit EVIDENCE scope. This section lists
+      // per-record holds on evidence in the case; CASE-scoped holds are
+      // reported separately as `caseHolds` and must not be folded in here.
+      where: {
+        scope: "EVIDENCE",
+        evidence: { caseLinks: { some: { caseId: input.caseId } } },
+      },
       orderBy: { createdAt: "desc" },
       take: CASE_HOLDS_LIMIT,
       select: {
@@ -605,12 +645,16 @@ export async function buildCaseWorkspace(input: {
         createdAt: true,
       },
     });
-    evidenceHolds = rows.map((r) => ({
-      id: r.id,
-      evidenceId: r.evidenceId,
-      status: String(r.status),
-      createdAt: r.createdAt.toISOString(),
-    }));
+    evidenceHolds = rows
+      .filter((r): r is typeof r & { evidenceId: string } =>
+        typeof r.evidenceId === "string",
+      )
+      .map((r) => ({
+        id: r.id,
+        evidenceId: r.evidenceId,
+        status: String(r.status),
+        createdAt: r.createdAt.toISOString(),
+      }));
     preservationAnyOk = true;
   } catch {
     preservationAnyFailed = true;
@@ -641,20 +685,20 @@ export async function buildCaseWorkspace(input: {
         openEscalationsCount,
       ] = await Promise.all([
         prisma.evidenceReviewWorkflow.count({
-          where: { evidence: { caseId: input.caseId }, status: "QUEUED" },
+          where: { evidence: { caseLinks: { some: { caseId: input.caseId } } }, status: "QUEUED" },
         }),
         prisma.evidenceReviewWorkflow.count({
-          where: { evidence: { caseId: input.caseId }, status: "ASSIGNED" },
+          where: { evidence: { caseLinks: { some: { caseId: input.caseId } } }, status: "ASSIGNED" },
         }),
         prisma.evidenceReviewWorkflow.count({
-          where: { evidence: { caseId: input.caseId }, status: "IN_REVIEW" },
+          where: { evidence: { caseLinks: { some: { caseId: input.caseId } } }, status: "IN_REVIEW" },
         }),
         prisma.evidenceReviewWorkflow.count({
-          where: { evidence: { caseId: input.caseId }, status: "NEEDS_INFO" },
+          where: { evidence: { caseLinks: { some: { caseId: input.caseId } } }, status: "NEEDS_INFO" },
         }),
         prisma.evidenceReviewWorkflow.count({
           where: {
-            evidence: { caseId: input.caseId },
+            evidence: { caseLinks: { some: { caseId: input.caseId } } },
             status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
             dueAt: { lt: now },
           },
@@ -662,7 +706,7 @@ export async function buildCaseWorkspace(input: {
         prisma.reviewEscalation.count({
           where: {
             status: "OPEN",
-            workflow: { evidence: { caseId: input.caseId } },
+            workflow: { evidence: { caseLinks: { some: { caseId: input.caseId } } } },
           },
         }),
       ]);
@@ -717,7 +761,7 @@ export async function buildCaseWorkspace(input: {
     // is honest about this ("linked / created").
     const linked = await prisma.evidence.findMany({
       // Phase R9 (F22) — exclude soft-deleted evidence from the case timeline.
-      where: { caseId: input.caseId, deletedAt: null },
+      where: { caseLinks: { some: { caseId: input.caseId } }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: CASE_TIMELINE_LIMIT,
       select: { id: true, title: true, createdAt: true },
@@ -733,8 +777,9 @@ export async function buildCaseWorkspace(input: {
       });
     }
     // Hold placed / released events
-    const holds = await prisma.caseLegalHold.findMany({
-      where: { caseId: input.caseId },
+    // P12.3 canonical-only (scope='CASE').
+    const holds = await prisma.evidenceLegalHold.findMany({
+      where: { caseId: input.caseId, scope: "CASE" },
       orderBy: { placedAtUtc: "desc" },
       take: CASE_TIMELINE_LIMIT,
       select: {

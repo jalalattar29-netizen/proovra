@@ -12,6 +12,11 @@ import {
   NotificationPreferencesPanel,
   NotificationScheduleCard,
 } from "../../../../components/notifications/NotificationPreferencesPanel";
+// PHASE 12B (Evidence Operations) — messaging (SMS/WhatsApp) contact
+// verification + durable communication preference. It belongs in the SAME
+// canonical Notifications section as the in-app/email matrix rather than a
+// parallel communications settings surface.
+import { ContactChannelVerificationCard } from "../../../../components/notifications/ContactChannelVerificationCard";
 
 export function NotificationsSection() {
   const teamId = useActiveWorkspaceId();
@@ -23,6 +28,7 @@ export function NotificationsSection() {
     <div style={{ display: "grid", gap: 16 }}>
       <NotificationPreferencesPanel teamId={teamId} />
       <NotificationScheduleCard teamId={teamId} />
+      <ContactChannelVerificationCard teamId={teamId} />
     </div>
   );
 }

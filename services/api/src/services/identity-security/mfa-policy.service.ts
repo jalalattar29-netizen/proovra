@@ -103,6 +103,15 @@ export type ResolvedMfaPolicy = {
    * enum values when set.
    */
   mfaEnforcementFailMode: "SMART" | "FAIL_OPEN" | "FAIL_CLOSED" | null;
+  /**
+   * PHASE 12B (2026-07-30) — optimistic-concurrency token for the MFA
+   * policy editor. This is the SAME `organization_security_policies.
+   * policy_version` column the canonical org-policy writer bumps, so an
+   * MFA-policy patch and an org-security-policy patch cannot silently
+   * overwrite each other. `0` means "no policy row provisioned yet" — the
+   * FIRST versioned patch must send `expectedPolicyVersion: 0`.
+   */
+  policyVersion: number;
 };
 
 const DEFAULT_STEP_UP_TTL_SECONDS = (() => {
@@ -143,6 +152,7 @@ export async function getMfaPolicy(
           stepUpTtlSeconds: true,
           trustedDeviceTtlDays: true,
           mfaEnforcementFailMode: true,
+          policyVersion: true,
         },
       })
     : null;
@@ -176,6 +186,7 @@ export async function getMfaPolicy(
     ssoReadyFlag: row?.ssoReadyFlag ?? false,
     scimReadyFlag: row?.scimReadyFlag ?? false,
     mfaEnforcementFailMode,
+    policyVersion: row?.policyVersion ?? 0,
   };
 }
 
@@ -359,6 +370,7 @@ export async function updateMfaPolicy(
       stepUpTtlSeconds: true,
       trustedDeviceTtlDays: true,
       mfaEnforcementFailMode: true,
+      policyVersion: true,
     },
   });
 
@@ -435,6 +447,253 @@ export async function updateMfaPolicy(
     ssoReadyFlag: updated.ssoReadyFlag,
     scimReadyFlag: updated.scimReadyFlag,
     mfaEnforcementFailMode: normalisedFm,
+    policyVersion: updated.policyVersion,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 12B (2026-07-30) — VERSIONED MFA policy mutation.
+//
+// `updateMfaPolicy` above is an UNVERSIONED upsert: two operators editing
+// the posture concurrently produce a silent last-writer-wins overwrite. The
+// admin Security Center editor uses THIS writer instead: the version the
+// client READ is part of the ATOMIC database mutation predicate
+// (`updateMany({ where: { organizationId, policyVersion: expected } })`),
+// so exactly one concurrent writer can win and the loser mutates NOTHING
+// and receives a bounded 409 conflict.
+//
+// The read-compare-write runs inside `$transaction` so there is no window
+// in which a partial mutation is observable.
+// -----------------------------------------------------------------------------
+
+export class MfaPolicyVersionConflictError extends Error {
+  readonly code = "MFA_POLICY_VERSION_CONFLICT";
+  readonly statusCode = 409;
+  readonly expectedVersion: number;
+  readonly currentVersion: number | null;
+  constructor(expectedVersion: number, currentVersion: number | null) {
+    super("mfa_policy_version_conflict");
+    this.name = "MfaPolicyVersionConflictError";
+    this.expectedVersion = expectedVersion;
+    this.currentVersion = currentVersion;
+  }
+}
+
+export type UpdateMfaPolicyVersionedInput = UpdateMfaPolicyInput & {
+  /** The `policyVersion` the client READ. `0` provisions the first row. */
+  expectedPolicyVersion: number;
+};
+
+export async function updateMfaPolicyVersioned(
+  input: UpdateMfaPolicyVersionedInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<ResolvedMfaPolicy> {
+  const stepUpTtl =
+    input.stepUpTtlSeconds === undefined
+      ? undefined
+      : clampStepUpTtl(input.stepUpTtlSeconds);
+  const deviceTtl =
+    input.trustedDeviceTtlDays === undefined
+      ? undefined
+      : clampTrustedDeviceTtl(input.trustedDeviceTtlDays);
+
+  let failModeForWrite:
+    | "SMART"
+    | "FAIL_OPEN"
+    | "FAIL_CLOSED"
+    | null
+    | undefined = undefined;
+  if (input.mfaEnforcementFailMode !== undefined) {
+    if (input.mfaEnforcementFailMode === null) {
+      failModeForWrite = null;
+    } else if (
+      ["SMART", "FAIL_OPEN", "FAIL_CLOSED"].includes(
+        input.mfaEnforcementFailMode,
+      )
+    ) {
+      failModeForWrite = input.mfaEnforcementFailMode;
+    } else {
+      throw new Error("invalid_fail_mode");
+    }
+  }
+
+  const organizationId = await organizationIdForPolicy(input.teamId, client);
+  if (!organizationId) {
+    throw Object.assign(new Error("org_security_policy_not_applicable"), {
+      statusCode: 400,
+      code: "ORG_SECURITY_POLICY_NOT_APPLICABLE",
+    });
+  }
+
+  const SELECT = {
+    teamId: true,
+    mfaPolicyLevel: true,
+    mfaRequiredFlag: true,
+    ssoReadyFlag: true,
+    scimReadyFlag: true,
+    stepUpTtlSeconds: true,
+    trustedDeviceTtlDays: true,
+    mfaEnforcementFailMode: true,
+    policyVersion: true,
+  } as const;
+
+  const { row, priorFailMode } = await client.$transaction(async (tx) => {
+    const existing = await tx.organizationSecurityPolicy.findUnique({
+      where: { organizationId },
+      select: { policyVersion: true, mfaEnforcementFailMode: true },
+    });
+    if (!existing) {
+      // No row yet — the caller must have read version 0. Any other
+      // expectation means it read a row that has since disappeared.
+      if (input.expectedPolicyVersion !== 0) {
+        throw new MfaPolicyVersionConflictError(
+          input.expectedPolicyVersion,
+          null,
+        );
+      }
+      try {
+        const created = await tx.organizationSecurityPolicy.create({
+          data: {
+            organizationId,
+            teamId: null,
+            policyVersion: 1,
+            mfaPolicyLevel: input.level,
+            stepUpTtlSeconds: stepUpTtl ?? null,
+            trustedDeviceTtlDays: deviceTtl ?? null,
+            mfaEnforcementFailMode:
+              failModeForWrite === undefined ? null : failModeForWrite,
+            updatedByUserId: input.actorUserId,
+          },
+          select: SELECT,
+        });
+        return { row: created, priorFailMode: null as string | null };
+      } catch (err) {
+        // A concurrent writer provisioned the row between our read and
+        // this create — that is a version conflict, not a 500.
+        if ((err as { code?: string }).code === "P2002") {
+          throw new MfaPolicyVersionConflictError(
+            input.expectedPolicyVersion,
+            null,
+          );
+        }
+        throw err;
+      }
+    }
+    // ATOMIC predicate: the expected version is part of the WHERE clause,
+    // so the losing writer's `count` is 0 and it mutates nothing.
+    const applied = await tx.organizationSecurityPolicy.updateMany({
+      where: { organizationId, policyVersion: input.expectedPolicyVersion },
+      data: {
+        mfaPolicyLevel: input.level,
+        ...(stepUpTtl !== undefined ? { stepUpTtlSeconds: stepUpTtl } : {}),
+        ...(deviceTtl !== undefined ? { trustedDeviceTtlDays: deviceTtl } : {}),
+        ...(failModeForWrite !== undefined
+          ? { mfaEnforcementFailMode: failModeForWrite }
+          : {}),
+        updatedByUserId: input.actorUserId,
+        policyVersion: { increment: 1 },
+      },
+    });
+    if (applied.count === 0) {
+      throw new MfaPolicyVersionConflictError(
+        input.expectedPolicyVersion,
+        existing.policyVersion,
+      );
+    }
+    const fresh = await tx.organizationSecurityPolicy.findUniqueOrThrow({
+      where: { organizationId },
+      select: SELECT,
+    });
+    return {
+      row: fresh,
+      priorFailMode: existing.mfaEnforcementFailMode ?? null,
+    };
+  });
+
+  safeEmitSecurityEvent(
+    {
+      teamId: input.teamId,
+      eventType: "mfa_policy_updated",
+      severity: "INFO",
+      details: {
+        actorUserId: input.actorUserId,
+        level: input.level,
+        stepUpTtlSeconds: stepUpTtl ?? null,
+        trustedDeviceTtlDays: deviceTtl ?? null,
+      },
+    },
+    client,
+  );
+  if (
+    failModeForWrite !== undefined &&
+    (failModeForWrite ?? null) !== priorFailMode
+  ) {
+    safeEmitSecurityEvent(
+      {
+        teamId: input.teamId,
+        eventType: "org_mfa_fail_mode_updated",
+        severity: "INFO",
+        details: {
+          actorUserId: input.actorUserId,
+          previousFailMode: priorFailMode,
+          newFailMode: failModeForWrite ?? null,
+        },
+      },
+      client,
+    );
+  }
+  await emitTenantAudit(
+    {
+      action: "identity_security.mfa_policy.update",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      policyVersion: row.policyVersion,
+      resourceType: "organization_security_policy",
+      resourceId: organizationId,
+      metadata: {
+        organizationId,
+        // Canonical audit carries BOTH the acting operator (actorUserId
+        // above) and the target identity of the mutation — here the
+        // organization whose posture changed, plus the workspace scope.
+        targetOrganizationId: organizationId,
+        targetWorkspaceId: input.teamId,
+        level: input.level,
+        stepUpTtlSeconds: stepUpTtl ?? null,
+        trustedDeviceTtlDays: deviceTtl ?? null,
+        mfaEnforcementFailMode:
+          failModeForWrite === undefined
+            ? priorFailMode
+            : (failModeForWrite ?? null),
+        expectedPolicyVersion: input.expectedPolicyVersion,
+        newPolicyVersion: row.policyVersion,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
+    },
+    client,
+  );
+
+  const persistedFm = row.mfaEnforcementFailMode ?? null;
+  let normalisedFm: "SMART" | "FAIL_OPEN" | "FAIL_CLOSED" | null = null;
+  if (persistedFm) {
+    const upper = persistedFm.toUpperCase();
+    if (upper === "SMART" || upper === "FAIL_OPEN" || upper === "FAIL_CLOSED") {
+      normalisedFm = upper;
+    }
+  }
+  return {
+    teamId: input.teamId,
+    level: normaliseLevel(row.mfaPolicyLevel),
+    stepUpTtlSeconds: row.stepUpTtlSeconds ?? DEFAULT_STEP_UP_TTL_SECONDS,
+    trustedDeviceTtlDays:
+      row.trustedDeviceTtlDays ?? DEFAULT_TRUSTED_DEVICE_TTL_DAYS,
+    mfaRequiredFlag: row.mfaRequiredFlag,
+    ssoReadyFlag: row.ssoReadyFlag,
+    scimReadyFlag: row.scimReadyFlag,
+    mfaEnforcementFailMode: normalisedFm,
+    policyVersion: row.policyVersion,
   };
 }
 

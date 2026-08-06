@@ -68,12 +68,22 @@ import {
 import type { ReviewerOpsQueueType } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+// Canonical server-projected active space — bulk reviewer mutations are
+// team-only, and the frontend must never re-derive tenancy itself.
+import { useActiveSpace, useCan } from "../../lib/platform-context";
 import { resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
+import {
+  ReviewerBulkOpsBar,
+  type BulkResult,
+} from "./ReviewerBulkOpsBar";
+import { MultiStageReviewSummaryCard } from "./MultiStageReviewSummaryCard";
 import {
   StepUpModal,
   useStepUpAction,
 } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import { ContextualHelp } from "../contextual-help/ContextualHelp";
+import { RuntimeStatusBanner } from "../operational";
 import { ReviewerRoutingRecommendationsPane } from "../hidden-feature-panels/HiddenFeaturePanels";
 // Phase 7D — shared enterprise design system. Barrel serves the
 // layout primitives; the richer Card / Button / Badge / EmptyState
@@ -286,6 +296,10 @@ export function ReviewerConsole({
   teamId,
   onOpenRow,
 }: ReviewerConsoleProps) {
+  const activeSpace = useActiveSpace();
+  // Operator deep-links are gated on the canonical capability, never on
+  // a client-side role or plan string.
+  const canObservability = useCan("OBSERVABILITY_VIEW");
   const [envelope, setEnvelope] = useState<ConsoleEnvelope | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -296,6 +310,14 @@ export function ReviewerConsole({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusyKey, setActionBusyKey] = useState<string | null>(null);
   const [actionFlash, setActionFlash] = useState<string | null>(null);
+  // Phase 12 Point 4 — bulk triage selection. The selection is scoped
+  // to the rows currently rendered on the Queue / Mine tabs; switching
+  // tab or reloading the envelope clears it so a stale id set can never
+  // be submitted against a queue the operator is no longer looking at.
+  const [bulkSelection, setBulkSelection] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
   // G3.2 — per-tab pagination. The aggregator caps every section at
   // SECTION_LIMIT=25; once the operator clicks "Load more" or "View
   // all" we fall through to the per-tab endpoint with a higher
@@ -332,6 +354,9 @@ export function ReviewerConsole({
       // wanted fresh data.
       setPagination(buildInitialPagination());
       setSelectionIndex(0);
+      // Drop any bulk selection — the row set just changed underneath
+      // it, and a stale workflow id must never be re-submitted.
+      setBulkSelection(new Set<string>());
     } catch (err) {
       setError(
         err instanceof Error
@@ -787,6 +812,18 @@ export function ReviewerConsole({
               </a>
               <a href="/reviewer-ops/sla">Monitor: SLA Operations</a>
               <a href="/reviewer-ops/escalations">Respond: Escalations</a>
+              {/* Reviewer SLA / step-up / inactivity policy is edited on
+                  the canonical Governance Policy surface — the console
+                  never edits policy itself. */}
+              <a href="/governance/policy">Configure: Reviewer policy</a>
+              {/* Operator deep-link stays behind the canonical
+                  capability so personal / non-operator reviewers never
+                  see a link they cannot use. */}
+              {canObservability ? (
+                <a href="/operations/observability">
+                  Diagnose: Worker &amp; cron health
+                </a>
+              ) : null}
             </div>
           }
           primaryAction={
@@ -801,6 +838,18 @@ export function ReviewerConsole({
         />
       }
     >
+      {/* Contextual help, collapsed by default so the reviewer triage
+          surface stays primary. */}
+      <ContextualHelp surface="reviewer-ops" collapsedByDefault />
+
+      {/* Phase 32.7 — runtime banner scoped to reviewer_ops so
+          platform-internal degradations elsewhere don't poison the
+          operator view. The reviewer sub-routes (SLA, escalations)
+          already carry it; the canonical console must too. */}
+      {teamId ? (
+        <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
+      ) : null}
+
       {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations
           pane. Reads the canonical reviewer-routing recommendation
           rows via the new `/v1/reviewer/routing-recommendations`
@@ -832,6 +881,9 @@ export function ReviewerConsole({
               onClick={() => {
                 setActiveTab(t.id);
                 setSelectionIndex(0);
+                // A bulk selection belongs to the rows it was made on.
+                setBulkSelection(new Set<string>());
+                setBulkResult(null);
               }}
               data-section-status={status}
               data-tab-id={t.id}
@@ -999,6 +1051,19 @@ export function ReviewerConsole({
             </>
           ) : (
             <>
+              {/* Phase 12 Point 4 — bulk triage over the visible queue
+                  rows. Server-side authority is unchanged: the backend
+                  enforces REVIEWER_OPS_ACT + `review.bulk` + adaptive
+                  runtime + step-up on every submitted workflow. */}
+              <ReviewerBulkOpsBar
+                teamId={teamId}
+                selection={bulkSelection}
+                callerUserId={envelope.reviewer.userId ?? null}
+                isTeam={activeSpace?.type === "ORGANIZATION"}
+                onClearSelection={() => setBulkSelection(new Set<string>())}
+                onMutated={() => void reload()}
+                onResult={setBulkResult}
+              />
               <QueueTable
                 rows={
                   activeTab === "queue"
@@ -1013,6 +1078,19 @@ export function ReviewerConsole({
                 selectionIndex={selectionIndex}
                 onOpen={onOpenRow}
                 busyKey={actionBusyKey}
+                bulkSelection={bulkSelection}
+                bulkResult={bulkResult}
+                onToggleRow={(wid) =>
+                  setBulkSelection((s) => {
+                    const next = new Set(s);
+                    if (next.has(wid)) next.delete(wid);
+                    else next.add(wid);
+                    return next;
+                  })
+                }
+                onToggleAll={(ids, allSelected) =>
+                  setBulkSelection(allSelected ? new Set<string>() : new Set(ids))
+                }
                 onAssign={(row) => {
                   if (row.id) setActionState({ kind: "assign", workflowId: row.id });
                 }}
@@ -1046,6 +1124,13 @@ export function ReviewerConsole({
               />
             </>
           )}
+
+          {/* Phase B.3 — multi-stage review summary. Workspace-scoped
+              counts of workflows by derived review state (first /
+              second review required, conflict pending adjudication,
+              resolved). Read-only; the adjudication actions live on
+              the per-workflow inspector. */}
+          {teamId ? <MultiStageReviewSummaryCard teamId={teamId} /> : null}
 
           {/* G3.2 — Saved views sidebar with Create + Delete + Apply.
               Rename is not supported (no backend PATCH endpoint). */}
@@ -1096,6 +1181,8 @@ export function ReviewerConsole({
           onSwitchTab={(t) => {
             setActiveTab(t);
             setSelectionIndex(0);
+            setBulkSelection(new Set<string>());
+            setBulkResult(null);
             setPaletteOpen(false);
           }}
         />
@@ -1184,6 +1271,10 @@ function QueueTable({
   onEscalate,
   onRequestInfo,
   busyKey,
+  bulkSelection,
+  bulkResult,
+  onToggleRow,
+  onToggleAll,
 }: {
   rows: ReadonlyArray<ConsoleRow>;
   rowPad: string;
@@ -1193,6 +1284,10 @@ function QueueTable({
   onEscalate: (row: ConsoleRow) => void;
   onRequestInfo: (row: ConsoleRow) => void;
   busyKey: string | null;
+  bulkSelection: ReadonlySet<string>;
+  bulkResult: BulkResult | null;
+  onToggleRow: (workflowId: string) => void;
+  onToggleAll: (workflowIds: ReadonlyArray<string>, allSelected: boolean) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -1204,11 +1299,32 @@ function QueueTable({
       </Card>
     );
   }
+  // Bulk selection operates on the workflow ids actually rendered.
+  const selectableIds = rows
+    .map((r) => r.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  const allSelected =
+    selectableIds.length > 0 &&
+    selectableIds.every((id) => bulkSelection.has(id));
+  const someSelected = selectableIds.some((id) => bulkSelection.has(id));
   return (
     <div style={reviewerTableScrollStyle}>
       <table role="grid" style={reviewerTableStyle}>
         <thead>
           <tr>
+            <th style={reviewerThStyle}>
+              <input
+                type="checkbox"
+                aria-label="Select all queue rows"
+                data-reviewer-bulk-select-all
+                checked={allSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = !allSelected && someSelected;
+                }}
+                onChange={() => onToggleAll(selectableIds, allSelected)}
+                disabled={selectableIds.length === 0}
+              />
+            </th>
             <th style={reviewerThStyle}>Evidence</th>
             <th style={reviewerThStyle}>Stage</th>
             <th style={reviewerThStyle}>Status</th>
@@ -1225,13 +1341,35 @@ function QueueTable({
             const assignBusy = busyKey === `assign:${wid}`;
             const escalateBusy = busyKey === `escalate:${wid}`;
             const reqInfoBusy = busyKey === `request-info:${wid}`;
+            const bulkSelected = wid.length > 0 && bulkSelection.has(wid);
+            // Per-row outcome marker from the most recent bulk submit,
+            // so the reviewer can see which rows just succeeded vs
+            // failed without re-fetching.
+            const outcome = bulkResult
+              ? (bulkResult.items.find((i) => i.workflowId === wid) ?? null)
+              : null;
             return (
               <tr
                 key={row.id ?? `row-${idx}`}
                 data-selected={selected}
                 data-reviewer-row-actionable={actionable ? "true" : "false"}
+                data-reviewer-workflow-id={wid}
+                data-reviewer-bulk-selected={bulkSelected ? "true" : "false"}
+                data-reviewer-bulk-last-outcome={
+                  outcome ? (outcome.ok ? "ok" : "failed") : ""
+                }
                 style={reviewerRowStyle(selected)}
               >
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select workflow ${wid.slice(0, 8)}`}
+                    data-reviewer-bulk-row-checkbox={wid}
+                    checked={bulkSelected}
+                    onChange={() => onToggleRow(wid)}
+                    disabled={wid.length === 0}
+                  />
+                </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {row.reviewerSummary ?? row.evidenceId ?? row.id ?? "—"}
                 </td>
@@ -1310,6 +1448,26 @@ function QueueTable({
                     >
                       Open inspector
                     </Button>
+                    {outcome ? (
+                      <span
+                        data-reviewer-bulk-row-outcome={
+                          outcome.ok ? "ok" : "failed"
+                        }
+                        style={{
+                          fontSize: 11,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          alignSelf: "center",
+                          background: outcome.ok
+                            ? "rgba(34,197,94,0.18)"
+                            : "rgba(239,68,68,0.22)",
+                        }}
+                      >
+                        {outcome.ok
+                          ? "applied"
+                          : `failed: ${outcome.errorCode ?? "error"}`}
+                      </span>
+                    ) : null}
                   </div>
                 </td>
               </tr>

@@ -1,0 +1,227 @@
+{
+  "$comment": "PHASE 12 POINT 7 — machine-written record of which product-behaviour scenarios actually EXECUTED, at which layer. Written by the integration and browser runners, read by services/api/test/phase-12-point7-closure-gate.test.ts. Each record carries the SHA-256 of its own suite, the run id, and a digest of the production authority it ran against; the gate re-derives all three. Do not hand-edit.",
+  "suites": {
+    "services/api/test/point7/plan-matrix.integration.test.ts": {
+      "sha256": "9cb8b8b60e9b9d6a87ed7a493b9b27396290de43c5cc02f04f79b1479b3dd8a5",
+      "layer": "SERVER",
+      "scenarios": [
+        "p7.enterprise.contract_expired.no_deletion",
+        "p7.enterprise.managed_identity.no_manual_binding_bypass",
+        "p7.enterprise.no_personal_space.blocks_creation",
+        "p7.enterprise.no_personal_space.blocks_server_fallback",
+        "p7.enterprise.org_plan.not_derived_from_owner",
+        "p7.enterprise.org_suspended.blocks_ordinary_access",
+        "p7.enterprise.org_workspace.restored",
+        "p7.free.capture.evidence_created_within_limit",
+        "p7.free.cases.not_included",
+        "p7.free.collaboration.direct_api_denied",
+        "p7.free.context.personal_workspace_available",
+        "p7.free.limit.blocks_new_preserves_existing",
+        "p7.free.no_fallback.plan_resolves_free",
+        "p7.free.owned_workspace.creation_unavailable",
+        "p7.payg.collaboration.locked",
+        "p7.payg.context.remains_personal_mode",
+        "p7.payg.entitlement.consumed_by_intended_operation",
+        "p7.payg.entitlement.exhausted_denies_operation",
+        "p7.payg.entitlement.not_inherited_by_other_workspace",
+        "p7.payg.no_promotion.retry_and_restore",
+        "p7.payg.no_promotion.workspace_switch",
+        "p7.pro.members.limit_enforced_by_server",
+        "p7.pro.owned_workspace.created_within_limit",
+        "p7.pro.owned_workspace.does_not_inherit_owner_plan",
+        "p7.pro.owned_workspace.limit_reached_denied",
+        "p7.pro.seats.suspended_and_revoked_are_not_seats",
+        "p7.pro.two_workspaces_diverge_commercially",
+        "p7.team.collaboration.works",
+        "p7.team.commercial_state_belongs_to_workspace",
+        "p7.team.direct_api.ui_locked_action_denied",
+        "p7.team.removal.preserves_history"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:04:10.529Z",
+      "isolation": {
+        "deniedHosts": [],
+        "allowedHosts": [],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "services/api/test/point7/context-safety.integration.test.ts": {
+      "sha256": "5a7aa8b9e242ba2f93eb15c859cdc753d7d21cbe75e7f2905e42a2bc79ef6fd7",
+      "layer": "SERVER",
+      "scenarios": [
+        "p7.ctx.restore.foreign_tenant_stored_id",
+        "p7.ctx.restore.inaccessible_previous_workspace",
+        "p7.ctx.restore.inactive_membership",
+        "p7.ctx.switch.no_cross_workspace_cache_reuse",
+        "p7.ctx.switch.stale_response_not_committed",
+        "p7.invite.correct_recipient_accepts",
+        "p7.invite.cross_tenant_id_denied",
+        "p7.invite.expired_denied",
+        "p7.invite.replay_is_bounded",
+        "p7.invite.revoked_denied",
+        "p7.invite.wrong_authenticated_user_denied",
+        "p7.overlimit.concurrent_edge_cannot_both_pass",
+        "p7.overlimit.reducing_usage_restores_operation",
+        "p7.xtenant.foreign_ids_concealed_without_side_effects"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:04:51.232Z",
+      "isolation": {
+        "deniedHosts": [],
+        "allowedHosts": [],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "services/api/test/point7/observability-isolation.integration.test.ts": {
+      "sha256": "00a04e16445584376398fd2c34a35b237b48d608c1ba092b08050fe2e35f7889",
+      "layer": "SERVER",
+      "scenarios": [
+        "p7.obs.free_limit.below_limit_succeeds_exactly_once",
+        "p7.obs.free_limit.concurrent_final_slot_cannot_both_pass",
+        "p7.obs.free_limit.denied_as_canonical_4xx_not_captured",
+        "p7.obs.free_limit.recovery_restores_the_operation",
+        "p7.obs.guard.denies_non_loopback",
+        "p7.obs.missing_policy.bounded_fail_closed_response",
+        "p7.obs.missing_policy.concurrent_attempts_write_nothing",
+        "p7.obs.missing_policy.foreign_organization_concealed",
+        "p7.obs.missing_policy.owned_workspace_switch_unaffected",
+        "p7.obs.missing_policy.provisioned_policy_switch_succeeds",
+        "p7.obs.transport.recording_in_test",
+        "p7.obs.transport.staging_never_uses_production_project",
+        "p7.obs.unexpected_failure_still_captured"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:05:32.749Z",
+      "isolation": {
+        "deniedHosts": [],
+        "allowedHosts": [],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "services/api/test/point7/personal-space-semantics.integration.test.ts": {
+      "sha256": "1bcc3eb12ae4291ecf28657386ebf7166d1e9fc6de59865b2201aefc4ac816eb",
+      "layer": "SERVER",
+      "scenarios": [
+        "p7.sem.enterprise_no_personal_space_false_is_normal",
+        "p7.sem.no_owner_plan_or_silent_personal_fallback",
+        "p7.sem.no_personal_space_true_blocks_every_route",
+        "p7.sem.team_first_restoration_chooses_team_context",
+        "p7.sem.team_plan_is_not_a_personal_purchase_target",
+        "p7.sem.team_user_keeps_personal_space"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:07:33.923Z",
+      "isolation": {
+        "deniedHosts": [],
+        "allowedHosts": [],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/context-safety.spec.ts": {
+      "sha256": "18c8583a4f8afecb6d2c319b1ce9c7bc6f1d63ea409e1e6856d7bc91060a2420",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.ctx.dirty.no_silent_data_loss",
+        "p7.ctx.restore.foreign_tenant_stored_id",
+        "p7.ctx.restore.inaccessible_previous_workspace",
+        "p7.ctx.switch.no_cross_workspace_cache_reuse",
+        "p7.ctx.switch.stale_response_not_committed",
+        "p7.invite.correct_recipient_accepts"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:13:21.192Z",
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/corrective.spec.ts": {
+      "sha256": "38e8c7305c6aa9bba83fe9b83993c9928545d729aff46c581b1a1a75568ddf12",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.obs.free_limit.denied_as_canonical_4xx_not_captured",
+        "p7.obs.missing_policy.bounded_fail_closed_response",
+        "p7.sem.no_personal_space_true_blocks_every_route",
+        "p7.sem.team_user_keeps_personal_space"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:13:21.194Z",
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/plan-journeys.spec.ts": {
+      "sha256": "089786e87cd0dbccbb998c4e9a1c439a06cfdd9ec415e9136ac59637fc72e05f",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.enterprise.no_personal_space.blocks_server_fallback",
+        "p7.enterprise.org_suspended.blocks_ordinary_access",
+        "p7.enterprise.org_workspace.restored",
+        "p7.free.capture.evidence_created_within_limit",
+        "p7.free.cases.not_included",
+        "p7.free.collaboration.direct_api_denied",
+        "p7.free.context.personal_workspace_available",
+        "p7.free.limit.blocks_new_preserves_existing",
+        "p7.free.owned_workspace.creation_unavailable",
+        "p7.payg.collaboration.locked",
+        "p7.payg.context.remains_personal_mode",
+        "p7.payg.entitlement.consumed_by_intended_operation",
+        "p7.payg.no_promotion.retry_and_restore",
+        "p7.payg.no_promotion.workspace_switch",
+        "p7.pro.members.limit_enforced_by_server",
+        "p7.pro.owned_workspace.created_within_limit",
+        "p7.pro.owned_workspace.limit_reached_denied",
+        "p7.team.collaboration.works",
+        "p7.team.commercial_state_belongs_to_workspace",
+        "p7.team.direct_api.ui_locked_action_denied",
+        "p7.team.switch.isolates_cache_and_mutations"
+      ],
+      "runId": "4086fdcf-6891-41f4-a602-e5dc3c11a31e",
+      "buildId": "971b3db4a002522100737555b0e06db20ace84ec6dc19f7f3036d64c8125f503",
+      "binding": "c1937fc59068eb465f3c1a1d244e7e555c59244050a4e87bd4a660c664ef53c4",
+      "recordedAtUtc": "2026-08-05T04:13:21.196Z",
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    }
+  }
+}

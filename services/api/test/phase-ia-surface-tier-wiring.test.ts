@@ -40,80 +40,39 @@ function webPath(rel: string): string {
 describe("Phase IA-surface-tier-wiring — AppSidebarV2", () => {
   const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
 
-  it("imports canAccessSurface + useSurfaceUserContext", () => {
-    expect(SIDEBAR).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/access["']/,
-    );
-    expect(SIDEBAR).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
-    );
+  // PHASE 12B Track 1A — the two-stage gating (client canAccessSurface tier
+  // pre-filter + resolver) was CONVERGED into the ONE resolver:
+  // resolveRouteAccess consumes SERVER-projected flags/planFeatures booleans
+  // directly. These pins assert the single-resolver wiring.
+  it("resolves the FULL registry through resolveRouteAccess with server-projected booleans", () => {
+    expect(SIDEBAR).toMatch(/resolveRouteAccess\(\{/);
+    expect(SIDEBAR).toMatch(/isEnterpriseWorkspace:\s*envelope\?\.flags\?\.isEnterpriseWorkspace === true/);
+    expect(SIDEBAR).toMatch(/planFeatures:\s*envelope\?\.planFeatures \?\? null/);
   });
 
-  it("pre-filters ROUTE_REGISTRY with canAccessSurface BEFORE the access resolver runs", () => {
-    // The filter MUST appear before `const resolved = ` because that
-    // is where the legacy access resolver iterates the registry.
-    const filterIdx = SIDEBAR.indexOf("tierFilteredRegistry");
-    const resolvedIdx = SIDEBAR.indexOf("const resolved =");
-    expect(filterIdx).toBeGreaterThan(-1);
-    expect(resolvedIdx).toBeGreaterThan(filterIdx);
-    expect(SIDEBAR).toMatch(
-      /tierFilteredRegistry\s*=\s*ROUTE_REGISTRY\.filter\([\s\S]{0,200}canAccessSurface/,
-    );
-  });
-
-  it("resolved is built from tierFilteredRegistry, NOT raw ROUTE_REGISTRY", () => {
-    // Pin that the legacy access resolver iterates ONLY the
-    // tier-filtered subset.
-    expect(SIDEBAR).toMatch(
-      /const resolved\s*=\s*tierFilteredRegistry\.map\(/,
-    );
+  it("no client tier pre-filter remains (canAccessSurface not imported)", () => {
+    expect(SIDEBAR).not.toMatch(/canAccessSurface/);
+    expect(SIDEBAR).not.toMatch(/tierFilteredRegistry/);
   });
 });
 
-// ============================================================================
-// CommandPalette — skips non-eligible routes during indexing
-// ============================================================================
-
-describe("Phase IA-surface-tier-wiring — CommandPalette", () => {
+describe("Phase IA-surface-tier-wiring — CommandPalette (single resolver)", () => {
   const CP = readWeb("components/navigation/CommandPalette.tsx");
 
-  it("imports canAccessSurface + useSurfaceUserContext", () => {
-    expect(CP).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/access["']/,
-    );
-    expect(CP).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
-    );
-  });
-
-  it("the index loop skips routes that fail canAccessSurface", () => {
-    expect(CP).toMatch(
-      /for \(const route of ROUTE_REGISTRY\)\s*\{[\s\S]{0,400}if \(!canAccessSurface\(surfaceUserCtx,\s*route\.href\)\)\s*continue/,
-    );
+  it("indexes through resolveRouteAccess with server-projected booleans", () => {
+    expect(CP).toMatch(/resolveRouteAccess\(\{/);
+    expect(CP).toMatch(/planFeatures:\s*envelope\?\.planFeatures \?\? null/);
+    expect(CP).not.toMatch(/canAccessSurface/);
   });
 });
 
-// ============================================================================
-// /tools page — filters the registry before workflow exposure
-// ============================================================================
-
-describe("Phase IA-surface-tier-wiring — All Tools page", () => {
+describe("Phase IA-surface-tier-wiring — All Tools page (single resolver)", () => {
   const TOOLS = readWeb("app/(app)/tools/page.tsx");
 
-  it("imports canAccessSurface + useSurfaceUserContext", () => {
-    expect(TOOLS).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
-    );
-    expect(TOOLS).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
-    );
-  });
-
-  it("the exposure useMemo filters ROUTE_REGISTRY before resolveRouteAccess runs", () => {
-    expect(TOOLS).toMatch(
-      /const tierFiltered\s*=\s*ROUTE_REGISTRY\.filter\([\s\S]{0,200}canAccessSurface\(surfaceUserCtx,\s*route\.href\)/,
-    );
-    expect(TOOLS).toMatch(/tierFiltered\.map\(/);
+  it("exposure runs through resolveRouteAccess with server-projected booleans", () => {
+    expect(TOOLS).toMatch(/resolveRouteAccess\(\{/);
+    expect(TOOLS).toMatch(/planFeatures:\s*envelope\?\.planFeatures \?\? null/);
+    expect(TOOLS).not.toMatch(/canAccessSurface/);
   });
 });
 

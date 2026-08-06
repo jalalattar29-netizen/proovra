@@ -180,12 +180,12 @@ test("effective timezone — override → account → UTC across all states", ()
 // RUNTIME — user-visible AI capability resolver (§9/§10)
 // ---------------------------------------------------------------------------
 
-test("AI settings mode matrix — plan/workspace/role", () => {
+test("AI settings mode matrix — allowance + SERVER capability", () => {
   // Personal FREE (allowance 0) → honest not-included surface, no card.
   const free = deriveAiSettingsMode({
     workspaceKind: "PERSONAL",
     monthlyAllowance: 0,
-    orgRole: null,
+    canManageWorkspaceAiPolicy: null,
   });
   assert.equal(free, "personal-not-included");
   assert.equal(showAiOverviewCard(free), false);
@@ -195,27 +195,31 @@ test("AI settings mode matrix — plan/workspace/role", () => {
       deriveAiSettingsMode({
         workspaceKind: "PERSONAL",
         monthlyAllowance: allowance,
-        orgRole: null,
+        canManageWorkspaceAiPolicy: null,
       }),
       "personal-assistance",
     );
   }
-  // Organization member/reviewer → read-only; admin/owner → governance.
+  // PHASE 12 POINT 4 STEP 1 — the org branch reads the SERVER-projected
+  // SETTINGS_MANAGE capability, never a client role comparison. The
+  // capability is granted to exactly the OWNER/ADMIN membership that
+  // PUT /v1/workspaces/ai-policy enforces via intelligence.policy.manage.
   assert.equal(
-    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, orgRole: "MEMBER" }),
+    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, canManageWorkspaceAiPolicy: false }),
     "org-readonly",
   );
   assert.equal(
-    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, orgRole: "VIEWER" }),
+    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, canManageWorkspaceAiPolicy: true }),
+    "org-governance",
+  );
+});
+
+test("AI settings mode FAILS CLOSED while the capability projection is unknown", () => {
+  // Envelope loading / degraded / capability absent → read-only summary,
+  // never an editable governance policy form.
+  assert.equal(
+    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, canManageWorkspaceAiPolicy: null }),
     "org-readonly",
-  );
-  assert.equal(
-    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, orgRole: "ADMIN" }),
-    "org-governance",
-  );
-  assert.equal(
-    deriveAiSettingsMode({ workspaceKind: "ORGANIZATION", monthlyAllowance: null, orgRole: "OWNER" }),
-    "org-governance",
   );
 });
 

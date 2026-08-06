@@ -60,10 +60,21 @@ function extractModelBlock(schema: string, modelName: string): string {
   return match![1];
 }
 
+/**
+ * PHASE 12 POINT 3 — same extraction WITHOUT the must-exist assertion, for
+ * models that are expected to be absent. `extractModelBlock` asserts at module
+ * scope, so using it on a deliberately-removed model aborts collection and the
+ * whole file reports "no tests" instead of a real result.
+ */
+function findModelBlock(schema: string, modelName: string): string | null {
+  const re = new RegExp(`model\\s+${modelName}\\s*\\{([\\s\\S]*?)\\n\\}`, "m");
+  return schema.match(re)?.[1] ?? null;
+}
+
 const SCHEMA = readSchema();
 const SECURITY_EVENT = extractModelBlock(SCHEMA, "SecurityEvent");
 const EVIDENCE_LEGAL_HOLD = extractModelBlock(SCHEMA, "EvidenceLegalHold");
-const CASE_LEGAL_HOLD = extractModelBlock(SCHEMA, "CaseLegalHold");
+const CASE_LEGAL_HOLD = findModelBlock(SCHEMA, "CaseLegalHold");
 const WORKSPACE_GOVERNANCE_POLICY = extractModelBlock(
   SCHEMA,
   "WorkspaceGovernancePolicy",
@@ -205,10 +216,16 @@ describe("Phase 32.7.2 — projectSecurityEvent round-trips FK fields from JSON"
 describe("Phase 32.7.2 — EvidenceLegalHold model preserved (snake_case)", () => {
   it("all key fields map to snake_case production columns", () => {
     expect(EVIDENCE_LEGAL_HOLD).toMatch(/teamId\s+String\s+@map\("team_id"\)/);
+    // PHASE 12B CLUSTER 8 — `evidenceId` became NULLABLE when this table
+    // became the CANONICAL legal-hold model: CASE and WORKSPACE scoped holds
+    // have no single evidence target. The column mapping is unchanged, and a
+    // CHECK constraint (migration 20271106000000) guarantees an
+    // EVIDENCE-scoped row still always carries one.
     expect(EVIDENCE_LEGAL_HOLD).toMatch(
-      /evidenceId\s+String\s+@map\("evidence_id"\)/,
+      /evidenceId\s+String\?\s+@map\("evidence_id"\)/,
     );
     expect(EVIDENCE_LEGAL_HOLD).toMatch(/caseId\s+String\?\s+@map\("case_id"\)/);
+    expect(EVIDENCE_LEGAL_HOLD).toMatch(/scope\s+LegalHoldScope/);
     expect(EVIDENCE_LEGAL_HOLD).toMatch(
       /placedByUserId\s+String\s+@map\("placed_by_user_id"\)/,
     );
@@ -231,26 +248,26 @@ describe("Phase 32.7.2 — EvidenceLegalHold model preserved (snake_case)", () =
   });
 });
 
-describe("Phase 32.7.2 — CaseLegalHold model preserved (snake_case)", () => {
-  it("all key fields map to snake_case production columns", () => {
-    expect(CASE_LEGAL_HOLD).toMatch(/teamId\s+String\s+@map\("team_id"\)/);
-    expect(CASE_LEGAL_HOLD).toMatch(/caseId\s+String\s+@map\("case_id"\)/);
-    expect(CASE_LEGAL_HOLD).toMatch(
-      /placedByUserId\s+String\s+@map\("placed_by_user_id"\)/,
-    );
-    expect(CASE_LEGAL_HOLD).toMatch(
-      /placedAtUtc\s+DateTime[\s\S]{0,80}@map\("placed_at_utc"\)/,
-    );
-    expect(CASE_LEGAL_HOLD).toMatch(
-      /releasedByUserId\s+String\?\s+@map\("released_by_user_id"\)/,
-    );
-    expect(CASE_LEGAL_HOLD).toMatch(
-      /releasedAtUtc\s+DateTime\?\s+@map\("released_at_utc"\)/,
-    );
+// PHASE 12 POINT 3 — this file used to assert the CaseLegalHold model was
+// PRESERVED with snake_case column maps. That model is now deliberately gone:
+// 20271108000000_legal_hold_legacy_removal DROPs `case_legal_holds`, and while
+// the model stayed declared a generated migration would have re-created the
+// table and silently resurrected the retired authority. The coverage is not
+// dropped — it is inverted into a stays-removed guard, so the column-mapping
+// pin cannot come back by accident.
+describe("Phase 12 Point 3 — CaseLegalHold model stays REMOVED", () => {
+  it("schema.prisma declares no CaseLegalHold model", () => {
+    expect(CASE_LEGAL_HOLD).toBeNull();
+    expect(SCHEMA).not.toMatch(/^model CaseLegalHold\b/m);
   });
 
-  it("@@map(\"case_legal_holds\")", () => {
-    expect(CASE_LEGAL_HOLD).toMatch(/@@map\("case_legal_holds"\)/);
+  it('schema.prisma maps nothing to "case_legal_holds"', () => {
+    expect(SCHEMA).not.toMatch(/@@map\("case_legal_holds"\)/);
+  });
+
+  it("the canonical EvidenceLegalHold model is the one that survives", () => {
+    expect(EVIDENCE_LEGAL_HOLD).toBeTruthy();
+    expect(EVIDENCE_LEGAL_HOLD).toMatch(/@@map\("evidence_legal_holds"\)/);
   });
 });
 
@@ -296,22 +313,15 @@ describe("Phase 32.7.2 — ReviewEscalation Phase-32.6.2 @maps preserved", () =>
 // =============================================================================
 
 describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
-  it("no Phase 32.7.2-attributable migration was added (later phases may add their own)", () => {
-    const migrationsDir = fileURLToPath(
-      new URL("../prisma/migrations/", import.meta.url),
-    );
-    const entries = readdirSync(migrationsDir).filter((name) => {
-      const full = `${migrationsDir}${name}`;
-      try {
-        return statSync(full).isDirectory();
-      } catch {
-        return false;
-      }
-    });
-    // Phase 32.7.2 itself must NOT have added a migration (the fix is
-    // Prisma-side only). Later phases legitimately author their own and
-    // are allow-listed here.
-    const PERMITTED_LATER_MIGRATIONS = new Set<string>([
+  // Phase 32.7.2 itself must NOT have added a migration (the fix is
+  // Prisma-side only). Later phases legitimately author their own and
+  // are allow-listed here.
+  //
+  // PHASE 12 POINT 8 — hoisted from inside the `it` so the gate's REFUSALS can
+  // be proved too. It is the same exact-name set it has always been: no range,
+  // no prefix match, no "allow everything newer". A gate that has only ever
+  // passed has not been shown to be capable of failing.
+  const PERMITTED_LATER_MIGRATIONS = new Set<string>([
       "20260625100000_phase328cpppp_dashboard_intelligence_closure",
       "20260626100000_phase328cppppp_structural_intelligence_closure",
       "20260627100000_phase328c_control_plane_closure",
@@ -880,13 +890,196 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20271006000000_org_security_policy_lifecycle",
       // PHASE 11 (2026-07-24) — authoritative tenant columns on admin_audit_logs.
       "20271101000000_audit_tenant_columns",
+      // PHASE 12 — uuid id DEFAULT repair (11 tables whose creating migrations
+      // omitted the gen_random_uuid() default that schema.prisma promises).
+      "20271102000000_uuid_id_default_repair",
+      // PHASE 12B Wave 1B — CaseEvidenceLink canonical authority: teamId
+      // nullable + idempotent backfill from Evidence.caseId (forward-only,
+      // unapplied; column drop deferred until runtime readers reach zero).
+      "20271103000000_case_evidence_link_canonical",
+      // Track 1B closure — SPLIT by PHASE 12 POINT 6 into an EXPAND half
+      // (final backfill + the two validated foreign keys on
+      // case_evidence_links, Release B) and a CONTRACT half (the
+      // Evidence.case_id column drop, Release D). One SQL file cannot sit in
+      // two release waves.
+      "20271104000000_case_evidence_link_integrity",
+      "20271105000000_evidence_case_id_removal",
+      // PHASE 12B CLUSTER 8 — legal-hold convergence. `evidence_legal_holds`
+      // becomes the CANONICAL legal-hold model (additive columns + FKs +
+      // scope/target CHECK); the backfill copies the two legacy stores into
+      // it idempotently; the legacy-removal migration is authored but MUST
+      // NOT be applied until the backfill is applied and verified (it guards
+      // itself with a RAISE EXCEPTION on any unconverted row).
+      "20271106000000_legal_hold_canonical",
+      "20271107000000_legal_hold_backfill",
+      "20271108000000_legal_hold_legacy_removal",
+      // PHASE 12B CLUSTER 9 — `workspace_governance_policies.version`, the
+      // optimistic-concurrency column that turns PUT /v1/governance/policy from
+      // a blind last-write-wins upsert into a conditional UPDATE. Additive,
+      // idempotent, forward-only; unapplied.
+      "20271109000000_workspace_governance_policy_version",
+      // PHASE 12B (Exchange cluster) — truthful download semantics on
+      // evidence_exchange_package_deliveries. Additive; unapplied. Registered
+      // here because it already exists in the tree and this allowlist is the
+      // "later phases may add their own" register, not a suppression: any
+      // migration NOT listed here still fails this assertion.
+      "20271110000000_exchange_download_authorization_semantics",
+      // PHASE 12B B3 — binds a step-up challenge to the session that started it
+      // and to the Organization it was minted against, so an approved
+      // elevation stops behaving like a bearer token replayable from another
+      // device. Both columns are NULLABLE and additive; forward-only; the
+      // service enforces "must match WHEN PRESENT" so no backfill is needed.
+      // Unapplied.
+      "20271111000000_step_up_session_organization_binding",
+      // PHASE 12 POINT 4 — schema-authority convergence. Drops 3 superseded
+      // singular audit tables (zero runtime references; the canonical PLURAL
+      // tables the Prisma models map are the live ones), 5 duplicate columns a
+      // catch-up migration added alongside their @map-ed originals (three of
+      // them NOT NULL, which made delegatedAdminGrant.create /
+      // crossOrgReviewGrant.create / redactionPolicyAssignment.create fail
+      // outright), and converts security_events.severity from the enum to the
+      // VARCHAR production already uses. Every drop is guarded and RAISES
+      // rather than destroying ambiguous data. Unapplied.
+      // PHASE 12 POINT 6 — SPLIT. The repair that unblocks the three broken
+      // `create()` paths (relaxing the orphaned NOT NULL duplicates) and the
+      // severity type convergence are non-destructive and ship in Release A;
+      // the physical removal of the five duplicate columns and the three
+      // superseded singular tables is a CONTRACT step and ships in Release D.
+      "20271112000000_point4_write_unblock_repair",
+      "20271117000000_point4_schema_authority_contract",
+      // PHASE 12 POINT 5 — durable report/package generation authority. Adds
+      // ONE new table (report_generation_requests) so the authorization
+      // outcome that permits regenerating a finalised report is persisted by
+      // the authorized synchronous path instead of riding on a BullMQ payload
+      // as an unverified boolean. Pure-additive, forward-only, no backfill.
+      // Unapplied.
+      "20271113000000_point5_report_generation_authority",
+      // PHASE 12 POINT 5 — widen media_intelligence_runs.kind to the catalog
+      // the worker actually implements. The CHECK constraint enumerated eight
+      // kinds while twelve were reachable, so four kinds that real producers
+      // enqueue (compute_perceptual_hashes, extract_ocr_azure,
+      // extract_transcript_deepgram, extract_technical_metadata) could not
+      // have a run row inserted for them AT ALL. That is the root cause behind
+      // `enqueueMediaIntelligenceAnalysis` having an OPTIONAL `runId`: the
+      // producer could not create the durable row, so it was allowed to
+      // proceed without one, and those jobs ran with nothing to record their
+      // state on. Strict superset — no existing row can violate it.
+      // Forward-only, guarded, idempotent. Unapplied.
+      "20271114000000_point5_media_intelligence_kind_catalog",
+      // PHASE 12 POINT 5 (2026-08-04) — three partial unique indexes that
+      // make three documented-but-nonexistent claims real: one RUNNING
+      // governance reconciliation run per (kind, lock_key), one non-terminal
+      // DestructionExecution per review, one in-flight ArchiveTierTransition
+      // per evidence. Each was a read-then-write, so two sweeps both saw an
+      // empty slot and both took it — for the destruction family that meant
+      // two certificates and two ledger rows for one approved destruction.
+      // Pre-existing duplicates are resolved forward (newest keeps the slot,
+      // older recorded as FAILED with a bounded reason) before each index is
+      // built. Guarded, idempotent, forward-only. Unapplied.
+      "20271115000000_point5_atomic_sweep_claims",
+      // PHASE 12 POINT 6 — CONTRACT PRECONDITION for
+      // 20270924000000_drop_workspace_persona_profiles. That migration is
+      // tracked in git, so its bytes (and therefore its Prisma checksum) must
+      // not change; the guard that refuses its `DROP ... CASCADE` when a
+      // foreign key or view still depends on the table is added as a
+      // lexically preceding migration instead. Measures and RAISEs only.
+      "20270923500000_persona_profiles_removal_precondition",
+      // PHASE 12 POINT 6 — post-cutover tightening of the legal-hold
+      // scope/target CHECK to `EVIDENCE ⇒ case_id IS NULL`. The EXPAND step
+      // installs the relaxed branch because the pre-cutover build still
+      // writes the contextual tag; this migration refuses (never blanks) if
+      // any tagged row remains. Release D.
+      "20271118000000_legal_hold_strict_scope_target",
+      // PHASE 12 POINT 8 — belongs to Point 8, NOT to Phase 32.7.2; listing it
+      // here permits it, it does not attribute it.
+      //
+      // It repairs an extension-ORDERING defect.
+      // `20260620100000_phase24_31_consolidated_drift_patches` creates
+      // `evidence_search_documents.embedding` and its IVFFLAT index inside
+      // `IF has_pgvector`, but `CREATE EXTENSION vector` is not issued until
+      // `20270701000000_phase15_semantic_search` — a year later in lexical
+      // order — so on every database built from this chain the guard is false
+      // when evaluated and both objects are silently skipped, while the
+      // datamodel goes on declaring the column. Additive, idempotent, and it
+      // RAISEs rather than skipping when pgvector is absent.
+      "20271119000000_search_document_embedding_after_extension",
     ]);
-    const newer = entries.filter((name) => {
+
+  /** The gate itself, unchanged: exact-name membership, nothing else. */
+  const unpermitted = (entries: readonly string[]): string[] =>
+    entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
       if (!m) return false;
       if (m[1] <= "20260620300000") return false;
       return !PERMITTED_LATER_MIGRATIONS.has(name);
     });
-    expect(newer).toEqual([]);
+
+  const migrationsDir = fileURLToPath(
+    new URL("../prisma/migrations/", import.meta.url),
+  );
+  const onDisk = readdirSync(migrationsDir).filter((name) => {
+    const full = `${migrationsDir}${name}`;
+    try {
+      return statSync(full).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
+  it("no Phase 32.7.2-attributable migration was added (later phases may add their own)", () => {
+    expect(unpermitted(onDisk)).toEqual([]);
+  });
+
+  it("the Point-8 extension-ordering repair is permitted", () => {
+    const POINT8 = "20271119000000_search_document_embedding_after_extension";
+    expect(onDisk).toContain(POINT8);
+    expect(unpermitted([POINT8])).toEqual([]);
+  });
+
+  it("an arbitrary fictional migration is still REJECTED", () => {
+    expect(unpermitted(["20991231000000_fictional_never_reviewed"])).toEqual([
+      "20991231000000_fictional_never_reviewed",
+    ]);
+  });
+
+  it("a migration with a similar prefix is REJECTED — this is not prefix matching", () => {
+    // Same timestamp, different name; and the real name with a suffix. Both
+    // must fail, or the allowlist has quietly become a pattern.
+    expect(
+      unpermitted([
+        "20271119000000_search_document_embedding_after_extension_v2",
+        "20271119000000_something_else_entirely",
+        "20271119000001_search_document_embedding_after_extension",
+      ]),
+    ).toEqual([
+      "20271119000000_search_document_embedding_after_extension_v2",
+      "20271119000000_something_else_entirely",
+      "20271119000001_search_document_embedding_after_extension",
+    ]);
+  });
+
+  it("the allowlist is a set of exact names, not a range or a wildcard", () => {
+    for (const name of PERMITTED_LATER_MIGRATIONS) {
+      expect(name, `${name} must be an exact migration directory name`).toMatch(
+        /^\d{14}_[a-z0-9_]+$/,
+      );
+      expect(name).not.toContain("*");
+    }
+    // Every permitted name must actually exist on disk — an allowlist entry
+    // for a migration nobody can find is how a range creeps in unnoticed.
+    for (const name of PERMITTED_LATER_MIGRATIONS) {
+      expect(onDisk, `${name} is allow-listed but absent from the tree`).toContain(name);
+    }
+  });
+
+  it("the Point-8 migration is not misattributed to Phase 32.7.2", () => {
+    // Phase 32.7.2's own claim is that IT authored no migration. Permitting a
+    // later phase's migration must not turn into owning it.
+    const sql = readFileSync(
+      `${migrationsDir}20271119000000_search_document_embedding_after_extension/migration.sql`,
+      "utf8",
+    );
+    expect(sql).toContain("PHASE 12 POINT 8");
+    expect(sql).not.toMatch(/32\.7\.2/);
   });
 });

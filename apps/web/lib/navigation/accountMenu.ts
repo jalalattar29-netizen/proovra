@@ -141,11 +141,13 @@ export type AccountMenuInput = {
   organizations: ReadonlyArray<AccountMenuOrganizationInput>;
   accountPlan: string | null;
   /**
-   * P3 (2026-07-21) — the server-authorized grouped options. When present
-   * (current API) the switcher is built EXCLUSIVELY from it; the legacy
-   * `organizations` flat list is only a rollout fallback for an older API.
+   * P3 (2026-07-21) — the server-authorized grouped options. The switcher
+   * is built EXCLUSIVELY from it. Required, matching the canonical
+   * envelope contract (Phase 12 Point 4, Pass E — the optional marker and
+   * its "older API" rollout fallback were removed; the API service always
+   * projects this section).
    */
-  contextOptions?: AccountMenuContextOptionsInput;
+  contextOptions: AccountMenuContextOptionsInput;
   /**
    * PHASE 10 §13.2 STEP 6 (2026-07-23) — `false` for a managed enterprise
    * identity (no personal space), including a grandfathered personal Team
@@ -182,10 +184,6 @@ function routeLoads(routeId: string, input: AccountMenuInput): boolean {
     personalSpace: input.personalSpace,
   });
   return access.canLoad;
-}
-
-function orgLabel(org: AccountMenuOrganizationInput): string {
-  return org.displayName ?? org.name ?? "Organization workspace";
 }
 
 /**
@@ -258,51 +256,38 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
     (org) => org.membershipStatus === "ACTIVE",
   );
 
-  let owned: AccountMenuWorkspaceOption[] = [];
-  let organizationGroups: AccountMenuOrganizationGroup[] = [];
-
-  if (input.contextOptions) {
-    // P3 — SERVER-AUTHORIZED grouping by explicit workspaceKind. The client
-    // renders exactly what the server authorized; nothing is inferred from
-    // isPersonal or plan literals here.
-    owned = input.contextOptions.ownedWorkspaces.map((w) => ({
+  // P3 — SERVER-AUTHORIZED grouping by explicit workspaceKind. The client
+  // renders exactly what the server authorized; nothing is inferred from
+  // isPersonal or plan literals here.
+  //
+  // `null` means the envelope has not loaded yet — the switcher shows no
+  // workspaces until the server answers. It does NOT mean "older API":
+  // Phase 12 Point 4 (Pass E) removed the rollout fallback that used to
+  // synthesize an `organizationId: "legacy"` group from the flat
+  // `organizations` list, because the API service projects this section
+  // unconditionally.
+  const owned: AccountMenuWorkspaceOption[] = (
+    input.contextOptions?.ownedWorkspaces ?? []
+  ).map((w) => ({
+    id: w.workspaceId,
+    label: w.name ?? "Workspace",
+    kind: "OWNED" as const,
+    roleLabel: w.role,
+    active: activeWorkspaceId === w.workspaceId,
+  }));
+  const organizationGroups: AccountMenuOrganizationGroup[] = (
+    input.contextOptions?.organizations ?? []
+  ).map((group) => ({
+    organizationId: group.organizationId,
+    organizationName: group.organizationName,
+    workspaces: group.workspaces.map((w) => ({
       id: w.workspaceId,
-      label: w.name ?? "Workspace",
-      kind: "OWNED" as const,
-      roleLabel: w.role,
+      label: w.workspaceName ?? "Organization workspace",
+      kind: "ORGANIZATION" as const,
+      roleLabel: w.workspaceRole,
       active: activeWorkspaceId === w.workspaceId,
-    }));
-    organizationGroups = input.contextOptions.organizations.map((group) => ({
-      organizationId: group.organizationId,
-      organizationName: group.organizationName,
-      workspaces: group.workspaces.map((w) => ({
-        id: w.workspaceId,
-        label: w.workspaceName ?? "Organization workspace",
-        kind: "ORGANIZATION" as const,
-        roleLabel: w.workspaceRole,
-        active: activeWorkspaceId === w.workspaceId,
-      })),
-    }));
-  } else {
-    // Rollout fallback (older API without contextOptions): the legacy flat
-    // list cannot distinguish OWNED from ORGANIZATION — present it as a
-    // single ungrouped organizations bucket, exactly as before.
-    organizationGroups = activeOrganizations.length
-      ? [
-          {
-            organizationId: "legacy",
-            organizationName: null,
-            workspaces: activeOrganizations.map((org) => ({
-              id: org.id,
-              label: orgLabel(org),
-              kind: "ORGANIZATION" as const,
-              roleLabel: org.role,
-              active: activeWorkspaceId === org.id,
-            })),
-          },
-        ]
-      : [];
-  }
+    })),
+  }));
 
   const total =
     (personal ? 1 : 0) +

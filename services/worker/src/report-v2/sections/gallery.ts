@@ -147,36 +147,6 @@ function renderPreviewMedia(
   `;
 }
 
-function renderPrimaryEvidenceCard(item: PresentationEvidenceItem): string {
-  const asset = item.asset;
-  const fileName = buildAssetName(asset);
-
-  return `
-    <article class="primary-evidence-card">
-      <div class="primary-evidence-preview">
-        ${renderPreviewMedia(item, { emphasis: true })}
-        <div class="primary-evidence-caption">
-          Primary Preserved Evidence Item
-        </div>
-      </div>
-
-      <div class="primary-evidence-details">
-        ${renderGalleryMetaRow("File", fileName)}
-        ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
-        ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
-        ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
-        ${renderGalleryMetaRow(
-          "Access",
-asset.downloadable
-  ? "Original included in verification package; public download allowed under policy"
-  : "Original included in verification package; public preview/download may be restricted"
-        )}
-${renderGalleryMetaRow("Lead Item SHA-256", asset.sha256 ?? "Not recorded")}
-${renderDuplicateDigestBadge(item)}
-      </div>
-          </article>
-  `;
-}
 
 function reviewerRoleLabel(asset: ReportEvidenceAsset): string {
   if (asset.artifactRole === "primary_evidence") return "Primary";

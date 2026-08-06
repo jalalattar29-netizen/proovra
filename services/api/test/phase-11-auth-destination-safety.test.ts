@@ -86,6 +86,25 @@ function makeClient() {
         Object.assign(row, data);
         return { ...row };
       },
+      // PHASE 12B — the single-use claim is a state-PRECONDITIONED updateMany,
+      // so exactly one concurrent writer can match. The double reproduces that
+      // precondition (it does NOT blanket-assign), which is what makes the
+      // replay assertions below meaningful rather than tautological.
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: string; status?: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = rowsById.get(where.id);
+        if (!row) return { count: 0 };
+        if (where.status !== undefined && row.status !== where.status) {
+          return { count: 0 };
+        }
+        Object.assign(row, data);
+        return { count: 1 };
+      },
       count: async () =>
         [...rowsById.values()].filter((r) => r.status === "PENDING").length,
     },

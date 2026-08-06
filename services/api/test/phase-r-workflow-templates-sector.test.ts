@@ -86,7 +86,7 @@ const PHASE_R_SEED_SECTOR_MAP: Record<string, string> = {
 function buildEmptyClient() {
   return {
     evidenceWorkflowTemplate: {
-      findMany: async (_args: unknown) => [] as DbWorkflowTemplate[],
+      findMany: async () => [] as DbWorkflowTemplate[],
     },
   } as unknown as Parameters<typeof listEffectiveWorkflowTemplates>[1];
 }

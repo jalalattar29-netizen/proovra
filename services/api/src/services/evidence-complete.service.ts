@@ -15,7 +15,7 @@ import {
 import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
-import { enqueueGenerateReportJob } from "../queue/report-queue.js";
+import { requestReportGeneration } from "./reports/report-generation-authority.service.js";
 // Post-finalize side-effect orchestration lives in its own file.
 import { runEvidenceFinalizationFanout } from "./evidence-finalization-fanout.service.js";
 import { Readable } from "stream";
@@ -1250,7 +1250,17 @@ const captureMethod =
   }
 
   if (final.shouldEnqueueReport) {
-    await enqueueGenerateReportJob(final.result.id);
+    // PHASE 12 — POINT 5. The completion path persists a durable generation
+    // request and enqueues its id. It runs OUTSIDE any transaction on purpose:
+    // a rolled-back request must never be able to produce a runnable job.
+    await requestReportGeneration({
+      evidenceId: final.result.id,
+      purpose: "evidence_completed",
+      // The completion fan-out is machine-initiated: it runs after signing
+      // succeeds, not on behalf of a specific actor's click. Recording that
+      // honestly beats attributing the request to whoever happened to upload.
+      requestedByMachineId: "api.evidence-complete",
+    });
   }
 
   // Phase 12 — operations-side session reached its terminal good state.

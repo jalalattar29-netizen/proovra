@@ -269,7 +269,7 @@ describe("Escalations page (proof-point wiring)", () => {
 
   it("imports the new empty-state preset + runtime banner from the operational barrel", () => {
     expect(src).toMatch(
-      /import \{[\s\S]*?NoEscalationsEmptyState,[\s\S]*?RuntimeStatusBanner,[\s\S]*?\} from "[\.\/]+components\/operational"/,
+      /import \{[\s\S]*?NoEscalationsEmptyState,[\s\S]*?RuntimeStatusBanner,[\s\S]*?\} from "[./]+components\/operational"/,
     );
   });
 

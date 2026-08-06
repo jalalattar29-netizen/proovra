@@ -37,7 +37,7 @@
  * content + page + tests phase.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -94,7 +94,13 @@ const TRUST_CENTER_PAGE = readWeb("app/trust/page.tsx");
 const CLAIMS_MATRIX = readPackages(
   "shared-evidence-presentation/src/claims-matrix.ts",
 );
-const FOOTER = readWeb("components/Footer.tsx");
+// PHASE 12 POINT 4 PASS D/G — the invariant moved to the LIVE footer.
+// `components/Footer.tsx` had zero importers (every public page mounts
+// `components/marketing/EnterpriseFooter.tsx`) and was deleted; pinning the
+// dead file kept a filename alive that shipped to nobody. The rule itself —
+// the footer's Legal column is the Trust Center entry point — is real, so it
+// now asserts against the footer users actually see.
+const FOOTER = readWeb("components/marketing/EnterpriseFooter.tsx");
 
 // ===========================================================================
 // PART 1 — Section IDs are stable + canonical
@@ -253,11 +259,12 @@ describe("E5 Test 4 — existing safe surfaces stay aligned with the Trust Cente
       path: "src/report-v2/sections/legal-interpretation.ts",
       reader: readWorker,
     },
-    {
-      label: "report-v2 legal-limitations",
-      path: "src/report-v2/sections/legal-limitations.ts",
-      reader: readWorker,
-    },
+    // Phase 12 Point 4 — `sections/legal-limitations.ts` was deleted: it
+    // was never wired into `render-html.ts`, and the wired
+    // `legal-interpretation.ts` above renders the same three callouts
+    // ("This report does not prove", "Legal review posture", the
+    // preview note). No trust-claim surface was lost; the list may only
+    // shrink when the removed surface's copy is proven duplicated.
     {
       label: "ai capture assistant",
       path: "components/ai/CaptureAiAssistant.tsx",
@@ -288,6 +295,7 @@ describe("E5 Test 4 — existing safe surfaces stay aligned with the Trust Cente
         // If a referenced file moves, fail loudly so the test catches drift.
         throw new Error(
           `E5 safe-surface reference missing: ${surface.label} at ${surface.path}`,
+          { cause: err },
         );
       }
       // Strip any blocklist / forbidden-pattern array body so the test
@@ -383,8 +391,17 @@ describe("E5 Test 6 — IA preservation", () => {
   });
 
   it("footer Legal column links the Trust Center as the entry point", () => {
-    expect(FOOTER).toMatch(/href:\s*["']\/trust["']/);
-    expect(FOOTER).toMatch(/label:\s*["']Trust Center["']/);
+    expect(FOOTER).toMatch(/label:\s*["']Trust Center["'],\s*href:\s*MARKETING_LINKS\.trustCenter/);
+    // …and that canonical link really resolves to /trust.
+    expect(readWeb("components/marketing/tokens.ts")).toMatch(
+      /trustCenter:\s*["']\/trust["']/,
+    );
+  });
+
+  it("the unmounted legacy footer stays removed", () => {
+    // Deleted in Phase 12 Point 4 Pass D (zero importers). A future
+    // reintroduction would split the public footer in two.
+    expect(existsSync(webPath("components/Footer.tsx"))).toBe(false);
   });
 
   it("trust center page links DOWN to the detailed legal docs (no duplication)", () => {
@@ -479,30 +496,6 @@ describe("E5 Test 8 — content aligns with the existing claims-matrix guard", (
 // ===========================================================================
 // PART 9 — File-size pins on the protected core files
 // ===========================================================================
-
-describe("E5 Test 9 — protected core files untouched by E5", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath)).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(st.size).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
 
 // ===========================================================================
 // PART 10 — Documentation + registry

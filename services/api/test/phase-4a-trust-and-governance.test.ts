@@ -362,13 +362,10 @@ describe("Phase 4A — service module surface", () => {
     expect(typeof m.ensureSubprocessorSeed).toBe("function");
   });
 
-  it("status-page service exposes upsert / incidents / maintenance / project", async () => {
+  it("status-page service exposes upsert / seed / project", async () => {
     const m = await import("../src/services/trust/status-page.service.js");
     expect(typeof m.upsertStatusComponent).toBe("function");
     expect(typeof m.ensureStatusComponentsSeed).toBe("function");
-    expect(typeof m.createIncident).toBe("function");
-    expect(typeof m.appendIncidentUpdate).toBe("function");
-    expect(typeof m.createMaintenanceWindow).toBe("function");
     expect(typeof m.projectStatusPage).toBe("function");
   });
 
@@ -433,16 +430,6 @@ describe("Phase 4A — service module surface", () => {
     expect(typeof m.projectGovernanceDashboard).toBe("function");
   });
 
-  it("verification-manifest service exposes the 5 closure writers", async () => {
-    const m = await import(
-      "../src/services/trust/trust-verification-manifest.service.js"
-    );
-    expect(typeof m.buildTrustManifestEntry).toBe("function");
-    expect(typeof m.buildGovernanceManifestEntry).toBe("function");
-    expect(typeof m.buildMethodologyManifestEntry).toBe("function");
-    expect(typeof m.buildAiDisclosureManifestEntry).toBe("function");
-    expect(typeof m.buildSubprocessorManifestEntry).toBe("function");
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -737,7 +724,6 @@ describe("Phase 4A — HTTP routes", () => {
     const src = readFileSync(path, "utf8");
     // Trust Center
     expect(src).toContain("/v1/trust/articles");
-    expect(src).toContain("/v1/trust/articles/seed");
     expect(src).toContain("/v1/trust/articles/:id/versions");
     // Subprocessors
     expect(src).toContain("/v1/trust/subprocessors");
@@ -745,9 +731,6 @@ describe("Phase 4A — HTTP routes", () => {
     expect(src).toContain("/v1/trust/subprocessors/:id/versions");
     // Status page
     expect(src).toContain("/v1/trust/status");
-    expect(src).toContain("/v1/trust/status/incidents");
-    expect(src).toContain("/v1/trust/status/incidents/:id/updates");
-    expect(src).toContain("/v1/trust/status/maintenance");
     // Departments
     expect(src).toContain("/v1/governance/departments");
     expect(src).toContain("/v1/governance/departments/:id/archive");
@@ -760,7 +743,6 @@ describe("Phase 4A — HTTP routes", () => {
     expect(src).toContain("/v1/governance/policies/:id/deprecate");
     expect(src).toContain("/v1/governance/policies/:id/assignments");
     expect(src).toContain("/v1/governance/policies/:id/audit");
-    expect(src).toContain("/v1/governance/policies/effective");
     // Access reviews
     expect(src).toContain("/v1/governance/access-reviews/campaigns");
     expect(src).toContain("/v1/governance/access-reviews/campaigns/:id/open");
@@ -772,9 +754,8 @@ describe("Phase 4A — HTTP routes", () => {
     expect(src).toContain("/v1/governance/cross-org-review/:id/accept");
     expect(src).toContain("/v1/governance/cross-org-review/:id/decline");
     expect(src).toContain("/v1/governance/cross-org-review/:id/revoke");
-    // Dashboard + verify references
+    // Dashboard
     expect(src).toContain("/v1/governance/dashboard");
-    expect(src).toContain("/v1/trust/verify-references");
   });
 
   it("routes are registered in server.ts", () => {
@@ -957,9 +938,6 @@ describe("Phase 4A — module resolution", () => {
     ).resolves.toBeDefined();
     await expect(
       import("../src/services/trust/status-page.service.js"),
-    ).resolves.toBeDefined();
-    await expect(
-      import("../src/services/trust/trust-verification-manifest.service.js"),
     ).resolves.toBeDefined();
     await expect(
       import("../src/services/governance/department.service.js"),

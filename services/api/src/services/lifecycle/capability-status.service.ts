@@ -9,7 +9,7 @@
  *   - retention:      entitled + RETENTION_RECONCILIATION_ENABLED=true   -> FULLY_OPERATIONAL
  *                     entitled + worker off                              -> WRITES_BUT_NOT_ENFORCED
  *                     not entitled                                       -> DISABLED
- *   - legalHolds:     entitled                                           -> FULLY_OPERATIONAL  (no worker needed; compat shim reads both tables)
+ *   - legalHolds:     entitled                                           -> FULLY_OPERATIONAL  (no worker needed; resolved against the ONE canonical store)
  *                     not entitled                                       -> DISABLED
  *   - archive:        entitled + ARCHIVE_AUTO_TRANSITION_ENABLED=true    -> FULLY_OPERATIONAL
  *                     entitled + worker off                              -> CONFIGURATION_ONLY

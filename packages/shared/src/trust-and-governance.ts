@@ -829,6 +829,11 @@ export const TRUST_LIFECYCLE_CODES = [
   "DELEGATED_ADMIN_REVOKED",
   "DEPARTMENT_CREATED",
   "DEPARTMENT_ARCHIVED",
+  // PHASE 12B CLUSTER 14 — department membership governance. These are the
+  // canonical audit codes for the grant / revoke writes behind
+  // `resolveUserDepartmentScope`; both classify as GOVERNANCE_LIFECYCLE.
+  "DEPARTMENT_MEMBERSHIP_GRANTED",
+  "DEPARTMENT_MEMBERSHIP_REVOKED",
   "POLICY_EVALUATED",
   "POLICY_WARNING",
   "POLICY_BLOCK",

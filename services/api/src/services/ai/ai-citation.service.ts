@@ -62,7 +62,7 @@ export type CitationResolver = (
   objectId: string,
 ) => Promise<CitationTarget | null>;
 
-const ROUTE_RE = /^\/[a-z0-9/_:.\[\]-]*$/i;
+const ROUTE_RE = /^\/[a-z0-9/_:.[\]-]*$/i;
 
 export type CitationValidation = {
   valid: AiCitation[];

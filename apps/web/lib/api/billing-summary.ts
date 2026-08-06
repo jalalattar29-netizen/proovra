@@ -6,14 +6,20 @@
  * Surfaces a tiny, plan-aware snapshot derived from the canonical
  * platform-context envelope (`/v1/platform-context` — already mounted).
  * No new backend route is added in this phase: the relevant plan +
- * limits already flow through the envelope, and the shared SoT
- * `getCollaborationTeamPlanLimits` is the authority for caps.
+ * limits already flow through the envelope: POINT 7 added
+ * `planFeatures.limits`, the SERVER projection of the one catalog for the
+ * ACTIVE workspace, so the browser READS caps rather than deriving them.
  *
  * Rules:
- *   - Plan resolution mirrors the backend ownership rules:
- *       1. active organization's plan when an org is the active space
- *       2. personal-space plan when active space is personal
- *       3. account.accountPlan fallback
+ *   - PHASE 12 POINT 4 STEP 1 — plan resolution is the SERVER's, not the
+ *     browser's. `envelope.activeSpace.plan` is the backend-resolved plan of
+ *     the ACTIVE workspace (organization billing plan for an ORGANIZATION
+ *     space, personal Entitlement overlay for the Personal Space). The
+ *     browser no longer re-derives it from `activeSpace` + `organizations`,
+ *     and the `?? account.accountPlan` fallbacks are GONE: an OWNED or
+ *     ORGANIZATION workspace must never inherit the owner's Account plan.
+ *     `null` = envelope loading / degraded → the summary is `null` and the
+ *     surface renders no capacity claim (fail closed).
  *   - The returned shape uses the literal `"unlimited"` string instead
  *     of a magic Infinity for "no cap" surfaces. ENTERPRISE-tier
  *     callers can render the unlimited variant honestly.
@@ -24,19 +30,9 @@
 
 import { useMemo } from "react";
 
-import {
-  useAccount,
-  useActiveSpace,
-  useOrganizations,
-  usePersonalSpace,
-  usePlatformContext,
-} from "../platform-context";
+import { usePlatformContext } from "../platform-context";
 import type { WorkspacePlan } from "../platform-context/types";
-import {
-  COLLABORATION_TEAM_PLAN_LIMITS,
-  getCollaborationTeamPlanLimits,
-  type CollaborationTeamPlanLimits,
-} from "@proovra/shared-billing";
+import type { ServerWorkspaceLimits } from "../platform-context";
 
 export interface BillingSummary {
   /** Active plan key (e.g. "FREE", "PAYG", "PRO", "TEAM"). */
@@ -68,7 +64,7 @@ function projectMax(
 
 function projectFromLimits(
   plan: WorkspacePlan,
-  limits: CollaborationTeamPlanLimits,
+  limits: ServerWorkspaceLimits,
   teamsUsed: number,
 ): BillingSummary {
   // Entitlement Alignment (2026-07-14): SMS invites, shareable invite
@@ -78,7 +74,7 @@ function projectFromLimits(
   return {
     plan,
     teamsUsed,
-    teamsMax: projectMax(plan, limits.maxTeams),
+    teamsMax: projectMax(plan, limits.maxOwnedWorkspaces),
     membersMax: projectMax(plan, limits.maxMembersPerTeam),
   };
 }
@@ -94,25 +90,21 @@ function projectFromLimits(
 export function useBillingSummary(
   teamsUsed: number = 0,
 ): BillingSummary | null {
-  const account = useAccount();
-  const personalSpace = usePersonalSpace();
-  const activeSpace = useActiveSpace();
-  const organizations = useOrganizations();
-
-  const plan = useMemo<WorkspacePlan | null>(() => {
-    if (!activeSpace) return account?.accountPlan ?? null;
-    if (activeSpace.type === "ORGANIZATION") {
-      const org = organizations.find((o) => o.id === activeSpace.id);
-      return org?.plan ?? account?.accountPlan ?? null;
-    }
-    return personalSpace?.plan ?? account?.accountPlan ?? null;
-  }, [account, activeSpace, organizations, personalSpace]);
+  const { envelope } = usePlatformContext();
+  // The SERVER-resolved plan of the ACTIVE workspace. No client fallback
+  // chain, no owner-account inheritance.
+  const plan: WorkspacePlan | null = envelope?.activeSpace?.plan ?? null;
+  // PHASE 12 — POINT 7: and the SERVER-resolved LIMITS for that same
+  // workspace. The plan SUBJECT was already correct here; the table LOOKUP was
+  // still happening in the browser, which kept a second copy of the mapping
+  // from plan to cap alive. Both now come from one projection, so a catalog
+  // change cannot leave this module a version behind.
+  const limits = envelope?.planFeatures?.limits ?? null;
 
   return useMemo<BillingSummary | null>(() => {
-    if (plan === null) return null;
-    const limits = getCollaborationTeamPlanLimits(plan);
+    if (plan === null || limits === null) return null;
     return projectFromLimits(plan, limits, teamsUsed);
-  }, [plan, teamsUsed]);
+  }, [plan, limits, teamsUsed]);
 }
 
 /**
@@ -130,18 +122,17 @@ export function useBillingSummary(
  */
 export async function getBillingSummary(input: {
   plan: WorkspacePlan | null;
+  /**
+   * POINT 7 — the SERVER projection, read off the envelope by the caller.
+   * Passing it in rather than looking it up is the point: this module no
+   * longer holds a plan → limits table.
+   */
+  limits: ServerWorkspaceLimits | null;
   teamsUsed?: number;
 }): Promise<BillingSummary | null> {
-  if (!input.plan) return null;
-  const limits = getCollaborationTeamPlanLimits(input.plan);
-  return projectFromLimits(input.plan, limits, input.teamsUsed ?? 0);
+  if (!input.plan || !input.limits) return null;
+  return projectFromLimits(input.plan, input.limits, input.teamsUsed ?? 0);
 }
-
-/**
- * Test seam — exposes the per-plan limits table so unit tests can
- * verify cap projection without reaching into the shared package.
- */
-export const __PLAN_LIMITS_FOR_TESTS__ = COLLABORATION_TEAM_PLAN_LIMITS;
 
 /**
  * Convenience: capture the canonical envelope plan resolution for
@@ -154,18 +145,10 @@ export function resolveBillingSummaryFromContext(
 ): BillingSummary | null {
   const envelope = context.envelope;
   if (!envelope) return null;
-  const active = envelope.activeSpace;
-  let plan: WorkspacePlan | null = envelope.account?.accountPlan ?? null;
-  if (active) {
-    if (active.type === "ORGANIZATION") {
-      const orgs = envelope.organizations ?? [];
-      const org = orgs.find((o) => o.id === active.id);
-      plan = org?.plan ?? plan;
-    } else {
-      plan = envelope.personalSpace?.plan ?? plan;
-    }
-  }
-  if (plan === null) return null;
-  const limits = getCollaborationTeamPlanLimits(plan);
+  // Same SERVER-resolved plan AND limits the hook reads — one resolution, no
+  // fallbacks, and no second limit table in the browser.
+  const plan: WorkspacePlan | null = envelope.activeSpace?.plan ?? null;
+  const limits = envelope.planFeatures?.limits ?? null;
+  if (plan === null || limits === null) return null;
   return projectFromLimits(plan, limits, teamsUsed);
 }

@@ -57,6 +57,34 @@ export type SettingsUiContextInput = {
   workspacePlan: string | null;
   /** Account-tier plan (personal Entitlement). */
   accountPlan: string | null;
+  /**
+   * PHASE 12 POINT 4 STEP 1 — SERVER-projected authority to open billing
+   * management for the ACTIVE workspace, read from
+   * `envelope.capabilities.BILLING_MANAGE`.
+   *
+   * This replaces the former `activeOrgRole === "OWNER" || "ADMIN"` client
+   * comparison. `capability-registry.ts` grants BILLING_MANAGE to exactly the
+   * OWNER/ADMIN membership the billing routes enforce, so the affordance and
+   * the enforcement cannot disagree.
+   *
+   * `null` = envelope loading / degraded / capability absent → FAIL CLOSED
+   * (no billing action rendered).
+   */
+  canManageBilling: boolean | null;
+  /**
+   * SERVER-projected authority to administer the ACTIVE workspace, read from
+   * `envelope.capabilities.SETTINGS_MANAGE`. Gates the organization-admin
+   * LINKS only (the org-admin surfaces keep their own server gate).
+   * `null` = unknown → FAIL CLOSED (links hidden).
+   */
+  canManageWorkspaceSettings: boolean | null;
+  /**
+   * SERVER-derived enterprise-contract flag (`envelope.flags
+   * .isEnterpriseWorkspace`, computed from the commercial catalog /
+   * enterprise contract). Replaces the client `orgPlan === "ENTERPRISE"`
+   * comparison that made the browser the commercial authority.
+   */
+  isEnterpriseWorkspace: boolean;
   organizations: ReadonlyArray<{
     id: string;
     name?: string | null;
@@ -90,8 +118,11 @@ export function deriveSettingsUiContext(
         (o) => o.id === activeOrgId && o.membershipStatus === "ACTIVE",
       ) ?? null)
     : null;
-  const activeOrgRole = activeOrg?.role ?? null;
-  const isActiveOrgAdmin = activeOrgRole === "OWNER" || activeOrgRole === "ADMIN";
+  // PHASE 12 POINT 4 STEP 1 — both authorities are SERVER projections now.
+  // The former `activeOrgRole === "OWNER" || activeOrgRole === "ADMIN"` client
+  // comparison is gone; `activeOrg` survives for the display NAME only.
+  const canManageBilling = input.canManageBilling === true;
+  const canAdministerWorkspace = input.canManageWorkspaceSettings === true;
   const orgName =
     activeOrg?.displayName ?? activeOrg?.name ?? input.activeSpace?.displayName ?? "your organization";
 
@@ -99,9 +130,14 @@ export function deriveSettingsUiContext(
   // Billing context — replaces the context-blind personal-plan card.
   //   - PERSONAL workspace → the user's own plan, clearly labeled personal.
   //   - ORGANIZATION workspace → the ORG's plan. Ordinary members see it as
-  //     "Managed by <org>" with NO self-service action; org OWNER/ADMIN get
-  //     the billing action. ENTERPRISE reads as a managed contract with no
-  //     self-service upgrade CTA.
+  //     "Managed by <org>" with NO self-service action; holders of the
+  //     server-projected BILLING_MANAGE capability get the billing action.
+  //     An enterprise contract reads as managed with no self-service upgrade
+  //     CTA.
+  //
+  // Both the authority (`canManageBilling`) and the contract classification
+  // (`isEnterpriseWorkspace`) are SERVER projections. The plan STRINGS below
+  // are used for the display label only — never for a decision.
   // -------------------------------------------------------------------------
   let billing: SettingsBillingContext;
   if (!isOrg) {
@@ -109,21 +145,21 @@ export function deriveSettingsUiContext(
       contextType: "personal",
       displayPlan: planLabel(input.accountPlan ?? input.workspacePlan),
       scopeLabel: "Personal plan",
-      canManageBilling: true,
-      billingHref: "/billing",
+      canManageBilling,
+      billingHref: canManageBilling ? "/billing" : null,
       managedByOrgName: null,
     };
   } else {
-    const orgPlan = planLabel(input.workspacePlan ?? activeOrg?.plan);
-    const isEnterprise = orgPlan === "ENTERPRISE";
+    const isEnterprise = input.isEnterpriseWorkspace;
     billing = {
       contextType: isEnterprise ? "enterprise-contract" : "organization",
-      displayPlan: orgPlan,
+      displayPlan: planLabel(input.workspacePlan ?? activeOrg?.plan),
       scopeLabel: isEnterprise ? "Organization agreement" : "Organization plan",
-      canManageBilling: isActiveOrgAdmin,
-      // Enterprise is contract-managed: even admins get no self-service
-      // upgrade CTA; non-admin members get no billing action at all.
-      billingHref: isActiveOrgAdmin && !isEnterprise ? "/billing" : null,
+      canManageBilling,
+      // An enterprise contract is sales-managed: even admins get no
+      // self-service upgrade CTA; members without BILLING_MANAGE get no
+      // billing action at all.
+      billingHref: canManageBilling && !isEnterprise ? "/billing" : null,
       managedByOrgName: orgName,
     };
   }
@@ -151,7 +187,7 @@ export function deriveSettingsUiContext(
     ),
     showReviewerCriteria: input.planFeatures?.reviewerOperationsIncluded === true,
     billing,
-    showOrgAdminLinks: isActiveOrgAdmin,
-    orgAdminOrgId: isActiveOrgAdmin ? activeOrgId : null,
+    showOrgAdminLinks: isOrg && canAdministerWorkspace,
+    orgAdminOrgId: isOrg && canAdministerWorkspace ? activeOrgId : null,
   };
 }

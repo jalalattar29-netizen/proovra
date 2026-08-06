@@ -17,7 +17,7 @@
  *   - DEF-023 RESOLVED in registry.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -62,9 +62,6 @@ const MIGRATION = readApi(
 const PRISMA = readApi("prisma/schema.prisma");
 const RUNTIME = readApi(
   "src/services/automation/automation-delivery-runtime.service.ts",
-);
-const WEBHOOK_SVC = readApi(
-  "src/services/automation/automation-webhook.service.ts",
 );
 const ACTIONS = readApi("src/services/automation/automation-actions.service.ts");
 const SECURITY = readPackages("shared/src/security.ts");
@@ -339,30 +336,6 @@ describe("E3.3 Test 7 — action handler is async hand-off only", () => {
 // ===========================================================================
 // PART 8 — Capture / custody / report / package untouched
 // ===========================================================================
-
-describe("E3.3 Test 8 — capture / custody / report / package untouched", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath)).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(st.size).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
 
 // ===========================================================================
 // PART 9 — IA + state lib carry

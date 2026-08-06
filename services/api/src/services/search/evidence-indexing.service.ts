@@ -46,6 +46,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { collapseControlCharacters } from "../../lib/text-sanitize.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { safeJsonSnapshot } from "../observability/redact.js";
@@ -284,7 +285,7 @@ function sanitiseString(value: string, max: number): string {
     scrubbed = scrubbed.replace(re, "[redacted-overclaim]");
   }
   // Drop control chars + collapse whitespace.
-  scrubbed = scrubbed.replace(/[\x00-\x08\x0B-\x1F\x7F]+/g, " ").trim();
+  scrubbed = collapseControlCharacters(scrubbed, { keep: [0x09, 0x0a] });
   if (scrubbed.length <= max) return scrubbed;
   return scrubbed.slice(0, max - 1) + "…";
 }
@@ -297,7 +298,7 @@ function sanitiseLongText(value: string): string {
   for (const re of SEARCH_FORBIDDEN_OVERCLAIM_PHRASES) {
     scrubbed = scrubbed.replace(re, "[redacted-overclaim]");
   }
-  scrubbed = scrubbed.replace(/[\x00-\x08\x0B-\x1F\x7F]+/g, " ").trim();
+  scrubbed = collapseControlCharacters(scrubbed, { keep: [0x09, 0x0a] });
   const MAX_BYTES = 16 * 1024;
   if (scrubbed.length <= MAX_BYTES) return scrubbed;
   return scrubbed.slice(0, MAX_BYTES - 1) + "…";
@@ -312,10 +313,19 @@ export async function indexEvidence(
   input: IndexEvidenceInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<IndexResult> {
-  let evidence: prismaPkg.Evidence | null;
+  let evidence:
+    | (prismaPkg.Evidence & { caseLinks: Array<{ caseId: string }> })
+    | null;
   try {
     evidence = await client.evidence.findFirst({
       where: { id: input.evidenceId, teamId: input.teamId },
+      include: {
+        caseLinks: {
+          orderBy: { linkedAtUtc: "asc" },
+          select: { caseId: true },
+          take: 1,
+        },
+      },
     });
   } catch {
     return { ok: false, reason: "evidence_load_failed" };
@@ -392,7 +402,7 @@ export async function indexEvidence(
       type: evidence.type,
       mimeType: evidence.mimeType,
       captureMethod: evidence.captureMethod,
-      caseId: evidence.caseId ?? null,
+      caseId: evidence.caseLinks[0]?.caseId ?? null,
       deletedAt: evidence.deletedAt ?? null,
       lifecycleState: evidence.lifecycleState ?? null,
       archivedAt: evidence.archivedAt ?? null,

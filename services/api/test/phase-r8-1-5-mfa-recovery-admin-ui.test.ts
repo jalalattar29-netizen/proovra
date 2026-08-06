@@ -193,7 +193,7 @@ describe("R8.1.5 — admin approval is not a session bypass", () => {
     expect(ADMIN_SPA).not.toMatch(/proovra_session/);
     // Approve confirmation modal explains that approval does NOT
     // grant a session.
-    expect(ADMIN_SPA).toMatch(/does\s+\<strong\>NOT\<\/strong\>\s+grant/);
+    expect(ADMIN_SPA).toMatch(/does\s+<strong>NOT<\/strong>\s+grant/);
   });
 
   // ---------------------------------------------------------------------------

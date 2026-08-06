@@ -54,14 +54,9 @@
  *   - `apps/web/lib/navigation/*`       — sidebar / All Tools filter
  *
  * Future expansion: when product packaging adds an ENTERPRISE plan, the
- * tier model upgrades automatically because the `WorkspacePlan` enum +
+ * tier model upgrades automatically because the SERVER-projected
  * `PlatformContextFlags.isEnterpriseWorkspace` are already wired in.
  */
-
-import type {
-  WorkspacePlan,
-  WorkspaceRole,
-} from "../platform-context/types";
 
 /** Tier the surface belongs to. Determines who sees it. */
 export const SURFACE_TIERS = [
@@ -289,49 +284,26 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
  *
  * INTERNAL is NEVER unlocked by plan — only by `isPlatformAdmin`.
  */
-export function tiersAllowedByPlan(
-  plan: WorkspacePlan | null,
-): ReadonlySet<SurfaceTier> {
-  const tiers = new Set<SurfaceTier>(["CORE"]);
-  if (plan === "PRO" || plan === "TEAM") {
-    tiers.add("PROFESSIONAL");
-  }
-  return tiers;
-}
+// PHASE 12B Track 1A — tiersAllowedByPlan (the client raw-plan tier authority)
+// was DELETED. PROFESSIONAL visibility is the SERVER-projected
+// planFeatures.professionalSurfacesIncluded (commercial-catalog-derived);
+// ENTERPRISE is the server isEnterpriseWorkspace flag; INTERNAL is
+// isPlatformAdmin. The frontend never derives a tier from a plan name.
 
-/**
- * Roles that unlock ENTERPRISE-tier surfaces even on non-enterprise
- * plans.
- *
- * Phase IA-surface-tier-correction — narrowed: ONLY platform admin
- * unlocks ENTERPRISE via role. TEAM-plan OWNER/ADMIN no longer do.
- * The platform's GTM target (individuals + small offices + small
- * teams) MUST see the simplified product regardless of role —
- * ENTERPRISE-tier surfaces require an explicit enterprise plan, the
- * `isEnterpriseWorkspace` flag, or platform-admin status.
- *
- * Every personal-account holder is OWNER of their own workspace by
- * construction; permitting OWNER to gate ENTERPRISE would mean every
- * personal user sees the full enterprise surface, defeating the tier
- * model.
- *
- * The per-surface role/permission check (intelligence.read,
- * governance.policy.read, etc.) is enforced by the API and is the
- * actual security boundary. This helper is the front-end visibility
- * filter only.
- */
-export function rolesUnlockingEnterprise(
-  _role: WorkspaceRole | null,
-  isPlatformAdmin: boolean,
-): boolean {
-  if (isPlatformAdmin) return true;
-  // Phase IA-surface-tier-correction — the role table cannot unlock
-  // ENTERPRISE on its own. The historical OWNER/ADMIN unlock has been
-  // removed; ENTERPRISE eligibility now requires plan === "ENTERPRISE"
-  // OR isEnterpriseWorkspace OR isPlatformAdmin (see
-  // `lib/surface/access.ts:isUserInTier`).
-  return false;
-}
+// PHASE 12 POINT 4 STEP 1 — `rolesUnlockingEnterprise` was DELETED.
+//
+// It was the last role-shaped tier authority in the frontend. After the
+// Phase IA-surface-tier-correction narrowing it ignored its `role`
+// argument entirely and returned `isPlatformAdmin`, so it had no
+// production caller: `lib/surface/access.ts` referenced it only with a
+// `void` statement to keep the import lint-clean. The ENTERPRISE branch
+// reads the SERVER-projected `isPlatformAdmin` / `isEnterpriseWorkspace`
+// flags directly and is the single decision point.
+//
+// The invariant it used to encode ("no workspace role unlocks ENTERPRISE
+// on its own") is now proven behaviourally against `canAccessSurface` /
+// `getDirectAccessDecision` for every role in `WORKSPACE_ROLES`, in
+// services/api/test/phase-ia-surface-tier.test.ts Section K.
 
 // =============================================================================
 // Path lookup

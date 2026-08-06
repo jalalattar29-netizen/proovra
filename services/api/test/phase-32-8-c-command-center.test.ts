@@ -22,6 +22,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -141,7 +142,7 @@ describe("Phase 32.8C — service layer composition", () => {
       const next = SERVICE.indexOf("\n}\n", idx);
       const body = SERVICE.slice(idx, next > idx ? next : idx + 6000);
       expect(body, `runner ${name} missing try`).toMatch(/try\s*\{/);
-      expect(body, `runner ${name} missing catch`).toMatch(/catch\s*[\(\{]/);
+      expect(body, `runner ${name} missing catch`).toMatch(/catch\s*[({]/);
     }
   });
 
@@ -352,7 +353,6 @@ describe("Phase 32.8C — role-aware quick actions (Section H)", () => {
   // canonical capabilities: ctx.can("CASES_MANAGE") || ctx.can("REVIEWER_OPS_ACT").
   // The VIEWER exclusion is enforced server-side in the capability
   // resolver and unit-tested in phase-32-8-foundation-cleanup.test.ts.
-  it.skip("canMutate excludes VIEWER (read-only role)", () => {});
 });
 
 // =============================================================================
@@ -461,14 +461,13 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
     // `next.config.js` now declares a 308 redirect from
     // `/dashboard/api-keys` → `/integrations`. This test inverts the
     // original 32.8C assertion: the page MUST NOT exist as a file.
-    const apiKeysFs = require("node:fs") as typeof import("node:fs");
-    const apiKeysPath = require("node:url").fileURLToPath(
+    const apiKeysPath = fileURLToPath(
       new URL(
         "../../../apps/web/app/(app)/dashboard/api-keys/page.tsx",
         import.meta.url,
       ),
     );
-    expect(apiKeysFs.existsSync(apiKeysPath)).toBe(false);
+    expect(existsSync(apiKeysPath)).toBe(false);
     // The canonical redirect must be present in next.config.js.
     const cfg = readWeb("next.config.js");
     expect(cfg).toMatch(
@@ -1378,8 +1377,10 @@ describe("Phase 32.8C++ — Cross-Case Intelligence V2 engine", () => {
   });
 
   it("shared-governance-block signal counts real package-blocked metadata across cases", () => {
+    // Track 1B closure — cases are derived from the canonical
+    // caseLinks relation, not the dropped Evidence.caseId scalar.
     expect(SERVICE).toMatch(
-      /m && m\.blocked === true && row\.caseId/,
+      /m && m\.blocked === true && row\.caseLinks\.length > 0/,
     );
   });
 });

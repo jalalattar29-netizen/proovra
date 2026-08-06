@@ -75,7 +75,10 @@ async function runSiuExportPreflightInner(
   // 2. Evidence presence: fetch the case's evidence and inspect for
   //    report / verification-package / hash-mismatch / legal hold.
   const evidence = await prisma.evidence.findMany({
-    where: { caseId: input.caseId, teamId: input.teamId },
+    where: {
+      caseLinks: { some: { caseId: input.caseId } },
+      teamId: input.teamId,
+    },
     select: {
       id: true,
       status: true,

@@ -265,19 +265,16 @@ export function scanTranscriptForCandidates(
   // transcript by joining words with a single space so the offsets
   // are deterministic against the bounded word list.
   const charToWord: number[] = [];
-  let cursor = 0;
   const reassembled: string[] = [];
   for (let i = 0; i < words.length; i++) {
     const w = words[i].word;
     if (i > 0) {
       charToWord.push(i); // the inserted space gets attributed to word i.
-      cursor += 1;
       reassembled.push(" ");
     }
     for (let k = 0; k < w.length; k++) {
       charToWord.push(i);
     }
-    cursor += w.length;
     reassembled.push(w);
   }
   const corpus = reassembled.join("");

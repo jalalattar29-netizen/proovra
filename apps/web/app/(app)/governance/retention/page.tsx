@@ -24,11 +24,12 @@
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
+import { Card } from "../../../../components/ui/Card";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { RetentionInheritanceSummary } from "../../../../components/governance/RetentionInheritanceSummary";
@@ -82,6 +83,77 @@ const SCOPE_LABEL: Record<PolicyScope, string> = {
   REGULATORY: "Regulatory",
 };
 
+// -----------------------------------------------------------------------------
+// PHASE 12B CLUSTER 10 — server projections wired below.
+//
+// Both are READ-ONLY. This page renders exactly what the governance engine
+// decided; it NEVER recomputes which policy wins, whether a record is held,
+// or when a record becomes destroyable. `reason` / `source` / `conflicts`
+// are the engine's own bounded vocabulary.
+// -----------------------------------------------------------------------------
+
+/** `GET /v1/governance/retention-policies/effective` */
+type EffectiveRetentionDecision = {
+  policy: Policy | null;
+  reason: string;
+  source: "team_policy" | "org_policy_inherited" | "none";
+  inheritedTemplate?: {
+    organizationId: string;
+    retentionDays: number | null;
+    immutable: boolean;
+    description: string | null;
+  };
+  conflicts: ReadonlyArray<{ code: string; detail: string }>;
+};
+
+/** `GET /v1/governance/retention-candidates` */
+type RetentionCandidate = {
+  id: string;
+  retentionUntilUtc: string;
+  retentionPolicySource: string | null;
+  flaggedAtUtc: string | null;
+  caseId: string | null;
+  publicVerifyState: string;
+};
+
+const RETENTION_SOURCE_LABEL: Record<
+  EffectiveRetentionDecision["source"],
+  string
+> = {
+  team_policy: "Workspace policy",
+  org_policy_inherited: "Inherited organization template",
+  none: "No policy — indefinite retention",
+};
+
+/** Deterministic page sizes. The API caps at 200. */
+const CANDIDATE_PAGE_SIZES = [25, 50, 100, 200] as const;
+
+/**
+ * Bounded resolution of an unknown fetch failure into the three states this
+ * page renders differently: denial (authorization), error (everything else).
+ * Never surfaces a raw backend message — `toSafeUserError` is the only
+ * sanctioned display path.
+ */
+function classifyReadFailure(err: unknown): {
+  kind: "denied" | "error";
+  message: string;
+} {
+  const e = err as { statusCode?: number; message?: string };
+  if (e?.statusCode === 403 || e?.statusCode === 404) {
+    return {
+      kind: "denied",
+      message:
+        "You do not have the governance permission required to read this in the current workspace.",
+    };
+  }
+  return {
+    kind: "error",
+    message: toSafeUserError(err, {
+      message: "Unable to load this governance projection.",
+    }).message,
+  };
+}
+
 // Phase 38.9 — wrap in canonical PageRouteGate. `governance.retention`
 // is organization-only.
 export default function RetentionPoliciesPage() {
@@ -103,7 +175,36 @@ function RetentionPoliciesPageInner() {
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  
+  // PHASE 12B CLUSTER 10 — tenant generation guard. Every async read below
+  // captures the generation before awaiting and drops the response if the
+  // operator switched workspace mid-flight, so one workspace's retention
+  // projection can never paint into another's console.
+  const { stamp, isStale } = useTenantGuard();
+
+  // --- Effective retention resolution (server decision) --------------------
+  const [effective, setEffective] = useState<EffectiveRetentionDecision | null>(
+    null,
+  );
+  const [effectiveLoading, setEffectiveLoading] = useState(false);
+  const [effectiveFailure, setEffectiveFailure] = useState<{
+    kind: "denied" | "error";
+    message: string;
+  } | null>(null);
+  const [evidenceTypeFilter, setEvidenceTypeFilter] = useState("");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState("");
+
+  // --- Retention reconciliation candidates ---------------------------------
+  const [candidates, setCandidates] = useState<RetentionCandidate[] | null>(
+    null,
+  );
+  const [candidatesFailure, setCandidatesFailure] = useState<{
+    kind: "denied" | "error";
+    message: string;
+  } | null>(null);
+  const [candidateLimit, setCandidateLimit] = useState<number>(
+    CANDIDATE_PAGE_SIZES[1],
+  );
+
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
@@ -125,6 +226,59 @@ function RetentionPoliciesPageInner() {
       cancelled = true;
     };
   }, [teamId, statusFilter]);
+
+  const loadEffective = useCallback(async () => {
+    if (!teamId) return;
+    const captured = stamp();
+    setEffectiveLoading(true);
+    setEffectiveFailure(null);
+    const params = new URLSearchParams({ teamId });
+    if (evidenceTypeFilter) params.set("evidenceType", evidenceTypeFilter);
+    if (jurisdictionFilter.trim()) {
+      params.set("jurisdiction", jurisdictionFilter.trim());
+    }
+    try {
+      const res: EffectiveRetentionDecision = await apiFetch(
+        `/v1/governance/retention-policies/effective?${params.toString()}`,
+        { method: "GET" },
+      );
+      if (isStale(captured)) return;
+      setEffective(res);
+    } catch (err) {
+      if (isStale(captured)) return;
+      setEffective(null);
+      setEffectiveFailure(classifyReadFailure(err));
+    } finally {
+      if (!isStale(captured)) setEffectiveLoading(false);
+    }
+  }, [teamId, evidenceTypeFilter, jurisdictionFilter, stamp, isStale]);
+
+  useEffect(() => {
+    void loadEffective();
+  }, [loadEffective]);
+
+  const loadCandidates = useCallback(async () => {
+    if (!teamId) return;
+    const captured = stamp();
+    setCandidates(null);
+    setCandidatesFailure(null);
+    try {
+      const res: { candidates: RetentionCandidate[] } = await apiFetch(
+        `/v1/governance/retention-candidates?teamId=${encodeURIComponent(teamId)}&limit=${candidateLimit}`,
+        { method: "GET" },
+      );
+      if (isStale(captured)) return;
+      setCandidates(res.candidates);
+    } catch (err) {
+      if (isStale(captured)) return;
+      setCandidates([]);
+      setCandidatesFailure(classifyReadFailure(err));
+    }
+  }, [teamId, candidateLimit, stamp, isStale]);
+
+  useEffect(() => {
+    void loadCandidates();
+  }, [loadCandidates]);
 
   async function refresh() {
     if (!teamId) return;
@@ -243,6 +397,68 @@ function RetentionPoliciesPageInner() {
     },
   ];
 
+  // PHASE 12B CLUSTER 10 — candidate columns. Drill-down goes to the
+  // canonical evidence record; the queue itself never mutates anything.
+  const candidateColumns: DataTableColumn<RetentionCandidate>[] = [
+    {
+      key: "evidence",
+      header: "Evidence",
+      render: (c) => (
+        <Link
+          href={`/evidence/${c.id}`}
+          style={{ ...monoLinkStyle }}
+          data-retention-candidate-row={c.id}
+        >
+          {c.id.slice(0, 8)}…
+        </Link>
+      ),
+    },
+    {
+      key: "retentionUntil",
+      header: "Retention until",
+      nowrap: true,
+      render: (c) => formatUserDateTime(c.retentionUntilUtc),
+    },
+    {
+      key: "flagged",
+      header: "Flagged",
+      nowrap: true,
+      render: (c) =>
+        c.flaggedAtUtc ? (
+          formatUserDateTime(c.flaggedAtUtc)
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+    {
+      key: "source",
+      header: "Policy source",
+      render: (c) =>
+        c.retentionPolicySource ? (
+          <code style={{ fontSize: 12 }}>{c.retentionPolicySource}</code>
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+    {
+      key: "verifyState",
+      header: "Verify state",
+      render: (c) => <StatusBadge status={c.publicVerifyState} />,
+    },
+    {
+      key: "case",
+      header: "Matter",
+      render: (c) =>
+        c.caseId ? (
+          <Link href={`/cases/${c.caseId}`} style={monoLinkStyle}>
+            {c.caseId.slice(0, 8)}…
+          </Link>
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+  ];
+
   return (
     <PageShell
       header={
@@ -292,6 +508,208 @@ function RetentionPoliciesPageInner() {
           governance admins see them at the top of the page instead
           of buried in the dashboard signal. */}
       <RetentionConflictAlert teamId={teamId ?? null} />
+
+      {/* PHASE 12B CLUSTER 10 — effective retention resolution. The engine
+          decides; this section only reports the decision, its source, and
+          the bounded conflict codes it emitted. */}
+      <PageSection
+        title="Effective retention"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="Evidence type"
+              showLabel
+              value={evidenceTypeFilter}
+              onChange={setEvidenceTypeFilter}
+              options={[
+                { value: "", label: "Any" },
+                { value: "PHOTO", label: "Photo" },
+                { value: "VIDEO", label: "Video" },
+                { value: "AUDIO", label: "Audio" },
+                { value: "DOCUMENT", label: "Document" },
+              ]}
+            />
+            <FilterBar.Select
+              label="Jurisdiction"
+              showLabel
+              value={jurisdictionFilter}
+              onChange={setJurisdictionFilter}
+              options={[
+                { value: "", label: "Any" },
+                { value: "EU", label: "EU" },
+                { value: "UK", label: "UK" },
+                { value: "US", label: "US" },
+              ]}
+            />
+          </FilterBar>
+        }
+      >
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to resolve its effective retention rule."
+          />
+        ) : effectiveFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-effective-retention-failure={effectiveFailure.kind}
+          >
+            {effectiveFailure.message}
+          </Card>
+        ) : effectiveLoading && !effective ? (
+          <p style={mutedStyle} data-effective-retention-loading>
+            Resolving effective retention…
+          </p>
+        ) : !effective ? (
+          <EmptyState
+            title="No retention decision available"
+            purpose="The governance engine returned no decision for this scope."
+          />
+        ) : (
+          <Card
+            variant="admin"
+            padding="compact"
+            data-effective-retention-source={effective.source}
+          >
+            <div style={effectiveGridStyle}>
+              <div>
+                <div style={fieldLabelTextStyle}>Source</div>
+                <div style={{ fontWeight: 600 }}>
+                  {RETENTION_SOURCE_LABEL[effective.source]}
+                </div>
+              </div>
+              <div>
+                <div style={fieldLabelTextStyle}>Retention</div>
+                <div style={{ fontWeight: 600 }}>
+                  {effective.policy
+                    ? effective.policy.retentionDays === null
+                      ? "Indefinite"
+                      : `${effective.policy.retentionDays.toLocaleString()} days`
+                    : effective.inheritedTemplate
+                      ? effective.inheritedTemplate.retentionDays === null
+                        ? "Indefinite"
+                        : `${effective.inheritedTemplate.retentionDays.toLocaleString()} days`
+                      : "Indefinite"}
+                </div>
+              </div>
+              <div>
+                <div style={fieldLabelTextStyle}>Governing policy</div>
+                <div>
+                  {effective.policy ? (
+                    <>
+                      <span style={{ fontWeight: 600 }}>
+                        {effective.policy.displayName}
+                      </span>{" "}
+                      <span style={mutedStyle}>
+                        ({SCOPE_LABEL[effective.policy.scope]} · v
+                        {effective.policy.currentVersion})
+                      </span>
+                    </>
+                  ) : (
+                    <span style={mutedStyle}>None</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div style={fieldLabelTextStyle}>Immutable</div>
+                <div>
+                  {effective.policy?.immutable ||
+                  effective.inheritedTemplate?.immutable ? (
+                    <Badge tone="governance" subtle>
+                      Immutable
+                    </Badge>
+                  ) : (
+                    <span style={mutedStyle}>No</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p style={{ ...mutedStyle, marginTop: 10, marginBottom: 0 }}>
+              Engine reason: <code>{effective.reason}</code>
+            </p>
+            {effective.conflicts.length > 0 ? (
+              <ul style={{ ...listStyle, marginTop: 10 }}>
+                {effective.conflicts.map((c) => (
+                  <li
+                    key={`${c.code}:${c.detail}`}
+                    style={{ fontSize: 13, marginTop: 4 }}
+                    data-effective-retention-conflict={c.code}
+                  >
+                    <Badge tone="risk" subtle>
+                      {c.code}
+                    </Badge>{" "}
+                    {c.detail}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Card>
+        )}
+      </PageSection>
+
+      {/* PHASE 12B CLUSTER 10 — retention reconciliation candidates. The
+          reconciliation worker flags these; the console is read-only and
+          offers drill-down only. Approving destruction happens in the
+          destruction queue, behind its own review + step-up gate. */}
+      <PageSection
+        title="Reconciliation candidates"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="Page size"
+              showLabel
+              value={String(candidateLimit)}
+              onChange={(v) => setCandidateLimit(Number(v))}
+              options={CANDIDATE_PAGE_SIZES.map((n) => ({
+                value: String(n),
+                label: `${n} rows`,
+              }))}
+            />
+          </FilterBar>
+        }
+      >
+        <p style={{ ...mutedStyle, marginTop: 0 }}>
+          Sealed records the retention worker flagged as past their effective
+          horizon, newest flag first. Records under legal hold are excluded by
+          the engine and never appear here. This view proposes nothing — it
+          reports what the worker found.
+        </p>
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to view its reconciliation candidates."
+          />
+        ) : candidatesFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-retention-candidates-failure={candidatesFailure.kind}
+          >
+            {candidatesFailure.message}
+          </Card>
+        ) : (
+          <div data-retention-candidates-table>
+            <DataTable
+              ariaLabel="Retention reconciliation candidates"
+              columns={candidateColumns}
+              rows={candidates ?? []}
+              getRowId={(c) => c.id}
+              loading={!candidates}
+              emptyState={
+                <EmptyState
+                  title="No records flagged"
+                  purpose="The retention worker has not flagged any sealed record as past its effective retention horizon."
+                />
+              }
+            />
+          </div>
+        )}
+      </PageSection>
 
       <PageSection
         title="Policies"
@@ -750,6 +1168,19 @@ const navLinkStyle: React.CSSProperties = {
   color: "#4338ca",
   fontWeight: 600,
   textDecoration: "none",
+};
+const monoLinkStyle: React.CSSProperties = {
+  fontFamily:
+    "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#4338ca",
+  textDecoration: "none",
+};
+const effectiveGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 16,
 };
 const inputStyle: React.CSSProperties = {
   padding: "8px 12px",

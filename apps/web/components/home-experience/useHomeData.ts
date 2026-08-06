@@ -31,7 +31,7 @@ import {
   useActiveSpaceId,
   useOrganizations,
 } from "../../lib/platform-context";
-import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
+import { usePlatformContext } from "../../lib/platform-context/PlatformContextProvider";
 
 import {
   normalizeHomeViewModel,
@@ -58,7 +58,20 @@ export type HomeDataState =
 export type HomeData = HomeDataState & { reload: () => void };
 
 export function useHomeData(): HomeData {
-  const { plan } = useSurfaceUserContext();
+  // PHASE 12B Track 1A — the surface context no longer carries a plan name.
+  // The DISPLAY plan label + the SERVER-projected entitlements come straight
+  // from the canonical envelope; the view model decides entitlements from
+  // `planFeatures` booleans only.
+  const platformCtx = usePlatformContext();
+  const envelope = platformCtx?.envelope ?? null;
+  const activeSpaceForPlan = envelope?.activeSpace ?? null;
+  const plan =
+    activeSpaceForPlan?.type === "PERSONAL"
+      ? envelope?.personalSpace?.plan ?? envelope?.account?.accountPlan ?? null
+      : activeSpaceForPlan?.type === "ORGANIZATION"
+        ? envelope?.organizations?.find((o) => o.id === activeSpaceForPlan.id)?.plan ?? null
+        : null;
+  const planFeatures = envelope?.planFeatures ?? null;
   const workspaceId = useActiveSpaceId();
   const activeSpace = useActiveSpace();
   const activeSpaceType = activeSpace?.type ?? null;
@@ -107,9 +120,9 @@ export function useHomeData(): HomeData {
     // Phase HOME-RECORDS-BY-TYPE — workspace-aggregated donut counts.
     // Returns { records, files } where `records` counts Evidence rows
     // and `files` counts EvidencePart rows, both excluding soft-deleted.
-    // Partial-failure tolerant: if the endpoint is unavailable the
-    // view-model falls back to the legacy latest-100 classifier for
-    // records and hides `preservedFilesByType` (no parts fallback exists).
+    // Partial-failure tolerant: if the request fails the view-model uses
+    // the latest-100 sample classifier for records (disclosed via
+    // `source`) and hides `preservedFilesByType` (no parts sample exists).
     const recordsByTypePromise: Promise<HomeRecordsByTypeInput | null> =
       workspaceId
         ? apiFetch(scoped("/v1/dashboard/records-by-type"), {
@@ -188,6 +201,7 @@ export function useHomeData(): HomeData {
 
     const viewModel = normalizeHomeViewModel({
       plan: plan as HomePlan,
+      planFeatures,
       workspaceId: workspaceId ?? null,
       workspaceName: activeSpace?.displayName ?? null,
       activeSpaceType,
@@ -206,7 +220,7 @@ export function useHomeData(): HomeData {
     setState({ status: "ready", viewModel });
     // `orgs` is intentionally read via `orgsRef` (not a dep) so this
     // callback stays referentially stable across renders.
-  }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan]);
+  }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan, planFeatures]);
 
   useEffect(() => {
     void reload();

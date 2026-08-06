@@ -92,13 +92,17 @@ function QcShell() {
   /** In-flight guard so the operator cannot double-fire a verdict. */
   const [busySampleId, setBusySampleId] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  // `isStale` lets the effect discard a response that arrived after the
+  // workspace changed (or the page unmounted) — the previous workspace's QC
+  // samples must never paint under the newly selected one.
+  const refresh = useCallback(async (isStale?: () => boolean) => {
     if (!teamId) {
       setRows([]);
       return;
     }
     try {
       const list = (await fetchQcSamples(teamId)) as QcRow[];
+      if (isStale?.()) return;
       setRows(list);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -106,12 +110,17 @@ function QcShell() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: (err as any)?.statusCode ?? 0,
       });
+      if (isStale?.()) return;
       setRows([]);
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    void refresh(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   const pending = useMemo(

@@ -26,6 +26,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  JOB_NAMES,
+  MEDIA_INTELLIGENCE_JOB_KINDS,
+  QUEUE_NAMES,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
 
 import {
   MEDIA_INTELLIGENCE_RUN_KINDS,
@@ -144,20 +150,23 @@ describe("Phase 31.8 — extract_exif registered in every catalog", () => {
     expect(MEDIA_INTELLIGENCE_RUN_KINDS).toContain("extract_exif");
   });
 
-  it("API-side queue catalog includes extract_exif", () => {
-    const src = readSource(
-      "../src/queue/media-intelligence-queue.ts",
-    );
-    expect(src).toMatch(
-      /MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[[\s\S]*?"extract_exif"/,
-    );
+  it("the queue catalog includes extract_exif", () => {
+    // PHASE 12 — POINT 5: "every catalog" is now ONE catalog. The api array
+    // and the worker union this used to check separately are both re-exports
+    // of `MEDIA_INTELLIGENCE_JOB_KINDS`, so registration in one IS registration
+    // in all.
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain("extract_exif");
   });
 
-  it("worker-side queue catalog includes extract_exif", () => {
-    const src = readSource(
-      "../../../services/worker/src/queue.ts",
-    );
-    expect(src).toMatch(/MediaIntelligenceJobKind\b[\s\S]*?"extract_exif"/);
+  it("extract_exif addresses the evidence PART, not a run row", () => {
+    // The `mi-exif` queue used to share the media-intelligence processor, which
+    // meant one function served two queues whose commands meant different
+    // things — so the payload had to carry BOTH a run id and a part id and
+    // trust whichever was present. EXIF reads one part's bytes; that part is
+    // its authority.
+    const entry = getWorkEntryOrThrow(JOB_NAMES.EXTRACT_EXIF);
+    expect(entry.queueName).toBe(QUEUE_NAMES.MI_EXIF);
+    expect(entry.durableAuthority.model).toBe("EvidencePart");
   });
 
   it("schema-validation registers the new table + key column", () => {

@@ -56,12 +56,19 @@ import {
   claimReviewerWorkflow as legacyClaimReviewerWorkflow,
   ensureReviewWorkflow,
   getReviewQueueCounts as legacyGetReviewQueueCounts,
-  listReviewQueue as legacyListReviewQueue,
   projectReviewWorkflow as legacyProjectReviewWorkflow,
   reconcileReviewSlas as legacyReconcileReviewSlas,
-  recordReviewDecision as legacyRecordReviewDecision,
   updateReviewSla as legacyUpdateReviewSla,
 } from "../review-operations/review-operations.service.js";
+// Track 1C — canonical review-decision authority. Approve / reject /
+// request-info are reviewer VERDICTS: they append an immutable
+// WorkflowReviewDecision row and derive the workflow.status projection
+// in ONE transaction. The engine no longer writes decision status
+// through the legacy lifecycle service.
+import {
+  ReviewDecisionAuthorityError,
+  recordReviewDecision as recordCanonicalReviewDecision,
+} from "./review-decision.service.js";
 import {
   createEscalation,
   findOpenEscalationForWorkflow,
@@ -707,6 +714,42 @@ async function loadWorkflowOrThrow(
   return row;
 }
 
+/**
+ * Track 1C — invoke the canonical decision authority and translate its
+ * error surface into the Phase 25 ReviewerOpsError catalog so the
+ * route-layer status mapping stays unchanged.
+ */
+async function recordDecisionViaAuthority(
+  input: Parameters<typeof recordCanonicalReviewDecision>[0],
+  client: PrismaClient,
+): Promise<Awaited<ReturnType<typeof recordCanonicalReviewDecision>>> {
+  try {
+    return await recordCanonicalReviewDecision(input, client);
+  } catch (err) {
+    if (err instanceof ReviewDecisionAuthorityError) {
+      switch (err.code) {
+        case "workflow_not_found":
+          throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+        case "rationale_required":
+          throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
+        case "adjudicator_role_required":
+          throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
+            reason: err.code,
+          });
+        default:
+          // stale_decision / review_already_resolved /
+          // duplicate_stage_decision / same_reviewer_blocked /
+          // decision_kind_not_allowed → conflict (409 at the route).
+          throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", {
+            reason: err.code,
+            ...(err.details ?? {}),
+          });
+      }
+    }
+    throw err;
+  }
+}
+
 async function currentLifecycle(
   ctx: LifecycleActorContext,
   row: DbWorkflow,
@@ -988,12 +1031,13 @@ export async function requestInformation(
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "NEEDS_INFORMATION");
-  const updated = await legacyRecordReviewDecision(
+  const { workflow: updated } = await recordDecisionViaAuthority(
     {
-      evidenceId: row.evidenceId,
-      decision: "REQUEST_MORE_INFO",
+      workflowId: row.id,
+      teamId: ctx.teamId,
       actorUserId: ctx.actorUserId,
-      note: input.note,
+      decision: "REQUEST_INFO",
+      rationale: input.note,
     },
     client,
   );
@@ -1039,12 +1083,13 @@ async function approveReviewInner(
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "APPROVED");
-  const updated = await legacyRecordReviewDecision(
+  const { workflow: updated } = await recordDecisionViaAuthority(
     {
-      evidenceId: row.evidenceId,
-      decision: "APPROVE_INTERNAL",
+      workflowId: row.id,
+      teamId: ctx.teamId,
       actorUserId: ctx.actorUserId,
-      note: input.note ?? null,
+      decision: "APPROVE",
+      rationale: input.note ?? null,
     },
     client,
   );
@@ -1060,20 +1105,29 @@ async function approveReviewInner(
   // per (workflowId, teamId). MUST NOT roll back the close transaction:
   // any failure here is logged and swallowed so the operator's approve
   // stands regardless of QC sampling availability.
-  try {
-    await sampleClosedWorkflow({
-      prisma: client,
-      teamId: ctx.teamId,
-      workflowId: row.id,
-      decision: "APPROVE_INTERNAL",
-    });
-  } catch (err) {
-    logWarn("qc.sample_on_close.failed", {
-      err: err instanceof Error ? err.message : String(err),
-      workflowId: row.id,
-      teamId: ctx.teamId,
-      decision: "APPROVE_INTERNAL",
-    });
+  //
+  // Track 1C — the decision authority may project a NON-terminal status
+  // (e.g. the approval was recorded as a FIRST-stage verdict and a
+  // second review is required). QC sampling only fires when the
+  // projection actually closed the workflow as approved.
+  if (
+    mapDbStatusToReviewStage(updated.status as string) === "APPROVED_INTERNAL"
+  ) {
+    try {
+      await sampleClosedWorkflow({
+        prisma: client,
+        teamId: ctx.teamId,
+        workflowId: row.id,
+        decision: "APPROVE_INTERNAL",
+      });
+    } catch (err) {
+      logWarn("qc.sample_on_close.failed", {
+        err: err instanceof Error ? err.message : String(err),
+        workflowId: row.id,
+        teamId: ctx.teamId,
+        decision: "APPROVE_INTERNAL",
+      });
+    }
   }
   return buildWorkflowProjection(updated);
 }
@@ -1090,12 +1144,13 @@ export async function rejectReview(
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "REJECTED");
-  const updated = await legacyRecordReviewDecision(
+  const { workflow: updated } = await recordDecisionViaAuthority(
     {
-      evidenceId: row.evidenceId,
-      decision: "REJECT_INSUFFICIENT",
+      workflowId: row.id,
+      teamId: ctx.teamId,
       actorUserId: ctx.actorUserId,
-      note: input.note,
+      decision: "REJECT",
+      rationale: input.note,
     },
     client,
   );
@@ -1111,20 +1166,28 @@ export async function rejectReview(
   // per (workflowId, teamId). MUST NOT roll back the close transaction:
   // any failure here is logged and swallowed so the operator's reject
   // stands regardless of QC sampling availability.
-  try {
-    await sampleClosedWorkflow({
-      prisma: client,
-      teamId: ctx.teamId,
-      workflowId: row.id,
-      decision: "REJECT_INSUFFICIENT",
-    });
-  } catch (err) {
-    logWarn("qc.sample_on_close.failed", {
-      err: err instanceof Error ? err.message : String(err),
-      workflowId: row.id,
-      teamId: ctx.teamId,
-      decision: "REJECT_INSUFFICIENT",
-    });
+  //
+  // Track 1C — QC only fires when the projection actually closed the
+  // workflow as rejected (see approveReviewInner note).
+  if (
+    mapDbStatusToReviewStage(updated.status as string) ===
+    "REJECTED_INSUFFICIENT"
+  ) {
+    try {
+      await sampleClosedWorkflow({
+        prisma: client,
+        teamId: ctx.teamId,
+        workflowId: row.id,
+        decision: "REJECT_INSUFFICIENT",
+      });
+    } catch (err) {
+      logWarn("qc.sample_on_close.failed", {
+        err: err instanceof Error ? err.message : String(err),
+        workflowId: row.id,
+        teamId: ctx.teamId,
+        decision: "REJECT_INSUFFICIENT",
+      });
+    }
   }
   return buildWorkflowProjection(updated);
 }

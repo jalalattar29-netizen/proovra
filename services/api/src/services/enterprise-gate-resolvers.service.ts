@@ -14,6 +14,8 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 import type { EnterpriseFeatureFlags } from "./plan-catalog.service.js";
+// PHASE 12 POINT 4 PASS C5 — the canonical commercial envelope, explicit subject.
+import { resolveCommercialContext } from "./billing/commercial-context.service.js";
 
 export type TeamGateResult =
   | { ok: true }
@@ -32,25 +34,30 @@ export async function resolveTeamEnterpriseFeatureGate(
   teamId: string,
   feature: keyof EnterpriseFeatureFlags,
 ): Promise<TeamGateResult> {
+  // PHASE 12 POINT 4 PASS C5 — the effective plan comes from the ONE
+  // subject-correct authority.
+  //
+  // This used to re-derive it here: read `Team.billingPlan`, and when the
+  // workspace's billing was NOT live, fall back to the OWNER's personal
+  // entitlement. That is an owner-plan fallback on the gate that guards SCIM
+  // and SAML, so a suspended or cancelled enterprise workspace kept its
+  // enterprise identity features whenever its owner personally held a plan
+  // that included them. The canonical policy uses the owner's entitlement
+  // ONLY for a PERSONAL workspace; an OWNED/ORGANIZATION workspace answers
+  // from its own persisted commercial state (or its organization contract).
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { ownerUserId: true, billingPlan: true, billingStatus: true },
+    select: { ownerUserId: true },
   });
   if (!team) {
     return { ok: false, reason: "team_not_found", statusCode: 404 };
   }
-  let effectivePlan: prismaPkg.PlanType = team.billingPlan;
-  if (
-    team.billingStatus !== prismaPkg.TeamBillingStatus.ACTIVE &&
-    team.billingStatus !== prismaPkg.TeamBillingStatus.PAST_DUE
-  ) {
-    const ent = await prisma.entitlement.findFirst({
-      where: { userId: team.ownerUserId, active: true },
-      orderBy: { createdAt: "desc" },
-      select: { plan: true },
-    });
-    effectivePlan = ent?.plan ?? prismaPkg.PlanType.FREE;
-  }
+  const ctx = await resolveCommercialContext({
+    type: "WORKSPACE",
+    teamId,
+    requesterUserId: team.ownerUserId,
+  });
+  const effectivePlan = ctx.plan as prismaPkg.PlanType;
   if (!getPlanCapabilities(effectivePlan).enterpriseFeatures[feature]) {
     return {
       ok: false,

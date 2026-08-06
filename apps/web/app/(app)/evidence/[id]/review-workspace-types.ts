@@ -108,6 +108,12 @@ export type PreservationMatrix = {
   recordedIntegrityVerifiedAtUtc: string | null;
   sha256Recorded: boolean;
   fingerprintHashRecorded: boolean;
+  /**
+   * Recomputed canonical fingerprint vs the recorded hash.
+   * `null` when there is no canonical JSON to recompute from, so the
+   * surface reports "no conclusion" rather than a failure.
+   */
+  fingerprintCanonicalHashMatches: boolean | null;
   signature: {
     recorded: boolean;
     valid: boolean;

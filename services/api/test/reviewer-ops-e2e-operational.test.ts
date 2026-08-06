@@ -163,10 +163,16 @@ describe("Operational seed [real-engine wiring]", () => {
     );
   });
 
-  it("imports createEscalation / acknowledgeEscalation / resolveEscalation from the real engine", () => {
+  it("drives escalations through the real engine (reconcile creates, engine transitions)", () => {
+    // Creation runs through the reconcile engine (reconcileResult
+    // .escalationsCreated), so the seed never fabricates escalation rows;
+    // the lifecycle transitions come straight from the real engine.
+    expect(src).toMatch(/reconcileResult\.escalationsCreated/);
     expect(src).toMatch(
-      /import \{[\s\S]*?createEscalation,[\s\S]*?acknowledgeEscalation,[\s\S]*?resolveEscalation,[\s\S]*?\} from ".*escalation-engine\.service\.js"/,
+      /import \{[\s\S]*?acknowledgeEscalation,[\s\S]*?resolveEscalation,[\s\S]*?\} from ".*escalation-engine\.service\.js"/,
     );
+    expect(src).toMatch(/await acknowledgeEscalation\(/);
+    expect(src).toMatch(/await resolveEscalation\(/);
   });
 
   it("imports snapshotWorkspaceWorkload from the real workload service", () => {

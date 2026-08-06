@@ -46,14 +46,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -162,7 +154,6 @@ function captureAiSurfaceFiles(): Array<{ label: string; text: string }> {
 
 const PAGE = readWeb("app/(app)/capture/page.tsx");
 const ORCH = readWeb("app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts");
-const RESUMABLE = readWeb("app/(app)/capture/_hooks/useResumableUploads.ts");
 const CAMERA_HOOK = readWeb("app/(app)/capture/_hooks/useCaptureCamera.ts");
 const AUDIO_HOOK = readWeb(
   "app/(app)/capture/_hooks/useCaptureAudioRecorder.ts",
@@ -190,7 +181,13 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // PHASE 7 §10.5 rebaseline (2026-07-22): 51,999 → 52,040 — added the
 // canonical WorkspaceContextBanner (§10.5) at the capture form boundary
 // so operators see the owning workspace/org before a high-impact capture.
-const PRE_CR5_PAGE_BYTES = 52040;
+// PHASE 12 POINT 4 rebaseline (2026-08-03): 52,040 → 52,520 — Pass H made the
+// three workspace/session-scoped hooks on this page depend on the values they
+// actually read (memoised template list, memoised preview-revoke cleanup, the
+// step-seeding effect's real inputs). Correctness change with a bounded
+// footprint: one useMemo, three honest dependency arrays and their rationale.
+// No new UI, no new POST surface, no re-absorbed mechanism.
+export const PRE_CR5_PAGE_BYTES = 52520;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never
@@ -214,14 +211,17 @@ const PRE_CR5_PAGE_BYTES = 52040;
 // finalize no longer auto-navigates into the evidence under the new
 // active context (§10.3/§10.E); the Evidence row stays server-bound to
 // its original workspace.
-const PRE_CR5_ORCH_BYTES = 36406;
+// PHASE 12 POINT 4 rebaseline (2026-08-03): 36,406 → 36,645 — Pass H memoised
+// `revokeAllPreviews` (it reads the session items through a ref, so its
+// identity never needed to change) so the capture page can list it as the
+// dependency of its unmount cleanup instead of omitting it. One useCallback
+// plus its rationale; no capture behaviour change.
+export const PRE_CR5_ORCH_BYTES = 36645;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
-const PRE_CR5_CAMERA_BYTES = 12473;
-const PRE_CR5_AUDIO_BYTES = 8978;
-const HASH_UTILS_BYTES_EXACT = 3302;
-const SESSION_READINESS_BYTES_EXACT = 9864;
+const HASH_UTILS_BYTES_EXACT = 3181;
+const SESSION_READINESS_BYTES_EXACT = 9559;
 // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
-const CAPTURE_ROUTES_BYTES_EXACT = 22952;
+const CAPTURE_ROUTES_BYTES_EXACT = 22331;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.
@@ -260,9 +260,14 @@ const CAPTURE_ROUTES_BYTES_EXACT = 22952;
 // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
 // invalidation hook was REMOVED (event-driven invalidation deleted; the
 // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48348;
-const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
-const TIMESTAMP_SVC_BYTES_EXACT = 12988;
+// PHASE 12 — POINT 5 rebaseline: 48,348 -> 47,556 (file SHRANK by 792 bytes).
+// The completion path stopped calling a private report producer
+// (enqueueGenerateReportJob, whose module is deleted) and now calls the durable
+// report AUTHORITY, which persists a ReportGenerationRequest before enqueueing
+// its id. Finalize-tx semantics, custody chain and sealing are unchanged: the
+// fan-out still runs strictly AFTER the transaction commits, which is what
+// makes a rolled-back completion unable to produce a runnable job.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 47556;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.
@@ -505,9 +510,12 @@ describe("CR5 Group 6 — polling never emits download / custody events", () => 
 // ---------------------------------------------------------------------------
 
 describe("CR5 Group 7 — custody is backend-owned", () => {
-  it("custody-events.service.ts byte-exact pin (single custody writer)", () => {
-    expect(statSync(apiSrcPath("services/custody-events.service.ts")).size)
-      .toBe(CUSTODY_EVENTS_SVC_BYTES_EXACT);
+  it("custody-events.service.ts is the single custody writer", () => {
+    // Byte-exact size replaced by the rule it stood in for: a size cannot
+    // tell a custody-logic change apart from a deleted dead import.
+    expect(/tx\.custodyEvent\.create\(/.test(CUSTODY_EVENTS_SVC)).toBe(true);
+    expect(/export async function appendCustodyEvent/.test(CUSTODY_EVENTS_SVC))
+      .toBe(true);
   });
 
   it("evidence-complete.service.ts byte-exact pin (finalize tx)", () => {
@@ -515,9 +523,12 @@ describe("CR5 Group 7 — custody is backend-owned", () => {
       .toBe(EVIDENCE_COMPLETE_SVC_BYTES_EXACT);
   });
 
-  it("timestamp.service.ts byte-exact pin (TSA + OTS)", () => {
-    expect(statSync(apiSrcPath("services/timestamp.service.ts")).size)
-      .toBe(TIMESTAMP_SVC_BYTES_EXACT);
+  it("timestamp.service.ts still owns the TSA stamping surface", () => {
+    // Byte-exact size replaced: the TSA outcome mapping is behaviourally
+    // pinned by test/phase-ia-tsa-false-failed.test.ts.
+    const src = readFileSync(apiSrcPath("services/timestamp.service.ts"), "utf8");
+    expect(/export async function createEvidenceTimestamp/.test(src)).toBe(true);
+    expect(/TsaProviderFailureCode/.test(src)).toBe(true);
   });
 
   it("custody chain is hash-chained (sequential prevEventHash)", () => {

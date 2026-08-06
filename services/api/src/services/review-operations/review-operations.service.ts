@@ -36,9 +36,17 @@ import { prisma as defaultPrisma } from "../../db.js";
 import {
   notifyReviewAssigned,
   notifyReviewEscalated,
-  notifyReviewNeedsMoreInfo,
   notifyReviewSlaBreached,
 } from "./review-notifications.service.js";
+// Track 1C — canonical review-decision authority. Reviewer VERDICTS
+// (approve / reject / request-info) are recorded ONLY through this
+// service, which appends the immutable WorkflowReviewDecision row and
+// derives the workflow.status projection in one transaction. This file
+// retains only NON-decision lifecycle transitions.
+import {
+  ReviewDecisionAuthorityError,
+  recordReviewDecision as recordCanonicalReviewDecision,
+} from "../reviewer-ops/review-decision.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -427,22 +435,35 @@ export async function claimReviewerWorkflow(
 }
 
 // -----------------------------------------------------------------------------
-// Decisions
+// Non-decision lifecycle transitions.
+//
+// Track 1C — reviewer VERDICTS (APPROVE_INTERNAL / REJECT_INSUFFICIENT /
+// REQUEST_MORE_INFO) are NO LONGER recorded here. They go through the
+// canonical decision authority (reviewer-ops/review-decision.service.ts),
+// which appends the immutable WorkflowReviewDecision row and derives the
+// workflow.status projection atomically. This function retains only the
+// lifecycle ROUTING transitions (escalate / reopen / close) which are
+// administrative, not verdicts about the evidence.
 // -----------------------------------------------------------------------------
 
-export type RecordDecisionInput = {
+export type ReviewLifecycleTransitionType = Extract<
+  ReviewDecisionType,
+  "ESCALATE" | "REOPEN" | "CLOSE"
+>;
+
+export type RecordLifecycleTransitionInput = {
   evidenceId: string;
-  decision: ReviewDecisionType;
+  decision: ReviewLifecycleTransitionType;
   actorUserId: string;
   note?: string | null;
-  /** Optional explicit closed timestamp for CLOSE decision. */
+  /** Optional explicit closed timestamp for CLOSE. */
   closedAt?: Date;
   /** For ESCALATE — operator-supplied reason (required, mirrored from note). */
   escalationReason?: string | null;
 };
 
-export async function recordReviewDecision(
-  input: RecordDecisionInput,
+export async function recordLifecycleTransition(
+  input: RecordLifecycleTransitionInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<DbWorkflow> {
   const workflow = await client.evidenceReviewWorkflow.findUnique({
@@ -467,20 +488,6 @@ export async function recordReviewDecision(
   let eventType: DbEvent["eventType"] = "DECISION_LOGGED";
 
   switch (input.decision) {
-    case "APPROVE_INTERNAL":
-      patch.lastReviewedAt = now;
-      patch.completedAtUtc = now;
-      eventType = "APPROVED_INTERNAL";
-      break;
-    case "REQUEST_MORE_INFO":
-      eventType = "NEEDS_MORE_INFO";
-      break;
-    case "REJECT_INSUFFICIENT":
-      patch.rejectionReason = input.note ?? null;
-      patch.lastReviewedAt = now;
-      patch.completedAtUtc = now;
-      eventType = "REJECTED_INSUFFICIENT";
-      break;
     case "ESCALATE":
       patch.escalationLevel = workflow.escalationLevel + 1;
       patch.escalatedAtUtc = now;
@@ -514,25 +521,13 @@ export async function recordReviewDecision(
     client,
   );
 
-  // Phase 13.5 — operational notification dispatch. Internal-only:
-  // bodies never include the operator note, rejection reason, or
-  // escalation reason. Safe wrappers — failure does not undo the
-  // decision.
-  switch (input.decision) {
-    case "ESCALATE":
-      notifyReviewEscalated(
-        { workflow: updated, actorUserId: input.actorUserId },
-        client,
-      ).catch(() => null);
-      break;
-    case "REQUEST_MORE_INFO":
-      notifyReviewNeedsMoreInfo(
-        { workflow: updated, actorUserId: input.actorUserId },
-        client,
-      ).catch(() => null);
-      break;
-    default:
-      break;
+  // Phase 13.5 — operational notification dispatch. Internal-only;
+  // safe wrappers — failure does not undo the transition.
+  if (input.decision === "ESCALATE") {
+    notifyReviewEscalated(
+      { workflow: updated, actorUserId: input.actorUserId },
+      client,
+    ).catch(() => null);
   }
 
   return updated;
@@ -639,7 +634,16 @@ export async function reconcileReviewSlas(
       dueAt: { not: null },
       // Skip completed + already-breached rows so the sweep is
       // idempotent. Already-BREACHED rows do NOT re-emit events.
-      slaStatus: { in: ["ON_TRACK", "DUE_SOON", "OVERDUE"] },
+      //
+      // PHASE 12 FIX — a NEVER-INITIALIZED slaStatus (null) must be a
+      // candidate too: `in: [...]` silently excluded NULL, so a breached
+      // workflow whose status was never stamped could NEVER be flipped and
+      // never surfaced in the OVERDUE queue or breach notifications
+      // (caught live by the phase-37-98 lifecycle proof).
+      OR: [
+        { slaStatus: { in: ["ON_TRACK", "DUE_SOON", "OVERDUE"] } },
+        { slaStatus: null },
+      ],
       // Skip closed/terminal workflows; their review is over.
       status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"] },
     },
@@ -822,7 +826,7 @@ export async function bulkReviewAction(
           );
           break;
         case "ESCALATE":
-          await recordReviewDecision(
+          await recordLifecycleTransition(
             {
               evidenceId,
               decision: "ESCALATE",
@@ -835,7 +839,7 @@ export async function bulkReviewAction(
           toStage = "ESCALATED";
           break;
         case "CLOSE":
-          await recordReviewDecision(
+          await recordLifecycleTransition(
             {
               evidenceId,
               decision: "CLOSE",
@@ -847,12 +851,16 @@ export async function bulkReviewAction(
           toStage = "CLOSED";
           break;
         case "REQUEST_MORE_INFO":
-          await recordReviewDecision(
+          // Track 1C — REQUEST_MORE_INFO is a reviewer VERDICT; it goes
+          // through the canonical decision authority so the immutable
+          // decision row + status projection land atomically.
+          await recordCanonicalReviewDecision(
             {
-              evidenceId,
-              decision: "REQUEST_MORE_INFO",
+              workflowId: workflow.id,
+              teamId: input.teamId,
               actorUserId: input.actorUserId,
-              note: input.note,
+              decision: "REQUEST_INFO",
+              rationale: input.note,
             },
             client,
           );
@@ -863,7 +871,8 @@ export async function bulkReviewAction(
       succeeded += 1;
     } catch (err) {
       const reason =
-        err instanceof ReviewOperationError
+        err instanceof ReviewOperationError ||
+        err instanceof ReviewDecisionAuthorityError
           ? err.code
           : "operation_failed";
       items.push({ evidenceId, ok: false, reason });

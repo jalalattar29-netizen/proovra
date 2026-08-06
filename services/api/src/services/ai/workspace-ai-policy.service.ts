@@ -291,9 +291,16 @@ export type WorkspaceAiPolicyPatch = Partial<{
   retentionDays: number | null;
 }>;
 
-/** Raised when a concurrent update changed the row since the client read it. */
+/**
+ * Raised when a concurrent update changed the row since the client read it.
+ *
+ * PHASE 12B B1 — the wire code is the stable, cross-surface
+ * `POLICY_VERSION_CONFLICT`. It replaces `AI_POLICY_VERSION_CONFLICT`, which
+ * had no consumer anywhere in the tree (verified: no client, test, or e2e
+ * reference), so this is a rename with no migration surface.
+ */
 export class WorkspaceAiPolicyVersionConflictError extends Error {
-  readonly code = "AI_POLICY_VERSION_CONFLICT";
+  readonly code = "POLICY_VERSION_CONFLICT";
   constructor(readonly currentVersion: number) {
     super("Workspace AI policy was modified by another change; reload and retry.");
     this.name = "WorkspaceAiPolicyVersionConflictError";
@@ -334,11 +341,52 @@ function patchToWriteData(patch: WorkspaceAiPolicyPatch) {
   return data;
 }
 
+/** Prisma unique-constraint violation — the create-race loser. */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
 /**
- * Create or update a workspace AI policy. Version is bumped on every update;
- * `expectedVersion` (when supplied) enforces optimistic concurrency and throws
- * WorkspaceAiPolicyVersionConflictError on mismatch. Returns { row, previous }
- * so the caller can write a before/after audit event.
+ * Create or update a workspace AI policy.
+ *
+ * PHASE 12B B1 — ATOMIC OPTIMISTIC CONCURRENCY.
+ *
+ * The previous implementation was a read-compare-write: it loaded the row,
+ * compared `policyVersion` in application memory, and then issued an
+ * unconditional `update`. Two administrators saving concurrently BOTH passed
+ * the comparison and BOTH wrote — last-write-wins, one change silently lost,
+ * `policyVersion` bumped once per writer so the number no longer identified a
+ * distinct state, and both callers received HTTP 200 plus a success audit
+ * event describing a mutation that had already been overwritten.
+ *
+ * `expectedVersion` is now part of the DATABASE mutation predicate:
+ *
+ *   updateMany({ where: { teamId, policyVersion: expectedVersion }, … })
+ *
+ * so the row can only transition from exactly the version the client read.
+ * The database — not this process — decides the winner:
+ *
+ *   * exactly ONE concurrent writer matches and mutates;
+ *   * `policyVersion` increments exactly once per successful write;
+ *   * every loser gets `count === 0` ⇒ throws
+ *     WorkspaceAiPolicyVersionConflictError ⇒ the route returns a stable
+ *     409 POLICY_VERSION_CONFLICT with ZERO mutation and NO success audit.
+ *
+ * Creation has the same property via the `teamId` unique constraint: the
+ * create-race loser takes P2002 and is reported as a version conflict against
+ * the row the winner just created — a deterministic first-writer path rather
+ * than a crash or a silent second create attempt.
+ *
+ * SCOPE: `teamId` is the persisted workspace key. This function never accepts
+ * an Organization/tenant subject from a caller-supplied field — the route
+ * authorizes `teamId` first (`authorizeOrFail`), and the Organization is
+ * whatever that workspace row is parented to in persistence.
+ *
+ * Returns { row, previous } so the caller can write a before/after audit.
  */
 export async function upsertWorkspaceAiPolicy(input: {
   teamId: string;
@@ -346,37 +394,79 @@ export async function upsertWorkspaceAiPolicy(input: {
   patch: WorkspaceAiPolicyPatch;
   expectedVersion?: number | null;
 }) {
+  const data = patchToWriteData(input.patch);
   const existing = await prisma.workspaceAiPolicy.findUnique({
     where: { teamId: input.teamId },
   });
-  if (
-    existing &&
-    input.expectedVersion != null &&
-    existing.policyVersion !== input.expectedVersion
-  ) {
-    throw new WorkspaceAiPolicyVersionConflictError(existing.policyVersion);
-  }
-  const data = patchToWriteData(input.patch);
+
   if (existing) {
-    const row = await prisma.workspaceAiPolicy.update({
-      where: { teamId: input.teamId },
+    // The version the write is allowed to transition FROM. When the caller did
+    // not declare one we still pin the predicate to the version we just read,
+    // so an interleaved writer cannot be clobbered by a caller that simply
+    // omitted `expectedVersion`.
+    const fromVersion = input.expectedVersion ?? existing.policyVersion;
+    if (input.expectedVersion != null && existing.policyVersion !== fromVersion) {
+      // Already stale at read time — no need to attempt the write.
+      throw new WorkspaceAiPolicyVersionConflictError(existing.policyVersion);
+    }
+    const { count } = await prisma.workspaceAiPolicy.updateMany({
+      // ATOMIC PREDICATE — the version is part of the WHERE, so the row can
+      // only move from `fromVersion`. A concurrent winner has already bumped
+      // it and this predicate matches nothing.
+      where: { teamId: input.teamId, policyVersion: fromVersion },
       data: {
         ...data,
-        policyVersion: existing.policyVersion + 1,
+        policyVersion: { increment: 1 },
         updatedByUserId: input.actorUserId,
       },
     });
+    if (count === 0) {
+      // ZERO MUTATION. Re-read only to report the version the client should
+      // reconcile against; the read cannot resurrect the lost write.
+      const current = await prisma.workspaceAiPolicy.findUnique({
+        where: { teamId: input.teamId },
+        select: { policyVersion: true },
+      });
+      throw new WorkspaceAiPolicyVersionConflictError(
+        current?.policyVersion ?? fromVersion,
+      );
+    }
+    const row = await prisma.workspaceAiPolicy.findUniqueOrThrow({
+      where: { teamId: input.teamId },
+    });
     return { row, previous: existing };
   }
-  const row = await prisma.workspaceAiPolicy.create({
-    data: {
-      teamId: input.teamId,
-      ...data,
-      createdByUserId: input.actorUserId,
-      updatedByUserId: input.actorUserId,
-    },
-  });
-  return { row, previous: null };
+
+  // No row yet. `expectedVersion` on a non-existent policy is itself a stale
+  // read: the client believes it is editing a version that does not exist.
+  if (input.expectedVersion != null) {
+    throw new WorkspaceAiPolicyVersionConflictError(
+      DEFAULT_WORKSPACE_AI_POLICY.policyVersion,
+    );
+  }
+  try {
+    const row = await prisma.workspaceAiPolicy.create({
+      data: {
+        teamId: input.teamId,
+        ...data,
+        createdByUserId: input.actorUserId,
+        updatedByUserId: input.actorUserId,
+      },
+    });
+    return { row, previous: null };
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      // DETERMINISTIC FIRST-WRITER CONFLICT — another creator won the race.
+      const current = await prisma.workspaceAiPolicy.findUnique({
+        where: { teamId: input.teamId },
+        select: { policyVersion: true },
+      });
+      throw new WorkspaceAiPolicyVersionConflictError(
+        current?.policyVersion ?? DEFAULT_WORKSPACE_AI_POLICY.policyVersion,
+      );
+    }
+    throw err;
+  }
 }
 
 export type EvaluateWorkspaceAiPolicyInput = {

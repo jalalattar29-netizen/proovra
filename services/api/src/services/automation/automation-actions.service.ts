@@ -75,10 +75,6 @@ import {
   type AutomationTriggerType,
 } from "./automation.service.js";
 import {
-  buildSafeWebhookPayload,
-  buildSignedDelivery,
-  decryptStoredSecret,
-  deliverWebhookOnce,
   validateDestinationUrlWithDns,
 } from "./automation-webhook.service.js";
 import { enqueueDelivery } from "./automation-delivery-runtime.service.js";
@@ -132,16 +128,16 @@ export async function executeAutomationAction(
       result = await actionNotifyRole(input, prisma);
       break;
     case "CREATE_REVIEW_TASK":
-      result = await actionCreateReviewTask(input, prisma);
+      result = await actionCreateReviewTask(input);
       break;
     case "CREATE_ESCALATION":
-      result = await actionCreateEscalation(input, prisma);
+      result = await actionCreateEscalation(input);
       break;
     case "ASSIGN_REVIEWER":
       result = await actionAssignReviewer(input, prisma);
       break;
     case "APPLY_LABEL":
-      result = await actionApplyLabel(input, prisma);
+      result = await actionApplyLabel(input);
       break;
     case "ADD_OPERATIONAL_COMMENT":
       result = await actionAddOperationalComment(input, prisma);
@@ -259,7 +255,6 @@ async function actionNotifyRole(
  */
 async function actionCreateReviewTask(
   input: ActionExecutionInput,
-  _prisma: PrismaClient,
 ): Promise<ActionExecutionResult> {
   const cfg = input.actionConfig as {
     assigneeUserId?: string;
@@ -290,7 +285,6 @@ async function actionCreateReviewTask(
  */
 async function actionCreateEscalation(
   input: ActionExecutionInput,
-  _prisma: PrismaClient,
 ): Promise<ActionExecutionResult> {
   const cfg = input.actionConfig as {
     severity?: string;
@@ -359,7 +353,6 @@ async function actionAssignReviewer(
  */
 async function actionApplyLabel(
   input: ActionExecutionInput,
-  _prisma: PrismaClient,
 ): Promise<ActionExecutionResult> {
   const cfg = input.actionConfig as { label?: string };
   const label = typeof cfg.label === "string" ? cfg.label.slice(0, 40) : null;
@@ -469,11 +462,9 @@ async function actionWebhookDelivery(
   // SSRF rebinding defence: revalidate URL via DNS right before send.
   const urlCheck = await validateDestinationUrlWithDns(destination.url);
   if (!urlCheck.ok) {
-    await markDestinationFailure(
-      prisma,
-      destinationId,
-      `ssrf_blocked:${urlCheck.reason}`,
-    );
+    // The destination row records only lastFailureAt + failureCount; the
+    // reason travels back to the caller in the result below.
+    await markDestinationFailure(prisma, destinationId);
     return {
       executed: false,
       skipped: true,
@@ -550,31 +541,9 @@ async function actionWebhookDelivery(
   };
 }
 
-async function markDeliveryFailed(
-  prisma: PrismaClient,
-  deliveryId: string,
-  status: number,
-  reason: string,
-): Promise<void> {
-  try {
-    await prisma.automationWebhookDelivery.update({
-      where: { id: deliveryId },
-      data: {
-        status: "FAILED",
-        responseStatus: status,
-        failureReason: reason.slice(0, 400),
-        lastAttemptAt: new Date(),
-      },
-    });
-  } catch {
-    /* swallow — best-effort */
-  }
-}
-
 async function markDestinationFailure(
   prisma: PrismaClient,
   destinationId: string,
-  _reason: string,
 ): Promise<void> {
   try {
     await prisma.automationWebhookDestination.update({

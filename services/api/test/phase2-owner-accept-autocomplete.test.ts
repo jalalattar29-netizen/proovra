@@ -21,6 +21,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { asPrismaDouble, type DelegateArgs } from "./support/prisma-double.js";
 
 // ---------------------------------------------------------------------------
 // Mocks — bound BEFORE the SUT imports.
@@ -82,43 +83,56 @@ function makeTx(seed: { orgs?: Org[]; teams?: Team[] }) {
   let seq = 0;
   const nextId = (prefix: string) => `${prefix}-${++seq}`;
 
-  const tx: any = {
+  const tx = {
     organization: {
-      findUnique: vi.fn(async ({ where }: any) => {
-        const o = orgs.get(where.id);
+      findUnique: vi.fn(async ({ where }: DelegateArgs) => {
+        const o = orgs.get(String(where?.id));
         return o ? { ...o } : null;
       }),
-      update: vi.fn(async ({ where, data }: any) => {
-        const o = orgs.get(where.id)!;
+      update: vi.fn(async ({ where, data }: DelegateArgs) => {
+        const o = orgs.get(String(where?.id))!;
         Object.assign(o, data);
         return { ...o };
       }),
     },
     team: {
-      count: vi.fn(async ({ where }: any) => {
+      count: vi.fn(async ({ where }: DelegateArgs) => {
         return [...teams.values()].filter(
-          (t) => t.organizationId === where.organizationId,
+          (t) => t.organizationId === where?.organizationId,
         ).length;
       }),
-      create: vi.fn(async ({ data }: any) => {
-        const memberRoles = data.members?.create
+      create: vi.fn(async ({ data }: DelegateArgs) => {
+        // The shape the production caller actually sends; narrowed once here
+        // so a change in the write payload surfaces as a type error.
+        const d = (data ?? {}) as {
+          organizationId: string;
+          ownerUserId: string;
+          billingOwnerUserId?: string | null;
+          name: string;
+          billingPlan: string;
+          billingStatus: string;
+          includedSeats: number;
+          overSeatLimit?: boolean;
+          members?: { create?: { userId: string; role: string } };
+        };
+        const memberRoles = d.members?.create
           ? [
               {
-                userId: data.members.create.userId,
-                role: data.members.create.role,
+                userId: d.members.create.userId,
+                role: d.members.create.role,
               },
             ]
           : [];
         const t: Team = {
           id: nextId("team"),
-          organizationId: data.organizationId,
-          ownerUserId: data.ownerUserId,
-          billingOwnerUserId: data.billingOwnerUserId ?? null,
-          name: data.name,
-          billingPlan: data.billingPlan,
-          billingStatus: data.billingStatus,
-          includedSeats: data.includedSeats,
-          overSeatLimit: data.overSeatLimit ?? false,
+          organizationId: d.organizationId,
+          ownerUserId: d.ownerUserId,
+          billingOwnerUserId: d.billingOwnerUserId ?? null,
+          name: d.name,
+          billingPlan: d.billingPlan,
+          billingStatus: d.billingStatus,
+          includedSeats: d.includedSeats,
+          overSeatLimit: d.overSeatLimit ?? false,
           memberCount: memberRoles.length,
           memberRoles,
         };
@@ -155,7 +169,7 @@ describe("completeEnterpriseProvisioningOnOwnerAccept — positive", () => {
       teams: [],
     });
 
-    const res = await completeEnterpriseProvisioningOnOwnerAccept(tx, {
+    const res = await completeEnterpriseProvisioningOnOwnerAccept(asPrismaDouble(tx), {
       organizationId: "org-1",
       userId: "user-9",
       inviteRole: "ORG_OWNER",
@@ -207,7 +221,7 @@ describe("completeEnterpriseProvisioningOnOwnerAccept — positive", () => {
       teams: [],
     });
 
-    await completeEnterpriseProvisioningOnOwnerAccept(tx, {
+    await completeEnterpriseProvisioningOnOwnerAccept(asPrismaDouble(tx), {
       organizationId: "org-2",
       userId: "user-9",
       inviteRole: "ORG_OWNER",
@@ -238,7 +252,7 @@ describe("completeEnterpriseProvisioningOnOwnerAccept — negative", () => {
       teams: [],
     });
 
-    const res = await completeEnterpriseProvisioningOnOwnerAccept(tx, {
+    const res = await completeEnterpriseProvisioningOnOwnerAccept(asPrismaDouble(tx), {
       organizationId: "org-3",
       userId: "user-9",
       inviteRole: "ORG_MEMBER",
@@ -266,7 +280,7 @@ describe("completeEnterpriseProvisioningOnOwnerAccept — negative", () => {
       teams: [],
     });
 
-    const res = await completeEnterpriseProvisioningOnOwnerAccept(tx, {
+    const res = await completeEnterpriseProvisioningOnOwnerAccept(asPrismaDouble(tx), {
       organizationId: "org-4",
       userId: "user-9",
       inviteRole: "ORG_OWNER",
@@ -306,7 +320,7 @@ describe("completeEnterpriseProvisioningOnOwnerAccept — negative", () => {
       ],
     });
 
-    const res = await completeEnterpriseProvisioningOnOwnerAccept(tx, {
+    const res = await completeEnterpriseProvisioningOnOwnerAccept(asPrismaDouble(tx), {
       organizationId: "org-5",
       userId: "user-9",
       inviteRole: "ORG_OWNER",

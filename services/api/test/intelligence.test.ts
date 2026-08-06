@@ -15,7 +15,7 @@
  * tests.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // Phase P2 — ai-assistance wrapper tests removed with the retired stub.
 import { projectExtractedTextSummary } from "../src/services/intelligence/extraction.service.js";

@@ -37,7 +37,7 @@
  * 32.7.5 fix.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -126,103 +126,43 @@ describe("Phase 32.7.4 — runGovernanceHandler bounded server-side diagnostic",
 // Part 2 — CASE_LEGAL_HOLD_SELECT no longer requests createdAt/updatedAt
 // =============================================================================
 
-describe("Phase 32.7.4 — CASE_LEGAL_HOLD_SELECT narrowed", () => {
-  const SRC = readApi("src/services/governance/case-legal-hold.service.ts");
-
-  it("declares CASE_LEGAL_HOLD_SELECT as a bounded const with `as const`", () => {
-    const constIdx = SRC.indexOf("const CASE_LEGAL_HOLD_SELECT");
-    expect(constIdx).toBeGreaterThan(-1);
-    const block = SRC.slice(constIdx, constIdx + 1500);
-    expect(block).toMatch(/as const/);
+// PHASE 12 POINT 3 — Parts 2 and 3 of this file pinned the internals of
+// `governance/case-legal-hold.service.ts`: a narrowed CASE_LEGAL_HOLD_SELECT
+// and the return shape of `projectCaseLegalHold`. Both existed to work around
+// a suspected missing `created_at`/`updated_at` on the `case_legal_holds`
+// table. That table is DROPped by 20271108000000_legal_hold_legacy_removal and
+// the module is deleted, so the workaround has no subject left to pin. The
+// coverage is inverted into a stays-removed guard so neither the module nor
+// the table mapping can return unnoticed.
+describe("Phase 12 Point 3 — the case-only legal-hold service stays REMOVED", () => {
+  it("governance/case-legal-hold.service.ts does not exist", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../src/services/governance/case-legal-hold.service.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
   });
 
-  it("includes ONLY the 9 columns the projection actually uses", () => {
-    const constIdx = SRC.indexOf("const CASE_LEGAL_HOLD_SELECT");
-    const block = SRC.slice(constIdx, constIdx + 1500);
-    for (const field of [
-      "id",
-      "teamId",
-      "caseId",
-      "title",
-      "status",
-      "placedByUserId",
-      "placedAtUtc",
-      "releasedByUserId",
-      "releasedAtUtc",
-    ]) {
-      const re = new RegExp(`${field}:\\s*true`);
-      expect(block, `CASE_LEGAL_HOLD_SELECT missing ${field}: true`).toMatch(re);
-    }
+  it("no module re-declares a CASE_LEGAL_HOLD_SELECT or projectCaseLegalHold", () => {
+    const canonical = readApi("src/services/governance/legal-hold.service.ts");
+    expect(canonical).not.toMatch(/CASE_LEGAL_HOLD_SELECT/);
+    expect(canonical).not.toMatch(/projectCaseLegalHold/);
   });
 
-  it("explicitly does NOT include createdAt / updatedAt (most likely missing in production)", () => {
-    const constIdx = SRC.indexOf("const CASE_LEGAL_HOLD_SELECT");
-    const blockEnd = SRC.indexOf("} as const", constIdx);
-    const block = SRC.slice(constIdx, blockEnd);
-    expect(block).not.toMatch(/createdAt:\s*true/);
-    expect(block).not.toMatch(/updatedAt:\s*true/);
-  });
-
-  it("explicitly does NOT include reason / releaseNote (always internal-only by prior contract)", () => {
-    const constIdx = SRC.indexOf("const CASE_LEGAL_HOLD_SELECT");
-    const blockEnd = SRC.indexOf("} as const", constIdx);
-    const block = SRC.slice(constIdx, blockEnd);
-    expect(block).not.toMatch(/^\s*reason:\s*true/m);
-    expect(block).not.toMatch(/^\s*releaseNote:\s*true/m);
-  });
-});
-
-// =============================================================================
-// Part 3 — projectCaseLegalHold return shape narrowed
-// =============================================================================
-
-describe("Phase 32.7.4 — projectCaseLegalHold return shape narrowed", () => {
-  const SRC = readApi("src/services/governance/case-legal-hold.service.ts");
-  const fnIdx = SRC.indexOf("export function projectCaseLegalHold");
-  expect(fnIdx).toBeGreaterThan(-1);
-  const fnEnd = SRC.indexOf("\n}\n", fnIdx);
-  const fn = SRC.slice(fnIdx, fnEnd);
-
-  it("return-type declaration no longer mentions createdAt / updatedAt", () => {
-    // Capture only the return-type literal (between the `: {` after
-    // the params and the `} {` that opens the body).
-    const typeOpenIdx = fn.indexOf("): {");
-    const typeCloseIdx = fn.indexOf("} {", typeOpenIdx);
-    expect(typeOpenIdx).toBeGreaterThan(-1);
-    expect(typeCloseIdx).toBeGreaterThan(typeOpenIdx);
-    const typeBlock = fn.slice(typeOpenIdx, typeCloseIdx);
-    expect(typeBlock).not.toMatch(/createdAt:\s*string/);
-    expect(typeBlock).not.toMatch(/updatedAt:\s*string/);
-  });
-
-  it("return-body no longer assigns createdAt / updatedAt", () => {
-    const returnIdx = fn.indexOf("return {");
-    const returnEnd = fn.indexOf("};", returnIdx);
-    expect(returnIdx).toBeGreaterThan(-1);
-    expect(returnEnd).toBeGreaterThan(returnIdx);
-    const returnBlock = fn.slice(returnIdx, returnEnd);
-    expect(returnBlock).not.toMatch(/createdAt:\s*hold\.createdAt/);
-    expect(returnBlock).not.toMatch(/updatedAt:\s*hold\.updatedAt/);
-  });
-
-  it("required projection fields (id, teamId, caseId, title, status, placed*, released*) still present", () => {
-    const returnIdx = fn.indexOf("return {");
-    const returnEnd = fn.indexOf("};", returnIdx);
-    const returnBlock = fn.slice(returnIdx, returnEnd);
-    for (const field of [
-      "id",
-      "teamId",
-      "caseId",
-      "title",
-      "status",
-      "placedByUserId",
-      "placedAtUtc",
-      "releasedByUserId",
-      "releasedAtUtc",
-    ]) {
-      const re = new RegExp(`${field}:`);
-      expect(returnBlock, `projectCaseLegalHold missing ${field}`).toMatch(re);
-    }
+  it("the CASE-scoped response shape still withholds reason / releaseNote", () => {
+    const canonical = readApi("src/services/governance/legal-hold.service.ts");
+    const idx = canonical.indexOf(
+      "export type CaseScopedLegalHoldLegacyShape = {",
+    );
+    expect(idx).toBeGreaterThan(-1);
+    const shape = canonical.slice(idx, canonical.indexOf("};", idx) + 2);
+    expect(shape).not.toMatch(/^\s+reason:/m);
+    expect(shape).not.toMatch(/releaseNote:/);
   });
 });
 
@@ -232,9 +172,6 @@ describe("Phase 32.7.4 — projectCaseLegalHold return shape narrowed", () => {
 
 describe("Phase 32.7.4 — case-legal-holds select now mirrors the working legal-holds shape", () => {
   const LEGAL_HOLD_SRC = readApi("src/services/governance.service.ts");
-  const CASE_LEGAL_HOLD_SRC = readApi(
-    "src/services/governance/case-legal-hold.service.ts",
-  );
 
   it("LEGAL_HOLD_SELECT (the working sibling) also omits createdAt / updatedAt", () => {
     const constIdx = LEGAL_HOLD_SRC.indexOf("const LEGAL_HOLD_SELECT");
@@ -244,15 +181,6 @@ describe("Phase 32.7.4 — case-legal-holds select now mirrors the working legal
     expect(block).not.toMatch(/updatedAt:\s*true/);
   });
 
-  it("Both selects now omit the same problem-prone columns (consistent narrowing)", () => {
-    const caseConstIdx = CASE_LEGAL_HOLD_SRC.indexOf(
-      "const CASE_LEGAL_HOLD_SELECT",
-    );
-    const caseBlockEnd = CASE_LEGAL_HOLD_SRC.indexOf("} as const", caseConstIdx);
-    const caseBlock = CASE_LEGAL_HOLD_SRC.slice(caseConstIdx, caseBlockEnd);
-    expect(caseBlock).not.toMatch(/createdAt:\s*true/);
-    expect(caseBlock).not.toMatch(/updatedAt:\s*true/);
-  });
 });
 
 // =============================================================================
@@ -263,12 +191,20 @@ describe("Phase 32.7.4 — unrelated governance endpoints preserved", () => {
   const ROUTES_SRC = readApi("src/routes/governance.routes.ts");
   const POLICY_SVC = readApi("src/services/governance.service.ts");
 
-  it("legal-holds (working) handler unchanged: still inside runGovernanceHandler with listLegalHoldsForTeam", () => {
+  it("legal-holds (working) handler keeps its bounded schema-drift wrapper and reads from ONE authority", () => {
     const routeIdx = ROUTES_SRC.indexOf('"/v1/governance/legal-holds"');
     expect(routeIdx).toBeGreaterThan(-1);
     const routeBody = ROUTES_SRC.slice(routeIdx, routeIdx + 2000);
+    // The 32.7.4 invariant is the bounded schema-drift wrapper — that a
+    // governance schema gap becomes a bounded 503, not a raw Prisma error.
     expect(routeBody).toMatch(/runGovernanceHandler\(reply,/);
-    expect(routeBody).toMatch(/listLegalHoldsForTeam/);
+    // PHASE 12 POINT 1 / C2 (2026-07-31) — the reader is now the canonical
+    // Legal-Hold authority's legacy-shape projection rather than the second
+    // `listLegalHoldsForTeam` implementation this pin used to name. Same rows,
+    // same response shape, ONE authority. Pinning the reader by name still
+    // catches a re-divergence; it just names the surviving one.
+    expect(routeBody).toMatch(/listEvidenceScopedLegalHoldsLegacyShape/);
+    expect(routeBody).not.toMatch(/listLegalHoldsForTeam/);
   });
 
   it("LegalHold projection still includes reason + releaseNote (unchanged from 32.7.3)", () => {
@@ -279,14 +215,16 @@ describe("Phase 32.7.4 — unrelated governance endpoints preserved", () => {
     expect(fn).toMatch(/releaseNote:\s*hold\.releaseNote/);
   });
 
-  it("case-legal-holds POST place + POST release routes unchanged", () => {
-    expect(ROUTES_SRC).toMatch(/placeCaseLegalHold/);
-    expect(ROUTES_SRC).toMatch(/releaseCaseLegalHold/);
-    // Both still project via projectCaseLegalHold (now with narrower
-    // return shape; the call site doesn't care).
-    expect(ROUTES_SRC).toMatch(
-      /placeCaseLegalHold[\s\S]{0,2000}projectCaseLegalHold/,
-    );
+  it("case-legal-holds POST place + POST release still exist, now canonical", () => {
+    // PHASE 12B CLUSTER 8 — both routes remain REGISTERED but are thin
+    // adapters over the ONE canonical Legal-Hold authority, which writes
+    // CASE-scoped rows into the canonical table. The response shape is
+    // unchanged; only the writer moved.
+    expect(ROUTES_SRC).toMatch(/"\/v1\/governance\/case-legal-holds"/);
+    expect(ROUTES_SRC).toMatch(/"\/v1\/governance\/case-legal-holds\/:id\/release"/);
+    expect(ROUTES_SRC).toMatch(/placeCanonicalLegalHold\(\{[\s\S]{0,200}scope: "CASE"/);
+    expect(ROUTES_SRC).toMatch(/releaseLegalHoldAnyStore\(\{/);
+    expect(ROUTES_SRC).toMatch(/caseLegalHold:\s*\{/);
   });
 });
 

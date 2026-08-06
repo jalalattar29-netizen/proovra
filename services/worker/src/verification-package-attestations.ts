@@ -546,11 +546,16 @@ async function buildSignerSnapshotJson(input: {
         const status: SignerSnapshotEntry["status"] =
           provider === "disabled" ? "degraded" : "active";
 
-        function entry(
+        // PHASE 12 POINT 3 — a const-bound function EXPRESSION, not a nested
+        // function declaration. It closes over `provider` from this block, so
+        // hoisting it to module scope would change what it reads; every call
+        // site is below its definition, so losing declaration hoisting is
+        // inert. Behaviour is identical.
+        const entry = (
           purpose: SignerPurpose,
           keyId: string | null,
           keyVersion: string | null,
-        ): SignerSnapshotEntry {
+        ): SignerSnapshotEntry => {
           return {
             signerPurpose: purpose,
             signerId: `${purpose}:${provider}:${keyId ?? "_"}:${
@@ -564,7 +569,7 @@ async function buildSignerSnapshotJson(input: {
             verificationMaterialRef,
             kmsKeyArn: kmsArn,
           };
-        }
+        };
 
         // Health rationale: this is a snapshot. We don't issue a live
         // KMS probe here (that lives on the api side); we report

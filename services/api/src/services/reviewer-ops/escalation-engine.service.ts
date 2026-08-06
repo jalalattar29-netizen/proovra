@@ -31,7 +31,6 @@ import type {
 } from "@prisma/client";
 import {
   REVIEW_ESCALATION_REASONS,
-  REVIEW_ESCALATION_STATUSES,
   isAllowedEscalationStatusTransition,
   isTerminalReviewEscalationStatus,
   stringContainsForbiddenOverclaim,
@@ -124,7 +123,6 @@ export function projectEscalation(row: DbEscalation): EscalationProjection {
 // -----------------------------------------------------------------------------
 
 const REASON_SET = new Set<string>(REVIEW_ESCALATION_REASONS);
-const STATUS_SET = new Set<string>(REVIEW_ESCALATION_STATUSES);
 const SEVERITY_SET = new Set<string>(["INFO", "WARNING", "HIGH", "CRITICAL"]);
 
 function dayBucket(now: Date): string {

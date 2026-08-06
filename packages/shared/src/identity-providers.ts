@@ -200,6 +200,14 @@ export const SCIM_SCOPES = [
   "users.write",
   "users.deactivate",
   "groups.read",
+  // PHASE 12B C6 — Group MUTATIONS previously had no scope of their own, so a
+  // token issued for user provisioning (`users.write`) could also create,
+  // rename, re-member and delete groups. Group membership changes propagate to
+  // department/visibility scope, so they are independently scoped. Existing
+  // tokens are unaffected: the route accepts `groups.write` OR the legacy
+  // `users.write` for group mutations, so no IdP integration breaks on deploy;
+  // new tokens should be issued with `groups.write` when group sync is enabled.
+  "groups.write",
 ] as const;
 export const ScimScopeSchema = z.enum(SCIM_SCOPES);
 export type ScimScope = z.infer<typeof ScimScopeSchema>;

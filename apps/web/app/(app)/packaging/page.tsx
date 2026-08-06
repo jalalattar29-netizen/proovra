@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ENTITLEMENT_KEYS, PRODUCT_LINES } from "@proovra/shared";
+
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../lib/api";
 import { formatUserDate } from "../../../lib/date";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -67,11 +70,51 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
   }
 }
 
+/**
+ * PHASE 12 POINT 1 / C1 — individual entitlement grant administration.
+ *
+ * `POST /v1/packaging/entitlements/grant` is the ORG_ADMIN-gated operation for
+ * granting ONE entitlement, as opposed to `apply-product-line` which applies a
+ * whole bundle. It lives here, on the already-restricted packaging console,
+ * because that is the surface an org administrator is already on when they
+ * need to make a single exception.
+ *
+ * The key list and the product lines are the SHARED bounded catalogs — the
+ * form can never post a key the server does not recognise, so an invalid grant
+ * is impossible to express rather than merely rejected. `kind` decides the
+ * value editor: FEATURE is boolean, QUOTA/LIMIT are integers. The server is
+ * still the authority; this only stops the console from offering nonsense.
+ */
+const GRANT_KINDS = ["FEATURE", "QUOTA", "LIMIT"] as const;
+const GRANT_SOURCES = ["CUSTOM", "PROMO", "PLAN"] as const;
+
+type GrantKind = (typeof GRANT_KINDS)[number];
+type GrantSource = (typeof GRANT_SOURCES)[number];
+
+/** The catalog's own naming tells us which editor a key expects. */
+function defaultKindFor(key: string): GrantKind {
+  if (key.startsWith("FEATURE_")) return "FEATURE";
+  if (key.startsWith("QUOTA_")) return "QUOTA";
+  return "LIMIT";
+}
+
 function Shell() {
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
   const [applyBusy, setApplyBusy] = useState<string | null>(null);
+
+  // ---- C1: single-entitlement grant form -------------------------------
+  const [grantKey, setGrantKey] = useState<string>(ENTITLEMENT_KEYS[0]);
+  const [grantKind, setGrantKind] = useState<GrantKind>(defaultKindFor(ENTITLEMENT_KEYS[0]));
+  const [grantBool, setGrantBool] = useState(true);
+  const [grantNumber, setGrantNumber] = useState("1");
+  const [grantSource, setGrantSource] = useState<GrantSource>("CUSTOM");
+  const [grantProductLine, setGrantProductLine] = useState<string>("");
+  const [grantExpiry, setGrantExpiry] = useState("");
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantResult, setGrantResult] = useState<string | null>(null);
+  const [grantError, setGrantError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -107,6 +150,55 @@ function Shell() {
     },
     [refresh],
   );
+
+  const numericGrantValue = Number.parseInt(grantNumber, 10);
+  const grantValueValid =
+    grantKind === "FEATURE" ||
+    (Number.isFinite(numericGrantValue) && numericGrantValue >= 0);
+
+  const submitGrant = useCallback(async () => {
+    if (!grantValueValid) return;
+    setGrantBusy(true);
+    setGrantResult(null);
+    setGrantError(null);
+    setDenial(null);
+    try {
+      const res = (await apiFetch("/v1/packaging/entitlements/grant", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          key: grantKey,
+          kind: grantKind,
+          value: grantKind === "FEATURE" ? grantBool : numericGrantValue,
+          source: grantSource,
+          productLine: grantProductLine ? grantProductLine : null,
+          // A date-only input means "end of that day" is NOT implied — the
+          // server stores the instant we send, so send an explicit UTC one.
+          expiresAtUtc: grantExpiry ? new Date(`${grantExpiry}T00:00:00Z`).toISOString() : null,
+        }),
+      })) as { grantId?: string } | null;
+      setGrantResult(res?.grantId ?? null);
+      // The registry below is the authority on what is now in force.
+      await refresh();
+    } catch (err) {
+      applyDenial(err, setDenial);
+      setGrantError(
+        toSafeUserError(err, { message: "The entitlement could not be granted." }).message,
+      );
+    } finally {
+      setGrantBusy(false);
+    }
+  }, [
+    grantValueValid,
+    grantKey,
+    grantKind,
+    grantBool,
+    numericGrantValue,
+    grantSource,
+    grantProductLine,
+    grantExpiry,
+    refresh,
+  ]);
 
   useEffect(() => {
     void refresh();
@@ -186,6 +278,169 @@ function Shell() {
         ))}
       </section>
 
+      {/* PHASE 12 POINT 1 / C1 — grant ONE entitlement (ORG_ADMIN-gated).
+          The product-line cards above apply a whole bundle; this is the
+          single-key exception an administrator occasionally needs. */}
+      <section
+        data-entitlement-grant-panel
+        style={{
+          background: "#fff",
+          border: "1px solid rgba(15,23,42,0.08)",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+        }}
+      >
+        <strong style={{ fontSize: 14, display: "block" }}>Grant a single entitlement</strong>
+        <p style={{ fontSize: 12, color: "#475569", margin: "4px 0 12px" }}>
+          Grants one key to this workspace without applying an entire product
+          line. Organization-administrator access is required; the server
+          re-checks it on every grant.
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: 10,
+            alignItems: "end",
+          }}
+        >
+          <label style={fieldLabel}>
+            Entitlement
+            <select
+              data-entitlement-grant-key
+              value={grantKey}
+              onChange={(e) => {
+                setGrantKey(e.target.value);
+                setGrantKind(defaultKindFor(e.target.value));
+              }}
+              style={field}
+            >
+              {ENTITLEMENT_KEYS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={fieldLabel}>
+            Kind
+            <select
+              data-entitlement-grant-kind
+              value={grantKind}
+              onChange={(e) => setGrantKind(e.target.value as GrantKind)}
+              style={field}
+            >
+              {GRANT_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={fieldLabel}>
+            Value
+            {grantKind === "FEATURE" ? (
+              <select
+                data-entitlement-grant-value="boolean"
+                value={grantBool ? "true" : "false"}
+                onChange={(e) => setGrantBool(e.target.value === "true")}
+                style={field}
+              >
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            ) : (
+              <input
+                data-entitlement-grant-value="number"
+                type="number"
+                min={0}
+                step={1}
+                value={grantNumber}
+                onChange={(e) => setGrantNumber(e.target.value)}
+                style={field}
+              />
+            )}
+          </label>
+
+          <label style={fieldLabel}>
+            Source
+            <select
+              data-entitlement-grant-source
+              value={grantSource}
+              onChange={(e) => setGrantSource(e.target.value as GrantSource)}
+              style={field}
+            >
+              {GRANT_SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={fieldLabel}>
+            Product line (optional)
+            <select
+              data-entitlement-grant-product-line
+              value={grantProductLine}
+              onChange={(e) => setGrantProductLine(e.target.value)}
+              style={field}
+            >
+              <option value="">Not tied to a line</option>
+              {PRODUCT_LINES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={fieldLabel}>
+            Expires (optional)
+            <input
+              data-entitlement-grant-expiry
+              type="date"
+              value={grantExpiry}
+              onChange={(e) => setGrantExpiry(e.target.value)}
+              style={field}
+            />
+          </label>
+
+          <button
+            type="button"
+            data-entitlement-grant-submit
+            disabled={grantBusy || busy || !grantValueValid}
+            onClick={() => void submitGrant()}
+            style={primaryButton}
+          >
+            {grantBusy ? "Granting…" : "Grant entitlement"}
+          </button>
+        </div>
+
+        {!grantValueValid ? (
+          <p data-entitlement-grant-invalid style={{ fontSize: 12, color: "#991b1b", marginBottom: 0 }}>
+            Enter a whole number of 0 or more for a {grantKind.toLowerCase()} entitlement.
+          </p>
+        ) : null}
+
+        {grantResult ? (
+          <p data-entitlement-grant-result style={{ fontSize: 12, color: "#166534", marginBottom: 0 }}>
+            Granted. The entitlement registry below has been reloaded from the
+            server.
+          </p>
+        ) : null}
+
+        {grantError ? (
+          <p data-entitlement-grant-error style={{ fontSize: 12, color: "#991b1b", marginBottom: 0 }}>
+            {grantError}
+          </p>
+        ) : null}
+      </section>
+
       {/* Entitlement table */}
       <section
         style={{
@@ -258,6 +513,23 @@ const secondaryButton = {
   fontSize: 11,
   borderRadius: 6,
   cursor: "pointer",
+} as const;
+const fieldLabel = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  fontSize: 11,
+  fontWeight: 600,
+  color: "#475569",
+} as const;
+const field = {
+  padding: "6px 8px",
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  fontSize: 12,
+  color: "#0f172a",
+  background: "#fff",
+  fontWeight: 400,
 } as const;
 const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
 const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;

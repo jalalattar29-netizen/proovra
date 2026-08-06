@@ -60,6 +60,59 @@ import {
   markSavedViewUsed,
   updateSavedView,
 } from "../services/siu/siu-saved-views.service.js";
+// PHASE 12 — VERTICAL B. Saved views are EXECUTED, not just stored.
+import {
+  listExecutableSiuViews,
+  resolveSiuView,
+  runSiuWorklist,
+  type ResolvedSiuView,
+} from "../services/siu/siu-view-query.service.js";
+
+/**
+ * PHASE 12 — VERTICAL B. Workspace-scoped SIU actor gate for the
+ * worklist + saved-view surfaces (these are workspace-level, not
+ * case-level, so `requireCaseActor` does not apply).
+ *
+ * Anti-enumeration: a non-member and a non-existent workspace both
+ * resolve to 404. An INACTIVE member gets an explicit, distinct
+ * `member_inactive` denial so the UI can say why instead of rendering
+ * an empty list.
+ */
+async function requireSiuWorkspaceActor(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+): Promise<{ userId: string; teamId: string } | null> {
+  const userId = getAuthUserId(req);
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { id: true, status: true },
+  });
+  if (!member) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  if (member.status !== "ACTIVE") {
+    reply.code(403).send({ error: { code: "member_inactive" } });
+    return null;
+  }
+  const decision = await evaluateMemberAccess({
+    teamId,
+    userId,
+    permission: "identity.member.read",
+  });
+  if (!decision.allowed) {
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: decision.reason,
+        detail: decision.detail ?? null,
+      },
+    });
+    return null;
+  }
+  return { userId, teamId };
+}
 
 async function requireCaseActor(
   req: FastifyRequest,
@@ -125,8 +178,84 @@ export async function siuRoutes(app: FastifyInstance) {
   app.get(
     "/v1/siu/intake-templates",
     { preHandler: requireAuth },
-    async (_req, reply) => {
-      return reply.code(200).send({ templates: SIU_INTAKE_TEMPLATES });
+    async (req, reply) => {
+      // PHASE 12 — VERTICAL B. The template catalog drives SIU profile
+      // creation, so it is now workspace-scoped like every other SIU
+      // read: a caller must name a workspace they are an ACTIVE member
+      // of. `teamId` stays optional for backwards compatibility with
+      // callers that only need the static catalog shape.
+      const q = z
+        .object({ teamId: z.string().uuid().optional() })
+        .parse(req.query ?? {});
+      if (q.teamId) {
+        const ctx = await requireSiuWorkspaceActor(req, reply, q.teamId);
+        if (!ctx) return;
+      }
+      return reply.code(200).send({
+        templates: SIU_INTAKE_TEMPLATES.map((t) => ({
+          id: t.id,
+          name: t.name,
+          claimType: t.claimType,
+          description: t.description,
+          itemCount: t.items.length,
+          requiredItemCount: t.items.filter((i) => i.required).length,
+          items: t.items,
+        })),
+      });
+    },
+  );
+
+  // -------------------------------------------------------------------
+  // PHASE 12 — VERTICAL B. The SIU worklist. This is the query saved
+  // views actually AFFECT.
+  //
+  //   GET /v1/siu/worklist?teamId=&viewId=&limit=
+  //
+  // `viewId` accepts a built-in preset id OR a durable custom saved-view
+  // row id. Omitting it returns the unfiltered workspace worklist —
+  // never an empty list, so "no view selected" and "view matched
+  // nothing" stay distinguishable in the UI.
+  // -------------------------------------------------------------------
+  app.get(
+    "/v1/siu/worklist",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          viewId: z.string().min(1).max(120).optional(),
+          limit: z.coerce.number().int().min(1).max(100).optional(),
+        })
+        .parse(req.query ?? {});
+      const ctx = await requireSiuWorkspaceActor(req, reply, q.teamId);
+      if (!ctx) return;
+      let view: ResolvedSiuView | null = null;
+      if (q.viewId) {
+        const resolved = await resolveSiuView({
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          viewId: q.viewId,
+        });
+        if (!resolved.ok) {
+          return reply.code(404).send({
+            error: { code: "saved_view_not_found", reason: resolved.reason },
+          });
+        }
+        view = resolved.view;
+      }
+      const result = await runSiuWorklist({
+        teamId: ctx.teamId,
+        view,
+        limit: q.limit,
+      });
+      return reply.code(200).send({
+        view: result.view,
+        rows: result.rows,
+        total: result.total,
+        truncated: result.truncated,
+        durable: true as const,
+        storage: "prisma" as const,
+      });
     },
   );
 
@@ -598,11 +727,40 @@ export async function siuRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------
   // Phase M3.1 — saved-view presets (bounded)
   // -------------------------------------------------------------------
+  //
+  // PHASE 12 — VERTICAL B. This is now the ONE list an operator picks
+  // from: built-in presets merged with the durable custom rows visible
+  // to them, each carrying the resolved filter/sort the worklist route
+  // will execute. `presets` is still returned separately so existing
+  // callers that only read the static catalog keep working.
+  //
+  // `teamId` is optional purely for that backwards compatibility. When
+  // present the caller must be an ACTIVE member; the custom rows are
+  // only ever merged in for a workspace they belong to.
   app.get(
     "/v1/siu/saved-views",
     { preHandler: requireAuth },
-    async (_req, reply) => {
-      return reply.code(200).send({ views: SIU_SAVED_VIEW_PRESETS });
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({ teamId: z.string().uuid().optional() })
+        .parse(req.query ?? {});
+      if (!q.teamId) {
+        return reply
+          .code(200)
+          .send({ views: SIU_SAVED_VIEW_PRESETS, presets: SIU_SAVED_VIEW_PRESETS });
+      }
+      const ctx = await requireSiuWorkspaceActor(req, reply, q.teamId);
+      if (!ctx) return;
+      const views = await listExecutableSiuViews({
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+      });
+      return reply.code(200).send({
+        views,
+        presets: SIU_SAVED_VIEW_PRESETS,
+        durable: true as const,
+        storage: "prisma" as const,
+      });
     },
   );
 
@@ -837,7 +995,31 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!view) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      return reply.code(200).send({ view });
+      // PHASE 12 — VERTICAL B. "Use" is not a bookkeeping no-op: it
+      // returns the worklist the view resolves to, so the client applies
+      // a SERVER-executed query rather than re-deriving the filter.
+      const resolved = await resolveSiuView({
+        teamId: body.teamId,
+        userId,
+        viewId: params.id,
+      });
+      const worklist = resolved.ok
+        ? await runSiuWorklist({
+            teamId: body.teamId,
+            view: resolved.view,
+            limit: 50,
+          })
+        : null;
+      return reply.code(200).send({
+        view,
+        worklist: worklist
+          ? {
+              rows: worklist.rows,
+              total: worklist.total,
+              truncated: worklist.truncated,
+            }
+          : null,
+      });
     },
   );
 

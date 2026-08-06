@@ -9,7 +9,7 @@
  *   * Retention source (via the existing
  *     `RetentionInheritanceSummary` shape — fetched lazily)
  *   * Export eligibility outcome (via the existing
- *     `ExportEligibilityPreflight` query)
+ *     `GovernedExportAction` eligibility query)
  *
  * Mounted on:
  *   - Matter Workspace Overview tab (matter-level summary)

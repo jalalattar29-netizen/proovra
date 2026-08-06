@@ -123,19 +123,6 @@ export function tsaFailureCodeToReason(code: TsaReplyFailureCode): string {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function findFirstLine(
-  text: string,
-  re: RegExp,
-): { line: string; capture: string | null } | null {
-  const m = text.match(re);
-  if (!m) return null;
-  return { line: m[0]!, capture: m[1] ?? null };
-}
-
 /**
  * Match the `Status:` line. The TSR may say `Status: Granted.` (trailing
  * period) or `Status: Granted` (no period), case-insensitive. Some

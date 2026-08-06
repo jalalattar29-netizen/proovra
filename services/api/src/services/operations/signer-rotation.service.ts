@@ -333,7 +333,6 @@ export async function retireSigner(
     signerId: string;
     reason: string;
   },
-  client: PrismaClient = defaultPrisma,
 ): Promise<
   | { ok: true; retiredAtUtc: string }
   | { ok: false; code: "reason_required" | "signer_not_found"; message: string }
@@ -366,7 +365,6 @@ export async function revokeSigner(
     signerId: string;
     reason: string;
   },
-  client: PrismaClient = defaultPrisma,
 ): Promise<
   | { ok: true; revokedAtUtc: string }
   | { ok: false; code: "reason_required"; message: string }

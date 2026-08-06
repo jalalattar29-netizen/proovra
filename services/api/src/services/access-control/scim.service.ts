@@ -48,8 +48,11 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 10 §3 — atomic managed-identity binding (persistence-verified SCIM token).
-import { setManagedIdentity } from "../identity/identity-mode.service.js";
-import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
+import { resolveManagedIdentity } from "../identity/identity-mode.service.js";
+import {
+  organizationIdForPolicy,
+  resolveOrganizationPolicy,
+} from "../identity/org-security-policy.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking a directory-
 // asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
@@ -234,6 +237,307 @@ export async function revokeScimToken(
     details: { tokenId: row.id, actorUserId: input.actorUserId },
   });
   return projectToken(updated);
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 12B — ATOMIC token ROTATION.
+//
+// Rotation used to be "create a new token, then remember to revoke the old
+// one" — two operator actions, so an abandoned rotation left TWO live
+// credentials for the same directory. Revoke-old + issue-new is now ONE
+// transaction: either the directory ends up with exactly one new credential,
+// or nothing changed at all. The raw replacement token is returned ONCE and is
+// never persisted in plaintext (hash-only, same contract as create).
+// -----------------------------------------------------------------------------
+
+export type RotateScimTokenResult =
+  | { ok: true; revoked: ScimTokenProjection; projection: ScimTokenProjection; tokenOnce: string }
+  | { ok: false; reason: "not_found" | "already_revoked" };
+
+export async function rotateScimToken(
+  input: {
+    teamId: string;
+    id: string;
+    actorUserId: string;
+    /** Optional replacement name; defaults to the rotated token's name. */
+    name?: string | null;
+    reason?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<RotateScimTokenResult> {
+  const existing = await client.scimProvisioningToken.findFirst({
+    where: { id: input.id, teamId: input.teamId },
+  });
+  if (!existing) return { ok: false, reason: "not_found" };
+  if (existing.status !== "ACTIVE") return { ok: false, reason: "already_revoked" };
+
+  const raw = `${SCIM_TOKEN_PREFIX}${randomBytes(SCIM_TOKEN_BYTES).toString("hex")}`;
+  const tokenPrefix = raw.slice(0, SCIM_TOKEN_PREFIX_LENGTH);
+  const tokenHash = hashToken(raw);
+
+  const result = await client.$transaction(async (tx) => {
+    // Read-compare-write: only rotate the row we still observe as ACTIVE, so a
+    // concurrent revoke/rotate cannot produce two live credentials.
+    const claimed = await tx.scimProvisioningToken.updateMany({
+      where: { id: existing.id, teamId: input.teamId, status: "ACTIVE" },
+      data: {
+        status: "REVOKED",
+        revokedAtUtc: new Date(),
+        revokedByUserId: input.actorUserId,
+        revokedReason: (input.reason ?? "Rotated").slice(0, 400),
+      },
+    });
+    if (claimed.count !== 1) {
+      throw new Error("SCIM_TOKEN_ROTATE_CONFLICT");
+    }
+    const revoked = await tx.scimProvisioningToken.findUniqueOrThrow({
+      where: { id: existing.id },
+    });
+    const created = await tx.scimProvisioningToken.create({
+      data: {
+        teamId: input.teamId,
+        name: (input.name?.trim() || existing.name).slice(0, 180),
+        tokenPrefix,
+        tokenHash,
+        scopes: existing.scopes,
+        ipAllowlist: existing.ipAllowlist,
+        expiresAtUtc: existing.expiresAtUtc,
+        createdByUserId: input.actorUserId,
+      },
+    });
+    return { revoked, created };
+  });
+
+  bump("scim_token_created_total");
+  bump("scim_token_revoked_total");
+  safeEmitSecurityEvent({
+    teamId: input.teamId,
+    eventType: "scim_token_created",
+    severity: "WARNING",
+    details: {
+      tokenId: result.created.id,
+      tokenPrefix,
+      rotatedFromTokenId: result.revoked.id,
+      scopes: result.created.scopes,
+      actorUserId: input.actorUserId,
+    },
+  });
+  await emitTenantAudit({
+    action: "scim.token.rotate",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
+    resourceType: "scim_provisioning_token",
+    resourceId: result.created.id,
+    metadata: {
+      rotatedFromTokenId: result.revoked.id,
+      scopes: result.created.scopes as string[],
+    },
+  }, client);
+
+  return {
+    ok: true,
+    revoked: projectToken(result.revoked),
+    projection: projectToken(result.created),
+    tokenOnce: raw,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 12B — managed-membership OWNERSHIP projection (admin read).
+//
+// The SCIM administration surface has to answer "who in this workspace does the
+// directory actually own, and is any of it in conflict?" without ever exposing
+// a token or a raw IdP payload. Every field here is derived server-side from
+// the canonical authorities; the browser computes nothing.
+// -----------------------------------------------------------------------------
+
+export type ScimManagedMemberProjection = {
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+  externalSubjectId: string | null;
+  /** Directory link state — an unlinked mapping is a RELEASED identity. */
+  directoryLink: "LINKED" | "RELEASED" | "NONE";
+  membershipStatus: string | null;
+  role: string | null;
+  /** Managed-identity ownership as resolved by the canonical authority. */
+  ownership:
+    | "MANAGED_BY_THIS_ORGANIZATION"
+    | "MANAGED_BY_ANOTHER_ORGANIZATION"
+    | "STANDARD"
+    | "UNRESOLVED";
+  /** True when the org policy requires managed identity but this one is not. */
+  conflict: boolean;
+};
+
+export type ScimManagedMembershipProjection = {
+  teamId: string;
+  organizationId: string | null;
+  managedIdentityRequired: boolean;
+  summary: {
+    total: number;
+    managedByThisOrganization: number;
+    managedByAnotherOrganization: number;
+    standard: number;
+    unresolved: number;
+    released: number;
+    conflicts: number;
+  };
+  members: ReadonlyArray<ScimManagedMemberProjection>;
+  /** Group → mapped-role effect, so the operator sees what a group grants. */
+  groups: ReadonlyArray<{
+    id: string;
+    displayName: string;
+    externalId: string | null;
+    mappedRole: string;
+    status: string;
+    memberCount: number;
+  }>;
+  truncated: boolean;
+};
+
+export async function projectScimManagedMembership(
+  input: { teamId: string; limit?: number },
+  client: PrismaClient = defaultPrisma,
+): Promise<ScimManagedMembershipProjection> {
+  const limit = Math.min(Math.max(input.limit ?? 200, 1), 500);
+  const organizationId = await organizationIdForPolicy(input.teamId, client);
+  let managedIdentityRequired = false;
+  if (organizationId) {
+    try {
+      const policy = await resolveOrganizationPolicy(input.teamId, client);
+      managedIdentityRequired =
+        policy.applicability === "ORGANIZATION" &&
+        policy.policy.managedIdentityRequired;
+    } catch {
+      // Policy unavailability must not fabricate "not required".
+      managedIdentityRequired = true;
+    }
+  }
+
+  const mappings = await client.externalIdentityMapping.findMany({
+    where: { teamId: input.teamId },
+    orderBy: [{ linkedAtUtc: "desc" }],
+    take: limit + 1,
+    select: {
+      userId: true,
+      externalSubjectId: true,
+      displayName: true,
+      externalEmail: true,
+      unlinkedAtUtc: true,
+    },
+  });
+  const truncated = mappings.length > limit;
+  const rows = truncated ? mappings.slice(0, limit) : mappings;
+  const userIds = Array.from(new Set(rows.map((r) => r.userId)));
+
+  const [users, members] = await Promise.all([
+    client.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true, displayName: true },
+    }),
+    client.teamMember.findMany({
+      where: { teamId: input.teamId, userId: { in: userIds } },
+      select: { userId: true, status: true, role: true },
+    }),
+  ]);
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const memberByUserId = new Map(members.map((m) => [m.userId, m]));
+
+  const summary = {
+    total: 0,
+    managedByThisOrganization: 0,
+    managedByAnotherOrganization: 0,
+    standard: 0,
+    unresolved: 0,
+    released: 0,
+    conflicts: 0,
+  };
+  const projected: ScimManagedMemberProjection[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (seen.has(row.userId)) continue;
+    seen.add(row.userId);
+    let ownership: ScimManagedMemberProjection["ownership"];
+    try {
+      const managed = await resolveManagedIdentity(row.userId, client);
+      if (managed.state === "MANAGED") {
+        ownership =
+          managed.managingOrganizationId === organizationId
+            ? "MANAGED_BY_THIS_ORGANIZATION"
+            : "MANAGED_BY_ANOTHER_ORGANIZATION";
+      } else if (managed.state === "MANAGED_UNRESOLVED") {
+        ownership = "UNRESOLVED";
+      } else {
+        ownership = "STANDARD";
+      }
+    } catch {
+      // Fail closed in the projection too: never render an ambiguous
+      // identity as clean STANDARD.
+      ownership = "UNRESOLVED";
+    }
+    const user = userById.get(row.userId);
+    const member = memberByUserId.get(row.userId);
+    const directoryLink: ScimManagedMemberProjection["directoryLink"] =
+      row.unlinkedAtUtc === null ? "LINKED" : "RELEASED";
+    const conflict =
+      ownership === "MANAGED_BY_ANOTHER_ORGANIZATION" ||
+      ownership === "UNRESOLVED" ||
+      (managedIdentityRequired && ownership === "STANDARD");
+
+    summary.total += 1;
+    if (ownership === "MANAGED_BY_THIS_ORGANIZATION") summary.managedByThisOrganization += 1;
+    if (ownership === "MANAGED_BY_ANOTHER_ORGANIZATION") summary.managedByAnotherOrganization += 1;
+    if (ownership === "STANDARD") summary.standard += 1;
+    if (ownership === "UNRESOLVED") summary.unresolved += 1;
+    if (directoryLink === "RELEASED") summary.released += 1;
+    if (conflict) summary.conflicts += 1;
+
+    projected.push({
+      userId: row.userId,
+      email: user?.email ?? row.externalEmail ?? null,
+      displayName: row.displayName ?? user?.displayName ?? null,
+      externalSubjectId: row.externalSubjectId,
+      directoryLink,
+      membershipStatus: member?.status ?? null,
+      role: member?.role ?? null,
+      ownership,
+      conflict,
+    });
+  }
+
+  const groupRows = await client.scimGroup.findMany({
+    where: { teamId: input.teamId },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 100,
+    select: {
+      id: true,
+      displayName: true,
+      externalId: true,
+      mappedRole: true,
+      status: true,
+    },
+  });
+  const groups = await Promise.all(
+    groupRows.map(async (g) => ({
+      ...g,
+      memberCount: await client.teamMember.count({
+        where: { teamId: input.teamId, status: "ACTIVE", role: g.mappedRole as never },
+      }),
+    })),
+  );
+
+  return {
+    teamId: input.teamId,
+    organizationId,
+    managedIdentityRequired,
+    summary,
+    members: projected,
+    groups,
+    truncated,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -435,105 +739,153 @@ export async function scimCreateUser(
     };
   }
 
-  // Find or create the User by email.
-  let user = await client.user.findFirst({
-    where: { email: email.toLowerCase() },
-    select: { id: true, createdAt: true, updatedAt: true },
-  });
-  if (user) {
-    // P0 remediation (2026-07-21) — linking a directory-asserted email to a
-    // PRE-EXISTING account requires the domain to be DNS-verified by exactly
-    // this token's own organization (globally-unique claim). Without this
-    // gate, a SCIM push could bind a mapping onto an arbitrary existing
-    // user's account — and the SSO repeat-login path would then mint
-    // sessions AS that user for the directory's subject. Fail closed.
-    const link = await evaluateExistingAccountLink(
-      { teamId: ctx.teamId, email },
-      client,
-    );
-    if (!link.ok) {
+  // ---------------------------------------------------------------------------
+  // PHASE 12B — ONE ATOMIC CREATE INTENT (zero partial mutation).
+  //
+  // Previously the User row, the ExternalIdentityMapping row and the
+  // membership/managed-binding intent were THREE separate top-level writes: a
+  // seat-exhausted or cross-Organization managed conflict left a created User
+  // + a linked directory mapping with NO membership — a half-provisioned
+  // identity the IdP believed existed. Everything now shares ONE transaction:
+  // a failure anywhere leaves ZERO rows behind.
+  //
+  // The pre-existing-account link gate (P0 remediation 2026-07-21) also moves
+  // INSIDE the transaction so the account it validates is the account the
+  // mapping binds — read-compare-write, not read-then-hope.
+  // ---------------------------------------------------------------------------
+  const UNSAFE_LINK = "__SCIM_UNSAFE_ACCOUNT_LINK__";
+  let user: { id: string; createdAt: Date; updatedAt: Date };
+  try {
+    user = await client.$transaction(async (tx) => {
+      const txc = tx as unknown as PrismaClient;
+      let resolved = await txc.user.findFirst({
+        where: { email: email.toLowerCase() },
+        select: { id: true, createdAt: true, updatedAt: true },
+      });
+      if (resolved) {
+        // P0 remediation (2026-07-21) — linking a directory-asserted email to a
+        // PRE-EXISTING account requires the domain to be DNS-verified by exactly
+        // this token's own organization (globally-unique claim). Without this
+        // gate, a SCIM push could bind a mapping onto an arbitrary existing
+        // user's account — and the SSO repeat-login path would then mint
+        // sessions AS that user for the directory's subject. Fail closed.
+        const link = await evaluateExistingAccountLink(
+          { teamId: ctx.teamId, email },
+          txc,
+        );
+        if (!link.ok) {
+          throw new Error(`${UNSAFE_LINK}:${link.reason}`);
+        }
+      } else {
+        resolved = await txc.user.create({
+          data: {
+            email: email.toLowerCase(),
+            provider: "EMAIL",
+            providerUserId: `scim-${externalId}`,
+          },
+          select: { id: true, createdAt: true, updatedAt: true },
+        });
+      }
+
+      // Link external mapping.
+      await txc.externalIdentityMapping.create({
+        data: {
+          teamId: ctx.teamId,
+          userId: resolved.id,
+          provider: "GENERIC_SCIM",
+          externalSubjectId: externalId,
+          displayName:
+            parsed.data.displayName ?? parsed.data.name?.formatted ?? null,
+          externalEmail: email,
+        },
+      });
+
+      // PHASE 3 (2026-07-21) + PHASE 10 §3 (2026-07-23) — managed provisioning.
+      // SCIM is the authoritative directory. Membership (Membership
+      // Orchestrator) + grant provenance + MANAGED-IDENTITY binding are ONE
+      // atomic outcome: if the managed binding fails (e.g. the identity is
+      // already managed by ANOTHER Organization → conflict), the User row,
+      // mapping row, membership and grant ALL roll back. The managed source is
+      // the AUTHENTICATED SCIM token credential (`ctx.tokenId`),
+      // persistence-verified inside setManagedIdentity (never
+      // findFirst/caller-declared). SCIM only manages CUSTOMER-org workspaces.
+      const workspaceRole =
+        parsed.data.userType === "VIEWER" ? "VIEWER" : "MEMBER";
+      const scimOrgId = await organizationIdForPolicy(ctx.teamId, txc);
+      if (scimOrgId) {
+        // PATH 1/9 — SCIM CREATE via the ONE atomic managed-provisioning
+        // intent: managed binding (evidence = authenticated SCIM token) +
+        // fail-closed seat enforcement + membership/grant provenance.
+        await provisionManagedMembership(tx, {
+          userId: resolved.id,
+          managingTeamId: ctx.teamId,
+          evidence: { source: "SCIM", scimTokenId: ctx.tokenId },
+          membershipIntent: "SCIM_PROVISIONING",
+          source: "SCIM",
+          workspace: { teamId: ctx.teamId, role: workspaceRole },
+          actorUserId: null, // the directory, not a member, is the actor
+          externalRef: externalId ? `scim:${externalId}`.slice(0, 200) : null,
+          accessReason: "SCIM provisioning",
+          seatPolicy: "ENFORCE",
+          seatTeamId: ctx.teamId,
+        });
+      } else {
+        // Non-CUSTOMER SCIM target (no managing org to bind) — membership only.
+        await provisionMembership(txc, {
+          intent: "SCIM_PROVISIONING",
+          source: "SCIM",
+          userId: resolved.id,
+          workspace: { teamId: ctx.teamId, role: workspaceRole },
+          actorUserId: null,
+          externalRef: externalId ? `scim:${externalId}`.slice(0, 200) : null,
+          accessReason: "SCIM provisioning",
+        });
+      }
+
+      return resolved;
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (message.startsWith(UNSAFE_LINK)) {
       bump("scim_account_link_denied_total");
       safeEmitSecurityEvent({
         teamId: ctx.teamId,
         eventType: "scim_account_link_denied",
         severity: "HIGH",
         details: {
-          reason: `unsafe_account_link:${link.reason}`,
+          reason: `unsafe_account_link:${message.slice(UNSAFE_LINK.length + 1)}`,
           externalId,
+        },
+      });
+      return { ok: false as const, status: 409, detail: "unsafe_account_link" };
+    }
+    const code = (err as { code?: string }).code;
+    if (
+      code === "SCIM_MANAGED_CROSS_ORG_CONFLICT" ||
+      code === "MANAGED_IDENTITY_CROSS_ORG_CONFLICT"
+    ) {
+      safeEmitSecurityEvent({
+        teamId: ctx.teamId,
+        eventType: "scim_user_created",
+        severity: "HIGH",
+        details: {
+          tokenId: ctx.tokenId,
+          externalId,
+          outcome: "denied",
+          reason: "managed_cross_org_conflict",
         },
       });
       return {
         ok: false as const,
         status: 409,
-        detail: "unsafe_account_link",
+        detail: "managed_cross_org_conflict",
       };
     }
-  }
-  if (!user) {
-    user = await client.user.create({
-      data: {
-        email: email.toLowerCase(),
-        provider: "EMAIL",
-        providerUserId: `scim-${externalId}`,
-      },
-      select: { id: true, createdAt: true, updatedAt: true },
-    });
-  }
-
-  // Link external mapping.
-  await client.externalIdentityMapping.create({
-    data: {
-      teamId: ctx.teamId,
-      userId: user.id,
-      provider: "GENERIC_SCIM",
-      externalSubjectId: externalId,
-      displayName:
-        parsed.data.displayName ?? parsed.data.name?.formatted ?? null,
-      externalEmail: email,
-    },
-  });
-
-  // PHASE 3 (2026-07-21) + PHASE 10 §3 (2026-07-23) — ATOMIC managed provisioning.
-  // SCIM is the authoritative directory. Membership (Membership Orchestrator) +
-  // grant provenance + MANAGED-IDENTITY binding are ONE atomic outcome: if the
-  // managed binding fails (e.g. the identity is already managed by ANOTHER
-  // Organization → conflict), the membership/grant rolls back too — no partial
-  // managed/membership write. The managed source is the AUTHENTICATED SCIM token
-  // credential (`ctx.tokenId`), persistence-verified inside setManagedIdentity
-  // (never findFirst/caller-declared). SCIM only manages CUSTOMER-org workspaces.
-  await client.$transaction(async (tx) => {
-    const workspaceRole = parsed.data.userType === "VIEWER" ? "VIEWER" : "MEMBER";
-    const scimOrgId = await organizationIdForPolicy(ctx.teamId, tx as unknown as typeof client);
-    if (scimOrgId) {
-      // PATH 1/9 — SCIM CREATE via the ONE atomic managed-provisioning intent:
-      // managed binding (evidence = authenticated SCIM token) + fail-closed seat
-      // enforcement + membership/grant provenance, all atomic (zero partial).
-      await provisionManagedMembership(tx, {
-        userId: user.id,
-        managingTeamId: ctx.teamId,
-        evidence: { source: "SCIM", scimTokenId: ctx.tokenId },
-        membershipIntent: "SCIM_PROVISIONING",
-        source: "SCIM",
-        workspace: { teamId: ctx.teamId, role: workspaceRole },
-        actorUserId: null, // the directory, not a member, is the actor
-        externalRef: externalId ? `scim:${externalId}`.slice(0, 200) : null,
-        accessReason: "SCIM provisioning",
-        seatPolicy: "ENFORCE",
-        seatTeamId: ctx.teamId,
-      });
-    } else {
-      // Non-CUSTOMER SCIM target (no managing org to bind) — membership only.
-      await provisionMembership(tx as unknown as typeof client, {
-        intent: "SCIM_PROVISIONING",
-        source: "SCIM",
-        userId: user.id,
-        workspace: { teamId: ctx.teamId, role: workspaceRole },
-        actorUserId: null,
-        externalRef: externalId ? `scim:${externalId}`.slice(0, 200) : null,
-        accessReason: "SCIM provisioning",
-      });
+    if (code === "MANAGED_SEAT_LIMIT_REACHED") {
+      return { ok: false as const, status: 409, detail: "seat_limit_reached" };
     }
-  });
+    throw err; // schema-unavailability / unknown — fail closed
+  }
 
   bump("scim_user_created_total");
   bump("scim_sync_total");
@@ -693,16 +1045,28 @@ export async function scimDeactivateUser(
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });
   if (!member) return { ok: false };
-  // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION.
-  await suspendWorkspaceMembership(client, {
-    teamMemberId: member.id,
-    actorUserId: null, // directory-driven
-    reason: "SCIM deactivation",
-  });
-  // Unlink the external mapping (soft).
-  await client.externalIdentityMapping.updateMany({
-    where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
-    data: { unlinkedAtUtc: new Date() },
+  // PHASE 12B — the membership suspension and the directory-mapping unlink are
+  // ONE atomic deprovisioning outcome. Previously they were two top-level
+  // writes, so a failure between them left a SUSPENDED member still linked (or
+  // an unlinked mapping on an ACTIVE member) — the exact drift the
+  // reconciliation surface then had to clean up.
+  //
+  // NOTE: managed identity is deliberately NOT cleared. Deactivation is a
+  // SOFT release of *access*; a managed identity is never silently converted
+  // back to unmanaged by a directory push.
+  await client.$transaction(async (tx) => {
+    const txc = tx as unknown as PrismaClient;
+    // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION.
+    await suspendWorkspaceMembership(txc, {
+      teamMemberId: member.id,
+      actorUserId: null, // directory-driven
+      reason: "SCIM deactivation",
+    });
+    // Unlink the external mapping (soft).
+    await txc.externalIdentityMapping.updateMany({
+      where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
+      data: { unlinkedAtUtc: new Date() },
+    });
   });
 
   // -------------------------------------------------------------------------

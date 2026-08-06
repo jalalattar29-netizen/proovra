@@ -32,6 +32,12 @@ import { PageShell, PageHeader } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { apiFetch, ApiError } from "../../../lib/api";
+import { LifecycleSectionBoundary } from "./_shared";
+// PHASE 12B (Evidence Operations) — the lifecycle console is the home for
+// the dedicated policy-violation observability reads and the bounded
+// verification-package manifest preview.
+import { PolicyViolationsPanel } from "./_policy-violations-panel";
+import { VerificationPackagePreviewPanel } from "./_verification-package-preview";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -562,9 +568,38 @@ function LoadedDashboard({ dashboard }: { dashboard: LifecycleDashboard }) {
         anchor="upcoming-expirations"
         data={dashboard.upcomingExpirations}
       />
-      <ViolationsTileGroup violations={dashboard.violations} />
+      {/* PHASE 12B — the dedicated violations endpoints are now the
+          authority for this summary + its drill-down. The counts embedded
+          in the dashboard envelope are passed as an explicit fallback for
+          the case where the dedicated read is denied. */}
+      <LifecycleSectionBoundary label="Policy violations">
+        <PolicyViolationsPanel
+          fallbackByCode={violationsFallbackByCode(dashboard.violations)}
+        />
+      </LifecycleSectionBoundary>
+      {/* PHASE 12B — bounded lifecycle manifest preview (delegated-tier
+          gated server-side). */}
+      <LifecycleSectionBoundary label="Verification package preview">
+        <VerificationPackagePreviewPanel />
+      </LifecycleSectionBoundary>
     </div>
   );
+}
+
+/**
+ * Normalizes the dashboard-embedded violation counts into the bounded
+ * per-code shape the panel accepts. Used ONLY as a denial fallback.
+ */
+function violationsFallbackByCode(
+  violations: LifecycleViolations,
+): Record<string, number> {
+  const byCode = violations.byCode ?? {
+    POLICY_VIOLATION_ENTITLEMENT: 0,
+    POLICY_VIOLATION_LEGAL_HOLD: violations.totalLegalHoldViolations,
+    POLICY_VIOLATION_RETENTION: violations.totalRetentionViolations,
+    POLICY_VIOLATION_QUOTA: 0,
+  };
+  return { ...byCode };
 }
 
 function CapabilityLauncherRow({
@@ -744,63 +779,11 @@ function TileGroup({
   );
 }
 
-const CODE_LABELS: Record<string, string> = {
-  POLICY_VIOLATION_ENTITLEMENT: "Entitlement",
-  POLICY_VIOLATION_LEGAL_HOLD: "Legal Hold",
-  POLICY_VIOLATION_RETENTION: "Retention",
-  POLICY_VIOLATION_QUOTA: "Quota",
-};
-
-function ViolationsTileGroup({ violations }: { violations: LifecycleViolations }) {
-  const byCode = violations.byCode ?? {
-    POLICY_VIOLATION_ENTITLEMENT: 0,
-    POLICY_VIOLATION_LEGAL_HOLD: violations.totalLegalHoldViolations,
-    POLICY_VIOLATION_RETENTION: violations.totalRetentionViolations,
-    POLICY_VIOLATION_QUOTA: 0,
-  };
-  const total = violations.totalBounded ?? Object.values(byCode).reduce((s, v) => s + v, 0);
-  return (
-    <Card variant="admin" data-lifecycle-tile-group="violations">
-      <strong style={{ fontSize: 14, display: "block", marginBottom: 2 }}>Violations</strong>
-      <small style={{ color: "#64748b", fontSize: 11, display: "block", marginBottom: 8 }}>
-        Bounded POLICY_VIOLATION_* events — last 30 days ({total} total)
-      </small>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 10,
-        }}
-      >
-        {(Object.keys(byCode) as Array<keyof typeof byCode>).map((code) => (
-          <div
-            key={code}
-            data-violation-code={code}
-            style={{
-              background: byCode[code] > 0 ? "#fef2f2" : "#fff",
-              border: `1px solid ${byCode[code] > 0 ? "#fecaca" : "rgba(15,23,42,0.08)"}`,
-              borderRadius: 10,
-              padding: 10,
-            }}
-          >
-            <small
-              style={{
-                fontSize: 11,
-                color: byCode[code] > 0 ? "#991b1b" : "#475569",
-                fontWeight: 600,
-              }}
-            >
-              {CODE_LABELS[code] ?? code}
-            </small>
-            <strong style={{ fontSize: 22, display: "block", marginTop: 4 }}>
-              {byCode[code]}
-            </strong>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
+// PHASE 12B — ViolationsTileGroup + CODE_LABELS were REMOVED. The tile
+// group rendered the dashboard-embedded counts with no drill-down and no
+// time window; _policy-violations-panel.tsx supersedes it using the
+// dedicated GET /v1/lifecycle/violations{,/counts} authorities and keeps
+// the dashboard numbers only as an explicit denial fallback.
 
 // ---------------------------------------------------------------------------
 // Styles

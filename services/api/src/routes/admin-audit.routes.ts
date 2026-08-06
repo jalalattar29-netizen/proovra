@@ -207,6 +207,7 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         category: query.category ?? null,
         severity: query.severity ?? null,
         outcome: query.outcome ?? null,
+        source: query.source ?? null,
         search: query.search ?? null,
       });
 
@@ -238,6 +239,34 @@ export async function adminAuditRoutes(app: FastifyInstance) {
     "/v1/admin/audit-log/export",
     { preHandler: requirePlatformAdmin },
     async (req, reply) => {
+      // PHASE 12 VERTICAL A (2026-07-30) — the export was the ONLY read on
+      // this router without a rate limit, while it is the most expensive one
+      // (full row projection + CSV serialization). A compromised platform-
+      // admin session could stream the whole audit chain unthrottled. Bounded
+      // at a lower ceiling than the list read for the same reason.
+      const rate = await enforceRateLimit({
+        key: `ratelimit:admin_audit_export:${req.user!.sub}`,
+        max: 20,
+        windowSec: 60,
+      });
+
+      if (!rate.allowed) {
+        auditAdminAuditAccess(req, {
+          action: "admin.audit_log_export",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "rate_limited" },
+        });
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "Too many export requests"
+          )
+        );
+      }
+
       const query = req.query as Record<string, string | undefined>;
       const { items } = await listAdminAuditLogs({
         limit: 100,
@@ -245,6 +274,7 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         category: query.category ?? null,
         severity: query.severity ?? null,
         outcome: query.outcome ?? null,
+        source: query.source ?? null,
         search: query.search ?? null,
       });
 

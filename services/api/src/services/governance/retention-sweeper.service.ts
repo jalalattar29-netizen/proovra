@@ -28,7 +28,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { isEvidenceUnderAnyLegalHold } from "./case-legal-hold.service.js";
+import { isEvidenceUnderAnyLegalHold } from "./legal-hold.service.js";
 
 const FLAG_REISSUE_WINDOW_MS = 24 * 3600 * 1000;
 
@@ -65,7 +65,6 @@ export async function reconcileRetention(
     select: {
       id: true,
       teamId: true,
-      caseId: true,
       retentionUntilUtc: true,
       retentionReconciliationFlaggedAtUtc: true,
       archivedAt: true,
@@ -188,7 +187,11 @@ export async function listRetentionCandidates(
       retentionUntilUtc: true,
       retentionPolicySource: true,
       retentionReconciliationFlaggedAtUtc: true,
-      caseId: true,
+      caseLinks: {
+        orderBy: { linkedAtUtc: "asc" },
+        select: { caseId: true },
+        take: 1,
+      },
       publicVerifyState: true,
     },
     orderBy: { retentionReconciliationFlaggedAtUtc: "desc" },
@@ -202,7 +205,7 @@ export async function listRetentionCandidates(
       retentionPolicySource: r.retentionPolicySource,
       flaggedAtUtc:
         r.retentionReconciliationFlaggedAtUtc?.toISOString() ?? null,
-      caseId: r.caseId,
+      caseId: r.caseLinks[0]?.caseId ?? null,
       publicVerifyState: r.publicVerifyState,
     }));
 }

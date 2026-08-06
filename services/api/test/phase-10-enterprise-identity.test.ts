@@ -24,6 +24,12 @@ vi.mock("../src/db.js", () => {
             // §policy-convergence — the policy write resolves the parent Customer org.
             if (model === "team" && method === "findUnique")
               return { organizationId: "org-1", organization: { kind: "CUSTOMER" } };
+            // PHASE 12 CORRECTION 1 — org-keyed writes validate the org kind
+            // directly and resolve a canonical team only for audit binding.
+            if (model === "organization" && method === "findUnique")
+              return { kind: "CUSTOMER" };
+            if (model === "team" && method === "findFirst")
+              return { id: "team-1" };
             if (model === "organizationSecurityPolicy" && method === "findUnique")
               return { organizationId: "org-1", policyVersion: 1 }; // existing v1 → patch bumps to v2
             if (method === "updateMany") return { count: 1 };
@@ -117,7 +123,7 @@ describe("§10.1 — versioned policy + session re-evaluation", () => {
     expect(evaluatePolicyVersion(policy, null).allowed).toBe(true); // legacy session tolerated
   });
   it("applySecurityPolicyPatch bumps the version and audits", async () => {
-    const next = await applySecurityPolicyPatch({ teamId: "ws-1", actorUserId: "admin-1", patch: { ssoRequired: true } });
+    const next = await applySecurityPolicyPatch({ organizationId: "org-1", actorUserId: "admin-1", patch: { ssoRequired: true } });
     expect(next.policyVersion).toBe(2);
     expect(next.ssoRequired).toBe(true);
     expect(H.writes.some((w) => /adminAuditLog|auditLog/i.test(w))).toBe(true);

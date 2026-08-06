@@ -187,7 +187,15 @@ describe("Phase 32.7.3 — listLegalHoldsForTeam uses explicit `select`", () => 
     const fnSlice = SRC.slice(fnIdx, fnIdx + 800);
     // The signature explicitly declares the bounded projection
     // type, NOT the full DbLegalHold[].
-    expect(fnSlice).toMatch(/Promise<LegalHoldProjection\[\]>/);
+    // PHASE 12B CLUSTER 8 — the bounded projection is narrowed further to the
+    // EVIDENCE-scoped shape (evidenceId non-null), because this reader is an
+    // evidence-hold surface and evidence_id became nullable when the table
+    // absorbed CASE / WORKSPACE holds. Still a bounded select, never the full
+    // DbLegalHold[].
+    expect(fnSlice).toMatch(/Promise<EvidenceScopedLegalHoldProjection\[\]>/);
+    expect(fnSlice).toMatch(/select: LEGAL_HOLD_SELECT/);
+    // …and it must be EXPLICIT about scope so a nullable target cannot widen it.
+    expect(fnSlice).toMatch(/scope: "EVIDENCE"/);
   });
 
   it("`createdAt` and `updatedAt` are NOT in the select (route doesn't project them)", () => {
@@ -203,64 +211,39 @@ describe("Phase 32.7.3 — listLegalHoldsForTeam uses explicit `select`", () => 
 
   it("projectLegalHold accepts LegalHoldProjection (bounded type)", () => {
     expect(SRC).toMatch(
-      /export function projectLegalHold\(hold:\s*LegalHoldProjection\)/,
+      /export function projectLegalHold\(hold:\s*EvidenceScopedLegalHoldProjection\)/,
     );
   });
 });
 
-describe("Phase 32.7.3 — listCaseLegalHolds uses explicit `select`", () => {
-  const SRC = readApi("src/services/governance/case-legal-hold.service.ts");
+describe("Phase 32.7.3 — the case-hold projection stays bounded", () => {
+  // PHASE 12 POINT 3 — the case-hold reader moved to the ONE canonical service
+  // when the legacy store was retired. The guarantee this block protects is
+  // unchanged: the projection returned to a route must never carry the
+  // internal-only `reason` / `releaseNote` columns. It is now enforced by the
+  // projection mapping instead of a Prisma `select`, so it is asserted on the
+  // emitted shape — which is what actually reaches a caller.
+  const SRC = readApi("src/services/governance/legal-hold.service.ts");
 
-  it("declares CASE_LEGAL_HOLD_SELECT constant with the projection's exact columns", () => {
-    const constIdx = SRC.indexOf("const CASE_LEGAL_HOLD_SELECT");
-    expect(constIdx).toBeGreaterThan(-1);
-    const block = SRC.slice(constIdx, constIdx + 1500);
-    expect(block).toMatch(/as const/);
-    // Phase 32.7.4 — createdAt / updatedAt removed from this
-    // select. The dedicated Phase 32.7.4 test file
-    // (phase-32-7-4-case-legal-holds-503-fix.test.ts) enforces
-    // that narrowing; this test now only asserts the surviving
-    // bounded set.
-    for (const field of [
-      "id",
-      "teamId",
-      "caseId",
-      "title",
-      "status",
-      "placedByUserId",
-      "placedAtUtc",
-      "releasedByUserId",
-      "releasedAtUtc",
-    ]) {
-      const re = new RegExp(`${field}:\\s*true`);
-      expect(block, `CASE_LEGAL_HOLD_SELECT missing ${field}: true`).toMatch(re);
-    }
-  });
-
-  it("findMany call passes the explicit select", () => {
-    const fnIdx = SRC.indexOf("export async function listCaseLegalHolds");
+  it("the case-scoped reader is scope-filtered and canonical", () => {
+    const fnIdx = SRC.indexOf("export async function listCaseScopedLegalHoldsLegacyShape");
     expect(fnIdx).toBeGreaterThan(-1);
-    const fnSlice = SRC.slice(fnIdx, fnIdx + 1500);
-    expect(fnSlice).toMatch(
-      /client\.caseLegalHold\.findMany\(\{[\s\S]{0,800}select:\s*CASE_LEGAL_HOLD_SELECT/,
-    );
+    const fn = SRC.slice(fnIdx, fnIdx + 2000);
+    expect(fn).toMatch(/scope: "CASE"/);
+    // No second store may reappear behind this reader.
+    expect(fn).not.toMatch(/client\.caseLegalHold\./);
   });
 
-  it("does NOT include `reason` or `releaseNote` (route never returns them — internal only)", () => {
-    // The original projection comment explicitly says "reason /
-    // releaseNote deliberately omitted — internal only". The
-    // bounded select preserves that omission.
-    const selectIdx = SRC.indexOf("CASE_LEGAL_HOLD_SELECT");
-    const selectEnd = SRC.indexOf("} as const", selectIdx);
-    const selectBlock = SRC.slice(selectIdx, selectEnd);
-    expect(selectBlock).not.toMatch(/^\s*reason:\s*true/m);
-    expect(selectBlock).not.toMatch(/^\s*releaseNote:\s*true/m);
-  });
-
-  it("projectCaseLegalHold accepts CaseLegalHoldProjection (bounded type)", () => {
-    expect(SRC).toMatch(
-      /export function projectCaseLegalHold\(hold:\s*CaseLegalHoldProjection\)/,
-    );
+  it("the emitted shape omits `reason` and `releaseNote` (internal only)", () => {
+    const typeIdx = SRC.indexOf("export type CaseScopedLegalHoldLegacyShape");
+    expect(typeIdx).toBeGreaterThan(-1);
+    const block = SRC.slice(typeIdx, SRC.indexOf("};", typeIdx));
+    expect(block).not.toMatch(/\breason\b/);
+    expect(block).not.toMatch(/\breleaseNote\b/);
+    // …while the columns a governance console legitimately renders survive.
+    expect(block).toMatch(/\bcaseId\b/);
+    expect(block).toMatch(/\bstatus\b/);
+    expect(block).toMatch(/\bplacedByUserId\b/);
   });
 });
 
@@ -285,38 +268,8 @@ describe("Phase 32.7.3 — governance fail-closed contract preserved", () => {
 });
 
 // =============================================================================
-// Part 5 — Route handlers still call the bounded select-using helpers
+// Part 5 — Phase 12 convergence removed the DEAD_LEGACY /v1/governance/
+// legal-holds + case-legal-holds route handlers (superseded by
+// /v1/lifecycle/legal-holds). The service-side bounded-select helpers they
+// used remain and are covered by Parts 3-4 above.
 // =============================================================================
-
-describe("Phase 32.7.3 — route handlers unchanged; the fix is service-side only", () => {
-  const SRC = readApi("src/routes/governance.routes.ts");
-
-  it("/v1/governance/legal-holds still calls listLegalHoldsForTeam inside runGovernanceHandler", () => {
-    const routeIdx = SRC.indexOf('"/v1/governance/legal-holds"');
-    expect(routeIdx).toBeGreaterThan(-1);
-    const routeBody = SRC.slice(routeIdx, routeIdx + 2000);
-    expect(routeBody).toMatch(/runGovernanceHandler\(reply,/);
-    expect(routeBody).toMatch(/listLegalHoldsForTeam/);
-    expect(routeBody).toMatch(/projectLegalHold/);
-  });
-
-  it("/v1/governance/case-legal-holds GET routes via per-endpoint optional-subsystem handler (Phase 32.7.6)", () => {
-    // Phase 32.7.6 — the case-legal-holds GET no longer uses
-    // runGovernanceHandler. It now uses an explicit try/catch with
-    // `isPrismaTableOrColumnMissing(err)` that returns 200 with an
-    // empty array when the underlying table/column is missing
-    // (Phase 14 feature not deployed in this environment). The
-    // service helpers `listCaseLegalHolds` + `projectCaseLegalHold`
-    // are still called.
-    const routeIdx = SRC.indexOf(
-      'app.get(\n    "/v1/governance/case-legal-holds"',
-    );
-    expect(routeIdx).toBeGreaterThan(-1);
-    const nextHandler = SRC.indexOf("app.post(", routeIdx);
-    const routeBody = SRC.slice(routeIdx, nextHandler);
-    expect(routeBody).not.toMatch(/runGovernanceHandler\(/);
-    expect(routeBody).toMatch(/isPrismaTableOrColumnMissing\(err\)/);
-    expect(routeBody).toMatch(/listCaseLegalHolds/);
-    expect(routeBody).toMatch(/projectCaseLegalHold/);
-  });
-});

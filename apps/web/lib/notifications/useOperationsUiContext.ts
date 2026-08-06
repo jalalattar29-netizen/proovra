@@ -134,18 +134,27 @@ export function deriveOperationsUiContext(
   const pf = input.planFeatures ?? NO_PLAN_FEATURES;
   const elig = input.operationalEligibility ?? null;
 
-  // Backend eligibility is authoritative when present. Its absence
-  // (degraded / pre-migration envelope) collapses participation-gated
-  // surfaces to FALSE — universal + incoming categories are unaffected,
+  // Backend eligibility is authoritative when present. Its absence — the
+  // envelope has not loaded, or a request failed — collapses
+  // participation-gated surfaces to FALSE. This is a fail-closed safety
+  // property, NOT backend-version compatibility: the API projects
+  // `operationalEligibility` on every envelope build (Phase 12 Point 4,
+  // Pass E). Universal + incoming categories are unaffected,
   // and a real item still reveals its category via the actual-item
   // override. Governance falls back to the capability verdict so it stays
   // correct even without the eligibility block.
   const canReceiveGovernance = elig
     ? elig.governance.canViewOperational
     : input.hasGovernanceCapability;
-  const canViewAdminAttention = elig
-    ? elig.security.hasAdminSurface
-    : activeOrgs.some((o) => o.role === "OWNER" || o.role === "ADMIN");
+  // PHASE 12 POINT 4 PASS C5 — the server decides who has an admin surface.
+  //
+  // This used to fall back to `activeOrgs.some(role === OWNER || ADMIN)`: on
+  // a missing projection the BROWSER decided admin visibility
+  // from raw organization roles, which is exactly the client-side role
+  // authority this pass removes — and it contradicted the file's own stated
+  // posture two blocks above (missing projection → conservative FALSE).
+  // Absence of the projection now hides the surface until the server answers.
+  const canViewAdminAttention = elig ? elig.security.hasAdminSurface : false;
   const canCollaborate = elig?.collaboration.hasActiveMembership ?? false;
   const hasPendingInvitation = elig?.collaboration.hasPendingInvitation ?? false;
   const canOwnTeamCollaboration =

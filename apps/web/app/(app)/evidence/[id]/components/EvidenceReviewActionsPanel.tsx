@@ -186,8 +186,9 @@ export function EvidenceReviewActionsPanel({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
+          // PHASE 12 POINT 4 PASS C5 — the workspace subject is DERIVED from
+          // the record by the server; the browser does not name the tenant.
           body: JSON.stringify({
-            teamId,
             decision,
             note,
             ...(decision === "ESCALATE" ? { escalationReason: note } : {}),

@@ -325,7 +325,9 @@ test("Backend /v1/cases/:id/available-evidence now also excludes archived eviden
   // The where-clause must include all three lifecycle filters.
   assert.match(window, /deletedAt: null/);
   assert.match(window, /archivedAt: null/);
-  assert.match(window, /caseId: null/);
+  // PHASE 12B Case-Evidence convergence: Evidence.caseId is gone;
+  // unattached evidence is expressed via the CaseEvidenceLink authority.
+  assert.match(window, /caseLinks:\s*\{\s*none:/);
 });
 
 test("Backend /v1/cases/:id/available-evidence response shape stays backward-compatible (every prior field is still emitted)", () => {

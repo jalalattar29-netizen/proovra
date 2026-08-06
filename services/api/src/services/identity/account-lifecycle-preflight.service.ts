@@ -41,6 +41,39 @@ export type AccountClosureBlocker = {
   count: number;
 };
 
+/**
+ * PHASE 12B CLUSTER 8 — ACTIVE hold count across ALL THREE legal-hold stores,
+ * for ANY scope (evidence / case / workspace).
+ *
+ * The canonical table is the authority, but until the backfill migration is
+ * applied a hold can still live only in `case_legal_holds` or `legal_holds`.
+ * Account and workspace closure is irreversible, so this count must see every
+ * store — under-counting here would dissolve custodial accountability while a
+ * hold is in force.
+ *
+ * Degrades to 0 ONLY for a genuinely-absent legacy relation; any other error
+ * propagates, because "we could not check" must never read as "no holds".
+ */
+async function countActiveHoldsAllStores(scope: {
+  teamId?: string;
+  team?: { ownerUserId?: string; organizationId?: string };
+}): Promise<number> {
+  const teamFilter = scope.teamId
+    ? { teamId: scope.teamId }
+    : { team: scope.team };
+
+  // PHASE 12 POINT 3 — canonical-only. This previously summed the canonical
+  // table with counts from `case_legal_holds` and `legal_holds`. The backfill
+  // (20271107000000) copied every row of both stores into the canonical table
+  // with a deterministic (source_store, source_row_id) key, so adding the
+  // legacy counts on top now DOUBLE-COUNTS every converted hold — and the
+  // queries throw outright once 20271108000000 drops those tables. One count
+  // over the one authority is both correct and drop-safe.
+  return prisma.evidenceLegalHold.count({
+    where: { status: "ACTIVE", ...teamFilter },
+  });
+}
+
 export async function evaluateAccountClosurePreflight(
   userId: string,
 ): Promise<{ blockers: AccountClosureBlocker[] }> {
@@ -56,9 +89,10 @@ export async function evaluateAccountClosurePreflight(
         where: { ownerUserId: userId },
         select: { id: true },
       }),
-      prisma.evidenceLegalHold.count({
-        where: { status: "ACTIVE", team: { ownerUserId: userId } },
-      }),
+      // PHASE 12B CLUSTER 8 — count ACTIVE holds of EVERY scope across ALL
+      // stores. Closing an account is irreversible, so a hold sitting in a
+      // not-yet-converted legacy store has to block it too.
+      countActiveHoldsAllStores({ team: { ownerUserId: userId } }),
       prisma.subscription.count({
         where: { userId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
       }),
@@ -168,9 +202,8 @@ export async function evaluateOrganizationClosurePreflight(
       prisma.organizationMembership.count({
         where: { organizationId: orgId, userId: { not: ownerUserId } },
       }),
-      prisma.evidenceLegalHold.count({
-        where: { status: "ACTIVE", team: { organizationId: orgId } },
-      }),
+      // PHASE 12B CLUSTER 8 — all scopes, all stores.
+      countActiveHoldsAllStores({ team: { organizationId: orgId } }),
       prisma.team.count({
         where: {
           organizationId: orgId,
@@ -266,9 +299,8 @@ export async function evaluateWorkspaceClosurePreflight(
         where: { id: teamId },
         select: { isPersonal: true, billingStatus: true },
       }),
-      prisma.evidenceLegalHold.count({
-        where: { teamId, status: "ACTIVE" },
-      }),
+      // PHASE 12B CLUSTER 8 — all scopes, all stores.
+      countActiveHoldsAllStores({ teamId }),
       prisma.subscription.count({
         where: { teamId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
       }),

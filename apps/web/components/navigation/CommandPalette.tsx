@@ -47,12 +47,6 @@ import {
   resolveRouteAccess,
   type RouteAccessResult,
 } from "../../lib/navigation/routeAccessResolver";
-// Phase IA-surface-tier — command palette applies the surface-tier
-// visibility filter. ENTERPRISE / INTERNAL surfaces never reach the
-// palette for a non-eligible user so they cannot be quick-navigated
-// to via Cmd+K.
-import { canAccessSurface } from "../../lib/surface/access";
-import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import { Badge, type BadgeTone } from "../ui/Badge";
 
 type IndexedItem = {
@@ -83,8 +77,6 @@ function badgeForAccessState(state: string): { label: string; tone: BadgeTone } 
 
 export function CommandPalette() {
   const { envelope } = usePlatformContext();
-  // Phase IA-surface-tier — surface user context for cmd-K filter.
-  const surfaceUserCtx = useSurfaceUserContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
   // platform-context hooks — direct envelope reads for the workspace
   // fragment are forbidden outside lib/platform-context (see
@@ -102,15 +94,18 @@ export function CommandPalette() {
   const indexed = useMemo<IndexedItem[]>(() => {
     const items: IndexedItem[] = [];
     for (const route of ROUTE_REGISTRY) {
-      // Phase IA-surface-tier — filter ENTERPRISE / INTERNAL surfaces
-      // out of the cmd-K corpus for non-eligible users.
-      if (!canAccessSurface(surfaceUserCtx, route.href)) continue;
+      // Track 1A (surface-tier removal) — the ONE resolver decides.
+      // Enterprise + commercial gating come from the SERVER-projected
+      // flags/planFeatures booleans passed below (canSeeNav: false
+      // excludes those routes from the cmd-K corpus).
       const access = resolveRouteAccess({
         route,
         activeSpaceType: envelope?.activeSpace?.type ?? null,
         isPlatformAdmin: envelope?.platform?.isPlatformAdmin === true,
         capabilities: envelope?.capabilities ?? {},
         accountPlan: envelope?.account?.accountPlan ?? null,
+        isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
+        planFeatures: envelope?.planFeatures ?? null,
         // PERSONAL-FIRST RESCUE — pass envelope fragments so the gate
         // can fall back to workspace.id / personalSpace.id when
         // activeSpace.type is missing from the backend projection.
@@ -130,7 +125,7 @@ export function CommandPalette() {
       items.push({ route, access, rank });
     }
     return items;
-  }, [envelope, surfaceUserCtx, workspaceFragment, personalSpaceFragment]);
+  }, [envelope, workspaceFragment, personalSpaceFragment]);
 
   // Filter + rank for the current query.
   const results = useMemo<IndexedItem[]>(() => {

@@ -37,7 +37,6 @@ import {
   detectStuckWorkflow,
   rankReviewerSuggestions,
   type EscalationSeverity,
-  type EvidencePriorityHint,
   type PriorityFacts,
   type PriorityScoreResult,
   type RankerResult,
@@ -180,15 +179,6 @@ function mapSlaStatus(status: string | null | undefined): WorkflowSlaStatus {
 
 function mapReviewStatus(status: string | null | undefined): string {
   return status ?? "UNKNOWN";
-}
-
-function mapEvidencePriority(
-  priority: string | null | undefined,
-): EvidencePriorityHint {
-  if (priority === "CRITICAL" || priority === "HIGH" || priority === "NORMAL" || priority === "LOW") {
-    return priority;
-  }
-  return null;
 }
 
 function isExternalIntakeFromActor(role: string | null | undefined): boolean {

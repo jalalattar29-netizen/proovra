@@ -498,6 +498,26 @@
   cursor: default;
 }
 
+/* Text input — same token set as .ops-select so single-line entry inside
+   an ops panel matches the selects beside it. */
+.ops-input {
+  font-size: 12.5px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--ink-primary);
+  border-radius: var(--radius-sm);
+  max-width: 320px;
+}
+.ops-input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.ops-input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Checkbox toggle wrapper — busy/locked state via data attributes. */
 .ops-toggle {
   display: inline-flex;

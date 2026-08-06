@@ -7,6 +7,7 @@ datasource db {
 }
 
 model Evidence {
+  departmentId                     String?             @map("department_id") @db.Uuid
   id                               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title                            String?             @db.VarChar(160)
   internalNotes                    String?             @map("internal_notes")
@@ -132,7 +133,6 @@ model Evidence {
   retentionUntilUtc        DateTime? @map("retention_until_utc") @db.Timestamptz(6)
   deviceTimeIso            String?   @map("device_time_iso") @db.VarChar(64)
   signingKeyVersion        Int?      @map("signing_key_version")
-  caseId                   String?   @map("case_id") @db.Uuid
   teamId                   String?   @map("team_id") @db.Uuid
   guestIdentityId          String?   @map("guest_identity_id") @db.Uuid
   lockedAt                 DateTime? @map("locked_at") @db.Timestamptz(6)
@@ -274,6 +274,12 @@ model Evidence {
   // Phase 32.8C++++ — Dashboard intelligence back-relations.
   integritySnapshot EvidenceIntegritySnapshot? @relation("EvidenceIntegritySnapshot")
   accessAnomalies   AccessAnomaly[]            @relation("AccessAnomalyEvidence")
+
+  // Track 1B closure — CaseEvidenceLink is the ONE case↔evidence
+  // relationship authority. The legacy `caseId` scalar mirror was
+  // dropped (migration 20271105000000_evidence_case_id_removal);
+  // all case association reads go through this relation.
+  caseLinks CaseEvidenceLink[]
 
   // Phase A1 — declared organization relation. Until the Phase A1
   // backfill completes, this field remains nullable; the matching
@@ -419,12 +425,17 @@ model Case {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  access        CaseAccess[]
-  legalHolds    CaseLegalHold[]
+  access              CaseAccess[]
+  // PHASE 12B CLUSTER 8 — CASE-scoped rows in the canonical legal-hold
+  // table (evidence_legal_holds). Restrict on delete: a Case with a
+  // preservation control cannot be removed out from under it.
+  canonicalLegalHolds EvidenceLegalHold[] @relation("CaseCanonicalLegalHolds")
   // Phase 32.8D — Matter Workspace relations.
-  assignments   CaseAssignment[]
-  statusHistory CaseStatusHistory[]
-  riskSnapshots CaseRiskSnapshot[]
+  assignments         CaseAssignment[]
+  statusHistory       CaseStatusHistory[]
+  riskSnapshots       CaseRiskSnapshot[]
+  // Track 1B closure — canonical case↔evidence links.
+  evidenceLinks       CaseEvidenceLink[]
 
   @@unique([teamId, referenceNumber], name: "case_team_reference_number_uniq")
   @@index([ownerUserId])
@@ -904,6 +915,8 @@ model User {
   governancePolicyUpdates           WorkspaceGovernancePolicy[]   @relation("WorkspaceGovernancePolicyUpdatedBy")
   placedLegalHolds                  EvidenceLegalHold[]           @relation("LegalHoldPlacedBy")
   releasedLegalHolds                EvidenceLegalHold[]           @relation("LegalHoldReleasedBy")
+  // PHASE 12B CLUSTER 8 — release-approval attribution back-relation.
+  approvedLegalHoldReleases         EvidenceLegalHold[]           @relation("LegalHoldReleaseApprovedBy")
   createdApiCredentials             ApiCredential[]               @relation("ApiCredentialCreatedBy")
   revokedApiCredentials             ApiCredential[]               @relation("ApiCredentialRevokedBy")
   createdWebhookEndpoints           WebhookEndpoint[]             @relation("WebhookEndpointCreatedBy")
@@ -2199,31 +2212,31 @@ model AnalyticsSession {
 }
 
 model AdminAuditLog {
-  id           String    @id @default(uuid())
-  userId       String?   @map("user_id")
-  isPublic     Boolean   @default(false) @map("is_public")
-  action       String
-  category     String?   @db.VarChar(64)
-  severity     String?   @db.VarChar(16)
-  source       String?   @db.VarChar(64)
-  outcome      String?   @db.VarChar(24)
-  resourceType String?   @map("resource_type") @db.VarChar(64)
-  resourceId   String?   @map("resource_id") @db.VarChar(128)
+  id             String    @id @default(uuid())
+  userId         String?   @map("user_id")
+  isPublic       Boolean   @default(false) @map("is_public")
+  action         String
+  category       String?   @db.VarChar(64)
+  severity       String?   @db.VarChar(16)
+  source         String?   @db.VarChar(64)
+  outcome        String?   @db.VarChar(24)
+  resourceType   String?   @map("resource_type") @db.VarChar(64)
+  resourceId     String?   @map("resource_id") @db.VarChar(128)
   // PHASE 11 — authoritative tenant columns for DB-level scope filtering (NOT
   // part of the hash chain — additive, so historical hashes stay valid). The
   // canonical tenant-audit facade populates these from persisted context; the
   // query authority filters on the COLUMN, never on arbitrary JSON metadata.
-  organizationId String? @map("organization_id") @db.Uuid
-  workspaceId    String? @map("workspace_id") @db.Uuid
-  requestId    String?   @map("request_id") @db.VarChar(64)
-  metadata     Json
-  ipAddress    String?   @map("ip_address") @db.VarChar(45)
-  userAgent    String?   @map("user_agent") @db.VarChar(512)
-  hash         String    @db.VarChar(64)
-  prevHash     String?   @map("prev_hash") @db.VarChar(64)
-  chainVersion Int       @default(2) @map("chain_version")
-  anchoredAt   DateTime? @map("anchored_at") @db.Timestamptz(6)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  organizationId String?   @map("organization_id") @db.Uuid
+  workspaceId    String?   @map("workspace_id") @db.Uuid
+  requestId      String?   @map("request_id") @db.VarChar(64)
+  metadata       Json
+  ipAddress      String?   @map("ip_address") @db.VarChar(45)
+  userAgent      String?   @map("user_agent") @db.VarChar(512)
+  hash           String    @db.VarChar(64)
+  prevHash       String?   @map("prev_hash") @db.VarChar(64)
+  chainVersion   Int       @default(2) @map("chain_version")
+  anchoredAt     DateTime? @map("anchored_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([userId])
   @@index([action])
@@ -3315,6 +3328,45 @@ enum EvidenceDeletionMode {
 enum LegalHoldStatus {
   ACTIVE
   RELEASED
+  // PHASE 12B CLUSTER 8 — canonical legal-hold convergence. The legacy
+  // scope-generic `legal_holds` table carried an EXPIRED state that
+  // `evidence_legal_holds` could not represent. EXPIRED is NOT an active
+  // hold, but it must round-trip so a converged row never has to be
+  // downgraded to RELEASED (which would falsely attribute a release
+  // decision to an operator).
+  EXPIRED
+}
+
+// PHASE 12B CLUSTER 8 — explicit scope for the canonical legal-hold model.
+// EVIDENCE  → protects exactly one Evidence row (evidence_id NOT NULL).
+// CASE      → protects every Evidence linked to the Case (case_id NOT NULL).
+// WORKSPACE → protects every Evidence in the workspace (no target columns).
+// The scope/target consistency is enforced by a CHECK constraint in
+// migration 20271106000000_legal_hold_canonical, not by Prisma.
+enum LegalHoldScope {
+  EVIDENCE
+  CASE
+  WORKSPACE
+}
+
+// PHASE 12B CLUSTER 8 — release-approval attribution for the canonical
+// legal-hold model. NOT_REQUIRED is the default; when the workspace
+// governance policy `requireLegalHoldReleaseApproval` is on at placement
+// time the hold is written with PENDING and can only be released once an
+// approver has been recorded (APPROVED).
+enum LegalHoldReleaseApprovalState {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+}
+
+// PHASE 12B CLUSTER 8 — provenance of a canonical legal-hold row. Backfilled
+// rows keep the store they came from so the convergence is auditable and
+// re-runnable; duplicate semantic holds keep BOTH provenance records.
+enum LegalHoldSourceStore {
+  EVIDENCE_LEGAL_HOLD
+  CASE_LEGAL_HOLD
+  LIFECYCLE_LEGAL_HOLD
 }
 
 model EvidenceWorkflowTemplate {
@@ -3917,6 +3969,19 @@ model WorkspaceGovernancePolicy {
   requirePublicationApproval      Boolean @default(false) @map("require_publication_approval")
   requireLegalHoldReleaseApproval Boolean @default(false) @map("require_legal_hold_release_approval")
 
+  // PHASE 12B CLUSTER 9 — optimistic-concurrency version.
+  //
+  // Every ACCEPTED `PUT /v1/governance/policy` increments this by exactly one
+  // inside the same conditional UPDATE that writes the patch, so two
+  // concurrent policy edits can never both win. A caller whose
+  // `expectedVersion` no longer matches is refused with
+  // 409 POLICY_VERSION_CONFLICT and mutates nothing.
+  //
+  // Rows that predate this column are version 1 (migration
+  // 20271109000000_workspace_governance_policy_version backfills them
+  // deterministically); "no row at all" is reported to clients as version 0.
+  version Int @default(1)
+
   updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -3940,11 +4005,36 @@ model WorkspaceGovernancePolicy {
 // as preserved-pending-review.
 // -----------------------------------------------------------------------------
 
+// PHASE 12B CLUSTER 8 — CANONICAL LEGAL-HOLD MODEL.
+//
+// `evidence_legal_holds` is the ONE legal-hold authority. It absorbed the
+// scope-generic `legal_holds` table and the case-only `case_legal_holds`
+// table because it already carried the strongest integrity guarantees
+// (real FKs to Team / Evidence / User, a release note, a status enum, and
+// placed-by / released-by attribution). Extending it — rather than
+// inventing a new polymorphic table — preserves explicit referential
+// integrity instead of trading it for an unvalidated polymorphic target.
+//
+// Reads and writes go through services/api/src/services/governance/
+// legal-hold.service.ts (one placement command, one release command) and
+// services/api/src/services/governance/effective-legal-hold.ts (the ONE
+// destruction-gate evaluator, mirrored byte-for-byte in
+// services/worker/src/governance/effective-legal-hold.ts).
 model EvidenceLegalHold {
-  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId     String  @map("team_id") @db.Uuid
-  evidenceId String  @map("evidence_id") @db.Uuid
-  caseId     String? @map("case_id") @db.Uuid
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId String @map("team_id") @db.Uuid
+
+  // CLUSTER 8 — explicit scope. `evidenceId` became nullable ONLY because
+  // CASE and WORKSPACE scopes have no single evidence target. The
+  // scope/target consistency CHECK constraint lives in the migration.
+  scope LegalHoldScope @default(EVIDENCE)
+
+  evidenceId     String? @map("evidence_id") @db.Uuid
+  caseId         String? @map("case_id") @db.Uuid
+  // CLUSTER 8 — organization binding alongside teamId for workspaces that
+  // resolve to an Organization. Never used as a tenant key on its own;
+  // teamId remains the tenant authority on every query.
+  organizationId String? @map("organization_id") @db.Uuid
 
   title  String  @db.VarChar(180)
   reason String? @db.VarChar(4000)
@@ -3955,18 +4045,59 @@ model EvidenceLegalHold {
   releasedByUserId String?         @map("released_by_user_id") @db.Uuid
   releasedAtUtc    DateTime?       @map("released_at_utc") @db.Timestamptz(6)
   releaseNote      String?         @map("release_note") @db.VarChar(4000)
+  // CLUSTER 8 — absorbed from the scope-generic store. An expiry does NOT
+  // auto-release: the evaluator treats a passed expiry as not-active, and
+  // the status column is only moved to EXPIRED by an explicit sweep.
+  expiresAtUtc     DateTime?       @map("expires_at_utc") @db.Timestamptz(6)
+
+  // CLUSTER 8 — release-approval gate (WorkspaceGovernancePolicy
+  // `requireLegalHoldReleaseApproval`) captured ON the hold so the control
+  // survives a later policy change.
+  releaseApprovalRequired Boolean                       @default(false) @map("release_approval_required")
+  releaseApprovalState    LegalHoldReleaseApprovalState @default(NOT_REQUIRED) @map("release_approval_state")
+  releaseApprovedByUserId String?                       @map("release_approved_by_user_id") @db.Uuid
+  releaseApprovedAtUtc    DateTime?                     @map("release_approved_at_utc") @db.Timestamptz(6)
+
+  // CLUSTER 8 — which WorkspaceGovernancePolicy revision governed the
+  // placement / the release. Free-form attribution string
+  // (`wgp:<policyRowId>@<updatedAt ISO>`); NULL on legacy + backfilled rows.
+  policyVersionAttribution        String? @map("policy_version_attribution") @db.VarChar(200)
+  releasePolicyVersionAttribution String? @map("release_policy_version_attribution") @db.VarChar(200)
+
+  // CLUSTER 8 — optimistic concurrency. Every canonical mutation bumps
+  // this; a stale `expectedVersion` is a 409, never a lost update.
+  version Int @default(1)
+
+  // CLUSTER 8 — convergence provenance. `sourceStore`+`sourceRowId` is the
+  // deterministic idempotency key that makes the backfill migration
+  // re-runnable without ever duplicating a hold. NULL sourceRowId means the
+  // row was authored natively through the canonical service.
+  sourceStore LegalHoldSourceStore @default(EVIDENCE_LEGAL_HOLD) @map("source_store")
+  sourceRowId String?              @map("source_row_id") @db.Uuid
+  // CLUSTER 8 — an orphaned hold (its target row no longer exists) is
+  // preserved as HISTORICAL rather than dropped. HISTORICAL rows are
+  // exempt from the scope/target CHECK and are never treated as active.
+  historical  Boolean              @default(false)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  evidence   Evidence @relation("EvidenceLegalHolds", fields: [evidenceId], references: [id], onDelete: Cascade)
-  placedBy   User     @relation("LegalHoldPlacedBy", fields: [placedByUserId], references: [id], onDelete: Restrict)
-  releasedBy User?    @relation("LegalHoldReleasedBy", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  team              Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  evidence          Evidence?     @relation("EvidenceLegalHolds", fields: [evidenceId], references: [id], onDelete: Cascade)
+  // CLUSTER 8 — the bare `case_id` column now has referential integrity.
+  // Restrict (not Cascade): deleting a Case must never silently destroy a
+  // preservation control.
+  legalCase         Case?         @relation("CaseCanonicalLegalHolds", fields: [caseId], references: [id], onDelete: Restrict)
+  organization      Organization? @relation("OrganizationCanonicalLegalHolds", fields: [organizationId], references: [id], onDelete: Restrict)
+  placedBy          User          @relation("LegalHoldPlacedBy", fields: [placedByUserId], references: [id], onDelete: Restrict)
+  releasedBy        User?         @relation("LegalHoldReleasedBy", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  releaseApprovedBy User?         @relation("LegalHoldReleaseApprovedBy", fields: [releaseApprovedByUserId], references: [id], onDelete: SetNull)
 
+  @@unique([sourceStore, sourceRowId], name: "legal_hold_source_identity")
   @@index([teamId, status])
   @@index([evidenceId, status])
-  @@index([caseId])
+  @@index([caseId, status])
+  @@index([teamId, scope, status])
   @@index([placedByUserId])
   @@map("evidence_legal_holds")
 }
@@ -4460,44 +4591,6 @@ enum EvidenceLifecycleState {
   /// Operator-archived (not destroyed). Retains all integrity
   /// metadata but is hidden from active surfaces.
   ARCHIVED
-}
-
-// CaseLegalHoldStatus — same shape as EvidenceLegalHold for symmetry.
-enum CaseLegalHoldStatus {
-  ACTIVE
-  RELEASED
-}
-
-// CaseLegalHold — case-level preservation control. Sibling to
-// EvidenceLegalHold; an active hold on the case BLOCKS retention
-// cleanup on every evidence row in that case (resolved at sweeper
-// time via the inheritance helper in governance.service.ts).
-//
-// Holds do NOT assert legal admissibility or authenticity. They are
-// internal preservation controls that flag the linked records as
-// "preserved pending review".
-model CaseLegalHold {
-  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId           String              @map("team_id") @db.Uuid
-  caseId           String              @map("case_id") @db.Uuid
-  title            String              @db.VarChar(180)
-  reason           String?             @db.VarChar(4000)
-  status           CaseLegalHoldStatus @default(ACTIVE)
-  placedByUserId   String              @map("placed_by_user_id") @db.Uuid
-  placedAtUtc      DateTime            @default(now()) @map("placed_at_utc") @db.Timestamptz(6)
-  releasedByUserId String?             @map("released_by_user_id") @db.Uuid
-  releasedAtUtc    DateTime?           @map("released_at_utc") @db.Timestamptz(6)
-  releaseNote      String?             @map("release_note") @db.VarChar(4000)
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
-
-  @@index([teamId, status])
-  @@index([caseId, status])
-  @@index([placedByUserId])
-  @@map("case_legal_holds")
 }
 
 // =============================================================================
@@ -5173,28 +5266,28 @@ model OrganizationSecurityPolicy {
   //
   // §10.1 versioning — bumped on every canonical update; sessions issued
   // before the current version are re-evaluated (stale-policy revocation).
-  policyVersion Int @default(1) @map("policy_version")
+  policyVersion           Int      @default(1) @map("policy_version")
   // §10.2 mandatory SSO — managed internal identities must authenticate via
   // the org SSO connection; password/social OAuth into the org is denied.
-  ssoRequired Boolean @default(false) @map("sso_required")
+  ssoRequired             Boolean  @default(false) @map("sso_required")
   // §10.3 managed identity required — new org members are provisioned as
   // MANAGED_ENTERPRISE (org-controlled, no personal space/export).
-  managedIdentityRequired Boolean @default(false) @map("managed_identity_required")
+  managedIdentityRequired Boolean  @default(false) @map("managed_identity_required")
   // §10.5 no personal space — managed sessions never bootstrap/route into a
   // personal workspace; existing personal Evidence is preserved, never seized.
-  noPersonalSpace Boolean @default(false) @map("no_personal_space")
+  noPersonalSpace         Boolean  @default(false) @map("no_personal_space")
   // §10.4 bundled security mode — STANDARD | HIGH_SECURITY. HIGH_SECURITY
   // composes ssoRequired + managedIdentityRequired + noPersonalSpace + strict
   // session controls, activated atomically after prerequisite validation.
-  securityMode String @default("STANDARD") @map("security_mode") @db.VarChar(32)
+  securityMode            String   @default("STANDARD") @map("security_mode") @db.VarChar(32)
   // §10.7 session/domain controls (supported set only). Null = unset.
-  maxSessionAgeSeconds  Int?     @map("max_session_age_seconds")
-  idleTimeoutSeconds    Int?     @map("idle_timeout_seconds")
-  concurrentSessionLimit Int?    @map("concurrent_session_limit")
-  stepUpIntervalSeconds Int?     @map("step_up_interval_seconds")
+  maxSessionAgeSeconds    Int?     @map("max_session_age_seconds")
+  idleTimeoutSeconds      Int?     @map("idle_timeout_seconds")
+  concurrentSessionLimit  Int?     @map("concurrent_session_limit")
+  stepUpIntervalSeconds   Int?     @map("step_up_interval_seconds")
   // §10.7 allowed authentication methods (empty = no restriction). Values:
   // PASSWORD | OAUTH | SSO.
-  allowedAuthMethods String[] @default([]) @map("allowed_auth_methods")
+  allowedAuthMethods      String[] @default([]) @map("allowed_auth_methods")
 
   // §policy-lifecycle (§1.2) — Workspace deletion NEVER deletes the policy
   // (SetNull). Organization deletion does NOT cascade the policy either: it is
@@ -5215,21 +5308,21 @@ model OrganizationSecurityPolicy {
 // billing actions are denied by default (enforced at the action layer via the
 // grant's restricted role). Migration 20271001000000 (authored, NOT applied).
 model EmergencyAccessGrant {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
   // The pre-configured emergency identity actually using the grant.
-  emergencyUserId String   @map("emergency_user_id") @db.Uuid
+  emergencyUserId   String    @map("emergency_user_id") @db.Uuid
   // Restricted role the grant confers (default read-only diagnostic).
-  grantedRole    String    @default("EMERGENCY_READ_ONLY") @map("granted_role") @db.VarChar(48)
-  reason         String    @db.VarChar(600)
-  status         String    @default("ACTIVE") @map("status") @db.VarChar(24)
-  requestedByUserId String @map("requested_by_user_id") @db.Uuid
+  grantedRole       String    @default("EMERGENCY_READ_ONLY") @map("granted_role") @db.VarChar(48)
+  reason            String    @db.VarChar(600)
+  status            String    @default("ACTIVE") @map("status") @db.VarChar(24)
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
   // Strong-auth / step-up proof id recorded at activation.
-  stepUpProofId  String?   @map("step_up_proof_id") @db.VarChar(128)
-  startedAtUtc   DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
-  expiresAtUtc   DateTime  @map("expires_at_utc") @db.Timestamptz(6)
-  revokedAtUtc   DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
-  revokedByUserId String?  @map("revoked_by_user_id") @db.Uuid
+  stepUpProofId     String?   @map("step_up_proof_id") @db.VarChar(128)
+  startedAtUtc      DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
+  expiresAtUtc      DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  revokedAtUtc      DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId   String?   @map("revoked_by_user_id") @db.Uuid
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -5245,21 +5338,21 @@ model EmergencyAccessGrant {
 // minimal by default; destructive & security/billing/ownership actions denied.
 // Migration 20271001000000 (authored, NOT applied).
 model SupportAccessGrant {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // The support actor (a distinct identity — never the customer user).
-  supportUserId  String    @map("support_user_id") @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
+  supportUserId    String    @map("support_user_id") @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
   // Optional narrower workspace scope within the org.
-  teamId         String?   @map("team_id") @db.Uuid
-  reason         String    @db.VarChar(600)
+  teamId           String?   @map("team_id") @db.Uuid
+  reason           String    @db.VarChar(600)
   // READ_ONLY (default) | ELEVATED (requires separate explicit capability).
-  accessLevel    String    @default("READ_ONLY") @map("access_level") @db.VarChar(24)
-  status         String    @default("ACTIVE") @map("status") @db.VarChar(24)
+  accessLevel      String    @default("READ_ONLY") @map("access_level") @db.VarChar(24)
+  status           String    @default("ACTIVE") @map("status") @db.VarChar(24)
   // Customer/admin approval where policy requires (approver identity).
-  approvedByUserId String? @map("approved_by_user_id") @db.Uuid
-  startedAtUtc   DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
-  expiresAtUtc   DateTime  @map("expires_at_utc") @db.Timestamptz(6)
-  revokedAtUtc   DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  approvedByUserId String?   @map("approved_by_user_id") @db.Uuid
+  startedAtUtc     DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
+  expiresAtUtc     DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  revokedAtUtc     DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
 
   supportUser  User         @relation("SupportAccessActor", fields: [supportUserId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -5748,6 +5841,28 @@ model StepUpChallenge {
   // explicitly intended.
   resourceKind String? @map("resource_kind") @db.VarChar(64)
   resourceId   String? @map("resource_id") @db.VarChar(128)
+
+  // PHASE 12B B3 — SESSION + ORGANIZATION binding.
+  //
+  // sessionIdHash: the canonical hash of the session that STARTED the
+  //   challenge (`req.user.sessionIdHash`, the same value the session
+  //   revocation store keys on). Without it an approved challenge was
+  //   bearer-like: a stolen cookie replayed from another device could spend
+  //   an elevation the legitimate operator had just approved. The consume
+  //   path requires an exact match when the column is set.
+  //
+  // organizationId: the Organization the challenge was minted against,
+  //   DERIVED FROM PERSISTENCE (Team.organizationId) at start time — never
+  //   from a request field. Defence in depth over the teamId binding: an
+  //   administrator of both Organization A and B cannot spend an A-minted
+  //   elevation against a B-owned target.
+  //
+  // Both are NULLABLE because rows created before this migration cannot be
+  // backfilled with a session that has since ended. Enforcement is
+  // "match when present"; every NEW challenge is written with both set, so
+  // the unbound window closes as pre-existing rows expire (max TTL 1h).
+  sessionIdHash  String? @map("session_id_hash") @db.VarChar(128)
+  organizationId String? @map("organization_id") @db.Uuid
 
   status StepUpChallengeStatus @default(PENDING)
 
@@ -7113,6 +7228,26 @@ model EvidenceSearchDocument {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  // PHASE 12 POINT 5 — DECLARED, not added.
+  //
+  // This column has existed since the Phase-24/31 drift consolidation and is
+  // created by two historical migrations, but the datamodel never declared it,
+  // so `db:raw-schema-verify` saw a column PROPOSED FOR REMOVAL and hard-failed
+  // — the datamodel must own existence.
+  //
+  // Nobody noticed because it is EXTENSION-CONDITIONAL: without pgvector the
+  // migration that creates it is guarded out, the column is absent, and the
+  // check is clean. Point 5 makes pgvector a production prerequisite (the
+  // embedding chain cannot run without it), so the condition that hid this is
+  // now the condition that is required.
+  //
+  // Declared exactly as its sibling `EvidenceSemanticChunk.embeddingVector` is
+  // — `Unsupported`, because Prisma has no first-class vector type and every
+  // read and write goes through `$queryRaw`. On a database without the
+  // extension it becomes an extension-conditional ADDED-column divergence,
+  // which is registered in `raw-schema-ownership.json` like the other one.
+  embedding Unsupported("vector(384)")?
+
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, documentType, sourceId])
@@ -7734,7 +7869,7 @@ model AuthenticatedSession {
 
   team                Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
   organizationContext Organization? @relation("AuthenticatedSessionOrgContext", fields: [organizationContextId], references: [id], onDelete: SetNull)
-  user User  @relation("AuthenticatedSessionUser", fields: [userId], references: [id], onDelete: Cascade)
+  user                User          @relation("AuthenticatedSessionUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sessionIdHash])
   @@index([teamId, revokedAtUtc])
@@ -7927,10 +8062,11 @@ model GeoIntelligenceLookup {
 // =============================================================================
 //
 // Adds four first-class governance models on top of the Phase 14 +
-// 17 + 21 retention/hold/incident infrastructure. The existing
-// EvidenceLegalHold + CaseLegalHold tables remain the source of truth
-// for holds; this phase adds the policy versioning, destruction
-// review queue, and lifecycle ledger.
+// 17 + 21 retention/hold/incident infrastructure. EvidenceLegalHold is
+// the ONE source of truth for holds — the CaseLegalHold table this
+// comment used to name alongside it was absorbed into it and dropped by
+// 20271108000000_legal_hold_legacy_removal. This phase adds the policy
+// versioning, destruction review queue, and lifecycle ledger.
 //
 //   1. RetentionPolicy — first-class versioned retention policy
 //      object. The Phase 14 WorkspaceGovernancePolicy default-int
@@ -8719,14 +8855,20 @@ enum CaseEvidenceLinkSource {
   WORKFLOW
 }
 
-/// CaseEvidenceLink — many-to-many evidence ↔ case linkage. The legacy
-/// `Evidence.caseId` singular column remains for backwards-compatible
-/// reads; new linkages go through this table.
+/// CaseEvidenceLink — many-to-many evidence ↔ case linkage. This table
+/// is the ONE case↔evidence relationship authority. The legacy
+/// `Evidence.caseId` singular column was dropped by migration
+/// 20271105000000_evidence_case_id_removal; every read and write goes
+/// through this table.
 model CaseEvidenceLink {
-  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId     String @map("team_id") @db.Uuid
-  caseId     String @map("case_id") @db.Uuid
-  evidenceId String @map("evidence_id") @db.Uuid
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Track 1B — nullable: personal-workspace cases have `teamId = null`
+  /// (mirrors Case.teamId / Evidence.teamId). Was NOT NULL, which made it
+  /// impossible to represent a personal-scope link; relaxed by migration
+  /// 20271103000000_case_evidence_link_canonical.
+  teamId     String? @map("team_id") @db.Uuid
+  caseId     String  @map("case_id") @db.Uuid
+  evidenceId String  @map("evidence_id") @db.Uuid
 
   role   CaseEvidenceLinkRole   @default(SUPPORTING)
   source CaseEvidenceLinkSource @default(USER)
@@ -8738,6 +8880,9 @@ model CaseEvidenceLink {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  case     Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@unique([caseId, evidenceId, role])
   @@index([teamId, linkedAtUtc(sort: Desc)])
@@ -9782,30 +9927,32 @@ model Organization {
   createdAt              DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  memberships          OrganizationMembership[]
-  invites              OrganizationInvite[]
-  auditEvents          OrganizationAuditEvent[]
-  workspaces           Team[]                           @relation("OrganizationToTeam")
-  notificationPolicies OrganizationNotificationPolicy[] @relation("OrganizationNotificationPolicyOrg")
-  policies             OrganizationPolicy[]
+  memberships           OrganizationMembership[]
+  invites               OrganizationInvite[]
+  auditEvents           OrganizationAuditEvent[]
+  workspaces            Team[]                           @relation("OrganizationToTeam")
+  notificationPolicies  OrganizationNotificationPolicy[] @relation("OrganizationNotificationPolicyOrg")
+  policies              OrganizationPolicy[]
   // Phase 3 — Enterprise Identity: DNS-verified domain ownership.
-  domains              OrganizationDomain[]
+  domains               OrganizationDomain[]
   // Phase A1 — back-relation for the Evidence organization relation
   // declared above. Cascades are not used (Restrict) so an
   // Organization with active Evidence cannot be deleted by accident.
-  evidence             Evidence[]                       @relation("EvidenceOrganization")
+  evidence              Evidence[]                       @relation("EvidenceOrganization")
   // Lifecycle Phase 6 — closure request back-relation.
-  closureRequests      OrganizationClosureRequest[]     @relation("OrganizationClosureRequests")
-  enterpriseContract   EnterpriseContract?              @relation("OrganizationEnterpriseContract")
+  closureRequests       OrganizationClosureRequest[]     @relation("OrganizationClosureRequests")
+  enterpriseContract    EnterpriseContract?              @relation("OrganizationEnterpriseContract")
   // PHASE 10 §10.6/§10.8 — emergency + support access grants scoped to this org.
   emergencyAccessGrants EmergencyAccessGrant[]
   supportAccessGrants   SupportAccessGrant[]
   // PHASE 10 §0B — identities this Organization manages (MANAGED_ENTERPRISE).
-  managedIdentities     User[]                          @relation("ManagedIdentityOrg")
+  managedIdentities     User[]                           @relation("ManagedIdentityOrg")
   // PHASE 10 §2 — sessions currently holding this Organization's context.
-  sessionContexts       AuthenticatedSession[]          @relation("AuthenticatedSessionOrgContext")
+  sessionContexts       AuthenticatedSession[]           @relation("AuthenticatedSessionOrgContext")
   // PHASE 10 §policy-convergence — the ONE security policy for this Customer Org.
-  securityPolicy        OrganizationSecurityPolicy?     @relation("OrganizationSecurityPolicyOrg")
+  securityPolicy        OrganizationSecurityPolicy?      @relation("OrganizationSecurityPolicyOrg")
+  // PHASE 12B CLUSTER 8 — canonical legal holds bound to this Organization.
+  canonicalLegalHolds   EvidenceLegalHold[]              @relation("OrganizationCanonicalLegalHolds")
 
   @@index([status])
   @@map("organizations")
@@ -10172,6 +10319,7 @@ model CaseSiuSavedView {
 // =============================================================================
 
 model EntitlementGrant {
+  notes           String?   @db.VarChar(400)
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId          String    @map("team_id") @db.Uuid
   key             String    @db.VarChar(64)
@@ -10232,18 +10380,26 @@ model EvidenceExchangePackage {
 }
 
 model EvidenceExchangePackageDelivery {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  packageId        String    @map("package_id") @db.Uuid
-  teamId           String    @map("team_id") @db.Uuid
-  deliveredAt      DateTime  @default(now()) @map("delivered_at") @db.Timestamptz(6)
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  packageId               String    @map("package_id") @db.Uuid
+  teamId                  String    @map("team_id") @db.Uuid
+  deliveredAt             DateTime  @default(now()) @map("delivered_at") @db.Timestamptz(6)
   // R7 — additive delivery fields
-  recipientEmail   String?   @map("recipient_email") @db.VarChar(320)
-  recipientOrgSlug String?   @map("recipient_org_slug") @db.VarChar(64)
-  channel          String    @db.VarChar(40)
-  downloadedAtUtc  DateTime? @map("downloaded_at_utc") @db.Timestamptz(6)
-  verifiedAtUtc    DateTime? @map("verified_at_utc") @db.Timestamptz(6)
-  deliveredAtUtc   DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
-  ipAddressHash    String?   @map("ip_address_hash") @db.VarChar(64)
+  recipientEmail          String?   @map("recipient_email") @db.VarChar(320)
+  recipientOrgSlug        String?   @map("recipient_org_slug") @db.VarChar(64)
+  channel                 String    @db.VarChar(40)
+  // PHASE 12B — truthful download semantics. Authorising a delivery and
+  // issuing a short-lived link is NOT proof that bytes transferred.
+  //   downloadAuthorizedAtUtc = first authorisation / link issuance.
+  //   downloadedAtUtc         = CONFIRMED transfer completion ONLY, and
+  //                             stays null while no trustworthy completion
+  //                             signal exists (the current storage handoff
+  //                             gives none).
+  downloadAuthorizedAtUtc DateTime? @map("download_authorized_at_utc") @db.Timestamptz(6)
+  downloadedAtUtc         DateTime? @map("downloaded_at_utc") @db.Timestamptz(6)
+  verifiedAtUtc           DateTime? @map("verified_at_utc") @db.Timestamptz(6)
+  deliveredAtUtc          DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
+  ipAddressHash           String?   @map("ip_address_hash") @db.VarChar(64)
 
   package EvidenceExchangePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
@@ -10342,40 +10498,23 @@ model RetentionPolicyConfig {
   @@map("retention_policy_configs")
 }
 
-model LegalHold {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId           String    @map("team_id") @db.Uuid
-  kind             String    @db.VarChar(32)
-  scopeTargetId    String?   @map("scope_target_id") @db.Uuid
-  name             String    @db.VarChar(256)
-  reason           String    @db.VarChar(800)
-  state            String    @db.VarChar(16)
-  createdByUserId  String    @map("created_by_user_id") @db.Uuid
-  releasedByUserId String?   @map("released_by_user_id") @db.Uuid
-  releasedAtUtc    DateTime? @map("released_at_utc") @db.Timestamptz(6)
-  expiresAtUtc     DateTime? @map("expires_at_utc") @db.Timestamptz(6)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@index([teamId])
-  @@map("legal_holds")
-}
-
 model ArchiveTierTransition {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId                String   @map("team_id") @db.Uuid
-  evidenceId            String   @map("evidence_id") @db.Uuid
-  fromTier              String   @map("from_tier") @db.VarChar(16)
-  toTier                String   @map("to_tier") @db.VarChar(16)
-  reason                String?  @db.VarChar(400)
-  costEstimateUsdMicros BigInt   @default(0) @map("cost_estimate_usd_micros")
-  initiatedByUserId     String?  @map("initiated_by_user_id") @db.Uuid
-  state                 String   @db.VarChar(16)
-  storageClassBefore    String?  @map("storage_class_before") @db.VarChar(32)
-  storageClassAfter     String?  @map("storage_class_after") @db.VarChar(32)
-  failureReason         String?  @map("failure_reason") @db.VarChar(200)
-  transitionedAtUtc     DateTime @default(now()) @map("transitioned_at_utc") @db.Timestamptz(6)
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  restoreTargetAtUtc    DateTime? @map("restore_target_at_utc") @db.Timestamptz(6)
+  executedAtUtc         DateTime? @map("executed_at_utc") @db.Timestamptz(6)
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                String    @map("team_id") @db.Uuid
+  evidenceId            String    @map("evidence_id") @db.Uuid
+  fromTier              String    @map("from_tier") @db.VarChar(16)
+  toTier                String    @map("to_tier") @db.VarChar(16)
+  reason                String?   @db.VarChar(400)
+  costEstimateUsdMicros BigInt    @default(0) @map("cost_estimate_usd_micros")
+  initiatedByUserId     String?   @map("initiated_by_user_id") @db.Uuid
+  state                 String    @db.VarChar(16)
+  storageClassBefore    String?   @map("storage_class_before") @db.VarChar(32)
+  storageClassAfter     String?   @map("storage_class_after") @db.VarChar(32)
+  failureReason         String?   @map("failure_reason") @db.VarChar(200)
+  transitionedAtUtc     DateTime  @default(now()) @map("transitioned_at_utc") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([teamId, evidenceId])
   @@map("archive_tier_transitions")
@@ -10402,16 +10541,19 @@ model DestructionRequest {
 }
 
 model DestructionCertificate {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  requestId            String   @unique @map("request_id") @db.Uuid
-  teamId               String   @map("team_id") @db.Uuid
-  evidenceCount        Int      @map("evidence_count")
-  executedAtUtc        DateTime @map("executed_at_utc") @db.Timestamptz(6)
-  certifiedAtUtc       DateTime @map("certified_at_utc") @db.Timestamptz(6)
-  approvalChainUserIds Json     @map("approval_chain_user_ids")
-  certificateHash      String   @map("certificate_hash") @db.VarChar(64)
-  certificateUri       String?  @map("certificate_uri")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  certificateVersion     String   @default("PROOVRA_DESTRUCTION_CERT_V1") @map("certificate_version") @db.VarChar(60)
+  certificatePdfUri      String?  @map("certificate_pdf_uri") @db.VarChar(400)
+  certificateBytesSha256 String?  @map("certificate_bytes_sha256") @db.VarChar(64)
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId              String   @unique @map("request_id") @db.Uuid
+  teamId                 String   @map("team_id") @db.Uuid
+  evidenceCount          Int      @map("evidence_count")
+  executedAtUtc          DateTime @map("executed_at_utc") @db.Timestamptz(6)
+  certifiedAtUtc         DateTime @map("certified_at_utc") @db.Timestamptz(6)
+  approvalChainUserIds   Json     @map("approval_chain_user_ids")
+  certificateHash        String   @map("certificate_hash") @db.VarChar(64)
+  certificateUri         String?  @map("certificate_uri")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   request DestructionRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
@@ -10726,28 +10868,29 @@ model ExternalReviewerRoleAssignment {
 }
 
 model ExternalReviewInvitationDelivery {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId           String    @map("team_id") @db.Uuid
-  grantId          String    @map("grant_id") @db.Uuid
-  status           String    @default("PENDING") @db.VarChar(20)
-  provider         String    @default("RESEND_API") @db.VarChar(40)
-  attempt          Int       @default(1)
-  providerMsgId    String?   @map("provider_msg_id") @db.VarChar(200)
-  bulkBatchId      String?   @map("bulk_batch_id") @db.Uuid
-  failureReason    String?   @map("failure_reason") @db.VarChar(400)
-  sentAtUtc        DateTime? @map("sent_at_utc") @db.Timestamptz(6)
-  openedAtUtc      DateTime? @map("opened_at_utc") @db.Timestamptz(6)
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(200)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId            String    @map("team_id") @db.Uuid
+  grantId           String    @map("grant_id") @db.Uuid
+  status            String    @default("PENDING") @db.VarChar(20)
+  provider          String    @default("RESEND_API") @db.VarChar(40)
+  attempt           Int       @default(1)
+  providerMsgId     String?   @map("provider_msg_id") @db.VarChar(200)
+  bulkBatchId       String?   @map("bulk_batch_id") @db.Uuid
+  failureReason     String?   @map("failure_reason") @db.VarChar(400)
+  sentAtUtc         DateTime? @map("sent_at_utc") @db.Timestamptz(6)
+  openedAtUtc       DateTime? @map("opened_at_utc") @db.Timestamptz(6)
   // R7 — additive delivery-tracking fields
-  recipientEmail   String    @map("recipient_email") @db.VarChar(320)
-  subject          String    @db.VarChar(400)
-  queuedAtUtc      DateTime  @default(now()) @map("queued_at_utc") @db.Timestamptz(6)
-  deliveredAtUtc   DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
-  failedAtUtc      DateTime? @map("failed_at_utc") @db.Timestamptz(6)
-  revokedAtUtc     DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
-  expiredAtUtc     DateTime? @map("expired_at_utc") @db.Timestamptz(6)
-  lastErrorPreview String?   @map("last_error_preview") @db.VarChar(800)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  recipientEmail    String    @map("recipient_email") @db.VarChar(320)
+  subject           String    @db.VarChar(400)
+  queuedAtUtc       DateTime  @default(now()) @map("queued_at_utc") @db.Timestamptz(6)
+  deliveredAtUtc    DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
+  failedAtUtc       DateTime? @map("failed_at_utc") @db.Timestamptz(6)
+  revokedAtUtc      DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  expiredAtUtc      DateTime? @map("expired_at_utc") @db.Timestamptz(6)
+  lastErrorPreview  String?   @map("last_error_preview") @db.VarChar(800)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   grant ExternalReviewerRoleAssignment @relation(fields: [grantId], references: [id], onDelete: Cascade)
 
@@ -10761,6 +10904,7 @@ model ExternalReviewInvitationDelivery {
 // ---------------------------------------------------------------------------
 
 model RedactionProject {
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(6)
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId          String    @map("team_id") @db.Uuid
   evidenceId      String    @map("evidence_id") @db.Uuid
@@ -10782,6 +10926,7 @@ model RedactionProject {
 }
 
 model RedactionVersion {
+  rejectedAtUtc    DateTime? @map("rejected_at_utc") @db.Timestamptz(6)
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId        String    @map("project_id") @db.Uuid
   teamId           String    @map("team_id") @db.Uuid
@@ -10924,28 +11069,29 @@ model RedactionApproval {
 }
 
 model RedactionDerivative {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  versionId        String    @unique @map("version_id") @db.Uuid
-  teamId           String    @map("team_id") @db.Uuid
-  state            String    @default("PENDING") @db.VarChar(20)
-  storageKey       String?   @map("storage_key") @db.VarChar(600)
-  fileSha256       String?   @map("file_sha256") @db.VarChar(64)
-  kind             String    @db.VarChar(40)
-  generatedAtUtc   DateTime? @map("generated_at_utc") @db.Timestamptz(6)
+  renderStartedAtUtc DateTime? @map("render_started_at_utc") @db.Timestamptz(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  versionId          String    @unique @map("version_id") @db.Uuid
+  teamId             String    @map("team_id") @db.Uuid
+  state              String    @default("PENDING") @db.VarChar(20)
+  storageKey         String?   @map("storage_key") @db.VarChar(600)
+  fileSha256         String?   @map("file_sha256") @db.VarChar(64)
+  kind               String    @db.VarChar(40)
+  generatedAtUtc     DateTime? @map("generated_at_utc") @db.Timestamptz(6)
   // R7 — additive derivative fields
-  storageRegion    String?   @map("storage_region") @db.VarChar(64)
-  byteSize         BigInt?   @map("byte_size")
-  contentType      String?   @map("content_type") @db.VarChar(120)
-  downloadCount    Int       @default(0) @map("download_count")
-  storageBucket    String?   @map("storage_bucket") @db.VarChar(255)
-  renderStartedAt  DateTime? @map("render_started_at") @db.Timestamptz(6)
-  renderedAtUtc    DateTime? @map("rendered_at_utc") @db.Timestamptz(6)
-  failureReason    String?   @map("failure_reason") @db.VarChar(600)
+  storageRegion      String?   @map("storage_region") @db.VarChar(64)
+  byteSize           BigInt?   @map("byte_size")
+  contentType        String?   @map("content_type") @db.VarChar(120)
+  downloadCount      Int       @default(0) @map("download_count")
+  storageBucket      String?   @map("storage_bucket") @db.VarChar(255)
+  renderStartedAt    DateTime? @map("render_started_at") @db.Timestamptz(6)
+  renderedAtUtc      DateTime? @map("rendered_at_utc") @db.Timestamptz(6)
+  failureReason      String?   @map("failure_reason") @db.VarChar(600)
   // R7-redaction additive — verification manifest fields (Phase 3A render-engine tracking)
-  lastErrorPreview String?   @map("last_error_preview") @db.VarChar(600)
-  renderEngine     String?   @map("render_engine") @db.VarChar(80)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastErrorPreview   String?   @map("last_error_preview") @db.VarChar(600)
+  renderEngine       String?   @map("render_engine") @db.VarChar(80)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   version RedactionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
@@ -11006,6 +11152,7 @@ model TrustCenterArticle {
 }
 
 model TrustCenterArticleVersion {
+  effectiveAt              DateTime? @map("effective_at") @db.Timestamptz(6)
   id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   articleId                String    @map("article_id") @db.Uuid
   version                  Int
@@ -11081,6 +11228,7 @@ model SubprocessorVersion {
 }
 
 model StatusComponent {
+  namespace         String   @default("default")
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   key               String   @db.VarChar(80)
   label             String   @db.VarChar(200)
@@ -11401,6 +11549,8 @@ model EvidenceExchangePackageBuild {
 // ---------------------------------------------------------------------------
 
 model MediaIntelligenceRecord {
+  supersededAtUtc        DateTime? @map("superseded_at_utc") @db.Timestamptz(6)
+  reviewedAtUtc          DateTime? @map("reviewed_at_utc") @db.Timestamptz(6)
   id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId                 String    @map("team_id") @db.Uuid
   evidenceId             String    @map("evidence_id") @db.Uuid
@@ -11456,6 +11606,9 @@ model MediaIntelligenceEntity {
 }
 
 model ReviewerCorrection {
+  supersededAtUtc          DateTime? @map("superseded_at_utc") @db.Timestamptz(6)
+  revertedAtUtc            DateTime? @map("reverted_at_utc") @db.Timestamptz(6)
+  acceptedAtUtc            DateTime? @map("accepted_at_utc") @db.Timestamptz(6)
   id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId                   String    @map("team_id") @db.Uuid
   recordId                 String    @map("record_id") @db.Uuid
@@ -11820,12 +11973,13 @@ model VideoFrame {
 }
 
 model VideoTrackDetection {
-  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId        String @map("team_id") @db.Uuid
-  trackId       String @map("track_id") @db.Uuid
-  frameId       String @map("frame_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId        String   @map("team_id") @db.Uuid
+  trackId       String   @map("track_id") @db.Uuid
+  frameId       String   @map("frame_id") @db.Uuid
   bbox          Json
-  rawConfidence Float  @map("raw_confidence")
+  rawConfidence Float    @map("raw_confidence")
 
   track VideoTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
   frame VideoFrame @relation(fields: [frameId], references: [id], onDelete: Cascade)
@@ -12528,4 +12682,404 @@ model AiUsageMonthly {
 
   @@unique([workspaceId, monthUtc])
   @@map("ai_usage_monthly")
+}
+
+// =============================================================================
+// PHASE 12 POINT 4 — raw-SQL-owned subsystems brought under the ONE schema
+// authority.
+//
+// These tables were created by hand-written migrations and accessed through
+// $queryRaw/$executeRaw, but were never declared in schema.prisma. That split
+// the schema authority in two: the migrations knew about them, the datamodel
+// did not, and `prisma migrate diff --to-schema` therefore proposed DROPPING
+// live tables. Declaring them here makes the datamodel complete.
+//
+// Declaring a model does NOT move the runtime onto Prisma: the owning
+// subsystems keep their raw SQL, which is deliberate (bulk upserts, partial
+// indexes, JSON projections). The declaration exists so the schema authority
+// is single and the drift comparison is honest. The convergence guard asserts
+// that no NEW Prisma writer appears for these models.
+// =============================================================================
+
+model EvidenceOcrText {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  evidenceId      String    @map("evidence_id") @db.Uuid
+  partId          String?   @map("part_id") @db.Uuid
+  chunkIndex      Int       @default(0) @map("chunk_index")
+  engine          String    @db.VarChar(40)
+  languageHint    String?   @map("language_hint") @db.VarChar(16)
+  text            String
+  confidence      Float?    @db.Real
+  visibilityScope String    @default("TEAM") @map("visibility_scope") @db.VarChar(24)
+  redacted        Boolean   @default(false)
+  indexedAtUtc    DateTime? @map("indexed_at_utc") @db.Timestamptz(6)
+  extractedAtUtc  DateTime  @default(now()) @map("extracted_at_utc") @db.Timestamptz(6)
+  updatedAtUtc    DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, evidenceId], map: "evidence_ocr_text_team_evidence_idx")
+  @@map("evidence_ocr_text")
+}
+
+model EvidencePartDerivedAsset {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                   String    @map("team_id") @db.Uuid
+  evidenceId               String    @map("evidence_id") @db.Uuid
+  evidencePartId           String    @map("evidence_part_id") @db.Uuid
+  assetKind                String    @map("asset_kind") @db.VarChar(48)
+  status                   String    @default("PENDING") @db.VarChar(24)
+  derivedSha256            String?   @map("derived_sha256") @db.VarChar(64)
+  sizeBytes                Int?      @map("size_bytes")
+  contentType              String?   @map("content_type") @db.VarChar(80)
+  widthPx                  Int?      @map("width_px")
+  heightPx                 Int?      @map("height_px")
+  sourceSha256AtGeneration String?   @map("source_sha256_at_generation") @db.VarChar(64)
+  storageBucket            String?   @map("storage_bucket") @db.VarChar(255)
+  storageKey               String?   @map("storage_key") @db.VarChar(512)
+  lastError                String?   @map("last_error") @db.VarChar(240)
+  engineVersion            String    @default("sharp-v0-phase31-v1") @map("engine_version") @db.VarChar(48)
+  generatedAtUtc           DateTime? @map("generated_at_utc") @db.Timestamptz(6)
+  createdAtUtc             DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc             DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@unique([teamId, evidencePartId, assetKind], map: "evidence_part_derived_assets_team_part_kind_uk")
+  @@index([evidenceId], map: "evidence_part_derived_assets_evidence_idx")
+  @@index([status, updatedAtUtc(sort: Desc)], map: "evidence_part_derived_assets_status_updated_idx")
+  @@map("evidence_part_derived_assets")
+}
+
+model EvidencePartExifSummary {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId              String    @map("team_id") @db.Uuid
+  evidenceId          String    @map("evidence_id") @db.Uuid
+  evidencePartId      String    @map("evidence_part_id") @db.Uuid
+  exifPresent         Boolean   @default(false) @map("exif_present")
+  dateTimeOriginalUtc DateTime? @map("date_time_original_utc") @db.Timestamptz(6)
+  createDateUtc       DateTime? @map("create_date_utc") @db.Timestamptz(6)
+  imageWidthPx        Int?      @map("image_width_px")
+  imageHeightPx       Int?      @map("image_height_px")
+  cameraMake          String?   @map("camera_make") @db.VarChar(64)
+  cameraModel         String?   @map("camera_model") @db.VarChar(64)
+  software            String?   @db.VarChar(64)
+  hasGps              Boolean   @default(false) @map("has_gps")
+  orientation         Int?      @db.SmallInt
+  engineVersion       String    @default("exifr-v7-phase31-v1") @map("engine_version") @db.VarChar(48)
+  extractedAtUtc      DateTime  @default(now()) @map("extracted_at_utc") @db.Timestamptz(6)
+  extractedBytes      Int       @default(0) @map("extracted_bytes")
+  status              String    @default("OK") @db.VarChar(24)
+  lastError           String?   @map("last_error") @db.VarChar(240)
+  createdAtUtc        DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc        DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@unique([teamId, evidencePartId], map: "evidence_part_exif_summaries_team_part_uk")
+  @@index([evidenceId], map: "evidence_part_exif_summaries_evidence_idx")
+  @@index([status, updatedAtUtc(sort: Desc)], map: "evidence_part_exif_summaries_status_updated_idx")
+  @@map("evidence_part_exif_summaries")
+}
+
+model EvidenceTranscriptSegment {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  evidenceId      String    @map("evidence_id") @db.Uuid
+  partId          String?   @map("part_id") @db.Uuid
+  segmentIndex    Int       @map("segment_index")
+  startMs         Int       @map("start_ms")
+  endMs           Int       @map("end_ms")
+  speakerId       String?   @map("speaker_id") @db.VarChar(64)
+  engine          String    @db.VarChar(40)
+  languageHint    String?   @map("language_hint") @db.VarChar(16)
+  text            String
+  confidence      Float?    @db.Real
+  visibilityScope String    @default("TEAM") @map("visibility_scope") @db.VarChar(24)
+  redacted        Boolean   @default(false)
+  indexedAtUtc    DateTime? @map("indexed_at_utc") @db.Timestamptz(6)
+  extractedAtUtc  DateTime  @default(now()) @map("extracted_at_utc") @db.Timestamptz(6)
+  updatedAtUtc    DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, evidenceId], map: "evidence_transcript_segments_team_evidence_idx")
+  @@map("evidence_transcript_segments")
+}
+
+model EvidenceUploadSessionPart {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId           String    @map("session_id") @db.Uuid
+  teamId              String    @map("team_id") @db.Uuid
+  partIndex           Int       @map("part_index")
+  state               String    @default("PENDING") @db.VarChar(24)
+  expectedBytes       BigInt?   @map("expected_bytes")
+  clientSha256        String?   @map("client_sha256") @db.VarChar(64)
+  serverSha256        String?   @map("server_sha256") @db.VarChar(64)
+  uploadedAtUtcClient DateTime? @map("uploaded_at_utc_client") @db.Timestamptz(6)
+  verifiedAtUtc       DateTime? @map("verified_at_utc") @db.Timestamptz(6)
+  retryCount          Int       @default(0) @map("retry_count")
+  failureReason       String?   @map("failure_reason") @db.VarChar(120)
+  createdAtUtc        DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc        DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+  partEtag            String?   @map("part_etag") @db.VarChar(256)
+  partSizeBytes       BigInt?   @map("part_size_bytes")
+  presignedAtUtc      DateTime? @map("presigned_at_utc") @db.Timestamptz(6)
+  presignExpiresAtUtc DateTime? @map("presign_expires_at_utc") @db.Timestamptz(6)
+
+  @@unique([sessionId, partIndex], map: "evidence_upload_session_parts_uk")
+  @@index([sessionId, state], map: "evidence_upload_session_parts_session_state_idx")
+  @@index([teamId, state], map: "evidence_upload_session_parts_team_state_idx")
+  @@map("evidence_upload_session_parts")
+}
+
+model EvidenceUploadSession {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                String    @map("team_id") @db.Uuid
+  evidenceId            String    @map("evidence_id") @db.Uuid
+  actorUserId           String    @map("actor_user_id") @db.Uuid
+  state                 String    @default("INITIATED") @db.VarChar(24)
+  expectedPartCount     Int       @map("expected_part_count")
+  expectedTotalBytes    BigInt?   @map("expected_total_bytes")
+  expectedSha256        String?   @map("expected_sha256") @db.VarChar(64)
+  safeNote              String?   @map("safe_note") @db.VarChar(400)
+  idempotencyKey        String?   @map("idempotency_key") @db.VarChar(120)
+  expiresAtUtc          DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  completedAtUtc        DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  abortedAtUtc          DateTime? @map("aborted_at_utc") @db.Timestamptz(6)
+  abortedByUserId       String?   @map("aborted_by_user_id") @db.Uuid
+  abortReason           String?   @map("abort_reason") @db.VarChar(120)
+  createdAtUtc          DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc          DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+  multipartUploadId     String?   @map("multipart_upload_id") @db.VarChar(512)
+  storageBucket         String?   @map("storage_bucket") @db.VarChar(255)
+  storageKey            String?   @map("storage_key") @db.VarChar(1024)
+  completedObjectEtag   String?   @map("completed_object_etag") @db.VarChar(256)
+  completedObjectSize   BigInt?   @map("completed_object_size")
+  completedAtStorageUtc DateTime? @map("completed_at_storage_utc") @db.Timestamptz(6)
+  abortedAtStorageUtc   DateTime? @map("aborted_at_storage_utc") @db.Timestamptz(6)
+  targetPartIndex       Int?      @map("target_part_index")
+  originalFileName      String?   @map("original_file_name") @db.VarChar(255)
+  expectedMimeType      String?   @map("expected_mime_type") @db.VarChar(128)
+  bridgedEvidencePartId String?   @map("bridged_evidence_part_id") @db.Uuid
+
+  @@index([teamId, evidenceId], map: "evidence_upload_sessions_team_evidence_idx")
+  @@index([teamId, state, updatedAtUtc(sort: Desc)], map: "evidence_upload_sessions_team_state_idx")
+  @@map("evidence_upload_sessions")
+}
+
+model ExternalReviewGrant {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                 String    @map("team_id") @db.Uuid
+  scopeKind              String    @map("scope_kind") @db.VarChar(24)
+  evidenceId             String?   @map("evidence_id") @db.Uuid
+  caseId                 String?   @map("case_id") @db.Uuid
+  packageId              String?   @map("package_id") @db.Uuid
+  tokenHash              String    @unique(map: "external_review_grants_token_hash_uk") @map("token_hash") @db.VarChar(128)
+  reviewerEmail          String    @map("reviewer_email") @db.VarChar(320)
+  reviewerDisplayName    String?   @map("reviewer_display_name") @db.VarChar(200)
+  state                  String    @default("INVITED") @db.VarChar(24)
+  invitedByUserId        String    @map("invited_by_user_id") @db.Uuid
+  approvedByUserId       String?   @map("approved_by_user_id") @db.Uuid
+  revokedByUserId        String?   @map("revoked_by_user_id") @db.Uuid
+  expiresAtUtc           DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  acceptedAtUtc          DateTime? @map("accepted_at_utc") @db.Timestamptz(6)
+  revokedAtUtc           DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  lastAccessedAtUtc      DateTime? @map("last_accessed_at_utc") @db.Timestamptz(6)
+  accessCount            Int       @default(0) @map("access_count")
+  allowOriginalDownload  Boolean   @default(false) @map("allow_original_download")
+  allowPackageDownload   Boolean   @default(true) @map("allow_package_download")
+  redactionPolicyVersion String?   @map("redaction_policy_version") @db.VarChar(32)
+  safeNote               String?   @map("safe_note") @db.VarChar(500)
+  createdAtUtc           DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc           DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, reviewerEmail], map: "external_review_grants_team_reviewer_idx")
+  @@index([teamId, state, expiresAtUtc(sort: Desc)], map: "external_review_grants_team_state_expires_idx")
+  @@map("external_review_grants")
+}
+
+model InvestigationGraphEdge {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  sourceNodeId    String    @map("source_node_id") @db.Uuid
+  targetNodeId    String    @map("target_node_id") @db.Uuid
+  edgeType        String    @map("edge_type") @db.VarChar(48)
+  sourceKind      String    @default("SYSTEM") @map("source_kind") @db.VarChar(16)
+  confidence      String    @default("MEDIUM") @db.VarChar(16)
+  safeSummary     String?   @map("safe_summary") @db.VarChar(240)
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  staleAtUtc      DateTime? @map("stale_at_utc") @db.Timestamptz(6)
+  createdAtUtc    DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc    DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@unique([teamId, sourceNodeId, targetNodeId, edgeType], map: "investigation_graph_edges_team_triple_uk")
+  @@map("investigation_graph_edges")
+}
+
+model InvestigationGraphNode {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  nodeKind        String    @map("node_kind") @db.VarChar(32)
+  externalId      String    @map("external_id") @db.Uuid
+  safeLabel       String?   @map("safe_label") @db.VarChar(240)
+  visibilityScope String    @default("WORKSPACE_INTERNAL") @map("visibility_scope") @db.VarChar(32)
+  staleAtUtc      DateTime? @map("stale_at_utc") @db.Timestamptz(6)
+  createdAtUtc    DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc    DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@unique([teamId, nodeKind, externalId], map: "investigation_graph_nodes_team_kind_ext_uk")
+  @@map("investigation_graph_nodes")
+}
+
+model ManualRelationship {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId            String    @map("team_id") @db.Uuid
+  sourceNodeId      String    @map("source_node_id") @db.Uuid
+  targetNodeId      String    @map("target_node_id") @db.Uuid
+  edgeType          String    @map("edge_type") @db.VarChar(48)
+  createdByUserId   String    @map("created_by_user_id") @db.Uuid
+  safeNote          String?   @map("safe_note") @db.VarChar(400)
+  status            String    @default("ACTIVE") @db.VarChar(16)
+  retractedByUserId String?   @map("retracted_by_user_id") @db.Uuid
+  retractedAtUtc    DateTime? @map("retracted_at_utc") @db.Timestamptz(6)
+  retractionReason  String?   @map("retraction_reason") @db.VarChar(240)
+  createdAtUtc      DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, sourceNodeId, targetNodeId], map: "manual_relationships_source_target_idx")
+  @@index([teamId, status, createdAtUtc(sort: Desc)], map: "manual_relationships_team_status_idx")
+  @@map("manual_relationships")
+}
+
+model MediaIntelligenceRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId         String    @map("team_id") @db.Uuid
+  evidenceId     String    @map("evidence_id") @db.Uuid
+  kind           String    @db.VarChar(48)
+  status         String    @default("PENDING") @db.VarChar(24)
+  attemptCount   Int       @default(0) @map("attempt_count")
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(120)
+  lastError      String?   @map("last_error") @db.VarChar(400)
+  engineVersion  String    @default("phase31-v1") @map("engine_version") @db.VarChar(48)
+  scheduledAtUtc DateTime? @map("scheduled_at_utc") @db.Timestamptz(6)
+  startedAtUtc   DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  createdAtUtc   DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc   DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@index([evidenceId, kind, status], map: "media_intelligence_runs_evidence_idx")
+  @@index([teamId, status, updatedAtUtc(sort: Desc)], map: "media_intelligence_runs_team_status_idx")
+  @@map("media_intelligence_runs")
+}
+
+model MediaIntelligenceSignal {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String    @map("team_id") @db.Uuid
+  evidenceId           String    @map("evidence_id") @db.Uuid
+  materialId           String?   @map("material_id") @db.Uuid
+  signalType           String    @map("signal_type") @db.VarChar(48)
+  severity             String    @default("INFO") @db.VarChar(24)
+  confidence           String    @default("MEDIUM") @db.VarChar(16)
+  safeSummary          String    @map("safe_summary") @db.VarChar(240)
+  technicalDetailsJson Json?     @map("technical_details_json")
+  status               String    @default("PENDING") @db.VarChar(24)
+  acknowledgedByUserId String?   @map("acknowledged_by_user_id") @db.Uuid
+  acknowledgedAtUtc    DateTime? @map("acknowledged_at_utc") @db.Timestamptz(6)
+  engineVersion        String    @default("phase31-v1") @map("engine_version") @db.VarChar(48)
+  createdAtUtc         DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc         DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@index([evidenceId, severity], map: "media_intelligence_signals_evidence_severity_idx")
+  @@index([teamId, status, updatedAtUtc(sort: Desc)], map: "media_intelligence_signals_team_status_idx")
+  @@map("media_intelligence_signals")
+}
+
+model SearchAuditLog {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                  String   @map("team_id") @db.Uuid
+  actorUserId             String   @map("actor_user_id") @db.Uuid
+  surface                 String   @db.VarChar(24)
+  queryHash               String?  @map("query_hash") @db.VarChar(64)
+  queryLength             Int      @default(0) @map("query_length")
+  documentTypes           Json?    @map("document_types")
+  filtersJson             Json?    @map("filters_json")
+  resultCount             Int      @default(0) @map("result_count")
+  filteredGovernanceCount Int      @default(0) @map("filtered_governance_count")
+  filteredVisibilityCount Int      @default(0) @map("filtered_visibility_count")
+  failClosed              Boolean  @default(false) @map("fail_closed")
+  requestId               String?  @map("request_id") @db.VarChar(64)
+  ipHash                  String?  @map("ip_hash") @db.VarChar(64)
+  occurredAtUtc           DateTime @default(now()) @map("occurred_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, actorUserId, occurredAtUtc(sort: Desc)], map: "search_audit_logs_team_actor_idx")
+  @@index([teamId, occurredAtUtc(sort: Desc)], map: "search_audit_logs_team_occurred_idx")
+  @@map("search_audit_logs")
+}
+
+// ===========================================================================
+// PHASE 12 — POINT 5: durable report/package generation authority.
+//
+// Before this model, report generation was requested by putting
+// `{ evidenceId, forceRegenerate, regenerateReason }` on a BullMQ payload.
+// `forceRegenerate` is the OUTCOME OF AN AUTHORIZATION DECISION — it bypasses
+// the guard that refuses to regenerate an already-REPORTED artifact — and it
+// was arriving as an unverified boolean on a queue message. Anything able to
+// write to the queue could overwrite a finalised report.
+//
+// The authorized synchronous path now persists the intent here and the queue
+// carries only this row's id. The worker reloads the request, re-derives the
+// workspace from it, and re-checks eligibility against CURRENT policy rather
+// than against whatever was true when the request was made.
+//
+// Claim discipline mirrors the rest of Point 5: QUEUED -> PROCESSING via a
+// conditional update, terminal state written once, stale attempts refused.
+// ===========================================================================
+model ReportGenerationRequest {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId String @map("team_id") @db.Uuid
+
+  /// Target evidence. The worker cross-checks Evidence.teamId against teamId
+  /// above and refuses the run when they disagree.
+  evidenceId String @map("evidence_id") @db.Uuid
+
+  /// Bounded artifact vocabulary: REPORT | VERIFICATION_PACKAGE | EXCHANGE_PACKAGE.
+  artifactType String @default("REPORT") @map("artifact_type") @db.VarChar(32)
+
+  /// Why generation was requested. Bounded catalog, e.g. "evidence_completed",
+  /// "operator_regenerate", "tsa_repair".
+  purpose String @default("evidence_completed") @db.VarChar(64)
+
+  /// True only when an authorized actor explicitly asked to replace an existing
+  /// finalised artifact. Persisted by the authorizing request, never accepted
+  /// from a queue payload.
+  forceRegenerate  Boolean @default(false) @map("force_regenerate")
+  regenerateReason String? @map("regenerate_reason") @db.VarChar(120)
+
+  /// Who asked. Exactly one of these is set: a human actor or a machine
+  /// identity. Both null is not a valid request and the worker refuses it.
+  requestedByUserId    String? @map("requested_by_user_id") @db.Uuid
+  requestedByMachineId String? @map("requested_by_machine_id") @db.VarChar(64)
+
+  /// Policy/version binding captured at request time. The worker compares this
+  /// against the CURRENT value and blocks a stale request rather than
+  /// generating an artifact under a policy nobody approved.
+  expectedPolicyVersion Int? @map("expected_policy_version")
+
+  /// Collapses duplicate requests for the same intent.
+  idempotencyKey String @unique @map("idempotency_key") @db.VarChar(160)
+
+  /// QUEUED | PROCESSING | SUCCEEDED | FAILED_RETRYABLE | FAILED_TERMINAL |
+  /// BLOCKED_STALE | BLOCKED_POLICY
+  state String @default("QUEUED") @db.VarChar(32)
+
+  attemptCount Int       @default(0) @map("attempt_count")
+  claimedAtUtc DateTime? @map("claimed_at_utc") @db.Timestamptz(6)
+
+  /// Terminal result. `resultReportId` is set only on SUCCEEDED;
+  /// `terminalReasonCode` is a bounded code, never a raw error string.
+  resultReportId     String? @map("result_report_id") @db.Uuid
+  resultChecksum     String? @map("result_checksum") @db.VarChar(128)
+  terminalReasonCode String? @map("terminal_reason_code") @db.VarChar(64)
+
+  createdAtUtc   DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc   DateTime  @default(now()) @updatedAt @map("updated_at_utc") @db.Timestamptz(6)
+  completedAtUtc DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, state, createdAtUtc(sort: Desc)], map: "report_generation_requests_team_state_idx")
+  @@index([evidenceId, state], map: "report_generation_requests_evidence_idx")
+  @@index([state, claimedAtUtc], map: "report_generation_requests_claim_idx")
+  @@map("report_generation_requests")
 }

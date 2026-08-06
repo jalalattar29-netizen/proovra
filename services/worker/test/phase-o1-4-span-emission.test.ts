@@ -195,35 +195,64 @@ describe("O1.4 — every BullMQ Worker registration is wrapped with the OTEL con
 // 3. Every queue.add(…) is preceded by an injectOtelContextIntoJobData(…)
 // ---------------------------------------------------------------------------
 
-describe("O1.4 — every enqueue path injects OTEL context", () => {
+/**
+ * PHASE 12 — POINT 5 changed WHERE the trace context lives, and this suite
+ * changed with it.
+ *
+ * It used to enumerate every `<queue>.add(` site in `queue.ts` and require an
+ * `injectOtelContextIntoJobData(…)` call within the preceding 800 characters —
+ * a per-call-site audit, because there were fifteen hand-rolled `.add` calls
+ * and each could forget.
+ *
+ * There is now exactly ONE `.add` in the platform, inside the shared
+ * `enqueueCanonicalJob`, and the carrier is no longer an unbounded `_otel`
+ * metadata blob bolted onto the payload — it is a validated `traceparent` field
+ * on the canonical envelope, which the strict decoder checks like every other
+ * field. So the property worth asserting is no longer "did each of fifteen call
+ * sites remember", it is "does the one path carry it, and does the worker read
+ * it back".
+ */
+describe("O1.4 — the single enqueue path carries trace context", () => {
   const queueSrc = read("services/worker/src/queue.ts");
+  const sharedEnqueueSrc = read(
+    "packages/shared/src/queue-integrity/enqueue.ts",
+  );
+  const otelSrc = read("services/worker/src/observability/queue-otel-context.ts");
 
-  // Find every `.add(` call on a Queue variable. Skip the
-  // generic helper definition itself (which contains the inject
-  // call) and skip `getJob`, `getJobs`, `getDelayed` etc.
-  const addSites = [...queueSrc.matchAll(
-    /\b(reportQueue|otsUpgradeQueue|evidencePurgeQueue|searchIndexingQueue|mediaIntelligenceQueue|exifQueue|ocrQueue|transcriptQueue|miSearchIndexQueue|graphReconcileQueue|graphDomainSyncQueue|graphTimelineSyncQueue|graphSearchProjectionQueue|orgHealthRefreshQueue|derivedAssetsQueue|queue)\.add\s*\(/g,
-  )];
-  expect(addSites.length).toBeGreaterThan(0);
+  it("queue.ts has NO hand-rolled queue.add — every producer delegates", () => {
+    // The fifteen call sites this suite used to enumerate are gone.
+    expect(queueSrc).not.toMatch(/\bQueue\w*\.add\s*\(/);
+    expect(queueSrc).toMatch(/enqueueCanonicalJob\(/);
+  });
 
-  for (let i = 0; i < addSites.length; i++) {
-    it(`enqueue site #${i + 1} (${addSites[i]![1]}.add) is preceded by injectOtelContextIntoJobData(…)`, () => {
-      const at = addSites[i]!.index!;
-      // Look BACKWARDS up to 800 chars for the inject call (the
-      // standard pattern is to declare `const wrappedPayload = …` a
-      // few lines above the `.add(`).
-      const start = Math.max(0, at - 800);
-      const lead = queueSrc.slice(start, at);
-      const found =
-        /injectOtelContextIntoJobData\s*\(/.test(lead) ||
-        // OR the queue.add receives the inject call inline (less
-        // common; tolerated).
-        /injectOtelContextIntoJobData\s*\(/.test(
-          queueSrc.slice(at, at + 200),
-        );
-      expect(found).toBe(true);
-    });
-  }
+  it("the one enqueue authority puts the traceparent on the envelope", () => {
+    expect(sharedEnqueueSrc).toMatch(/traceparent/);
+    expect(sharedEnqueueSrc).toMatch(/buildCanonicalJobPayload\(/);
+  });
+
+  it("the worker supplies a traceparent when a span is active", () => {
+    expect(queueSrc).toMatch(/currentTraceparent\(\)/);
+    expect(otelSrc).toMatch(/export function currentTraceparent/);
+  });
+
+  it("the worker reads BOTH the canonical field and the legacy _otel carrier", () => {
+    // A pre-Point-5 job still draining out of Redis carries `_otel`; a
+    // converged one carries `traceparent`. Losing either would silently break
+    // the api-request-to-worker-handler trace during the drain window.
+    expect(otelSrc).toMatch(/obj\.traceparent/);
+    expect(otelSrc).toMatch(/obj\._otel/);
+  });
+
+  it("legacy enqueue-site audit is retired, not skipped", () => {
+    // Recorded rather than deleted silently: this assertion exists so the
+    // retirement is visible in the suite's own output.
+    const addSites = [
+      ...queueSrc.matchAll(
+        /\b(reportQueue|otsUpgradeQueue|evidencePurgeQueue|searchIndexingQueue|mediaIntelligenceQueue|exifQueue|ocrQueue|transcriptQueue|miSearchIndexQueue|graphReconcileQueue|graphDomainSyncQueue|graphTimelineSyncQueue|graphSearchProjectionQueue|orgHealthRefreshQueue|derivedAssetsQueue)\.add\s*\(/g,
+      ),
+    ];
+    expect(addSites).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

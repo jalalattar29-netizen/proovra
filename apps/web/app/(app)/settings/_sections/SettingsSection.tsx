@@ -19,6 +19,10 @@ export const SETTINGS_SECTIONS = [
   { id: "ai", label: "AI" },
   { id: "privacy", label: "Privacy" },
   { id: "billing", label: "Billing" },
+  // PHASE 12 VERTICAL A (2026-07-30) — server-sourced role/capability
+  // reference (GET /v1/platform/rbac/matrix). Read-only; it answers
+  // "what can my role do here?" from the API's own catalog.
+  { id: "roles", label: "Roles" },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

@@ -323,6 +323,43 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // (idempotent + safe on partial state) and is documented in
     // `docs/operations/audit-closure-ledger.md`.
     "20261009000000_drop_reviewer_queue_projection": new Set(["DROP_TABLE"]),
+    // PHASE 12 POINT 4 — schema-authority convergence. Two destructive kinds,
+    // both explicitly approved because they REPAIR a broken production write
+    // path rather than remove a capability:
+    //
+    //   ALTER_TABLE_DROP_COLUMN — five DUPLICATE columns. Phase R7 renamed
+    //     Prisma FIELDS while keeping the original physical column via `@map`;
+    //     a later catch-up migration read those renames as new fields and
+    //     ADDED a second physical column for each, three of them NOT NULL with
+    //     no default. Because Prisma only ever sends the @map-ed original,
+    //     `delegatedAdminGrant.create()`, `crossOrgReviewGrant.create()` and
+    //     `redactionPolicyAssignment.create()` FAIL with a null-constraint
+    //     violation on any database carrying the full migration history —
+    //     proven empirically against a disposable PostgreSQL 16. The duplicates
+    //     have zero runtime readers and zero runtime writers.
+    //
+    //   DROP_TABLE — three superseded SINGULAR audit tables
+    //     (governance_policy_audit, redaction_activity, redaction_policy_audit)
+    //     whose canonical PLURAL counterparts are the ones the Prisma models
+    //     map and the runtime actually reads and writes. Zero runtime
+    //     references of any kind to the singular names.
+    //
+    // Every drop is inside a DO-block guard: a duplicate column whose value
+    // DIVERGES from its canonical twin, or a legacy table that still holds
+    // rows, RAISES and drops nothing. No data is destroyed to reach readiness.
+    // Ownership of all residual objects is recorded in
+    // `docs/architecture/raw-schema-ownership.json` and verified by
+    // `scripts/raw-schema-verify.mjs` with four positive controls.
+    //
+    // PHASE 12 POINT 6 — the convergence migration was SPLIT. The repair that
+    // unblocks the live write failures (relaxing the orphaned NOT NULL
+    // duplicates, converging security_events.severity) is non-destructive and
+    // ships in Release A as `20271112000000_point4_write_unblock_repair`; the
+    // physical removal below is Release D.
+    "20271117000000_point4_schema_authority_contract": new Set([
+      "ALTER_TABLE_DROP_COLUMN",
+      "DROP_TABLE",
+    ]),
     // Wave 2 — adds `duplicate_decisions` to persist reviewer decisions
     // (CONFIRMED / DISMISSED / MARKED_DERIVATIVE) on duplicate-class
     // graph edges (SAME_HASH_AS / SIMILAR_TO / POSSIBLE_DERIVATIVE_OF).
@@ -425,6 +462,79 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // `20261009000000_drop_reviewer_queue_projection` precedent.
     // Documented in `docs/operations/audit-closure-ledger.md`.
     "20270924000000_drop_workspace_persona_profiles": new Set(["DROP_TABLE"]),
+    // ---- PHASE 12B convergence migrations (authored, UNAPPLIED) ------------
+    // Every entry below is registered with the SPECIFIC finding kinds it
+    // carries and why they are safe. This is a register, not a suppression:
+    // any other kind on these migrations, and any unlisted migration, still
+    // fails the gate.
+    //
+    // Track 1B closure — removes the legacy `Evidence.case_id` column after
+    // the canonical `case_evidence_links` join model took over. The DELETE
+    // and DROP INDEX target only the legacy column's own artifacts, and the
+    // migration self-guards with a RAISE EXCEPTION on any row that has not
+    // been converted, so it cannot run against unconverted data.
+    // PHASE 12 POINT 6 — SPLIT into an EXPAND half
+    // (20271104000000_case_evidence_link_integrity: final backfill + the two
+    // validated foreign keys, Release B — carries no destructive kind and so
+    // needs no registration) and this CONTRACT half, Release D.
+    "20271105000000_evidence_case_id_removal": new Set([
+      "ALTER_TABLE_DROP_COLUMN",
+      "DROP_INDEX",
+    ]),
+    // PHASE 12B CLUSTER 8 — makes `evidence_legal_holds` the CANONICAL
+    // legal-hold model. Purely additive columns + FKs + a scope/target CHECK;
+    // the INDEX_COLUMN_RISK findings are the new indexes on the columns this
+    // same migration adds, which is the intended shape for an additive
+    // convergence step.
+    "20271106000000_legal_hold_canonical": new Set(["INDEX_COLUMN_RISK"]),
+    // PHASE 12B CLUSTER 8 — removes the two legacy legal-hold stores AFTER
+    // the backfill. Authored but MUST NOT be applied until the backfill is
+    // applied and verified; it guards itself with a RAISE EXCEPTION on any
+    // unconverted row, so the DROP cannot silently lose a hold.
+    "20271108000000_legal_hold_legacy_removal": new Set([
+      "DROP_TABLE",
+      "DROP_TYPE",
+    ]),
+    // PHASE 12B CLUSTER 9 — adds the optimistic-concurrency `version` column
+    // to `workspace_governance_policies`. The SET NOT NULL is applied in the
+    // same statement as a DEFAULT on a column this migration just created, so
+    // there is no pre-existing NULL population to make ready.
+    "20271109000000_workspace_governance_policy_version": new Set([
+      "SET_NOT_NULL_NO_READINESS",
+    ]),
+    // PHASE 12B B3 — binds a step-up challenge to its originating session and
+    // Organization. Both columns are NULLABLE and additive; the index is on
+    // the columns this migration adds.
+    "20271111000000_step_up_session_organization_binding": new Set([
+      "INDEX_COLUMN_RISK",
+    ]),
+    // PHASE 12 POINT 5 — durable report/package generation authority.
+    //
+    // Pure-additive, mirroring the wave2 / contact-sales / email-verification
+    // precedents: ONE new table via CREATE TABLE IF NOT EXISTS, every index
+    // CREATE ... IF NOT EXISTS. Zero DROP / RENAME / TRUNCATE / DELETE, zero
+    // ALTER on any existing table, zero data movement, no backfill — so a
+    // failed apply leaves the prior state exactly intact and a deployment
+    // still running the previous build is unaffected until its code is
+    // replaced.
+    //
+    // Why it exists: report generation was requested by putting
+    // { evidenceId, forceRegenerate, regenerateReason } on a BullMQ payload.
+    // `forceRegenerate` is the OUTCOME OF AN AUTHORIZATION DECISION — it
+    // bypasses the guard that refuses to regenerate an already-REPORTED
+    // artifact — and it was arriving as an unverified boolean on a queue
+    // message. The authorized synchronous path now persists the intent in
+    // `report_generation_requests` and the queue carries only that row's id.
+    //
+    // Rehearsed against a disposable PostgreSQL 16 over the full migration
+    // history: `prisma migrate deploy` applied cleanly, and a second run
+    // reported no pending migrations (idempotent). Unapplied remotely; also
+    // registered in phase-32-7-2-security-event-mapping-drift.test.ts and in
+    // docs/architecture/compatibility-adapter-registry.json as
+    // OWNER_MIGRATION_PENDING.
+    "20271113000000_point5_report_generation_authority": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

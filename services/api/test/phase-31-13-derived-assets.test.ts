@@ -29,6 +29,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { JOB_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -199,29 +200,48 @@ describe("Phase 31.13 — derived assets persistence service", () => {
 describe("Phase 31.13 — API derived-assets queue helper", () => {
   const src = readSource("../src/queue/derived-assets-queue.ts");
 
-  it("lazy-inits Redis — importing the module without REDIS_URL is safe", () => {
-    expect(src).toMatch(/let _queue:\s*Queue\s*\|\s*null\s*=\s*null/);
-    expect(src).toMatch(/function getQueue\(\):\s*Queue/);
-    expect(src).toMatch(/if \(_queue\) return _queue/);
+  /**
+   * PHASE 12 — POINT 5 replaced this module's private transport, job id and
+   * collapse ladder with the shared authority, and gave the chain the durable
+   * row it always needed.
+   *
+   * The old payload was `{ teamId, evidenceId, evidencePartId, assetKind }` and
+   * the processor believed all four. `teamId` scoped the raw SQL that reads the
+   * source bytes, so a tampered value read another workspace's evidence part
+   * and wrote the thumbnail back under that asserted tenant.
+   */
+  it("importing the module without REDIS_URL is safe (lazy transport)", () => {
+    expect(src).not.toMatch(/new IORedis\(/);
+    expect(src).toMatch(/canonical-queue-client\.js/);
   });
 
-  it("deterministic job id da-<kind>-<evidencePartId>", () => {
-    expect(src).toMatch(
-      /return `da-\$\{assetKind\}-\$\{evidencePartId\}`/,
-    );
+  it("the job id names the DURABLE ROW, not a kind and a part id", () => {
+    // `da-<kind>-<partId>` re-encoded two payload fields as an identity.
+    // `EvidencePartDerivedAsset` already modelled this work and already had the
+    // right unique index on (teamId, evidencePartId, assetKind).
+    expect(src).not.toMatch(/`da-\$\{assetKind\}-\$\{evidencePartId\}`/);
+    const entry = getWorkEntryOrThrow(JOB_NAMES.GENERATE_DERIVED_ASSET);
+    expect(entry.jobIdPrefix).toBe("mi-derived");
+    expect(entry.durableAuthority.model).toBe("EvidencePartDerivedAsset");
   });
 
-  it("idempotent collapse on waiting/active/delayed state", () => {
-    expect(src).toMatch(/getJob\(jobId\)/);
-    expect(src).toMatch(/state === "waiting"/);
-    expect(src).toMatch(/state === "active"/);
-    expect(src).toMatch(/state === "delayed"/);
+  it("the request row is committed BEFORE the enqueue, and scoped by a real join", () => {
+    // The part must be proven to belong to the caller's workspace through
+    // `evidence.team_id` — a restatement of the input would prove nothing.
+    expect(src).toMatch(/evidence: \{ teamId: input\.teamId, deletedAt: null \}/);
+    expect(src).toMatch(/evidencePartDerivedAsset\.upsert\(/);
+    expect(src).toMatch(/evidence_part_not_found/);
+    const upsertIdx = src.indexOf("evidencePartDerivedAsset.upsert(");
+    const enqueueIdx = src.indexOf("enqueueCanonicalWork(");
+    expect(upsertIdx).toBeGreaterThan(-1);
+    expect(enqueueIdx).toBeGreaterThan(upsertIdx);
   });
 
   it("Redis outage returns { enqueued: false, reason } — never throws", () => {
-    expect(src).toMatch(
-      /catch \(err\)\s*\{[\s\S]*?return\s*\{\s*enqueued:\s*false,\s*reason:/,
-    );
+    // The row stays PENDING, which is recoverable and observable rather than a
+    // lost request.
+    expect(src).toMatch(/return \{ enqueued: false, reason: outcome\.reason/);
+    expect(src).toMatch(/request_persist_failed/);
   });
 
   it("bumps the right metrics on success + failure", () => {

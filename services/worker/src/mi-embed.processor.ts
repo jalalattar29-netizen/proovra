@@ -24,11 +24,14 @@
  *     instantiates its own client.
  */
 
-import type { Job } from "bullmq";
+import { randomUUID } from "node:crypto";
 
+import type { Job } from "bullmq";
+import { JOB_NAMES } from "@proovra/shared";
+
+import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import type { MiEmbedJobPayload } from "./queue.js";
 
 type ProviderHandle = {
   name: string;
@@ -299,6 +302,36 @@ async function recordUsage(
   }
 }
 
+/**
+ * Is the pgvector column this processor depends on actually present?
+ *
+ * Cached for the life of the process: the answer is a property of the schema,
+ * which does not change under a running worker, and asking per job would add a
+ * catalogue round-trip to every batch. `undefined` means "not yet asked".
+ *
+ * A read failure is NOT treated as present. Failing closed here costs a drained
+ * batch; failing open costs an unbounded retry storm against a column that is
+ * not coming back.
+ */
+let vectorObjectsCache: boolean | undefined;
+
+async function vectorObjectsPresent(): Promise<boolean> {
+  if (vectorObjectsCache !== undefined) return vectorObjectsCache;
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ present: boolean }>>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'evidence_semantic_chunks'
+            AND column_name = 'embedding_vector'
+       ) AS present`,
+    );
+    vectorObjectsCache = rows[0]?.present === true;
+  } catch {
+    vectorObjectsCache = false;
+  }
+  return vectorObjectsCache;
+}
+
 function vectorLiteral(vec: Float32Array): string {
   if (vec.length === 0 || vec.length > 4096) return "[]";
   const parts = new Array<string>(vec.length);
@@ -313,17 +346,50 @@ function vectorLiteral(vec: Float32Array): string {
 // Processor
 // --------------------------------------------------------------------------
 
+/**
+ * PHASE 12 — POINT 5.
+ *
+ * The old payload was `{ teamId, chunkIds[<=200], reason }`, and both of its
+ * first two fields were wrong to trust:
+ *
+ *   * `teamId` scoped every query in this processor. A tampered value would
+ *     have pointed the AI-policy lookup, the budget gate, the chunk read and
+ *     the vector write at another workspace — and the budget gate in
+ *     particular is a SPEND control, so the tenant charged would have been
+ *     whichever one the message named.
+ *
+ *   * `chunkIds` was a snapshot taken at enqueue time. Chunks embedded between
+ *     enqueue and execution were re-embedded, spending provider budget on work
+ *     already done — a real defect, not just a hardening concern.
+ *
+ * Both are now derived. The command names ONE anchor chunk; the workspace comes
+ * from that chunk's row; the batch is selected here from chunks that are
+ * actually still unembedded in that workspace.
+ */
 export async function processMiEmbedJob(
-  job: Job<MiEmbedJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
-  const { teamId, chunkIds, reason } = job.data;
-  if (!teamId || !chunkIds || chunkIds.length === 0) {
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(JOB_NAMES.EMBED_SEMANTIC_CHUNKS, job, {
+    requestId,
+  });
+  const reason = decoded.traceId || null;
+
+  // The anchor chunk IS the tenancy: its own `team_id` column decides the
+  // workspace, and nothing on the wire can move it.
+  const anchor = await prisma.evidenceSemanticChunk.findUnique({
+    where: { id: decoded.commandId },
+    select: { id: true, teamId: true },
+  });
+  if (!anchor?.teamId) {
     logger.warn(
-      { jobId: job.id ?? null, kind: "mi-embed" },
-      "mi_embed.empty_payload_completed",
+      { requestId, jobId: job.id ?? null, kind: "mi-embed" },
+      "mi_embed.anchor_chunk_missing_completed",
     );
     return;
   }
+  const teamId = anchor.teamId;
+
   // Phase P3 — canonical Workspace AI policy enforcement IN THE WORKER.
   // Env flags alone are not sufficient: the workspace must have semantic
   // search + embeddings enabled in its AI policy. Read failure (table not
@@ -339,7 +405,7 @@ export async function processMiEmbedJob(
       : false; // table exists, no row → safe defaults (semantic off)
     if (!allowed) {
       logger.info(
-        { jobId: job.id ?? null, teamId, chunkCount: chunkIds.length },
+        { requestId, jobId: job.id ?? null, teamId },
         "mi_embed.workspace_policy_disabled_completed",
       );
       return;
@@ -348,49 +414,74 @@ export async function processMiEmbedJob(
     /* policy table not migrated in this environment — env gates still apply */
   }
 
+  // PHASE 12 — POINT 5, STEP 7: the vector objects must actually EXIST.
+  //
+  // Everything below selects on `embedding_vector IS NULL` and writes a
+  // `vector` value. On a database where the pgvector extension was absent when
+  // the chain replayed, that column does not exist — the migration that adds it
+  // is guarded for portability — and every job here throws on a missing column.
+  // Thrown means BullMQ retries with backoff, forever, because no amount of
+  // retrying installs an extension. That is the retry loop Point 5 forbids.
+  //
+  // So it is checked once per process and reported as a BLOCKED readiness
+  // state: bounded, explicit, and drained rather than retried. The operator
+  // gate is `pnpm --filter proovra-api db:point5-vector-readiness`, which
+  // fails closed on exactly this condition.
+  if (!(await vectorObjectsPresent())) {
+    logger.error(
+      { requestId, jobId: job.id ?? null, teamId },
+      "mi_embed.vector_objects_missing_blocked",
+    );
+    return;
+  }
+
   const provider = await resolveProvider();
   if (!provider) {
     // Provider not configured — chunks remain keyword-only. Drain
     // the queue cleanly rather than failing.
     logger.info(
-      {
-        jobId: job.id ?? null,
-        teamId,
-        chunkCount: chunkIds.length,
-        reason: reason ?? null,
-      },
+      { requestId, jobId: job.id ?? null, teamId, reason },
       "mi_embed.provider_disabled_completed",
     );
     return;
   }
 
-  const gate = await canEmbedMore(teamId, chunkIds.length);
-  if (!gate.allowed) {
-    logger.warn(
-      {
-        jobId: job.id ?? null,
-        teamId,
-        chunkCount: chunkIds.length,
-        reason: reason ?? null,
-        blockedBy: gate.reason,
-      },
-      "mi_embed.budget_blocked_completed",
+  // The batch is CHOSEN here, from current state, rather than read off the
+  // wire. The anchor leads: it and up to 199 other chunks in the same
+  // workspace that still have no vector. A chunk embedded since enqueue is
+  // simply not selected, so a replay does no provider work at all.
+  const chunks = await prisma.$queryRaw<
+    Array<{ id: string; chunk_text: string }>
+  >`
+    SELECT id, chunk_text
+      FROM evidence_semantic_chunks
+     WHERE team_id = ${teamId}::uuid
+       AND embedding_vector IS NULL
+     ORDER BY (id = ${anchor.id}::uuid) DESC, created_at ASC
+     LIMIT 200
+  `;
+  if (chunks.length === 0) {
+    logger.info(
+      { requestId, jobId: job.id ?? null, teamId, chunkCount: 0 },
+      "mi_embed.no_chunks_completed",
     );
     return;
   }
 
-  // Load chunk text — workspace-scoped.
-  const chunks = await prisma.evidenceSemanticChunk.findMany({
-    where: {
-      id: { in: chunkIds.slice(0, 200) },
-      teamId,
-    },
-    select: { id: true, chunkText: true },
-  });
-  if (chunks.length === 0) {
-    logger.info(
-      { jobId: job.id ?? null, teamId, chunkCount: 0 },
-      "mi_embed.no_chunks_completed",
+  // Budget is consulted against the REAL batch size, after selection. Doing it
+  // before would charge the gate for chunks that turned out not to need work.
+  const gate = await canEmbedMore(teamId, chunks.length);
+  if (!gate.allowed) {
+    logger.warn(
+      {
+        requestId,
+        jobId: job.id ?? null,
+        teamId,
+        chunkCount: chunks.length,
+        reason,
+        blockedBy: gate.reason,
+      },
+      "mi_embed.budget_blocked_completed",
     );
     return;
   }
@@ -399,11 +490,12 @@ export async function processMiEmbedJob(
   let failed = 0;
   let vectors: Array<Float32Array | null>;
   try {
-    vectors = await provider.embedBatch(chunks.map((c) => c.chunkText));
+    vectors = await provider.embedBatch(chunks.map((c) => c.chunk_text));
   } catch (err) {
     // Provider configuration / fatal error — let BullMQ retry.
     logger.error(
       {
+        requestId,
         jobId: job.id ?? null,
         teamId,
         chunkCount: chunks.length,
@@ -435,12 +527,13 @@ export async function processMiEmbedJob(
          WHERE id = ${c.id}::uuid
            AND team_id = ${teamId}::uuid
       `;
-      await recordUsage(teamId, estimateTokens(c.chunkText.length));
+      await recordUsage(teamId, estimateTokens(c.chunk_text.length));
       succeeded += 1;
     } catch (err) {
       failed += 1;
       logger.warn(
         {
+          requestId,
           jobId: job.id ?? null,
           teamId,
           chunkId: c.id,
@@ -456,9 +549,10 @@ export async function processMiEmbedJob(
 
   logger.info(
     {
+      requestId,
       jobId: job.id ?? null,
       teamId,
-      reason: reason ?? null,
+      reason,
       processed: chunks.length,
       succeeded,
       failed,

@@ -1,6 +1,6 @@
 # Live cross-tenant runtime probe — operator guide
 
-The probe in [phase-37-95-cross-tenant-runtime-probe.test.ts](../services/api/test/phase-37-95-cross-tenant-runtime-probe.test.ts)
+The probe in [phase-37-95-cross-tenant-runtime-probe.integration.test.ts](../services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts)
 exercises real API routes against a real Postgres to prove cross-tenant
 isolation at runtime. This document explains how to run it locally and
 in CI.

@@ -97,7 +97,9 @@ async function backfillEvidence(flags: Flags): Promise<{
   let skipped = 0;
   let failed = 0;
 
-  while (true) {
+  // Cursor pagination: terminates when a page comes back empty. The cursor
+  // is a strictly increasing primary key (`skip: 1`), so the scan is finite.
+  for (;;) {
     const page = await prisma.evidence.findMany({
       where,
       select: { id: true, teamId: true, title: true, displayFileName: true },
@@ -161,7 +163,9 @@ async function backfillCases(flags: Flags): Promise<{
   let skipped = 0;
   let failed = 0;
 
-  while (true) {
+  // Cursor pagination: terminates when a page comes back empty. The cursor
+  // is a strictly increasing primary key (`skip: 1`), so the scan is finite.
+  for (;;) {
     const page = await prisma.case.findMany({
       where,
       select: { id: true, teamId: true, name: true },
@@ -210,7 +214,9 @@ async function backfillArtifacts(
   let failed = 0;
   let cursor: string | undefined;
 
-  while (true) {
+  // Cursor pagination: terminates when a page comes back empty. The cursor
+  // is a strictly increasing primary key (`skip: 1`), so the scan is finite.
+  for (;;) {
     let rows: Array<{ id: string }>;
     if (kind === "REPORT") {
       rows = await prisma.report.findMany({

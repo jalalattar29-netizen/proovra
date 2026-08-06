@@ -31,11 +31,11 @@ import { formatUserDateTime } from "../../src/lib/date";
 // runTrustCapture is the canonical capture-site alias for the same
 // runtime. listTrustQueueSummary surfaces queued+failed counts in the
 // session footer so operators see real queue state, not a placeholder.
-import {
-  captureWithTrust,
-  runTrustCapture,
-  listTrustQueueSummary,
-} from "../../src/trust";
+//
+// `captureWithTrust` is deliberately NOT imported: this screen calls the
+// canonical `runTrustCapture` alias, and importing both left an unused
+// binding that read as if two capture entry points were in play here.
+import { runTrustCapture, listTrustQueueSummary } from "../../src/trust";
 // PHASE 10 CLOSURE FIX 3 (2026-07-23) — no-Personal client gate. The
 // citizen-capture app has no workspace switcher/alternative target, so a
 // disallowed Personal Space blocks capture outright (never a silent

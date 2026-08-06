@@ -1,27 +1,23 @@
 /**
  * Phase 31.19 — subsystem queue processors.
  *
- * Each of the four new isolated queues (mi-ocr, mi-transcript,
- * mi-search-index, graph-reconcile) gets a thin processor here.
+ * Each of the isolated subsystem queues (mi-search-index,
+ * graph-reconcile and the workspace projection chains) gets a thin
+ * processor here.
  *
  * Hard contracts:
  *   - Each processor imports the SHARED Prisma instance via ./db.js;
  *     it NEVER constructs its own. (Bare `new PrismaClient()` was
  *     the worker hotfix root cause.)
- *   - Each processor returns within bounded time. The mi-ocr and
- *     mi-transcript processors complete fast in the absence of a
- *     vendor — they record receipt + emit a NOT_CONFIGURED log line
- *     and return. This keeps the queue drain healthy.
+ *   - Each processor returns within bounded time.
  *   - graph-reconcile invokes the existing `reconcileTeamGraph`
  *     service (read-only graph rebuild for one team).
  *   - mi-search-index defers to the existing Phase 24-J search
  *     indexing queue so we keep a single canonical writer for the
  *     search index.
- *
- * The producers for mi-ocr / mi-transcript are gated on the
- * OCR/transcript vendor decision (see Phase 31.19 producer mode).
- * Until a producer enqueues these, the queues stay empty and the
- * workers idle.
+ *   - PHASE 12 POINT 5: no processor here reports completion for work
+ *     it did not perform. The two that did — `mi-ocr` and
+ *     `mi-transcript` — are gone; see the note below.
  */
 
 import type { Job } from "bullmq";
@@ -31,104 +27,125 @@ import { logger } from "./logger.js";
 // Phase O1.5D — bounded graph spans. Attributes carry only the
 // bounded teamId + operation. NEVER raw graph data or PII.
 import { PROOVRA_SPAN_NAMES, withProovraSpan } from "./otel.js";
-import type {
-  GraphDomainSyncJobPayload,
-  GraphReconcileJobPayload,
-  GraphSearchProjectionJobPayload,
-  GraphTimelineSyncJobPayload,
-  OrgHealthRefreshJobPayload,
-  MiSearchIndexJobPayload,
-  OcrJobPayload,
-  TranscriptJobPayload,
-} from "./queue.js";
+import { randomUUID } from "node:crypto";
 
-// =============================================================================
-// mi-ocr — gated on OCR vendor decision. Records receipt and emits
-// a single NOT_CONFIGURED log line.
-// =============================================================================
+import {
+  JOB_NAMES,
+  parseGraphDomainCommandId,
+  type GraphSyncDomain,
+  type WorkName,
+} from "@proovra/shared";
 
-export async function processOcrJob(
-  job: Job<OcrJobPayload, void, string>,
-): Promise<void> {
-  logger.info(
-    {
-      jobId: job.id ?? null,
-      kind: "mi-ocr",
-      teamId: job.data.teamId,
-      evidenceId: job.data.evidenceId,
-      evidencePartId: job.data.evidencePartId ?? null,
-    },
-    "mi_ocr.received",
-  );
-  // Vendor producer not yet configured. We complete the job rather
-  // than failing so the queue stays drained.
-  logger.warn(
-    {
-      jobId: job.id ?? null,
-      teamId: job.data.teamId,
-      evidenceId: job.data.evidenceId,
-    },
-    "mi_ocr.not_configured_completed",
-  );
+import {
+  decodeCanonicalJob,
+  resolveActiveWorkspace,
+  type JobLike,
+} from "./canonical-job.js";
+
+/**
+ * PHASE 12 — POINT 5: the shared preamble for the workspace-scoped subsystem
+ * jobs.
+ *
+ * Five of the eight processors in this file address a WORKSPACE rather than a
+ * row inside one, so their command id is a workspace id. That is a reference,
+ * not an assertion: it must resolve to a live Team, and the owning
+ * Organization must still be ACTIVE, before any work happens. A suspended
+ * organization's projections are not rebuilt.
+ *
+ * Returns null when the job should complete as a bounded no-op — logged, not
+ * thrown, because neither a deleted workspace nor a suspended organization
+ * becomes valid on a retry.
+ */
+async function resolveWorkspaceJob(
+  workName: WorkName,
+  job: JobLike,
+  logKind: string,
+): Promise<{ workspaceId: string; reason: string; requestId: string } | null> {
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(workName, job, { requestId });
+  const resolved = await resolveActiveWorkspace(prisma, decoded.commandId);
+  if (!resolved) {
+    logger.warn(
+      { requestId, jobId: job.id ?? null, kind: logKind },
+      `${logKind}.workspace_unresolved_or_inactive`,
+    );
+    return null;
+  }
+  return {
+    workspaceId: resolved.workspaceId,
+    reason: decoded.traceId || "unspecified",
+    requestId,
+  };
 }
 
 // =============================================================================
-// mi-transcript — same shape as mi-ocr.
-// =============================================================================
-
-export async function processTranscriptJob(
-  job: Job<TranscriptJobPayload, void, string>,
-): Promise<void> {
-  logger.info(
-    {
-      jobId: job.id ?? null,
-      kind: "mi-transcript",
-      teamId: job.data.teamId,
-      evidenceId: job.data.evidenceId,
-      evidencePartId: job.data.evidencePartId ?? null,
-    },
-    "mi_transcript.received",
-  );
-  logger.warn(
-    {
-      jobId: job.id ?? null,
-      teamId: job.data.teamId,
-      evidenceId: job.data.evidenceId,
-    },
-    "mi_transcript.not_configured_completed",
-  );
-}
-
+// PHASE 12 — POINT 5: the `mi-ocr` and `mi-transcript` no-op processors are
+// GONE, together with their queues, their unused producers and their registry
+// entries.
+//
+// They were the second authority for two capabilities that already had a real
+// one. OCR and transcript extraction run on the `media-intelligence` queue,
+// under the `extract_ocr_azure` / `extract_transcript_deepgram` run kinds,
+// against a durable `MediaIntelligenceRun` row: provider call, budget gate,
+// claim fence, terminal state, reconciler. The processors here had none of
+// that — they logged `not_configured_completed` and returned success, which is
+// a FALSE terminal signal for work that never ran.
+//
+// The removal is safe by measurement, not by argument: `enqueueOcrJob` and
+// `enqueueTranscriptJob` had no caller in ANY commit of this repository, so
+// neither queue has ever received a job and no in-flight legacy payload can
+// exist. That is also why neither retains a legacy adapter.
+//
+// `services/api/test/phase-12-point5-ocr-transcript-authority.test.ts` keeps
+// them removed.
 // =============================================================================
 // mi-search-index — bounded reindex trigger for a single evidence.
 // Defers to the existing search-indexing queue.
 // =============================================================================
 
 export async function processMiSearchIndexJob(
-  job: Job<MiSearchIndexJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(JOB_NAMES.INDEX_MEDIA_INTELLIGENCE, job, {
+    requestId,
+  });
+  const evidence = await prisma.evidence.findFirst({
+    where: { id: decoded.commandId, deletedAt: null },
+    select: { id: true, teamId: true },
+  });
+  if (!evidence?.teamId) {
+    logger.warn(
+      { requestId, jobId: job.id ?? null, kind: "mi-search-index" },
+      "mi_search_index.evidence_unresolved",
+    );
+    return;
+  }
+  const reason = decoded.traceId || "media_intelligence_indexed";
   logger.info(
     {
+      requestId,
       jobId: job.id ?? null,
       kind: "mi-search-index",
-      teamId: job.data.teamId,
-      evidenceId: job.data.evidenceId,
-      reason: job.data.reason,
+      teamId: evidence.teamId,
+      evidenceId: evidence.id,
+      reason,
     },
     "mi_search_index.received",
   );
   const { enqueueSearchIndexingJob } = await import("./queue.js");
   const r = await enqueueSearchIndexingJob({
-    teamId: job.data.teamId,
+    teamId: evidence.teamId,
     kind: "evidence",
-    sourceId: job.data.evidenceId,
-    reason: job.data.reason,
+    sourceId: evidence.id,
+    reason,
   });
   logger.info(
     {
+      requestId,
       jobId: job.id ?? null,
-      teamId: job.data.teamId,
-      evidenceId: job.data.evidenceId,
+      teamId: evidence.teamId,
+      evidenceId: evidence.id,
       delegated: r,
     },
     "mi_search_index.delegated_to_search_indexing_queue",
@@ -140,27 +157,35 @@ export async function processMiSearchIndexJob(
 // =============================================================================
 
 export async function processGraphReconcileJob(
-  job: Job<GraphReconcileJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
+  const resolved = await resolveWorkspaceJob(
+    JOB_NAMES.RECONCILE_TEAM_GRAPH,
+    job,
+    "graph_reconcile",
+  );
+  if (!resolved) return;
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.GRAPH_RECONCILE,
     {
-      "proovra.team_id": job.data.teamId,
+      "proovra.team_id": resolved.workspaceId,
       "proovra.operation": "graph_reconcile",
     },
-    () => processGraphReconcileJobInner(job),
+    () => processGraphReconcileJobInner(job, resolved),
   );
 }
 
 async function processGraphReconcileJobInner(
-  job: Job<GraphReconcileJobPayload, void, string>,
+  job: Job<unknown, void, string>,
+  ctx: { workspaceId: string; reason: string; requestId: string },
 ): Promise<void> {
   logger.info(
     {
+      requestId: ctx.requestId,
       jobId: job.id ?? null,
       kind: "graph-reconcile",
-      teamId: job.data.teamId,
-      reason: job.data.reason ?? null,
+      teamId: ctx.workspaceId,
+      reason: ctx.reason,
     },
     "graph_reconcile.received",
   );
@@ -168,23 +193,27 @@ async function processGraphReconcileJobInner(
     const { reconcileTeamGraph } = await import(
       "@proovra/shared-runtime/graph"
     );
-    // Phase 14 — Stage 2 trigger #4. Pass an `onReconciled` hook so
-    // the worker enqueues a Discovery search re-index for the team
-    // after a successful graph reconcile pass. Uses the worker-side
-    // `enqueueSearchIndexingJob` helper from ./queue.ts (shares the
-    // same deterministic jobId scheme as the API-side helper so the
-    // two never duplicate). Best-effort: a failed enqueue NEVER
-    // blocks the reconcile completion log.
-    const { enqueueSearchIndexingJob } = await import("./queue.js");
+    // Phase 14 — Stage 2 trigger #4: refresh graph-derived search hints after
+    // a successful reconcile pass.
+    //
+    // PHASE 12 POINT 5 — this hook was broken. It enqueued
+    // `{ kind: "evidence", sourceId: <TEAM id> }`, so the processor looked for
+    // an Evidence row whose id was a Team id, never found one, concluded the
+    // source had been deleted, and ran a delete against a projection that does
+    // not exist. The intended refresh never happened, and the completion log
+    // said it did. A per-team refresh is not expressible as a single-document
+    // rebuild, and the platform already has the right job for it: the
+    // `graph-search-projection` queue exists precisely to refresh
+    // graph-derived search hints for a workspace.
+    //
+    // Best-effort: a failed enqueue NEVER blocks the reconcile completion log.
+    const { enqueueGraphSearchProjectionJob } = await import("./queue.js");
     const result = await reconcileTeamGraph(
-      job.data.teamId,
+      ctx.workspaceId,
       prisma,
       {
         onReconciled: ({ teamId: tId }) => {
-          enqueueSearchIndexingJob({
-            teamId: tId,
-            kind: "evidence",
-            sourceId: tId,
+          enqueueGraphSearchProjectionJob(tId, {
             reason: "graph_reconciled",
           }).catch(() => null);
         },
@@ -193,7 +222,7 @@ async function processGraphReconcileJobInner(
     logger.info(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         ok: result.ok,
         nodesUpserted: result.nodesUpserted,
         edgesUpserted: result.edgesUpserted,
@@ -205,7 +234,7 @@ async function processGraphReconcileJobInner(
     logger.error(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         err: err instanceof Error ? err.message : String(err),
       },
       "graph_reconcile.failed",
@@ -234,13 +263,13 @@ async function processGraphReconcileJobInner(
         "@proovra/shared-runtime/media-intelligence"
       );
       const indexerResult = await indexExistingOcrAndTranscript(
-        { teamId: job.data.teamId },
+        { teamId: ctx.workspaceId },
         prisma,
       );
       logger.info(
         {
           jobId: job.id ?? null,
-          teamId: job.data.teamId,
+          teamId: ctx.workspaceId,
           modes,
           indexer: indexerResult,
         },
@@ -250,7 +279,7 @@ async function processGraphReconcileJobInner(
       logger.info(
         {
           jobId: job.id ?? null,
-          teamId: job.data.teamId,
+          teamId: ctx.workspaceId,
         },
         "graph_reconcile.ocr_transcript_indexer_skipped_not_configured",
       );
@@ -259,7 +288,7 @@ async function processGraphReconcileJobInner(
     logger.warn(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         err: err instanceof Error ? err.message : String(err),
       },
       "graph_reconcile.ocr_transcript_indexer_failed_non_fatal",
@@ -279,29 +308,62 @@ async function processGraphReconcileJobInner(
 // contract.
 // =============================================================================
 
+/**
+ * PHASE 12 — POINT 5. The command is `<domain>:<workspaceId>`, and the domain
+ * half is validated against a CLOSED catalog by the parser before any database
+ * access. It used to be an optional payload field, so an unknown value produced
+ * a job that completed as a silent no-op — a request that looked accepted and
+ * did nothing.
+ */
 export async function processGraphDomainSyncJob(
-  job: Job<GraphDomainSyncJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN, job, {
+    requestId,
+  });
+  const { domain, workspaceId } = parseGraphDomainCommandId(decoded.commandId);
+  const resolved = await resolveActiveWorkspace(prisma, workspaceId);
+  if (!resolved) {
+    logger.warn(
+      { requestId, jobId: job.id ?? null, kind: "graph-domain-sync" },
+      "graph_domain_sync.workspace_unresolved_or_inactive",
+    );
+    return;
+  }
+  const ctx = {
+    workspaceId: resolved.workspaceId,
+    reason: decoded.traceId || "unspecified",
+    requestId,
+    domain,
+  };
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.GRAPH_DOMAIN_SYNC,
     {
-      "proovra.team_id": job.data.teamId,
+      "proovra.team_id": ctx.workspaceId,
       "proovra.operation": "graph_domain_sync",
     },
-    () => processGraphDomainSyncJobInner(job),
+    () => processGraphDomainSyncJobInner(job, ctx),
   );
 }
 
 async function processGraphDomainSyncJobInner(
-  job: Job<GraphDomainSyncJobPayload, void, string>,
+  job: Job<unknown, void, string>,
+  ctx: {
+    workspaceId: string;
+    reason: string;
+    requestId: string;
+    domain: GraphSyncDomain;
+  },
 ): Promise<void> {
   logger.info(
     {
+      requestId: ctx.requestId,
       jobId: job.id ?? null,
       kind: "graph-domain-sync",
-      teamId: job.data.teamId,
-      domain: job.data.domain ?? null,
-      reason: job.data.reason ?? null,
+      teamId: ctx.workspaceId,
+      domain: ctx.domain,
+      reason: ctx.reason,
     },
     "graph_domain_sync.received",
   );
@@ -312,9 +374,12 @@ async function processGraphDomainSyncJobInner(
     const { DOMAIN_SYNC_DOMAINS, runDomainStaleSweep } = await import(
       "@proovra/shared-runtime/graph"
     );
-    const targets = job.data.domain
-      ? [job.data.domain]
-      : (DOMAIN_SYNC_DOMAINS as readonly string[]);
+    // `all` is a real member of the closed catalog, not a null: an absent
+    // filter and an unknown filter must not be the same value.
+    const targets =
+      ctx.domain === "all"
+        ? (DOMAIN_SYNC_DOMAINS as readonly string[])
+        : [ctx.domain];
     let totalTombstoned = 0;
     const perDomain: Array<{
       domain: string;
@@ -338,7 +403,7 @@ async function processGraphDomainSyncJobInner(
         continue;
       }
       const r = await runDomainStaleSweep(
-        job.data.teamId,
+        ctx.workspaceId,
         d as (typeof DOMAIN_SYNC_DOMAINS)[number],
         prisma,
       );
@@ -353,8 +418,8 @@ async function processGraphDomainSyncJobInner(
     logger.info(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
-        domain: job.data.domain ?? "all",
+        teamId: ctx.workspaceId,
+        domain: ctx.domain,
         totalTombstoned,
         perDomain,
       },
@@ -366,7 +431,7 @@ async function processGraphDomainSyncJobInner(
     logger.error(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         err: err instanceof Error ? err.message : String(err),
       },
       "graph_domain_sync.failed",
@@ -376,27 +441,35 @@ async function processGraphDomainSyncJobInner(
 }
 
 export async function processGraphTimelineSyncJob(
-  job: Job<GraphTimelineSyncJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
+  const ctx = await resolveWorkspaceJob(
+    JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
+    job,
+    "graph_timeline_sync",
+  );
+  if (!ctx) return;
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.GRAPH_TIMELINE_BUILD,
     {
-      "proovra.team_id": job.data.teamId,
+      "proovra.team_id": ctx.workspaceId,
       "proovra.operation": "graph_timeline_build",
     },
-    () => processGraphTimelineSyncJobInner(job),
+    () => processGraphTimelineSyncJobInner(job, ctx),
   );
 }
 
 async function processGraphTimelineSyncJobInner(
-  job: Job<GraphTimelineSyncJobPayload, void, string>,
+  job: Job<unknown, void, string>,
+  ctx: { workspaceId: string; reason: string; requestId: string },
 ): Promise<void> {
   logger.info(
     {
+      requestId: ctx.requestId,
       jobId: job.id ?? null,
       kind: "graph-timeline-sync",
-      teamId: job.data.teamId,
-      reason: job.data.reason ?? null,
+      teamId: ctx.workspaceId,
+      reason: ctx.reason,
     },
     "graph_timeline_sync.received",
   );
@@ -407,11 +480,11 @@ async function processGraphTimelineSyncJobInner(
     const { runTimelineSync } = await import(
       "@proovra/shared-runtime/graph"
     );
-    const result = await runTimelineSync(job.data.teamId, prisma);
+    const result = await runTimelineSync(ctx.workspaceId, prisma);
     logger.info(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         ok: result.ok,
         eventCount: result.eventCount,
         truncated: result.truncated,
@@ -424,7 +497,7 @@ async function processGraphTimelineSyncJobInner(
     logger.error(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         err: err instanceof Error ? err.message : String(err),
       },
       "graph_timeline_sync.failed",
@@ -434,27 +507,35 @@ async function processGraphTimelineSyncJobInner(
 }
 
 export async function processGraphSearchProjectionJob(
-  job: Job<GraphSearchProjectionJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
+  const ctx = await resolveWorkspaceJob(
+    JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
+    job,
+    "graph_search_projection",
+  );
+  if (!ctx) return;
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.GRAPH_SEARCH_PROJECTION,
     {
-      "proovra.team_id": job.data.teamId,
+      "proovra.team_id": ctx.workspaceId,
       "proovra.operation": "graph_search_projection",
     },
-    () => processGraphSearchProjectionJobInner(job),
+    () => processGraphSearchProjectionJobInner(job, ctx),
   );
 }
 
 async function processGraphSearchProjectionJobInner(
-  job: Job<GraphSearchProjectionJobPayload, void, string>,
+  job: Job<unknown, void, string>,
+  ctx: { workspaceId: string; reason: string; requestId: string },
 ): Promise<void> {
   logger.info(
     {
+      requestId: ctx.requestId,
       jobId: job.id ?? null,
       kind: "graph-search-projection",
-      teamId: job.data.teamId,
-      reason: job.data.reason ?? null,
+      teamId: ctx.workspaceId,
+      reason: ctx.reason,
     },
     "graph_search_projection.received",
   );
@@ -472,7 +553,7 @@ async function processGraphSearchProjectionJobInner(
     // connection and avoids the dynamic-import path the service's
     // default uses (which is the fallback for API-only callers).
     const { enqueueSearchIndexingJob } = await import("./queue.js");
-    const result = await runSearchProjectionSync(job.data.teamId, prisma, {
+    const result = await runSearchProjectionSync(ctx.workspaceId, prisma, {
       enqueueImpl: async (input) => {
         const r = await enqueueSearchIndexingJob({
           teamId: input.teamId,
@@ -486,7 +567,7 @@ async function processGraphSearchProjectionJobInner(
     logger.info(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         ok: result.ok,
         enqueued: result.enqueued,
         reason: result.reason,
@@ -497,7 +578,7 @@ async function processGraphSearchProjectionJobInner(
     logger.error(
       {
         jobId: job.id ?? null,
-        teamId: job.data.teamId,
+        teamId: ctx.workspaceId,
         err: err instanceof Error ? err.message : String(err),
       },
       "graph_search_projection.failed",
@@ -523,22 +604,41 @@ async function processGraphSearchProjectionJobInner(
 // or extract to a shared package.
 // ============================================================================
 export async function processOrgHealthRefreshJob(
-  job: Job<OrgHealthRefreshJobPayload, void, string>,
+  job: Job<unknown, void, string>,
 ): Promise<void> {
-  const teamId = job.data.teamId;
-  if (!teamId) {
-    logger.warn(
-      { jobId: job.id ?? null },
-      "org_health_refresh.skipped_missing_team_id",
-    );
-    return;
-  }
+  const ctx = await resolveWorkspaceJob(
+    JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION,
+    job,
+    "org_health_refresh",
+  );
+  if (!ctx) return;
+  const teamId = ctx.workspaceId;
   logger.info(
-    { jobId: job.id ?? null, teamId, kind: "org-health-refresh" },
+    {
+      requestId: ctx.requestId,
+      jobId: job.id ?? null,
+      teamId,
+      kind: "org-health-refresh",
+    },
     "org_health_refresh.received",
   );
   try {
-    const sampledAtUtc = new Date();
+    // PHASE 12 — POINT 5, CLAIM 2. The sample instant is BUCKETED to the
+    // minute, and that is what makes this unit's declared idempotency real.
+    //
+    // `OrgHealthProjection`'s primary key is (team_id, sampled_at_utc), and
+    // the registry records `upsert_by_natural_key` as this unit's only
+    // protection — it declares no claim. With `new Date()` the key was
+    // different on every execution, so the upsert could never collapse
+    // anything: it was an INSERT wearing an upsert's clothes, and two
+    // concurrent ticks wrote two rows for the same observation. Measured, not
+    // theorised — the concurrency probe in the reconciliation family suite
+    // caught it adding a tenth row to nine.
+    //
+    // A minute is the smallest bucket that makes concurrent and
+    // immediately-retried ticks collapse while leaving a genuine time series
+    // intact at any real cadence: two ticks a minute apart still sample twice.
+    const sampledAtUtc = new Date(Math.floor(Date.now() / 60_000) * 60_000);
     const [
       evidenceCount,
       caseCount,

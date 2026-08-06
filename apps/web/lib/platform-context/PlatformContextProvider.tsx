@@ -559,11 +559,15 @@ export function PlatformContextProvider({
   // Also update lastRefreshAtRef on any provider-driven refresh so the
   // throttle starts from the actual fetch time, not the initial mount
   // time.
+  // The READY envelope IS the signal: a new envelope means a fetch just
+  // resolved. Extracted to a named value so the dependency is statically
+  // checkable rather than a conditional expression the linter cannot verify.
+  const readyEnvelope = state.name === "READY" ? state.envelope : null;
   useEffect(() => {
-    if (state.name === "READY") {
+    if (readyEnvelope) {
       lastRefreshAtRef.current = Date.now();
     }
-  }, [state.name === "READY" ? state.envelope : null]);
+  }, [readyEnvelope]);
 
   const can = useCallback(
     (capability: CapabilityKey) => readCapability(state, capability),

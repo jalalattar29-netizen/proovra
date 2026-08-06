@@ -29,24 +29,11 @@ export function useSurfaceUserContext(): SurfaceUserContext {
   const envelope = ctx?.envelope;
   if (!envelope) return ANONYMOUS_SURFACE_CONTEXT;
 
-  // ENTERPRISE TENANT MODEL — derive plan + role from the canonical
-  // fields. activeSpace.type discriminates PERSONAL vs ORGANIZATION;
-  // org membership in organizations[] provides role + plan.
-  const activeSpace = envelope.activeSpace;
-  let plan: SurfaceUserContext["plan"] = null;
-  let role: SurfaceUserContext["role"] = null;
-  if (activeSpace?.type === "PERSONAL") {
-    plan = envelope.personalSpace?.plan ?? envelope.account?.accountPlan ?? null;
-    role = "OWNER";
-  } else if (activeSpace?.type === "ORGANIZATION") {
-    const org = envelope.organizations?.find((o) => o.id === activeSpace.id);
-    plan = org?.plan ?? null;
-    role = org?.role ?? null;
-  }
-
+  // PHASE 12B Track 1A — the raw plan name is NOT projected into the surface
+  // context. PHASE 12 POINT 4 STEP 1 — neither is the workspace role: the
+  // surface-tier rules decide on server-projected flags/entitlements only, so
+  // this hook no longer resolves an active-space membership role at all.
   return {
-    plan,
-    role,
     isPlatformAdmin: Boolean(envelope.platform?.isPlatformAdmin),
     isEnterpriseWorkspace: Boolean(envelope.flags?.isEnterpriseWorkspace),
     // OpsCenter visibility remediation (2026-07-18) — the canonical
@@ -58,6 +45,12 @@ export function useSurfaceUserContext(): SurfaceUserContext {
       intakeIncluded:
         typeof envelope.planFeatures?.intakeIncluded === "boolean"
           ? envelope.planFeatures.intakeIncluded
+          : null,
+      // PHASE 12B Track 1A — SERVER-projected PROFESSIONAL-tier entitlement
+      // (commercial-catalog-derived). Unknown while loading → fail closed.
+      professionalSurfacesIncluded:
+        typeof envelope.planFeatures?.professionalSurfacesIncluded === "boolean"
+          ? envelope.planFeatures.professionalSurfacesIncluded
           : null,
     },
   };

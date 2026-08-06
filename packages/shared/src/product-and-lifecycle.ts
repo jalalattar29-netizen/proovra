@@ -166,6 +166,15 @@ export const WEBHOOK_EVENT_KINDS = [
   'REVIEW_COMPLETED',
   'REPORT_GENERATED',
   'PACKAGE_CREATED',
+  // PHASE 12B — truthful download audit semantics. Authorising a delivery
+  // and minting a short-lived link is NOT evidence that bytes transferred.
+  // `PACKAGE_DOWNLOAD_AUTHORIZED` is emitted when the server authorises the
+  // delivery and issues a link; `PACKAGE_DOWNLOADED` is reserved for a real
+  // transfer-completion signal (server streaming/proxy completion or a
+  // verified storage-access event) and must never be emitted merely because
+  // a URL was requested. Both remain in the vocabulary: subscribers of the
+  // completion event keep their contract, and no historical event is renamed.
+  'PACKAGE_DOWNLOAD_AUTHORIZED',
   'PACKAGE_DOWNLOADED',
   'LEGAL_HOLD_APPLIED',
   'LEGAL_HOLD_RELEASED',

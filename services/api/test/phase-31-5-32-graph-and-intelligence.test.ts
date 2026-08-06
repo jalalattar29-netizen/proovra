@@ -90,16 +90,59 @@ describe("Phase 31.5 — media_intelligence_runs SQL drift patch", () => {
 
   it("kind CHECK constraint enumerates every catalog value (across all drift patches)", () => {
     // Catalog values may be added by later patches via ALTER TABLE
-    // DROP/ADD CONSTRAINT (idempotent). The check is satisfied as
-    // long as SOME drift patch in the directory contains the
-    // catalog value. Phase 31.8 added `extract_exif` via the
-    // evidence-part-exif-summaries patch.
+    // DROP/ADD CONSTRAINT (idempotent). The check is satisfied as long as SOME
+    // drift patch in the directory contains the catalog value. Phase 31.8
+    // added `extract_exif` via the evidence-part-exif-summaries patch.
+    //
+    // PHASE 12 — POINT 5: this assertion caught a REAL production defect, and
+    // it is worth recording what it was rather than just extending the list.
+    //
+    // The constraint enumerated eight kinds while the worker implemented
+    // twelve. `compute_perceptual_hashes`, `extract_ocr_azure`,
+    // `extract_transcript_deepgram` and `extract_technical_metadata` were all
+    // enqueued by real producers and all REJECTED by the database, so a run row
+    // could not be created for them. That is the root cause behind the optional
+    // `runId` on `enqueueMediaIntelligenceAnalysis`: the producer could not
+    // create the durable row, so it was allowed to proceed without one, and
+    // those jobs ran with nothing to record their state on.
+    //
+    // The test only started failing when Point 5 widened
+    // MEDIA_INTELLIGENCE_RUN_KINDS to match what the worker actually does. The
+    // drift was always there; the catalog had been narrowed to hide it.
     const exifPatch = readSource(
       "../../../services/api/sql/drift-patches/2026-05-20-evidence-part-exif-summaries.sql",
     );
-    const combined = sql + "\n" + exifPatch;
+    const point5Patch = readSource(
+      "../../../services/api/sql/drift-patches/2026-08-04-media-intelligence-kind-catalog.sql",
+    );
+    const combined = [sql, exifPatch, point5Patch].join("\n");
     for (const kind of MEDIA_INTELLIGENCE_RUN_KINDS) {
       expect(combined, `kind ${kind} missing from any drift patch`).toMatch(
+        new RegExp(`'${kind}'`),
+      );
+    }
+  });
+
+  it("the widened CHECK is a strict SUPERSET — no historical row can be orphaned", () => {
+    // Narrowing a CHECK constraint on a table with history is a data-loss
+    // event dressed as a cleanup: existing rows become unreadable through any
+    // path that revalidates. `compute_duplicates` and `compute_lineage` have no
+    // producer and no queue, and are retained for exactly this reason.
+    const point5Patch = readSource(
+      "../../../services/api/sql/drift-patches/2026-08-04-media-intelligence-kind-catalog.sql",
+    );
+    const previous = [
+      "analyze_metadata",
+      "extract_exif",
+      "extract_assets",
+      "compute_duplicates",
+      "compute_lineage",
+      "wire_ocr_transcript",
+      "reindex",
+      "reconcile",
+    ];
+    for (const kind of previous) {
+      expect(point5Patch, `${kind} was dropped from the constraint`).toMatch(
         new RegExp(`'${kind}'`),
       );
     }
@@ -249,7 +292,7 @@ describe("Phase 31.5 — run tracker", () => {
   it("NEVER throws — every public function returns a bounded result", () => {
     // Every exported async function wraps its body in try/catch.
     const fnHeaders =
-      src.match(/export async function \w+\([\s\S]*?\): Promise<[\s\S]*?\>/g) ?? [];
+      src.match(/export async function \w+\([\s\S]*?\): Promise<[\s\S]*?>/g) ?? [];
     expect(fnHeaders.length).toBeGreaterThanOrEqual(5);
     for (const header of fnHeaders) {
       // The function body must contain a try { ... } catch { ... } pattern.
@@ -260,7 +303,7 @@ describe("Phase 31.5 — run tracker", () => {
       )?.[0];
       expect(fnBlock, `${fnName} body not found`).toBeTruthy();
       expect(fnBlock!, `${fnName} missing try`).toMatch(/try\s*\{/);
-      expect(fnBlock!, `${fnName} missing catch`).toMatch(/\}\s*catch\s*[\{(]/);
+      expect(fnBlock!, `${fnName} missing catch`).toMatch(/\}\s*catch\s*[{(]/);
     }
   });
 });

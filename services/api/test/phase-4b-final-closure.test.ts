@@ -8,7 +8,55 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// PHASE 12 POINT 4 — the tier-transition test below used to let
+// `copyObjectStorageClass` reach the REAL AWS SDK and rely on it failing
+// because S3_BUCKET is unset. That made a unit test depend on network
+// behaviour: alone it failed fast, but under full-suite load the SDK's
+// retry/backoff blew the 5s timeout, so the whole API suite went red for a
+// reason unrelated to the state machine. The transport is now stubbed, which
+// is what the test claimed to be doing all along — the PENDING → COMPLETED
+// sequencing it asserts is unchanged and is now deterministic.
+// PHASE 12 — POINT 5, PHASE I: the same defect, a second time.
+//
+// The stub above was added for `transitionEvidenceTier`, which calls
+// `copyObjectStorageClass`. `certifyDestruction` reaches S3 through a DIFFERENT
+// function — `putObjectBuffer` — and that one was never stubbed, so the
+// original bug survived in the half of the file nobody re-read.
+//
+// It presents as a flake and is not one. `services/api/.env` sets
+// `S3_BUCKET=proovra-evidence-prod-eu`, vitest loads it, and
+// `certifyDestruction` uploads the certificate artifact whenever a bucket is
+// configured. The upload is wrapped in `try { … } catch {}` — deliberately, so
+// a storage outage cannot invalidate a certificate that is already durable —
+// which means the failure is never LOUD, only SLOW: the AWS SDK's retry and
+// backoff run to completion before the catch is reached. Alone that fits inside
+// the 5s default; under full-suite parallel load it does not, and the suite
+// goes red for a reason unrelated to the state machine.
+//
+// The fix is to stop making network calls from a unit test, not to raise the
+// timeout. Storage is a genuine external process boundary and is exactly the
+// kind of thing a unit test may stub; the certificate hashing, the persisted
+// row and the PENDING → COMPLETED sequencing this file asserts are all
+// unchanged and are now deterministic.
+vi.mock("../src/storage.js", async () => {
+  const actual = await vi.importActual<typeof import("../src/storage.js")>(
+    "../src/storage.js",
+  );
+  // Every storage entry point these services can reach, not just the two that
+  // happened to bite. The guard below derives this list from the service
+  // sources, so it is the code that decides what must be stubbed — not memory.
+  return {
+    ...actual,
+    copyObjectStorageClass: vi.fn(async () => undefined),
+    putObjectBuffer: vi.fn(async () => undefined),
+    getObjectStream: vi.fn(async () => {
+      throw new Error("storage stubbed in unit test");
+    }),
+    deleteObject: vi.fn(async () => undefined),
+  };
+});
 
 import {
   WEBHOOK_EVENT_KINDS,
@@ -25,7 +73,6 @@ import {
 
 import {
   certifyDestruction,
-  getDestructionCertificateArtifact,
 } from "../src/services/lifecycle/destruction-governance.service.js";
 
 import {
@@ -40,8 +87,6 @@ import {
 
 import {
   markPackageReady,
-  generateSignedUrl,
-  createExchangePackage,
 } from "../src/services/exchange/evidence-exchange.service.js";
 
 // ---------------------------------------------------------------------------
@@ -251,7 +296,6 @@ describe("4. C1 — TIER_TO_S3_STORAGE_CLASS covers all 4 archive tiers", () => 
 describe("5. C1 — transitionEvidenceTier state machine", () => {
   it("creates transition row with PENDING then COMPLETED via S3 stub", async () => {
     const states: string[] = [];
-    let copyObjectCalled = false;
 
     const prisma = makePrismaStub({
       evidence: {
@@ -379,6 +423,39 @@ describe("7. C2 — executeDestruction with real S3 deletion", () => {
     expect(src).toContain("DESTRUCTION_FAILED");
     expect(src).toContain("FAILED");
   });
+
+  it("the tombstone is written to lifecycleState, never to status", () => {
+    // Regression guard (Phase 12 Point 4, Pass H): this wrote
+    // `status: "DESTROYED" as any`. DESTROYED is a member of
+    // EvidenceLifecycleState, NOT of EvidenceStatus, so Postgres rejected the
+    // enum value at runtime and the tombstone was never recorded — the cast
+    // was the only reason the compiler allowed it.
+    const src = readSrc("services/lifecycle/destruction-governance.service.ts");
+    const idx = src.indexOf("prisma.evidence.updateMany(");
+    expect(idx).toBeGreaterThan(-1);
+    const call = src.slice(idx, idx + 400);
+    expect(call).toMatch(/lifecycleState:\s*"DESTROYED"/);
+    expect(call).not.toMatch(/status:\s*"DESTROYED"/);
+    // And no cast may reintroduce it anywhere in the module.
+    expect(src).not.toMatch(/"DESTROYED"\s+as\s+(any|never)/);
+  });
+
+  it("EvidenceStatus does not contain DESTROYED (the enum the old write used)", () => {
+    const schema = fs.readFileSync(
+      fileURLToPath(new URL("../prisma/schema.prisma", import.meta.url)),
+      "utf8",
+    );
+    const start = schema.indexOf("enum EvidenceStatus {");
+    expect(start).toBeGreaterThan(-1);
+    const body = schema.slice(start, schema.indexOf("}", start));
+    expect(body).not.toMatch(/\bDESTROYED\b/);
+    // The canonical home for the tombstone value.
+    const lifecycleStart = schema.indexOf("enum EvidenceLifecycleState {");
+    expect(lifecycleStart).toBeGreaterThan(-1);
+    expect(schema.slice(lifecycleStart, schema.indexOf("}", lifecycleStart))).toMatch(
+      /\bDESTROYED\b/,
+    );
+  });
 });
 
 // ===========================================================================
@@ -386,6 +463,48 @@ describe("7. C2 — executeDestruction with real S3 deletion", () => {
 // ===========================================================================
 
 describe("8. C3 — certifyDestruction produces certificate with SHA-256 hash", () => {
+  it("STAYS-REMOVED: every storage function this file's subjects call is stubbed", () => {
+    // The guard for the defect above. It was fixed once for
+    // `copyObjectStorageClass` and came back through `putObjectBuffer`, because
+    // nothing checked that the stub covered every storage entry point the
+    // subjects actually reach.
+    //
+    // Derived from the SOURCE of the services under test rather than
+    // hand-listed, so a service that starts calling a third storage function
+    // fails here instead of silently making network calls again.
+    const services = [
+      readSrc("services/lifecycle/destruction-governance.service.ts"),
+      readSrc("services/lifecycle/archive-tier.service.ts"),
+    ].join("\n");
+
+    const storageExports = [
+      "putObjectBuffer",
+      "copyObjectStorageClass",
+      "getObjectStream",
+      "getObjectRange",
+      "headObject",
+      "deleteObject",
+    ];
+    const reached = storageExports.filter((fn) =>
+      new RegExp(`\\b${fn}\\s*\\(`).test(services),
+    );
+    expect(reached.length).toBeGreaterThan(0);
+
+    const selfSrc = fs.readFileSync(
+      fileURLToPath(new URL("./phase-4b-final-closure.test.ts", import.meta.url)),
+      "utf8",
+    );
+    const mockBlock = selfSrc.slice(
+      selfSrc.indexOf('vi.mock("../src/storage.js"'),
+      selfSrc.indexOf("});", selfSrc.indexOf('vi.mock("../src/storage.js"')),
+    );
+    const unstubbed = reached.filter((fn) => !mockBlock.includes(fn));
+    expect(
+      unstubbed,
+      `these storage calls reach the network from a unit test: ${unstubbed.join(", ")}`,
+    ).toEqual([]);
+  });
+
   it("returns ok=true + 64-char hex certificateHash", async () => {
     const executedAt = new Date();
     let certData: Record<string, unknown> = {};
@@ -430,6 +549,9 @@ describe("8. C3 — certifyDestruction produces certificate with SHA-256 hash", 
     expect(result.certificateId).toBe("cert-1");
     expect(result.certificateHash).toHaveLength(64);
     expect(/^[0-9a-f]{64}$/.test(result.certificateHash)).toBe(true);
+    // The hash handed back to the caller is the one actually persisted on
+    // the certificate row — not recomputed after the write.
+    expect(certData.certificateHash).toBe(result.certificateHash);
   });
 
   // PHASE 6 §9.5 — the certificate snapshots the policy decision-context:
@@ -599,15 +721,15 @@ describe("12. C5 — exchange-package builder state transitions", () => {
 // ===========================================================================
 
 describe("13. C6 — unified legal hold checks both 4A + 4B hold tables", () => {
-  it("assertNoLegalHoldOrBlock returns LEGAL_HOLD_BLOCKED from 4B legalHold table", async () => {
+  it("assertNoLegalHoldOrBlock returns LEGAL_HOLD_BLOCKED from the canonical table", async () => {
     const prisma = makePrismaStub({
-      legalHold: {
+      evidenceLegalHold: {
         findFirst: async () => ({
           id: "hold-1",
           teamId: "team-1",
-          kind: "EVIDENCE",
-          scopeTargetId: "ev-1",
-          name: "Test hold",
+          scope: "EVIDENCE",
+          evidenceId: "ev-1",
+          title: "Test hold",
           reason: "Litigation",
           state: "ACTIVE",
           createdByUserId: "user-1",
@@ -627,6 +749,21 @@ describe("13. C6 — unified legal hold checks both 4A + 4B hold tables", () => 
         create: async (args: { data: Record<string, unknown> }) => ({ id: "hold-1", ...args.data }),
         update: async () => ({}),
         groupBy: async () => [],
+      },
+      // PHASE 12B — the unified evaluator resolves linked cases through the
+      // CaseEvidenceLink authority (Evidence.caseId is gone) before checking
+      // any hold store, so the stub must provide it. Empty = this evidence is
+      // linked to no case, isolating the assertion to the 4B legalHold table.
+      caseEvidenceLink: {
+        findMany: async () => [],
+      },
+      // PHASE 12 POINT 3 — one store. The canonical row alone must produce
+      // the block, so the scope-aware clause is the only populated read.
+      evidenceLegalHoldUnused: {
+        findMany: async () => [],
+      },
+      caseLegalHold: {
+        findMany: async () => [],
       },
     });
 
@@ -649,10 +786,14 @@ describe("13. C6 — unified legal hold checks both 4A + 4B hold tables", () => 
     expect(src).toContain("assertNoLegalHoldOrBlock");
   });
 
-  it("legal-hold.service source checks case_legal_holds OR evidence_legal_holds path", () => {
+  it("the lifecycle hold gate delegates to the ONE canonical evaluator", () => {
     const src = readSrc("services/lifecycle/legal-hold.service.ts");
-    // The 4B service should handle the 4B legalHold table
-    expect(src).toContain("legalHold");
+    // PHASE 12 POINT 3 — the scope-generic WRITE surface is retired. What
+    // remains is the destructive read gate, and it must delegate to the ONE
+    // canonical evaluator rather than reach for a store of its own.
+    expect(src).toMatch(/evaluateEffectiveLegalHold\(/);
+    expect(src).not.toMatch(/prisma\.legalHold\./);
+    expect(src).not.toMatch(/prisma\.caseLegalHold\./);
   });
 });
 

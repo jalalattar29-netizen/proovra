@@ -38,6 +38,7 @@ import {
   parseCollaborationTeamMentionHandles,
   sanitiseCollaborationTeamCommentBody,
 } from "@proovra/shared";
+import { isCollaborationTeamModerator } from "../src/services/collaboration-team/collaboration-team.service.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 function read(rel: string): string {
@@ -367,9 +368,35 @@ describe("Phase R16 — service module", () => {
   });
 
   it("access review items only decidable by LEAD/ADMIN", () => {
-    expect(svc).toMatch(
-      /decideAccessReviewItem[\s\S]{0,800}role !== "LEAD" && role !== "ADMIN"/,
-    );
+    // PHASE 12 POINT 4 STEP 1 — this was a source regex over
+    // `decideAccessReviewItem ... role !== "LEAD" && role !== "ADMIN"`. The
+    // literal comparison is gone: the gate and the `viewerCapabilities`
+    // projection the web console renders now share ONE predicate, so the
+    // affordance and the enforcement cannot drift. Assert the predicate's
+    // behaviour, and that the gate still consumes it.
+    expect(isCollaborationTeamModerator("LEAD")).toBe(true);
+    expect(isCollaborationTeamModerator("ADMIN")).toBe(true);
+    for (const role of ["MEMBER", "VIEWER", "EXTERNAL", "", null, undefined]) {
+      expect(
+        isCollaborationTeamModerator(role),
+        `${String(role)} must not moderate`,
+      ).toBe(false);
+    }
+    // Every moderator-gated entry point rejects through the shared predicate
+    // rather than an inline role comparison of its own.
+    for (const fn of [
+      "decideAccessReviewItem",
+      "openAccessReview",
+      "completeAccessReview",
+    ]) {
+      expect(
+        svc,
+        `${fn} must gate through isCollaborationTeamModerator`,
+      ).toMatch(
+        new RegExp(`${fn}[\\s\\S]{0,900}!isCollaborationTeamModerator\\(role\\)`),
+      );
+    }
+    expect(svc).not.toMatch(/role !== "LEAD" && role !== "ADMIN"/);
   });
 });
 
@@ -591,5 +618,72 @@ describe("Phase R16 — constitutional rules", () => {
     expect(svc).toMatch(
       /listMyNotifications[\s\S]{0,1500}userId:\s*input\.actorUserId[\s\S]{0,400}workspaceId:\s*input\.workspaceId/,
     );
+  });
+});
+
+// =============================================================================
+// PHASE 12 POINT 4 PASS C0 — guest invitation: server decides, client renders
+// =============================================================================
+//
+// Guest invitation was gated ONLY by `if (!guestsAllowed) return;` in the
+// browser, where `guestsAllowed` came from a hardcoded
+// `plan === "PRO" || plan === "TEAM"`. Neither the route nor the service
+// checked the plan, so a FREE workspace could invite external collaborators by
+// calling the API directly — and ENTERPRISE was wrongly excluded from the
+// affordance. The commercial decision now lives at the canonical authority and
+// the client only renders the server projection.
+
+/** Executable lines only — a comment naming the removed pattern is not a use. */
+function codeOnly(src: string): string {
+  return src
+    .split(/\r?\n/)
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join("\n");
+}
+
+describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
+  const SERVICE = read(
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+  );
+
+  it("the service delegates the plan decision to the canonical invitation guard", () => {
+    const body = SERVICE.slice(SERVICE.indexOf("export async function inviteGuest"));
+    expect(body).toContain("assertCanInviteCollaborationTeamGuest(");
+    // A hardcoded plan list here would be a second commercial authority.
+    expect(codeOnly(body).slice(0, 3000)).not.toMatch(/===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/);
+    // So would resolving commercial state from the raw plan column: the
+    // subject-correct authority lives in billing-guards.
+    expect(codeOnly(body).slice(0, 3000)).not.toMatch(/billingPlan/);
+  });
+
+  it("the enforcement precedes any invitation mutation", () => {
+    const body = SERVICE.slice(SERVICE.indexOf("export async function inviteGuest"));
+    const gate = body.indexOf("assertCanInviteCollaborationTeamGuest(");
+    const write = body.indexOf("$transaction");
+    expect(gate).toBeGreaterThan(-1);
+    expect(write).toBeGreaterThan(-1);
+    expect(gate, "the plan gate must run before the invitation write").toBeLessThan(
+      write,
+    );
+  });
+
+  it("the server projects the eligibility the client renders", () => {
+    const ctx = read(
+      "services/api/src/services/platform-context/platform-context.service.ts",
+    );
+    expect(ctx).toMatch(/canInviteGuests:\s*planCaps\.allowsTeamWorkspace/);
+  });
+
+  it("the collaboration surface no longer decides eligibility from a plan name", () => {
+    const page = read(
+      "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
+    );
+    const gate = page.slice(
+      page.indexOf("function useAccessReviewPlanGate"),
+      page.indexOf("function useAccessReviewPlanGate") + 1400,
+    );
+    expect(gate).toContain('usePlanFeature("canInviteGuests")');
+    // The removed decision, in any plan-name form.
+    expect(codeOnly(gate)).not.toMatch(/plan\s*===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/);
   });
 });

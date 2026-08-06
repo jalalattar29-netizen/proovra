@@ -6,13 +6,13 @@
  * file is the API-side bookkeeper that:
  *
  *   1. Refuses the request unless the version is APPROVED.
- *   2. Stamps a PENDING `RedactionDerivative` row.
- *   3. Emits DERIVATIVE_REQUESTED + DERIVATIVE_RENDER_STARTED events
- *      so the operator timeline is honest about WHAT was asked for
- *      and BY WHOM, regardless of whether the renderer is reachable.
- *   4. Exposes idempotent `markDerivativeReady`,
- *      `markDerivativeFailed`, and `quarantineDerivative` calls so
- *      the worker can write the outcome back atomically.
+ *   2. Commits a QUEUED `RedactionDerivative` row BEFORE the durable enqueue
+ *      (12B Correction 5) — only the worker claims QUEUED→RENDERING.
+ *   3. Emits the DERIVATIVE_REQUESTED event so the operator timeline is
+ *      honest about WHAT was asked for and BY WHOM.
+ *   4. Exposes the admin `quarantineDerivative` transition. READY/FAILED
+ *      completion lives EXCLUSIVELY in the worker-side writer
+ *      (services/worker/src/redaction/redaction-derivative-writer.ts).
  *
  * Hard rules:
  *   * One derivative per version (UNIQUE on versionId).
@@ -33,6 +33,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { enqueueRedactionDerivativeRender } from "../../queue/redaction-derivative-queue.js";
 import { emitRedactionActivity } from "./redaction-activity.service.js";
 
 const ARTIFACT_TO_DERIVATIVE: Readonly<
@@ -54,6 +55,18 @@ export type RequestDerivativeInput = {
 export type RequestDerivativeResult =
   | { ok: true; derivativeId: string; state: RedactionDerivativeState }
   | { ok: false; denial: RedactionDenialReason };
+
+/**
+ * PHASE 12B WAVE 2A — shipping scope: IMAGE + PDF render end-to-end.
+ * VIDEO / AUDIO are FUTURE_NOT_SHIPPING (no temporal-region renderer exists):
+ * they are rejected BEFORE any derivative row or job exists with the stable
+ * UNSUPPORTED_REDACTION_MEDIA denial. The Evidence itself is never classified
+ * unsupported — only its redaction-derivative capability.
+ */
+const SHIPPING_ARTIFACT_KINDS: ReadonlySet<RedactionArtifactKind> = new Set([
+  "IMAGE",
+  "PDF",
+]);
 
 export async function requestRedactionDerivative(
   input: RequestDerivativeInput,
@@ -77,37 +90,49 @@ export async function requestRedactionDerivative(
   if (!(REDACTION_ARTIFACT_KINDS as ReadonlyArray<string>).includes(artifactKind)) {
     return { ok: false, denial: "ARTIFACT_NOT_REDACTABLE" };
   }
+  // FUTURE_NOT_SHIPPING media — deny BEFORE creating any record or job.
+  if (!SHIPPING_ARTIFACT_KINDS.has(artifactKind)) {
+    return { ok: false, denial: "UNSUPPORTED_REDACTION_MEDIA" };
+  }
 
   const derivativeKind = ARTIFACT_TO_DERIVATIVE[artifactKind];
 
-  // Idempotent: if a derivative row already exists, reuse it.
+  // PHASE 12B DURABILITY (Correction 5): the row is committed QUEUED BEFORE
+  // enqueue; ONLY the worker performs the atomic QUEUED→RENDERING claim. An
+  // enqueue failure leaves a recoverable, observable QUEUED row that the
+  // stranded-QUEUED reconciler re-enqueues. Retries never create a second
+  // derivative (UNIQUE versionId) or a second job (stable jobId).
   let derivativeId: string;
-  if (version.derivative) {
-    derivativeId = version.derivative.id;
-    await prisma.redactionDerivative.update({
-      where: { id: derivativeId },
-      data: {
-        state: "RENDERING",
-        renderStartedAt: new Date(),
-        failureReason: null,
-        lastErrorPreview: null,
-      },
-    });
+  const existing = version.derivative;
+  if (existing) {
+    derivativeId = existing.id;
+    if (existing.state === "QUARANTINED") {
+      return { ok: false, denial: "DERIVATIVE_QUARANTINED" };
+    }
+    if (existing.state === "READY") {
+      // Already rendered — idempotent success, no re-enqueue.
+      return { ok: true, derivativeId, state: "READY" };
+    }
+    if (existing.state === "FAILED" || existing.state === "PENDING") {
+      // Reset for a fresh render attempt. RENDERING/QUEUED rows are left
+      // untouched (a live claim/job owns them) — the idempotent enqueue
+      // below collapses onto the live job.
+      await prisma.redactionDerivative.update({
+        where: { id: derivativeId },
+        data: { state: "QUEUED", failureReason: null, lastErrorPreview: null },
+      });
+    }
   } else {
     const created = await prisma.redactionDerivative.create({
       data: {
         teamId: input.teamId,
         versionId: input.versionId,
         kind: derivativeKind,
-        state: "PENDING",
+        state: "QUEUED",
       },
       select: { id: true },
     });
     derivativeId = created.id;
-    await prisma.redactionDerivative.update({
-      where: { id: derivativeId },
-      data: { state: "RENDERING", renderStartedAt: new Date() },
-    });
   }
   await emitRedactionActivity({
     prisma,
@@ -116,152 +141,23 @@ export async function requestRedactionDerivative(
     versionId: input.versionId,
     code: "DERIVATIVE_REQUESTED",
     actorUserId: input.requestedByUserId,
-    payload: {
-      derivativeId,
-      kind: derivativeKind,
-    },
-  });
-  await emitRedactionActivity({
-    prisma,
-    teamId: input.teamId,
-    projectId: version.projectId,
-    versionId: input.versionId,
-    code: "DERIVATIVE_RENDER_STARTED",
-    actorUserId: input.requestedByUserId,
-    payload: { derivativeId },
+    payload: { derivativeId, kind: derivativeKind },
   });
 
-  return { ok: true, derivativeId, state: "RENDERING" };
-}
-
-export type MarkDerivativeReadyInput = {
-  prisma?: PrismaClient;
-  teamId: string;
-  derivativeId: string;
-  storageBucket: string;
-  storageKey: string;
-  storageRegion?: string;
-  byteSize: number;
-  fileSha256: string;
-  contentType: string;
-  renderEngine: string;
-  actorUserId?: string;
-};
-
-export type MarkDerivativeReadyResult =
-  | { ok: true }
-  | { ok: false; denial: RedactionDenialReason };
-
-export async function markDerivativeReady(
-  input: MarkDerivativeReadyInput,
-): Promise<MarkDerivativeReadyResult> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const derivative = await prisma.redactionDerivative.findFirst({
-    where: { id: input.derivativeId, teamId: input.teamId },
-    select: {
-      id: true,
-      versionId: true,
-      version: {
-        select: {
-          projectId: true,
-          project: { select: { evidenceId: true } },
-        },
-      },
-    },
-  });
-  if (!derivative) return { ok: false, denial: "DERIVATIVE_NOT_READY" };
-  // Refuse if the derivative storage key collides with the
-  // original Evidence storage key — the platform NEVER overwrites
-  // the original artifact.
-  const evidence = await prisma.evidence.findFirst({
-    where: { id: derivative.version.project.evidenceId, teamId: input.teamId },
-    select: { storageKey: true, storageBucket: true },
-  });
-  if (
-    evidence &&
-    evidence.storageBucket === input.storageBucket &&
-    evidence.storageKey === input.storageKey
-  ) {
-    return { ok: false, denial: "POLICY_REJECTED" };
+  const enq = await enqueueRedactionDerivativeRender({ derivativeId });
+  if (!enq.enqueued) {
+    // Recoverable: row stays QUEUED; reconciler will enqueue. Honest state out.
+    return { ok: true, derivativeId, state: "QUEUED" };
   }
-
-  await prisma.redactionDerivative.update({
-    where: { id: input.derivativeId },
-    data: {
-      state: "READY",
-      storageBucket: input.storageBucket,
-      storageKey: input.storageKey,
-      storageRegion: input.storageRegion ?? null,
-      byteSize: BigInt(input.byteSize),
-      fileSha256: input.fileSha256,
-      contentType: input.contentType,
-      renderEngine: input.renderEngine,
-      renderedAtUtc: new Date(),
-      failureReason: null,
-      lastErrorPreview: null,
-    },
-  });
-  await emitRedactionActivity({
-    prisma,
-    teamId: input.teamId,
-    projectId: derivative.version.projectId,
-    versionId: derivative.versionId,
-    code: "DERIVATIVE_RENDER_COMPLETED",
-    actorUserId: input.actorUserId ?? null,
-    payload: {
-      derivativeId: input.derivativeId,
-      renderEngine: input.renderEngine,
-      fileSha256: input.fileSha256,
-      byteSize: input.byteSize,
-    },
-  });
-  return { ok: true };
+  return { ok: true, derivativeId, state: "QUEUED" };
 }
 
-export type MarkDerivativeFailedInput = {
-  prisma?: PrismaClient;
-  teamId: string;
-  derivativeId: string;
-  failureReason: string;
-  errorPreview?: string;
-  actorUserId?: string;
-};
-
-export async function markDerivativeFailed(
-  input: MarkDerivativeFailedInput,
-): Promise<{ ok: true } | { ok: false; denial: RedactionDenialReason }> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const derivative = await prisma.redactionDerivative.findFirst({
-    where: { id: input.derivativeId, teamId: input.teamId },
-    select: {
-      id: true,
-      versionId: true,
-      version: { select: { projectId: true } },
-    },
-  });
-  if (!derivative) return { ok: false, denial: "DERIVATIVE_NOT_READY" };
-  await prisma.redactionDerivative.update({
-    where: { id: input.derivativeId },
-    data: {
-      state: "FAILED",
-      failureReason: input.failureReason.slice(0, 120),
-      lastErrorPreview: input.errorPreview?.slice(0, 400) ?? null,
-    },
-  });
-  await emitRedactionActivity({
-    prisma,
-    teamId: input.teamId,
-    projectId: derivative.version.projectId,
-    versionId: derivative.versionId,
-    code: "DERIVATIVE_RENDER_FAILED",
-    actorUserId: input.actorUserId ?? null,
-    payload: {
-      derivativeId: input.derivativeId,
-      failureReason: input.failureReason.slice(0, 120),
-    },
-  });
-  return { ok: true };
-}
+// PHASE 12B WAVE 2A — the READY/FAILED completion writers were DELETED
+// from the API. READY/FAILED completion has exactly ONE authority: the
+// worker-side writer (services/worker/src/redaction/redaction-derivative-writer.ts)
+// — atomic claim, stale-transition rejection, anti-overwrite guard, machine
+// (no-session) activity attribution. The API keeps request (QUEUED-first),
+// read projection, and the admin quarantine transition only.
 
 export async function quarantineDerivative(input: {
   prisma?: PrismaClient;

@@ -221,7 +221,6 @@ describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /admin/runtime/readiness
   it("GET /admin/runtime/migrations wraps runMigrationDriftCheck in try/catch", () => {
     const idx = RUNTIME_READINESS_ROUTES.indexOf('"/admin/runtime/migrations"');
     expect(idx).toBeGreaterThan(-1);
-    const after = RUNTIME_READINESS_ROUTES.slice(idx + 1);
     const slice = RUNTIME_READINESS_ROUTES.slice(idx, idx + 1500);
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}runMigrationDriftCheck/);
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);

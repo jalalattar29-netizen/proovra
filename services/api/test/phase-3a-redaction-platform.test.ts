@@ -526,17 +526,24 @@ describe("Phase 3A — backend services", () => {
     expect(SVC_APPROVAL).toMatch(/RATIONALE_REQUIRED/);
   });
 
-  it("derivative orchestrator refuses if storage key collides with original", () => {
-    expect(SVC_DERIVATIVE).toMatch(/storageKey\s*===\s*input\.storageKey/);
-    expect(SVC_DERIVATIVE).toMatch(/storageBucket\s*===\s*input\.storageBucket/);
-    expect(SVC_DERIVATIVE).toMatch(/POLICY_REJECTED/);
-    expect(SVC_DERIVATIVE).toMatch(/markDerivativeReady/);
-    expect(SVC_DERIVATIVE).toMatch(/markDerivativeFailed/);
+  it("PHASE 12B — derivative completion moved to the ONE worker-side writer", () => {
+    // The API keeps request (QUEUED-first) + quarantine; READY/FAILED live in
+    // services/worker/src/redaction/redaction-derivative-writer.ts with the
+    // anti-overwrite + atomic claim/stale guards.
+    expect(SVC_DERIVATIVE).not.toMatch(/markDerivativeReady/);
+    expect(SVC_DERIVATIVE).not.toMatch(/markDerivativeFailed/);
     expect(SVC_DERIVATIVE).toMatch(/quarantineDerivative/);
     expect(SVC_DERIVATIVE).toMatch(/"DERIVATIVE_REQUESTED"/);
-    expect(SVC_DERIVATIVE).toMatch(/"DERIVATIVE_RENDER_STARTED"/);
-    expect(SVC_DERIVATIVE).toMatch(/"DERIVATIVE_RENDER_COMPLETED"/);
-    expect(SVC_DERIVATIVE).toMatch(/"DERIVATIVE_RENDER_FAILED"/);
+    expect(SVC_DERIVATIVE).toMatch(/state: "QUEUED"/);
+    const WRITER = readFileSync(
+      fileURLToPath(new URL("../../worker/src/redaction/redaction-derivative-writer.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(WRITER).toMatch(/storageKey\s*===\s*input\.storageKey/);
+    expect(WRITER).toMatch(/storageBucket\s*===\s*input\.storageBucket/);
+    expect(WRITER).toMatch(/original_object_collision/);
+    expect(WRITER).toMatch(/"DERIVATIVE_RENDER_COMPLETED"/);
+    expect(WRITER).toMatch(/"DERIVATIVE_RENDER_FAILED"/);
   });
 
   it("projection aggregator surfaces every version + the published one", () => {
@@ -572,11 +579,8 @@ describe("Phase 3A — HTTP routes", () => {
       "/v1/redaction/versions/:id/approve",
       "/v1/redaction/versions/:id/publish",
       "/v1/redaction/versions/:id/derivative",
-      "/v1/redaction/derivatives/:id/mark-ready",
-      "/v1/redaction/derivatives/:id/mark-failed",
       "/v1/redaction/derivatives/:id",
       "/v1/redaction/workspace/summary",
-      "/v1/redaction/public/verify/:evidenceId",
     ]) {
       expect(ROUTES).toMatch(
         new RegExp(path.replace(/\//g, "\\/").replace(/:/g, ":")),
@@ -584,10 +588,87 @@ describe("Phase 3A — HTTP routes", () => {
     }
   });
 
+  // PHASE 12B (Evidence Operations, 2026-07-29) — the anonymous
+  // evidenceId badge probe GET /v1/redaction/public/verify/:evidenceId
+  // was deleted. It had no workspace anchoring, no rate limit, no
+  // publication/integrity/destroyed/finalization gate and no audit —
+  // an unauthenticated enumeration surface. Its fields were converged
+  // into the canonical token-bound Verify authority.
+  it("does NOT register an anonymous evidenceId redaction badge probe", () => {
+    // Assert on the REGISTRATION form, not the path string — the file
+    // keeps a deletion note that names the removed path on purpose.
+    expect(ROUTES).not.toMatch(/["']\/v1\/redaction\/public\/verify/);
+  });
+
+  it("the public redaction badge is projected by the token-bound Verify authority", () => {
+    const projection = readSource(
+      "../../../services/api/src/services/redaction/verify-redaction-projection.service.ts",
+    );
+    // Workspace-anchored (the deleted route was not).
+    expect(projection).toMatch(/teamId: input\.teamId/);
+    // Every field the deleted route emitted survives.
+    for (const field of [
+      "hasPublishedDerivative",
+      "publishedVersionOrdinal",
+      "publishedAtUtc",
+      "approvalCount",
+      "videoProvenance",
+      "REDACTION_NEVER_MODIFIES_ORIGINAL",
+      "REDACTION_DERIVATIVE_IS_NOT_ORIGINAL",
+      "REDACTION_APPROVAL_IS_HUMAN_JUDGEMENT",
+      "REDACTION_TRACKING_IS_PROVENANCE_ONLY",
+    ]) {
+      expect(projection).toContain(field);
+    }
+    const evidenceRoutes = readSource(
+      "../../../services/api/src/routes/evidence.routes.ts",
+    );
+    expect(evidenceRoutes).toMatch(/projectVerifyRedaction/);
+  });
+
   it("every privileged route preHandler asserts capability before any DB read", () => {
     // Pattern: `await gate(reply, ctx, "redaction.*")`
     const matches = ROUTES.match(/await gate\(reply, ctx, "redaction\./g) ?? [];
     expect(matches.length).toBeGreaterThan(10);
+  });
+
+  // PHASE 12B (Evidence Operations, 2026-07-29) — policy administration.
+  it("withdrawing a policy assignment is step-up gated after the RBAC check", () => {
+    const block = ROUTES.slice(
+      ROUTES.indexOf('"/v1/redaction/policy-assignments/:id"'),
+    ).slice(0, 2600);
+    // RBAC first, step-up second, mutation last.
+    const rbacIdx = block.indexOf('gate(reply, ctx, "redaction.administer")');
+    const stepUpIdx = block.indexOf("requireStepUpForSensitiveAction");
+    const writeIdx = block.indexOf("revokePolicyAssignment");
+    expect(rbacIdx).toBeGreaterThanOrEqual(0);
+    expect(stepUpIdx).toBeGreaterThan(rbacIdx);
+    expect(writeIdx).toBeGreaterThan(stepUpIdx);
+    expect(block).toMatch(/REDACTION_POLICY_ASSIGNMENT_REVOKE/);
+  });
+
+  it("policy-assignment revoke is version-concurrency guarded", () => {
+    expect(ROUTES).toMatch(/expectedPolicyVersionId/);
+    const store = readSource(
+      "../../../services/api/src/services/redaction/redaction-policy-store.service.ts",
+    );
+    // Mismatch is refused, and the write itself is a guarded updateMany
+    // so a concurrent double-revoke cannot emit a second audit row.
+    expect(store).toMatch(
+      /input\.expectedPolicyVersionId !== assignment\.policyVersionId/,
+    );
+    expect(store).toMatch(/updateMany\(/);
+    expect(store).toMatch(/revoked\.count === 0/);
+  });
+
+  it("the project projection exposes authored regions so region removal is reachable", () => {
+    const projection = readSource(
+      "../../../services/api/src/services/redaction/redaction-projection.service.ts",
+    );
+    expect(projection).toMatch(/regions: v\.regions\.map\(/);
+    expect(SHARED).toMatch(
+      /regions: ReadonlyArray<RedactionRegionProjection>;/,
+    );
   });
 
   it("publish refuses unless the derivative is READY", () => {
@@ -629,16 +710,27 @@ describe("Phase 3A — integrations", () => {
     expect(ROUTES).toMatch(/summariseRedactionQueueForTeam/);
   });
 
-  it("verify-page badge is public + provenance-only", () => {
-    expect(ROUTES).toMatch(/\/v1\/redaction\/public\/verify\/:evidenceId/);
-    expect(ROUTES).toMatch(/hasPublishedDerivative/);
-    expect(ROUTES).toMatch(/REDACTION_NEVER_MODIFIES_ORIGINAL/);
-    // The public badge route MUST NOT include `preHandler: requireAuth`.
-    const block = ROUTES.match(
-      /\/v1\/redaction\/public\/verify\/:evidenceId[\s\S]+?\}\s*,\s*\)/,
+  // PHASE 12B (Evidence Operations, 2026-07-29) — the verify-page badge
+  // moved off the standalone anonymous redaction route and onto the
+  // canonical token-bound Verify authority (GET /public/verify/:id).
+  // The badge stays public + provenance-only; it is now gated by that
+  // route's rate limits, publication/integrity/destroyed/finalization
+  // gates and audit, and anchored to the evidence's workspace.
+  it("verify-page badge is public + provenance-only, on the token-bound authority", () => {
+    const projection = readSource(
+      "../../../services/api/src/services/redaction/verify-redaction-projection.service.ts",
     );
-    expect(block).not.toBeNull();
-    expect((block?.[0] ?? "").includes("requireAuth")).toBe(false);
+    expect(projection).toMatch(/hasPublishedDerivative/);
+    expect(projection).toMatch(/REDACTION_NEVER_MODIFIES_ORIGINAL/);
+    // Provenance-only: the projection SELECTs and RETURNS bounded counts
+    // only — never a geometry / detection-text / rationale field.
+    expect(projection).not.toMatch(/\bgeometry:/);
+    expect(projection).not.toMatch(/\brationale:/);
+    expect(projection).not.toMatch(/\bdetections:/);
+    // No parallel anonymous authority survives in the redaction routes.
+    // Assert on the REGISTRATION form, not the path string — the file
+    // keeps a deletion note that names the removed path on purpose.
+    expect(ROUTES).not.toMatch(/["']\/v1\/redaction\/public\/verify/);
   });
 
   it("report builder ships a redaction-summary section module", () => {

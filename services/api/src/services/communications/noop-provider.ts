@@ -19,13 +19,9 @@ import type {
 import type {
   MessagingProvider,
   ParsedWebhook,
-  ProviderSendInput,
   ProviderSendResult,
-  ProviderVerifyCheckInput,
   ProviderVerifyCheckResult,
-  ProviderVerifyStartInput,
   ProviderVerifyStartResult,
-  WebhookSignatureInput,
 } from "./provider.js";
 
 export class NoopMessagingProvider implements MessagingProvider {
@@ -45,17 +41,15 @@ export class NoopMessagingProvider implements MessagingProvider {
     return this.reason;
   }
 
-  async sendSms(_input: ProviderSendInput): Promise<ProviderSendResult> {
+  async sendSms(): Promise<ProviderSendResult> {
     return this.failure("SMS");
   }
 
-  async sendWhatsApp(_input: ProviderSendInput): Promise<ProviderSendResult> {
+  async sendWhatsApp(): Promise<ProviderSendResult> {
     return this.failure("WHATSAPP");
   }
 
-  async startVerification(
-    _input: ProviderVerifyStartInput,
-  ): Promise<ProviderVerifyStartResult> {
+  async startVerification(): Promise<ProviderVerifyStartResult> {
     return {
       ok: false,
       provider: "NOOP",
@@ -65,9 +59,7 @@ export class NoopMessagingProvider implements MessagingProvider {
     };
   }
 
-  async checkVerification(
-    _input: ProviderVerifyCheckInput,
-  ): Promise<ProviderVerifyCheckResult> {
+  async checkVerification(): Promise<ProviderVerifyCheckResult> {
     return {
       ok: false,
       provider: "NOOP",
@@ -77,16 +69,14 @@ export class NoopMessagingProvider implements MessagingProvider {
     };
   }
 
-  verifyWebhookSignature(_input: WebhookSignatureInput): boolean {
+  verifyWebhookSignature(): boolean {
     // Noop provider has no shared secret to validate against; refuse
     // every callback so an attacker cannot get a "valid signature"
     // response when communications are disabled.
     return false;
   }
 
-  parseDeliveryWebhook(_input: {
-    fields: Record<string, string>;
-  }): ParsedWebhook {
+  parseDeliveryWebhook(): ParsedWebhook {
     return { kind: "ignored", reason: "noop_provider" };
   }
 

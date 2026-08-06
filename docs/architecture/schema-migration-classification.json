@@ -1,0 +1,2225 @@
+{
+  "generatedFrom": "static prisma schema + migrations dir scan at HEAD+uncommitted",
+  "appliedStatus": "UNKNOWN_EXTERNAL_STATE — no read-only production _prisma_migrations access; applied vs unapplied cannot be determined here",
+  "totalModels": 262,
+  "totalMigrationsAuthored": 207,
+  "modelClassificationCounts": {
+    "TARGET_REQUIRED": 256,
+    "HISTORICAL_ONLY": 6
+  },
+  "migrationClassificationCounts": {
+    "HISTORICAL_ONLY": 192,
+    "UNSAFE_OR_UNCLASSIFIED": 4,
+    "UNAPPLIED_TARGET": 11
+  },
+  "duplicateModelGroups": [],
+  "legacyColumnModels": [],
+  "unsafeOrUnclassifiedMigrations": [
+    {
+      "migration": "20260407_add_legal_acceptance_and_cookie_consent",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    },
+    {
+      "migration": "20260418_report_snapshot_fields",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    },
+    {
+      "migration": "20260430_add_tsa_input_digest_fields",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    },
+    {
+      "migration": "email_password_auth",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    }
+  ],
+  "unappliedTargetMigrations": [
+    {
+      "migration": "20270920000000_workspace_kind_discriminator",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271001000000_org_security_policy_phase10",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271002000000_managed_identity_ownership",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271003000000_managed_identity_ownership_backfill",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271004000000_authenticated_session_org_context",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271005000000_org_security_policy_org_scoped",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271006000000_org_security_policy_lifecycle",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271101000000_audit_tenant_columns",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271102000000_uuid_id_default_repair",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271103000000_case_evidence_link_canonical",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271105000000_evidence_case_id_removal",
+      "classification": "UNAPPLIED_TARGET"
+    }
+  ],
+  "models": [
+    {
+      "model": "Evidence",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceAnchor",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidencePart",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Case",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseAssignment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseStatusHistory",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseRiskSnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CustodyEvent",
+      "compatColumns": [],
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "model": "Report",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceCertification",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "VerificationPackage",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "VerificationView",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SigningKey",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "User",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Team",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceSavedView",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceReviewerComment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceLegalNote",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceAnnotation",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceAiCategorization",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceReviewWorkflow",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkflowReviewDecision",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceReviewWorkflowEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRelationship",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceReviewerAuditEvent",
+      "compatColumns": [],
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "model": "CaptureSession",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaptureSessionEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkspaceStorageAddon",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "TeamMember",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MembershipGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EnterpriseContract",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EnterpriseProvisioningRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseAccess",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "TeamInvite",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "TeamActivity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GuestIdentity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Entitlement",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Subscription",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Payment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "StripeWebhookEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "PaypalWebhookEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "PasswordResetToken",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EmailVerificationToken",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AnalyticsEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AnalyticsSession",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AdminAuditLog",
+      "compatColumns": [],
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "model": "UserLegalAcceptance",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CookieConsentRecord",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DemoRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ContactSalesRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "UserIdentityLink",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AccountDataExportRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AccountClosureRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationClosureRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkspaceClosureRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceWorkflowTemplate",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkflowIntakeLink",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkflowIntakeSession",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRequestDeliverable",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRequestResponse",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRequestEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "NotificationDelivery",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkspaceGovernancePolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceLegalHold",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ApiCredential",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ApiCredentialUsageLog",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WebhookEndpoint",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "IntegrationWebhookDelivery",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "FileSecurityScan",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SecurityEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "UploadSession",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseLegalHold",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceIntelligenceJob",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceExtractedText",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceEntity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceSemanticChunk",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SemanticUsageDaily",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceSimilarity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DiscussionThread",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DiscussionMessage",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DiscussionMention",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DiscussionParticipant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MemberCapabilityGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MemberDelegatedAdminScope",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationSecurityPolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EmergencyAccessGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SupportAccessGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AccessReview",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ExternalIdentityMapping",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CommunicationMessage",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CommunicationPreference",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkspaceNotificationPreference",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "VerificationAttempt",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "StepUpChallenge",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "TrustedDevice",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaFactor",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaRecoveryCode",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaPendingChallenge",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaRecoveryRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaAdminDigestPreference",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaRecoveryAdminDigestLog",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaRecoveryDigestLog",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MfaRecoveryRequestApproval",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RevokedSession",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RiskSignal",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalIncident",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalCorrelation",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalIncidentEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "InboxItemState",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationsInboxSnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationNotificationPolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "NotificationScheduleSetting",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceWorkflowInstance",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceWorkflowInstanceEvidence",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceWorkflowStepInstance",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceWorkflowVisibilityDecision",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceSearchDocument",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SavedSearchView",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewEscalation",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerWorkloadSnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerOpsReminder",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SsoConnection",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ScimProvisioningToken",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AuthenticatedSession",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SsoCallbackAttempt",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ScimGroup",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GeoIntelligenceLookup",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRetentionPolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceRetentionPolicyVersion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DestructionReview",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceLifecycleEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GovernanceReconciliationRun",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DestructionExecution",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ImmutableStorageCheck",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GovernanceNotification",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GovernanceExportSnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceIntegritySnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AccessAnomaly",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "QueueTelemetrySnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkerTelemetrySnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseEvidenceLink",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalTimelineEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseComment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalWorkflow",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalWorkflowEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalWorkflowAction",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalCausalityLink",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalCausalityChain",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerCapacitySnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerRoutingRecommendation",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "BulkOperationalActionRun",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "BulkOperationalActionItem",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalGraphNode",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OperationalGraphEdge",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationalHealthSnapshot",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrgHealthProjection",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AutomationRule",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AutomationRun",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AutomationWebhookDestination",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AutomationWebhookDelivery",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Organization",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationDomain",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationMembership",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationInvite",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "OrganizationAuditEvent",
+      "compatColumns": [],
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "model": "OrganizationPolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseSiuProfile",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseSiuChecklistItem",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseSiuFollowUp",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseSiuReviewIndicator",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseSiuExport",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaseSiuSavedView",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EntitlementGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EntitlementUsage",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceExchangePackage",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceExchangePackageDelivery",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ChainTransfer",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "LifecycleWebhookEndpoint",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "LifecycleWebhookDelivery",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RetentionPolicyConfig",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "LegalHold",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ArchiveTierTransition",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DestructionRequest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DestructionCertificate",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Device",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaptureDeviceAttestation",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CaptureTrustEventRecord",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CodingSchema",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CodingField",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CodingValue",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerDisagreement",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "QcSample",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ExternalReviewerRoleAssignment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ExternalReviewInvitationDelivery",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionProject",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionVersion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionRegion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionDetection",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionDecision",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionApproval",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionDerivative",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionActivity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "TrustCenterArticle",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "TrustCenterArticleVersion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Subprocessor",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SubprocessorVersion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "StatusComponent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "StatusIncident",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "StatusIncidentUpdate",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MaintenanceWindow",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "Department",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DelegatedAdminGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GovernancePolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GovernancePolicyAssignment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "GovernancePolicyAudit",
+      "compatColumns": [],
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "model": "AccessReviewCampaign",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AccessReviewItem",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CrossOrgReviewGrant",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "EvidenceExchangePackageBuild",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MediaIntelligenceRecord",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "MediaIntelligenceEntity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerCorrection",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ProviderUsageEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ProviderBudget",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ProviderBudgetAlert",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "IntelligenceActivityEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionPolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionPolicyVersion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionPolicyAssignment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "RedactionPolicyAudit",
+      "compatColumns": [],
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "model": "VideoTimelineEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DepartmentMembership",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "SecurityClaimCheck",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "VideoTrack",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "VideoFrame",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "VideoTrackDetection",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ExternalReviewActivity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ExternalReviewComment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ExternalReviewDecision",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeam",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamMember",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamInvite",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamActivity",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamComment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamCommentMention",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamNotification",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamNotificationPreference",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamGuest",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamAccessReview",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamAccessReviewItem",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "CollaborationTeamAssignment",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "DuplicateDecision",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "WorkspaceAiPolicy",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AiCopilotRun",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AiCopilotObservationReview",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerCriteriaSet",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerCriteriaVersion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "ReviewerCriterion",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AiUsageEvent",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AiUsageDaily",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    },
+    {
+      "model": "AiUsageMonthly",
+      "compatColumns": [],
+      "classification": "TARGET_REQUIRED"
+    }
+  ],
+  "migrations": [
+    {
+      "migration": "20260131235343_init",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201013040_align_schema",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201013225_custody_event_index",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201033040_fix_evidence_file_sha256_index",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201120000_phase9_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201120000_update_evidence_signingkey",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201124500_add_document_evidence_type",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201132000_add_evidence_locked_event",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260201133000_fix_evidence_file_sha256_index_v2",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260204190000_add_auth_billing",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260205090000_phase2_invites_claim",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260205093000_evidence_parts",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260205100000_b2b_org_locking",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260215095541_email_password_auth",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260312170000_add_evidence_tsa_fields",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260321000000_expand_user_country_field",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260321110000_add_evidence_archive_field",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260324120000_add_team_activity",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260404180000_admin_audit_log",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260404193000_add_analytics_tables",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260404200000_admin_audit_is_public",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260404213000_analytics_admin_audit_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260407_add_legal_acceptance_and_cookie_consent",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    },
+    {
+      "migration": "20260417000000_create_verification_source_enum",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260418_report_snapshot_fields",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    },
+    {
+      "migration": "20260430_add_tsa_input_digest_fields",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    },
+    {
+      "migration": "20260504150000_add_evidence_internal_notes",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260504170000_add_capture_plan_and_part_metadata",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260508133000_add_evidence_operations_workspace_features",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260508153000_add_evidence_review_workflow_relationships_audit",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260510120000_add_capture_sessions",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260510160000_phase_a_b_forensic_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260510200000_phase_c_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260516120000_add_workflow_template_foundation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260516180000_add_workflow_intake_links_phase4",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260516220000_add_evidence_requests_phase7",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260517020000_add_notification_deliveries_phase8",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260517060000_add_notification_template_context",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260517100000_add_governance_phase9",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260517140000_add_integrations_phase10",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260518100000_add_integrations_phase10_5",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260520100000_add_reliability_phase12",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260521100000_add_review_operations_phase13",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260522100000_add_review_sla_defaults_phase13_5",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260523100000_add_governance_platform_phase14",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260524100000_add_intelligence_phase15",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260525100000_add_collaboration_phase16",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260526100000_add_identity_phase17",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260527100000_add_communications_phase18",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260528100000_add_identity_security_phase19",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260529100000_add_operational_incidents_phase21",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260530100000_add_workflow_engine_phase22",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260531100000_add_search_discovery_phase24",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260601100000_add_reviewer_operations_phase25",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260602100000_phase25_5_reviewer_ops_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260603100000_phase26_identity_governance",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260604100000_phase26_5_identity_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260605100000_phase26_75_identity_runtime",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260606100000_phase27_retention_lifecycle",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260606120000_phase12_perceptual_foundation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260613100000_phase27_5_governance_operationalization",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260620100000_phase24_31_consolidated_drift_patches",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260620200000_reviewer_ops_naming_drift_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260620300000_team_billing_naming_drift_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260625100000_phase328cpppp_dashboard_intelligence_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260626100000_phase328cppppp_structural_intelligence_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260627100000_phase328c_control_plane_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260628100000_phase328c_workflow_causality",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260629100000_phase328c_enterprise_gap_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260630100000_phase328d_matter_workspace",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260720100000_personal_workspace_bootstrap",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260720200000_dashboard_projections",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260721000000_workspace_persona_profile",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260722000000_r8_1_mfa_activation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260722110000_enterprise_provisioning_idempotency",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260724000000_r8_1_3_mfa_pending_challenges",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260725000000_r8_1_4_mfa_recovery_requests",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260726000000_r8_1_5_recovery_email_preflight",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260727000000_r8_1_6_recovery_digest_logs",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260728000000_r8_1_7_digest_preferences",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260801000000_phase_e3_automation_foundation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260802000000_phase_e3_2_webhook_delivery",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260803000000_phase_e3_3_async_delivery_runtime",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260804000000_phase_e10_1_stripe_webhook_idempotency",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260926000000_p2_7x_stage1_org_model_additive",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260927000000_p2_7x_stage6_invite_token_hash",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260928000000_p2_7x_stage6_teams_org_not_null",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260929000000_phase_b2_workflow_review_decisions",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20260930000000_phase_a0_integrity_hard_gate",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261001000000_phase_a1_evidence_org_tenancy",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261002000000_phase_a2_pdf_artifact_status",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261003000000_phase_g3_1_notification_preferences",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261004000000_phase_m3_1_siu_durability",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261005000000_phase_m3_2_siu_governance_export",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261006000000_phase_o_final_production_column_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261008000000_phase_o_workflow_join_table_final_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261009000000_drop_reviewer_queue_projection",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261015000000_phase_2b_closure_invitation_delivery_sso",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261101000000_phase_3a_redaction_platform",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261201000000_phase_3a_elite_closure_policy_video",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261215000000_phase_3b_intelligence_platform",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261216000000_phase_3b_enterprise_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261220000000_phase_4a_trust_and_governance",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261225000000_phase_4a_enterprise_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261230000000_phase_4b_packaging_and_lifecycle",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20261231000000_phase_4b_final_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270101000000_phase_r3_model_catchup",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270102000000_phase_r7_schema_catchup",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270103000000_phase_r7_trust_schema_fix",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270104000000_phase_r7_redaction_schema_fix",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270105000000_phase_r7_reviewer_workspace_schema_fix",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270106000000_phase_r7_governance_schema_fix",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270107000000_phase_r7_capture_trust_schema_fix",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270108000000_phase_r7_intelligence_schema_fix",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270109000000_phase_r7_redaction_policy_unique",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270201000000_phase_5_collaboration_teams",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270301000000_phase_7_collaboration_completion",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270401000000_phase_10_paypal_webhook_idempotency",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270501000000_phase_10_paypal_webhook_payload_hash",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270601000000_phase13_intelligence_chain",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270701000000_phase15_semantic_search",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270801000000_phase16_semantic_usage",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270802000000_phase_sentry_batch_schema_drift_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270803000000_phase_governance_additive_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270804000000_phase1_production_drift_stabilization",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270805000000_phase2_drift_repair_trust_status",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270806000000_phase2_drift_repair_governance",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270807000000_phase2_drift_repair_redaction",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270808000000_phase2_drift_repair_lifecycle_webhooks",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270809000000_phase_2_1_final_drift_closure",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270810000000_wave1_graph_taxonomy_renames",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270811000000_wave2_duplicate_decisions",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270812000000_wave3_custody_event_type_widening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270813000000_phase2_api_key_dual_active_rotation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270814000000_phase4_webhook_dual_signing_rotation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270815000000_phase_closure_webhook_delivery_duration",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270816000000_phase_t_template_identity_columns",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270817000000_phase_t_coding_schema_uuid_default_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270818000000_phase_t_coding_values_updated_at_default",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270818010000_phase_t_coding_values_id_default",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270818020000_phase_t_reviewer_disagreements_defaults",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270818030000_phase_t_trust_center_drift_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270819000000_phase_t_trust_center_versions_published_at_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270819010000_phase_t_subprocessor_versions_runtime_repair",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270820000000_add_inbox_item_state",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270822000000_intake_link_sender_identity",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270823000000_communication_message_idem_key_split",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270824000000_intake_link_archive",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270825000000_intake_link_location_collection",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270826000000_pricing_hardening_enterprise_plan_record_caps",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270827000000_contact_sales_lead_capture",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270828000000_email_verification_tokens",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270829000000_evr_p4_canonical_verification_record",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270829000000_phase_2a_live_missing_columns_catchup",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270830000000_evr_p10_tsa_retry_tracking",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270901000000_verification_package_validation_findings",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270902000000_verification_package_hash",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270903000000_verification_package_validation_status",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270904000000_report_claims_package_verified",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270905000000_contributor_identity_snapshot",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906000000_phase_2b_1_timestamp_repairs",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906010000_phase_2b_2_integer_widening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906020000_phase_2b_3_string_type_alignment",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906030000_phase_2b_4_nullability_hardening",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906040000_phase_2b_5_enum_alignment",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906050000_phase_2b_6_uuid_and_identifier_alignment",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906060000_phase_2b_7_json_semantic_repairs",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270906070000_phase_2c_d_provider_confidence_nullable_relaxation",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270907000000_technical_metadata_capture_environment",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270908000000_drop_evidence_anchor_publication_columns",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270909000000_org_pending_enterprise_seats",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270910000000_phase_3_enterprise_identity_domains_and_sp_signing",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270911000000_workspace_ai_policy",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270912000000_ai_copilot_runs",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270913000000_ai_usage_ledger",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270914000000_reviewer_criteria_catalog",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270915000000_mi_provider_local_value_rename",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270916000000_operations_center_history_and_schedule",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270917000000_org_notification_policy_and_resolution_provenance",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270918000000_user_identity_links",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270919000000_account_data_export_requests",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270920000000_account_closure_requests",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270920000000_workspace_kind_discriminator",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20270920100000_org_invite_workspace_assignments",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270920200000_membership_grant_provenance",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270920250000_membership_grant_legacy_backfill",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270920300000_enterprise_contract_state",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270921000000_organization_closure_requests",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270922000000_workspace_closure_requests",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270923000000_notification_schedule_timezone_inherit",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270924000000_drop_workspace_persona_profiles",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20270925000000_user_identity_mode",
+      "classification": "HISTORICAL_ONLY"
+    },
+    {
+      "migration": "20271001000000_org_security_policy_phase10",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271002000000_managed_identity_ownership",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271003000000_managed_identity_ownership_backfill",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271004000000_authenticated_session_org_context",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271005000000_org_security_policy_org_scoped",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271006000000_org_security_policy_lifecycle",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271101000000_audit_tenant_columns",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271102000000_uuid_id_default_repair",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271103000000_case_evidence_link_canonical",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "20271105000000_evidence_case_id_removal",
+      "classification": "UNAPPLIED_TARGET"
+    },
+    {
+      "migration": "email_password_auth",
+      "classification": "UNSAFE_OR_UNCLASSIFIED"
+    }
+  ],
+  "supersededForMigrationDimensionBy": "docs/architecture/migration-inventory-p6.json",
+  "supersessionNote": "PHASE 12 POINT 6 — the MIGRATION half of this artifact (migrationClassificationCounts / unsafeOrUnclassifiedMigrations / unappliedTargetMigrations) is superseded by the canonical Point-6 inventory, which discovers every migration directory from disk, checksums it and classifies it with the Point-6 vocabulary. The MODEL half (models / modelClassificationCounts) remains authoritative here."
+}

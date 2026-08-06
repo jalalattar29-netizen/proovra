@@ -1,0 +1,235 @@
+[
+  {
+    "route": "/admin/runtime/migrations",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:212",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "SRE curl probes (docs/phase-28f-runtime-readiness.md:173)",
+    "authMode": "requireAuth + requireReadinessActor(audit.read)",
+    "evidence": "documented operator probe; web consumes /admin/runtime/readiness aggregator",
+    "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts",
+    "owner": "SRE/platform ops",
+    "productReason": "migration-drift operator probe"
+  },
+  {
+    "route": "/admin/runtime/queues",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:131",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "SRE curl; E10_2 runbook:86",
+    "authMode": "requireAuth + requireReadinessActor",
+    "evidence": "runbook + curl docs",
+    "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts:195",
+    "owner": "SRE/platform ops",
+    "productReason": "queue-health probe"
+  },
+  {
+    "route": "/admin/runtime/schema-status",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/ops.routes.ts:564",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "SRE curl (3 runbooks incl. disaster-recovery.md:108)",
+    "authMode": "requireAuth + requireOpsActor",
+    "evidence": "three runbooks give curl invocations",
+    "proofSuite": "services/api/test/reviewer-ops-lifecycle-activation.test.ts",
+    "owner": "SRE/platform ops",
+    "productReason": "schema-drift probe in DR/seeding runbooks"
+  },
+  {
+    "route": "/admin/runtime/workers",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:172",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "SRE curl (phase-28f docs)",
+    "authMode": "requireAuth + requireReadinessActor",
+    "evidence": "documented probe",
+    "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts:208",
+    "owner": "SRE/platform ops",
+    "productReason": "worker/cron-secret health probe"
+  },
+  {
+    "route": "/v1/_test/rate-limit/reset",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/_test-rate-limit.routes.ts:65",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "e2e/helpers/api-client.ts:71",
+    "authMode": "non-prod + env flag + secret header, else 404",
+    "evidence": "triple-gated; 404-collapse in prod",
+    "proofSuite": "e2e/public-verify-privacy.spec.ts",
+    "owner": "e2e infra",
+    "productReason": "deterministic rate-limit reset; 404 in production"
+  },
+  {
+    "route": "/v1/break-glass/activate",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/enterprise-security.routes.ts:111",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "emergency operator procedure",
+    "authMode": "requireAuth + identity.org_policy.manage + step-up",
+    "evidence": "§10.6 bounded emergency authority; API-only by design",
+    "proofSuite": "services/api/test/phase-10-security-routes.test.ts:153",
+    "owner": "enterprise-security (§10.6)",
+    "productReason": "bounded emergency access; step-up + blocklist + critical audit"
+  },
+  {
+    "route": "/v1/break-glass/emergency/sessions/revoke",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/enterprise-security.routes.ts:177",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "emergency operator (active grant)",
+    "authMode": "requireAuth + authorizeWithEmergencyOverlay",
+    "evidence": "§10.6 Step-4 emergency-operate",
+    "proofSuite": "services/api/test/phase-10-security-routes.test.ts:181",
+    "owner": "enterprise-security (§10.6)",
+    "productReason": "emergency session revoke under grant"
+  },
+  {
+    "route": "/v1/break-glass/revoke",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/enterprise-security.routes.ts:128",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "emergency operator",
+    "authMode": "requireAuth + identity.org_policy.manage",
+    "evidence": "§10.6 family",
+    "proofSuite": "services/api/test/phase-10-security-routes.test.ts",
+    "owner": "enterprise-security (§10.6)",
+    "productReason": "revocation half of emergency lifecycle"
+  },
+  {
+    "route": "/v1/communications/process-retries",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/communications.routes.ts:446",
+    "class": "WORKER_OR_MACHINE_CONSUMER",
+    "consumer": "ops cron (twilio-outage runbook:16); NO in-repo scheduler",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "cron-secret + runbook; no automated producer found",
+    "proofSuite": "services/api/test/communications.test.ts:509"
+  },
+  {
+    "route": "/v1/communications/webhooks/twilio/inbound",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/communications.routes.ts:496",
+    "class": "EXTERNAL_PROVIDER_CALLBACK",
+    "consumer": "Twilio inbound SMS webhook",
+    "authMode": "x-twilio-signature verified",
+    "evidence": "verifyWebhookSignature at communications.routes.ts:533-545; invalid → 403 + security event",
+    "proofSuite": "services/api/test/communications.test.ts:239"
+  },
+  {
+    "route": "/v1/communications/webhooks/twilio/status",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/communications.routes.ts:489",
+    "class": "EXTERNAL_PROVIDER_CALLBACK",
+    "consumer": "Twilio statusCallback (set by communication.service.ts:436)",
+    "authMode": "x-twilio-signature verified",
+    "evidence": "shared signature verification; producer wiring proven",
+    "proofSuite": "services/api/test/communications.test.ts:78"
+  },
+  {
+    "route": "/v1/governance/export-snapshots",
+    "methods": [
+      "POST",
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/governance-operations.routes.ts:194,229",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "compliance attestation (API)",
+    "authMode": "requireAuth + governance caps",
+    "evidence": "PHASE_2_2 doc:210 'Required for periodic compliance attestation. No UI.'",
+    "proofSuite": "services/api/test/phase27_5-governance-operations.test.ts:506",
+    "owner": "governance/compliance",
+    "productReason": "export-lineage snapshots for attestation"
+  },
+  {
+    "route": "/v1/governance/export-snapshots/:id",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/governance-operations.routes.ts:253",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "compliance attestation",
+    "authMode": "requireAuth + governance.policy.read",
+    "evidence": "same documented no-UI surface",
+    "proofSuite": "services/api/test/phase27_5-governance-operations.test.ts",
+    "owner": "governance/compliance",
+    "productReason": "snapshot detail for attestation"
+  },
+  {
+    "route": "/v1/governance/export-snapshots/:id/verify",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/governance-operations.routes.ts:271",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "compliance attestation",
+    "authMode": "requireAuth + governance.policy.read",
+    "evidence": "hash verification of same surface",
+    "proofSuite": "services/api/test/phase-ia-route-authz-hardening.test.ts:307",
+    "owner": "governance/compliance",
+    "productReason": "snapshot hash verification"
+  },
+  {
+    "route": "/v1/identity-security/devices/trust",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/identity-security.routes.ts:388",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "security-operator runbook (suspicious-login-burst.md:27)",
+    "authMode": "requireAuth + requireSecurityActor",
+    "evidence": "runbook-invoked; UI gap acknowledged in PHASE_2_2 inventory",
+    "proofSuite": "services/api/test/identity-security.test.ts",
+    "owner": "security operations (Phase 19)",
+    "productReason": "operator device-trust marking in incident runbook"
+  },
+  {
+    "route": "/v1/identity-security/risk/user/:id",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/identity-security.routes.ts:526",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "security-operator runbooks (suspicious-login-burst.md:15, workflow-intake-abuse.md:14)",
+    "authMode": "requireAuth",
+    "evidence": "two runbooks invoke directly",
+    "proofSuite": "services/api/test/identity-security.test.ts",
+    "owner": "security operations (Phase 19)",
+    "productReason": "operator risk snapshot during incident response"
+  },
+  {
+    "route": "/v1/identity/contributor-sessions/:id/revoke",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/identity.routes.ts:650",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "security-operator runbook (workflow-intake-abuse.md:18)",
+    "authMode": "requireAuth + identity.contributor_session.revoke",
+    "evidence": "runbook step 2",
+    "proofSuite": null,
+    "owner": "security operations (Phase 17)",
+    "productReason": "immediate contributor revoke in intake-abuse runbook"
+  }
+]

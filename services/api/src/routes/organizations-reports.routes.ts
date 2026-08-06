@@ -41,7 +41,7 @@
  *   document where the real data lives (platform audit-log export).
  */
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
@@ -521,7 +521,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
         {
           status: "not_available_at_org_tier",
           note:
-            "Evidence report/package/original download events are recorded in the platform audit log (category=evidence), scoped to user + evidence id. They are not attributed to an organization, so an org-scoped download-audit report is not available. Export the platform audit log (GET /v1/admin/audit-log/export) for the raw download events.",
+            "Evidence report/package/original download events are recorded in the platform audit log (category=evidence), scoped to user + evidence id. They are not attributed to an organization, so an org-scoped download-audit report is not available. Query the platform audit log (GET /v1/admin/audit-log) for the raw download events.",
         },
       ];
       const columns: CsvColumn<(typeof rows)[number]>[] = [

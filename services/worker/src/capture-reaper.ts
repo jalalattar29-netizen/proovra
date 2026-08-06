@@ -93,12 +93,28 @@ export async function reapExpiredCaptureDrafts(
           return;
         }
 
-        await tx.captureSession.update({
-          where: { id: draft.id },
+        // PHASE 12 POINT 5 — THE CLAIM.
+        //
+        // The re-read above is not one. At READ COMMITTED a `findUnique`
+        // takes no lock, so two reapers both saw DRAFT, both wrote EXPIRED
+        // (harmless, same value) and both appended an EXPIRED audit event —
+        // two ledger rows for one expiry, in a table whose whole purpose is
+        // to say what happened once. The conditional UPDATE is the claim:
+        // the row's own status is the precondition, so exactly one caller
+        // gets `count === 1` and only that caller writes the event.
+        const claimed = await tx.captureSession.updateMany({
+          where: {
+            id: draft.id,
+            status: prismaPkg.CaptureSessionStatus.DRAFT,
+          },
           data: {
             status: prismaPkg.CaptureSessionStatus.EXPIRED,
           },
         });
+        if (claimed.count !== 1) {
+          skipped++;
+          return;
+        }
         await tx.captureSessionEvent.create({
           data: {
             sessionId: draft.id,

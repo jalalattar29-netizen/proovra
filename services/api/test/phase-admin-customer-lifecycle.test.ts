@@ -18,6 +18,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { asPrismaDouble, type DelegateArgs } from "./support/prisma-double.js";
 
 vi.mock("../src/services/security/sso-health.service.js", () => ({
   buildSsoHealthSnapshot: vi.fn(async ({ teamId }: { teamId: string }) => ({
@@ -234,8 +235,8 @@ function makeDetailClient() {
   ];
   return {
     organization: {
-      findUnique: vi.fn(async ({ where }: any) =>
-        where.id === orgId
+      findUnique: vi.fn(async ({ where }: DelegateArgs) =>
+        where?.id === orgId
           ? {
               id: orgId,
               name: "Acme",
@@ -262,9 +263,9 @@ function makeDetailClient() {
       ),
     },
     organizationMembership: {
-      findMany: vi.fn(async ({ where }: any) => {
+      findMany: vi.fn(async ({ where }: DelegateArgs) => {
         // owner+admin query filters by role.in; the member-ids query does not.
-        if (where.role?.in) {
+        if ((where?.role as { in?: unknown } | undefined)?.in) {
           return [
             {
               userId: "u1",
@@ -288,9 +289,9 @@ function makeDetailClient() {
     },
     evidence: {
       count: vi.fn(async () => 3),
-      findFirst: vi.fn(async ({ orderBy }: any) => ({
+      findFirst: vi.fn(async ({ orderBy }: DelegateArgs) => ({
         createdAt:
-          orderBy?.createdAt === "asc"
+          (orderBy as { createdAt?: string } | undefined)?.createdAt === "asc"
             ? new Date("2026-02-05T00:00:00Z")
             : new Date("2026-03-10T00:00:00Z"),
       })),
@@ -317,7 +318,7 @@ function makeDetailClient() {
     user: { findUnique: vi.fn(async () => null) },
     organizationAuditEvent: { findMany: vi.fn(async () => []) },
     adminAuditLog: { findMany: vi.fn(async () => []) },
-  } as any;
+  };
 }
 
 beforeEach(() => {
@@ -327,7 +328,7 @@ beforeEach(() => {
 describe("getAdminOrganizationDetail — customerSuccess + workspaces + lifecycle", () => {
   it("not-modelled fields (accountManager/supportContact/renewalDate/supportTickets/onboardingCompletion) are null", async () => {
     const client = makeDetailClient();
-    const d = await getAdminOrganizationDetail("org-a", client);
+    const d = await getAdminOrganizationDetail("org-a", asPrismaDouble(client));
     expect(d.customerSuccess.accountManager).toBeNull();
     expect(d.customerSuccess.supportContact).toBeNull();
     expect(d.customerSuccess.renewalDate).toBeNull();
@@ -338,7 +339,7 @@ describe("getAdminOrganizationDetail — customerSuccess + workspaces + lifecycl
 
   it("exposes REAL milestones and a derived ACTIVE lifecycle stage", async () => {
     const client = makeDetailClient();
-    const d = await getAdminOrganizationDetail("org-a", client);
+    const d = await getAdminOrganizationDetail("org-a", asPrismaDouble(client));
     expect(d.lifecycle.stage).toBe("ACTIVE");
     expect(d.customerSuccess.firstEvidenceAt).toBe("2026-02-05T00:00:00.000Z");
     expect(d.customerSuccess.firstReportAt).toBe("2026-02-06T00:00:00.000Z");
@@ -350,7 +351,7 @@ describe("getAdminOrganizationDetail — customerSuccess + workspaces + lifecycl
 
   it("emits the Platform Map: one workspace with real counts", async () => {
     const client = makeDetailClient();
-    const d = await getAdminOrganizationDetail("org-a", client);
+    const d = await getAdminOrganizationDetail("org-a", asPrismaDouble(client));
     expect(d.workspaces).toHaveLength(1);
     const ws = d.workspaces[0]!;
     expect(ws.name).toBe("Legal WS");

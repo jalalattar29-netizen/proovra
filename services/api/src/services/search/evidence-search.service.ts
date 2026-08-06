@@ -156,6 +156,30 @@ export async function executeSearch(
   if (filter.workflowLinked !== undefined) {
     where.workflowInstanceId = filter.workflowLinked ? { not: null } : null;
   }
+  // PHASE 12B — case scoping. Absorbed from the deleted owner-scoped
+  // /v1/search/evidence primitive. `case_id` is an indexed column on
+  // evidence_search_documents, so this stays a cheap index probe.
+  if (filter.caseId) {
+    where.caseId = filter.caseId;
+  }
+  // PHASE 12B — `evidenceTypes` was declared on SearchFilterSchema and
+  // rendered as filter chips in the /search console but was NEVER
+  // applied here, so the chips silently returned the unfiltered set.
+  // The indexer writes the evidence type into
+  // `searchable_metadata_json.type` (see packages/shared/search-projection
+  // buildEvidenceProjection), so we narrow on that JSON path. The clause
+  // is pushed onto `AND` rather than `OR` so it composes with the
+  // free-text `OR` block below instead of clobbering it.
+  if (filter.evidenceTypes && filter.evidenceTypes.length > 0) {
+    const typeClauses: prismaPkg.Prisma.EvidenceSearchDocumentWhereInput[] =
+      filter.evidenceTypes.map((t) => ({
+        searchableMetadataJson: { path: ["type"], equals: t },
+      }));
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      { OR: typeClauses },
+    ];
+  }
   if (filter.contributorScoped !== undefined) {
     where.contributorScoped = filter.contributorScoped;
   }

@@ -189,7 +189,12 @@ export function AssignmentPickerModal({
     }
   }, [open]);
 
-  const candidates = state.status === "ready" ? state.items : [];
+  // Memoised so the empty-state array is not a fresh identity each render,
+  // which would defeat the selection memo below.
+  const candidates = useMemo(
+    () => (state.status === "ready" ? state.items : []),
+    [state],
+  );
   const selected = useMemo(
     () => candidates.find((c) => c.userId === selectedUserId) ?? null,
     [candidates, selectedUserId],

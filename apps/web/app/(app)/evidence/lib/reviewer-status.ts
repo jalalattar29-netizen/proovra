@@ -26,6 +26,7 @@ export const REVIEWER_STATUS_LABEL: Record<string, string> = {
   NEEDS_INFO: "Needs additional context",
   READY_FOR_EXTERNAL_REVIEW: "Ready for external review",
   APPROVED_INTERNAL: "Accepted for internal review",
+  REJECTED_INSUFFICIENT: "Rejected as insufficient",
   ESCALATED: "Escalated for further review",
   CLOSED: "Not accepted",
 };
@@ -34,13 +35,65 @@ export const REVIEWER_STATUS_LABEL: Record<string, string> = {
  * Subset of statuses surfaced as primary action buttons in the
  * Reviewer status control. Kept here so the Reviewer Workflow card
  * and the External Intake card cannot drift apart.
+ *
+ * PHASE 12 POINT 4 PASS C1 — these are ROUTING states only. A reviewer
+ * VERDICT is not a status the browser assigns: it is recorded as a decision
+ * and the workflow status is derived from the immutable decision log by the
+ * server. `NEEDS_INFO` and `APPROVED_INTERNAL` therefore moved out of this
+ * list and into `REVIEWER_DECISION_ACTIONS` below.
  */
 export const REVIEWER_STATUS_PRIMARY_ACTIONS: ReadonlyArray<string> = [
   "NOT_STARTED",
   "IN_REVIEW",
-  "NEEDS_INFO",
-  "APPROVED_INTERNAL",
   "CLOSED",
+];
+
+/**
+ * Statuses derived by the server from the immutable decision log. No client
+ * control may assign one — mirrors `DECISION_DERIVED_WORKFLOW_STATUSES` in
+ * services/api/src/services/reviewer-ops/review-decision.service.ts.
+ */
+const DECISION_DERIVED_STATUSES: ReadonlySet<string> = new Set([
+  "APPROVED_INTERNAL",
+  "REJECTED_INSUFFICIENT",
+  "NEEDS_INFO",
+]);
+
+/** True when a surface may send this status on the administrative PATCH. */
+export function isRoutingReviewerStatus(
+  status: string | null | undefined,
+): boolean {
+  return !!status && !DECISION_DERIVED_STATUSES.has(status);
+}
+
+/**
+ * The reviewer VERDICTS, expressed in the canonical decision vocabulary the
+ * decision endpoint accepts (`POST /v1/review-operations/evidence/:id/decision`).
+ *
+ * `resultingStatus` is what the SERVER will derive once the decision is
+ * recorded — it is here only so a surface can show which button is already
+ * satisfied by the current state. It is never sent.
+ */
+export const REVIEWER_DECISION_ACTIONS: ReadonlyArray<{
+  decision: "APPROVE_INTERNAL" | "REJECT_INSUFFICIENT" | "REQUEST_MORE_INFO";
+  label: string;
+  resultingStatus: string;
+}> = [
+  {
+    decision: "REQUEST_MORE_INFO",
+    label: "Request more context",
+    resultingStatus: "NEEDS_INFO",
+  },
+  {
+    decision: "APPROVE_INTERNAL",
+    label: "Accept for internal review",
+    resultingStatus: "APPROVED_INTERNAL",
+  },
+  {
+    decision: "REJECT_INSUFFICIENT",
+    label: "Reject as insufficient",
+    resultingStatus: "REJECTED_INSUFFICIENT",
+  },
 ];
 
 /**

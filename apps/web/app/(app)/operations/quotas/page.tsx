@@ -51,31 +51,39 @@ function QuotasPageInner() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Both endpoints are scoped to the authenticated user server-side, so the
+  // identity IS the query key: a signed-in identity change must refetch, and
+  // the previous identity's response must never land in the new one's view.
+  const userId = user?.id ?? null;
   useEffect(() => {
-    void loadData();
-  }, [user?.id]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        setLoading(true);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
+        const [quotasData, statsData] = await Promise.all([
+          apiFetch("/v1/quotas"),
+          apiFetch("/v1/usage-stats"),
+        ]);
 
-      const [quotasData, statsData] = await Promise.all([
-        apiFetch("/v1/quotas"),
-        apiFetch("/v1/usage-stats"),
-      ]);
-
-      setQuotas(quotasData?.data ?? null);
-      setStats(statsData?.data ?? null);
-    } catch (err) {
-      const message =
-        toSafeUserError(err, { message: "Failed to load usage and quota data" }).message;
-      addToast(message, "error");
-      setQuotas(null);
-      setStats(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (cancelled) return;
+        setQuotas(quotasData?.data ?? null);
+        setStats(statsData?.data ?? null);
+      } catch (err) {
+        if (cancelled) return;
+        const message =
+          toSafeUserError(err, { message: "Failed to load usage and quota data" }).message;
+        addToast(message, "error");
+        setQuotas(null);
+        setStats(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, addToast]);
 
   const quotaCards = useMemo(() => {
     if (!quotas) return [];

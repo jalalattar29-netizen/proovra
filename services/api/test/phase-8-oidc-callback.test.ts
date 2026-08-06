@@ -98,7 +98,7 @@ function fakePrisma() {
           {},
           {
             get(_t2, method: string) {
-              return async (...args: unknown[]) => {
+              return async () => {
                 if (/^(create|update|upsert|delete)/.test(method))
                   writes.push(`${model}.${method}`);
                 if (model === "ssoConnection" && method === "findFirst")
@@ -135,6 +135,20 @@ function fakePrisma() {
                 if (method === "findFirst" || method === "findUnique") return null;
                 if (method === "findMany") return [];
                 if (method === "count") return 0;
+                // PHASE 12 POINT 4 PASS C5 — the enterprise gate now resolves
+                // the effective plan through the canonical commercial envelope
+                // (instead of a raw two-column read with an owner-plan
+                // fallback), so this fake must answer the aggregate reads that
+                // envelope performs. Every `_sum.<field>` reads as null.
+                if (method === "aggregate")
+                  return {
+                    _sum: new Proxy({}, { get: () => null }),
+                    _count: 0,
+                    _avg: new Proxy({}, { get: () => null }),
+                    _max: new Proxy({}, { get: () => null }),
+                    _min: new Proxy({}, { get: () => null }),
+                  };
+                if (method === "groupBy") return [];
                 if (/^(create|update|upsert)/.test(method)) return { id: "row-1" };
                 return {};
               };

@@ -188,6 +188,8 @@ export type ListDeliveryActivityInput = {
   teamId: string;
   packageId?: string;
   limit?: number;
+  /** Opaque forward cursor — the `id` of the last row of the previous page. */
+  cursorId?: string | null;
 };
 
 export type DeliveryActivityRow = {
@@ -199,31 +201,64 @@ export type DeliveryActivityRow = {
   deliveredAtUtc: string;
   downloadedAtUtc: string | null;
   verifiedAtUtc: string | null;
+  /**
+   * PHASE 12 VERTICAL C — bounded delivery state derived SERVER-SIDE from the
+   * recorded timestamps. The console never re-derives it, so "authorized"
+   * (a recipient recorded) can never be rendered as "completed".
+   */
+  state: "RECORDED" | "DOWNLOADED" | "VERIFIED";
 };
 
+export type ListDeliveryActivityPage = {
+  deliveries: ReadonlyArray<DeliveryActivityRow>;
+  nextCursor: string | null;
+};
+
+/**
+ * PHASE 12 VERTICAL C — the ONE delivery-history read.
+ *
+ * Deterministic pagination: ordered by `(deliveredAtUtc DESC, id DESC)` so
+ * ties never reshuffle between pages, with an id-keyed forward cursor.
+ * Tenancy is a DATABASE predicate (`teamId` in the `where`), never an
+ * in-memory filter. No provider secret, signing key, signature, header or
+ * signed URL is part of the projection — the row model does not carry them
+ * and nothing here reads the token store.
+ */
 export async function listDeliveryActivity(
   input: ListDeliveryActivityInput,
-): Promise<ReadonlyArray<DeliveryActivityRow>> {
+): Promise<ListDeliveryActivityPage> {
   const prisma = input.prisma ?? defaultPrisma;
-  const limit = Math.min(input.limit ?? 200, 1000);
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 200);
   const rows = await prisma.evidenceExchangePackageDelivery.findMany({
     where: {
       teamId: input.teamId,
       ...(input.packageId ? { packageId: input.packageId } : {}),
     },
-    orderBy: { deliveredAtUtc: "desc" },
-    take: limit,
+    orderBy: [{ deliveredAtUtc: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    ...(input.cursorId
+      ? { cursor: { id: input.cursorId }, skip: 1 }
+      : {}),
   });
-  return rows.map((r) => ({
-    id: r.id,
-    packageId: r.packageId,
-    recipientEmail: r.recipientEmail,
-    recipientOrgSlug: r.recipientOrgSlug,
-    channel: r.channel,
-    deliveredAtUtc: (r.deliveredAtUtc ?? r.deliveredAt).toISOString(),
-    downloadedAtUtc: r.downloadedAtUtc?.toISOString() ?? null,
-    verifiedAtUtc: r.verifiedAtUtc?.toISOString() ?? null,
-  }));
+  const page = rows.slice(0, limit);
+  return {
+    deliveries: page.map((r) => ({
+      id: r.id,
+      packageId: r.packageId,
+      recipientEmail: r.recipientEmail,
+      recipientOrgSlug: r.recipientOrgSlug,
+      channel: r.channel,
+      deliveredAtUtc: (r.deliveredAtUtc ?? r.deliveredAt).toISOString(),
+      downloadedAtUtc: r.downloadedAtUtc?.toISOString() ?? null,
+      verifiedAtUtc: r.verifiedAtUtc?.toISOString() ?? null,
+      state: r.verifiedAtUtc
+        ? ("VERIFIED" as const)
+        : r.downloadedAtUtc
+          ? ("DOWNLOADED" as const)
+          : ("RECORDED" as const),
+    })),
+    nextCursor: rows.length > limit ? (page[page.length - 1]?.id ?? null) : null,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -75,9 +75,11 @@ export async function indexEvidenceText(
     await client.evidenceSemanticChunk.deleteMany({
       where: { evidenceId: input.evidenceId },
     });
-    let embedded = 0;
+    // Phase P7 — inline embedding removed, so nothing is embedded on this
+    // path; the count stays 0 and the mi-embed worker owns the real work.
+    const embedded = 0;
     for (let i = 0; i < chunks.length; i += 1) {
-      let embedding: Uint8Array<ArrayBuffer> | null = null;
+      const embedding: Uint8Array<ArrayBuffer> | null = null;
       // Phase P7 — inline embedding removed; the mi-embed worker (canonical,
       // policy-gated) fills vectors asynchronously after enqueue below.
       const providerName: string | null = null;

@@ -19,6 +19,7 @@
  */
 
 import { Prisma } from "@prisma/client";
+import type { CaseSiuSavedView as CaseSiuSavedViewRecord } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "../../db.js";
@@ -117,7 +118,7 @@ export type SiuSavedViewRow = {
 };
 
 function projectRow(
-  row: Prisma.CaseSiuSavedViewGetPayload<{}>,
+  row: CaseSiuSavedViewRecord,
 ): SiuSavedViewRow {
   return {
     id: row.id,

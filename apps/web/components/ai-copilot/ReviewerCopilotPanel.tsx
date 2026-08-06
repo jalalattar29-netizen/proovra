@@ -57,7 +57,43 @@ type RunResult = {
 };
 
 type ObservationState = "PENDING" | "ACCEPTED" | "EDITED" | "REJECTED";
-type ObservationReview = { state: ObservationState; editedText?: string };
+type ObservationReview = {
+  state: ObservationState;
+  editedText?: string;
+  /**
+   * PHASE 12 POINT 1 / B1 — persistence status of THIS verdict against
+   * `POST /v1/ai/copilot-runs/:runId/observations`. A verdict that is not
+   * `SAVED` has not been recorded on the defensibility record and is
+   * labelled as such; the UI never implies a durable record it does not have.
+   */
+  sync?: "SAVING" | "SAVED" | "FAILED";
+};
+
+/**
+ * PHASE 12 POINT 1 / B1 — the server's response to a recorded observation
+ * verdict. Sourced from the canonical AI policy + disclosure authorities;
+ * this surface renders it verbatim and never composes its own AI claims.
+ */
+type ObservationDisclosure = {
+  capability: string;
+  provider: string | null;
+  dataCategory: string | null;
+  rawContent: boolean | null;
+  operationalStatus: string | null;
+  trainingMode: string | null;
+  retentionMode: string | null;
+};
+
+type ObservationAck = {
+  aiPolicy?: {
+    decision?: string | null;
+    allowed?: boolean | null;
+    policyVersion?: string | null;
+    runPolicyVersion?: string | null;
+  } | null;
+  disclosure?: ObservationDisclosure[] | null;
+  advisoryBoundary?: string | null;
+};
 
 type UiState =
   | { kind: "idle" }
@@ -93,6 +129,10 @@ export function ReviewerCopilotPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [state, setState] = useState<UiState>({ kind: "idle" });
   const [reviews, setReviews] = useState<Record<string, ObservationReview>>({});
+  // PHASE 12 POINT 1 / B1 — the persisted run this panel's verdicts attach to.
+  const [runId, setRunId] = useState<string | null>(null);
+  const [ack, setAck] = useState<ObservationAck | null>(null);
+  const [ackError, setAckError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   // Phase P6 — published human-authored criteria sets (server-resolved).
@@ -122,15 +162,68 @@ export function ReviewerCopilotPanel({
     });
   }
 
-  function setObservation(obsId: string, review: ObservationReview) {
-    setReviews((prev) => ({ ...prev, [obsId]: review }));
+  /**
+   * PHASE 12 POINT 1 / B1 — record a human Accept / Edit / Reject on the
+   * DEFENSIBILITY RECORD, not just in local component state.
+   *
+   * The verdict is applied optimistically so the reviewer is never made to
+   * wait on the network mid-review, then persisted through
+   * `POST /v1/ai/copilot-runs/:runId/observations`. If persistence fails the
+   * row is marked FAILED and offers a retry — the verdict is NEVER silently
+   * dropped, and the UI never claims a durable record it does not have.
+   *
+   * The original AI text is always sent alongside an edit so the record keeps
+   * what the model actually said next to what the human made of it.
+   */
+  async function setObservation(
+    obsId: string,
+    review: ObservationReview,
+    originalText: string,
+  ) {
+    setReviews((prev) => ({ ...prev, [obsId]: { ...review, sync: runId ? "SAVING" : undefined } }));
     onInteraction?.(obsId, review.state, review.editedText);
+    if (!runId || review.state === "PENDING") return;
+    setAckError(null);
+    try {
+      const res = (await apiFetch(`/v1/ai/copilot-runs/${runId}/observations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          observationId: obsId,
+          state: review.state,
+          originalText: originalText.slice(0, 1000),
+          ...(review.state === "EDITED" && review.editedText
+            ? { editedText: review.editedText.slice(0, 600) }
+            : {}),
+        }),
+      })) as ObservationAck;
+      setReviews((prev) =>
+        prev[obsId] ? { ...prev, [obsId]: { ...prev[obsId], sync: "SAVED" } } : prev,
+      );
+      setAck({
+        aiPolicy: res?.aiPolicy ?? null,
+        disclosure: Array.isArray(res?.disclosure) ? res.disclosure : [],
+        advisoryBoundary: res?.advisoryBoundary ?? null,
+      });
+    } catch (err) {
+      setReviews((prev) =>
+        prev[obsId] ? { ...prev, [obsId]: { ...prev[obsId], sync: "FAILED" } } : prev,
+      );
+      setAckError(
+        err instanceof ApiError
+          ? friendly(err.statusCode)
+          : "Your verdict was not recorded. The review decision itself is unaffected.",
+      );
+    }
   }
 
   async function run() {
     if (selected.size === 0 || state.kind === "loading") return;
     setState({ kind: "loading" });
     setReviews({});
+    setRunId(null);
+    setAck(null);
+    setAckError(null);
     try {
       const res = (await apiFetch(`/v1/ai/reviewer/${reviewId}/copilot`, {
         method: "POST",
@@ -141,7 +234,8 @@ export function ReviewerCopilotPanel({
           ...(criteriaSetId ? { criteriaSetId } : {}),
           idempotencyKey: `${reviewId}:${criteriaSetId || criteriaVersion}:${[...selected].sort().join(",")}`,
         }),
-      })) as { data?: RunResult };
+      })) as { data?: RunResult; runId?: string | null };
+      setRunId(typeof res?.runId === "string" ? res.runId : null);
       setState({ kind: "result", result: res.data ?? (res as RunResult) });
     } catch (err) {
       if (err instanceof ApiError) {
@@ -253,19 +347,63 @@ export function ReviewerCopilotPanel({
         ) : null;
       })() : null}
 
+      {/* PHASE 12 POINT 1 / B1 — persistence failure is surfaced, never
+          swallowed. The reviewer's own decision flow is unaffected. */}
+      {ackError ? (
+        <div className="app-alert app-alert--warn" style={{ marginTop: 12 }} role="alert" data-copilot-observation-error>
+          {ackError}
+        </div>
+      ) : null}
+
       {state.kind === "result" ? (
         <ResultView
           result={state.result}
           reviews={reviews}
           editing={editing}
           editText={editText}
-          onAccept={(id) => setObservation(id, { state: "ACCEPTED" })}
-          onReject={(id) => setObservation(id, { state: "REJECTED" })}
+          persistable={Boolean(runId)}
+          onAccept={(id, original) => void setObservation(id, { state: "ACCEPTED" }, original)}
+          onReject={(id, original) => void setObservation(id, { state: "REJECTED" }, original)}
           onStartEdit={(id, original) => { setEditing(id); setEditText(reviews[id]?.editedText ?? original); }}
-          onSaveEdit={(id) => { setObservation(id, { state: "EDITED", editedText: editText }); setEditing(null); }}
+          onSaveEdit={(id, original) => { void setObservation(id, { state: "EDITED", editedText: editText }, original); setEditing(null); }}
           onCancelEdit={() => setEditing(null)}
           onEditTextChange={setEditText}
         />
+      ) : null}
+
+      {/* PHASE 12 POINT 1 / B1 — the server's answer to the recorded verdict:
+          which policy governed the run, and the canonical disclosure for the
+          reviewer capability. Rendered verbatim from the API. */}
+      {ack ? (
+        <div className="app-card app-card--muted" style={{ marginTop: 12 }} data-copilot-observation-ack>
+          <strong style={{ fontSize: 13 }}>Recorded on the AI defensibility record</strong>
+          {ack.aiPolicy ? (
+            <p style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.75 }}>
+              Run governed by policy {ack.aiPolicy.runPolicyVersion ?? "—"}
+              {ack.aiPolicy.policyVersion && ack.aiPolicy.policyVersion !== ack.aiPolicy.runPolicyVersion
+                ? ` · workspace policy is now ${ack.aiPolicy.policyVersion}`
+                : ""}
+              {ack.aiPolicy.decision ? ` · ${ack.aiPolicy.decision}` : ""}
+            </p>
+          ) : null}
+          {ack.disclosure && ack.disclosure.length > 0 ? (
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12, opacity: 0.75 }}>
+              {ack.disclosure.map((d) => (
+                <li key={d.capability}>
+                  {d.capability}
+                  {d.provider ? ` · ${d.provider}` : ""}
+                  {d.dataCategory ? ` · ${d.dataCategory}` : ""}
+                  {d.trainingMode ? ` · training: ${d.trainingMode}` : ""}
+                  {d.retentionMode ? ` · retention: ${d.retentionMode}` : ""}
+                  {d.operationalStatus ? ` · ${d.operationalStatus}` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {ack.advisoryBoundary ? (
+            <p style={{ margin: "6px 0 0", fontSize: 12, opacity: 0.7 }}>{ack.advisoryBoundary}</p>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
@@ -290,10 +428,12 @@ function ResultView(props: {
   reviews: Record<string, ObservationReview>;
   editing: string | null;
   editText: string;
-  onAccept: (id: string) => void;
-  onReject: (id: string) => void;
+  /** True when the run persisted and verdicts can attach to a record. */
+  persistable: boolean;
+  onAccept: (id: string, original: string) => void;
+  onReject: (id: string, original: string) => void;
   onStartEdit: (id: string, original: string) => void;
-  onSaveEdit: (id: string) => void;
+  onSaveEdit: (id: string, original: string) => void;
   onCancelEdit: () => void;
   onEditTextChange: (t: string) => void;
 }) {
@@ -317,6 +457,14 @@ function ResultView(props: {
         <strong>Review brief</strong>
         <p style={{ margin: "4px 0 0" }}>{data.reviewBrief}</p>
       </div>
+      {/* PHASE 12 POINT 1 / B1 — when the run did not persist there is no
+          record to attach verdicts to. Say so rather than implying one. */}
+      {!props.persistable ? (
+        <div className="app-alert" role="status" data-copilot-observation-unrecorded>
+          This brief was not written to the AI defensibility record, so your
+          Accept / Edit / Reject marks stay on this screen only.
+        </div>
+      ) : null}
       {OBS_SECTIONS.map(({ key, label }) => {
         const items = data[key] as string[];
         if (!Array.isArray(items) || items.length === 0) return null;
@@ -345,17 +493,25 @@ function ResultView(props: {
                       </span>
                     )}
                     {review?.state === "ACCEPTED" ? <span className="app-chip" style={{ marginLeft: 6 }}>accepted</span> : null}
+                    {/* PHASE 12 POINT 1 / B1 — honest persistence state. */}
+                    {review?.sync === "SAVING" ? (
+                      <span className="app-chip" style={{ marginLeft: 6 }} data-copilot-observation-sync="SAVING">recording…</span>
+                    ) : review?.sync === "SAVED" ? (
+                      <span className="app-chip" style={{ marginLeft: 6 }} data-copilot-observation-sync="SAVED">recorded</span>
+                    ) : review?.sync === "FAILED" ? (
+                      <span className="app-chip app-chip--warn" style={{ marginLeft: 6 }} data-copilot-observation-sync="FAILED">not recorded</span>
+                    ) : null}
                     {isEditing ? (
                       <span style={{ display: "block", marginTop: 4 }}>
                         <textarea value={props.editText} onChange={(e) => props.onEditTextChange(e.target.value)} maxLength={600} rows={2} style={{ width: "100%" }} aria-label="Edit observation" />
-                        <button className="app-btn app-btn--primary" onClick={() => props.onSaveEdit(obsId)} style={{ marginRight: 6 }}>Save edit</button>
+                        <button className="app-btn app-btn--primary" onClick={() => props.onSaveEdit(obsId, text)} style={{ marginRight: 6 }}>Save edit</button>
                         <button className="app-btn app-btn--ghost" onClick={props.onCancelEdit}>Cancel</button>
                       </span>
                     ) : (
                       <span style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}>
-                        <button className="app-btn app-btn--ghost" onClick={() => props.onAccept(obsId)} aria-label={`Accept observation ${obsId}`}>Accept</button>
+                        <button className="app-btn app-btn--ghost" onClick={() => props.onAccept(obsId, text)} aria-label={`Accept observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "ACCEPTED" ? "Retry accept" : "Accept"}</button>
                         <button className="app-btn app-btn--ghost" onClick={() => props.onStartEdit(obsId, text)} aria-label={`Edit observation ${obsId}`}>Edit</button>
-                        <button className="app-btn app-btn--ghost" onClick={() => props.onReject(obsId)} aria-label={`Reject observation ${obsId}`}>Reject</button>
+                        <button className="app-btn app-btn--ghost" onClick={() => props.onReject(obsId, text)} aria-label={`Reject observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "REJECTED" ? "Retry reject" : "Reject"}</button>
                       </span>
                     )}
                   </li>

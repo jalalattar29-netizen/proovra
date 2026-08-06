@@ -92,3 +92,50 @@ test("current-preservation emphasis is preserved", () => {
     "must point reviewers to the current preservation verification",
   );
 });
+
+// ============================================================================
+// PHASE 12B (Evidence Operations, 2026-07-29) — redaction verification.
+//
+// The anonymous evidenceId probe GET /v1/redaction/public/verify/:evidenceId
+// was DELETED. Its fields were converged onto this page's own token-bound
+// projection (`GET /public/verify/:id` → `redaction`) so the badge inherits
+// that route's rate limits, publication / integrity / destroyed /
+// finalization gates, audit, and workspace anchoring.
+// ============================================================================
+
+test("verify page renders the redaction badge from its own token-bound projection", () => {
+  const orchestrator = readFileSync(
+    resolve(HERE, "..", "app", "verify", "[token]", "page.tsx"),
+    "utf8",
+  );
+  assert.match(orchestrator, /<VerifyRedactionSection/);
+  assert.match(orchestrator, /setRedaction\(/);
+  // Never CALL the deleted anonymous probe (the file names the removed
+  // path in a deletion note on purpose — assert on the call form).
+  assert.ok(!/apiFetch\([^)]*\/v1\/redaction\/public\/verify/.test(orchestrator));
+  assert.ok(!/fetch\(\s*["'`][^"'`]*\/v1\/redaction\/public\/verify/.test(orchestrator));
+});
+
+test("redaction section is count-only and renders nothing without data", () => {
+  const section = readFileSync(
+    resolve(HERE, "..", "components", "verify-v2", "VerifyRedactionSection.tsx"),
+    "utf8",
+  );
+  assert.match(section, /if \(!redaction\) return null;/);
+  for (const field of [
+    "hasPublishedDerivative",
+    "publishedVersionOrdinal",
+    "publishedAtUtc",
+    "approvalCount",
+    "videoProvenance",
+  ]) {
+    assert.ok(section.includes(field), `missing converged field ${field}`);
+  }
+  // Bounded limitation codes are rendered through a copy map, never raw.
+  assert.match(section, /REDACTION_NEVER_MODIFIES_ORIGINAL/);
+  assert.match(section, /LIMITATION_COPY\[code\]/);
+  // Never geometry / detection text / rationale as rendered fields.
+  assert.ok(!/redaction\.geometry/.test(section));
+  assert.ok(!/redaction\.rationale/.test(section));
+  assert.ok(!/redaction\.detections/.test(section));
+});

@@ -104,8 +104,6 @@ describe("Phase B — canonical operational hierarchy", () => {
     for (const g of groups) {
       expect(PHASE_B_GROUPS).toMatch(new RegExp(`id:\\s*"${g}"`));
     }
-    // No fifth group sneaks in.
-    const idMatches = [...PHASE_B_GROUPS.matchAll(/^\s*id:\s*"(WORKSPACE|GOVERNANCE|OUTPUTS|SYSTEM)"/gm)];
     // We declare two id: lines per group entry definition — but the
     // grouping array's `id:` field is the field we care about. Match
     // only at the group-array entry top level by looking for the

@@ -1,0 +1,752 @@
+{
+  "$comment": "PHASE 12 POINT 3 — registry of every compatibility adapter left standing after the CaseEvidence and Legal-Hold cutovers. An adapter is any module or route that exists ONLY to keep a superseded surface working while its physical contract migration is unapplied. Every entry MUST carry a removal condition naming the exact owner-run migration and the exact verification that discharges it; an adapter without one is 'conditionless' and is a defect, because nobody can ever prove it is safe to delete. ConditionlessAdapters counts entries whose removalCondition is null.",
+  "generatedFor": "phase-12-point-3",
+  "metrics": {
+    "conditionlessAdapters": 0,
+    "unregisteredCompatibilityAdapters": 0,
+    "adapterIndependentWriters": 0,
+    "adapterIndependentPolicyDecisions": 0,
+    "adapterLegacyPrismaReads": 0,
+    "readyToRemoveAdaptersRemaining": 0,
+    "restoredCompatibilityRoutes": 6,
+    "livePendingTestsRegistered": 21,
+    "livePendingRegistry": "docs/architecture/live-pending-registry.json",
+    "unnamedAdapters": 0,
+    "misclassifiedMigrationsAsAdapters": 0,
+    "adaptersWithoutCallersOrDeploymentReason": 0
+  },
+  "recoveryNote": "These six routes were DELETED earlier in this pass on the grounds of zero repository callers plus scope parity via /v1/lifecycle/legal-holds. That was wrong: their retention condition is an OWNER-RUN production migration that has not been applied, and zero repository callers is explicitly not sufficient on its own. They were reconstructed from their executable contracts (test/phase-12-trust-administration-residue-matrix.test.ts and test/phase-12-legal-hold-compatibility.test.ts) as thin canonical delegates, and are classified REQUIRED_MIGRATION_COMPATIBILITY below.",
+  "adapters": [
+    {
+      "id": "governance-legal-holds-list",
+      "method": "GET",
+      "path": "/v1/governance/legal-holds",
+      "module": "services/api/src/routes/governance.routes.ts",
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts#listEvidenceScopedLegalHoldsLegacyShape (product surface: GET /v1/lifecycle/legal-holds)",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "UNKNOWN_EXTERNAL — a public API URL; no repository caller, and no production traffic observation has been taken.",
+      "reasonRetained": "Reading whether a preservation control exists must keep answering on the published URL until the legacy stores are physically gone in every deployed environment and no client depends on the path.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "authorization": "requireMember -> authorizeOrFail(governance.policy.read, antiEnumeration) — read capability, never manage",
+      "migrationDependency": "20271108000000_legal_hold_legacy_removal",
+      "removalCondition": {
+        "conditions": [
+          "1. owner applies 20271106000000_legal_hold_canonical (expand)",
+          "2. owner runs 20271107000000_legal_hold_backfill",
+          "3. scripts/legal-hold-convergence-report.mjs reports ZERO unresolved, conflicting and unconverted rows",
+          "4. owner applies 20271108000000_legal_hold_legacy_removal",
+          "5. deployed clients and external consumers no longer require the compatibility URL (repository callers are already zero, machine-checked)",
+          "6. post-deployment production observation confirms zero traffic on the route"
+        ],
+        "executableCheck": "node services/api/scripts/legal-hold-convergence-report.mjs  (condition 3); test/phase-12-legal-hold-compatibility.test.ts 'stays caller-free' (condition 5)"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-12-legal-hold-compatibility.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "LEGAL_HOLD"
+    },
+    {
+      "id": "governance-legal-holds-place",
+      "method": "POST",
+      "path": "/v1/governance/legal-holds",
+      "module": "services/api/src/routes/governance.routes.ts",
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts#placeCanonicalLegalHold (scope EVIDENCE)",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "UNKNOWN_EXTERNAL — public API URL, no repository caller.",
+      "reasonRetained": "Placement must stay available on the published URL until the migration conditions below are discharged.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "authorization": "requireMember -> authorizeOrFail(governance.legal_hold.manage, antiEnumeration) + target-bound step-up LEGAL_HOLD_PLACE on the evidence id; cross-workspace target concealed as 404 evidence_not_found by the canonical authority",
+      "migrationDependency": "20271108000000_legal_hold_legacy_removal",
+      "removalCondition": {
+        "sameAs": "governance-legal-holds-list"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-12-legal-hold-compatibility.test.ts",
+        "services/api/test/phase-ia-route-authz-hardening.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "LEGAL_HOLD"
+    },
+    {
+      "id": "governance-legal-holds-release",
+      "method": "POST",
+      "path": "/v1/governance/legal-holds/:id/release",
+      "module": "services/api/src/routes/governance.routes.ts",
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts#releaseLegalHoldAnyStore",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "UNKNOWN_EXTERNAL — public API URL, no repository caller.",
+      "reasonRetained": "Release must stay available on the published URL until the migration conditions are discharged.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "authorization": "requireMember -> authorizeOrFail(governance.legal_hold.manage) + workspace release-approval gate evaluated BEFORE step-up + target-bound step-up LEGAL_HOLD_RELEASE; optimistic expectedVersion forwarded to the canonical command; the row is RE-READ after release so a store that cannot show it yields 404 hold_not_found rather than a fabricated success",
+      "migrationDependency": "20271108000000_legal_hold_legacy_removal",
+      "removalCondition": {
+        "sameAs": "governance-legal-holds-list"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-12-legal-hold-compatibility.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "LEGAL_HOLD"
+    },
+    {
+      "id": "governance-case-legal-holds-list",
+      "method": "GET",
+      "path": "/v1/governance/case-legal-holds",
+      "module": "services/api/src/routes/governance.routes.ts",
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts#listCaseScopedLegalHoldsLegacyShape",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "UNKNOWN_EXTERNAL — public API URL, no repository caller.",
+      "reasonRetained": "CASE-scoped hold listing must keep answering on the published URL until the migration conditions are discharged.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "authorization": "requireMember -> authorizeOrFail(governance.policy.read, antiEnumeration)",
+      "note": "The optional-subsystem degradation that answered 200 with an empty list plus a subsystem-disabled marker on Prisma P2021/P2022 was REMOVED. It was correct while case_legal_holds was an optional Phase-14 table; the read now resolves against the ONE canonical store, which is never optional, so an unreadable store must not be reported as 'no holds'. Errors propagate to the governance handler.",
+      "migrationDependency": "20271108000000_legal_hold_legacy_removal",
+      "removalCondition": {
+        "sameAs": "governance-legal-holds-list"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-32-7-6-case-legal-holds-optional-subsystem.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "LEGAL_HOLD"
+    },
+    {
+      "id": "governance-case-legal-holds-place",
+      "method": "POST",
+      "path": "/v1/governance/case-legal-holds",
+      "module": "services/api/src/routes/governance.routes.ts",
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts#placeCanonicalLegalHold (scope CASE)",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "UNKNOWN_EXTERNAL — public API URL, no repository caller.",
+      "reasonRetained": "CASE-scoped placement must stay available on the published URL until the migration conditions are discharged.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "authorization": "requireMember -> authorizeOrFail(governance.legal_hold.manage) + target-bound step-up LEGAL_HOLD_PLACE on the case id — placing a CASE hold is exactly as custody-relevant as an evidence hold; cross-workspace case concealed as 404 case_not_found",
+      "migrationDependency": "20271108000000_legal_hold_legacy_removal",
+      "removalCondition": {
+        "sameAs": "governance-legal-holds-list"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-12-legal-hold-compatibility.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "LEGAL_HOLD"
+    },
+    {
+      "id": "governance-case-legal-holds-release",
+      "method": "POST",
+      "path": "/v1/governance/case-legal-holds/:id/release",
+      "module": "services/api/src/routes/governance.routes.ts",
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts#releaseLegalHoldAnyStore",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "UNKNOWN_EXTERNAL — public API URL, no repository caller.",
+      "reasonRetained": "CASE-scoped release must stay available on the published URL until the migration conditions are discharged.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "authorization": "requireMember -> authorizeOrFail(governance.legal_hold.manage) + workspace release-approval gate (412 release_approval_required, ZERO writes and step-up not even offered) evaluated BEFORE step-up + target-bound step-up LEGAL_HOLD_RELEASE; row re-read after release",
+      "migrationDependency": "20271108000000_legal_hold_legacy_removal",
+      "removalCondition": {
+        "sameAs": "governance-legal-holds-list"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-12-legal-hold-compatibility.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "LEGAL_HOLD"
+    },
+    {
+      "id": "lifecycle-legal-hold-service",
+      "path": "services/api/src/services/lifecycle/legal-hold.service.ts",
+      "kind": "superseded-command-surface",
+      "stillExported": [
+        "isUnderLegalHold",
+        "assertNoLegalHoldOrBlock"
+      ],
+      "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts + governance/effective-legal-hold.ts",
+      "repositoryCallers": [
+        "destruction governance + retention sweeper destructive gates"
+      ],
+      "externalCompatibilityStatus": "NONE — internal module, no external contract.",
+      "reasonRetained": "Both survivors are read-only wrappers over the ONE effective-hold evaluator. Its writers were deleted, so it no longer writes legal_holds, and the evaluator no longer reads either legacy store.",
+      "state": "CANONICAL_RUNTIME",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": false,
+      "legacyPrismaDelegate": false,
+      "migrationDependency": null,
+      "removalCondition": {
+        "$note": "None. CANONICAL_RUNTIME is not scheduled for removal; it is the lifecycle-domain entry point to the canonical evaluator."
+      },
+      "proofSuite": [
+        "services/api/test/phase-12b-legal-hold-convergence.test.ts",
+        "services/api/test/phase-5-lifecycle-hold-gate-union.test.ts"
+      ],
+      "category": "CANONICAL_RUNTIME",
+      "family": "LEGAL_HOLD",
+      "reclassificationNote": "PHASE 12 POINT 4 — RECLASSIFIED out of the adapter list. This module is not a compatibility shim: it has LIVE callers (services/lifecycle/destruction-governance.service.ts uses isUnderLegalHold + assertNoLegalHoldOrBlock as the destructive gate) and it delegates to the canonical evaluator (governance/effective-legal-hold.js#evaluateEffectiveLegalHold). It reads no legacy table and holds no independent policy. A destruction path will always need a hold check, so it has no removal condition and no migration dependency — retaining it in a list of things awaiting an owner migration was a category error."
+    },
+    {
+      "id": "case-evidence-link-reconciliation",
+      "method": "GET",
+      "path": "/v1/cases/:id/link-reconciliation",
+      "module": "services/api/src/routes/cases.routes.ts",
+      "kind": "cutover-observability",
+      "canonicalReplacement": "CaseEvidenceLink is the authority; the endpoint only reports convergence",
+      "repositoryCallers": [],
+      "externalCompatibilityStatus": "NONE",
+      "reasonRetained": "Lets an operator see legacy-pointer vs canonical-link convergence during the cutover. Verified live against a post-drop database: reports inSync:true.",
+      "state": "REQUIRED_MIGRATION_COMPATIBILITY",
+      "thinDelegate": true,
+      "independentWriter": false,
+      "independentPolicyDecision": false,
+      "prismaAccess": true,
+      "legacyPrismaDelegate": false,
+      "migrationDependency": "20271105000000_evidence_case_id_removal",
+      "removalCondition": {
+        "conditions": [
+          "20271105000000_evidence_case_id_removal APPLIED in every environment — after the drop the comparison has only one side left and the endpoint stops carrying information"
+        ],
+        "executableCheck": "node services/api/scripts/backfill-case-evidence-links.mjs --check  (reports inert once the column is gone)"
+      },
+      "proofSuite": [
+        "services/api/test/phase-12b-case-evidence-authority.test.ts"
+      ],
+      "category": "RUNTIME_COMPATIBILITY_ROUTE",
+      "family": "CASE_EVIDENCE_LINK",
+      "reclassificationNote": "PHASE 12 POINT 4 — named explicitly. This is the SEVENTH compatibility ROUTE and it is NOT a Legal-Hold route; the previous report said '7 routes' while naming only the six Legal-Hold ones, which is what made the count look wrong. It is a read-only convergence REPORT for the Evidence.caseId owner migration: it answers 'are the legacy pointers and canonical links reconciled for this case'. It touches Prisma directly (prismaAccess: true) because it IS a diagnostic over both representations — that is its purpose, not a leaked writer. It performs no mutation."
+    }
+  ],
+  "resolvedFindings": {
+    "schemaDivergence": "CLOSED. `model CaseLegalHold` and `model LegalHold` were removed from services/api/prisma/schema.prisma together with the `Case.legalHolds` back-relation and the CaseLegalHoldStatus enum. prisma migrate diff against a fully-migrated disposable PostgreSQL 16.11 now emits ZERO CREATE TABLE statements of any kind. A permanent source-level guard lives in services/api/test/phase-12-convergence-guard.test.ts.",
+    "staleLegacyReadClaims": "REMOVED. Earlier entries and module headers stated that the runtime still read the legacy stores and that legal_holds must therefore be preserved. That was false once the legacy union clauses were removed from both evaluators; the claims were corrected at services/api/src/services/lifecycle/legal-hold.service.ts and services/api/src/services/lifecycle/capability-status.service.ts."
+  },
+  "separateFindings": [
+    {
+      "id": "lifecycle-resolveworkspace-capability-gap",
+      "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
+      "helper": "resolveWorkspace(req, reply)",
+      "finding": "resolveWorkspace resolves the caller's current workspace and performs NO authorization: it reads User.currentWorkspaceId and returns it. It never calls authorizeOrFail, so no capability, ACTIVE-membership, parent-Organization-lifecycle or anti-enumeration check runs at that seam.",
+      "settledTreeCounts": {
+        "routesInFile": 44,
+        "resolveWorkspaceCallSites": 44,
+        "callSitesWithCanonicalAuthorization": 4,
+        "callSitesWithoutCanonicalAuthorization": 40,
+        "routesWithDelegatedTierPreHandler": 22,
+        "routesWithRequireAuthOnly": 22
+      },
+      "notInsecureByHelperNameAlone": "Route-level proof was taken, not inferred. Membership is implied because currentWorkspaceId is written only by the audited workspace switcher, and 22 of the 44 routes additionally carry requireDelegatedTierAny([ORG_ADMIN, COMPLIANCE_OFFICER]) — that covers the destructive lifecycle operations (destruction approve/reject/execute, chain-transfer accept/complete/revoke, archive transition, retention release, webhook deactivate/replay, entitlement grant). Those are NOT unauthenticated and NOT ungated.",
+      "actualGap": "No CAPABILITY check runs on the 22 requireAuth-only routes, and the canonical primitive's ACTIVE-membership + Organization-lifecycle + anti-enumeration guarantees run on none of the 40 ungated call sites. Highest-priority for review because they mutate or mint credentials rather than read: POST /v1/exchange/packages, POST /v1/exchange/packages/:id/sign-url, POST /v1/exchange/packages/:id/deliveries, POST /v1/exchange/deliveries/:id/download.",
+      "alreadyFixedInPoint3": [
+        "GET /v1/lifecycle/legal-holds -> authorizeOrFail(governance.policy.read)",
+        "POST /v1/lifecycle/legal-holds -> authorizeOrFail(governance.legal_hold.manage)",
+        "POST /v1/lifecycle/legal-holds/:id/release -> authorizeOrFail(governance.legal_hold.manage)"
+      ],
+      "requiredReview": "For each of the 40 remaining call sites, determine the canonical permission for its surface and route it through authorizeOrFail, as services/api/src/routes/intelligence-platform.routes.ts already does. Do not assume the delegated-tier preHandler is equivalent: it gates WHO may reach the route, not what they may do in THIS workspace.",
+      "scope": "NOT part of Point 3. Deliberately not refactored here — recorded as an exact security follow-up for Point 4 or the next security pass.",
+      "status": "OPEN_FOLLOW_UP"
+    }
+  ],
+  "point4": {
+    "status": "PASS_I_COMPLETE_PENDING_OWNER_MIGRATIONS",
+    "part1RuntimeAuthorization": {
+      "status": "COMPLETE_WITH_STEPUP_AND_BEHAVIORAL_PROOF",
+      "finding": "resolveWorkspace in services/api/src/routes/product-and-lifecycle.routes.ts derives the workspace server-side but authorizes NOTHING — no capability, no ACTIVE membership, no parent-Organization lifecycle, no anti-enumeration. Four mutating Exchange operations sat behind requireAuth alone, so any authenticated workspace member (including a VIEWER) could mint a signed URL to evidence and send it to an arbitrary recipient.",
+      "settledTreeBefore": {
+        "routes": 45,
+        "resolveWorkspaceCallSites": 44,
+        "withCanonicalCapability": 4,
+        "withDelegatedTier": 22,
+        "privilegedMutationsWithoutCanonicalAuthorization": 4,
+        "memberReadsWithNeitherGate": 14
+      },
+      "settledTreeAfter": {
+        "routes": 45,
+        "withCanonicalCapability": 24,
+        "withDelegatedTier": 22,
+        "privilegedMutationsWithoutCanonicalAuthorization": 0,
+        "memberReadsWithNeitherGate": 0,
+        "note": "GET /v1/lifecycle/destruction/requests/:id/certificate.pdf is a 501 PDF_NOT_IMPLEMENTED stub: it calls no resolver, reads no data and can leak nothing, so it is not an authorization surface."
+      },
+      "gatesApplied": [
+        {
+          "route": "POST /v1/exchange/packages",
+          "permission": "evidence.generate_package",
+          "reason": "creating an exchange package exports evidence"
+        },
+        {
+          "route": "POST /v1/exchange/packages/:id/sign-url",
+          "permission": "evidence.generate_package",
+          "reason": "minting a signed URL hands out evidence access"
+        },
+        {
+          "route": "POST /v1/exchange/packages/:id/deliveries",
+          "permission": "evidence.generate_package",
+          "reason": "recording a delivery sends evidence to a recipient"
+        },
+        {
+          "route": "POST /v1/exchange/deliveries/:id/download",
+          "permission": "evidence.download_package",
+          "reason": "recording a download is weaker than issuing the delivery"
+        },
+        {
+          "route": "GET /v1/exchange/packages",
+          "permission": "evidence.read"
+        },
+        {
+          "route": "GET /v1/exchange/packages/:packageId/deliveries",
+          "permission": "evidence.read"
+        },
+        {
+          "route": "GET /v1/exchange/chain-transfers",
+          "permission": "evidence.read"
+        },
+        {
+          "route": "GET /v1/packaging/entitlements",
+          "permission": "billing.read"
+        },
+        {
+          "route": "GET /v1/integrations/webhooks/endpoints",
+          "permission": "integration.webhook.manage"
+        },
+        {
+          "route": "GET /v1/integrations/webhooks/lifecycle-deliveries",
+          "permission": "integration.webhook.manage"
+        },
+        {
+          "route": "GET /v1/lifecycle/retention/policies",
+          "permission": "retention.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/retention/upcoming-expirations",
+          "permission": "retention.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/archive/transitions",
+          "permission": "governance.policy.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/archive/costs",
+          "permission": "governance.policy.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/destruction/requests",
+          "permission": "governance.policy.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/destruction/requests/:id/certificate",
+          "permission": "governance.policy.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/destruction/requests/:id/certificate.json",
+          "permission": "governance.policy.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/violations",
+          "permission": "governance.policy.read"
+        },
+        {
+          "route": "GET /v1/lifecycle/violations/counts",
+          "permission": "governance.policy.read"
+        }
+      ],
+      "permissionSourcing": "Permissions come from packages/shared/src/permissions.ts, not invented. evidence.generate_package is held by ADMIN + REVIEWER only; evidence.download_package is held by every role including VIEWER. The export/issue actions therefore carry the stronger capability than the record-a-download action.",
+      "crossWorkspaceConcealment": "Already enforced: every handler scopes on the server-resolved ctx.teamId and each service re-resolves the package/delivery by teamId, returning NOT_FOUND for another workspace's object. authorizeOrFail adds antiEnumeration on top.",
+      "denialSideEffects": "None. Each gate returns before the service call, so a denial mints no signed URL, records no delivery, writes no audit/custody row and enqueues no webhook.",
+      "proofSuite": [
+        "services/api/test/phase-ia-route-authz-hardening.test.ts — 'every MUTATION carries a canonical capability or a delegated-tier gate', 'the four evidence-exporting Exchange mutations carry the export capability', 'resolveWorkspace is never a route's only authorization'"
+      ],
+      "metrics": {
+        "UnsafeResolveWorkspaceRoutes": 0,
+        "PrivilegedMutationsWithoutCanonicalAuthorization": 0,
+        "CrossWorkspaceMutationLeaks": 0,
+        "DenialSideEffects": 0
+      }
+    },
+    "partsNotStarted": {
+      "note": "Point 4 Parts 3, 4, 5, 8, 9, 10 and the Part 11 sequential gate are NOT executed. Parts 2, 6 and 7 are already at zero per the repository's own executable guards (phase-12-dead-routes-removed, phase-12-coverage-manifest, phase-12-wiring-registry, phase-12a-reconciliation-gate, phase-12-convergence-guard, production-lifecycle-domain-consolidation — 74 tests green).",
+      "part3DuplicateAuthorities": "NOT_STARTED — requires per-family discovery across ~15 capability families.",
+      "part4ImportGraphSweep": "NOT_STARTED — bounded sweep across apps/web, apps/mobile, services/api/src, services/worker/src, packages/*.",
+      "part5FrontendDeadSweep": "NOT_STARTED",
+      "part8StaleTestClassification": "NOT_STARTED",
+      "part9LintBacklog": "NOT_STARTED — services/api holds 483 pre-existing errors (232 no-unused-vars, 146 no-explicit-any, 61 no-useless-escape, 16 no-require-imports, 8 no-constant-condition, 7 no-control-regex, 4 no-irregular-whitespace, 4 no-empty) across 198 files, plus 54 react-hooks/exhaustive-deps warnings in apps/web. Unchanged by Point 4 Part 1.",
+      "part10ManifestFinalisation": "NOT_STARTED"
+    },
+    "passA": {
+      "status": "COMPLETE",
+      "a2StepUp": {
+        "purpose": "PACKAGE_EXPORT_HIGH_RISK",
+        "purposeSource": "Already declared in packages/shared/src/identity-security.ts under \"High-risk evidence operations\" but never wired. No new purpose invented, no parallel challenge mechanism.",
+        "gatedOperations": [
+          "POST /v1/exchange/packages/:id/sign-url",
+          "POST /v1/exchange/packages/:id/deliveries"
+        ],
+        "notGated": {
+          "POST /v1/exchange/deliveries/:id/download": "Records that an ALREADY-issued delivery was fetched. Mints nothing, exposes nothing new — capability-only is the risk-appropriate gate.",
+          "POST /v1/exchange/packages": "Creates the package row; the export only becomes reachable once a URL is minted, which IS gated."
+        },
+        "ordering": "resolveWorkspace -> canonical capability -> params parse -> target-bound step-up -> mutation. Capability denial therefore precedes any challenge being offered, proven behaviorally.",
+        "frontend": "apps/web/app/(app)/exchange/page.tsx now uses the canonical useStepUpAction/StepUpModal pair for both operations: detection of the structured STEP_UP_REQUIRED error, challenge start+verify, the x-proovra-step-up-challenge-id header and the single retry are all owned by the canonical hook. The page still opens the signed URL directly without storing or rendering it, and still discards any result whose workspace generation changed mid-flight."
+      },
+      "a3BehavioralProof": {
+        "suite": "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "style": "Drives the REAL productAndLifecycleRoutes handlers via fastify inject; only process boundaries are mocked. Not a source-regex guard.",
+        "cases": 13,
+        "provenDenialSideEffects": "A capability or step-up denial produces ZERO signed URLs, ZERO delivery records, ZERO webhooks and ZERO canonical writes, and a capability denial is never even offered a challenge. A satisfied challenge performs EXACTLY ONE canonical mutation."
+      },
+      "a4Production501": {
+        "route": "GET /v1/lifecycle/destruction/requests/:id/certificate.pdf",
+        "disposition": "DELETED",
+        "evidence": "No PDF is ever produced — certificatePdfUri is never assigned anywhere in services/api or services/worker; the service carries only a comment saying the step is skipped. No web or mobile surface referenced the path. The capability map claimed a productConsumer but its own evidenceLevel was STRUCTURALLY_CONNECTED_ONLY, and the named page uses a certificateUrl RESPONSE FIELD, not this route.",
+        "classification": "FUTURE_NOT_SHIPPING",
+        "staysUnregisteredGuard": "services/api/test/production-lifecycle-domain-consolidation.test.ts — asserts no certificate.pdf registration and no reply.code(501) tombstone remains.",
+        "registryUpdated": "docs/architecture/current-runtime-capability-map.json entry removed; classificationCounts.TARGET_COMPLETE and verticalCounts.TRUST_ADMINISTRATION decremented so the map conserves."
+      },
+      "metrics": {
+        "UnsafeAuthorizationRoutes": 0,
+        "SensitiveExchangeActionsWithoutStepUp": 0,
+        "ExchangeDenialSideEffects": 0,
+        "Production501Routes": 0,
+        "FutureNotShippingRoutesRegistered": 0
+      }
+    },
+    "passC": {
+      "status": "IN_PROGRESS",
+      "familiesCensused": [
+        "billing/commercial",
+        "legal-hold",
+        "case-evidence",
+        "destruction",
+        "exchange package",
+        "audit",
+        "custody"
+      ],
+      "realDuplicatesFound": 2,
+      "fixes": [
+        {
+          "family": "billing/commercial — seat-limit policy",
+          "defect": "THREE implementations of \"is this workspace over its seat limit\", with divergent behaviour. billing.service#refreshTeamSeatState counted ACTIVE members only (P5 remediation) and treated includedSeats:0 as unlimited; billing.service#activateTeamPlan counted ACTIVE but had no zero-guard; enterprise-provisioning#grantEnterprisePlanToOrg counted ALL members with no zero-guard, so a suspended or revoked member inflated the count and could mark a workspace over its seat limit during an org-plan grant when it was not — a false commercial restriction applied silently, with no billing event.",
+          "fix": "Extracted the ONE policy as billing.service#computeOverSeatLimit and migrated all three call sites; provisioning now also counts ACTIVE members only.",
+          "guard": "services/api/test/phase-10-billing-guards.test.ts — behavioral cases for the unlimited guard and the boundary, plus a stays-removed assertion that neither module re-implements the  comparison inline. That guard is what surfaced the third site."
+        },
+        {
+          "family": "frontend authoritative commercial decision — collaboration guests",
+          "defect": "POST /v1/collaboration-teams/:teamId/guests/invite enforced its plan gate ONLY in the browser (). Neither the route nor collaboration-completion.service#inviteGuest checked the plan, so a FREE workspace could invite external collaborators by calling the API directly. The frontend held an authoritative commercial decision.",
+          "fix": "Enforced at the canonical authority (the service, so every caller is covered) using canPlanUseTeams from the canonical plan catalog rather than a hardcoded plan list. This also fixes a real gap in the old client predicate , which excluded ENTERPRISE.",
+          "residual": "The client-side affordance remains as UX (it shows an upgrade prompt) but is no longer the only gate."
+        }
+      ],
+      "notDuplicates": "evidenceExchangePackage (API creates / worker completes), adminAuditLog (one facade per service, both V3), custodyEvent (one appender per service; the third writer is a deleteMany in the lawful evidence-purge transaction). Do NOT converge these.",
+      "familiesNotYetExamined": [
+        "review decision/status/SLA",
+        "redaction QUEUED/claim/READY/reconciliation",
+        "SSO/SCIM identity ownership",
+        "queue producer/processor/completion ownership",
+        "workspace-organization context resolution"
+      ]
+    },
+    "passH": {
+      "status": "COMPLETE",
+      "repositoryLint": {
+        "errors": 0,
+        "warnings": 0,
+        "suppressionsAdded": 0
+      },
+      "scope": "services/api, services/worker, apps/web, apps/mobile, packages/shared, packages/ui, plus packages/shared-billing, packages/shared-evidence-presentation and packages/shared-runtime — the last three had NO lint script and were therefore never measured; a `lint` script and the eslint devDependencies were added so `pnpm -r lint` now covers 9 of 9 lintable projects.",
+      "productionDefectsFixed": [
+        "packages/shared-runtime/src/graph/graph-builder.service.ts — the duplicate-edge vocabulary existed twice (an unused `DUPLICATE_EDGE_TYPES` constant AND the same literal list inline in two raw queries). The constant is now the single authority both queries render from.",
+        "packages/shared-runtime/src/graph/graph-builder.service.ts — `evidenceVisibility(_status)` declared a parameter it never consulted, implying the decision already depended on evidence status. It does not; the parameter is gone.",
+        "apps/web/lib/navigation/accountMenu.ts — `orgLabel` was dead since Pass E replaced the flat `organizations` list with the server `contextOptions` projection.",
+        "apps/web — ten workspace-scoped loaders (review/{metrics,qc,schemas,disagreements}, review/workspace coding writes, collaboration-teams detail + AssignmentsTab, notifications, intake-links, evidence detail) were memoised with an empty dependency array while reading the active workspace. A workspace switch did not refetch, so the PREVIOUS tenant's rows kept rendering under the newly selected workspace, and a slow response could land after the switch. Each now depends on the workspace it reads and discards a stale response.",
+        "apps/web/app/(app)/admin/demo-requests/page.tsx — 'Clear filters' called loadList() immediately after setSearch(''), so the cleared query was not the one sent. The cleared value is now passed explicitly.",
+        "apps/web/components/app-shell-v2/NotificationBell.tsx — the focus-trap cleanup read triggerRef.current at teardown time rather than the element that owned focus while the popover was open."
+      ],
+      "behavioralProof": "apps/web/__tests__/render/workspace-scoped-load-safety.render.test.tsx — workspace switch refetches; a stale response for the previous workspace is discarded; a response after unmount performs no state write; a one-shot mutation runs exactly once when its callback identity changes."
+    },
+    "passIntakePseudonym": {
+      "status": "WIRED_PRODUCT_BEHAVIORALLY_PROVEN",
+      "finding": "`openIntakeSession` accepted `pseudonym` / `submitterDisplayName` / `submitterEmail`, and the reviewer-side summary projected them, but the only public entry point was GET /v1/external-intake/:token — a request with no body that passed none of them. Every EXTERNAL_PSEUDONYMOUS session therefore persisted a null pseudonym while the workspace UI shipped the mode as 'Display name — contributor chooses a name shown with the submission'.",
+      "outcome": "A — shipping capability, wired.",
+      "resolution": [
+        "`recordIntakeSubmitterIdentity` is now the ONE writer of the three identity columns; `openIntakeSession` no longer accepts them and always persists null (identity must never travel in a URL).",
+        "New token-bound mutation POST /v1/external-intake/:token/sessions/:sid/identity, behind the same feature gate and rate limits as every other public intake route. The workspace comes from the persisted link resolved by the validated token, never from the request.",
+        "Mode policy is server-side and fail-closed: PSEUDONYMOUS accepts a pseudonym only; ANONYMOUS and every non-external mode accept nothing; ONE_TIME/REUSABLE accept an opt-in display name and/or email. A mismatched field is REFUSED (`intake_mode_mismatch`), not silently dropped.",
+        "Contributor text is normalized (control/invisible characters stripped, whitespace collapsed, bounded) and an all-whitespace value is 'not provided' rather than a blank identity.",
+        "The public intake page collects the display name for that mode only, blocks continuation until it is entered, and does not proceed to consent if the mutation is refused.",
+        "No identity is echoed: the public session projection has no identity field, and the failure message names the requirement rather than the submitted value."
+      ],
+      "proofSuite": "services/api/test/phase-12-point4-intake-pseudonym-wiring.test.ts (24 assertions across service policy, normalization, session binding, route wiring, and both client surfaces)",
+      "capabilityMap": "docs/architecture/current-runtime-capability-map.json — POST:/v1/external-intake/:token/sessions/:sid/identity added, TARGET_COMPLETE / BEHAVIORALLY_PROVEN; totalRoutes 1079 -> 1080, counts conserve."
+    },
+    "passI": {
+      "status": "COMPLETE — repository is owner-migration ready; NO remote migration applied.",
+      "i1CompatibilityRegistry": {
+        "canonicalRegistry": "docs/architecture/compatibility-adapter-registry.json (this file)",
+        "adapters": 8,
+        "unregisteredAdapters": 0,
+        "conditionlessAdapters": 0,
+        "adaptersWithoutCallersOrReason": 0,
+        "unknownCompatibilityState": 0,
+        "machineEnforcedBy": "services/api/test/phase-12-convergence-guard.test.ts — 'every compatibility adapter is registered and carries a removal condition' (resolves `sameAs` references, and fails if a named module/path no longer exists)"
+      },
+      "i2EvidenceCaseId": {
+        "disposition": "OWNER_MIGRATION_PENDING",
+        "runtimeReaders": 0,
+        "runtimeWriters": 0,
+        "schemaModelField": 0,
+        "rawSqlDependencies": 0,
+        "soleAuthority": "CaseEvidenceLink",
+        "migration": "services/api/prisma/migrations/20271105000000_evidence_case_id_removal",
+        "forwardOnly": true,
+        "guarded": "The drop is gated on readiness measured IN THE DATABASE (missing link, orphan case pointer, cross-workspace link, team mismatch, duplicate link). Any non-zero count RAISES and drops nothing. An orphaned link row is reported for an operator, never deleted to force readiness.",
+        "idempotent": "Re-running after the drop is a clean no-op (column-exists guards).",
+        "machineEnforcedBy": "phase-12-convergence-guard.test.ts — schema-level 'model Evidence declares no caseId scalar' plus the new runtime 'no runtime module reads Evidence.caseId' (balanced-brace delegate scan with positive controls)."
+      },
+      "i3LegacyLegalHoldTables": {
+        "disposition": "OWNER_MIGRATION_PENDING",
+        "tables": [
+          "legal_holds",
+          "case_legal_holds"
+        ],
+        "runtimeLegacyReads": 0,
+        "runtimeLegacyWrites": 0,
+        "rawSqlLegacyReferences": 0,
+        "canonicalWriters": 1,
+        "canonicalWriter": "services/api/src/services/governance/legal-hold.service.ts",
+        "defectFixedThisPass": "services/worker/src/report-v2/sections/lifecycle-summary.ts counted the LEGACY `legal_holds` table with a per-query `.catch(() => 0)`. It disagreed with the canonical destruction gate today, and after the legacy-removal migration every count would have thrown and been swallowed into a confident '0 active legal holds' inside a signed report. It now reads the canonical `evidence_legal_holds` store and, when that read fails, reports the control as UNREADABLE instead of asserting a count.",
+        "failClosedProof": "services/worker/test/phase-12-point4-lifecycle-legal-hold-canonical.test.ts",
+        "migration": "services/api/prisma/migrations/20271108000000_legal_hold_legacy_removal",
+        "readiness": "services/api/scripts/legal-hold-convergence-report.mjs (READ-ONLY; exit 2 on a blocking cross-workspace conflict). The removal migration refuses to run while unresolved/conflicting/unconverted rows remain, and no data is deleted to satisfy readiness.",
+        "machineEnforcedBy": "phase-12-convergence-guard.test.ts — the dropped models cannot reappear in the schema, exactly ONE module writes the canonical store, no runtime module touches a legacy delegate, and no raw SQL names a dropped table."
+      },
+      "i4LegalHoldCompatibilityRoutes": {
+        "disposition": "OWNER_MIGRATION_PENDING_COMPATIBILITY",
+        "count": 6,
+        "routesWithDirectPrisma": 0,
+        "routesWithLegacyReads": 0,
+        "routesWithoutRemovalCondition": 0,
+        "deletedThisPass": 0,
+        "whyRetained": "Each has a live migration dependency (20271108000000_legal_hold_legacy_removal is unapplied) and is a published public URL with no production traffic observation. Zero repository callers is explicitly NOT sufficient on its own — that reasoning caused these six to be wrongly deleted earlier in this programme.",
+        "proofSuite": [
+          "services/api/test/phase-12-legal-hold-compatibility.test.ts",
+          "services/api/test/phase-12-trust-administration-residue-matrix.test.ts"
+        ],
+        "provenProperties": [
+          "all six still registered (retention, not silent deletion)",
+          "thin canonical delegates — no Prisma client reachable from any of them",
+          "no legacy-table fallback",
+          "canonical authentication + ACTIVE membership + capability gate",
+          "every mutation is target-bound step-up gated, and release evaluates the approval gate BEFORE step-up",
+          "a cross-workspace target is concealed, not described",
+          "release re-reads the row rather than fabricating success",
+          "zero product callers, so removal stays a one-step change"
+        ]
+      },
+      "i5AuditVersioning": {
+        "newAuditWritesBelowV3": 0,
+        "historicalAuditRowsRewritten": 0,
+        "guessedHistoricalScopes": 0,
+        "unversionedAuditWriters": 0,
+        "writers": [
+          "services/api/src/services/platform-audit-log.service.ts (chainVersion 3)",
+          "services/worker/src/platform-audit-append.ts (chainVersion 3)"
+        ],
+        "verification": "Version-aware: the chain hash is recomputed with the V1 / V2 / V3 algorithm matching each row's own version, so historical hashes are never recalculated. The repair path only corrects a row's version LABEL to the algorithm that reproduces its existing hash; it never rewrites the hash.",
+        "unresolvedScopes": "planAuditTenantScopeBackfill marks an unprovable historical scope LEGACY_SCOPE_UNRESOLVED and reports guessedScope = 0 — pinned by phase-11-closure-matrix rows A10 and F04.",
+        "machineEnforcedBy": "phase-12-convergence-guard.test.ts — 'no audit writer below chainVersion 3' scans every adminAuditLog create and fails on a writer that is V1/V2 OR that declares no version at all."
+      },
+      "i6ResurrectionGate": {
+        "canonicalGate": "services/api/test/phase-12-convergence-guard.test.ts",
+        "extendedNotDuplicated": true,
+        "covers": [
+          "Evidence.caseId reintroduction (schema + runtime)",
+          "legacy Legal-Hold models in the generated schema, and legacy runtime reads/writes (delegate + raw SQL)",
+          "audit writers below V3, and unversioned audit writers",
+          "duplicate route registration",
+          "unregistered compatibility adapters and adapters without a removal condition",
+          "generated JS/JSX twins and unexecuted .test.js populations",
+          "temporary artifacts reachable from runtime or package scripts (including ledger-append.tmp.md)",
+          "unregistered skips/todos, .only, broad runner exclusions, and live-registry entries with no matching test"
+        ],
+        "note": "Frontend raw plan/role/tenant decisions are already machine-enforced by phase-9-final-hardening §9.11, and duplicate capability authorities by phase-12-closure-gate; those are not duplicated here."
+      },
+      "ownerMigrationPending": "SUPERSEDED — see the unified `ownerPending` registry at the top level of this file.",
+      "p5ReportGenerationAuthority": {
+        "disposition": "OWNER_MIGRATION_PENDING",
+        "phase": "Phase 12 — Point 5 (Worker + Queue Integrity)",
+        "migration": "services/api/prisma/migrations/20271113000000_point5_report_generation_authority",
+        "forwardOnly": true,
+        "newTableOnly": true,
+        "guarded": "Every statement is IF NOT EXISTS. The table is NEW, so there is no backfill, no data movement and nothing to lose; a failed apply leaves the prior state exactly intact. No existing column is altered or dropped, so a deployment still running the previous build is unaffected until its code is replaced.",
+        "idempotent": "Re-running after a successful apply is a clean no-op — verified by applying twice against a disposable PostgreSQL 16 with the full migration history.",
+        "whyRequired": "Report generation was requested by putting { evidenceId, forceRegenerate, regenerateReason } on a BullMQ payload. `forceRegenerate` is the outcome of an authorization decision — it bypasses the guard refusing to regenerate an already-REPORTED artifact — and it arrived as an unverified boolean on a queue message. The authorized synchronous path now persists the intent in report_generation_requests and the queue carries only that row's id.",
+        "rehearsal": "Applied to disposable PostgreSQL 16 (postgres:16) over the complete migration history; `prisma migrate deploy` reported all migrations applied, and a second run reported no pending migrations.",
+        "remoteApplied": false,
+        "machineEnforcedBy": "services/api/test/phase-12-point5-queue-integrity-gate.test.ts — 'NonexistentRegistryModels = 0' resolves every registry durableAuthority against schema.prisma, so the registry cannot name this model until the schema declares it."
+      }
+    }
+  },
+  "categories": {
+    "$comment": "PHASE 12 POINT 4 — five explicit categories. `adapters` is the registry of RUNTIME entries; a database migration is never one of them (migrations live in `ownerPending`). Every entry carries `category`, and the counts below are derived from those fields, not asserted separately.",
+    "definitions": {
+      "RUNTIME_COMPATIBILITY_ROUTE": "An HTTP route retained only to keep a published URL working while a migration/rollout condition is outstanding.",
+      "RUNTIME_COMPATIBILITY_SERVICE": "A service module retained only to keep a superseded internal surface working.",
+      "CANONICAL_RUNTIME": "Not an adapter. The current, intended implementation with live callers and no removal condition.",
+      "OWNER_MIGRATION_PENDING": "A forward-only schema migration authored here and NOT applied to any deployed environment.",
+      "HISTORICAL_PRESERVE": "Data or rows preserved for provenance; never rewritten, never counted as runtime."
+    },
+    "counts": {
+      "runtimeCompatibilityRoutes": 7,
+      "runtimeCompatibilityServices": 0,
+      "canonicalRuntimeReclassified": 1,
+      "totalRegistryEntries": 8,
+      "ownerMigrations": 3
+    },
+    "namedEntries": {
+      "RUNTIME_COMPATIBILITY_ROUTE": [
+        "GET /v1/governance/legal-holds  [LEGAL_HOLD]",
+        "POST /v1/governance/legal-holds  [LEGAL_HOLD]",
+        "POST /v1/governance/legal-holds/:id/release  [LEGAL_HOLD]",
+        "GET /v1/governance/case-legal-holds  [LEGAL_HOLD]",
+        "POST /v1/governance/case-legal-holds  [LEGAL_HOLD]",
+        "POST /v1/governance/case-legal-holds/:id/release  [LEGAL_HOLD]",
+        "GET /v1/cases/:id/link-reconciliation  [CASE_EVIDENCE_LINK]"
+      ],
+      "RUNTIME_COMPATIBILITY_SERVICE": [],
+      "CANONICAL_RUNTIME": [
+        "services/api/src/services/lifecycle/legal-hold.service.ts"
+      ]
+    },
+    "legalHoldRouteCount": 6
+  },
+  "ownerPending": {
+    "$comment": "THE unified owner-pending registry for Phase 12 Point 4. Nothing owner-controlled is recorded anywhere else. Entries 1 and 2 are physical schema removals; entry 3 is the runtime compatibility surface whose retention depends on entry 2 plus a rollout observation.",
+    "entries": [
+      {
+        "id": "evidence-case-id-physical-removal",
+        "category": "OWNER_MIGRATION",
+        "target": "Physical `evidence.case_id` column, plus any FK/index on it",
+        "migration": "services/api/prisma/migrations/20271105000000_evidence_case_id_removal",
+        "currentCallers": "none — runtime readers 0, runtime writers 0, raw-SQL references 0, schema scalar 0 (machine-checked by phase-12-convergence-guard.test.ts, schema-level and runtime)",
+        "canonicalReplacement": "CaseEvidenceLink (table `case_evidence_links`)",
+        "readinessCommand": "node services/api/scripts/backfill-case-evidence-links.mjs --check",
+        "blockingConditions": [
+          "any evidence row whose legacy pointer targets a LIVE case with no canonical link",
+          "any legacy pointer at a case that no longer exists (unconvertible association)",
+          "any canonical link crossing a workspace boundary",
+          "workspace mismatch between the legacy pointer and its canonical link",
+          "duplicate links for one (case, evidence) pair"
+        ],
+        "ownerAction": "Back up / checkpoint, then apply 20271105000000_evidence_case_id_removal via `pnpm --filter proovra-api prisma:migrate` (safe-migrate wrapper; requires --allow-remote for a deployed host).",
+        "postMigrationRemoval": "None. No runtime code references the column, so nothing is deleted afterwards.",
+        "verificationCommand": "node services/api/scripts/drift-check.mjs   (exit 0), then: SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name='case_id';  → 0",
+        "rollbackOrStop": "The migration RAISES and drops nothing while readiness is non-zero — it never deletes or fabricates data to become ready. If it raises, resolve the named rows with the readiness command and re-run; do not force. The drop itself is irreversible, so the pre-apply checkpoint is the rollback.",
+        "applied": false
+      },
+      {
+        "id": "legal-hold-legacy-tables-physical-removal",
+        "category": "OWNER_MIGRATION",
+        "target": "Physical `legal_holds` and `case_legal_holds` tables",
+        "migration": "services/api/prisma/migrations/20271108000000_legal_hold_legacy_removal",
+        "prerequisites": [
+          "20271106000000_legal_hold_canonical (expand)",
+          "20271107000000_legal_hold_backfill"
+        ],
+        "currentCallers": "none — runtime legacy reads 0, writes 0, raw-SQL references 0; the last one (services/worker/src/report-v2/sections/lifecycle-summary.ts) was fixed in Point 4 and is pinned by services/worker/test/phase-12-point4-lifecycle-legal-hold-canonical.test.ts",
+        "canonicalReplacement": "services/api/src/services/governance/legal-hold.service.ts writing `evidence_legal_holds` (exactly ONE writer, machine-checked)",
+        "readinessCommand": "node services/api/scripts/legal-hold-convergence-report.mjs",
+        "blockingConditions": [
+          "unresolved rows",
+          "cross-workspace conflicts (readiness exits 2)",
+          "unconverted rows",
+          "duplicate semantic mappings",
+          "release-state mismatch between stores"
+        ],
+        "ownerAction": "Back up / checkpoint; apply 20271106000000 and 20271107000000; run the readiness report until it reports zero blocking conflicts; then apply 20271108000000_legal_hold_legacy_removal.",
+        "postMigrationRemoval": "Delete the six compatibility routes in entry 3 once the rollout condition there is also satisfied.",
+        "verificationCommand": "node services/api/scripts/drift-check.mjs   (exit 0), then: SELECT count(*) FROM information_schema.tables WHERE table_name IN ('legal_holds','case_legal_holds');  → 0",
+        "rollbackOrStop": "The removal migration refuses to run while readiness is non-zero, and no data is deleted to satisfy readiness. An active or historical hold still blocks destruction throughout. Stop and report if the convergence report exits 2 (cross-workspace conflict) — those rows need an operator decision, not a retry.",
+        "applied": false
+      },
+      {
+        "id": "legal-hold-compatibility-routes",
+        "category": "OWNER_MIGRATION_PENDING_COMPATIBILITY",
+        "target": "Six Legal-Hold compatibility routes: GET /v1/governance/legal-holds, POST /v1/governance/legal-holds, POST /v1/governance/legal-holds/:id/release, GET /v1/governance/case-legal-holds, POST /v1/governance/case-legal-holds, POST /v1/governance/case-legal-holds/:id/release",
+        "migration": "(not a migration — runtime surface retained until entry 2 lands)",
+        "currentCallers": "zero repository callers (machine-checked by phase-12-legal-hold-compatibility.test.ts). External callers UNKNOWN: these are published public API URLs and no production traffic observation has been taken.",
+        "canonicalReplacement": "GET/POST /v1/lifecycle/legal-holds, served by the same canonical legal-hold service the adapters already delegate to",
+        "readinessCommand": "pnpm --filter proovra-api vitest run test/phase-12-legal-hold-compatibility.test.ts   (proves thin-delegate, zero Prisma, zero legacy reads, canonical auth + target-bound step-up, and zero repository callers)",
+        "blockingConditions": [
+          "entry 2 not yet applied in every deployed environment",
+          "no production traffic observation proving external callers have migrated"
+        ],
+        "ownerAction": "After entry 2 is applied everywhere, observe production traffic on the six URLs for a full retention window.",
+        "postMigrationRemoval": "Delete the six route registrations, their tests, and their registry entries; the stays-removed guard in phase-12-convergence-guard.test.ts then keeps them gone.",
+        "verificationCommand": "pnpm --filter proovra-api vitest run test/phase-12-convergence-guard.test.ts test/phase-12-dead-routes-removed.test.ts",
+        "rollbackOrStop": "Zero repository callers is explicitly NOT sufficient on its own — that reasoning caused these six to be wrongly deleted earlier in this programme and they had to be reconstructed. Stop and retain if traffic is observed.",
+        "applied": false
+      },
+      {
+        "id": "point4-schema-authority-convergence",
+        "category": "OWNER_MIGRATION",
+        "target": "3 superseded singular tables (governance_policy_audit, redaction_activity, redaction_policy_audit); 5 duplicate columns (cross_org_review_grants.created_by_user_id, delegated_admin_grants.grantee_user_id, redaction_policy_assignments.policy_version_id, redaction_policy_assignments.revoked_at_utc, redaction_policy_versions.published_at_utc); and security_events.severity enum -> VARCHAR(16)",
+        "migration": "services/api/prisma/migrations/20271117000000_point4_schema_authority_contract",
+        "currentCallers": "none — all three singular tables and all five duplicate columns have zero runtime readers and zero runtime writers (machine-checked by test/phase-12-point4-raw-schema-ownership.test.ts)",
+        "canonicalReplacement": "The plural tables the Prisma models already map (governance_policy_audits, redaction_activities, redaction_policy_audits) and, for each duplicate, its canonical twin column that the runtime actually writes",
+        "readinessCommand": "node services/api/scripts/raw-schema-verify.mjs --database-url=<disposable PG16 built from the full migration history>",
+        "blockingConditions": [
+          "any duplicate column holding a value that DIFFERS from its canonical twin (the migration RAISES and drops nothing)",
+          "any superseded singular table still holding rows (the migration RAISES rather than destroying audit history)"
+        ],
+        "ownerAction": "Back up / checkpoint, then apply 20271117000000_point4_schema_authority_contract. It is idempotent and a no-op where the objects are already absent (production's security_events.severity is already VARCHAR).",
+        "postMigrationRemoval": "None — the datamodel already reflects the post-migration shape, so no code is deleted afterwards.",
+        "verificationCommand": "node services/api/scripts/drift-check.mjs (exit 0) and node services/api/scripts/raw-schema-verify.mjs (exit 0)",
+        "rollbackOrStop": "Every drop is guarded and raises rather than destroying ambiguous data. If it raises, reconcile the named rows and re-run; do not force. The pre-apply checkpoint is the rollback.",
+        "severity": "HIGH — until applied, prisma.delegatedAdminGrant.create(), prisma.crossOrgReviewGrant.create() and prisma.redactionPolicyAssignment.create() FAIL with a null-constraint violation on any database carrying the full migration history.",
+        "applied": false
+      }
+    ],
+    "metrics": {
+      "unregisteredOwnerMigrationItems": 0,
+      "registryCategoryAmbiguity": 0,
+      "entriesWithoutRemovalCondition": 0,
+      "entriesWithoutVerificationCommand": 0,
+      "remoteMigrationsApplied": 0
+    }
+  }
+}

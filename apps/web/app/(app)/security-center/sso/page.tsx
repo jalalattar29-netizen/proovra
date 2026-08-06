@@ -18,7 +18,7 @@
  *   - R8.2.2: Cert expiry warning banner (30/60/90-day thresholds)
  *
  * Hard rules:
- *   - Reads from /v1/admin/identity/sso/providers?teamId=...
+ *   - Reads from /v1/admin/identity/providers?teamId=... (PHASE 12 — the /sso/ path segment never existed server-side; this page 404ed)
  *   - Ingests via POST /v1/auth/saml/:connectionId/ingest-metadata
  *   - Test-connection via POST /v1/auth/saml/:connectionId/test-connection
  *   - Cert rotation via PUT/DELETE /v1/auth/saml/:connectionId/certificate-next
@@ -136,7 +136,7 @@ function SsoAdminContent() {
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
-    apiFetch(`/v1/admin/identity/sso/providers?teamId=${encodeURIComponent(teamId)}`, {
+    apiFetch(`/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`, {
       method: "GET",
     })
       .then((res: { providers: SsoProvider[] }) => {
@@ -203,7 +203,7 @@ function SsoAdminContent() {
       setTestResult((prev) => ({ ...prev, [connectionId]: result }));
       // Refresh provider list so samlLastTestedAt / samlLastTestStatus are current
       if (teamId) {
-        apiFetch(`/v1/admin/identity/sso/providers?teamId=${encodeURIComponent(teamId)}`, {
+        apiFetch(`/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`, {
           method: "GET",
         })
           .then((res: { providers: SsoProvider[] }) => {
@@ -294,7 +294,7 @@ function SsoAdminContent() {
       }));
       // Refresh to show updated fingerprints
       if (teamId) {
-        apiFetch(`/v1/admin/identity/sso/providers?teamId=${encodeURIComponent(teamId)}`, {
+        apiFetch(`/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`, {
           method: "GET",
         })
           .then((res: { providers: SsoProvider[] }) => setProviders(res.providers ?? []))

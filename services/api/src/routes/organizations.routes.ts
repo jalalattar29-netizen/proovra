@@ -45,15 +45,15 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
-import { checkOrgAccess } from "../services/organization/org-access.js";
+import {
+  checkOrgAccess,
+  listOrgAdminSurfaces,
+} from "../services/organization/org-access.js";
 // P0 remediation (2026-07-21) — admin org-member removal revokes sessions.
 import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
 // P2 domain remediation (2026-07-21) — canonical membership provisioning
 // (governance + explicit workspace assignments).
 import {
-  grantOrganizationMembership,
-  grantWorkspaceMembership,
-  parseWorkspaceAssignments,
   // PHASE 3 completion (2026-07-22) — canonical mutation surface.
   massRevokeWorkspaceMemberships,
   removeOrganizationMembership,
@@ -64,7 +64,6 @@ import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   verifyAccountStepUp,
-  type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { evaluateOrganizationClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
 import {
@@ -75,7 +74,6 @@ import {
 // Phase 2 Blocker 1 — brand-new-owner enterprise auto-completion. Runs
 // inside the accept tx after the ORG_OWNER membership is created; a no-op
 // for every non-enterprise accept (guarded on pendingEnterpriseSeats).
-import { completeEnterpriseProvisioningOnOwnerAccept } from "../services/enterprise-provisioning.service.js";
 // PHASE 4 §7.5 (2026-07-22) — organization-workspace suspend/resume.
 import {
   resumeOrganizationWorkspace,
@@ -85,6 +83,19 @@ import {
 // concurrency-safe claim).
 import { acceptOrganizationInvite } from "../services/organization/org-invite-acceptance.service.js";
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
+// Macro-Wave A2 — durable invite delivery (outbox + inline first attempt +
+// rotation retry). The outbox row is committed in the SAME transaction as
+// the invite; the first email attempt runs inline after commit with the
+// create-time raw token; the cron-secret sweep endpoint below drives
+// worker-scheduled retries (each retry ROTATES the token hash).
+import {
+  attemptInitialOrgInviteDelivery,
+  getOrgInviteDeliveryStates,
+  processDueOrgInviteDeliveries,
+  recordOrgInviteDeliveryPending,
+  resendOrgInviteDelivery,
+} from "../services/organization/org-invite-delivery.service.js";
+import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 
 const UuidParam = z.string().uuid();
 
@@ -100,15 +111,6 @@ const OrgRoleSchema = z.enum([
   "ORG_MEMBER",
 ]);
 type OrgRoleValue = z.infer<typeof OrgRoleSchema>;
-
-const CreateOrgBody = z.object({
-  name: z.string().trim().min(1).max(180),
-  legalName: z.string().trim().min(1).max(180).optional(),
-  legalEmail: z.string().email().optional(),
-  address: z.string().trim().min(1).optional(),
-  timezone: z.string().trim().min(1).max(64).optional(),
-  logoUrl: z.string().url().optional(),
-});
 
 const UpdateOrgBody = z
   .object({
@@ -405,6 +407,13 @@ export async function organizationsRoutes(app: FastifyInstance) {
         createdAt: org.createdAt.toISOString(),
         updatedAt: org.updatedAt.toISOString(),
         callerRole: access.role,
+        // PHASE 12 POINT 4 STEP 1 — the org-admin surfaces this caller may
+        // SEE, derived from the same role vocabulary the endpoint gates use.
+        // The web shell renders these ids verbatim instead of filtering its
+        // own tab bar by comparing `callerRole` (which failed OPEN while the
+        // role was loading). Every leaf endpoint keeps its own
+        // `checkOrgAccess(minRole)` gate.
+        adminSurfaces: listOrgAdminSurfaces(access.role),
         summary: {
           memberCount,
           workspaceCount,
@@ -857,11 +866,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
           },
         });
 
+        // Macro-Wave A2 — durable delivery outbox, committed with the
+        // invite (a committed invite ALWAYS has a delivery record; a
+        // rolled-back invite never leaves an orphan). Ids only — the raw
+        // token is never persisted anywhere.
+        const { deliveryId } = await recordOrgInviteDeliveryPending(tx, {
+          inviteId: invite.id,
+          organizationId: orgId,
+          email: body.email,
+          initiatedByUserId: userId,
+        });
+
         return {
           kind: "ok" as const,
           inviteId: invite.id,
           expiresAt: invite.expiresAt,
           token,
+          deliveryId,
         };
       });
 
@@ -875,6 +896,29 @@ export async function organizationsRoutes(app: FastifyInstance) {
         });
       }
 
+      // Macro-Wave A2 — inline FIRST delivery attempt, after commit, with
+      // the create-time raw token still in memory. Never throws; on
+      // failure the row stays PENDING and the worker-driven sweep retries
+      // with token rotation.
+      const [orgRow, inviterRow] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id: orgId },
+          select: { name: true },
+        }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { displayName: true, email: true },
+        }),
+      ]);
+      const delivery = await attemptInitialOrgInviteDelivery({
+        deliveryId: result.deliveryId,
+        rawToken: result.token,
+        organizationName: orgRow?.name ?? "your organization",
+        role: inviteRole,
+        inviterDisplay: inviterRow?.displayName || inviterRow?.email || null,
+        expiresAt: result.expiresAt,
+      });
+
       // The token is returned ONLY in this immediate response so the
       // operator can build the invite link. It is NEVER returned by
       // any later GET endpoint and NEVER appears in audit metadata.
@@ -885,6 +929,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         role: inviteRole,
         expiresAt: result.expiresAt.toISOString(),
         token: result.token,
+        // Macro-Wave A2 — delivery state (PENDING/SENT/FAILED + attempts).
+        delivery,
       });
     },
   );
@@ -1043,6 +1089,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         orderBy: { createdAt: "desc" },
       });
 
+      // Macro-Wave A2 — delivery observability (PENDING/SENT/FAILED +
+      // attempts + bounded lastError). Never contains tokens or URLs.
+      const deliveryByInvite = await getOrgInviteDeliveryStates(
+        invites.map((i) => i.id),
+      );
+
       return reply.code(200).send({
         organizationId: orgId,
         summary: { totalPending: invites.length },
@@ -1055,6 +1107,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
           lastResentAt: i.lastResentAt ? i.lastResentAt.toISOString() : null,
           resendCount: i.resendCount,
           createdAt: i.createdAt.toISOString(),
+          delivery: deliveryByInvite.get(i.id) ?? null,
         })),
       });
     },
@@ -1262,15 +1315,52 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .send({ message: "Cannot resend an expired invite. Send a fresh one." });
       }
 
+      // Macro-Wave A2 — an operator resend now ACTUALLY re-delivers: the
+      // delivery service rotates the token hash (the previously emailed
+      // link dies), emails the fresh accept URL, and records the outcome
+      // on the durable delivery row. The fresh URL is returned ONCE to
+      // this authorized admin (display-once parity with create) and is
+      // never persisted.
+      const resent = await resendOrgInviteDelivery({
+        inviteId: result.inviteId,
+        organizationId: orgId,
+        email: result.email,
+        actorUserId: userId,
+      });
+
       return reply.code(200).send({
         inviteId: result.inviteId,
         email: result.email,
         role: result.role,
         expiresAt: result.expiresAt.toISOString(),
         resendCount: result.resendCount,
+        delivery: resent?.state ?? null,
+        acceptUrl: resent?.acceptUrl ?? null,
       });
     },
   );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/org-invite-deliveries/process  (Macro-Wave A2 — internal)
+  //
+  // Cron-secret-guarded sweep trigger for stranded/due PENDING invite
+  // deliveries. Called by the worker's interval scheduler (the SAME
+  // worker→API machine-auth pattern as /v1/integrations/
+  // process-webhook-retries). Each retry attempt atomically claims the
+  // row and ROTATES the invite token hash — the raw token exists only in
+  // memory for the duration of the send.
+  // -------------------------------------------------------------------------
+  app.post("/v1/org-invite-deliveries/process", async (req, reply) => {
+    const ok = await requireIntegrationCronSecret(req, reply);
+    if (!ok) return;
+    const body = z
+      .object({ batchSize: z.number().int().min(1).max(200).optional() })
+      .parse(req.body ?? {});
+    const summary = await processDueOrgInviteDeliveries({
+      batchSize: body.batchSize,
+    });
+    return reply.code(200).send({ summary });
+  });
 
   // -------------------------------------------------------------------------
   // PATCH /v1/orgs/:id/members/:memberId

@@ -42,7 +42,6 @@ import {
   isAllowedWorkflowInstanceTransition,
   isExternalActorRole,
   isServiceAccountAllowedRole,
-  isSatisfyingWorkflowStepStatus,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";

@@ -61,6 +61,7 @@ import { prisma } from "../db.js";
 import { requireInternalServiceAuth } from "../middleware/internal-service-auth.js";
 import { runProviderOperation } from "../services/intelligence/media-intelligence.service.js";
 import { runExtractionInline } from "../services/intelligence/extraction.service.js";
+import { getAdapter } from "../services/intelligence/providers/provider-adapter.js";
 import { getObjectRange } from "../storage.js";
 
 // 50 MB cap mirrors the worker's OCR_EXTRACTION_MAX_BYTES /
@@ -91,6 +92,50 @@ type Part = {
 };
 
 type ExtractKind = "ocr_azure" | "transcript_deepgram";
+
+/**
+ * PHASE 12 — POINT 5: the explicit provider-not-configured refusal.
+ *
+ * OCR and transcript extraction now have exactly ONE authority each — the
+ * `extract_ocr_azure` / `extract_transcript_deepgram` run kinds on the
+ * media-intelligence queue — because the `mi-ocr` / `mi-transcript` no-op
+ * processors that used to shadow them were removed. Those processors' whole
+ * behaviour was to log `not_configured_completed` and return success, so
+ * deleting them without stating what an unconfigured provider DOES do would
+ * simply move the ambiguity.
+ *
+ * It does this: a bounded, canonical `provider_not_configured:<PROVIDER>`
+ * refusal, decided BEFORE the parts query, before any byte is read from
+ * object storage and before `runProviderOperation` is entered. The worker
+ * writes it to the run row as FAILED with that reason. So an unconfigured
+ * provider cannot claim completion, cannot leave a run PROCESSING forever,
+ * cannot spend provider budget, and cannot retry in a loop that no
+ * configuration change would end.
+ *
+ * The probe is credential-shaped only: it makes no provider call and returns
+ * no credential material, so the reason string is safe to persist and to
+ * show an operator.
+ */
+const PROVIDER_FOR_KIND = {
+  ocr_azure: "AZURE_DOCUMENT_INTELLIGENCE",
+  transcript_deepgram: "DEEPGRAM_TRANSCRIPT",
+} as const;
+
+export function providerNotConfiguredReason(kind: ExtractKind): string | null {
+  const provider = PROVIDER_FOR_KIND[kind];
+  const adapter = getAdapter(provider);
+  if (!adapter) return `provider_not_configured:${provider}`;
+  let state: string;
+  try {
+    state = adapter.probe().state;
+  } catch {
+    // A probe that throws is indistinguishable, from here, from one that is
+    // unbound. Fail CLOSED: refuse rather than proceed to a provider call
+    // whose configuration we could not establish.
+    return `provider_not_configured:${provider}`;
+  }
+  return state === "READY" ? null : `provider_not_configured:${provider}`;
+}
 
 function partFilterSql(kind: ExtractKind): string {
   if (kind === "ocr_azure") {
@@ -132,6 +177,21 @@ export async function internalMediaIntelligenceExtractRoutes(
       }
 
       const { teamId, evidenceId, kind } = body;
+
+      // POINT 5 — configuration is decided FIRST. Before the parts query,
+      // before object storage, before the budget engine. An unconfigured
+      // provider produces one bounded refusal that the worker persists as
+      // FAILED, not a success with zero records.
+      const notConfigured = providerNotConfiguredReason(kind);
+      if (notConfigured) {
+        return reply.code(200).send({
+          success: false,
+          partsProcessed: 0,
+          recordsCreated: 0,
+          extractedTextChars: 0,
+          error: notConfigured,
+        });
+      }
 
       // Workspace anchoring — the row must exist in the supplied team.
       const evidence = await prisma.evidence.findUnique({

@@ -25,7 +25,7 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
@@ -128,13 +128,17 @@ function AuditTab() {
     void load();
   }, [load]);
 
-  // Client-side actor + date-window filtering over the loaded page.
-  const visibleEvents =
-    audit.kind === "ready"
-      ? audit.data.events.filter((e) =>
-          matchesClientFilters(e, actor, fromDate, toDate),
-        )
-      : [];
+  // Client-side actor + date-window filtering over the loaded page. Memoised
+  // so the CSV export callback below is not re-created on every render.
+  const visibleEvents = useMemo(
+    () =>
+      audit.kind === "ready"
+        ? audit.data.events.filter((e) =>
+            matchesClientFilters(e, actor, fromDate, toDate),
+          )
+        : [],
+    [audit, actor, fromDate, toDate],
+  );
 
   const exportCsv = useCallback(() => {
     const rows = visibleEvents.map((e) => [

@@ -26,7 +26,7 @@
  * Style: source-contract (file-text assertions). No DB I/O, no HTTP.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, relative } from "node:path";
 
@@ -81,25 +81,6 @@ function stripComments(src: string): string {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
-}
-
-function walk(dir: string): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(dir)) {
-    const full = resolve(dir, name);
-    const st = statSync(full);
-    if (st.isDirectory()) {
-      if (name === "node_modules" || name === ".next" || name === "dist") {
-        continue;
-      }
-      out.push(...walk(full));
-      continue;
-    }
-    if (name.endsWith(".tsx")) {
-      out.push(full);
-    }
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------

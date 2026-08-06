@@ -105,6 +105,19 @@ describe("Phase 10 — POST /v1/auth/guest returns the framework 404 (route abse
 
   async function buildApp() {
     const instance = Fastify();
+    // POINT 7 CORRECTIVE PASS — install the PLATFORM's not-found handler.
+    //
+    // This assembles a partial app, so without it the 404 under test was
+    // Fastify's default — a different shape from the product's, and one that
+    // echoes the requested path. The assertion below ("no 'guest' anywhere in
+    // the body") was therefore asserting against the wrong program, and it
+    // only became visible when the test environment was fixed and this
+    // builder stopped throwing, so the suite stopped silently falling back to
+    // its source-inspection branch.
+    const { registerCanonicalNotFoundHandler } = await import(
+      "../src/http/not-found-handler.js"
+    );
+    registerCanonicalNotFoundHandler(instance);
     const mod = await import("../src/routes/auth.routes.js");
     const plugin =
       (mod as { authRoutes?: unknown; default?: unknown }).authRoutes ??

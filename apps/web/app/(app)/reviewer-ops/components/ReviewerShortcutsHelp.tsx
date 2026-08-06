@@ -20,7 +20,7 @@
  * handlers live on the page that hosts them — most usefully on the
  * single-review workspace where the three "reason" actions are
  * available. Queue-level J/K navigation is a separate concern handled
- * in `ReviewerCommandConsole` (deferred to a follow-up; the brief
+ * in the reviewer console (deferred to a follow-up; the brief
  * explicitly asks for shortcut HELP discoverability + the existing
  * structured-modal flow).
  */

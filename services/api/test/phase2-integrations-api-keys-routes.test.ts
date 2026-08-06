@@ -62,7 +62,7 @@ describe("PHASE 2 — service rotation contract", () => {
     // triple in the SAME `data:` block so no consumer can observe a
     // half-rotated row.
     const rotateMatch = SERVICE.match(
-      /rotateApiCredential[\s\S]+?client\.apiCredential\.update\(\{[\s\S]+?data:\s*\{([\s\S]+?)\}\,\s*\}\)/,
+      /rotateApiCredential[\s\S]+?client\.apiCredential\.update\(\{[\s\S]+?data:\s*\{([\s\S]+?)\},\s*\}\)/,
     );
     expect(rotateMatch).not.toBeNull();
     const data = rotateMatch![1];
@@ -76,7 +76,7 @@ describe("PHASE 2 — service rotation contract", () => {
 
   it("revokeApiCredential clears previous_* so old key cannot replay through grace", () => {
     const revokeMatch = SERVICE.match(
-      /revokeApiCredential[\s\S]+?return\s+client\.apiCredential\.update\(\{[\s\S]+?data:\s*\{([\s\S]+?)\}\,\s*\}\)/,
+      /revokeApiCredential[\s\S]+?return\s+client\.apiCredential\.update\(\{[\s\S]+?data:\s*\{([\s\S]+?)\},\s*\}\)/,
     );
     expect(revokeMatch).not.toBeNull();
     const data = revokeMatch![1];
@@ -108,7 +108,7 @@ describe("PHASE 2 — service rotation contract", () => {
     // returned projection object literal. Search the projectApiCredential
     // body specifically.
     const projMatch = SERVICE.match(
-      /export function projectApiCredential[\s\S]+?return\s*\{([\s\S]+?)\}\;\s*\}/,
+      /export function projectApiCredential[\s\S]+?return\s*\{([\s\S]+?)\};\s*\}/,
     );
     expect(projMatch).not.toBeNull();
     const body = projMatch![1];
@@ -126,7 +126,7 @@ describe("PHASE 2 — rotate route", () => {
 
   it("requires requireAuth + workspace membership + manage permission", () => {
     const rotMatch = ROUTES.match(
-      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|\Z)/,
+      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|Z)/,
     );
     expect(rotMatch).not.toBeNull();
     const body = rotMatch![0];
@@ -138,7 +138,7 @@ describe("PHASE 2 — rotate route", () => {
 
   it("requires step-up for the rotation flow (same posture as create/revoke)", () => {
     const rotMatch = ROUTES.match(
-      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|\Z)/,
+      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|Z)/,
     );
     expect(rotMatch).not.toBeNull();
     expect(rotMatch![0]).toMatch(/requireStepUpForSensitiveAction\(/);
@@ -146,7 +146,7 @@ describe("PHASE 2 — rotate route", () => {
 
   it("validates graceMinutes is bounded by MAX_ROTATION_GRACE_MINUTES", () => {
     const rotMatch = ROUTES.match(
-      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|\Z)/,
+      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|Z)/,
     );
     expect(rotMatch![0]).toMatch(
       /graceMinutes:\s*z[\s\S]{0,200}\.max\(MAX_ROTATION_GRACE_MINUTES\)/,
@@ -155,7 +155,7 @@ describe("PHASE 2 — rotate route", () => {
 
   it("emits an integration.api_key.rotated audit event", () => {
     const rotMatch = ROUTES.match(
-      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|\Z)/,
+      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|Z)/,
     );
     expect(rotMatch![0]).toMatch(
       /emitApiKeyAudit\(\{[\s\S]+?eventType:\s*"integration\.api_key\.rotated"/,
@@ -164,7 +164,7 @@ describe("PHASE 2 — rotate route", () => {
 
   it("surfaces the new raw key + previous prefix + grace cutoff in the response", () => {
     const rotMatch = ROUTES.match(
-      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|\Z)/,
+      /app\.post\(\s*"\/v1\/integrations\/api-keys\/:id\/rotate"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|Z)/,
     );
     const body = rotMatch![0];
     expect(body).toMatch(/rawKey:\s*result\.rawKey/);
@@ -182,7 +182,7 @@ describe("PHASE 2 — expiry PATCH route", () => {
 
   it("emits an integration.api_key.expiry_changed audit event", () => {
     const patchMatch = ROUTES.match(
-      /app\.patch\(\s*"\/v1\/integrations\/api-keys\/:id"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|\Z)/,
+      /app\.patch\(\s*"\/v1\/integrations\/api-keys\/:id"[\s\S]+?(?=app\.(?:post|patch|get|put|delete)\(|Z)/,
     );
     expect(patchMatch).not.toBeNull();
     expect(patchMatch![0]).toMatch(

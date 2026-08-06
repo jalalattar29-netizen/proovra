@@ -32,13 +32,17 @@
     "prisma:seed": "tsx src/seed-signing-key.ts",
     "seed:key": "tsx src/seed-signing-key.ts",
     "seed:home-personas": "tsx scripts/seed-home-personas.ts",
-    "retention:run": "tsx src/retention-cleanup.ts",
     "dev:populate-investigation": "tsx scripts/dev-populate-investigation.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:tenant:live": "cross-env RUN_LIVE_INTEGRATION=1 vitest run phase-37-95-cross-tenant-runtime-probe",
-    "test:tenant:live:no-tc": "cross-env RUN_LIVE_INTEGRATION=1 RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 vitest run phase-37-95-cross-tenant-runtime-probe"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:raw-schema-verify": "node scripts/raw-schema-verify.mjs",
+    "db:point5-vector-readiness": "node scripts/point5-vector-readiness.mjs",
+    "db:migration-inventory": "node scripts/migration-inventory.mjs",
+    "db:migration-inventory:write": "node scripts/migration-inventory.mjs --write --git",
+    "db:p6-production-snapshot": "node scripts/p6-production-migration-snapshot.mjs",
+    "db:p6-reconcile": "node scripts/migration-production-reconcile.mjs"
   },
   "keywords": [],
   "author": "",
@@ -82,7 +86,6 @@
     "openai": "^6.36.0",
     "pg": "^8.18.0",
     "prisma": "^7.3.0",
-    "resend": "^6.9.2",
     "xml-crypto": "^6.0.1",
     "xpath": "^0.0.34",
     "zod": "^4.3.6"

@@ -1,0 +1,147 @@
+# PHASE 12 — POINT 8: deploy a release candidate to STAGING.
+#
+# WHY THIS IS NOT A COPY OF deploy-images.yml
+# ---------------------------------------------------------------------------
+# `deploy-images.yml` builds and pushes `:latest` to GHCR on every push to
+# `main`. It is the production path. A staging workflow made by copying it and
+# changing a value is one typo away from a production release, and Part A of
+# this point showed how such a typo survives: everything gets checked against a
+# developer's working tree, nothing against what actually ships.
+#
+# So this workflow is:
+#   * manual only — `workflow_dispatch`. It has no `push:` trigger at all, so
+#     no branch can fire it by accident.
+#   * bound to the `staging` GitHub environment, which is where the approval
+#     and the staging-scoped secrets live.
+#   * required to name an IMMUTABLE image tag. `latest` is refused.
+#   * required to pass the Step-2 credential preflight BEFORE anything deploys.
+#   * required to apply migrations through the wave selector, never through a
+#     bare `prisma migrate deploy` — which would apply the deferred Release-D
+#     contract migrations.
+#
+# Every one of those is enforced by `services/api/scripts/staging-deploy-guard.mjs`
+# rather than by this file being read carefully, and that guard's refusals are
+# each proved by a negative case in
+# `services/api/test/phase-12-point8-staging-deploy-guard.test.ts`.
+#
+# OWNER PREREQUISITE
+# ---------------------------------------------------------------------------
+# This workflow cannot run until the `staging` environment exists and carries
+# the STAGING_* secrets. It is committed so the path is reviewable and testable
+# before any infrastructure exists; running it against an unconfigured
+# environment fails at the preflight, which is the correct outcome.
+name: deploy-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: "Immutable image tag / release-candidate id to deploy (never 'latest')"
+        required: true
+        type: string
+      wave:
+        description: "Migration wave to apply"
+        required: true
+        default: A_B
+        type: choice
+        options:
+          - A_B
+          - C
+          - D
+      contract_rehearsal_approved:
+        description: "Wave D only: this is the isolated Staging contract rehearsal the Point-6 runbook assigns"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: deploy to staging
+    runs-on: ubuntu-latest
+    # The environment is the approval gate and the only source of staging
+    # secrets. Production secrets are not visible to it.
+    environment: staging
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout the release candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Refuse a production-triggering ref
+        # Belt and braces: the guard checks this too, but failing here costs
+        # nothing and happens before any secret is read.
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            main|master|production|release)
+              echo "::error::refusing to deploy staging from a production-triggering branch: ${GITHUB_REF_NAME}"
+              exit 1 ;;
+          esac
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Staging credential preflight
+        id: preflight
+        env:
+          # Staging-scoped names only. The guard refuses a workflow that reads
+          # a production secret name.
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          STAGING_S3_ENDPOINT: ${{ secrets.STAGING_S3_ENDPOINT }}
+          STAGING_S3_BUCKET: ${{ secrets.STAGING_S3_BUCKET }}
+          STAGING_S3_ACCESS_KEY: ${{ secrets.STAGING_S3_ACCESS_KEY }}
+          STAGING_S3_SECRET_KEY: ${{ secrets.STAGING_S3_SECRET_KEY }}
+          STAGING_STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          STAGING_PAYPAL_API_BASE: ${{ secrets.STAGING_PAYPAL_API_BASE }}
+          STAGING_EMAIL_TRANSPORT: ${{ secrets.STAGING_EMAIL_TRANSPORT }}
+          STAGING_TEST_MAILBOX: ${{ secrets.STAGING_TEST_MAILBOX }}
+          STAGING_WEBHOOK_RECEIVER: ${{ secrets.STAGING_WEBHOOK_RECEIVER }}
+        run: node services/api/scripts/staging-preflight-cli.mjs --require-green
+
+      - name: Validate the deployment request
+        env:
+          RC: ${{ inputs.release_candidate }}
+          WAVE: ${{ inputs.wave }}
+          REHEARSAL: ${{ inputs.contract_rehearsal_approved }}
+        run: node services/api/scripts/staging-deploy-cli.mjs --validate
+
+      - name: Show the migration boundary before applying anything
+        run: |
+          node services/api/scripts/release-materialize.mjs --view proposed --out "$RUNNER_TEMP/rc"
+          node services/api/scripts/release-deploy.mjs --artifact "$RUNNER_TEMP/rc" --wave "${{ inputs.wave }}" --dry-run
+
+      - name: Apply the selected wave to the Staging database
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          node services/api/scripts/release-deploy.mjs --artifact "$RUNNER_TEMP/rc" --wave "${{ inputs.wave }}"
+
+      - name: Deploy the immutable release candidate
+        env:
+          IMAGE_TAG: ${{ inputs.release_candidate }}
+        run: |
+          echo "::notice::deploying staging release candidate ${IMAGE_TAG}"
+          node services/api/scripts/staging-deploy-cli.mjs --deploy
+
+      - name: Health and build identity
+        run: node services/api/scripts/staging-deploy-cli.mjs --health
+
+      - name: Roll back to the previous staging release candidate
+        if: failure()
+        run: node services/api/scripts/staging-deploy-cli.mjs --rollback

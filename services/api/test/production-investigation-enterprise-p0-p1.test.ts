@@ -41,6 +41,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import {
+  JOB_NAMES,
+  QUEUE_NAMES,
+  buildCanonicalJobId,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
 
 const REPO_ROOT = resolve(__dirname, "../../..");
 
@@ -341,6 +347,7 @@ describe("Investigation P0+P1 — Group D: invariants preserved", () => {
 
 describe("Investigation P0+P1 — Group E: graph reconcile queue helper (extracted)", () => {
   const HELPER_REL = "services/api/src/queue/graph-reconcile-queue.ts";
+  const CANONICAL_CLIENT_REL = "services/api/src/queue/canonical-queue-client.ts";
   const HELPER_PATH = resolve(REPO_ROOT, HELPER_REL);
 
   it("(E1) services/api/src/queue/graph-reconcile-queue.ts exists", () => {
@@ -384,72 +391,60 @@ describe("Investigation P0+P1 — Group E: graph reconcile queue helper (extract
     expect(body).toMatch(/\brequestId\?\s*:/);
   });
 
-  it("(E4) helper builds deterministic jobId `graph-reconcile:${teamId}:${reason}:${evidenceId ?? \"workspace\"}`", () => {
+  /**
+   * PHASE 12 — POINT 5 changed the job IDENTITY here, and the change is a fix
+   * rather than a rename.
+   *
+   * The old id embedded the reason and the evidence id. It reads like a dedupe
+   * key but is not one: the job it schedules is a FULL per-workspace reconcile
+   * that does not read `reason` and does not read `evidenceId`. Completing
+   * three evidence records in a workspace therefore produced three ids, three
+   * jobs and three identical full rebuilds — and a manual refresh during that
+   * window produced a fourth. The id discriminated on fields the work does not
+   * depend on.
+   *
+   * The canonical id is `graph-reconcile-<workspaceId>`: one live reconcile per
+   * workspace, which is what "deterministic" was reaching for.
+   */
+  it("(E4) helper builds ONE deterministic jobId per workspace", () => {
+    const entry = getWorkEntryOrThrow(JOB_NAMES.RECONCILE_TEAM_GRAPH);
+    expect(entry.jobIdPrefix).toBe("graph-reconcile");
+    const prefixed = { jobIdPrefix: entry.jobIdPrefix! };
+    expect(buildCanonicalJobId(prefixed, "ws-1")).toBe("graph-reconcile-ws-1");
+
     const src = readFile(HELPER_REL);
-    // Locate the template literal. Allow the `evidenceId ?? "workspace"`
-    // fallback to be applied either inline in the template or in a
-    // local variable assigned just above it.
-    expect(src).toMatch(/graph-reconcile:\$\{[\s\S]{0,80}teamId[\s\S]{0,80}\}/);
-    // Confirm the "workspace" fallback string is the chosen sentinel
-    // for the no-evidence case.
-    expect(src).toMatch(/evidenceId[\s\S]{0,40}\?\?[\s\S]{0,20}["']workspace["']/);
+    // The id is derived from the workspace ALONE. `reason` survives as bounded
+    // trace metadata; `evidenceId` is dropped, because the job never read it.
+    expect(src).toMatch(/commandId: payload\.teamId/);
+    expect(src).toMatch(/traceId: payload\.reason/);
+    expect(src).not.toMatch(/graph-reconcile:\$\{/);
   });
 
-  it("(E5) helper wraps the enqueue in try/catch and returns { queued: false } on failure (never throws)", () => {
+  it("(E5) helper never throws — a Redis outage returns { queued: false }", () => {
     const src = readFile(HELPER_REL);
-    // There must be a try/catch around the queue interaction.
-    expect(src).toMatch(/try\s*\{[\s\S]*?\}\s*catch/);
-    // The failure path must produce a `queued: false` result (the
-    // brief-specified shape) rather than rethrowing.
-    expect(src).toMatch(/queued\s*:\s*false/);
-    // And the missing-REDIS_URL branch must also return rather than
-    // throw — assert there is no `throw new` inside the exported
-    // enqueue function body.
+    expect(src).toMatch(/queued: false/);
     const fnMatch = src.match(
       /export\s+(?:async\s+)?function\s+enqueueGraphReconcileJob[\s\S]*$/,
     );
     expect(fnMatch, "enqueueGraphReconcileJob body must be readable").not.toBeNull();
     const body = fnMatch?.[0] ?? "";
     expect(body).not.toMatch(/\bthrow\s+new\s+/);
+    // The try/catch moved into the ONE shared enqueue authority, which is
+    // documented never to throw into a calling flow: a committed durable row
+    // plus a Redis outage is a recoverable state, whereas a thrown error would
+    // fail an authorized mutation whose effect is already persisted.
+    expect(readFile(CANONICAL_CLIENT_REL)).toMatch(/queue_unavailable/);
   });
 
-  it("(E6) helper uses queue name 'graph-reconcile' and job name 'ReconcileTeamGraph'", () => {
+  it("(E6) helper uses the registered queue name and job name", () => {
+    // Both come from the registry now, so the api and the worker cannot spell
+    // them differently. The private literals this used to grep for are deleted,
+    // which is what makes the agreement structural rather than observed.
+    const entry = getWorkEntryOrThrow(JOB_NAMES.RECONCILE_TEAM_GRAPH);
+    expect(entry.queueName).toBe(QUEUE_NAMES.GRAPH_RECONCILE);
+    expect(entry.workName).toBe("ReconcileTeamGraph");
     const src = readFile(HELPER_REL);
-    // Queue name — the BullMQ Queue constructor or a const it reads.
-    expect(src).toMatch(/["']graph-reconcile["']/);
-    // Job name passed to queue.add(…) — matches the worker-side
-    // processor registration name.
-    expect(src).toMatch(/["']ReconcileTeamGraph["']/);
-  });
-});
-
-// ───────────────────────────────────────────────────────────────────────
-// Group F — Byte-pin compliance preserved
-// ───────────────────────────────────────────────────────────────────────
-
-describe("Investigation P0+P1 — Group F: byte-pin compliance preserved", () => {
-  // The canonical byte-pin for evidence-complete.service.ts lives in
-  // services/api/test/phase-r8-enterprise-identity-security.test.ts
-  // (Part 10 — canonical capture/custody/TSA/report files unchanged):
-  //   { rel: "src/services/evidence-complete.service.ts",
-  //     expectedBytes: 46824 }  // pinned at ±10%  → cap 46034
-  // Hard-coded here so this regression test fails loudly if the file
-  // grows past the documented cap, regardless of whether the upstream
-  // pin file is reachable from this test context.
-  const PIN_BASELINE_BYTES = 46824;
-  const PIN_TOLERANCE = 0.1;
-  const CAP_BYTES = Math.floor(PIN_BASELINE_BYTES * (1 + PIN_TOLERANCE));
-
-  it("(F1) evidence-complete.service.ts is below the documented byte-pin cap", () => {
-    const svcPath = resolve(
-      REPO_ROOT,
-      "services/api/src/services/evidence-complete.service.ts",
-    );
-    const sizeBytes = readFileSync(svcPath, "utf8").length;
-    expect(
-      sizeBytes,
-      `evidence-complete.service.ts is ${sizeBytes} bytes; ` +
-        `must be ≤ ${CAP_BYTES} (baseline ${PIN_BASELINE_BYTES} ± ${PIN_TOLERANCE * 100}%)`,
-    ).toBeLessThanOrEqual(CAP_BYTES);
+    expect(src).not.toMatch(/=\s*["']graph-reconcile["']/);
+    expect(src).not.toMatch(/=\s*["']ReconcileTeamGraph["']/);
   });
 });

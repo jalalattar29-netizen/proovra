@@ -121,6 +121,54 @@ function buildPackageChecksums(entries: PackageEntry[]): unknown {
 // the Prisma generated client — schema row exists but client not regenerated)
 // ---------------------------------------------------------------------------
 
+/**
+ * How long a claimed build may run before another instance may take it over.
+ *
+ * A package build is a ZIP assembled in memory and uploaded; thirty minutes is
+ * far past any legitimate run, so a row still BUILDING after that had its
+ * worker die.
+ */
+export const EXCHANGE_BUILD_LEASE_MS = 30 * 60 * 1000;
+
+/**
+ * PHASE 12 POINT 5 — take exclusive ownership of one package build.
+ *
+ * The poller's only concurrency control was `_inFlight`, an in-process `Set`.
+ * That is not a claim: it is per-PROCESS, so two worker instances each held
+ * their own empty set, both selected the same BUILDING package, and both
+ * assembled the ZIP, both uploaded it to object storage and both wrote a
+ * terminal state — duplicate artifact bytes, duplicate storage cost, and a
+ * `payload_sha256` recorded by whichever finished last.
+ *
+ * The arbiter is now the database, via the existing UNIQUE on `package_id`:
+ * the conditional `ON CONFLICT ... DO UPDATE ... WHERE` updates zero rows when
+ * another instance holds a LIVE claim, and one row when the slot is free or
+ * the previous holder's lease has expired.
+ *
+ * Returns `true` when this caller owns the build.
+ */
+async function claimPackageBuild(
+  prisma: PrismaClient,
+  packageId: string,
+  teamId: string,
+): Promise<boolean> {
+  const leaseCutoff = new Date(Date.now() - EXCHANGE_BUILD_LEASE_MS);
+  const claimed = await prisma.$executeRaw`
+    INSERT INTO evidence_exchange_package_builds
+      (id, team_id, package_id, state, started_at_utc, created_at)
+    VALUES
+      (${randomUUID()}, ${teamId}::uuid, ${packageId}::uuid, 'BUILDING', NOW(), NOW())
+    ON CONFLICT (package_id) DO UPDATE
+      SET state = 'BUILDING',
+          started_at_utc = NOW(),
+          failure_reason = NULL
+      WHERE evidence_exchange_package_builds.state <> 'BUILDING'
+         OR evidence_exchange_package_builds.started_at_utc IS NULL
+         OR evidence_exchange_package_builds.started_at_utc < ${leaseCutoff}
+  `;
+  return claimed === 1;
+}
+
 async function upsertBuildRow(
   prisma: PrismaClient,
   packageId: string,
@@ -136,6 +184,8 @@ async function upsertBuildRow(
 ): Promise<void> {
   try {
     if (state === "BUILDING") {
+      // Kept for callers that only need the row to exist. The CLAIM is
+      // `claimPackageBuild` below; this path is not one.
       await prisma.$executeRaw`
         INSERT INTO evidence_exchange_package_builds
           (id, team_id, package_id, state, started_at_utc, created_at)
@@ -460,7 +510,7 @@ async function appendKindContent(params: {
             select: { id: true, name: true, template: true, years: true },
           })
           .catch(() => []);
-        const legalHoldCount = await prisma.legalHold
+        const legalHoldCount = await prisma.evidenceLegalHold
           .count({ where: { teamId } })
           .catch(() => 0);
         appendEntry(
@@ -685,8 +735,17 @@ export async function buildExchangePackage(
   const limited = rawIds.length > MAX_EVIDENCE_PER_PACKAGE;
   const evidenceIds = rawIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
 
-  // Upsert build tracker row → BUILDING.
-  await upsertBuildRow(prisma, pkg.id, teamId, "BUILDING");
+  // THE CLAIM. A caller that does not win it does nothing at all — no ZIP is
+  // assembled, no object is uploaded and no terminal state is written, so the
+  // holder's outcome is the only one that can be recorded.
+  const owned = await claimPackageBuild(prisma, pkg.id, teamId);
+  if (!owned) {
+    logger.info(
+      { packageId, teamId },
+      "exchange.package_builder.claim_held_by_another_worker",
+    );
+    return;
+  }
 
   const startedAt = Date.now();
 

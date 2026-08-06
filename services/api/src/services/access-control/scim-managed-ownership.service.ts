@@ -24,7 +24,6 @@
 
 import type { PrismaClient } from "@prisma/client";
 
-import { prisma as defaultPrisma } from "../../db.js";
 import { resolveManagedIdentity } from "../identity/identity-mode.service.js";
 import {
   organizationIdForPolicy,

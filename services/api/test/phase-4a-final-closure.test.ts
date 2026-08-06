@@ -49,7 +49,6 @@ import {
   probeDeepgram,
   probeOpenAi,
   probeRekognition,
-  probeAll,
 } from "../src/services/trust/status-probes.service.js";
 
 // ---------------------------------------------------------------------------
@@ -470,22 +469,17 @@ describe("5. Trust article SUPERSEDED emission", () => {
 // ---------------------------------------------------------------------------
 
 describe("6. Trust drift legacy casts removed", () => {
-  it("trust-drift.service.ts does NOT contain 'as never' casts paired with TRUST_ARTICLE_MARKED_STALE or TRUST_ARTICLE_REVIEWED codes", () => {
+  it("trust-drift.service.ts does NOT contain 'as never' casts paired with TRUST_ARTICLE_REVIEWED code", () => {
     const src = fs.readFileSync(
       path.resolve("src/services/trust/trust-drift.service.ts"),
       "utf8",
     );
-    // The service still calls emitTrustArticleEvent with these codes
-    expect(src).toContain("TRUST_ARTICLE_MARKED_STALE");
+    // The service still calls emitTrustArticleEvent with this code
     expect(src).toContain("TRUST_ARTICLE_REVIEWED");
-    // Neither event-code line should be accompanied by 'as never' on the same line
+    // The event-code line should not be accompanied by 'as never' on the same line
     const lines = src.split("\n");
     for (const line of lines) {
-      if (
-        (line.includes("TRUST_ARTICLE_MARKED_STALE") ||
-          line.includes("TRUST_ARTICLE_REVIEWED")) &&
-        line.includes("as never")
-      ) {
+      if (line.includes("TRUST_ARTICLE_REVIEWED") && line.includes("as never")) {
         throw new Error(
           `Found 'as never' on line with event code: ${line.trim()}`,
         );
@@ -606,20 +600,6 @@ describe("8. External provider probes", () => {
     expect(report).toHaveProperty("verdict");
     expect(report).toHaveProperty("source", "INTERNAL");
     expect(report).toHaveProperty("probedAtUtc");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Section 9: Verification package preview route
-// ---------------------------------------------------------------------------
-
-describe("9. Verification package preview route", () => {
-  it("trust-and-governance.routes.ts contains /v1/trust/verification-package/preview", () => {
-    const src = fs.readFileSync(
-      path.resolve("src/routes/trust-and-governance.routes.ts"),
-      "utf8",
-    );
-    expect(src).toContain("/v1/trust/verification-package/preview");
   });
 });
 

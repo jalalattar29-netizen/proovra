@@ -119,10 +119,12 @@ describe("CR1.5B Test 2 — dead-code `ShellNoWorkspace()` removed by CR1.6", ()
       file: "components/workspace-admin/WorkspaceAdminPanel.tsx",
       symbol: "ShellNoWorkspace",
     },
-    {
-      file: "components/reviewer-experience/ReviewerCommandConsole.tsx",
-      symbol: "ShellNoWorkspace",
-    },
+    // Phase 12 Point 4 — the third CR1.6 site,
+    // `components/reviewer-experience/ReviewerCommandConsole.tsx`, was
+    // deleted (unmounted; its unique capabilities were folded into the
+    // canonical `/review` console). It is covered by the dedicated test
+    // below rather than by this LoadState contract, because the
+    // canonical console does not use the same LoadState union.
     {
       file: "components/governance-experience/GovernanceControlPlane.tsx",
       symbol: "ShellNoWorkspace",
@@ -158,6 +160,21 @@ describe("CR1.5B Test 2 — dead-code `ShellNoWorkspace()` removed by CR1.6", ()
       expect(src).toMatch(/status:\s*["']unavailable["']/);
     },
   );
+
+  it("the reviewer CR1.6 site stays removed and its successor has no no-workspace branch", () => {
+    expect(
+      existsSync(
+        webPath("components/reviewer-experience/ReviewerCommandConsole.tsx"),
+      ),
+      "the unmounted ReviewerCommandConsole must stay removed",
+    ).toBe(false);
+    const live = readWeb("components/reviewer-experience/ReviewerConsole.tsx");
+    expect(live).not.toMatch(/ShellNoWorkspace/);
+    expect(live).not.toMatch(/["']no_workspace["']/);
+    // The console still distinguishes loading from failure honestly.
+    expect(live).toMatch(/setLoading\(/);
+    expect(live).toMatch(/setError\(/);
+  });
 });
 
 // ===========================================================================
@@ -186,14 +203,17 @@ describe("CR1.5B Test 3 — `Personal Space` label is canonical (no drift)", () 
 
 describe("CR1.5B Test 4 — UNKNOWN runtime severity maps to `Status pending`", () => {
   it("RUNTIME_SEVERITY_LABELS.UNKNOWN is the string `Status pending`", () => {
-    const src = readWeb("lib/product-language/stateLabels.ts");
+    const src = readWeb("components/operational/GlobalRuntimeIndicator.tsx");
     // The mapping table must include UNKNOWN: "Status pending".
     expect(src).toMatch(/UNKNOWN:\s*"Status pending"/);
   });
 
-  it("stateLabels.ts header documents the 'Unknown is reserved / prefer Status pending' rule", () => {
-    const src = readWeb("lib/product-language/stateLabels.ts");
-    expect(src).toMatch(/Unknown.*reserved.*indeterminate/i);
+  it("the label's definition site documents why raw 'Unknown' is not used", () => {
+    // The rule must be stated where the label is defined, so a future
+    // edit back to a raw "Unknown" has to argue with the reason first.
+    const src = readWeb("components/operational/GlobalRuntimeIndicator.tsx");
+    expect(src).toMatch(/neutral, non-alarming label for the UNKNOWN runtime/i);
+    expect(src).toMatch(/no recent telemetry/i);
     expect(src).toMatch(/Status pending/);
   });
 });
@@ -203,11 +223,20 @@ describe("CR1.5B Test 4 — UNKNOWN runtime severity maps to `Status pending`", 
 // ===========================================================================
 
 describe("CR1.5B Test 5 — fallback label is operationally neutral", () => {
-  it("STATE_FALLBACK_LABEL exports the exact string `Status pending`", () => {
-    const src = readWeb("lib/product-language/stateLabels.ts");
-    expect(src).toMatch(
-      /STATE_FALLBACK_LABEL\s*=\s*"Status pending"\s*as\s*const/,
-    );
+  // Phase 12 Point 4 (Pass E) — `STATE_FALLBACK_LABEL` was an export of
+  // `lib/product-language/stateLabels.ts`, a dictionary with ZERO
+  // importers: every live surface carries its own label table, so the
+  // constant never reached a rendered pixel. Pinning it proved nothing.
+  // The real invariant — an UNMAPPED backend enum must degrade to the
+  // neutral "Status pending", never to a raw ALL_CAPS value — is pinned
+  // on a surface that actually formats backend enums for display.
+  it("an unmapped backend enum degrades to the neutral `Status pending`", () => {
+    const src = readWeb("components/billing/StorageAddonsPanel.tsx");
+    expect(src).toMatch(/function formatAddonStatus/);
+    // The default arm — reached when no known enum matched.
+    expect(src).toMatch(/return "Status pending";\s*\n\s*}/);
+    // …and the raw normalized value is never returned to the UI.
+    expect(src).not.toMatch(/return\s+normalized\s*;/);
   });
 });
 
@@ -417,44 +446,34 @@ describe("CR1.5B Test 12 — no new localStorage keys for product state", () => 
 
 describe("CR1.5B Test 13 — `No workspace selected` string occurrences are bounded (CR1.6 cleanup)", () => {
   /**
-   * Post-CR1.6, the user-facing string "No workspace selected" appears
-   * in exactly ONE file:
-   *
-   *   - app/(app)/reviewer-ops/WorkspaceGateState.tsx
-   *     LIVE — bounded by `reason !== "personal"` (personal users get
-   *     CapabilityDegradedPanel). Genuinely reachable only when the
-   *     actor has no workspace at all (rare — provider bootstraps
-   *     Personal Space).
-   *
    * CR1.6 removed the 3 dead occurrences in WorkspaceAdminPanel,
-   * ReviewerCommandConsole, and GovernanceControlPlane. The
-   * PageRouteGate / CapabilityDegradedPanel pair handles the
-   * personal-workspace path correctly without the dead branches.
+   * ReviewerCommandConsole, and GovernanceControlPlane. The last
+   * remaining occurrence lived in the local reviewer-ops
+   * `WorkspaceGateState.tsx` renderer, which Phase 12 Point 4 Pass D
+   * deleted once every consumer had migrated to `<PageRouteGate>`.
+   *
+   * The invariant is unchanged and still live: a user without a
+   * workspace must never be shown a bare "No workspace selected"
+   * wall. The canonical PageRouteGate / CapabilityDegradedPanel pair
+   * owns that path with a structured panel and recovery actions.
    *
    * If this count grows, a new surface introduced the legacy pattern;
-   * pair it with CapabilityDegradedPanel and document in CR1.6.
+   * route it through PageRouteGate instead.
    */
-  it("exactly 1 .tsx file in apps/web/ renders the user-facing string", () => {
+  it("no .tsx file in apps/web/ renders the legacy bare workspace wall", () => {
     const root = webPath(".");
     const files = listAllTsxFiles(root);
     const offenders: string[] = [];
     for (const file of files) {
       const src = readFileSync(file, "utf8");
-      // Match user-facing rendered string — JSX text content. The
-      // `WorkspaceGateState.tsx` site uses a styled `<h1>` so the
-      // string appears between `>` and `<` after whitespace.
+      // Match user-facing rendered string — JSX text content, i.e.
+      // the phrase rendered between an opening and closing tag.
       if (/>\s*No workspace selected\s*</.test(src)) {
         const rel = file.replace(/\\/g, "/").replace(/^.*\/apps\/web\/+/, "/");
         offenders.push(rel);
       }
-      // Also catch the JSX-text variant (no surrounding tags on the
-      // same line — could match inside `>{value}<` style assignments).
-      // The reviewer-ops site uses `<h1 style={title}>No workspace selected</h1>`
-      // which is captured by the primary regex; this branch covers
-      // potential alternate forms.
     }
-    const EXPECTED = ["/app/(app)/reviewer-ops/WorkspaceGateState.tsx"];
-    expect(offenders.sort()).toEqual(EXPECTED.slice().sort());
+    expect(offenders.sort()).toEqual([]);
   });
 });
 

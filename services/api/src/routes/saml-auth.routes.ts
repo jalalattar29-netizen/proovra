@@ -65,7 +65,6 @@ import {
   getCertExpiryStatus,
   emitCertExpiryWarningIfNeeded,
 } from "../services/security/saml-cert.service.js";
-import { SAML_FAILURE_CATEGORY_LABELS } from "../services/security/saml-assertion.service.js";
 import {
   consumeCallbackAttempt,
   markCallbackFailed,
@@ -376,6 +375,16 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         // HTTP-Redirect binding: 302 to IdP with SAMLRequest + RelayState
         return reply.code(302).redirect(redirectUrl);
       } catch (err) {
+        // Bounded diagnostic — the failure category the health surface reads
+        // stays "saml_initiate_failed"; the error class is logged separately
+        // so operators can tell a config error from a transport error.
+        req.log.warn(
+          {
+            connectionId: conn.id,
+            errorCode: err instanceof Error ? err.name.slice(0, 64) : "unknown_error",
+          },
+          "saml.initiate_failed",
+        );
         await noteSsoFailure(
           { connectionId: conn.id, reason: "saml_initiate_failed" },
           prisma,

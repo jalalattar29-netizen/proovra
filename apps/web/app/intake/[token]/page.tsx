@@ -52,6 +52,8 @@ function friendlyIntakeError(err: {
   const map: Record<string, string> = {
     RATE_LIMITED:
       "Too many requests. Please wait a moment and try again.",
+    SUBMITTER_IDENTITY_INVALID:
+      "Please enter a display name to continue.",
     INVALID_OR_EXPIRED_LINK:
       "This upload link is invalid or has expired. Please contact the sender for a new link.",
     LINK_NO_LONGER_AVAILABLE:
@@ -281,6 +283,12 @@ export default function ExternalIntakePage({
   const [parts, setParts] = useState<StagedPart[]>([]);
   const [termsAcknowledged, setTermsAcknowledged] = useState(false);
   const [identityDisclosed, setIdentityDisclosed] = useState(false);
+  // EXTERNAL_PSEUDONYMOUS ("Display name") intake: the contributor chooses the
+  // name shown with the submission. Collected here and sent in the body of a
+  // token-bound POST — never as a query parameter, and never for any other
+  // intake mode (the server refuses it for those regardless).
+  const [pseudonym, setPseudonym] = useState("");
+  const [identityBusy, setIdentityBusy] = useState(false);
   const [locationState, setLocationState] = useState<LocationState>({
     phase: "idle",
   });
@@ -391,8 +399,40 @@ export default function ExternalIntakePage({
     setLocationState({ phase: "denied" });
   }
 
+  /** True only for the mode that actually collects a contributor-chosen name. */
+  const requiresPseudonym = link?.intakeMode === "EXTERNAL_PSEUDONYMOUS";
+
   async function acceptConsent() {
     if (!link || !session) return;
+    // Record the chosen display name BEFORE consent, so a session that reaches
+    // the upload phase always carries the identity the reviewer will see. A
+    // failure here stops the flow rather than silently proceeding anonymously.
+    if (requiresPseudonym) {
+      const chosen = pseudonym.trim();
+      if (!chosen) {
+        setErrorMessage("Please enter a display name to continue.");
+        return;
+      }
+      setIdentityBusy(true);
+      try {
+        await apiFetch(
+          `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/identity`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ pseudonym: chosen }),
+          },
+          { auth: false },
+        );
+      } catch (err) {
+        setErrorMessage(
+          friendlyIntakeError(err as { code?: string; message?: string }),
+        );
+        return;
+      } finally {
+        setIdentityBusy(false);
+      }
+    }
     const policyVersion = link.consentPolicyVersion ?? "default";
     const text = link.consentDisclosureText ?? DEFAULT_DISCLOSURE;
     let hash: string;
@@ -816,6 +856,30 @@ export default function ExternalIntakePage({
           <p style={paragraphStyle}>
             {link.consentDisclosureText ?? DEFAULT_DISCLOSURE}
           </p>
+          {requiresPseudonym ? (
+            <label
+              style={{ display: "block", marginTop: 12 }}
+              data-intake-pseudonym-field
+            >
+              <span style={{ display: "block", marginBottom: 4 }}>
+                Display name
+              </span>
+              <input
+                type="text"
+                name="pseudonym"
+                maxLength={80}
+                autoComplete="off"
+                value={pseudonym}
+                placeholder="The name shown with your submission"
+                onChange={(e) => setPseudonym(e.target.value)}
+                style={{ width: "100%", padding: 8, boxSizing: "border-box" }}
+              />
+              <span style={{ display: "block", marginTop: 4, fontSize: 12 }}>
+                This is the only identity recorded with your submission. Choose
+                any name you like — your real name is not requested.
+              </span>
+            </label>
+          ) : null}
           <label style={{ display: "block", marginTop: 12 }}>
             <input
               type="checkbox"
@@ -841,7 +905,11 @@ export default function ExternalIntakePage({
           <button
             type="button"
             style={primaryButtonStyle}
-            disabled={!termsAcknowledged}
+            disabled={
+              !termsAcknowledged ||
+              identityBusy ||
+              (requiresPseudonym && pseudonym.trim().length === 0)
+            }
             onClick={acceptConsent}
           >
             Accept and continue

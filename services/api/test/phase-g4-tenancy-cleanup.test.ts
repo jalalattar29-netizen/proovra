@@ -98,7 +98,6 @@ const TENANCY_TELEMETRY_ALLOWLIST = new Set<string>([
   resolve(WEB_ROOT, "lib/platform-context/PlatformContextProvider.tsx"),
   resolve(WEB_ROOT, "components/app-shell-v2/AppSidebarV2.tsx"),
   resolve(WEB_ROOT, "components/command-center/CommandCenter.tsx"),
-  resolve(WEB_ROOT, "components/reviewer-experience/ReviewerCommandConsole.tsx"),
   resolve(WEB_ROOT, "components/workspace-admin/WorkspaceAdminPanel.tsx"),
   resolve(WEB_ROOT, "components/governance-experience/GovernanceControlPlane.tsx"),
   resolve(WEB_ROOT, "components/billing/TeamWorkspaceCard.tsx"),

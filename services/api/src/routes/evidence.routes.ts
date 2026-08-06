@@ -1,9 +1,15 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { getSecret } from "../config/runtime-secrets.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
 import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
+// Track 1B — CANONICAL case ↔ evidence relationship authority (link row
+// + audit in one transaction; the link table is the only truth).
+import {
+  attachEvidenceToCase,
+  detachEvidenceFromCase,
+} from "../services/cases/case-evidence-link.service.js";
 // Phase O1.5A — bounded evidence + upload + finalize + verify-public
 // spans. Attributes bounded to teamId + evidenceId + operation only;
 // NEVER body bytes, signed URLs, user-supplied filenames, GPS, or PII.
@@ -23,7 +29,6 @@ async function _emitEvidenceCreateSpans(rawBody: unknown): Promise<void> {
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
-  CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
   evidenceLocationSourceLabel,
   buildCaptureLocationExternalMapUrl,
@@ -69,7 +74,7 @@ import {
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
-import { AppError, ErrorCode } from "../errors.js";
+import { AppError, ErrorCode, isDomainError } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -77,7 +82,6 @@ import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.j
 import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
 import { createEvidence } from "../services/evidence.service.js";
 import {
-  assertWorkspaceAllowsEvidenceCreation,
   resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
@@ -97,7 +101,7 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
-import { enqueueGenerateReportJob } from "../queue/report-queue.js";
+import { requestReportGeneration } from "../services/reports/report-generation-authority.service.js";
 import {
   appendCustodyEvent,
   evaluateCustodyChain,
@@ -154,7 +158,6 @@ import {
   type TemplateIdentityTrio,
 } from "../services/templates/identity-resolver.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
-import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
@@ -178,6 +181,10 @@ import {
   listEvidenceReviewerWorkflowEvents,
   upsertEvidenceReviewerWorkflow,
 } from "../services/evidence-review/reviewer-workflow.service.js";
+// PHASE 12 POINT 4 PASS C1 — verdict statuses belong to the decision authority.
+// Imported from the dependency-free vocabulary module so the public verify
+// path hosted in this file stays free of the reviewer-ops runtime.
+import { isDecisionDerivedWorkflowStatus } from "../services/evidence-review/review-status-vocabulary.js";
 import {
   createEvidenceRelationship,
   deleteEvidenceRelationship,
@@ -329,9 +336,20 @@ const AnnotationBody = z.object({
 
 const AnnotationUpdateBody = AnnotationBody.partial();
 
+/**
+ * PHASE 12 POINT 4 PASS C1 — the reviewer-workflow PATCH is the
+ * ADMINISTRATIVE surface (assignment / priority / due date / routing state).
+ * Verdict statuses are DERIVED from the immutable decision log and are
+ * refused here, at the edge, so the browser cannot name a review outcome:
+ * decisions go to POST /v1/review-operations/evidence/:evidenceId/decision.
+ */
+const ROUTING_WORKFLOW_STATUSES = Object.values(
+  prismaPkg.EvidenceReviewWorkflowStatus,
+).filter((s) => !isDecisionDerivedWorkflowStatus(s)) as [string, ...string[]];
+
 const ReviewerWorkflowUpdateBody = z.object({
   assignedToUserId: z.string().uuid().nullable().optional(),
-  status: z.nativeEnum(prismaPkg.EvidenceReviewWorkflowStatus).optional(),
+  status: z.enum(ROUTING_WORKFLOW_STATUSES).optional(),
   priority: z.nativeEnum(prismaPkg.EvidenceReviewWorkflowPriority).optional(),
   dueAt: z.string().datetime().nullable().optional(),
   note: z.string().trim().max(1000).optional().nullable(),
@@ -370,7 +388,7 @@ const RevokeEvidenceCertificationBody = z.object({
 
 type ParamsId = { id: string };
 
-const { EvidenceStatus, PlanType, VerificationSource, VerificationViewerType } =
+const { EvidenceStatus, PlanType, VerificationViewerType } =
   prismaPkg;
 const evidenceAiProvider = createAiProvider();
 const evidenceAiCostGuard = new AiCostGuard();
@@ -560,8 +578,6 @@ async function listZipEntryNames(bucket: string, key: string): Promise<Set<strin
   if (eocdOffset < 0 || eocdOffset + 22 > tail.length) {
     throw new Error("Unable to locate ZIP end of central directory");
   }
-
-  const commentLength = tail.readUInt16LE(eocdOffset + 20);
   const centralDirectorySize = tail.readUInt32LE(eocdOffset + 12);
   const centralDirectoryOffset = tail.readUInt32LE(eocdOffset + 16);
 
@@ -633,7 +649,7 @@ type PublicCustodyLifecycle = {
   chronologyNote: string;
 };
 
-async function requireAuthAndLegal(req: FastifyRequest, reply: any) {
+async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
   if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
@@ -798,13 +814,27 @@ const SAFE_EVIDENCE_SELECT = {
   lockedAt: true,
   lockedByUserId: true,
   archivedAt: true,
-  caseId: true,
+  // Track 1B closure — the legacy `caseId` scalar is gone; the primary
+  // case is DERIVED from the earliest canonical link. Response payloads
+  // keep emitting a `caseId` field with the derived value.
+  caseLinks: {
+    orderBy: { linkedAtUtc: "asc" },
+    select: { caseId: true },
+    take: 1,
+  },
   teamId: true,
   deletedAt: true,
   deletedAtUtc: true,
   deleteScheduledForUtc: true,
   retentionUntilUtc: true,
 } as const;
+
+/** Derives the projected single `caseId` from the canonical links. */
+function primaryCaseIdOf(e: {
+  caseLinks?: Array<{ caseId: string }> | null;
+}): string | null {
+  return e.caseLinks?.[0]?.caseId ?? null;
+}
 
 type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
   select: typeof SAFE_EVIDENCE_SELECT;
@@ -1045,12 +1075,6 @@ function readUserAgent(req: FastifyRequest): string | null {
   return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
 }
 
-function getRequestPath(req: FastifyRequest): string {
-  const url = req.url || "";
-  const qIndex = url.indexOf("?");
-  return qIndex >= 0 ? url.slice(0, qIndex) : url;
-}
-
 // PHASE 11 §3 Batch A — evidence.* / verification.* audit events are TENANT
 // EVENTs. `teamId` MUST be the caller's PERSISTED Evidence-row teamId (never
 // request body/URL); callers with no persisted row in scope (not-found /
@@ -1137,28 +1161,6 @@ function auditVerificationAction(
   }).catch(noteCustodyFailure);
 }
 
-function fireEvidenceAnalyticsEvent(params: {
-  eventType: string;
-  userId: string;
-  req?: FastifyRequest;
-  entityType?: string | null;
-  entityId?: string | null;
-  severity?: string | null;
-  metadata?: Record<string, unknown>;
-}) {
-  void writeAnalyticsEvent({
-    eventType: params.eventType,
-    userId: params.userId,
-    path: params.req ? getRequestPath(params.req) : null,
-    entityType: params.entityType ?? "evidence",
-    entityId: params.entityId ?? null,
-    severity: params.severity ?? "info",
-    metadata: params.metadata ?? {},
-    req: params.req,
-    skipSessionUpsert: true,
-  }).catch(noteCustodyFailure);
-}
-
 async function getUserPlan(userId: string) {
   const entitlement = await prisma.entitlement.findFirst({
     where: { userId, active: true },
@@ -1201,17 +1203,6 @@ function decimalToNumber(v: unknown): number | null {
   }
 
   return null;
-}
-
-function shortHash(
-  value: string | null | undefined,
-  head = 12,
-  tail = 10
-): string | null {
-  const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return null;
-  if (text.length <= head + tail + 3) return text;
-  return `${text.slice(0, head)}…${text.slice(-tail)}`;
 }
 
 function normalizeMimeType(value: string | null | undefined): string | null {
@@ -1617,20 +1608,6 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
     default:
       return "OpenTimestamps not configured";
   }
-}
-
-function mapOtsStatusLabelWithTxid(params: {
-  status: string | null | undefined;
-  bitcoinTxid: string | null | undefined;
-}): string {
-  const normalized = normalizeOtsStatus(params.status);
-  const hasTxid =
-    typeof params.bitcoinTxid === "string" &&
-    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
-  if (normalized === "ANCHORED" && hasTxid) {
-    return "Bitcoin anchoring verified";
-  }
-  return mapOtsStatusLabel(params.status);
 }
 
 function summarizePublicPayload(
@@ -2042,7 +2019,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     lockedAt: e.lockedAt ? e.lockedAt.toISOString() : null,
     lockedByUserId: e.lockedByUserId ?? null,
     archivedAt: e.archivedAt ? e.archivedAt.toISOString() : null,
-    caseId: e.caseId ?? null,
+    caseId: primaryCaseIdOf(e),
     teamId: e.teamId ?? null,
     deletedAt: e.deletedAt ? e.deletedAt.toISOString() : null,
     deletedAtUtc: e.deletedAtUtc ? e.deletedAtUtc.toISOString() : null,
@@ -2255,12 +2232,18 @@ function buildEvidenceListBaseWhere(params: {
         : {};
 
   const accessFilter: Prisma.EvidenceWhereInput = query.caseId
-    ? { caseId: query.caseId }
+    ? { caseLinks: { some: { caseId: query.caseId } } }
     : {
         OR: [
           { ownerUserId: params.userId },
           ...(params.accessibleCaseIds.length > 0
-            ? [{ caseId: { in: params.accessibleCaseIds } }]
+            ? [
+                {
+                  caseLinks: {
+                    some: { caseId: { in: params.accessibleCaseIds } },
+                  },
+                },
+              ]
             : []),
           ...(params.memberTeamIds.length > 0
             ? [{ teamId: { in: params.memberTeamIds } }]
@@ -2383,8 +2366,9 @@ function buildEvidenceListTypeFilter(
           },
         ],
       };
+    // NOTE: bare "photo" is handled by the broader PHOTO-or-image/* branch
+    // above; only the natural-language alias lands here.
     case "photo evidence":
-    case "photo":
       return { type: prismaPkg.EvidenceType.PHOTO };
     default: {
       const enumCandidate = type.toUpperCase();
@@ -2399,8 +2383,8 @@ function buildEvidenceListTypeFilter(
 function buildEvidenceListCaseAssignmentFilter(
   caseAssignment: EvidenceListQuery["caseAssignment"]
 ): Prisma.EvidenceWhereInput | null {
-  if (caseAssignment === "assigned") return { caseId: { not: null } };
-  if (caseAssignment === "unassigned") return { caseId: null };
+  if (caseAssignment === "assigned") return { caseLinks: { some: {} } };
+  if (caseAssignment === "unassigned") return { caseLinks: { none: {} } };
   return null;
 }
 
@@ -2505,7 +2489,7 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
     deleteScheduledForUtc: item.deleteScheduledForUtc
       ? item.deleteScheduledForUtc.toISOString()
       : null,
-    caseId: item.caseId,
+    caseId: primaryCaseIdOf(item),
     teamId: item.teamId,
     ownerUserId: item.ownerUserId,
     itemCount,
@@ -2553,13 +2537,22 @@ async function getEvidenceWithReadAccess(
     return evidence;
   }
 
-  if (evidence.caseId) {
-    const caseItem = await prisma.case.findUnique({
-      where: { id: evidence.caseId },
+  // Track 1B closure — access can be granted through ANY linked case
+  // (canonical CaseEvidenceLink rows), not just a single primary one.
+  const linkedCaseIds = (
+    await prisma.caseEvidenceLink.findMany({
+      where: { evidenceId },
+      select: { caseId: true },
+      take: 100,
+    })
+  ).map((l) => l.caseId);
+  if (linkedCaseIds.length > 0) {
+    const caseItems = await prisma.case.findMany({
+      where: { id: { in: linkedCaseIds } },
       include: { access: true },
     });
 
-    if (caseItem) {
+    for (const caseItem of caseItems) {
       if (caseItem.ownerUserId === userId) {
         return evidence;
       }
@@ -2606,8 +2599,12 @@ async function getEvidenceWithReadAccess(
     }
   }
 
-  const err: Error & { statusCode?: number } = new Error("Forbidden");
-  err.statusCode = 403;
+  // PHASE 12 (anti-enumeration closure) — a cross-tenant/unauthorized read is
+  // INDISTINGUISHABLE from a missing record: same 404, same message as the
+  // not-found branch above. A 403 here leaked record existence to any
+  // authenticated outsider (caught live by the phase-37-95 runtime probe).
+  const err: Error & { statusCode?: number } = new Error("Evidence not found");
+  err.statusCode = 404;
   throw err;
 }
 
@@ -2834,7 +2831,11 @@ const EVIDENCE_LIST_SELECT = {
   archivedAt: true,
   deletedAt: true,
   deleteScheduledForUtc: true,
-  caseId: true,
+  caseLinks: {
+    orderBy: { linkedAtUtc: "asc" },
+    select: { caseId: true },
+    take: 1,
+  },
   teamId: true,
   ownerUserId: true,
   storageBucket: true,
@@ -4656,7 +4657,11 @@ export async function evidenceRoutes(app: FastifyInstance) {
     // materials are never lost. This arm sits here (before the main
     // try/catch) so tests can verify it short-circuits 500 paths.
     try {
-      const _preflightScope = await resolveEnforcementScopeForRequester({
+      // The resolved scope is intentionally discarded — this call exists
+      // only so a TEAM_PLAN_REQUIRED refusal is raised (and caught below)
+      // before any capture material is staged. The full team-scope check
+      // runs inside createEvidence.
+      await resolveEnforcementScopeForRequester({
         ownerUserId,
         teamId: null, // full scope resolved inside createEvidence; this resolves the personal gate
       });
@@ -5019,15 +5024,46 @@ if (
   });
 }
 
-      if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
+      // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): record-cap denials.
+      //
+      // This arm read `err.message === "FREE_LIMIT_REACHED"`. The message is
+      // "Free evidence limit reached"; the CODE is "FREE_LIMIT_REACHED". The
+      // comparison could never be true, so the arm was dead from the day it
+      // was written, and every FREE user who reached their record cap fell
+      // through to the bottom of this catch: audited at `severity: "critical"`,
+      // rethrown, captured to Sentry as an error, paged as an operational
+      // alert, and answered with a 500. Nobody noticed, because a 500 still
+      // looks like a refusal from the outside — which is also why the Point-7
+      // matrix credited it: the assertion only required `status >= 400`.
+      //
+      // Now it matches on the CODE, covers the whole record-cap family, and
+      // returns the canonical 409 the commercial vocabulary uses for a plan
+      // limit. The message the client renders comes from the typed error, so
+      // there is one sentence rather than two that can drift apart.
+      const recordCapCodes = new Set([
+        "FREE_LIMIT_REACHED",
+        "EVIDENCE_RECORD_LIMIT_REACHED",
+        "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
+      ]);
+      const errCode =
+        err instanceof Error && "code" in err
+          ? (err as Error & { code?: string }).code
+          : undefined;
+      if (errCode && recordCapCodes.has(errCode)) {
         auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.create",
           outcome: "blocked",
           severity: "warning",
-          metadata: { reason: "FREE_LIMIT_REACHED" },
+          metadata: { reason: errCode },
         });
-        return reply.code(402).send({ message: "Free plan limit reached" });
+        return reply.code(409).send({
+          code: errCode,
+          message:
+            isDomainError(err)
+              ? err.publicMessage
+              : "You have reached the record limit included in your current plan. Existing records remain available.",
+        });
       }
 
       auditEvidenceAction(req, {
@@ -6409,6 +6445,19 @@ await appendCustodyEvent({
     });
     const memberTeamIds = memberTeams.map((entry) => entry.teamId);
 
+    // PHASE 12 (anti-enumeration closure) — an EXPLICIT ?teamId= request is a
+    // Workspace-scoped read: without ACTIVE membership in exactly that
+    // Workspace it is concealed as 404 (previously the param was silently
+    // ignored and the caller's own list 200'd — caught by the phase-37-95
+    // live probe). With membership, the list is scoped to that Workspace.
+    const requestedTeamId =
+      typeof (req.query as Record<string, unknown>).teamId === "string"
+        ? ((req.query as Record<string, unknown>).teamId as string)
+        : null;
+    if (requestedTeamId && !memberTeamIds.includes(requestedTeamId)) {
+      return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+    }
+
     const accessibleCases = await prisma.case.findMany({
       where: {
         OR: [
@@ -6441,8 +6490,13 @@ await appendCustodyEvent({
         }
       : baseWhere;
 
+    // Workspace-scoped request (membership proven above) → pin the filter.
+    const scopedWhere: Prisma.EvidenceWhereInput = requestedTeamId
+      ? { AND: [where, { teamId: requestedTeamId }] }
+      : where;
+
     const items = await prisma.evidence.findMany({
-      where,
+      where: scopedWhere,
       orderBy: getEvidenceListOrderBy(sort),
       take: limit + 1,
       select: EVIDENCE_LIST_SELECT,
@@ -6604,7 +6658,7 @@ await appendCustodyEvent({
         },
       };
       const UNASSIGNED_PREDICATE: Prisma.EvidenceWhereInput = {
-        caseId: null,
+        caseLinks: { none: {} },
       };
 
       const compose = (extra: Prisma.EvidenceWhereInput): Prisma.EvidenceWhereInput => ({
@@ -6787,21 +6841,55 @@ await appendCustodyEvent({
               });
               throw new Error("Cross-workspace attach is not permitted");
             }
-            const updated = await prisma.evidence.update({
+            // Track 1B — attach flows through the CANONICAL
+            // case-evidence authority (link row + audit, atomically).
+            // The gate above already
+            // guarantees teamId: caseItem.teamId equals the evidence's
+            // own teamId, so the old direct teamId stamp was a no-op.
+            await attachEvidenceToCase({
+              caseId: caseItem.id,
+              evidenceId,
+              actorUserId: userId,
+              role: "PRIMARY",
+              source: "USER",
+              ipAddress: req.ip,
+              userAgent: normalizeUserHeader(req),
+            });
+            const updated = await prisma.evidence.findUniqueOrThrow({
               where: { id: evidenceId },
-              data: { caseId: caseItem.id, teamId: caseItem.teamId ?? null },
               select: EVIDENCE_LIST_SELECT,
             });
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }
           case "REMOVE_FROM_CASE": {
-            if (!evidence.caseId) {
+            // Track 1B closure — the canonical link table is the ONE
+            // relationship source. "Remove from case" detaches the
+            // record from EVERY linked case (the historical bulk action
+            // semantically unassigned the record entirely).
+            const evidenceCaseLinks = await prisma.caseEvidenceLink.findMany({
+              where: { evidenceId },
+              select: { caseId: true },
+              take: 100,
+            });
+            if (evidenceCaseLinks.length === 0) {
               throw new Error("Evidence is not assigned to a case");
             }
-            const updated = await prisma.evidence.update({
+            // Detach through the CANONICAL case-evidence authority.
+            // Preserves the historical bulk semantics: leaving the last
+            // case also resets the workspace binding.
+            for (const link of evidenceCaseLinks) {
+              await detachEvidenceFromCase({
+                caseId: link.caseId,
+                evidenceId,
+                actorUserId: userId,
+                clearEvidenceTeamIdWhenUnlinked: true,
+                ipAddress: req.ip,
+                userAgent: normalizeUserHeader(req),
+              });
+            }
+            const updated = await prisma.evidence.findUniqueOrThrow({
               where: { id: evidenceId },
-              data: { caseId: null, teamId: null },
               select: EVIDENCE_LIST_SELECT,
             });
             updatedItems.push(mapEvidenceListItem(updated));
@@ -7809,12 +7897,18 @@ await appendCustodyEvent({
       const evidence = await getEvidenceWithReadAccess(userId, id);
 
       if (body.assignedToUserId) {
+        // Track 1B closure — access can flow through ANY linked case.
+        const assigneeCaseLinks = await prisma.caseEvidenceLink.findMany({
+          where: { evidenceId: id },
+          select: { caseId: true },
+          take: 100,
+        });
         const targetUserAccessible =
           evidence.ownerUserId === body.assignedToUserId ||
-          (evidence.caseId
+          (assigneeCaseLinks.length > 0
             ? await prisma.caseAccess.findFirst({
                 where: {
-                  caseId: evidence.caseId,
+                  caseId: { in: assigneeCaseLinks.map((l) => l.caseId) },
                   userId: body.assignedToUserId,
                 },
                 select: { caseId: true },
@@ -7878,7 +7972,7 @@ await appendCustodyEvent({
         teamId: evidence.teamId ?? null,
         actorUserId: userId,
         assignedToUserId: body.assignedToUserId,
-        status: body.status,
+        status: body.status as prismaPkg.EvidenceReviewWorkflowStatus | undefined,
         priority: body.priority,
         dueAt:
           body.dueAt === undefined
@@ -8255,7 +8349,7 @@ await appendCustodyEvent({
         captureMethod: evidence.captureMethod ?? null,
         verificationStatus: evidence.verificationStatus ?? null,
         ...canonicalAvailability,
-        caseLinked: Boolean(evidence.caseId),
+        caseLinked: evidence.caseLinks.length > 0,
         workspaceLabel: sanitizeUntrustedField(evidence.workspaceNameSnapshot ?? "", 200) || null,
         checklistMetadataOnly: true,
       };
@@ -8306,7 +8400,7 @@ await appendCustodyEvent({
         evidence.mimeType ?? "mime-unrecorded",
         evidence.verificationStatus ?? "verification-unrecorded",
         canonicalAvailability.reportReady ? "report-ready" : "report-missing",
-        evidence.caseId ? "case-linked" : "case-unassigned",
+        evidence.caseLinks.length > 0 ? "case-linked" : "case-unassigned",
       ];
       const riskFlags = aiResult.flags.map((flag) => ({
         severity: flag.severity,
@@ -8532,9 +8626,9 @@ await appendCustodyEvent({
               trustDecisionSnapshot: true,
             },
           }),
-          evidence.caseId
+          primaryCaseIdOf(evidence)
             ? prisma.case.findUnique({
-                where: { id: evidence.caseId },
+                where: { id: primaryCaseIdOf(evidence)! },
                 select: { id: true, name: true, teamId: true },
               })
             : Promise.resolve(null),
@@ -9005,10 +9099,11 @@ const timestampDigestMatches: boolean | null =
           evidenceVerificationPackageMetadata:
             evidence.verificationPackageMetadata ?? null,
         });
-        const relatedEvidenceCount = evidence.caseId
+        const primaryCaseId = primaryCaseIdOf(evidence);
+        const relatedEvidenceCount = primaryCaseId
           ? await prisma.evidence.count({
               where: {
-                caseId: evidence.caseId,
+                caseLinks: { some: { caseId: primaryCaseId } },
                 deletedAt: null,
               },
             })
@@ -9164,6 +9259,15 @@ const timestampDigestMatches: boolean | null =
                 evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
               sha256Recorded: Boolean(evidence.fileSha256),
               fingerprintHashRecorded: Boolean(evidence.fingerprintHash),
+              // The canonical fingerprint is recomputed above and compared
+              // against the recorded hash. The public verify surface has
+              // always reported that comparison; the authenticated Integrity
+              // tab previously computed it and dropped it, so the two
+              // surfaces could not agree. `null` = nothing recorded to
+              // compare against (no conclusion, not a failure).
+              fingerprintCanonicalHashMatches: evidence.fingerprintCanonicalJson
+                ? canonicalHashMatches
+                : null,
               signature: {
                 recorded: Boolean(evidence.signatureBase64),
                 valid: signatureValid,
@@ -9232,13 +9336,13 @@ const timestampDigestMatches: boolean | null =
               },
             },
             relationships: {
-              caseId: caseItem?.id ?? evidence.caseId ?? null,
+              caseId: caseItem?.id ?? primaryCaseId ?? null,
               caseName: caseItem?.name ?? null,
               relatedEvidenceCount,
               multipart: content.summary.structure === "multipart",
               itemCount: content.summary.itemCount,
               note:
-                !evidence.caseId && relationshipItems.length === 0
+                !primaryCaseId && relationshipItems.length === 0
                   ? "No linked evidence relationships recorded yet."
                   : null,
               items: relationshipItems,
@@ -9561,6 +9665,12 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // PHASE 12 (anti-enumeration closure) — every 404 (missing OR
+        // concealed unauthorized) emits the ONE canonical public body so the
+        // two cases stay byte-indistinguishable.
+        if (statusCode === 404) {
+          return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+        }
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -10285,11 +10395,21 @@ if (
       // Enqueue with `forceRegenerate: true`. The enqueue helper
       // handles existing-job dedup; if an active job already exists it
       // returns `{ enqueued: false, reason }` and we surface that.
+      // PHASE 12 — POINT 5. The ownership gate above IS the authorization for
+      // a force-regeneration, and its outcome is now persisted on the request
+      // row rather than asserted as a boolean on a queue message.
       let result: { enqueued: boolean; reason?: string };
       try {
-        result = await enqueueGenerateReportJob(id, {
+        const requested = await requestReportGeneration({
+          evidenceId: id,
+          purpose: "operator_regenerate",
           forceRegenerate: true,
+          regenerateReason: "operator_requested",
+          requestedByUserId: userId,
         });
+        result = requested.requested
+          ? { enqueued: requested.enqueued, reason: requested.reason }
+          : { enqueued: false, reason: requested.reason };
       } catch (err: unknown) {
         const message =
           err instanceof Error
@@ -10420,6 +10540,43 @@ if (
                 message:
                   "Report download is blocked by workspace governance policy.",
               });
+          }
+
+          // Phase 12 Point 4 — enforce the SAME export-eligibility
+          // verdict the operator UI displays. `GovernedExportAction`
+          // disables this button and shows "Blocked by legal hold /
+          // lifecycle / destruction review" from
+          // `GET /v1/governance/export-eligibility`; before this the
+          // server did not consult that evaluation on the download
+          // path, so a direct API call bypassed the gate the product
+          // told the operator was in force. Fail-closed like the
+          // policy gate above.
+          const { checkExportEligibility } = await import(
+            "../services/governance-lifecycle/export-governance.service.js"
+          );
+          const eligibility = await checkExportEligibility({
+            teamId: evidenceForGate.teamId,
+            evidenceId: evidenceForGate.id,
+            actorUserId: ownerUserId,
+          });
+          if (eligibility.outcome !== "ALLOWED") {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+              payload: {
+                action: "report_download",
+                reason: eligibility.outcome,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent: req.headers["user-agent"],
+            }).catch(noteCustodyFailure);
+            return reply.code(403).send({
+              code: eligibility.outcome,
+              reason: eligibility.reason,
+              message:
+                "Report download is blocked by evidence export eligibility.",
+            });
           }
         }
       }
@@ -10927,6 +11084,38 @@ displayName: resolvedDisplayName,
                 "Verification package publish is blocked by workspace verification policy.",
             });
           }
+
+          // Phase 12 Point 4 — enforce the SAME export-eligibility
+          // verdict the operator UI displays for this button (legal
+          // hold / lifecycle state / active destruction review). See
+          // the matching block on `/report/latest`.
+          const { checkExportEligibility } = await import(
+            "../services/governance-lifecycle/export-governance.service.js"
+          );
+          const eligibility = await checkExportEligibility({
+            teamId: evidenceForGate.teamId,
+            evidenceId: evidenceForGate.id,
+            actorUserId: ownerUserId,
+          });
+          if (eligibility.outcome !== "ALLOWED") {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+              payload: {
+                action: "verification_package_download",
+                reason: eligibility.outcome,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent: req.headers["user-agent"],
+            }).catch(noteCustodyFailure);
+            return reply.code(403).send({
+              code: eligibility.outcome,
+              reason: eligibility.reason,
+              message:
+                "Verification package download is blocked by evidence export eligibility.",
+            });
+          }
         }
       }
 
@@ -11210,6 +11399,75 @@ action: "evidence.certification_requested",
     }
   );
 
+  // The certification lifecycle is request -> attest -> revoke. The attest
+  // step's service, request schema, custody event (CERTIFICATION_ATTESTED)
+  // and report-renderer label all existed, but no route reached them, so no
+  // certification could ever be signed. Mirrors the sibling routes exactly:
+  // same auth preHandler, same record-access permission, same custody +
+  // audit emission, same error projection.
+  app.post(
+    "/v1/evidence/:id/certifications/attest",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = AttestEvidenceCertificationBody.parse(req.body);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        const evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.generate_report");
+
+        const certification = await attestEvidenceCertification({
+          evidenceId: id,
+          declarationType: body.declarationType,
+          attestedByUserId: ownerUserId,
+          attestorName: body.attestorName,
+          attestorTitle: body.attestorTitle,
+          attestorEmail: body.attestorEmail,
+          attestorOrganization: body.attestorOrganization ?? null,
+          statementMarkdown: body.statementMarkdown,
+          statementSnapshot: body.statementSnapshot ?? null,
+          signatureText: body.signatureText,
+        });
+
+        void appendCustodyEvent({
+          evidenceId: id,
+          eventType: prismaPkg.CustodyEventType.CERTIFICATION_ATTESTED,
+          payload: {
+            declarationType: body.declarationType,
+            attestedByUserId: ownerUserId,
+            version: certification.version,
+          } as Prisma.InputJsonValue,
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        }).catch(noteCustodyFailure);
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.certification_attested",
+          outcome: "success",
+          resourceId: id,
+          teamId: evidence.teamId,
+          metadata: {
+            declarationType: body.declarationType,
+            version: certification.version,
+          },
+        });
+
+        return reply.code(200).send({ evidenceId: id, certification });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+    }
+  );
+
   app.post(
     "/v1/evidence/:id/certifications/revoke",
     { preHandler: requireAuth },
@@ -11321,12 +11579,20 @@ action: "evidence.certification_requested",
         .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
     }
 
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    // PHASE 12 (anti-enumeration closure) — an INVALID-format token must be
+    // byte-indistinguishable from a valid-format-but-missing one. The prior
+    // `.parse` threw Zod → global 400, revealing token-format validity to an
+    // enumerating caller (caught live by the phase-37-95 runtime probe).
+    const idParse = z.string().uuid().safeParse((req.params as ParamsId).id);
+    if (!idParse.success) {
+      return reply.code(404).send({ message: "Evidence not found" });
+    }
+    const id = idParse.data;
 
     // Phase 1 — second bucket, keyed by evidence id. We parse the id
     // FIRST (above) so the bucket key is only set after validation;
-    // unparseable input falls through to the zod 400 path without
-    // consuming a rate-limit slot.
+    // unparseable input is concealed as 404 without consuming a
+    // rate-limit slot.
     const perEvidenceLimit = getVerifyPerEvidenceLimit();
     const perEvidenceRate = await enforceRateLimit({
       key: `ratelimit:verify:evidence:${id}`,
@@ -12647,6 +12913,28 @@ const captureTrust = evidence.teamId
     })()
   : null;
 
+// PHASE 12B (Evidence Operations) — bounded public-safe redaction
+// projection. This is the CANONICAL public home of the redaction
+// verification badge: the anonymous evidenceId probe
+// GET /v1/redaction/public/verify/:evidenceId was deleted and its
+// fields converged here, behind this route's rate limits, publication
+// gate, integrity gate, destroyed gate, finalization gate, and audit.
+// Workspace-anchored via teamId. Never throws; null when the record
+// has no redaction project and no extracted video frames.
+const redaction = await (async () => {
+  try {
+    const { projectVerifyRedaction } = await import(
+      "../services/redaction/verify-redaction-projection.service.js"
+    );
+    return await projectVerifyRedaction({
+      teamId: evidence.teamId ?? null,
+      evidenceId: evidence.id,
+    });
+  } catch {
+    return null;
+  }
+})();
+
 // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
 // Capture Environment projection. Never throws; null when no data.
 const technicalMetadata = await (async () => {
@@ -12667,6 +12955,9 @@ return reply.code(200).send({
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
   captureTrust,
+  // PHASE 12B — redaction verification badge (converged from the
+  // deleted anonymous /v1/redaction/public/verify/:evidenceId probe).
+  redaction,
   technicalMetadata,
   trustDecision,
 trustDecisionConsistency,

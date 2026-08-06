@@ -29,7 +29,7 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
-import { useTeamId } from "../../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import {
   StepUpModal,
   useStepUpAction,
@@ -56,6 +56,66 @@ import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
+import { ManagedMembershipSection } from "./_sections/ManagedMembershipSection";
+
+// ============================================================================
+// PHASE 12B — denial classification.
+//
+// A 402/403/404 is a DENIAL and must never be painted as "nothing here": an
+// empty table invites the operator to create a token they are not allowed to
+// create, and hides the fact that the server refused.
+// ============================================================================
+
+type ScimDenial = { title: string; detail: string };
+
+function readScimDenial(err: unknown): ScimDenial | null {
+  const e = (err ?? {}) as {
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+  };
+  const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
+  const code = typeof e.code === "string" ? e.code.toLowerCase() : "";
+  if (status === 402 || code.includes("enterprise_feature_required")) {
+    return {
+      title: "Not included in this plan",
+      detail:
+        "Directory provisioning (SCIM) is part of the Enterprise plan. The server declined this request — nothing was changed.",
+    };
+  }
+  if (status === 403 || code === "forbidden" || code === "permission_denied") {
+    return {
+      title: "You don't have access to SCIM provisioning",
+      detail:
+        "Your role in this workspace does not allow managing directory provisioning. Nothing was loaded and nothing was changed.",
+    };
+  }
+  if (status === 404 || code === "not_found") {
+    return {
+      title: "Not available to your account",
+      detail:
+        "This workspace's directory configuration is not available to you. If you expected access, ask a workspace owner to grant it.",
+    };
+  }
+  return null;
+}
+
+function ScimDenialPanel({ denial }: { denial: ScimDenial }) {
+  return (
+    <Card
+      variant="status"
+      tone="risk"
+      padding="comfortable"
+      data-testid="scim-denied"
+      style={{ marginTop: 12 }}
+    >
+      <strong style={{ fontSize: 14 }}>{denial.title}</strong>
+      <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
+        {denial.detail}
+      </p>
+    </Card>
+  );
+}
 
 // ============================================================================
 // Types
@@ -148,6 +208,7 @@ type ScimSyncFailure = {
 
 const TAB_LABELS = {
   tokens: "Tokens",
+  ownership: "Managed membership",
   drift: "Drift detection",
   replay: "Sync replay",
 } as const;
@@ -231,6 +292,7 @@ export default function ScimPage() {
       </nav>
 
       {tab === "tokens" ? <TokensTab teamId={teamId} /> : null}
+      {tab === "ownership" ? <ManagedMembershipSection teamId={teamId} /> : null}
       {tab === "drift" ? <DriftTab teamId={teamId} /> : null}
       {tab === "replay" ? <ReplayTab teamId={teamId} /> : null}
     </PageShell>
@@ -244,7 +306,9 @@ export default function ScimPage() {
 function TokensTab({ teamId }: { teamId: string }) {
   const stepUp = useStepUpAction({ teamId });
   const { confirm } = useConfirmAction();
+  const { stamp, isStale } = useTenantGuard();
   const [tokens, setTokens] = useState<ScimToken[] | null>(null);
+  const [denial, setDenial] = useState<ScimDenial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -254,33 +318,53 @@ function TokensTab({ teamId }: { teamId: string }) {
   );
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    apiFetch(
-      `/v1/admin/identity/scim/tokens?teamId=${encodeURIComponent(teamId)}`,
-      { method: "GET" },
-    )
-      .then((r: { tokens: ScimToken[] }) => {
-        setTokens(r.tokens ?? []);
+  const load = useCallback(async () => {
+    const captured = stamp();
+    try {
+      const r = (await apiFetch(
+        `/v1/admin/identity/scim/tokens?teamId=${encodeURIComponent(teamId)}`,
+        { method: "GET" },
+      )) as { tokens?: ScimToken[] };
+      if (isStale(captured)) return;
+      setTokens(r.tokens ?? []);
+      setDenial(null);
+      setError(null);
+    } catch (err) {
+      if (isStale(captured)) return;
+      const d = readScimDenial(err);
+      setTokens([]);
+      if (d) {
+        setDenial(d);
         setError(null);
-      })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load tokens." }).message),
+        return;
+      }
+      setDenial(null);
+      setError(
+        toSafeUserError(err, { message: "Could not load tokens." }).message,
       );
-  }, [teamId]);
+    }
+  }, [teamId, stamp, isStale]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  // A one-time token must never survive a workspace switch.
+  useEffect(() => {
+    setRevealedToken(null);
+  }, [teamId]);
 
   const submitCreate = useCallback(async () => {
     if (!createName.trim()) return;
     setBusy("create");
     setRevealedToken(null);
+    setError(null);
+    const captured = stamp();
     try {
       const res = await stepUp.runStepUpAction(async (headers) => {
         return await apiFetch("/v1/admin/identity/scim/tokens", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
           body: JSON.stringify({
             teamId,
             name: createName.trim().slice(0, 180),
@@ -288,38 +372,106 @@ function TokensTab({ teamId }: { teamId: string }) {
           }),
         });
       });
+      if (isStale(captured)) return;
+      // The raw token is present in the CREATE response only — never on a
+      // list/read. It lives in this tab's state until dismissed and is never
+      // written to a URL, storage, or a shared component.
       if (res && (res as { tokenOnce?: unknown })?.tokenOnce) {
         setRevealedToken((res as { tokenOnce: string }).tokenOnce);
       }
       setShowCreate(false);
       setCreateName("");
-      load();
+      await load();
     } catch (err) {
+      if (isStale(captured)) return;
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") {
         setError("Step-up cancelled — token was not created.");
-      } else {
-        setError(
-          toSafeUserError(err, { message: "Could not create token." }).message,
-        );
+        return;
       }
+      const d = readScimDenial(err);
+      if (d) {
+        setDenial(d);
+        return;
+      }
+      setError(
+        toSafeUserError(err, { message: "Could not create token." }).message,
+      );
     } finally {
       setBusy(null);
     }
-  }, [teamId, createName, createScopes, load, stepUp]);
+  }, [teamId, createName, createScopes, load, stepUp, stamp, isStale]);
+
+  // PHASE 12B — ROTATION. Server-side this is ONE transaction (revoke the old
+  // credential + issue the replacement), so an abandoned rotation can never
+  // leave two live tokens for the same directory.
+  const rotate = useCallback(
+    async (token: ScimToken) => {
+      const ok = await confirm({
+        title: "Rotate this SCIM token?",
+        description:
+          "A replacement token is issued and this one stops working immediately — in the same step, so there is never a moment with two live tokens. Your identity provider will fail to sync until you paste the new token into it. The new value is shown once.",
+        confirmLabel: "Rotate token",
+        tone: "danger",
+        testId: "scim-token-rotate",
+      });
+      if (!ok) return;
+      setBusy(token.id);
+      setError(null);
+      setRevealedToken(null);
+      const captured = stamp();
+      try {
+        const res = await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/admin/identity/scim/tokens/${encodeURIComponent(token.id)}/rotate`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({ teamId, reason: "Admin rotation" }),
+            },
+          ),
+        );
+        if (isStale(captured)) return;
+        if (res && (res as { tokenOnce?: unknown })?.tokenOnce) {
+          setRevealedToken((res as { tokenOnce: string }).tokenOnce);
+        }
+        await load();
+      } catch (err) {
+        if (isStale(captured)) return;
+        const code = (err as { code?: string })?.code;
+        if (code === "STEP_UP_CANCEL") {
+          setError("Step-up cancelled — the token was not rotated.");
+          return;
+        }
+        const d = readScimDenial(err);
+        if (d) {
+          setDenial(d);
+          return;
+        }
+        setError(
+          toSafeUserError(err, { message: "Rotation failed." }).message,
+        );
+      } finally {
+        setBusy(null);
+      }
+    },
+    [teamId, load, stepUp, confirm, stamp, isStale],
+  );
 
   const revoke = useCallback(
     async (id: string) => {
       const ok = await confirm({
         title: "Revoke this SCIM token?",
         description:
-          "Provisioning requests using this token will fail immediately. This is irreversible — issue a new token if the IdP still needs sync.",
+          "Provisioning requests using this token will fail immediately. This is irreversible — rotate instead if the identity provider still needs to sync.",
         confirmLabel: "Revoke token",
         tone: "danger",
         testId: "scim-token-revoke",
       });
       if (!ok) return;
       setBusy(id);
+      setError(null);
+      const captured = stamp();
       try {
         await stepUp.runStepUpAction(async (headers) => {
           return await apiFetch(
@@ -327,26 +479,33 @@ function TokensTab({ teamId }: { teamId: string }) {
             {
               method: "POST",
               headers: {
-                "Content-Type": "application/json",
+                "content-type": "application/json",
                 ...(headers ?? {}),
               },
               body: JSON.stringify({ teamId, reason: "Admin revocation" }),
             },
           );
         });
-        load();
+        if (isStale(captured)) return;
+        await load();
       } catch (err) {
+        if (isStale(captured)) return;
         const code = (err as { code?: string })?.code;
         if (code === "STEP_UP_CANCEL") {
           setError("Step-up cancelled — token remains active.");
-        } else {
-          setError(toSafeUserError(err, { message: "Revoke failed." }).message);
+          return;
         }
+        const d = readScimDenial(err);
+        if (d) {
+          setDenial(d);
+          return;
+        }
+        setError(toSafeUserError(err, { message: "Revoke failed." }).message);
       } finally {
         setBusy(null);
       }
     },
-    [teamId, load, stepUp],
+    [teamId, load, stepUp, confirm, stamp, isStale],
   );
 
   const tokenColumns: DataTableColumn<ScimToken>[] = [
@@ -421,10 +580,11 @@ function TokensTab({ teamId }: { teamId: string }) {
         </Button>
       </div>
 
+      {denial ? <ScimDenialPanel denial={denial} /> : null}
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {revealedToken ? (
         <div style={successBoxStyle}>
-          <strong>Token created.</strong> Copy now — this is the only time it
+          <strong>Token issued.</strong> Copy now — this is the only time it
           will be shown:{" "}
           <code style={{ fontFamily: "monospace" }}>{revealedToken}</code>
           <button
@@ -437,44 +597,56 @@ function TokensTab({ teamId }: { teamId: string }) {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 16 }}>
-        <DataTable
-          columns={tokenColumns}
-          rows={tokens ?? []}
-          getRowId={(t) => t.id}
-          loading={tokens === null}
-          ariaLabel="SCIM provisioning tokens"
-          emptyState={
-            <EmptyState
-              title="No SCIM directory connected"
-              purpose="Issue a scope-bounded SCIM v2 provisioning token so your identity provider can create, update, and deactivate users automatically."
-              action={
-                <Button
-                  variant="enterprise"
-                  onClick={() => {
-                    setShowCreate(true);
-                    setRevealedToken(null);
-                  }}
-                >
-                  New token
-                </Button>
-              }
-            />
-          }
-          rowActions={(t) =>
-            t.status === "ACTIVE" ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={busy === t.id}
-                onClick={() => revoke(t.id)}
-              >
-                Revoke
-              </Button>
-            ) : null
-          }
-        />
-      </div>
+      {denial ? null : (
+        <div style={{ marginTop: 16 }}>
+          <DataTable
+            columns={tokenColumns}
+            rows={tokens ?? []}
+            getRowId={(t) => t.id}
+            loading={tokens === null}
+            ariaLabel="SCIM provisioning tokens"
+            emptyState={
+              <EmptyState
+                title="No SCIM directory connected"
+                purpose="Issue a scope-bounded SCIM v2 provisioning token so your identity provider can create, update, and deactivate users automatically."
+                action={
+                  <Button
+                    variant="enterprise"
+                    onClick={() => {
+                      setShowCreate(true);
+                      setRevealedToken(null);
+                    }}
+                  >
+                    New token
+                  </Button>
+                }
+              />
+            }
+            rowActions={(t) =>
+              t.status === "ACTIVE" ? (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy === t.id}
+                    onClick={() => rotate(t)}
+                  >
+                    Rotate
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={busy === t.id}
+                    onClick={() => revoke(t.id)}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              ) : null
+            }
+          />
+        </div>
+      )}
 
       {showCreate ? (
         <section style={{ ...cardStyle, marginTop: 16 }}>
@@ -580,8 +752,10 @@ function riskBadge(level: ScimDriftRiskLevel) {
 function DriftTab({ teamId }: { teamId: string }) {
   const stepUp = useStepUpAction({ teamId });
   const { confirm } = useConfirmAction();
+  const { stamp, isStale } = useTenantGuard();
   const [report, setReport] = useState<ScimDriftReport | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [denial, setDenial] = useState<ScimDenial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [executing, setExecuting] = useState(false);
@@ -592,20 +766,31 @@ function DriftTab({ teamId }: { teamId: string }) {
     setError(null);
     setResult(null);
     setSelected(new Set());
+    const captured = stamp();
     try {
       const r = (await apiFetch(
         `/v1/scim/reconciliation/preview?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       )) as { report: ScimDriftReport };
+      if (isStale(captured)) return;
       setReport(r.report);
+      setDenial(null);
     } catch (err) {
+      if (isStale(captured)) return;
+      const d = readScimDenial(err);
+      if (d) {
+        setDenial(d);
+        setReport(null);
+        return;
+      }
+      setDenial(null);
       setError(
         toSafeUserError(err, { message: "Drift scan failed." }).message,
       );
     } finally {
-      setScanning(false);
+      if (!isStale(captured)) setScanning(false);
     }
-  }, [teamId]);
+  }, [teamId, stamp, isStale]);
 
   useEffect(() => {
     scan();
@@ -636,11 +821,12 @@ function DriftTab({ teamId }: { teamId: string }) {
     if (!ok) return;
     setExecuting(true);
     setError(null);
+    const captured = stamp();
     try {
       const res = (await stepUp.runStepUpAction(async (headers) => {
         return (await apiFetch("/v1/scim/reconciliation/execute", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
           body: JSON.stringify({
             teamId,
             previewId: report.previewId,
@@ -648,23 +834,30 @@ function DriftTab({ teamId }: { teamId: string }) {
           }),
         })) as { result: ExecuteResult };
       })) as { result: ExecuteResult };
+      if (isStale(captured)) return;
       setResult(res.result);
       setSelected(new Set());
       // Re-scan so the operator sees the post-reconcile state.
-      scan();
+      await scan();
     } catch (err) {
+      if (isStale(captured)) return;
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") {
         setError("Step-up cancelled — no rows were reconciled.");
-      } else {
-        setError(
-          toSafeUserError(err, { message: "Reconciliation failed." }).message,
-        );
+        return;
       }
+      const d = readScimDenial(err);
+      if (d) {
+        setDenial(d);
+        return;
+      }
+      setError(
+        toSafeUserError(err, { message: "Reconciliation failed." }).message,
+      );
     } finally {
       setExecuting(false);
     }
-  }, [report, selected, stepUp, teamId, scan]);
+  }, [report, selected, stepUp, teamId, scan, confirm, stamp, isStale]);
 
   return (
     <>
@@ -694,6 +887,7 @@ function DriftTab({ teamId }: { teamId: string }) {
         </Button>
       </div>
 
+      {denial ? <ScimDenialPanel denial={denial} /> : null}
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {result ? (
         <div style={successBoxStyle}>
@@ -705,7 +899,7 @@ function DriftTab({ teamId }: { teamId: string }) {
         </div>
       ) : null}
 
-      {report ? (
+      {denial ? null : report ? (
         <>
           <Card
             variant="status"
@@ -859,27 +1053,43 @@ function DriftTab({ teamId }: { teamId: string }) {
 // ============================================================================
 
 function ReplayTab({ teamId }: { teamId: string }) {
+  const { stamp, isStale } = useTenantGuard();
   const [failures, setFailures] = useState<ScimSyncFailure[] | null>(null);
+  const [denial, setDenial] = useState<ScimDenial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    apiFetch(
-      `/v1/scim/sync-failures?teamId=${encodeURIComponent(teamId)}&limit=100`,
-      { method: "GET" },
-    )
-      .then((r: { failures: ScimSyncFailure[] }) => {
-        setFailures(r.failures ?? []);
+  const load = useCallback(async () => {
+    const captured = stamp();
+    try {
+      const r = (await apiFetch(
+        `/v1/scim/sync-failures?teamId=${encodeURIComponent(teamId)}&limit=100`,
+        { method: "GET" },
+      )) as { failures?: ScimSyncFailure[] };
+      if (isStale(captured)) return;
+      setFailures(r.failures ?? []);
+      setDenial(null);
+      setError(null);
+    } catch (err) {
+      if (isStale(captured)) return;
+      const d = readScimDenial(err);
+      setFailures([]);
+      if (d) {
+        setDenial(d);
         setError(null);
-      })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load sync failures." }).message),
+        return;
+      }
+      setDenial(null);
+      setError(
+        toSafeUserError(err, { message: "Could not load sync failures." })
+          .message,
       );
-  }, [teamId]);
+    }
+  }, [teamId, stamp, isStale]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const replay = useCallback(
@@ -887,28 +1097,34 @@ function ReplayTab({ teamId }: { teamId: string }) {
       setBusy(id);
       setError(null);
       setSuccess(null);
+      const captured = stamp();
       try {
         await apiFetch(
           `/v1/scim/sync-failures/${encodeURIComponent(id)}/replay`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "content-type": "application/json" },
             body: JSON.stringify({ teamId }),
           },
         );
+        if (isStale(captured)) return;
         setSuccess(
           "Replay recorded. The original IdP push retries automatically — this entry has been cleared from the queue.",
         );
-        load();
+        await load();
       } catch (err) {
-        setError(
-          toSafeUserError(err, { message: "Replay failed." }).message,
-        );
+        if (isStale(captured)) return;
+        const d = readScimDenial(err);
+        if (d) {
+          setDenial(d);
+          return;
+        }
+        setError(toSafeUserError(err, { message: "Replay failed." }).message);
       } finally {
         setBusy(null);
       }
     },
-    [teamId, load],
+    [teamId, load, stamp, isStale],
   );
 
   const failureColumns: DataTableColumn<ScimSyncFailure>[] = [
@@ -987,10 +1203,11 @@ function ReplayTab({ teamId }: { teamId: string }) {
         </Button>
       </div>
 
+      {denial ? <ScimDenialPanel denial={denial} /> : null}
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {success ? <div style={successBoxStyle}>{success}</div> : null}
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 12, display: denial ? "none" : undefined }}>
         <DataTable
           columns={failureColumns}
           rows={failures ?? []}

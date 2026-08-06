@@ -379,18 +379,108 @@ export async function releaseManagedIdentity(
 }
 
 /**
- * §13.2 — a MANAGED_ENTERPRISE identity has NO personal space. Callers
- * that bootstrap or create a personal workspace consult this; the
- * bootstrap becomes a no-op for managed identities.
+ * PHASE 12 — POINT 7 (2026-08-05): the reason a Personal Space is refused.
+ *
+ * Two INDEPENDENT rules deny a Personal Space and they are not the same rule:
+ *
+ *   MANAGED_IDENTITY   the identity itself is org-controlled (§13.2) —
+ *                      MANAGED_ENTERPRISE, or MANAGED_UNRESOLVED which fails
+ *                      closed pending reconciliation;
+ *   ORG_POLICY         an Organization the user is an ACTIVE member of sets
+ *                      `noPersonalSpace = true` on its security policy.
+ *
+ * Before Point 7 only the first was enforced. `noPersonalSpace` was persisted,
+ * settable through `PUT /v1/enterprise/security/policy`, and written
+ * unconditionally by HIGH_SECURITY activation — and read by nothing. The pure
+ * evaluator `evaluatePersonalSpaceAllowed` had zero production callers, so an
+ * Organization that had switched the control on still handed every STANDARD
+ * member a Personal Space, and the server still fell back into one.
+ */
+export type PersonalSpaceDenialReason = "MANAGED_IDENTITY" | "ORG_POLICY";
+
+export type PersonalSpaceEligibility =
+  | { allowed: true }
+  | {
+      allowed: false;
+      reason: PersonalSpaceDenialReason;
+      /** The Organization whose policy denied it (ORG_POLICY only). */
+      organizationId: string | null;
+    };
+
+/**
+ * §13.2 + POINT 7 — THE one Personal-Space permission decision.
+ *
+ * Every surface that creates, restores, selects, routes into, or falls back to
+ * a Personal Workspace resolves here. Returning a discriminated result rather
+ * than a boolean is deliberate: the platform-context fallback has to be able to
+ * say WHY it refused to fabricate a Personal Space, and a boolean cannot.
+ *
+ * A CUSTOMER Organization with NO provisioned policy row cannot have set
+ * `noPersonalSpace`, so it does not deny here. That is not a permissive
+ * default: the unprovisioned case is already `POLICY_NOT_PROVISIONED` /
+ * fail-closed at the security surfaces that resolve the policy for a decision
+ * (`resolveOrgSecurityPolicy`), and inventing a second, quieter denial in this
+ * resolver would remove every enterprise member's Personal Space on the
+ * strength of a missing row rather than a stated policy.
+ */
+export async function resolvePersonalSpaceEligibility(
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<PersonalSpaceEligibility> {
+  // correction 2 — ONLY a STANDARD identity has Personal Space. Both MANAGED
+  // and MANAGED_UNRESOLVED deny Personal bootstrap (the latter fails closed
+  // pending reconciliation — it is NOT a self-service identity).
+  if ((await resolveManagedIdentity(userId, client)).state !== "STANDARD") {
+    return { allowed: false, reason: "MANAGED_IDENTITY", organizationId: null };
+  }
+
+  // POINT 7 — the org-policy rule. Only CUSTOMER Organizations the user
+  // actually belongs to participate: an `OrganizationMembership` row IS the
+  // membership (the model carries no status column — removal deletes the row),
+  // and a SYSTEM container org (the 1:1 container behind a Personal/Owned
+  // workspace) owns no policy at all.
+  let rows: Array<{ organizationId: string; noPersonalSpace: boolean }>;
+  try {
+    rows = (await client.organizationSecurityPolicy.findMany({
+      where: {
+        noPersonalSpace: true,
+        organization: {
+          kind: "CUSTOMER",
+          memberships: { some: { userId } },
+        },
+      },
+      select: { organizationId: true, noPersonalSpace: true },
+    })) as Array<{ organizationId: string; noPersonalSpace: boolean }>;
+  } catch (err) {
+    // Same posture as the identity columns above: a missing table/column is
+    // schema unavailability, never evidence that no policy exists.
+    if (isSchemaUnavailable(err)) {
+      throw securitySchemaUnavailable("organization_security_policy");
+    }
+    throw err;
+  }
+
+  const denying = rows.find((r) => r.noPersonalSpace === true);
+  if (denying) {
+    return {
+      allowed: false,
+      reason: "ORG_POLICY",
+      organizationId: denying.organizationId,
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Boolean projection of {@link resolvePersonalSpaceEligibility}, kept because
+ * most call sites only need the verdict. It is a projection, not a second
+ * implementation — there is exactly one decision.
  */
 export async function personalSpaceAllowed(
   userId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
-  // correction 2 — ONLY a STANDARD identity has Personal Space. Both MANAGED
-  // and MANAGED_UNRESOLVED deny Personal bootstrap (the latter fails closed
-  // pending reconciliation — it is NOT a self-service identity).
-  return (await resolveManagedIdentity(userId, client)).state === "STANDARD";
+  return (await resolvePersonalSpaceEligibility(userId, client)).allowed;
 }
 
 /**
@@ -410,12 +500,21 @@ export async function assertPersonalSpaceAllowed(
   userId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  if (!(await personalSpaceAllowed(userId, client))) {
+  const eligibility = await resolvePersonalSpaceEligibility(userId, client);
+  if (eligibility.allowed) return;
+  // POINT 7 — the two denials are distinguishable on the wire. They are
+  // different facts about the tenant and the operator remediates them
+  // differently: one is an identity binding, the other is a policy switch.
+  if (eligibility.reason === "ORG_POLICY") {
     throw modeError(
-      "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
-      "Managed enterprise identities do not have a personal workspace; the organization controls this identity's data lifecycle.",
+      "ORG_POLICY_NO_PERSONAL_SPACE",
+      "This organization does not permit a personal workspace for its members.",
     );
   }
+  throw modeError(
+    "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
+    "Managed enterprise identities do not have a personal workspace; the organization controls this identity's data lifecycle.",
+  );
 }
 
 /**

@@ -158,7 +158,11 @@ describe("EV phase 3 — email template", () => {
     // Match the function-type signature with relaxed whitespace —
     // Prettier wraps long type signatures onto multiple lines.
     expect(EMAIL_SVC_SRC).toMatch(
-      /sendEmailVerificationEmail:\s*\([\s\S]*?email:\s*string,[\s\S]*?verifyUrl:\s*string[\s\S]*?\)\s*=>\s*Promise<unknown>/,
+      // PHASE 12 POINT 5 — the return type is now the transport's OUTCOME
+      // rather than `unknown`. That is the change that makes a provider
+      // rejection impossible to mistake for a success at the type level, so
+      // the pin follows it instead of being loosened.
+      /sendEmailVerificationEmail:\s*\([\s\S]*?email:\s*string,[\s\S]*?verifyUrl:\s*string[\s\S]*?\)\s*=>\s*Promise<EmailDeliveryOutcome>/,
     );
   });
 

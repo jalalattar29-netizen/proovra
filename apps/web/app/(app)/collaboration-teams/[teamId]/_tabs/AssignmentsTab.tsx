@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
@@ -152,29 +152,40 @@ function AssignmentsTab({
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [priorityFilter, setPriorityFilter] = useState<string>("");
 
-  const refresh = async () => {
+  // `isStale` lets the effect drop a list that arrived after the team or the
+  // status filter changed — a previous team's assignments must never render.
+  const refresh = useCallback(async (isStale?: () => boolean) => {
     setLoading(true);
     try {
       const rows = await listAssignments(team.id, { status: statusFilter });
+      if (isStale?.()) return;
       setItems(rows);
     } catch (err) {
+      if (isStale?.()) return;
       if (err instanceof ApiError) {
         addToast("Couldn't load assignments", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
       }
     } finally {
-      setLoading(false);
+      if (!isStale?.()) setLoading(false);
     }
-  };
+  }, [team.id, statusFilter, addToast]);
 
   useEffect(() => {
-    void refresh();
-  }, [team.id, statusFilter]);
+    let cancelled = false;
+    void refresh(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
 
-  const assigneeName = (userId: string | null): string => {
-    if (!userId) return "Team-level";
-    const m = team.members.find((mm) => mm.userId === userId);
-    return m ? memberLabel(m) : userId.slice(0, 8);
-  };
+  const assigneeName = useCallback(
+    (userId: string | null): string => {
+      if (!userId) return "Team-level";
+      const m = team.members.find((mm) => mm.userId === userId);
+      return m ? memberLabel(m) : userId.slice(0, 8);
+    },
+    [team.members],
+  );
 
   const visibleItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -202,7 +213,7 @@ function AssignmentsTab({
       }
       return true;
     });
-  }, [items, query, assigneeFilter, priorityFilter, team.members]);
+  }, [items, query, assigneeFilter, priorityFilter, assigneeName]);
 
   const statusOptions = [
     { value: "", label: "All statuses" },

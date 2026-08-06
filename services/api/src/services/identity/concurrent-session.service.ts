@@ -30,7 +30,19 @@ import { resolveOrgSecurityPolicy } from "./org-security-policy.service.js";
  */
 
 export type ConcurrentSessionDecision =
-  | { allowed: true; established: boolean; activeCount: number; limit: number | null }
+  | {
+      allowed: true;
+      established: boolean;
+      activeCount: number;
+      limit: number | null;
+      /**
+       * PHASE 12 — POINT 7 (2026-08-05). The container is not a CUSTOMER
+       * Organization, so there is no Organization context to establish and no
+       * Organization policy to satisfy. Callers RELEASE any context the
+       * session still holds instead of establishing one.
+       */
+      notApplicable?: true;
+    }
   | { allowed: false; reason: "concurrent_session_limit_reached" | "session_not_in_inventory" | "organization_suspended" };
 
 /** Stable advisory-lock key for a (user, org) pair. hashtext → int4 is fine. */
@@ -68,10 +80,37 @@ export async function establishOrganizationSessionContext(
     // (1) re-load live Organization lifecycle; suspended/archived → no allowance.
     const org = await tx.organization.findUnique({
       where: { id: input.organizationId },
-      select: { status: true },
+      select: { status: true, kind: true },
     });
     if (!org || org.status !== "ACTIVE") {
       return { allowed: false, reason: "organization_suspended" };
+    }
+
+    // PHASE 12 — POINT 7 (2026-08-05). ONLY a CUSTOMER Organization owns a
+    // security policy, and therefore only a CUSTOMER Organization has a
+    // concurrent-session limit to enforce.
+    //
+    // Every self-service OWNED workspace sits inside a SYSTEM container
+    // organization, which by canonical contract has NO policy row — and
+    // `resolveOrgSecurityPolicy` below FAILS CLOSED on a missing row with a
+    // 503. So switching into an Owned Workspace, once the user held a real
+    // session-inventory row, threw `POLICY_NOT_PROVISIONED` out of a code path
+    // that had no handler for it and surfaced as a 500. The fail-closed
+    // posture is right for a Customer Organization that lost its policy; it
+    // was being applied to a container that is not supposed to have one.
+    //
+    // The discrimination is the same one `resolveOrganizationPolicy` makes:
+    // SYSTEM → NOT_APPLICABLE. Returning early leaves the session's existing
+    // context untouched; the caller releases it, which is the correct
+    // transition when a session leaves an Organization for an Owned workspace.
+    if (org.kind !== "CUSTOMER") {
+      return {
+        allowed: true,
+        established: false,
+        activeCount: 0,
+        limit: null,
+        notApplicable: true,
+      };
     }
 
     // This session's inventory row (must exist — org context needs inventory).

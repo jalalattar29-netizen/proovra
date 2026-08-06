@@ -32,11 +32,35 @@ import {
   type SurfaceUserContext,
 } from "../lib/surface/access";
 import type { WorkspacePlan } from "../lib/platform-context/types";
+import * as layoutModule from "../app/(app)/organizations/[id]/admin/layout";
 import {
   ADMIN_TABS,
-  visibleAdminTabsForRole,
+  visibleAdminTabsForSurfaces,
 } from "../app/(app)/organizations/[id]/admin/layout";
-import { ALL_ORG_ROLES } from "../app/(app)/organizations/[id]/admin/_lib/orgRoles";
+
+/**
+ * The canonical org-admin surface vocabulary, in tab-bar order. The SAME
+ * literal is pinned against `listOrgAdminSurfaces("ORG_OWNER")` in
+ * services/api/test/phase-12-point4-org-admin-surface-projection.test.ts.
+ */
+const CANONICAL_ORG_ADMIN_SURFACES = [
+  "overview",
+  "members",
+  "roles",
+  "departments",
+  "integrations",
+  "billing",
+  "security",
+  "domains",
+  "governance",
+  "access-reviews",
+  "retention",
+  "bulk-invite",
+  "reports",
+  "readiness",
+  "audit",
+  "trust",
+];
 
 // ---------------------------------------------------------------------------
 // 1. Enterprise-only surface gate.
@@ -46,8 +70,12 @@ const NON_ENTERPRISE: WorkspacePlan[] = ["FREE", "PAYG", "PRO", "TEAM"];
 
 function ctxFor(plan: WorkspacePlan): SurfaceUserContext {
   return {
-    plan,
-    role: "OWNER",
+    // PHASE 12B Track 1A — server-projected booleans, never the plan name.
+    planFeatures: {
+      intakeIncluded: null,
+      professionalSurfacesIncluded:
+        plan === "PRO" || plan === "TEAM" || (plan as string) === "ENTERPRISE",
+    },
     isPlatformAdmin: false,
     // Mirror the backend derivation — enterprise workspace iff ENTERPRISE plan.
     isEnterpriseWorkspace: plan === "ENTERPRISE",
@@ -92,158 +120,74 @@ test("an enterprise workspace CAN access every org-admin surface (incl. the 3 ne
   }
 });
 
+
 // ---------------------------------------------------------------------------
-// 2. Per-role tab visibility (pure filter).
+// 2. Tab-bar projection over the SERVER's `adminSurfaces` list.
+//
+// PHASE 12 POINT 4 STEP 1 — the per-role visibility matrix that used to live
+// here (`visibleAdminTabsForRole`) moved to the canonical authority beside
+// `checkOrgAccess`; it is proven against `listOrgAdminSurfaces` in
+// services/api/test/phase-12-point4-org-admin-surface-projection.test.ts.
+//
+// What remains here is the BROWSER's half of the contract: the shell renders
+// exactly the ids the server named, in the canonical tab order, and renders
+// NOTHING when the projection is missing.
 // ---------------------------------------------------------------------------
 
-function idsFor(role: Parameters<typeof visibleAdminTabsForRole>[0]): string[] {
-  return visibleAdminTabsForRole(role).map((t) => t.id);
-}
-
-test("the 3 new tabs are wired into ADMIN_TABS with the expected labels", () => {
+test("the 3 Phase-4 tabs are wired into ADMIN_TABS with the expected labels", () => {
   const bySegment = new Map(ADMIN_TABS.map((t) => [t.segment, t]));
   assert.equal(bySegment.get("roles")?.label, "Roles & permissions");
   assert.equal(bySegment.get("billing")?.label, "Billing & seats");
   assert.equal(bySegment.get("integrations")?.label, "API & integrations");
 });
 
-test("ORG_OWNER and ORG_ADMIN see every tab", () => {
-  const allIds = ADMIN_TABS.map((t) => t.id);
-  assert.deepEqual(idsFor("ORG_OWNER"), allIds);
-  assert.deepEqual(idsFor("ORG_ADMIN"), allIds);
+test("ADMIN_TABS declares exactly the canonical org-admin surface vocabulary", () => {
+  // The SAME literal list is pinned server-side against
+  // `listOrgAdminSurfaces("ORG_OWNER")`. If either side gains or loses a
+  // surface without the other, one of the two tests fails — a tab can never
+  // silently become unrenderable, and the server can never project an id the
+  // shell has no tab for.
+  assert.deepEqual(ADMIN_TABS.map((t) => t.id), CANONICAL_ORG_ADMIN_SURFACES);
 });
 
-test("ORG_SECURITY_ADMIN sees security + domains but NOT billing", () => {
-  const ids = idsFor("ORG_SECURITY_ADMIN");
-  assert.ok(ids.includes("security"), "security tab visible");
-  assert.ok(ids.includes("domains"), "domains tab visible");
-  assert.ok(ids.includes("overview"), "overview tab visible");
-  assert.ok(!ids.includes("billing"), "billing tab hidden for security admin");
-});
-
-test("ORG_BILLING_ADMIN sees billing but NOT security / domains", () => {
-  const ids = idsFor("ORG_BILLING_ADMIN");
-  assert.ok(ids.includes("billing"), "billing tab visible");
-  assert.ok(ids.includes("overview"), "overview tab visible");
-  assert.ok(!ids.includes("security"), "security tab hidden for billing admin");
-  assert.ok(!ids.includes("domains"), "domains tab hidden for billing admin");
-});
-
-test("ORG_AUDITOR sees audit + overview (read) and no member/dept mutation surfaces", () => {
-  const ids = idsFor("ORG_AUDITOR");
-  assert.ok(ids.includes("audit"), "audit tab visible");
-  assert.ok(ids.includes("overview"), "overview tab visible");
-  // Auditor is read-only: the admin-only mutation surfaces (departments,
-  // integrations) are hidden.
-  assert.ok(!ids.includes("departments"), "departments hidden for auditor");
-  assert.ok(!ids.includes("integrations"), "integrations hidden for auditor");
-});
-
-test("ORG_MEMBER is minimal — only read-only reference surfaces, no admin tabs", () => {
-  const ids = idsFor("ORG_MEMBER");
-  // Member never sees the admin-only surfaces.
-  for (const hidden of [
-    "departments",
-    "integrations",
+test("the shell renders exactly the surfaces the server named, in canonical order", () => {
+  const projected = visibleAdminTabsForSurfaces([
+    "trust",
+    "overview",
     "billing",
-    "security",
-    "domains",
-    "governance",
-    "access-reviews",
-    "retention",
-  ]) {
-    assert.ok(!ids.includes(hidden), `${hidden} hidden for plain member`);
-  }
-  // Member does keep the read-only reference surfaces.
-  assert.ok(ids.includes("overview"), "overview visible for member");
-  assert.ok(ids.includes("roles"), "roles reference visible for member");
+  ]);
+  assert.deepEqual(
+    projected.map((t) => t.id),
+    ["overview", "billing", "trust"],
+    "server order is irrelevant — the tab bar keeps its declared order",
+  );
 });
 
-test("every ADMIN_TABS entry declares at least one visible role from the canonical role set", () => {
-  const roleSet = new Set<string>(ALL_ORG_ROLES);
+test("an id the shell has no tab for is ignored, never rendered blank", () => {
+  const projected = visibleAdminTabsForSurfaces(["overview", "not-a-surface"]);
+  assert.deepEqual(projected.map((t) => t.id), ["overview"]);
+});
+
+test("a missing or empty projection renders NO tabs — the shell fails CLOSED", () => {
+  // Regression guard for the pre-fix behaviour: while `/v1/orgs/:id` was in
+  // flight the shell rendered the FULL tab set to every role, so an
+  // ORG_MEMBER saw Billing, Security, Domains and Governance until the
+  // response landed.
+  assert.deepEqual(visibleAdminTabsForSurfaces(undefined), []);
+  assert.deepEqual(visibleAdminTabsForSurfaces(null), []);
+  assert.deepEqual(visibleAdminTabsForSurfaces([]), []);
+});
+
+test("the shell exposes no role-based tab filter at all", () => {
+  // Stays-removed guard: `visibleAdminTabsForRole` was the frontend role
+  // authority. Re-introducing any role-shaped filter here must fail.
+  const layout = layoutModule as Record<string, unknown>;
+  assert.equal(layout.visibleAdminTabsForRole, undefined);
   for (const tab of ADMIN_TABS) {
-    assert.ok(tab.roles.length > 0, `${tab.id} must be visible to some role`);
-    for (const r of tab.roles) {
-      assert.ok(
-        roleSet.has(r),
-        `${tab.id} references unknown role ${r}`,
-      );
-    }
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 3. SCOPE-K — governance-family tab visibility matrix.
-//
-// The governance-related tabs (governance, retention, access-reviews) follow
-// the same visibility contract:
-//   - ORG_OWNER / ORG_ADMIN         full
-//   - ORG_SECURITY_ADMIN            visible (security posture oversight)
-//   - ORG_AUDITOR                   visible (read-only governance/audit)
-//   - ORG_BILLING_ADMIN            EXCLUDED (billing specialist, no governance)
-//   - ORG_MEMBER                    EXCLUDED (no governance)
-// ---------------------------------------------------------------------------
-
-const GOVERNANCE_FAMILY = ["governance", "retention", "access-reviews"] as const;
-
-test("SCOPE-K — OWNER and ADMIN see every governance-family tab", () => {
-  for (const role of ["ORG_OWNER", "ORG_ADMIN"] as const) {
-    const ids = idsFor(role);
-    for (const tab of GOVERNANCE_FAMILY) {
-      assert.ok(ids.includes(tab), `${role} must see governance tab ${tab}`);
-    }
-  }
-});
-
-test("SCOPE-K — SECURITY_ADMIN sees the governance-family tabs (security oversight)", () => {
-  const ids = idsFor("ORG_SECURITY_ADMIN");
-  for (const tab of GOVERNANCE_FAMILY) {
-    assert.ok(
-      ids.includes(tab),
-      `ORG_SECURITY_ADMIN must see governance tab ${tab}`,
+    assert.equal(
+      (tab as unknown as Record<string, unknown>).roles,
+      undefined,
+      `${tab.id} must not carry a client-side role allowlist`,
     );
-  }
-});
-
-test("SCOPE-K — AUDITOR has read-only governance + audit visibility", () => {
-  const ids = idsFor("ORG_AUDITOR");
-  for (const tab of GOVERNANCE_FAMILY) {
-    assert.ok(
-      ids.includes(tab),
-      `ORG_AUDITOR must see governance tab ${tab} (read-only)`,
-    );
-  }
-  assert.ok(ids.includes("audit"), "ORG_AUDITOR must see audit");
-});
-
-test("SCOPE-K — BILLING_ADMIN is EXCLUDED from every governance-family tab", () => {
-  const ids = idsFor("ORG_BILLING_ADMIN");
-  for (const tab of GOVERNANCE_FAMILY) {
-    assert.ok(
-      !ids.includes(tab),
-      `ORG_BILLING_ADMIN must NOT see governance tab ${tab}`,
-    );
-  }
-});
-
-test("SCOPE-K — MEMBER is EXCLUDED from every governance-family tab", () => {
-  const ids = idsFor("ORG_MEMBER");
-  for (const tab of GOVERNANCE_FAMILY) {
-    assert.ok(
-      !ids.includes(tab),
-      `ORG_MEMBER must NOT see governance tab ${tab}`,
-    );
-  }
-});
-
-test("filtering is monotonic — a full admin's tab set is a superset of every other role's", () => {
-  const adminIds = new Set(idsFor("ORG_ADMIN"));
-  for (const role of ALL_ORG_ROLES) {
-    for (const id of idsFor(role)) {
-      assert.ok(
-        adminIds.has(id),
-        `role ${role} sees tab ${id} that ORG_ADMIN does not — filter is inconsistent`,
-      );
-    }
   }
 });

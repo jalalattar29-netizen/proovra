@@ -59,7 +59,7 @@ import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
-import { hasActiveLifecycleLegalHold } from "./lifecycle-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 200;
@@ -128,45 +128,29 @@ export async function runDestructionOrchestration(
         // notification → incident.
         const correlationId = newCorrelationId();
         try {
-          // 1. Idempotency — reuse an existing non-terminal execution row.
-          let execution = await prisma.destructionExecution.findFirst({
-            where: {
-              destructionReviewId: review.id,
-              status: {
-                notIn: ["COMPLETED", "FAILED", "ROLLED_BACK"],
-              },
-            },
+          // 1. THE CLAIM — exactly one non-terminal execution per review.
+          //
+          // This was a read followed by a create, which is not a claim: two
+          // orchestrator runs both observed no active execution and both
+          // created one, so a single approved destruction produced two
+          // certificates, two lineage hashes and two `destruction_executed`
+          // ledger rows. The arbiter is now the partial unique index
+          // `destruction_executions_active_review_uniq` (migration
+          // 20271115000000): the INSERT either wins the slot or raises a
+          // unique violation, and the loser CONTINUES the winner's row
+          // rather than starting a second destruction.
+          const execution = await claimDestructionExecution({
+            review,
+            correlationId,
+            reconciliationRunId: ctx.runId,
           });
           if (!execution) {
-            execution = await prisma.destructionExecution.create({
-              data: {
-                teamId: review.teamId,
-                evidenceId: review.evidenceId,
-                destructionReviewId: review.id,
-                status: "PLANNED",
-                phase: "validating_inputs",
-                attemptCount: 1,
-                executedByUserId: review.decidedByUserId,
-                metadata: {
-                  correlationId,
-                  reconciliationRunId: ctx.runId,
-                } as prismaPkg.Prisma.InputJsonValue,
-              },
-            });
-          } else {
-            execution = await prisma.destructionExecution.update({
-              where: { id: execution.id },
-              data: {
-                attemptCount: { increment: 1 },
-                // Refresh correlation id on retry so each attempt is
-                // independently traceable while the prior attempt's id
-                // remains in the lifecycle ledger.
-                metadata: {
-                  correlationId,
-                  reconciliationRunId: ctx.runId,
-                } as prismaPkg.Prisma.InputJsonValue,
-              },
-            });
+            // Another run holds the active execution for this review and is
+            // working it now. Skipping is the correct outcome: the row is
+            // already owned, and the retention reconciler recovers it if the
+            // holder dies.
+            ctx.reportProgress({ skipped: 1 });
+            continue;
           }
 
           // 2. Defense-in-depth gate. Gather facts locally (DB lookups
@@ -208,8 +192,9 @@ export async function runDestructionOrchestration(
           }
 
           // 3. Move into EXECUTING — emit certificate + lineage.
-          execution = await prisma.destructionExecution.update({
-            where: { id: execution.id },
+          const executionId = execution.id;
+          await prisma.destructionExecution.update({
+            where: { id: executionId },
             data: {
               status: "EXECUTING",
               phase: "creating_certificate",
@@ -223,7 +208,7 @@ export async function runDestructionOrchestration(
             teamId: review.teamId,
             evidenceId: review.evidenceId,
             destructionReviewId: review.id,
-            destructionExecutionId: execution.id,
+            destructionExecutionId: executionId,
             retentionPolicyId: review.retentionPolicyId,
             retentionPolicyVersion: review.retentionPolicyVersion,
             reason: review.reason,
@@ -240,8 +225,8 @@ export async function runDestructionOrchestration(
             `${previousLedgerDigest}::${certificateHash}`,
           );
 
-          execution = await prisma.destructionExecution.update({
-            where: { id: execution.id },
+          await prisma.destructionExecution.update({
+            where: { id: executionId },
             data: {
               phase: "deleting_storage",
               certificateHash,
@@ -252,15 +237,14 @@ export async function runDestructionOrchestration(
           // 4. Storage deletion is owned by the existing evidence-purge
           //    processor. We mark the boundary and let that processor
           //    finish; the lifecycle ledger captures the intent.
-          execution = await prisma.destructionExecution.update({
-            where: { id: execution.id },
+          await prisma.destructionExecution.update({
+            where: { id: executionId },
             data: {
               status: "STORAGE_DELETED",
               storageDeletedAtUtc: new Date(),
               phase: "tombstoning_evidence",
             },
           });
-          const executionId = execution.id;
 
           // 5. Tombstone — flip Evidence.lifecycleState + DestructionReview.
           await prisma.$transaction(async (tx) => {
@@ -302,8 +286,8 @@ export async function runDestructionOrchestration(
             });
           });
 
-          execution = await prisma.destructionExecution.update({
-            where: { id: execution.id },
+          await prisma.destructionExecution.update({
+            where: { id: executionId },
             data: {
               status: "TOMBSTONED",
               tombstonedAtUtc: new Date(),
@@ -313,7 +297,7 @@ export async function runDestructionOrchestration(
 
           // 6. Complete + emit notifications + governance incident.
           await prisma.destructionExecution.update({
-            where: { id: execution.id },
+            where: { id: executionId },
             data: {
               status: "COMPLETED",
               completedAtUtc: new Date(),
@@ -378,6 +362,127 @@ export async function runDestructionOrchestration(
 }
 
 // -----------------------------------------------------------------------------
+// The claim
+// -----------------------------------------------------------------------------
+
+/**
+ * How long a claimed execution may run before it is treated as abandoned.
+ *
+ * Recorded in the work registry as this family's lease, and compared against
+ * it by the closure gate so the two cannot drift.
+ */
+export const DESTRUCTION_EXECUTION_LEASE_MS = 30 * 60 * 1000;
+
+const DESTRUCTION_TERMINAL_STATUSES = [
+  "COMPLETED",
+  "FAILED",
+  "ROLLED_BACK",
+] as const;
+
+/**
+ * Take exclusive ownership of the destruction execution for one review.
+ *
+ * Returns the row this caller owns, or `null` when another caller owns a
+ * LIVE one. Three outcomes, all decided by the database:
+ *
+ *   - the INSERT succeeds  → this caller minted and owns the execution;
+ *   - the INSERT is refused by the partial unique index, and the existing
+ *     row's lease is still live → another caller owns it, return null;
+ *   - the INSERT is refused and the lease has EXPIRED → the previous owner
+ *     died mid-flight; take it over with a conditional update that also
+ *     pins the observed lease stamp, so two callers reclaiming the same
+ *     stale row produce exactly one winner.
+ *
+ * Nothing here decides whether destruction is permitted. That decision is
+ * re-made after the claim, against current database truth.
+ */
+async function claimDestructionExecution(input: {
+  review: {
+    id: string;
+    teamId: string;
+    evidenceId: string;
+    decidedByUserId: string | null;
+  };
+  correlationId: string;
+  reconciliationRunId: string;
+}): Promise<{ id: string } | null> {
+  const { review, correlationId, reconciliationRunId } = input;
+  const metadata = {
+    correlationId,
+    reconciliationRunId,
+  } as prismaPkg.Prisma.InputJsonValue;
+
+  try {
+    return await prisma.destructionExecution.create({
+      data: {
+        teamId: review.teamId,
+        evidenceId: review.evidenceId,
+        destructionReviewId: review.id,
+        status: "PLANNED",
+        phase: "validating_inputs",
+        attemptCount: 1,
+        // The lease starts when the slot is claimed, not when the first
+        // mutation runs — otherwise a caller that dies during validation
+        // holds the review forever with a NULL lease.
+        startedAtUtc: new Date(),
+        executedByUserId: review.decidedByUserId,
+        metadata,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+  }
+
+  const active = await prisma.destructionExecution.findFirst({
+    where: {
+      destructionReviewId: review.id,
+      status: { notIn: [...DESTRUCTION_TERMINAL_STATUSES] },
+    },
+    select: { id: true, startedAtUtc: true },
+  });
+  if (!active) {
+    // The holder reached a terminal state between the violation and this
+    // read. Nothing to continue and nothing to steal; the next tick mints a
+    // fresh execution if the review is still approved.
+    return null;
+  }
+
+  const leaseStartedAt = active.startedAtUtc;
+  const leaseExpired =
+    leaseStartedAt === null ||
+    Date.now() - leaseStartedAt.getTime() > DESTRUCTION_EXECUTION_LEASE_MS;
+  if (!leaseExpired) return null;
+
+  const takenOver = await prisma.destructionExecution.updateMany({
+    where: {
+      id: active.id,
+      status: { notIn: [...DESTRUCTION_TERMINAL_STATUSES] },
+      // Pinning the observed stamp is what makes the takeover exclusive: a
+      // second reclaimer sees a stamp that has already moved and updates
+      // zero rows.
+      startedAtUtc: leaseStartedAt,
+    },
+    data: {
+      attemptCount: { increment: 1 },
+      startedAtUtc: new Date(),
+      // Refresh the correlation id on retry so each attempt is independently
+      // traceable while the prior attempt's id remains in the lifecycle
+      // ledger.
+      metadata,
+    },
+  });
+  return takenOver.count === 1 ? { id: active.id } : null;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError &&
+    err.code === "P2002"
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
@@ -402,42 +507,45 @@ async function gatherDestructionFacts(
     select: {
       lifecycleState: true,
       teamId: true,
-      caseId: true,
+      // PHASE 12B — Evidence.caseId is removed; CaseEvidenceLink is the ONE
+      // relationship authority. A hold on ANY linked case blocks destruction.
+      caseLinks: { select: { caseId: true } },
       retentionPolicyVersionId: true,
     },
   });
-  const lifecycleState = (ev?.lifecycleState ??
-    "ACTIVE") as EvidenceLifecycleState;
-
-  const directHold = await prisma.evidenceLegalHold.findFirst({
-    where: { evidenceId, status: prismaPkg.LegalHoldStatus.ACTIVE },
-    select: { id: true },
-  });
-
-  // Phase R6 (F39) — also honour a Phase-4B `LegalHold` (EVIDENCE/WORKSPACE/
-  // ORGANIZATION/CASE scope) placed via the live `/lifecycle/legal-holds` UI.
-  // That surface never writes an EvidenceLegalHold row, so without this the
-  // executor would tombstone evidence under an active 4B hold. Folded into
-  // `hasActiveDirectHold` so the existing gate blocks with reason "hold".
-  const has4BHold = await hasActiveLifecycleLegalHold(prisma, {
-    evidenceId,
-    teamId: ev?.teamId ?? null,
-    caseId: ev?.caseId ?? null,
-  });
-
-  let caseHold: { id: string } | null = null;
-  if (ev?.caseId) {
-    caseHold = await prisma.caseLegalHold.findFirst({
-      where: {
-        caseId: ev.caseId,
-        status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
-      },
-      select: { id: true },
-    });
+  // A missing evidence row must NOT be read as "ACTIVE, nothing blocking".
+  // That default was a fail-open: an id that resolves to nothing produced a
+  // fact set the canonical gate happily allows, and the run only stopped
+  // later, incidentally, when the tombstone UPDATE threw. Refuse here, where
+  // the fact is known, rather than relying on a downstream accident.
+  if (!ev) {
+    throw new Error(
+      `destruction facts unavailable: evidence ${evidenceId} does not exist`,
+    );
   }
+  const lifecycleState = ev.lifecycleState as EvidenceLifecycleState;
+  const linkedCaseIds = ev.caseLinks.map((l) => l.caseId);
+
+  // PHASE 12B CLUSTER 8 — ONE union evaluator replaces the three separate
+  // per-store lookups that used to live here (evidence-direct, case-level,
+  // scope-generic lifecycle). It reads all three stores and FAILS CLOSED:
+  // a transient database failure throws out of `gatherDestructionFacts` and
+  // aborts the destruction run rather than reporting "no hold".
+  const effectiveHold = await evaluateEffectiveLegalHold(prisma, {
+    teamId: ev.teamId,
+    evidenceId,
+    caseIds: linkedCaseIds,
+    collectAll: true,
+  });
+  const hasCaseScopedHold = effectiveHold.matches.some(
+    (m) => m.scope === "CASE",
+  );
+  const hasNonCaseScopedHold = effectiveHold.matches.some(
+    (m) => m.scope !== "CASE",
+  );
 
   let immutable = false;
-  if (ev?.retentionPolicyVersionId) {
+  if (ev.retentionPolicyVersionId) {
     const v = await prisma.evidenceRetentionPolicyVersion.findUnique({
       where: { id: ev.retentionPolicyVersionId },
       select: { immutable: true },
@@ -447,8 +555,8 @@ async function gatherDestructionFacts(
 
   return {
     lifecycleState,
-    hasActiveDirectHold: Boolean(directHold) || has4BHold,
-    hasActiveCaseHold: Boolean(caseHold),
+    hasActiveDirectHold: hasNonCaseScopedHold,
+    hasActiveCaseHold: hasCaseScopedHold,
     immutable,
   };
 }

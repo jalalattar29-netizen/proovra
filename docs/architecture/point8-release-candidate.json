@@ -1,0 +1,40 @@
+{
+  "point8Step": "0.5-0.6 release-candidate identification",
+  "gitCommit": "36b871dcd926968128a800483980c94bf03f3297",
+  "gitBranch": "main",
+  "gitTreeClean": false,
+  "uncommittedEntries": 1356,
+  "apiBuildId": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+  "apiSourceFiles": 674,
+  "workerBuildId": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+  "workerSourceFiles": 127,
+  "webBuildId": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+  "webSourceFiles": 741,
+  "sharedPackagesDigest": "016507b740faaaa96358f46f98308df4b1fc2b020dd09da3e6db28a56cd1e46e",
+  "releaseCandidateId": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d",
+  "nextBuildIdOnDisk": "CAe8zv7WzecU48TntHenl",
+  "migrations": {
+    "onDisk": 222,
+    "trackedInHead": 204,
+    "untracked": [
+      "20270923500000_persona_profiles_removal_precondition",
+      "20271102000000_uuid_id_default_repair",
+      "20271103000000_case_evidence_link_canonical",
+      "20271104000000_case_evidence_link_integrity",
+      "20271105000000_evidence_case_id_removal",
+      "20271106000000_legal_hold_canonical",
+      "20271107000000_legal_hold_backfill",
+      "20271108000000_legal_hold_legacy_removal",
+      "20271109000000_workspace_governance_policy_version",
+      "20271110000000_exchange_download_authorization_semantics",
+      "20271111000000_step_up_session_organization_binding",
+      "20271112000000_point4_write_unblock_repair",
+      "20271113000000_point5_report_generation_authority",
+      "20271114000000_point5_media_intelligence_kind_catalog",
+      "20271115000000_point5_atomic_sweep_claims",
+      "20271117000000_point4_schema_authority_contract",
+      "20271118000000_legal_hold_strict_scope_target",
+      "20271119000000_search_document_embedding_after_extension"
+    ]
+  }
+}

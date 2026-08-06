@@ -404,7 +404,7 @@ export type CollaborationTeamAccessReviewDecision =
 // Mention parser — handle extraction + canonical tokens
 // =============================================================================
 
-const MENTION_HANDLE_RE = /(^|[\s(\[{])@([a-zA-Z0-9._-]{1,80})(?=$|[\s.,:;!?)\]}\n])/g;
+const MENTION_HANDLE_RE = /(^|[\s([{])@([a-zA-Z0-9._-]{1,80})(?=$|[\s.,:;!?)\]}\n])/g;
 /** Bounded special mention tokens recognised by the team mention parser. */
 export const COLLABORATION_TEAM_SPECIAL_MENTIONS = [
   "team",

@@ -1,6 +1,6 @@
 // D:\digital-witness\apps\mobile\app\(tabs)\teams.tsx
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors, spacing, typography } from "@proovra/ui";
+import { spacing, typography } from "@proovra/ui";
 import { BottomNav, Card, ListRow, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { useEffect, useState } from "react";

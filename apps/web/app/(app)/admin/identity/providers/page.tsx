@@ -18,11 +18,12 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
-import { useTeamId } from "../../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   errorBoxStyle,
   formatDateTime,
@@ -41,6 +42,7 @@ import { PageShell, PageHeader, PageSection } from "../../../../../components/ui
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { FederationReadinessSection } from "./_sections/FederationReadinessSection";
 
 type SsoProvider =
   | "GENERIC_OIDC"
@@ -94,11 +96,71 @@ const OIDC_PROVIDERS: SsoProvider[] = [
   "GOOGLE_WORKSPACE",
 ];
 
+/**
+ * PHASE 12B — a 403/404 from the server is a DENIAL, and a denial must never be
+ * rendered as "nothing here". `readDenial` classifies the sanitised error so the
+ * surface can show an explicit not-authorised / not-entitled panel instead of an
+ * empty state that invites the operator to "just create one".
+ */
+type Denial = { kind: "forbidden" | "not_found" | "entitlement"; detail: string };
+
+function readDenial(err: unknown): Denial | null {
+  const e = (err ?? {}) as { status?: unknown; statusCode?: unknown; code?: unknown };
+  const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
+  const code = typeof e.code === "string" ? e.code.toLowerCase() : "";
+  if (status === 402 || code.includes("enterprise_feature_required")) {
+    return {
+      kind: "entitlement",
+      detail:
+        "Single sign-on is part of the Enterprise plan. Your workspace's plan does not include it, so the server declined to return provider configuration.",
+    };
+  }
+  if (status === 403 || code === "forbidden" || code === "permission_denied") {
+    return {
+      kind: "forbidden",
+      detail:
+        "Your role in this workspace does not allow managing identity providers. Nothing was loaded and nothing was changed.",
+    };
+  }
+  if (status === 404 || code === "not_found") {
+    return {
+      kind: "not_found",
+      detail:
+        "This workspace's identity configuration is not available to your account. If you expected access, ask a workspace owner to grant it.",
+    };
+  }
+  return null;
+}
+
+function DenialPanel({ denial }: { denial: Denial }) {
+  return (
+    <Card
+      variant="status"
+      tone="risk"
+      padding="comfortable"
+      data-testid="providers-denied"
+      data-denial-kind={denial.kind}
+    >
+      <strong style={{ fontSize: 14 }}>
+        {denial.kind === "entitlement"
+          ? "Not included in this plan"
+          : "You don't have access to identity providers"}
+      </strong>
+      <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
+        {denial.detail}
+      </p>
+    </Card>
+  );
+}
+
 export default function ProvidersPage() {
   const teamId = useTeamId();
   const stepUp = useStepUpAction({ teamId });
+  const { confirm } = useConfirmAction();
+  const { stamp, isStale } = useTenantGuard();
   const [providers, setProviders] = useState<SsoConnection[] | null>(null);
   const [verifiedDomainCount, setVerifiedDomainCount] = useState<number>(0);
+  const [denial, setDenial] = useState<Denial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -114,92 +176,155 @@ export default function ProvidersPage() {
   });
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
 
-  
-const load = useCallback(() => {
+  // PHASE 12B — every await is bracketed by the tenant guard: a workspace
+  // switch mid-flight drops the result instead of painting another
+  // Organization's identity configuration into this one.
+  const load = useCallback(async () => {
     if (!teamId) return;
-    apiFetch(
-      `/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`,
-      { method: "GET" },
-    )
-      .then(
-        (r: {
-          providers: SsoConnection[];
-          verifiedDomainCount?: number;
-        }) => {
-          setProviders(r.providers ?? []);
-          setVerifiedDomainCount(r.verifiedDomainCount ?? 0);
-          setError(null);
-        },
-      )
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load providers." }).message),
+    const captured = stamp();
+    try {
+      const r = (await apiFetch(
+        `/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`,
+        { method: "GET" },
+      )) as { providers?: SsoConnection[]; verifiedDomainCount?: number };
+      if (isStale(captured)) return;
+      setProviders(r.providers ?? []);
+      setVerifiedDomainCount(r.verifiedDomainCount ?? 0);
+      setDenial(null);
+      setError(null);
+    } catch (err) {
+      if (isStale(captured)) return;
+      const d = readDenial(err);
+      if (d) {
+        setDenial(d);
+        setProviders([]);
+        setError(null);
+        return;
+      }
+      setDenial(null);
+      setError(
+        toSafeUserError(err, { message: "Could not load providers." }).message,
       );
-  }, [teamId]);
+      setProviders([]);
+    }
+  }, [teamId, stamp, isStale]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  // A one-time secret must never survive a workspace switch.
+  useEffect(() => {
+    setRevealedSecret(null);
+  }, [teamId]);
 
   const submitCreate = useCallback(async () => {
     if (!teamId) return;
     setBusy("create");
     setRevealedSecret(null);
+    setError(null);
+    const captured = stamp();
     try {
       const allowedEmailDomains = createForm.allowedEmailDomains
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-      const res = await apiFetch("/v1/admin/identity/providers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          provider: createForm.provider,
-          displayName: createForm.displayName,
-          issuerUrl: createForm.issuerUrl || undefined,
-          clientId: createForm.clientId || undefined,
-          clientSecret: createForm.clientSecret || undefined,
-          allowedEmailDomains,
-          jitDefaultRole: createForm.jitDefaultRole || undefined,
+      // Creating a connection installs a credential that can mint sessions for
+      // the whole workspace — it routes through step-up like every other
+      // sensitive identity mutation.
+      const res = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/admin/identity/providers", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            provider: createForm.provider,
+            displayName: createForm.displayName,
+            issuerUrl: createForm.issuerUrl || undefined,
+            clientId: createForm.clientId || undefined,
+            clientSecret: createForm.clientSecret || undefined,
+            allowedEmailDomains,
+            jitDefaultRole: createForm.jitDefaultRole || undefined,
+          }),
         }),
-      });
-      if (res?.clientSecretOnce) {
-        setRevealedSecret(res.clientSecretOnce as string);
+      )) as { clientSecretOnce?: unknown } | null;
+      if (isStale(captured)) return;
+      if (res && typeof res.clientSecretOnce === "string") {
+        setRevealedSecret(res.clientSecretOnce);
       }
       setShowCreate(false);
-      load();
+      // Never keep the submitted secret in form state after the write.
+      setCreateForm((p) => ({ ...p, clientSecret: "" }));
+      await load();
     } catch (err) {
-      setError(
-        toSafeUserError(err, { message: "Could not create connection." }).message,
-      );
+      if (isStale(captured)) return;
+      const code = (err as { code?: string })?.code;
+      if (code === "STEP_UP_CANCEL") {
+        setError("Step-up cancelled — no connection was created.");
+      } else {
+        setError(
+          toSafeUserError(err, { message: "Could not create connection." })
+            .message,
+        );
+      }
     } finally {
       setBusy(null);
     }
-  }, [teamId, createForm, load]);
+  }, [teamId, createForm, load, stepUp, stamp, isStale]);
 
   const transition = useCallback(
     async (id: string, nextStatus: string) => {
       if (!teamId) return;
+      // Disabling or revoking a live connection locks every user who signs in
+      // through it out of the workspace — confirm explicitly.
+      if (nextStatus === "REVOKED" || nextStatus === "DISABLED") {
+        const ok = await confirm({
+          title:
+            nextStatus === "REVOKED"
+              ? "Revoke this identity provider?"
+              : "Disable this identity provider?",
+          description:
+            nextStatus === "REVOKED"
+              ? "Revoking is permanent. Anyone who signs in through this provider will be unable to authenticate, and the connection cannot be re-activated — you would have to configure a new one."
+              : "While disabled, nobody can sign in through this provider. You can re-activate it later.",
+          confirmLabel:
+            nextStatus === "REVOKED" ? "Revoke provider" : "Disable provider",
+          tone: "danger",
+          testId: `provider-transition-${nextStatus.toLowerCase()}`,
+        });
+        if (!ok) return;
+      }
       setBusy(id);
+      setError(null);
+      const captured = stamp();
       try {
-        await apiFetch(
-          `/v1/admin/identity/providers/${encodeURIComponent(id)}/transition`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ teamId, nextStatus }),
-          },
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/admin/identity/providers/${encodeURIComponent(id)}/transition`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({ teamId, nextStatus }),
+            },
+          ),
         );
-        load();
+        if (isStale(captured)) return;
+        await load();
       } catch (err) {
-        setError(
-          toSafeUserError(err, { message: "Transition failed." }).message,
-        );
+        if (isStale(captured)) return;
+        const code = (err as { code?: string })?.code;
+        if (code === "STEP_UP_CANCEL") {
+          setError("Step-up cancelled — the provider was not changed.");
+        } else {
+          setError(
+            toSafeUserError(err, { message: "Transition failed." }).message,
+          );
+        }
       } finally {
         setBusy(null);
       }
     },
-    [teamId, load],
+    [teamId, load, stepUp, confirm, stamp, isStale],
   );
 
   const updatePolicy = useCallback(
@@ -215,6 +340,7 @@ const load = useCallback(() => {
       if (!teamId) return;
       setBusy(id);
       setError(null);
+      const captured = stamp();
       try {
         // The private key (if any) is sent write-only; the response projection
         // NEVER returns it back — we only re-read status + fingerprint.
@@ -224,15 +350,17 @@ const load = useCallback(() => {
             {
               method: "POST",
               headers: {
-                "Content-Type": "application/json",
+                "content-type": "application/json",
                 ...(headers ?? {}),
               },
               body: JSON.stringify({ teamId, ...patch }),
             },
           ),
         );
-        load();
+        if (isStale(captured)) return;
+        await load();
       } catch (err) {
+        if (isStale(captured)) return;
         const code = (err as { code?: string })?.code;
         if (code === "STEP_UP_CANCEL") {
           setError("Step-up cancelled — no changes were saved.");
@@ -247,7 +375,7 @@ const load = useCallback(() => {
         setBusy(null);
       }
     },
-    [teamId, stepUp, load],
+    [teamId, stepUp, load, stamp, isStale],
   );
 
   if (!teamId) {
@@ -301,11 +429,23 @@ const load = useCallback(() => {
         </div>
       ) : null}
 
-      <PageSection>
+      <PageSection
+        title="Readiness"
+        description="Whether each connection can actually sign someone in, which organization domains are DNS-verified, and whether this organization requires directory-managed identity. Every check is computed server-side."
+      >
+        <FederationReadinessSection teamId={teamId} />
+      </PageSection>
+
+      <PageSection
+        title="Connections"
+        description="Configuration and lifecycle for each identity provider."
+      >
         {providers === null ? (
-          <Card variant="summary" padding="comfortable">
-            <p style={mutedStyle}>Loading…</p>
+          <Card variant="summary" padding="comfortable" data-testid="providers-loading">
+            <p style={mutedStyle}>Loading identity providers…</p>
           </Card>
+        ) : denial ? (
+          <DenialPanel denial={denial} />
         ) : providers.length === 0 ? (
           <EmptyState
             framed

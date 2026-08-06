@@ -235,16 +235,12 @@ describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipelin
   // the legacy navigation-config file outright. The sidebar now renders
   // from the canonical ROUTE_REGISTRY. See
   // phase-32-8-foundation-platform-context.test.ts.
-  it.skip("imports the canonical navigation source (not inline nav arrays)", () => {});
-
   it("does NOT define its own PRIMARY_NAV / OPERATIONS_NAV_BASE / GOVERNANCE_NAV_BASE / ADMIN_NAV arrays", () => {
     expect(SIDEBAR).not.toMatch(/const PRIMARY_NAV/);
     expect(SIDEBAR).not.toMatch(/const OPERATIONS_NAV_BASE/);
     expect(SIDEBAR).not.toMatch(/const GOVERNANCE_NAV_BASE/);
     expect(SIDEBAR).not.toMatch(/const ADMIN_NAV/);
   });
-
-  it.skip("calls selectNavigationGroups exactly once with the visibility context", () => {});
 
   it("renders groups via a single map over the canonical group tree", () => {
     expect(SIDEBAR).toMatch(/groups\.map\(\(group\)\s*=>/);
@@ -256,7 +252,6 @@ describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipelin
     expect(SIDEBAR).toMatch(/ariaLabel:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/);
   });
 
-  it.skip("still resolves role from useActiveWorkspaceId fallback (Phase 32.6.4 preserved)", () => {});
 });
 
 // =============================================================================
@@ -287,15 +282,16 @@ describe("Phase 32.8B — no-regression invariants", () => {
     expect(SIDEBAR).toMatch(/href="\/support"/);
   });
 
-  it("preserves backend-canonical role enum surface (Phase 32.6.4)", () => {
-    // The visibility predicate still accepts the bounded role enum.
-    // The shape lives in workspace-profile.ts (SidebarVisibility).
-    // Phase 38.6 — the `SidebarVisibility` consumer assertion was
-    // dropped with the deleted navigation-config; the canonical
-    // routeRegistry gates access via `requiredCapabilities`, not the
-    // SidebarVisibility role/profile shape.
-    const PROFILE_SRC = readWeb("lib/workspace-profile.ts");
-    expect(PROFILE_SRC).toMatch(/roles\?:\s*ReadonlyArray<WorkspaceRole>/);
+  it("preserves backend-canonical capability gating (Phase 32.6.4 → 38.6)", () => {
+    // PHASE 12 POINT 4 PASS D/G — repointed to the LIVE authority.
+    //
+    // This asserted a `roles?: ReadonlyArray<WorkspaceRole>` field inside
+    // `lib/workspace-profile.ts` — a module with zero importers, deleted in
+    // this pass. Phase 38.6 had already moved the real gate to the route
+    // registry's `requiredCapabilities`, so the surviving pin described a
+    // shape nothing consumed. The registry is asserted instead.
+    const REGISTRY_SRC = readWeb("lib/navigation/routeRegistry.ts");
+    expect(REGISTRY_SRC).toMatch(/requiredCapabilities/);
   });
 
   // OBSOLETE — Phase 38.6 removed navigation-config. Governance role
@@ -303,14 +299,10 @@ describe("Phase 32.8B — no-regression invariants", () => {
   // sidebar-item tuples; the routeRegistry gates via
   // `requiredCapabilities` (e.g. GOVERNANCE_ACT / RETENTION_MANAGE) and
   // server-side enforcement. Covered by the route-authz tests.
-  it.skip("never weakens governance role gating (removed with navigation-config)", () => {});
-
   // OBSOLETE — Phase 38.6 removed navigation-config. Platform-admin
   // gating is no longer a `requiresPlatformAdmin: true` nav-item flag;
   // the routeRegistry entry `platform.admin` requires the
   // PLATFORM_ADMIN capability + PLATFORM_ADMIN active space.
-  it.skip("Platform Admin entry requires platform admin (removed with navigation-config)", () => {});
-
   it("no #anchor href on any nav item (Phase 32.5 anchor-link cleanup preserved)", () => {
     // Settings IA refactor (2026-07-17): the unified /settings workspace
     // deliberately uses SECTION anchors for its merged child routes —

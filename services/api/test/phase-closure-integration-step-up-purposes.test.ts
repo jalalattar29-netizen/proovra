@@ -43,6 +43,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -134,7 +135,6 @@ describe("Phase 4 closure — STEP_UP_PURPOSES registers the new integration pur
     );
     // Walk the migrations dir and confirm none mention the new
     // purposes (a SQL-level enum addition would land in a migration).
-    const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
     const subdirs = readdirSync(migrationsDir).filter((name: string) => {
       try {
         return statSync(`${migrationsDir}/${name}`).isDirectory();

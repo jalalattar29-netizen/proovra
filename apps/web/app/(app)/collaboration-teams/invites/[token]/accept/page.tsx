@@ -27,7 +27,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { ProovraSystemState } from "../../../../../../components/feedback/ProovraSystemState";
@@ -101,13 +101,7 @@ function AcceptTeamInvite() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const startedRef = useRef(false);
 
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    void run();
-  }, []);
-
-  async function run() {
+  const run = useCallback(async () => {
     // 1. Quick client-side shape check — fail fast on obviously
     // malformed tokens (helps avoid an extra backend round-trip).
     if (!isWellFormedCollaborationTeamInviteToken(rawToken)) {
@@ -164,7 +158,15 @@ function AcceptTeamInvite() {
         setErrorMessage("We couldn't complete that action. Please try again.");
       }
     }
-  }
+  }, [rawToken, router, addToast]);
+
+  // Acceptance is a ONE-SHOT mutation: `startedRef` makes it idempotent, so
+  // listing `run` cannot produce a second accept even if its identity changes.
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    void run();
+  }, [run]);
 
   return (
     <main

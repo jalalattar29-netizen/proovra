@@ -672,7 +672,7 @@ export async function markPartVerified(
     const claimed = row.client_sha256;
     if (claimed && claimed !== input.serverSha256) {
       bump("upload_hash_mismatch_total");
-      const failed = (await client.$queryRawUnsafe(
+      await client.$queryRawUnsafe(
         `UPDATE "evidence_upload_session_parts"
            SET "state" = 'FAILED',
                "server_sha256" = $4,
@@ -687,7 +687,7 @@ export async function markPartVerified(
         input.teamId,
         input.partIndex,
         input.serverSha256,
-      )) as RawPart[];
+      );
       safeEmitSecurityEvent({
         teamId: input.teamId,
         eventType: "upload_part_hash_mismatch",

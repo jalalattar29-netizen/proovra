@@ -1,5 +1,4 @@
 import { createPublicKey, createVerify } from "node:crypto";
-import { randomUUID } from "node:crypto";
 import { importPKCS8, SignJWT } from "jose";
 import { prisma } from "../db.js";
 import * as prismaPkg from "@prisma/client";

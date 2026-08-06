@@ -93,6 +93,17 @@ export type CollaborationTeamDetail = {
   updatedAt: string;
   archivedAtUtc: string | null;
   viewerRole: CollaborationTeamRole;
+  /**
+   * PHASE 12 POINT 4 STEP 1 — SERVER-projected viewer authority, computed by
+   * the same predicates the collaboration-team gates enforce. Optional on the
+   * wire type ONLY so a degraded response is representable; every consumer
+   * treats an absent block as "no authority" (fail closed).
+   */
+  viewerCapabilities?: {
+    canModerateComments: boolean;
+    canManageGuests: boolean;
+    canManageAccessReviews: boolean;
+  };
   members: ReadonlyArray<CollaborationTeamMember>;
   invites: ReadonlyArray<CollaborationTeamInvite>;
   assignmentCount: number;

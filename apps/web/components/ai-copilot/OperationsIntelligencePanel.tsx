@@ -1,4 +1,5 @@
 "use client";
+import { formatUserTime } from "../../lib/date";
 
 /**
  * Phase P7 (UI) — Operations Intelligence: bounded operational summaries over
@@ -121,7 +122,7 @@ function SnapshotRow({ s }: { s: Snapshot }) {
       <span className="app-chip">OTS pending: {s.otsPendingCount}</span>
       <span className="app-chip">Signed w/o report: {s.signedWithoutReportCount}</span>
       <span className="app-chip">Open reviews: {s.openReviewWorkflowCount}</span>
-      <span style={{ opacity: 0.6 }}>as of {new Date(s.snapshotAtUtc).toLocaleTimeString()}</span>
+      <span style={{ opacity: 0.6 }}>as of {formatUserTime(s.snapshotAtUtc)}</span>
     </div>
   );
 }

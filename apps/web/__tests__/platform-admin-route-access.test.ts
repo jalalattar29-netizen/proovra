@@ -39,8 +39,7 @@ function routeById(id: string) {
 }
 
 const PLATFORM_ADMIN_CTX: SurfaceUserContext = {
-  plan: "FREE",
-  role: "OWNER",
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false },
   isPlatformAdmin: true,
   isEnterpriseWorkspace: false,
 };
@@ -48,8 +47,7 @@ const PLATFORM_ADMIN_CTX: SurfaceUserContext = {
 // A non-platform user on a plain (non-enterprise) plan — so ENTERPRISE and
 // INTERNAL surface tiers both deny them.
 const NON_PLATFORM_CTX: SurfaceUserContext = {
-  plan: "PRO",
-  role: "OWNER",
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
 };

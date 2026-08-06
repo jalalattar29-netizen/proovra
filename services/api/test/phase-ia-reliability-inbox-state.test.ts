@@ -189,7 +189,7 @@ describe("Phase IA-reliability — read/unread/dismiss/snooze endpoints", () => 
       /INBOX_ITEM_KEY_PREFIXES\.has\(sourceType\)/,
     );
     // Right-hand pattern check.
-    expect(ROUTES).toMatch(/\^\[A-Za-z0-9_\.\:-\]\+\$/);
+    expect(ROUTES).toMatch(/\^\[A-Za-z0-9_\.:-\]\+\$/);
     // Bounded length.
     expect(ROUTES).toMatch(/itemKey\.length\s*>\s*200/);
   });

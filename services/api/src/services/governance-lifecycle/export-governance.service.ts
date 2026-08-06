@@ -50,7 +50,11 @@ export async function checkExportEligibility(
 ): Promise<ExportEligibilityResult> {
   const ev = await client.evidence.findFirst({
     where: { id: input.evidenceId, teamId: input.teamId },
-    select: { id: true, caseId: true, lifecycleState: true },
+    select: {
+      id: true,
+      lifecycleState: true,
+      caseLinks: { select: { caseId: true }, take: 100 },
+    },
   });
   if (!ev) {
     return {
@@ -69,12 +73,16 @@ export async function checkExportEligibility(
     },
     select: { id: true },
   });
+  // Track 1B closure — a hold on ANY linked case blocks the export.
   let caseHold: { id: string } | null = null;
-  if (!directHold && ev.caseId) {
-    caseHold = await client.caseLegalHold.findFirst({
+  const linkedCaseIds = ev.caseLinks.map((l) => l.caseId);
+  if (!directHold && linkedCaseIds.length > 0) {
+    // PHASE 12 POINT 3 — canonical-only (scope=CASE).
+    caseHold = await client.evidenceLegalHold.findFirst({
       where: {
-        caseId: ev.caseId,
-        status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
+        scope: prismaPkg.LegalHoldScope.CASE,
+        caseId: { in: linkedCaseIds },
+        status: prismaPkg.LegalHoldStatus.ACTIVE,
       },
       select: { id: true },
     });

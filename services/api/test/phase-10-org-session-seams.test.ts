@@ -47,12 +47,30 @@ describe("§2.9 — establishOrganizationSessionContext callers are LOCKED", () 
     expect(offenders).toEqual([]);
   });
 
-  it("no route implements its own concurrent-session count/limit logic", () => {
+  it("no route implements its own concurrent-session ENFORCEMENT", () => {
+    // The invariant is about the DECISION, not about the word: a route may
+    // never decide whether a session is allowed, because that decision lives
+    // in `establishOrganizationSessionContext`.
+    //
+    // `/v1/identity-security/session-policy-impact` legitimately READS the
+    // configured limit to render a read-only "who would be affected if you
+    // changed this" projection. It gates nothing — it is the admin preview of
+    // a decision the authority will make. Reading a policy value for display
+    // is not re-implementing the policy, so the check below bans the
+    // enforcement shapes rather than the mention.
+    const PROJECTION_ONLY = new Set(["identity-security.routes.ts"]);
     for (const f of walkTs(resolve(API, "src/routes"))) {
       const src = readFileSync(f, "utf8");
-      // Routes must delegate to the authority, never read the limit or count sessions themselves.
-      expect(src).not.toMatch(/\.concurrentSessionLimit\b/);
-      expect(src).not.toMatch(/authenticatedSession\.count\(/);
+      const base = f.split(/[\\/]/).pop() ?? "";
+      // Nobody counts sessions to decide anything.
+      expect(src, base).not.toMatch(/authenticatedSession\.count\(/);
+      // Nobody turns the limit into an allow/deny.
+      expect(src, base).not.toMatch(
+        /concurrentSessionLimit[\s\S]{0,120}(reply\.code\(4\d\d\)|throw new)/,
+      );
+      if (!PROJECTION_ONLY.has(base)) {
+        expect(src, base).not.toMatch(/\.concurrentSessionLimit\b/);
+      }
     }
   });
 });

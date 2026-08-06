@@ -32,7 +32,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import { apiFetch, ApiError } from "../../../../../lib/api";
-import { ALL_ORG_ROLES, ORG_ROLE_LABEL, type OrgRole } from "./_lib/orgRoles";
+import { ORG_ROLE_LABEL, type OrgRole } from "./_lib/orgRoles";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror /v1/orgs/:id (Phase A.1B / Phase 4A canonical shape).
@@ -48,6 +48,13 @@ type OrgHeader = {
   legalName: string | null;
   status: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
   callerRole: OrgRole;
+  /**
+   * SERVER-projected org-admin surface ids this caller may SEE
+   * (`listOrgAdminSurfaces`). Optional on the wire type ONLY so a degraded
+   * response is representable — an absent/empty list renders NO tabs
+   * (fail closed), never the full set.
+   */
+  adminSurfaces?: ReadonlyArray<string>;
   summary: {
     memberCount: number;
     workspaceCount: number;
@@ -76,25 +83,21 @@ interface AdminTab {
   label: string;
   /** One-line subtitle, used for the breadcrumb area on the leaf page. */
   description: string;
-  /**
-   * Org roles that may SEE this tab. This is the VISIBILITY layer only —
-   * the backend enforces the real access decision on every endpoint (a
-   * hidden tab's data is still protected server-side). Kept as an explicit
-   * allowlist rather than a `minRole` rank because ORG_SECURITY_ADMIN and
-   * ORG_BILLING_ADMIN are peer specialists (same rank) with DISJOINT
-   * surfaces: security-admin sees security/domains but NOT billing;
-   * billing-admin sees billing but NOT security/domains.
-   */
-  roles: ReadonlyArray<OrgRole>;
 }
 
-// Role bundles — named so the per-tab allowlists read as intent.
-// ORG_OWNER + ORG_ADMIN are the full-breadth admins; the specialists and
-// the auditor are additive on top for their own surfaces.
-const FULL_ADMINS: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN"];
-// Every role — used for read-only reference/overview surfaces that any org
-// member may see (the data itself stays backend-gated).
-const EVERY_ROLE: ReadonlyArray<OrgRole> = ALL_ORG_ROLES;
+// PHASE 12 POINT 4 STEP 1 — the per-tab `roles` allowlist and
+// `visibleAdminTabsForRole` were REMOVED from the browser.
+//
+// Which org role may SEE which administration surface is an authorization
+// question, and the client answer failed OPEN: while the org-header request
+// was in flight the shell rendered the FULL tab set to every role. The table
+// now lives beside `checkOrgAccess` in
+// `services/api/src/services/organization/org-access.ts`
+// (`ORG_ADMIN_SURFACE_ACCESS` / `listOrgAdminSurfaces`) and arrives on the
+// same response that already carried `callerRole`, as `adminSurfaces`.
+//
+// What stays here is presentation: each tab's label, segment and
+// description. A tab renders only when the server named its id.
 
 /**
  * Enterprise-Admin tab set, ordered into a single coherent grouping:
@@ -116,8 +119,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     segment: "overview",
     label: "Overview",
     description: "Posture summary across members, governance, and trust.",
-    // Read-only landing — every org role (incl. auditor + member) sees it.
-    roles: EVERY_ROLE,
   },
   // ---- Organization (people, roles, structure) ----
   {
@@ -126,14 +127,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Members",
     description:
       "Members, roles, and pending invites. Backed by /v1/orgs/:id/members.",
-    // Mutation is ORG_ADMIN+; specialists + auditor get read-only identity.
-    roles: [
-      "ORG_OWNER",
-      "ORG_ADMIN",
-      "ORG_SECURITY_ADMIN",
-      "ORG_BILLING_ADMIN",
-      "ORG_AUDITOR",
-    ],
   },
   {
     id: "roles",
@@ -141,8 +134,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Roles & permissions",
     description:
       "Reference for the six built-in org roles and their capabilities. Assignment happens on Members.",
-    // Read-only reference for every org role.
-    roles: EVERY_ROLE,
   },
   {
     id: "departments",
@@ -150,7 +141,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Departments",
     description:
       "Department directory summary. Canonical CRUD lives in Governance Platform.",
-    roles: FULL_ADMINS,
   },
   {
     id: "integrations",
@@ -158,7 +148,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "API & integrations",
     description:
       "Per-workspace API keys + webhook endpoints. Deep-links to the canonical integrations portal.",
-    roles: FULL_ADMINS,
   },
   // ---- Billing ----
   {
@@ -167,9 +156,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Billing & seats",
     description:
       "Enterprise plan + seat rollup across workspaces. Requires ORG_BILLING_ADMIN or higher.",
-    // Billing-admin specialist + full admins. Auditor gets read visibility
-    // (the rollup endpoint permits ORG_AUDITOR read). NOT security-admin.
-    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR"],
   },
   // ---- Security & identity ----
   {
@@ -178,9 +164,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Security",
     description:
       "Org security readiness (MFA / SSO / SCIM). Configuration lives in admin/identity.",
-    // Security-admin specialist + full admins. Auditor gets read. NOT
-    // billing-admin.
-    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"],
   },
   {
     id: "domains",
@@ -188,7 +171,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Domains",
     description:
       "Verified email domains (DNS TXT). Gate SSO + auto-associate members.",
-    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"],
   },
   // ---- Governance ----
   {
@@ -197,12 +179,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Governance",
     description:
       "Policy posture summary. Canonical policy CRUD lives in Governance Platform.",
-    roles: [
-      "ORG_OWNER",
-      "ORG_ADMIN",
-      "ORG_SECURITY_ADMIN",
-      "ORG_AUDITOR",
-    ],
   },
   {
     id: "access-reviews",
@@ -210,12 +186,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Access reviews",
     description:
       "Active access-review campaigns. Canonical campaign runner lives in Governance Platform.",
-    roles: [
-      "ORG_OWNER",
-      "ORG_ADMIN",
-      "ORG_SECURITY_ADMIN",
-      "ORG_AUDITOR",
-    ],
   },
   {
     id: "retention",
@@ -223,12 +193,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Retention & Legal hold",
     description:
       "Retention + legal hold posture. Canonical workflows live in Evidence Lifecycle.",
-    roles: [
-      "ORG_OWNER",
-      "ORG_ADMIN",
-      "ORG_SECURITY_ADMIN",
-      "ORG_AUDITOR",
-    ],
   },
   // ---- Phase 8 — Enterprise Production Readiness ----
   {
@@ -237,8 +201,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Bulk invite",
     description:
       "Invite many members at once (paste or CSV) with validation, dry-run preview, and partial-success handling.",
-    // Member provisioning — full admins only (ORG_ADMIN+ enforced server-side).
-    roles: ["ORG_OWNER", "ORG_ADMIN"],
   },
   {
     id: "reports",
@@ -246,8 +208,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Reports",
     description:
       "Operational report CSV exports — members, seats, audit, governance, external access. Real data only.",
-    // Auditor-tier read; seats export additionally needs billing-admin (gated per-endpoint).
-    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR"],
   },
   {
     id: "readiness",
@@ -255,7 +215,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Readiness",
     description:
       "Organization operational readiness — status, SSO/integration health, evidence-operations signals.",
-    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"],
   },
   // ---- Audit ----
   {
@@ -264,8 +223,6 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Audit",
     description:
       "Org governance audit timeline. Federated feed lives in Audit & Transparency.",
-    // Read timeline is any org member; auditor is the specialist here.
-    roles: EVERY_ROLE,
   },
   // ---- Trust ----
   {
@@ -274,19 +231,22 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     label: "Trust Center",
     description:
       "Trust Center + subprocessors summary. Canonical pages live in Trust Center.",
-    roles: EVERY_ROLE,
   },
 ];
 
 /**
- * Pure visibility filter — the tabs an org role may SEE. Exported so the
- * per-role visibility contract test can assert it without a DOM runtime.
- * Presentation only; the backend remains the authoritative gate.
+ * Project the SERVER's `adminSurfaces` list onto the presentation table,
+ * preserving the canonical tab order declared above.
+ *
+ * Exported so the visibility contract test can assert it without a DOM
+ * runtime. Fails closed: an absent or empty projection yields NO tabs.
  */
-export function visibleAdminTabsForRole(
-  role: OrgRole,
+export function visibleAdminTabsForSurfaces(
+  surfaces: ReadonlyArray<string> | undefined | null,
 ): ReadonlyArray<AdminTab> {
-  return ADMIN_TABS.filter((tab) => tab.roles.includes(role));
+  if (!surfaces || surfaces.length === 0) return [];
+  const allowed = new Set(surfaces);
+  return ADMIN_TABS.filter((tab) => allowed.has(tab.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -331,14 +291,15 @@ export default function OrganizationAdminLayout({
 
   const activeSegment = resolveActiveSegment(pathname, orgId);
 
-  // Role-based tab visibility. Until the caller's role resolves (loading /
-  // error), show the full set so the shell never flashes an empty tab bar;
-  // once we know the role, filter to what that role may see. The backend
-  // still gates every leaf endpoint, so this is presentation only.
+  // PHASE 12 POINT 4 STEP 1 — render exactly the surfaces the SERVER named.
+  // While the org-header request is in flight or has failed there is no
+  // projection,
+  // so the tab bar is EMPTY (fail closed) rather than the full set. The
+  // backend gates every leaf endpoint either way.
   const visibleTabs =
     state.kind === "ready"
-      ? visibleAdminTabsForRole(state.data.callerRole)
-      : ADMIN_TABS;
+      ? visibleAdminTabsForSurfaces(state.data.adminSurfaces)
+      : [];
 
   return (
     <main

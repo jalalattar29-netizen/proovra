@@ -9,7 +9,6 @@ import {
 } from "./types.js";
 import { formatBytesHuman, safe } from "./formatters.js";
 import { mapEvidenceAssetKindLabel } from "./normalizers.js";
-import { isExplicitReviewerArtifactRoleSource } from "@proovra/shared";
 
 type ParsedFingerprintSummary = {
   multipart: boolean;

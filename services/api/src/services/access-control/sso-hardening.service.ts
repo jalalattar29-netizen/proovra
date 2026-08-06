@@ -32,7 +32,6 @@ import type {
 import {
   SSO_CALLBACK_STATE_TTL_SECONDS,
   isSafeRedirectAfter,
-  type SsoCallbackAttemptStatus,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -190,14 +189,50 @@ export async function consumeCallbackAttempt(
   if (row.status !== "PENDING") {
     return { ok: false, reason: "ALREADY_FAILED" };
   }
-  const updated = await client.ssoCallbackAttempt.update({
-    where: { id: row.id },
+
+  // -------------------------------------------------------------------------
+  // PHASE 12B — ATOMIC single-use claim (replay-protection keystone).
+  //
+  // The previous implementation did findUnique → update, so TWO concurrent
+  // callbacks carrying the SAME state both observed `PENDING` and both
+  // "consumed" it: the OIDC/RelayState token was effectively reusable inside
+  // the race window. The claim is now a state-preconditioned `updateMany`
+  // (status: PENDING); exactly ONE writer can match. The loser is treated as
+  // a REPLAY — flagged, audited, denied — never as a successful consume.
+  // -------------------------------------------------------------------------
+  const claim = await client.ssoCallbackAttempt.updateMany({
+    where: { id: row.id, status: "PENDING" },
     data: {
       status: "CONSUMED",
       consumedAtUtc: new Date(),
       consumedByUserId: input.consumedByUserId ?? null,
     },
   });
+  if (claim.count !== 1) {
+    await client.ssoCallbackAttempt
+      .update({
+        where: { id: row.id },
+        data: { status: "REPLAYED", replayDetectedAtUtc: new Date() },
+      })
+      .catch(() => null);
+    bump("sso_callback_replay_total");
+    bump("session_replay_detected_total");
+    safeEmitSecurityEvent({
+      teamId: row.teamId,
+      eventType: "sso_callback_replay_detected",
+      severity: "HIGH",
+      details: {
+        ssoConnectionId: row.ssoConnectionId,
+        reason: "concurrent_state_claim_lost",
+      },
+    });
+    return { ok: false, reason: "REPLAYED" };
+  }
+
+  const updated = await client.ssoCallbackAttempt.findUnique({
+    where: { id: row.id },
+  });
+  if (!updated) return { ok: false, reason: "NOT_FOUND" };
   return { ok: true, attempt: updated };
 }
 

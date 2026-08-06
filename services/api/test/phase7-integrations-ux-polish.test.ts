@@ -605,7 +605,7 @@ describe("PHASE 7 — no raw-JSON regressions", () => {
     // JSON.stringify. Pin so a future regression that did so would
     // fail.
     expect(PAGE).not.toMatch(
-      /JSON\.stringify\(\s*err[\)\s.]/,
+      /JSON\.stringify\(\s*err[)\s.]/,
     );
   });
 });

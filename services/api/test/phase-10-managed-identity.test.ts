@@ -19,6 +19,7 @@ const H = vi.hoisted(() => ({
   throwCode: null as string | null,
   throwMessage: null as string | null,
   conn: null as { status: string; team: { organizationId: string | null } | null } | null,
+  policies: [] as Array<{ organizationId: string; noPersonalSpace: boolean }>,
 }));
 
 vi.mock("../src/db.js", () => ({
@@ -36,6 +37,12 @@ vi.mock("../src/db.js", () => ({
     ssoConnection: {
       findUnique: async () => H.conn,
     },
+    // PHASE 12 POINT 7 — the personal-space decision reads the Organization's
+    // `noPersonalSpace` policy alongside the identity mode. `H.policies` is
+    // empty by default so this suite keeps measuring the identity-mode rule.
+    organizationSecurityPolicy: {
+      findMany: async () => H.policies,
+    },
   },
 }));
 
@@ -51,6 +58,7 @@ beforeEach(() => {
   H.throwCode = null;
   H.throwMessage = null;
   H.conn = null;
+  H.policies = [];
 });
 
 describe("Phase 10 — identity mode resolution (owner + source integrity)", () => {
@@ -128,10 +136,24 @@ describe("Phase 10 — bootstrap + export guards (source contract)", () => {
   const apiSrc = (rel: string) =>
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", rel), "utf8");
 
-  it("ensurePersonalWorkspace guards on personalSpaceAllowed (denies MANAGED + UNRESOLVED)", () => {
+  it("ensurePersonalWorkspace guards on the ONE personal-space decision (denies MANAGED + UNRESOLVED)", () => {
+    // STALE_SOURCE_PIN, replaced. POINT 7 CORRECTIVE PASS moved this gate
+    // ABOVE the existing-row fast path — it used to guard CREATION only, so a
+    // grandfathered Personal Space was still handed back to every caller — and
+    // routed it through `resolvePersonalSpaceEligibility`, the one decision,
+    // which also carries the Organization `noPersonalSpace` rule. The property
+    // being pinned is unchanged and now stronger: the bootstrap consults the
+    // canonical decision, and both bounded denial codes are reachable.
     const src = apiSrc("services/platform-context/workspace-bootstrap.service.ts");
-    expect(src).toContain("personalSpaceAllowed(input.userId, client)");
+    expect(src).toContain("resolvePersonalSpaceEligibility(userId, client)");
     expect(src).toContain("MANAGED_IDENTITY_NO_PERSONAL_SPACE");
+    expect(src).toContain("ORG_POLICY_NO_PERSONAL_SPACE");
+    // The gate precedes the fast path — the whole point of the correction.
+    const gateAt = src.indexOf("assertPersonalSpaceAllowedForBootstrap(input.userId");
+    const fastPathAt = src.indexOf("const existing = await client.team.findFirst");
+    expect(gateAt).toBeGreaterThan(-1);
+    expect(fastPathAt).toBeGreaterThan(-1);
+    expect(gateAt).toBeLessThan(fastPathAt);
   });
 
   it("the personal data-export route fails closed for managed identities BEFORE step-up", () => {

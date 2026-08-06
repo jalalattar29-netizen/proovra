@@ -120,7 +120,7 @@ describe("Phase F — governance read endpoints are gated + audit-free", () => {
     for (const tag of newHandlers) {
       const block = ROUTE_SRC.match(
         new RegExp(
-          `${tag.replace(/[\/:]/g, "\\$&")}[\\s\\S]*?\\}\\s*,\\s*\\)\\s*;`,
+          `${tag.replace(/[/:]/g, "\\$&")}[\\s\\S]*?\\}\\s*,\\s*\\)\\s*;`,
         ),
       );
       expect(block, `handler for ${tag}`).toBeTruthy();
@@ -133,7 +133,7 @@ describe("Phase F — governance read endpoints are gated + audit-free", () => {
     for (const tag of newHandlers) {
       const block = ROUTE_SRC.match(
         new RegExp(
-          `${tag.replace(/[\/:]/g, "\\$&")}[\\s\\S]*?\\}\\s*,\\s*\\)\\s*;`,
+          `${tag.replace(/[/:]/g, "\\$&")}[\\s\\S]*?\\}\\s*,\\s*\\)\\s*;`,
         ),
       );
       expect(block).toBeTruthy();
@@ -190,7 +190,15 @@ describe("Phase F — destruction impact preview payload", () => {
     // relation (it doesn't exist in the schema). It queries
     // CaseEvidenceLink → caseLegalHold by caseId IN (...).
     expect(ROUTE_SRC).toMatch(/caseEvidenceLink\.findMany/);
-    expect(ROUTE_SRC).toMatch(/caseLegalHold\.findMany[\s\S]*?caseId:\s*\{\s*in:/);
+    // PHASE 12 POINT 3 — the inherited-hold lookup reads the ONE canonical
+    // table. The invariant is unchanged and still the point of this test: the
+    // linked case ids come from CaseEvidenceLink and are passed as `caseId IN
+    // (...)`, so a hold on ANY linked case is inherited by the evidence.
+    expect(ROUTE_SRC).toMatch(
+      /evidenceLegalHold\.findMany[\s\S]*?caseId:\s*\{\s*in:/,
+    );
+    expect(ROUTE_SRC).toMatch(/scope: "CASE"/);
+    expect(ROUTE_SRC).not.toMatch(/caseLegalHold\.findMany/);
   });
 });
 

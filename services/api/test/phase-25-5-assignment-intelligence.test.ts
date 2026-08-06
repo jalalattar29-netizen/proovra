@@ -35,7 +35,6 @@ import {
   evaluateReviewerEligibility,
   evaluateTeamBalance,
   rankReviewerSuggestions,
-  type AssignmentIneligibilityCode,
   type ReviewerCandidate,
   type WorkflowAssignmentFacts,
 } from "@proovra/shared";
@@ -706,6 +705,3 @@ describe("Phase 25.5 — cross-engine invariants", () => {
     }
   });
 });
-
-// Avoid unused-import lint noise on the type-only imports.
-type _AssignmentIneligibilityCheck = AssignmentIneligibilityCode;

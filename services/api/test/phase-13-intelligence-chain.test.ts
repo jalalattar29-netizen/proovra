@@ -50,6 +50,8 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
+import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
 
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
@@ -237,15 +239,44 @@ describe("Phase 13 TIMELINE_UNION_EXTEND — extracted-text and entity events", 
 // ===========================================================================
 
 describe("Phase 13 DOC/TRANSCRIPT_SIMILARITY_WORKER — single shared handler in existing processor", () => {
-  it("services/worker/src/queue.ts extends MediaIntelligenceJobPayload with textKind: 'OCR' | 'TRANSCRIPT'", () => {
-    const src = readSrc(WORKER_QUEUE);
-    expect(src).toMatch(/textKind\?\s*:\s*"OCR"\s*\|\s*"TRANSCRIPT"/);
+  /**
+   * PHASE 12 — POINT 5 made this path REACHABLE, which it had never been.
+   *
+   * The promotion was selected by an optional `textKind: "OCR" | "TRANSCRIPT"`
+   * field on the queue payload alongside `kind: "reconcile"`. No producer
+   * anywhere in the tree ever set that field — not the api routes, not the
+   * fan-out, not the worker. So the branch could not execute: a real
+   * capability with no way in, guarded by a test that only checked the branch
+   * existed.
+   *
+   * Rather than delete the capability or keep an unreachable branch, the two
+   * variants became run kinds of their own. The `MediaIntelligenceRun` row now
+   * records which similarity pass was requested, so the processor reads it from
+   * the durable authority like everything else — and an operator can see from
+   * the run row which pass ran.
+   */
+  it("the two text-similarity passes are addressable RUN KINDS, not a payload field", () => {
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain("reconcile_ocr_similarity");
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain(
+      "reconcile_transcript_similarity",
+    );
+    // Recordable as well as enqueueable — otherwise the run row could not be
+    // created and the job would be orphaned.
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toContain("reconcile_ocr_similarity");
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toContain(
+      "reconcile_transcript_similarity",
+    );
+    // The unreachable payload field is gone.
+    expect(readSrc(WORKER_QUEUE)).not.toMatch(/textKind/);
   });
 
-  it("services/worker/src/media-intelligence.processor.ts handles the textKind branch on `reconcile`", () => {
+  it("the processor branches on the RUN's kind and invokes the shared handler", () => {
     const src = readSrc(WORKER_PROCESSOR);
-    expect(src).toMatch(/kind\s*===\s*"reconcile"\s*&&\s*job\.data\?.textKind/);
+    expect(src).toMatch(/kind === "reconcile_ocr_similarity"/);
+    expect(src).toMatch(/kind === "reconcile_transcript_similarity"/);
     expect(src).toMatch(/processTextSimilarityPromotion/);
+    // The kind comes from the run row, never from the wire.
+    expect(src).not.toMatch(/job\.data\?\.textKind/);
   });
 
   it("promotes EvidenceSimilarity rows to SIMILAR_TO investigation_graph_edges", () => {

@@ -20,6 +20,11 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// PHASE 12 VERTICAL C — canonical authorization for the integration
+// delivery-history read. `resolveWorkspace` below derives the workspace
+// server-side but checks neither ACTIVE membership, parent-Organization
+// lifecycle, access expiry, nor capability.
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   requireDelegatedTier,
   requireDelegatedTierAny,
@@ -40,6 +45,7 @@ import {
   createExchangePackage,
   generateSignedUrl,
   listPackages,
+  listPackageDeliveries,
   recordPackageDelivery,
   recordPackageDownload,
   revokePackage,
@@ -64,11 +70,16 @@ import {
   listRetentionPolicies,
   releaseRetentionPolicy,
 } from "../services/lifecycle/retention-engine.service.js";
+// PHASE 12B CLUSTER 8 — the /v1/lifecycle/legal-holds routes stay REGISTERED
+// (the Legal Holds product surface consumes them) but are now THIN ADAPTERS
+// over the ONE canonical Legal-Hold authority. Physical route deletion is
+// gated on the applied + verified backfill migration.
 import {
-  createLegalHold,
-  listLegalHolds,
-  releaseLegalHold,
-} from "../services/lifecycle/legal-hold.service.js";
+  LegalHoldError,
+  listLifecycleLegalHoldsLegacyShape,
+  placeCanonicalLegalHold,
+  releaseLegalHoldAnyStore,
+} from "../services/governance/legal-hold.service.js";
 import {
   listArchiveTransitions,
   projectArchiveCostsByTier,
@@ -140,6 +151,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: entitlement state is commercial plan data.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "billing.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const entitlements = await listEntitlements({ teamId: ctx.teamId });
       return reply.code(200).send({ entitlements });
     },
@@ -232,6 +253,17 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; listing packages is a member-level read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       // Phase O Stream B — schema-drift safety net for NODE-1R
       // (evidence_exchange_packages.updated_at missing on production
       // until repair migration is applied). On Prisma P2021/P2022 we
@@ -276,6 +308,17 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; creating an exchange package exports evidence.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.generate_package",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
 
       // Feature gate
       const featureOk = await assertFeatureEntitlement({
@@ -337,7 +380,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           packageSizeBytes: z.number().int().nonnegative(),
         })
         .parse(req.body);
-      const res = await generateSignedUrl({
+      await generateSignedUrl({
         teamId: ctx.teamId,
         packageId: id,
         ttlSeconds: 3600,
@@ -365,7 +408,33 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; minting a signed URL hands out evidence access.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.generate_package",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PHASE 12 POINT 4 — minting a signed URL hands out storage access to evidence.
+      // Canonical step-up, evaluated AFTER the capability gate so a denial
+      // never even offers a challenge. Target-bound to this exact package,
+      // so an elevation obtained for another package cannot be replayed here.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "PACKAGE_EXPORT_HIGH_RISK",
+        resourceKind: "evidence_exchange_package",
+        resourceId: id,
+      });
+      if (stepUp.sent) return reply;
       const q = z
         .object({ ttlSeconds: z.coerce.number().int().positive().optional() })
         .parse(req.query ?? {});
@@ -379,13 +448,83 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     },
   );
 
+  // PHASE 12B — durable delivery history (the Exchange page previously kept
+  // this in session state only). Workspace comes from resolveWorkspace and the
+  // package is re-resolved from persistence, so a client cannot widen scope.
+  // Projection carries no bucket/key/signed URL. A package in another
+  // workspace 404s exactly like a missing one.
+  app.get(
+    "/v1/exchange/packages/:packageId/deliveries",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; listing deliveries is a member-level read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+      const { packageId } = z
+        .object({ packageId: z.string().uuid() })
+        .parse(req.params);
+      const query = z
+        .object({
+          cursor: z.string().uuid().optional(),
+          limit: z.coerce.number().int().min(1).max(100).optional(),
+        })
+        .parse(req.query ?? {});
+      const res = await listPackageDeliveries({
+        teamId: ctx.teamId,
+        packageId,
+        cursor: query.cursor ?? null,
+        limit: query.limit,
+      });
+      if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      return reply
+        .code(200)
+        .send({ deliveries: res.deliveries, nextCursor: res.nextCursor });
+    },
+  );
+
   app.post(
     "/v1/exchange/packages/:id/deliveries",
     { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; recording a delivery sends evidence to a recipient.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.generate_package",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PHASE 12 POINT 4 — recording a delivery transmits the package to an external recipient.
+      // Canonical step-up, evaluated AFTER the capability gate so a denial
+      // never even offers a challenge. Target-bound to this exact package,
+      // so an elevation obtained for another package cannot be replayed here.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "PACKAGE_EXPORT_HIGH_RISK",
+        resourceKind: "evidence_exchange_package",
+        resourceId: id,
+      });
+      if (stepUp.sent) return reply;
       const body = z
         .object({
           recipientEmail: z.string().email().max(320).optional(),
@@ -411,6 +550,17 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; recording a download is weaker than issuing the delivery.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.download_package",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const res = await recordPackageDownload({
         teamId: ctx.teamId,
@@ -448,6 +598,17 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate. resolveWorkspace above
+      // resolves the workspace but authorizes nothing; listing chain transfers is a member-level read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const transfers = await listChainTransfers({ teamId: ctx.teamId });
       return reply.code(200).send({ transfers });
     },
@@ -591,6 +752,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: webhook endpoint config is integration-owner data.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "integration.webhook.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_WEBHOOKS",
@@ -675,16 +846,32 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 VERTICAL C — authorization BEFORE the query. Delivery
+      // history names external recipients, so it is gated on the integration
+      // capability rather than bare authentication, and a cross-Organization
+      // probe is concealed as 404 by `antiEnumeration`.
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "integration.webhook.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const q = z
         .object({
           packageId: z.string().uuid().optional(),
+          cursor: z.string().uuid().optional(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const deliveries = await listDeliveryActivity({
+      const page = await listDeliveryActivity({
         teamId: ctx.teamId,
         packageId: q.packageId,
+        limit: q.limit,
+        cursorId: q.cursor ?? null,
       });
-      return reply.code(200).send({ deliveries });
+      return reply
+        .code(200)
+        .send({ deliveries: page.deliveries, nextCursor: page.nextCursor });
     },
   );
 
@@ -706,6 +893,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: delivery history is integration-owner data.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "integration.webhook.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const rows = await prisma.lifecycleWebhookDelivery.findMany({
         where: { teamId: ctx.teamId },
         orderBy: { enqueuedAtUtc: "desc" },
@@ -783,6 +980,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: retention policy read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "retention.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const policies = await listRetentionPolicies({ teamId: ctx.teamId });
       return reply.code(200).send({ policies });
     },
@@ -856,6 +1063,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: retention projection read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "retention.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const expirations = await computeUpcomingExpirations({
         teamId: ctx.teamId,
       });
@@ -873,6 +1090,21 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 3 — canonical capability gate. `resolveWorkspace`
+      // resolves the workspace but authorizes NOTHING. The retired
+      // /v1/governance/legal-holds list enforced this same check through
+      // `authorizeOrFail`, so it moves here with the surface rather than being
+      // dropped: ACTIVE membership + parent-Organization lifecycle +
+      // capability + fail-closed + anti-enumeration.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_LEGAL_HOLD",
@@ -880,7 +1112,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_LEGAL_HOLD" });
       }
-      const holds = await listLegalHolds({ teamId: ctx.teamId });
+      // ONE surface: every scope (evidence / case / workspace) from the ONE
+      // authority, plus any legacy row the backfill has not converted yet so
+      // no existing hold disappears from the operator's view.
+      const holds = await listLifecycleLegalHoldsLegacyShape({
+        teamId: ctx.teamId,
+      });
       return reply.code(200).send({ holds });
     },
   );
@@ -896,6 +1133,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 3 — the delegated-tier preHandler above restricts WHO
+      // may reach this route; it does not check the legal-hold capability on
+      // THIS workspace. The retired /v1/governance/legal-holds placement
+      // gated on `governance.legal_hold.manage`, so that check moves here.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.legal_hold.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
 
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
@@ -941,17 +1191,41 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       });
       if (stepUpGate.sent) return;
 
-      const res = await createLegalHold({
-        teamId: ctx.teamId,
-        kind: body.kind,
-        scopeTargetId: body.scopeTargetId ?? null,
-        name: body.name,
-        reason: body.reason,
-        createdByUserId: ctx.userId,
-        expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(201).send({ holdId: res.holdId });
+      // Map the legacy `kind` vocabulary onto canonical scope. ORGANIZATION
+      // and WORKSPACE both mean "every record in this workspace" — the
+      // organization binding is carried by the hold's organizationId, which
+      // the canonical service resolves from the workspace.
+      const scope =
+        body.kind === "EVIDENCE"
+          ? "EVIDENCE"
+          : body.kind === "CASE"
+            ? "CASE"
+            : "WORKSPACE";
+      try {
+        const hold = await placeCanonicalLegalHold({
+          teamId: ctx.teamId,
+          scope,
+          evidenceId: scope === "EVIDENCE" ? (body.scopeTargetId ?? null) : null,
+          caseId: scope === "CASE" ? (body.scopeTargetId ?? null) : null,
+          actorUserId: ctx.userId,
+          title: body.name,
+          reason: body.reason,
+          expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
+        });
+        return reply.code(201).send({ holdId: hold.id });
+      } catch (err) {
+        if (err instanceof LegalHoldError) {
+          return reply.code(err.statusCode === 404 ? 409 : err.statusCode).send({
+            denial:
+              err.code === "scope_target_required"
+                ? "SCOPE_TARGET_REQUIRED"
+                : err.code === "target_not_in_workspace"
+                  ? "TARGET_NOT_IN_WORKSPACE"
+                  : err.code.toUpperCase(),
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -966,18 +1240,67 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 3 — same canonical capability gate as placement. The
+      // retired /v1/governance/legal-holds/:id/release enforced it; releasing
+      // a preservation control must not be reachable on a weaker check than
+      // placing one.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.legal_hold.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
-        .object({ reason: z.string().min(1).max(600).optional() })
+        .object({
+          reason: z.string().min(1).max(600).optional(),
+          // CLUSTER 8 — release note, optimistic concurrency and the
+          // approval acknowledgement now apply to EVERY scope, not just the
+          // case-scoped surface that used to enforce them.
+          releaseNote: z.string().min(1).max(4000).optional(),
+          expectedVersion: z.number().int().min(1).optional(),
+          approvalAcknowledged: z.boolean().optional(),
+        })
         .parse(req.body ?? {});
-      const res = await releaseLegalHold({
+
+      // CLUSTER 8 — releasing a hold is a sensitive custody action.
+      // LEGAL_HOLD_RELEASE is in the MFA force-list and the sibling
+      // governance route already gated on it; this route did not.
+      const stepUpGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
         teamId: ctx.teamId,
-        holdId: id,
-        releasedByUserId: ctx.userId,
-        reason: body.reason ?? null,
+        userId: ctx.userId,
+        purpose: "LEGAL_HOLD_RELEASE",
+        resourceKind: "evidence_legal_hold",
+        resourceId: id,
       });
-      if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
-      return reply.code(200).send({ ok: true });
+      if (stepUpGate.sent) return;
+
+      try {
+        await releaseLegalHoldAnyStore({
+          teamId: ctx.teamId,
+          holdId: id,
+          actorUserId: ctx.userId,
+          releaseNote: body.releaseNote ?? body.reason ?? "Released by operator.",
+          expectedVersion: body.expectedVersion ?? null,
+          approvalAcknowledged: body.approvalAcknowledged === true,
+        });
+        return reply.code(200).send({ ok: true });
+      } catch (err) {
+        if (err instanceof LegalHoldError) {
+          return reply.code(err.statusCode).send({
+            denial:
+              err.code === "hold_not_found"
+                ? "NOT_FOUND"
+                : err.code.toUpperCase(),
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -991,6 +1314,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: archive lifecycle read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_ARCHIVE_TIERS",
@@ -1038,6 +1371,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: archive cost read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const costs = await projectArchiveCostsByTier({ teamId: ctx.teamId });
       return reply.code(200).send({ costs });
     },
@@ -1053,6 +1396,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: destruction governance read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_DESTRUCTION_GOVERNANCE",
@@ -1173,6 +1526,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: destruction certificate read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const cert = await getDestructionCertificate({
         teamId: ctx.teamId,
@@ -1189,6 +1552,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: destruction certificate read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const res = await getDestructionCertificateArtifact({
         teamId: ctx.teamId,
@@ -1207,15 +1580,6 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     },
   );
 
-  // PDF artifact route: no PDF library in services/api (puppeteer is in
-  // services/worker). Returns 501 Not Implemented until a PDF lib is added.
-  app.get(
-    "/v1/lifecycle/destruction/requests/:id/certificate.pdf",
-    { preHandler: requireAuth },
-    async (_req, reply) => {
-      return reply.code(501).send({ denial: "PDF_NOT_IMPLEMENTED" });
-    },
-  );
 
   // =========================================================================
   // Lifecycle dashboard + VP preview
@@ -1227,6 +1591,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: destruction certificate read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       // Evidence Lifecycle REAL FIX — the wholesale FEATURE_LIFECYCLE_DASHBOARD
       // 403 gate was wrong. The dashboard is the INDEX page of the console
       // and must always be reachable so the operator can see what they have.
@@ -1356,6 +1730,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: policy violation read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
 
       const q = z
         .object({
@@ -1386,6 +1770,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 POINT 4 — canonical capability gate: policy violation read.
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.policy.read",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
 
       const q = z
         .object({

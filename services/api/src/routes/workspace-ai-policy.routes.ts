@@ -201,10 +201,18 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof WorkspaceAiPolicyVersionConflictError) {
+          // PHASE 12B B1 — the concurrency LOSER. `upsertWorkspaceAiPolicy`
+          // guarantees zero mutation on this path, and returning here means no
+          // `ai.workspace_policy_updated` success audit is emitted for a write
+          // that did not happen. `message` is present so the canonical client
+          // normalizer treats the body as a structured error rather than
+          // re-coding it from the status bucket.
           return reply.code(409).send({
             error: {
               code: err.code,
+              message: err.message,
               reason: err.message,
+              details: { currentVersion: err.currentVersion },
               currentVersion: err.currentVersion,
             },
           });

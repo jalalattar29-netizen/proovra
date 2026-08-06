@@ -88,6 +88,15 @@ const {
 
 vi.mock("../src/db.js", () => ({
   prisma: {
+    // PHASE 12 POINT 3 — the canonical writer resolves the organization
+    // binding and persists into the ONE canonical table.
+    team: { findUnique: async () => ({ organizationId: null }) },
+    evidenceLegalHold: {
+      create: legalHoldCreateMock,
+      findMany: async () => [],
+      findFirst: async () => null,
+    },
+    caseEvidenceLink: { findMany: async () => [] },
     evidence: {
       findUnique: evidenceFindUnique,
       findFirst: evidenceFindFirstMock,
@@ -136,6 +145,15 @@ vi.mock("../src/services/packaging/webhooks/webhook-platform.service.js", () => 
   emitWebhookEvent: emitWebhookEventMock,
 }));
 
+// PHASE 12 POINT 3 — the canonical writer emits the governance event through
+// the dispatcher, imported STATICALLY, while the lifecycle fan-out still goes
+// through the packaging service above via a dynamic import. Both seams must be
+// stubbed, and because two events are emitted per placement the assertions
+// below select by `eventType` rather than by call position.
+vi.mock("../src/services/integrations/webhook-dispatcher.js", () => ({
+  emitWebhookEvent: emitWebhookEventMock,
+}));
+
 // ---------------------------------------------------------------------------
 // Common helpers.
 // ---------------------------------------------------------------------------
@@ -168,6 +186,9 @@ beforeEach(() => {
   appendPlatformAuditLogMock.mockReset();
   appendCustodyEventMock.mockReset();
   emitWebhookEventMock.mockReset();
+  // The canonical writer awaits the dispatcher and chains `.catch(...)`, so
+  // the stub must resolve rather than return undefined.
+  emitWebhookEventMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -486,7 +507,7 @@ describe("Phase 6 Part B — Report envelope provenance", () => {
         type: "RECORDING",
         status: "REPORTED",
         verificationStatus: null,
-        caseId: null,
+        caseLinks: [],
         createdAt: new Date("2026-01-01T00:00:00Z"),
         verificationPackageMetadata: null,
         templateSlug: POPULATED_TRIO.templateSlug,
@@ -499,7 +520,7 @@ describe("Phase 6 Part B — Report envelope provenance", () => {
         type: "RECORDING",
         status: "REPORTED",
         verificationStatus: null,
-        caseId: null,
+        caseLinks: [],
         createdAt: new Date("2025-12-31T00:00:00Z"),
         verificationPackageMetadata: null,
         templateSlug: null,
@@ -633,27 +654,45 @@ describe("Phase 6 Part D — Governance traceability", () => {
   });
 
   it("legal-hold creation threads trio into LEGAL_HOLD_APPLIED webhook payload for EVIDENCE kind", async () => {
-    legalHoldCreateMock.mockResolvedValue({ id: "hold-1" });
+    legalHoldCreateMock.mockResolvedValue({
+      id: "hold-1",
+      teamId: TEAM_ID,
+      scope: "EVIDENCE",
+      evidenceId: EVIDENCE_ID,
+      caseId: null,
+      title: "Subpoena #123",
+      status: "ACTIVE",
+      placedAtUtc: new Date("2027-01-01T00:00:00.000Z"),
+      releasedAtUtc: null,
+    });
     evidenceFindUnique.mockResolvedValue({
+      id: EVIDENCE_ID,
+      // The canonical writer refuses a cross-workspace target, so the
+      // fixture must place the record in the acting workspace.
+      teamId: TEAM_ID,
       templateSlug: POPULATED_TRIO.templateSlug,
       templateVersion: POPULATED_TRIO.templateVersion,
       templateDbId: POPULATED_TRIO.templateDbId,
     });
 
-    const { createLegalHold } = await import(
-      "../src/services/lifecycle/legal-hold.service.js"
+    // PHASE 12 POINT 3 — placement moved to the ONE canonical writer; the
+    // template-provenance enrichment moved with it.
+    const { placeCanonicalLegalHold } = await import(
+      "../src/services/governance/legal-hold.service.js"
     );
 
-    const result = await createLegalHold({
+    const result = await placeCanonicalLegalHold({
       teamId: TEAM_ID,
-      kind: "EVIDENCE",
-      scopeTargetId: EVIDENCE_ID,
-      name: "Subpoena #123",
+      scope: "EVIDENCE",
+      evidenceId: EVIDENCE_ID,
+      title: "Subpoena #123",
       reason: "Litigation hold",
-      createdByUserId: ACTOR_ID,
+      actorUserId: ACTOR_ID,
     });
 
-    expect(result.ok).toBe(true);
+    // The canonical writer returns the persisted row and throws on failure,
+    // rather than an { ok } result envelope.
+    expect(result.id).toBeTruthy();
 
     // The webhook emit is fire-and-forget via `void await import(...)`.
     // The dynamic-import promise + the emitter await happen across
@@ -661,46 +700,62 @@ describe("Phase 6 Part D — Governance traceability", () => {
     // the spy has a chance to register.
     await new Promise<void>((r) => setTimeout(r, 10));
 
-    expect(emitWebhookEventMock).toHaveBeenCalledTimes(1);
-    const payload = emitWebhookEventMock.mock.calls[0][0].payload as Record<
-      string,
-      unknown
-    >;
+    const placed = emitWebhookEventMock.mock.calls.find(
+      (c) => c[0]?.eventType === "governance.legal_hold_placed",
+    );
+    expect(placed, "governance.legal_hold_placed must be emitted").toBeTruthy();
+    const payload = placed![0].payload as Record<string, unknown>;
     expect(payload).toMatchObject({
-      kind: "EVIDENCE",
+      scope: "EVIDENCE",
       templateSlug: POPULATED_TRIO.templateSlug,
       templateVersion: POPULATED_TRIO.templateVersion,
       templateDbId: POPULATED_TRIO.templateDbId,
     });
   });
 
-  it("legal-hold creation does NOT read Evidence trio for non-EVIDENCE kinds", async () => {
-    legalHoldCreateMock.mockResolvedValue({ id: "hold-2" });
+  it("legal-hold creation does NOT read the Evidence trio for non-EVIDENCE scopes", async () => {
+    legalHoldCreateMock.mockResolvedValue({
+      id: "hold-2",
+      teamId: TEAM_ID,
+      scope: "WORKSPACE",
+      evidenceId: null,
+      caseId: null,
+      title: "Workspace hold",
+      status: "ACTIVE",
+      placedAtUtc: new Date("2027-01-01T00:00:00.000Z"),
+      releasedAtUtc: null,
+    });
+    // A WORKSPACE hold has no evidence target; the trio lookup must not run.
+    evidenceFindUnique.mockResolvedValue(null);
 
-    const { createLegalHold } = await import(
-      "../src/services/lifecycle/legal-hold.service.js"
+    // PHASE 12 POINT 3 — placement moved to the ONE canonical writer; the
+    // template-provenance enrichment moved with it.
+    const { placeCanonicalLegalHold } = await import(
+      "../src/services/governance/legal-hold.service.js"
     );
 
-    const result = await createLegalHold({
+    const result = await placeCanonicalLegalHold({
       teamId: TEAM_ID,
-      kind: "WORKSPACE",
-      name: "Workspace hold",
+      scope: "WORKSPACE",
+      title: "Workspace hold",
       reason: "Investigation",
-      createdByUserId: ACTOR_ID,
+      actorUserId: ACTOR_ID,
     });
 
-    expect(result.ok).toBe(true);
+    // The canonical writer returns the persisted row and throws on failure,
+    // rather than an { ok } result envelope.
+    expect(result.id).toBeTruthy();
     // Workspace-scoped hold should not touch the Evidence read path.
     expect(evidenceFindUnique).not.toHaveBeenCalled();
 
     await new Promise<void>((r) => setTimeout(r, 10));
 
     // Webhook still emits, trio fields are NULL.
-    expect(emitWebhookEventMock).toHaveBeenCalledTimes(1);
-    const payload = emitWebhookEventMock.mock.calls[0][0].payload as Record<
-      string,
-      unknown
-    >;
+    const placed = emitWebhookEventMock.mock.calls.find(
+      (c) => c[0]?.eventType === "governance.legal_hold_placed",
+    );
+    expect(placed, "governance.legal_hold_placed must be emitted").toBeTruthy();
+    const payload = placed![0].payload as Record<string, unknown>;
     expect(payload.templateSlug).toBeNull();
     expect(payload.templateVersion).toBeNull();
     expect(payload.templateDbId).toBeNull();
@@ -764,10 +819,13 @@ describe("Phase 6 source-text wiring guards", () => {
   });
 
   it("legal-hold.service.ts emits trio in LEGAL_HOLD_APPLIED payload for EVIDENCE kind", () => {
-    const src = read("../src/services/lifecycle/legal-hold.service.ts");
+    // PHASE 12 POINT 3 — placement (and the trio enrichment with it) moved to
+    // the ONE canonical writer when the scope-generic surface was retired.
+    const src = read("../src/services/governance/legal-hold.service.ts");
     expect(src).toMatch(/LEGAL_HOLD_APPLIED/);
-    expect(src).toMatch(/templateSlug: templateProvenance\.templateSlug/);
-    expect(src).toMatch(/input\.kind === "EVIDENCE" && scopeTargetId/);
+    expect(src).toMatch(/templateProvenance/);
+    // The trio is read ONLY for an evidence-scoped hold.
+    expect(src).toMatch(/scope === "EVIDENCE" && evidenceId/);
   });
 
   it("processor.ts surfaces trio in report S3 metadata", () => {

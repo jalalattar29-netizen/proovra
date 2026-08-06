@@ -61,6 +61,13 @@ import {
   type VerifyTechnicalMetadata,
 } from "../../../components/verify-v2/VerifyTechnicalMetadataSection";
 import { VerifyCaptureIntegritySection } from "../../../components/verify-v2/VerifyCaptureIntegritySection";
+// PHASE 12B — redaction verification badge. Converged onto this
+// token-bound Verify projection from the deleted anonymous
+// GET /v1/redaction/public/verify/:evidenceId probe.
+import {
+  VerifyRedactionSection,
+  type VerifyRedaction,
+} from "../../../components/verify-v2/VerifyRedactionSection";
 // Type-only imports kept to exactly the symbols this file actually
 // references. Nine type aliases that were imported here but never used
 // anywhere downstream (VerifyTimelineEvent, VerifyReviewTrail,
@@ -94,9 +101,7 @@ import type {
   VerificationVerdict,
   VerificationSignalInput,
   VerificationPackageIntegrity,
-  VerifyLifecycleTransparency,
 } from "./_verify-types";
-import { VerifyLifecycleSection } from "./_verify-lifecycle-section";
 import {
   hasAdvancedLiveAnchoring,
   shouldAutoPollPublicVerify,
@@ -2826,11 +2831,13 @@ export default function VerifyPage() {
   const [technicalMetadata, setTechnicalMetadata] =
     useState<VerifyTechnicalMetadata | null>(null);
 
+  // PHASE 12B — bounded public-safe redaction projection. Null when the
+  // record has no redaction project and no reviewed video frames; the
+  // page then renders no redaction section rather than asserting
+  // "not redacted".
+  const [redaction, setRedaction] = useState<VerifyRedaction | null>(null);
+
   // Phase 4B Final Closure (I3) — lifecycle transparency projection.
-  // Fetched from /public/verify/:id/lifecycle after evidenceId resolves.
-  // No auth required. Bounded counts + chips + ids only.
-  const [lifecycleTransparency, setLifecycleTransparency] =
-    useState<VerifyLifecycleTransparency | null>(null);
   const [serverTrustDecision, setServerTrustDecision] =
     useState<VerifyTrustDecision | null>(null);
   const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
@@ -2893,6 +2900,10 @@ function isAccessEventType(eventType?: string | null): boolean {
   return isAccessCustodyEventType(eventType);
 }
 
+  // Applied from the token-fetch effect AND from its poller, both of which
+  // outlive a render. Held in a ref (the same convention as `fetchVerifyRef`
+  // below) so late poll results always run the CURRENT applier without the
+  // one-shot fetch effect re-subscribing and restarting polling every render.
   const applyVerifyResponse = (data: VerifyResponse) => {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
@@ -2922,6 +2933,12 @@ function isAccessEventType(eventType?: string | null): boolean {
     setTechnicalMetadata(
       (data as { technicalMetadata?: typeof technicalMetadata }).technicalMetadata ??
         null,
+    );
+    // PHASE 12B — bounded redaction projection, stored verbatim from
+    // the API's public-safety projection (counts + bounded codes only).
+    setRedaction(
+      ((data as { redaction?: VerifyRedaction | null }).redaction ??
+        null) as VerifyRedaction | null,
     );
     // Phase 1B Closure — bounded captureTrust projection from the API.
     // Reshape from the projection's nested chain.capture/server/time
@@ -3296,6 +3313,8 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     setCustodyDisplayCounts(data.custodyDisplayCounts ?? null);
     return otsDetails;
   };
+  const applyVerifyResponseRef = useRef(applyVerifyResponse);
+  applyVerifyResponseRef.current = applyVerifyResponse;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -3324,7 +3343,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         );
         if (cancelled || !isMountedRef.current) return;
 
-        applyVerifyResponse(data as VerifyResponse);
+        applyVerifyResponseRef.current(data as VerifyResponse);
 
         if (!background) {
           setError(null);
@@ -3375,22 +3394,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     };
   }, [params?.token, addToast]);
 
-  // Phase 4B Final Closure (I3) — fetch bounded lifecycle transparency
-  // when we have a resolved evidenceId. Fire once; fail silently.
-  useEffect(() => {
-    if (!evidenceId) return;
-    let cancelled = false;
-    apiFetch(`/public/verify/${encodeURIComponent(evidenceId)}/lifecycle`)
-      .then((raw) => {
-        if (!cancelled) setLifecycleTransparency(raw as VerifyLifecycleTransparency);
-      })
-      .catch(() => {
-        /* lifecycle transparency is optional — fail silently */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [evidenceId]);
 
   const storagePresentation = useMemo(
     () => buildStoragePresentation(storageProtection),
@@ -3438,7 +3441,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     ].filter(Boolean);
 
     return parts.join(" • ");
-  }, [evidenceContentSummary?.structure, evidenceContentSummary?.totalSizeDisplay, evidenceItems.length, overview?.itemCount]);
+  }, [evidenceContentSummary?.itemCount, evidenceContentSummary?.totalSizeDisplay, evidenceItems.length, overview?.itemCount]);
 
   const reviewerEvidenceTypeLabel = useMemo(() => {
     return getReviewerEvidenceTypeLabel({
@@ -3729,6 +3732,8 @@ const trustDecision = useMemo(() => {
   fingerprintHash,
   forensicTimeline,
   hash,
+  humanSummary?.captureMethod,
+  overview?.captureMethod,
   humanSummary?.recordedIntegrityVerifiedAtUtc,
   humanSummary?.verificationPackageGeneratedAtUtc,
   identityLevel,
@@ -4113,8 +4118,10 @@ const executiveBadges = useMemo<
       humanSummary,
       verifyStatus,
       verificationStatus,
-overview?.verificationStatusCode,
-trustDecision,
+      // `overview` and `trustDecision` are listed whole above/below, so their
+      // individual members were redundant re-listings, not extra signals.
+      trustDecision,
+      reviewerEvidenceTypeLabel,
       title,
       evidenceId,
       params?.token,
@@ -4133,9 +4140,6 @@ trustDecision,
       tsaStatus,
       otsStatus,
       storagePresentation.badgeLabel,
-          trustDecision.verdictLabel,
-    trustDecision.scoreLabel,
-    trustDecision.relianceLevel,
     ]
   );
 
@@ -4346,6 +4350,7 @@ tone={
       otsAnchoredAtUtc,
       otsUpgradedAtUtc,
       otsHashMatches,
+      otsBitcoinTxid,
       storagePresentation,
       verdictRequiresReview,
       tsaStatus,
@@ -5397,9 +5402,17 @@ Reviewer Action
   brand={VERIFY_BRAND}
 />
 
-{lifecycleTransparency ? (
-  <VerifyLifecycleSection lifecycleTransparency={lifecycleTransparency} />
-) : null}
+{/*
+  PHASE 12B — redaction verification badge. Reads the `redaction` key of
+  this page's own token-bound projection; the anonymous evidenceId probe
+  it replaced has been deleted. Renders null when the record has no
+  redaction data.
+*/}
+<VerifyRedactionSection
+  redaction={redaction}
+  typo={VERIFY_TYPO}
+  brand={VERIFY_BRAND}
+/>
 
                   <div
                     style={{

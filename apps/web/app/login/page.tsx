@@ -114,9 +114,47 @@ const REQUIRED_LEGAL_VERSIONS = {
   cookies: "2026-04-06",
 } as const;
 
+/**
+ * PHASE 12 — POINT 7 (final pass): an ACCESSIBLE shell, not `null`.
+ *
+ * `fallback={null}` meant the server-visible body of the sign-in page was
+ * empty. When the strict CSP stopped hydration, the page was not "degraded" —
+ * it was a blank white screen with no heading, no status and nothing for a
+ * screen reader to announce, and no way for anyone to tell a broken deploy
+ * from a slow one.
+ *
+ * The shell below is what a user sees before `useSearchParams` resolves: the
+ * product name, a bounded status line with live-region semantics, and stable
+ * layout so the real form does not shift the page when it arrives. It contains
+ * NO inputs and no buttons — a control that cannot work yet is worse than no
+ * control — and no secrets or client state.
+ */
+function LoginShell() {
+  return (
+    <main
+      style={{
+        minHeight: "60vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "12px",
+        padding: "48px 24px",
+      }}
+    >
+      <h1 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>
+        Sign in to PROOVRA
+      </h1>
+      <p role="status" aria-live="polite" style={{ margin: 0, opacity: 0.75 }}>
+        Preparing the sign-in form…
+      </p>
+    </main>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LoginShell />}>
       <LoginPageContent />
     </Suspense>
   );
@@ -417,6 +455,18 @@ function LoginPageContent() {
     });
   };
 
+  // The provider SDKs are initialised ONCE per mount; their callbacks live for
+  // the lifetime of the page. Reading these two through refs (the convention
+  // already used for nextUrl / acceptLegal above) means the callbacks always
+  // invoke the CURRENT implementation without the init effect re-subscribing —
+  // re-initialising the Google/Apple SDKs on every render would be a real
+  // regression, and a stale closure here would sign the user in with old form
+  // state.
+  const handleAuthRef = useRef(handleAuth);
+  handleAuthRef.current = handleAuth;
+  const renderGoogleButtonRef = useRef(renderGoogleButton);
+  renderGoogleButtonRef.current = renderGoogleButton;
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     isMountedRef.current = true;
@@ -441,14 +491,14 @@ function LoginPageContent() {
                 setError("Google login failed.");
                 return;
               }
-              void handleAuth("/v1/auth/google", idToken);
+              void handleAuthRef.current("/v1/auth/google", idToken);
             },
           });
         }
 
-        renderGoogleButton();
+        renderGoogleButtonRef.current();
 
-        const ro = new ResizeObserver(() => renderGoogleButton());
+        const ro = new ResizeObserver(() => renderGoogleButtonRef.current());
         if (googleBtnHostRef.current) ro.observe(googleBtnHostRef.current);
         return () => ro.disconnect();
       })

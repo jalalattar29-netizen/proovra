@@ -32,6 +32,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
+  REVIEWER_DECISION_ACTIONS,
   REVIEWER_STATUS_LABEL,
   REVIEWER_STATUS_PRIMARY_ACTIONS,
   REVIEWER_STATUS_DISCLAIMER,
@@ -130,8 +131,12 @@ export default function ExternalIntakeSourceCard({
     };
   }, [evidenceId]);
 
+  // Only the PRESENCE of the intake summary gates this fetch, never its
+  // identity — extracted so the dependency is statically checkable and the
+  // reviewer-workflow read does not re-fire when an unrelated field changes.
+  const hasIntakeSummary = summary !== undefined && summary !== null;
   useEffect(() => {
-    if (summary === undefined || summary === null) return;
+    if (!hasIntakeSummary) return;
     let cancelled = false;
     apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/reviewer-workflow`, {
       method: "GET",
@@ -147,7 +152,7 @@ export default function ExternalIntakeSourceCard({
     return () => {
       cancelled = true;
     };
-  }, [evidenceId, summary === null || summary === undefined]);
+  }, [evidenceId, hasIntakeSummary]);
 
   // Read status from the nested workflow object — see the type comment
   // above for the response shape. Defaults to NOT_STARTED when no
@@ -158,6 +163,51 @@ export default function ExternalIntakeSourceCard({
   }, [currentStatus]);
 
   const [savedFlashStatus, setSavedFlashStatus] = useState<string | null>(null);
+
+  /** Refresh the workflow projection after any server-side change. */
+  async function reloadReview() {
+    const res: ReviewSummary = await apiFetch(
+      `/v1/evidence/${encodeURIComponent(evidenceId)}/reviewer-workflow`,
+    );
+    setReview(res);
+  }
+
+  /**
+   * PHASE 12 POINT 4 PASS C1 — record a reviewer VERDICT.
+   *
+   * The browser names the DECISION, never the resulting status: the server
+   * appends the immutable decision row and derives `workflow.status` from the
+   * decision log in the same transaction. The workspace is derived from the
+   * record server-side, so no tenant id is sent.
+   */
+  async function recordDecision(
+    decision: (typeof REVIEWER_DECISION_ACTIONS)[number]["decision"],
+    note?: string,
+  ) {
+    setReviewBusy(true);
+    setReviewError(null);
+    try {
+      await apiFetch(
+        `/v1/review-operations/evidence/${encodeURIComponent(evidenceId)}/decision`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ decision, note: note ?? null }),
+        },
+      );
+      await reloadReview();
+      setSavedFlashStatus(decision);
+      setTimeout(() => setSavedFlashStatus(null), 2400);
+    } catch (err) {
+      const e = err as { message?: string };
+      setReviewError(
+        toSafeUserError(e, { message: "Could not record the review decision." })
+          .message,
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  }
 
   async function patchReviewStatus(nextStatus: string, note?: string) {
     setReviewBusy(true);
@@ -287,6 +337,36 @@ export default function ExternalIntakeSourceCard({
               >
                 {reviewBusy && savedFlashStatus === null ? "…" : ""}
                 {STATUS_LABEL[s] ?? s}
+              </button>
+            );
+          })}
+        </div>
+        {/* Verdicts are recorded as DECISIONS; the status they produce is
+            derived by the server from the immutable decision log. */}
+        <div
+          style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}
+          data-evidence-reviewer-decisions="true"
+        >
+          {REVIEWER_DECISION_ACTIONS.map((action) => {
+            const satisfied = currentStatus === action.resultingStatus;
+            return (
+              <button
+                key={action.decision}
+                type="button"
+                style={
+                  satisfied
+                    ? { ...statusButtonStyle, ...statusButtonActiveStyle }
+                    : statusButtonStyle
+                }
+                disabled={reviewBusy}
+                onClick={() => recordDecision(action.decision)}
+                data-evidence-reviewer-decision-btn={action.decision}
+                data-evidence-reviewer-decision-active={
+                  satisfied ? "true" : "false"
+                }
+                aria-pressed={satisfied}
+              >
+                {action.label}
               </button>
             );
           })}

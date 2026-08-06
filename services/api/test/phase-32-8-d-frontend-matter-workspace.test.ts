@@ -20,6 +20,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -170,14 +171,13 @@ describe("Phase 32.8D-frontend — Matter Workspace canonical surface", () => {
     // assertion records the canonical mount existence so the
     // 32.8D-frontend file stays honest about what it covers
     // (CasesIndex + types).
-    const fs = require("node:fs") as typeof import("node:fs");
-    const path = require("node:url").fileURLToPath(
+    const matterWorkspacePath = fileURLToPath(
       new URL(
         "../../../apps/web/components/cases-experience/MatterWorkspace.tsx",
         import.meta.url,
       ),
     );
-    expect(fs.existsSync(path)).toBe(true);
+    expect(existsSync(matterWorkspacePath)).toBe(true);
   });
 });
 

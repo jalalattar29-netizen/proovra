@@ -1,0 +1,935 @@
+{
+  "generatedFrom": "git status at analysis time",
+  "committedBaseline": {
+    "branch": "main",
+    "head": "36b871dcd926968128a800483980c94bf03f3297",
+    "originMain": "36b871dcd926968128a800483980c94bf03f3297",
+    "headEqualsOriginMain": true
+  },
+  "generatedArtifactCount": 305,
+  "uncommittedChangeCount": 151,
+  "COMMITTED_BASELINE": {
+    "branch": "main",
+    "head": "36b871dcd926968128a800483980c94bf03f3297",
+    "originMain": "36b871dcd926968128a800483980c94bf03f3297",
+    "headEqualsOriginMain": true
+  },
+  "CURRENT_UNCOMMITTED_CHANGE": [
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/case-detail-personal-ux.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/cases-personal-ux.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/collaboration-teams-phase6-finalization.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/enterprise-admin-route-registration.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/enterprise-admin-tabs-visibility.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/enterprise-identity-domains.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/enterprise-tier-gating.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/evidence-library-enterprise-fixes.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/evidence-lifecycle-actions.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/external-review-grant-step-up.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/governance-external-reviewers-visibility.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/internal-legal-routing.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/legal-hold-create-step-up.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/opscenter-visibility-remediation.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/__tests__/platform-admin-route-access.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/cases/[id]/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/evidence/[id]/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/evidence/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/home/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/organizations/[id]/admin/security/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/reports/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/search/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/security-center/sso/mapping/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/security-center/sso/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/settings/_sections/AiSection.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/settings/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/settings/security/saml/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/(app)/tools/page.tsx"
+    },
+    {
+      "status": "staged-delete",
+      "path": "apps/web/app/verify/[token]/_verify-lifecycle-section.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/verify/[token]/_verify-types.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/app/verify/[token]/page.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/ai-copilot/OperationsIntelligencePanel.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/ai-copilot/QcSamplingPanel.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/app-shell-v2/AppSidebarV2.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/app-shell-v2/NotificationBell.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/cases-experience/CasesIndex.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/home-experience/home-view-model.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/home-experience/useHomeData.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/components/navigation/CommandPalette.tsx"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/date.ts"
+    },
+    {
+      "status": "staged-delete",
+      "path": "apps/web/lib/legalVersion.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/navigation/routeAccessResolver.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/navigation/routeRegistry.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/platform-context/index.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/platform-context/types.ts"
+    },
+    {
+      "status": "staged-delete",
+      "path": "apps/web/lib/sales-email-templates.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/surface/access.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/surface/resolveHomeSurface.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/surface/tiers.ts"
+    },
+    {
+      "status": "modified",
+      "path": "apps/web/lib/surface/useSurfaceUserContext.ts"
+    },
+    {
+      "status": "modified",
+      "path": "docs/architecture/program-ledger.md"
+    },
+    {
+      "status": "modified",
+      "path": "packages/shared-billing/src/plan-catalog.ts"
+    },
+    {
+      "status": "modified",
+      "path": "packages/shared/src/timestamp-format.ts"
+    },
+    {
+      "status": "modified",
+      "path": "scripts/load/README.md"
+    },
+    {
+      "status": "modified",
+      "path": "scripts/load/scenarios.mjs"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/package.json"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/prisma/schema.prisma"
+    },
+    {
+      "status": "staged-delete",
+      "path": "services/api/src/retention-cleanup.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/billing.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/cases.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/enterprise-security.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/evidence.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/identity.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/organizations-reports.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/review-operations.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/routes/reviewer-ops.routes.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/server.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/cases/case-lifecycle.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/dashboard/case-evidence-link.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/identity/org-security-policy.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/notifications/notification-preferences.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/platform-context/platform-context.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/platform-context/types.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/review-operations/review-operations.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/src/services/trust/trust-center.service.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/governance-platform.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/identity-security.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/integration-harness.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-10-enterprise-identity.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-10-security-routes.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-15-semantic-search.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-32-5-stabilization.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-32-7-3-readiness-governance-blockers.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-32-8-d-frontend-closure-2.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-3a-closure-detection-intelligence.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-3a-elite-closure-policy-and-video.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-3a-redaction-publish-step-up.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-4a-enterprise-closure.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-4a-final-closure.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-4a-trust-and-governance.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-6-evidence-scope.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-8-org-admin-tab-surface.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-8-vocabulary-and-shell-honesty.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-cleanup-inbox-and-collaboration.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-home-fork.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-home-operational.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-home-v2.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-self-serve-audit-fixes.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-self-serve-completion.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-self-serve-regression-fix.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-surface-tier-wiring.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-ia-surface-tier.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-p1-identity-operations.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase-rw-qc-sampling-producer.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/phase27-governance-lifecycle.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/production-trust-center-empty-state.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/program-architecture-registry.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/api/test/review-operations-completion.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/worker/src/governance/lifecycle-legal-hold.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/worker/test/phase-m3-1-siu-durability.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/worker/test/phase-m3-2-siu-governance-export.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/worker/test/phase-m3-siu.test.ts"
+    },
+    {
+      "status": "modified",
+      "path": "services/worker/test/phase-r6-lifecycle-legal-hold.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "apps/web/__tests__/render/security-policy-editor.render.test.tsx"
+    },
+    {
+      "status": "untracked",
+      "path": "apps/web/__tests__/surface-tier-plan-authority-removed.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "apps/web/components/billing/LimitReachedNotice.tsx"
+    },
+    {
+      "status": "untracked",
+      "path": "apps/web/components/home-experience/resolveHomeSurface.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "apps/web/components/organizations/"
+    },
+    {
+      "status": "untracked",
+      "path": "apps/web/lib/platform-context/useServerProjectionGates.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/current-runtime-capability-map.json"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/deletion-manifest-p12.json"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/migration-deployment-plan.md"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/plan-page-visibility-matrix.json"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/repository-provenance.json"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/route-classification/"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/schema-migration-classification.json"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/target-platform-constitution.md"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/target-replacement-matrix.json"
+    },
+    {
+      "status": "untracked",
+      "path": "docs/architecture/user-journey-coverage.json"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/prisma/migrations/20271102000000_uuid_id_default_repair/"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/prisma/migrations/20271103000000_case_evidence_link_canonical/"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/scripts/backfill-case-evidence-links.mjs"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/src/dev/dev-billing-credits.routes.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/src/services/cases/case-evidence-link.service.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/src/services/reviewer-ops/review-decision.service.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12-closure-gate.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12-convergence-guard.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12-coverage-manifest.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12-dead-routes-removed.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12-queue-census.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12-wiring-registry.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12b-case-evidence-authority.test.ts"
+    },
+    {
+      "status": "untracked",
+      "path": "services/api/test/phase-12b-review-authority.test.ts"
+    }
+  ],
+  "GENERATED_ARTIFACT": [
+    "apps/web/app/(app)/capture/_lib/file-utils.js",
+    "apps/web/app/(app)/capture/_lib/session-readiness.js",
+    "apps/web/app/(app)/capture/_lib/templates.js",
+    "apps/web/app/(app)/capture/_lib/types.js",
+    "apps/web/lib/api.js",
+    "apps/web/lib/navigation/routeAccessResolver.js",
+    "apps/web/lib/navigation/routeRegistry.js",
+    "apps/web/lib/platform-context/PlatformContextProvider.jsx",
+    "apps/web/lib/platform-context/state-observability.js",
+    "apps/web/lib/platform-context/types.js",
+    "apps/web/lib/platform-context/useTerminology.js",
+    "apps/web/lib/uploads/feature-flag.js",
+    "apps/web/lib/uploads/persistence.js",
+    "apps/web/lib/uploads/recovery.js",
+    "apps/web/lib/uploads/retry.js",
+    "apps/web/lib/uploads/telemetry.js",
+    "apps/web/lib/uploads/types.js",
+    "services/api/test/auth-test-bypass.test.js",
+    "services/api/test/capture-workspace-billing-scope.test.js",
+    "services/api/test/collaboration.test.js",
+    "services/api/test/communications.test.js",
+    "services/api/test/cross-system-governance-integration.test.js",
+    "services/api/test/crypto.test.js",
+    "services/api/test/exif-extractor.service.test.js",
+    "services/api/test/external-intake-orchestration.service.test.js",
+    "services/api/test/external-intake-source-summary.service.test.js",
+    "services/api/test/fail-closed-governance-enforcement.test.js",
+    "services/api/test/forensic-hardening.test.js",
+    "services/api/test/governance-platform.test.js",
+    "services/api/test/identity-security.test.js",
+    "services/api/test/identity.test.js",
+    "services/api/test/integration-harness.js",
+    "services/api/test/integrations-api-keys.service.test.js",
+    "services/api/test/integrations-governance-bypass.test.js",
+    "services/api/test/integrations-hardening.test.js",
+    "services/api/test/integrations-webhooks.service.test.js",
+    "services/api/test/intelligence.test.js",
+    "services/api/test/investigation-suite-audit.test.js",
+    "services/api/test/jwt.test.js",
+    "services/api/test/phase-10-billing-guards.test.js",
+    "services/api/test/phase-10-paypal-idempotency.test.js",
+    "services/api/test/phase-10-plan-aware-ui.test.js",
+    "services/api/test/phase-10-route-ownership.test.js",
+    "services/api/test/phase-11-visibility-and-intelligence.test.js",
+    "services/api/test/phase-12-investigation-productization.test.js",
+    "services/api/test/phase-13-intelligence-chain.test.js",
+    "services/api/test/phase-13-intelligence-completion.test.js",
+    "services/api/test/phase-14-global-intelligence-search.test.js",
+    "services/api/test/phase-15-semantic-search.test.js",
+    "services/api/test/phase-16-semantic-activation.test.js",
+    "services/api/test/phase-1a-pillar-ia.test.js",
+    "services/api/test/phase-1b-closure-runtime.test.js",
+    "services/api/test/phase-1b-mobile-capture-trust.test.js",
+    "services/api/test/phase-24-b-completion.test.js",
+    "services/api/test/phase-24-j-discovery.test.js",
+    "services/api/test/phase-25-5-assignment-intelligence.test.js",
+    "services/api/test/phase-25-6-reviewer-ops-ui.test.js",
+    "services/api/test/phase-25-7-queue-intelligence.test.js",
+    "services/api/test/phase-25-reviewer-intelligence.test.js",
+    "services/api/test/phase-26-authorize.test.js",
+    "services/api/test/phase-27-28-external-review-grants.test.js",
+    "services/api/test/phase-27-5-external-review-routes.test.js",
+    "services/api/test/phase-2a-closure-reviewer-experience.test.js",
+    "services/api/test/phase-2a-reviewer-workspace.test.js",
+    "services/api/test/phase-2b-closure-external-portal.test.js",
+    "services/api/test/phase-2b-external-reviewer-portal.test.js",
+    "services/api/test/phase-30-10-capture-adoption.test.js",
+    "services/api/test/phase-30-11-unified-evidence-model.test.js",
+    "services/api/test/phase-30-12-consumer-integration.test.js",
+    "services/api/test/phase-30-5-upload-session-routes.test.js",
+    "services/api/test/phase-30-6-integrations-uploads.test.js",
+    "services/api/test/phase-30-7-finalize-gate.test.js",
+    "services/api/test/phase-30-8-multipart.test.js",
+    "services/api/test/phase-30-9-client-uploads.test.js",
+    "services/api/test/phase-30-upload-sessions.test.js",
+    "services/api/test/phase-31-11-report-projection.test.js",
+    "services/api/test/phase-31-12-verify-and-dashboard.test.js",
+    "services/api/test/phase-31-13-derived-assets.test.js",
+    "services/api/test/phase-31-14-derived-assets-bytes.test.js",
+    "services/api/test/phase-31-15-case-graph-reconciler.test.js",
+    "services/api/test/phase-31-16-graph-domains-and-explorer.test.js",
+    "services/api/test/phase-31-17-reviewer-domains-and-inspector.test.js",
+    "services/api/test/phase-31-18-closure-program.test.js",
+    "services/api/test/phase-31-19-producer-mode.test.js",
+    "services/api/test/phase-31-20-producers-and-final-queues.test.js",
+    "services/api/test/phase-31-21-enterprise-closure.test.js",
+    "services/api/test/phase-31-5-32-graph-and-intelligence.test.js",
+    "services/api/test/phase-31-6-32-5-orchestration.test.js",
+    "services/api/test/phase-31-7-32-6-timeline-and-ops.test.js",
+    "services/api/test/phase-31-8-exif-wiring.test.js",
+    "services/api/test/phase-31-9-ops-actions-ui.test.js",
+    "services/api/test/phase-31-media-intelligence.test.js",
+    "services/api/test/phase-32-5-stabilization.test.js",
+    "services/api/test/phase-32-6-1-package-state-machine.test.js",
+    "services/api/test/phase-32-6-2-reviewer-ops-naming-drift.test.js",
+    "services/api/test/phase-32-6-3-team-billing-naming-drift.test.js",
+    "services/api/test/phase-32-6-4-frontend-runtime-ux-hotfix.test.js",
+    "services/api/test/phase-32-6-5-readiness-correctness.test.js",
+    "services/api/test/phase-32-6-6-personal-basic-verification-package.test.js",
+    "services/api/test/phase-32-6-production-runtime-recovery.test.js",
+    "services/api/test/phase-32-7-1-blocker-fix.test.js",
+    "services/api/test/phase-32-7-2-security-event-mapping-drift.test.js",
+    "services/api/test/phase-32-7-3-readiness-governance-blockers.test.js",
+    "services/api/test/phase-32-7-4-case-legal-holds-503-fix.test.js",
+    "services/api/test/phase-32-7-5-worker-reconcile-false-degraded.test.js",
+    "services/api/test/phase-32-7-6-case-legal-holds-optional-subsystem.test.js",
+    "services/api/test/phase-32-7-final-production-stabilization.test.js",
+    "services/api/test/phase-32-7-runtime-canonicalization.test.js",
+    "services/api/test/phase-32-8-c-command-center.test.js",
+    "services/api/test/phase-32-8-c-control-plane.test.js",
+    "services/api/test/phase-32-8-c-enterprise-gap-closure.test.js",
+    "services/api/test/phase-32-8-c-nav-reliability.test.js",
+    "services/api/test/phase-32-8-c-operational-closure.test.js",
+    "services/api/test/phase-32-8-c-pppp-dashboard-closure.test.js",
+    "services/api/test/phase-32-8-c-ppppp-structural-closure.test.js",
+    "services/api/test/phase-32-8-c-pppppp-frontend-consumption.test.js",
+    "services/api/test/phase-32-8-c-shell-completion.test.js",
+    "services/api/test/phase-32-8-c-workflow-causality.test.js",
+    "services/api/test/phase-32-8-d-cases-reports.test.js",
+    "services/api/test/phase-32-8-d-frontend-closure-2.test.js",
+    "services/api/test/phase-32-8-d-frontend-closure.test.js",
+    "services/api/test/phase-32-8-d-frontend-matter-workspace.test.js",
+    "services/api/test/phase-32-8-d-matter-workspace.test.js",
+    "services/api/test/phase-32-8-e-teams-governance-reviewer.test.js",
+    "services/api/test/phase-32-8-foundation-cleanup.test.js",
+    "services/api/test/phase-32-8-foundation-platform-context.test.js",
+    "services/api/test/phase-32-8-product-consolidation.test.js",
+    "services/api/test/phase-37-95-cross-tenant-runtime-probe.test.js",
+    "services/api/test/phase-37-95-scale-closure.test.js",
+    "services/api/test/phase-37-95-tenant-access-helpers-behavioral.test.js",
+    "services/api/test/phase-37-96-integration-harness-guards.test.js",
+    "services/api/test/phase-37-97-dashboard-projections.test.js",
+    "services/api/test/phase-37-98-command-center-projection-consumption.test.js",
+    "services/api/test/phase-3a-closure-detection-intelligence.test.js",
+    "services/api/test/phase-3a-elite-closure-policy-and-video.test.js",
+    "services/api/test/phase-3a-redaction-platform.test.js",
+    "services/api/test/phase-3b-enterprise-closure.test.js",
+    "services/api/test/phase-3b-intelligence-platform.test.js",
+    "services/api/test/phase-4a-enterprise-closure.test.js",
+    "services/api/test/phase-4a-final-closure.test.js",
+    "services/api/test/phase-4a-trust-and-governance.test.js",
+    "services/api/test/phase-4b-final-closure.test.js",
+    "services/api/test/phase-4b-product-packaging-and-lifecycle.test.js",
+    "services/api/test/phase-7-team-vs-workspace-anti-confusion.test.js",
+    "services/api/test/phase-8-org-admin-cross-org-isolation.test.js",
+    "services/api/test/phase-8-org-admin-personal-user-isolation.test.js",
+    "services/api/test/phase-8-org-admin-tab-surface.test.js",
+    "services/api/test/phase-8-vocabulary-and-shell-honesty.test.js",
+    "services/api/test/phase-a0-integrity-hard-gate.test.js",
+    "services/api/test/phase-a1-evidence-org-tenancy.test.js",
+    "services/api/test/phase-a2-pdf-artifact-status.test.js",
+    "services/api/test/phase-a3-backend-hardening.test.js",
+    "services/api/test/phase-b-ia-reset.test.js",
+    "services/api/test/phase-b0-workspace-operating-model.test.js",
+    "services/api/test/phase-c0-reviewer-console.test.js",
+    "services/api/test/phase-c1-matter-workspace.test.js",
+    "services/api/test/phase-c2-collaboration-surfacing.test.js",
+    "services/api/test/phase-c3-intake-polish.test.js",
+    "services/api/test/phase-cr0-5-recovery-readiness.test.js",
+    "services/api/test/phase-cr0-system-freeze-baseline.test.js",
+    "services/api/test/phase-cr1-5-state-observability.test.js",
+    "services/api/test/phase-cr1-5b-product-state-reaudit.test.js",
+    "services/api/test/phase-cr1-6-surgical-state-cleanup.test.js",
+    "services/api/test/phase-cr1-7-master-registry.test.js",
+    "services/api/test/phase-cr1-legacy-purge.test.js",
+    "services/api/test/phase-cr4-verify-decomposition.test.js",
+    "services/api/test/phase-cr5-capture-safety.test.js",
+    "services/api/test/phase-e10-1-pre-launch-hardening.test.js",
+    "services/api/test/phase-e10-2-operational-readiness.test.js",
+    "services/api/test/phase-e10-final-launch-hardening.test.js",
+    "services/api/test/phase-e2-controlled-collaboration.test.js",
+    "services/api/test/phase-e3-1-automation-execution.test.js",
+    "services/api/test/phase-e3-2-webhook-delivery.test.js",
+    "services/api/test/phase-e3-3-async-delivery-runtime.test.js",
+    "services/api/test/phase-e3-automation-foundation.test.js",
+    "services/api/test/phase-e4-analytics.test.js",
+    "services/api/test/phase-e5-trust-center.test.js",
+    "services/api/test/phase-e6-dr-continuity.test.js",
+    "services/api/test/phase-e8-external-distribution.test.js",
+    "services/api/test/phase-e9-ai-operational-intelligence.test.js",
+    "services/api/test/phase-emergency-recovery-bootstrap.test.js",
+    "services/api/test/phase-enterprise-tenant-model.test.js",
+    "services/api/test/phase-f-governance-ux.test.js",
+    "services/api/test/phase-final-d3-no-window-confirm.test.js",
+    "services/api/test/phase-final-d5-pt2-no-legacy-personal-security.test.js",
+    "services/api/test/phase-final-hidden-feature-surfacing.test.js",
+    "services/api/test/phase-final-worker-visibility.test.js",
+    "services/api/test/phase-g0-operational-convergence.test.js",
+    "services/api/test/phase-g1-governance-lifecycle.test.js",
+    "services/api/test/phase-g2-operational-ergonomics.test.js",
+    "services/api/test/phase-g3-1-live-operations-closure.test.js",
+    "services/api/test/phase-g3-2-final-live-operations-closure.test.js",
+    "services/api/test/phase-g3-stepup-presence-realtime.test.js",
+    "services/api/test/phase-g4-regression-safety.test.js",
+    "services/api/test/phase-g4-tenancy-cleanup.test.js",
+    "services/api/test/phase-g5-honest-mi.test.js",
+    "services/api/test/phase-g5-smoke-contracts.test.js",
+    "services/api/test/phase-g5-vocabulary-contracts.test.js",
+    "services/api/test/phase-o-active-blocker-closure.test.js",
+    "services/api/test/phase-o-final-plus-full-schema-audit.test.js",
+    "services/api/test/phase-o-final-schema-repair.test.js",
+    "services/api/test/phase-o-live-schema-repair.test.js",
+    "services/api/test/phase-o-migration-safety-gate.test.js",
+    "services/api/test/phase-o-workflow-join-final-repair.test.js",
+    "services/api/test/phase-o1-3-sentry-otel-coexistence.test.js",
+    "services/api/test/phase-o1-6-dashboard-coverage.test.js",
+    "services/api/test/phase-o2-1-presence-redis-backend.test.js",
+    "services/api/test/phase-p1-1-identity-operations-completion.test.js",
+    "services/api/test/phase-p1-identity-operations.test.js",
+    "services/api/test/phase-p2-0-secrets-manager.test.js",
+    "services/api/test/phase-p2-0b-observability-wiring.test.js",
+    "services/api/test/phase-p2-final-closure.test.js",
+    "services/api/test/phase-p3-1-signer-governance.test.js",
+    "services/api/test/phase-r1-5b-workspace-segmentation.test.js",
+    "services/api/test/phase-r1-product-state-recovery.test.js",
+    "services/api/test/phase-r10-personal-first-regression.test.js",
+    "services/api/test/phase-r10-visual-maturity.test.js",
+    "services/api/test/phase-r11-browser-qa-accessibility.test.js",
+    "services/api/test/phase-r11-domain-stabilization.test.js",
+    "services/api/test/phase-r12-runtime-alignment.test.js",
+    "services/api/test/phase-r13-route-persona-matrix.test.js",
+    "services/api/test/phase-r14-team-platform.test.js",
+    "services/api/test/phase-r15-team-frontend.test.js",
+    "services/api/test/phase-r16-collaboration-completion.test.js",
+    "services/api/test/phase-r2-navigation-ia-recovery.test.js",
+    "services/api/test/phase-r3-dashboard-orchestration.test.js",
+    "services/api/test/phase-r4-product-language-recovery.test.js",
+    "services/api/test/phase-r5-progressive-disclosure.test.js",
+    "services/api/test/phase-r6-operational-hubs.test.js",
+    "services/api/test/phase-r7-onboarding-setup-recovery.test.js",
+    "services/api/test/phase-r8-1-1-mfa-orchestrator.test.js",
+    "services/api/test/phase-r8-1-2-login-mfa.test.js",
+    "services/api/test/phase-r8-1-3-org-mfa-policy-and-durable-challenges.test.js",
+    "services/api/test/phase-r8-1-4-mfa-admin-lifecycle.test.js",
+    "services/api/test/phase-r8-1-5-mfa-recovery-admin-ui.test.js",
+    "services/api/test/phase-r8-1-6-mfa-recovery-ux-completion.test.js",
+    "services/api/test/phase-r8-1-7-mfa-recovery-operations-polish.test.js",
+    "services/api/test/phase-r8-1-8-mfa-recovery-operations-ui.test.js",
+    "services/api/test/phase-r8-1-9-mfa-recovery-finalization.test.js",
+    "services/api/test/phase-r8-1-mfa-recovery.test.js",
+    "services/api/test/phase-r8-1-mfa-totp.test.js",
+    "services/api/test/phase-r8-1-real-mfa.test.js",
+    "services/api/test/phase-r8-2-1-saml-hardening.test.js",
+    "services/api/test/phase-r8-2-2-saml-compliance.test.js",
+    "services/api/test/phase-r8-2-saml-sp.test.js",
+    "services/api/test/phase-r8-c-consolidation.test.js",
+    "services/api/test/phase-r8-enterprise-identity-security.test.js",
+    "services/api/test/phase-r9-duplicate-route-guard.test.js",
+    "services/api/test/phase-r9-personal-first-rescue.test.js",
+    "services/api/test/phase-r9-worker-import-boundary.test.js",
+    "services/api/test/phase-tenant-isolation-scale.test.js",
+    "services/api/test/phase-x-architecture-consolidation.test.js",
+    "services/api/test/phase-x1-architecture-closure.test.js",
+    "services/api/test/phase-y-observability.test.js",
+    "services/api/test/phase-z-hardening.test.js",
+    "services/api/test/phase20-hardening.test.js",
+    "services/api/test/phase21-observability.test.js",
+    "services/api/test/phase22-workflow.test.js",
+    "services/api/test/phase23-workflow-ui.test.js",
+    "services/api/test/phase24-search.test.js",
+    "services/api/test/phase25-reviewer-ops.test.js",
+    "services/api/test/phase25_5-reviewer-ops-hardening.test.js",
+    "services/api/test/phase26-identity-governance.test.js",
+    "services/api/test/phase26_5-identity-hardening.test.js",
+    "services/api/test/phase26_75-identity-runtime.test.js",
+    "services/api/test/phase27-governance-lifecycle.test.js",
+    "services/api/test/phase27_5-governance-operations.test.js",
+    "services/api/test/phase9-collaboration-team-billing-parity.test.js",
+    "services/api/test/production-billing-parity.test.js",
+    "services/api/test/production-evidence-lifecycle-final-fix.test.js",
+    "services/api/test/production-evidence-lifecycle-real-fix.test.js",
+    "services/api/test/production-governance-additive-repair.test.js",
+    "services/api/test/production-intake-links-no-env-leak.test.js",
+    "services/api/test/production-integrations-disabled-panel.test.js",
+    "services/api/test/production-investigation-enterprise-p0-p1.test.js",
+    "services/api/test/production-lifecycle-domain-consolidation.test.js",
+    "services/api/test/production-page-route-gate-platform-admin.test.js",
+    "services/api/test/production-phase-2-1-final-drift-closure.test.js",
+    "services/api/test/production-phase-o-stage-4-central-error-handler.test.js",
+    "services/api/test/production-phase-o-stream-a-route-fixes.test.js",
+    "services/api/test/production-phase-o-stream-c-route-fixes.test.js",
+    "services/api/test/production-phase1-drift-stabilization.test.js",
+    "services/api/test/production-phase2-drift-remediation.test.js",
+    "services/api/test/production-sentry-batch-schema-drift.test.js",
+    "services/api/test/production-signing-key-seed-resolver.test.js",
+    "services/api/test/production-subscription-gate-stale-row.test.js",
+    "services/api/test/production-trust-center-empty-state.test.js",
+    "services/api/test/production-trust-center-enterprise-completion.test.js",
+    "services/api/test/reliability.test.js",
+    "services/api/test/review-operations-completion.test.js",
+    "services/api/test/review-operations.test.js",
+    "services/api/test/reviewer-ops-e2e-operational.test.js",
+    "services/api/test/reviewer-ops-lifecycle-activation.test.js",
+    "services/api/test/reviewer-ops-workspace-hotfix.test.js",
+    "services/api/test/runtime-validation-enterprise.test.js",
+    "services/api/test/security-validation.test.js",
+    "services/api/test/ui-adoption-rollout.test.js",
+    "services/api/test/ui-operational-wiring.test.js",
+    "services/api/test/ui-ops-maturity.test.js",
+    "services/api/test/ui-ops-polish.test.js",
+    "services/api/test/webhook-receiver-verification.test.js",
+    "services/api/test/workflow-intake-public-projection.test.js",
+    "services/api/test/workflow-intake-token.service.test.js",
+    "services/api/test/workflow-template.service.test.js",
+    "services/api/test/workspace-surface-audit.test.js"
+  ],
+  "UNKNOWN_EXTERNAL_STATE": [
+    "deployed Web/API/Worker commits (HEAD==origin/main==36b871dc, but actual deployed SHA unconfirmed)",
+    "production _prisma_migrations applied status (no read-only prod DB access)",
+    "live provider state (Stripe/PayPal/SAML/OIDC/Redis/S3)"
+  ]
+}

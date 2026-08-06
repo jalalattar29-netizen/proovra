@@ -39,12 +39,12 @@ import {
   validateCustomSenderDisplayName,
   WorkflowIntakeMode,
   WorkflowIntakeModeSchema,
-  INTAKE_LINK_LOCATION_POLICIES,
   isIntakeLinkLocationPolicy,
   type IntakeLinkLocationPolicy,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
+import { error as logError } from "../utils/logger.js";
 import { issueIntakeToken } from "./workflow-intake-token.service.js";
 import {
   liftIntakeTemplateToWorkflowTemplate,
@@ -865,7 +865,12 @@ export async function sendIntakeLinkViaEmail(
     });
   } catch (err) {
     // If the row insert itself fails, surface failure to the caller —
-    // we cannot proceed without an audit row.
+    // we cannot proceed without an audit row. Bounded diagnostic only:
+    // never the recipient, the body, or the raw driver message.
+    logError("intake_link.delivery_row_insert_failed", {
+      intakeLinkId: link.id,
+      errorCode: err instanceof Error ? err.name.slice(0, 64) : "unknown_error",
+    });
     return {
       ok: false,
       reason: "delivery_failed",
@@ -875,13 +880,19 @@ export async function sendIntakeLinkViaEmail(
   // Provider call. sendCustomEmailViaResend returns {ok, providerMessageId, errorCode, errorMessage}.
   let providerResult;
   try {
-    const { getEmailFromHeader } = await import("./email.service.js");
+    const { getEmailFromHeader, deterministicEmailKey } = await import(
+      "./email.service.js"
+    );
     providerResult = await sendCustomEmailViaResend({
       from: getEmailFromHeader(),
       to: email,
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
+      // The CommunicationMessage row was inserted above, before the provider
+      // call, precisely so the attempt is durable. Its id is therefore the
+      // right thing to derive the provider idempotency key from.
+      idempotencyKey: deterministicEmailKey("intake_link_message", message.id),
     });
   } catch (err) {
     providerResult = {
@@ -924,16 +935,6 @@ export async function sendIntakeLinkViaEmail(
     communicationMessageId: message.id,
     providerMessageId: providerResult.providerMessageId ?? null,
   };
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-function escapeAttr(s: string): string {
-  return escapeHtml(s).replace(/"/g, "&quot;");
 }
 
 export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {

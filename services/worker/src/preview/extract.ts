@@ -339,10 +339,11 @@ async function buildReviewerRepresentationCard(params: {
   }
 }
 
-async function extractImagePreview(
-  buffer: Buffer,
-  mimeType: string | null
-): Promise<ExtractedPreview> {
+// `mimeType` was the trailing parameter and was never read: sharp sniffs the
+// container from the buffer itself, so the caller's declared type had no
+// influence on the result. Dropping it removes a parameter that implied the
+// preview honoured a MIME hint it actually ignored.
+async function extractImagePreview(buffer: Buffer): Promise<ExtractedPreview> {
   try {
     const resized = await sharp(buffer)
       .resize(800, 800, {
@@ -483,7 +484,7 @@ export async function extractPreviewForAsset(
   try {
     switch (kind) {
       case "image":
-        return await extractImagePreview(buffer, mimeType);
+        return await extractImagePreview(buffer);
 
       case "pdf":
         return await extractPdfPreview(buffer);

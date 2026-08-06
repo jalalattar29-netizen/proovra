@@ -162,7 +162,6 @@ function makeFake() {
     externalIdentityMapping: {
       async findFirst({
         where,
-        orderBy: _orderBy,
       }: {
         where: Record<string, unknown>;
         orderBy?: unknown;

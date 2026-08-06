@@ -178,10 +178,15 @@ describe("SLA cron route — production fail-closed", () => {
 // -----------------------------------------------------------------------------
 
 describe("review decision → notification dispatch", () => {
-  it("decision flow notifies ONLY safe events (ESCALATE / REQUEST_MORE_INFO)", async () => {
+  it("decision flow notifies ONLY safe events (ESCALATE / REQUEST_INFO)", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
+    // Track 1C — the dispatch is now split across the two canonical
+    // writers: the lifecycle service notifies on ESCALATE only; the
+    // decision authority notifies when the projection lands on
+    // NEEDS_MORE_INFO. APPROVE / REJECT never email anyone — they're
+    // internal operator decisions.
+    const lifecycleSrc = await readFile(
       fileURLToPath(
         new URL(
           "../src/services/review-operations/review-operations.service.ts",
@@ -190,17 +195,24 @@ describe("review decision → notification dispatch", () => {
       ),
       "utf8",
     );
-    // The decision-side dispatch switch ONLY notifies on ESCALATE and
-    // REQUEST_MORE_INFO. APPROVE_INTERNAL / REJECT_INSUFFICIENT do
-    // NOT email anyone — they're internal operator decisions.
-    const switchBlock = src.match(/switch \(input\.decision\) \{[\s\S]*?\}\s*\n\s*return updated;/);
-    expect(switchBlock).not.toBeNull();
-    if (switchBlock) {
-      expect(switchBlock[0]).toMatch(/case "ESCALATE"/);
-      expect(switchBlock[0]).toMatch(/case "REQUEST_MORE_INFO"/);
-      // These cases are absent from the dispatch switch:
-      expect(switchBlock[0]).not.toMatch(/notifyReview.*APPROVE/);
-      expect(switchBlock[0]).not.toMatch(/notifyReview.*REJECT/);
+    expect(lifecycleSrc).toMatch(/notifyReviewEscalated\(/);
+    // Verdict notifications no longer live in the lifecycle service.
+    expect(lifecycleSrc).not.toMatch(/notifyReviewNeedsMoreInfo/);
+
+    const authoritySrc = await readFile(
+      fileURLToPath(
+        new URL(
+          "../src/services/reviewer-ops/review-decision.service.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    expect(authoritySrc).toMatch(/notifyReviewNeedsMoreInfo\(/);
+    // No approve / reject notification dispatch exists anywhere in
+    // either writer.
+    for (const src of [lifecycleSrc, authoritySrc]) {
+      expect(src).not.toMatch(/notifyReview\w*(Approved|Rejected)/);
     }
   });
 

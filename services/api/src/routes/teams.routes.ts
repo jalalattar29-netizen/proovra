@@ -170,11 +170,14 @@ async function checkWorkspaceLegalHold(
   teamId: string,
 ): Promise<{ ok: boolean; holdIds: string[] }> {
   try {
-    const activeHolds = await prisma.legalHold.findMany({
+    // P12.3 canonical-only. The legacy WORKSPACE and ORGANIZATION kinds were
+    // both folded into scope='WORKSPACE' by the backfill. Historical rows are
+    // matched too so an unresolvable ACTIVE hold still blocks closure.
+    const activeHolds = await prisma.evidenceLegalHold.findMany({
       where: {
         teamId,
-        state: "ACTIVE",
-        OR: [{ kind: "WORKSPACE" }, { kind: "ORGANIZATION" }],
+        status: "ACTIVE",
+        OR: [{ scope: "WORKSPACE" }, { historical: true }],
       },
       select: { id: true },
       take: 50,
@@ -287,8 +290,26 @@ async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
     throw err;
   }
 
+  // PHASE 12 — POINT 7 (2026-08-05). `maxOwnedTeams` caps OWNED workspaces.
+  // This counted EVERY `Team` row the user owns, which is three different
+  // kinds of thing: the Personal Space (bootstrapped for every account, always
+  // present, and never an "owned team"), provisioned ORGANIZATION workspaces
+  // (governed by the Organization's contract, not by the owner's personal
+  // plan), and the OWNED workspaces the cap is actually about. A PRO account
+  // (`maxOwnedTeams: 2`) therefore reached the cap after creating ONE owned
+  // workspace, because its Personal Space had already consumed the other slot
+  // — the published limit and the enforced limit differed by exactly the
+  // bootstrap.
+  //
+  // The canonical kind classifier is the discriminator. `isPersonal` excludes
+  // the Personal Space; a CUSTOMER-organization parent excludes provisioned
+  // Organization workspaces. What remains is the OWNED set.
   const ownedTeamCount = await prisma.team.count({
-    where: { ownerUserId },
+    where: {
+      ownerUserId,
+      isPersonal: false,
+      NOT: { organization: { kind: "CUSTOMER" } },
+    },
   });
 
   if (ownedTeamCount >= maxOwnedTeams) {
@@ -322,31 +343,35 @@ export async function teamsRoutes(app: FastifyInstance) {
     try {
       const ownershipState = await assertUserCanCreateAnotherTeam(ownerUserId);
 
-      // 4B-I1: QUOTA_WORKSPACES — gate on per-user workspace count.
-      // Denial: 403 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_WORKSPACES" }.
-      // Engine errors are swallowed so this gate never blocks the operational path.
+      // PHASE 12 — POINT 7 (2026-08-05): ONE authority for the owned-workspace
+      // count.
+      //
+      // This route used to run a SECOND, independent limit on the same
+      // decision: `assertQuotaEntitlement("QUOTA_WORKSPACES")`, from the
+      // packaging entitlement engine, whose table is keyed on PRODUCT LINE and
+      // whose default is **1**. `assertUserCanCreateAnotherTeam` above is
+      // keyed on the COMMERCIAL PLAN and says 2 for PRO, 5 for TEAM, 1000 for
+      // ENTERPRISE. The two disagreed on every plan, the stricter one won
+      // silently, and the published limit was therefore unreachable: a PRO
+      // account allowed two Owned Workspaces was refused the second with
+      // `QUOTA_EXCEEDED / QUOTA_WORKSPACES` — a denial code naming an
+      // entitlement the pricing page never mentions.
+      //
+      // The canonical authority for "how many Owned Workspaces may this
+      // account create" is `PlanCapabilities.maxOwnedTeams`, resolved at the
+      // PERSONAL_ACCOUNT commercial subject (Phase 9 §9.7). The duplicate
+      // DECISION is removed here rather than reconciled, because reconciling
+      // two tables leaves two tables. Usage is still RECORDED so the packaging
+      // engine keeps its counters for reporting — recording is not deciding.
       try {
         const personalTeam = await prisma.team.findFirst({
           where: { ownerUserId, isPersonal: true },
           select: { id: true },
         });
         if (personalTeam) {
-          const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
+          const { recordEntitlementUsage } = await import(
             "../services/packaging/entitlement.service.js"
           );
-          const qWorkspaces = await assertQuotaEntitlement({
-            prisma,
-            teamId: personalTeam.id,
-            key: "QUOTA_WORKSPACES",
-            requested: 1,
-            actorUserId: ownerUserId,
-          });
-          if (!qWorkspaces.ok) {
-            return reply.code(403).send({
-              denial: "QUOTA_EXCEEDED",
-              entitlement: "QUOTA_WORKSPACES",
-            });
-          }
           recordEntitlementUsage({
             prisma,
             teamId: personalTeam.id,
@@ -355,13 +380,54 @@ export async function teamsRoutes(app: FastifyInstance) {
           }).catch(() => null);
         }
       } catch {
-        /* entitlement engine error — do not block workspace creation */
+        /* entitlement usage recording is best-effort and never blocks */
       }
 
       // Phase 2.7X Stage 6 — atomically create the bound Organization
       // so the team is never observed with a NULL `organization_id`.
       // This keeps the Stage 7-eligible NOT NULL tightening safe.
       const team = await prisma.$transaction(async (tx) => {
+        // PHASE 12 — POINT 7 (2026-08-05): the limit is RE-EVALUATED inside the
+        // creating transaction, under a per-owner advisory lock.
+        //
+        // `assertUserCanCreateAnotherTeam` above is a count followed, some
+        // milliseconds later, by an unrelated INSERT. Two requests arriving
+        // together both counted `limit - 1`, both passed, and both created:
+        // a PRO account allowed two Owned Workspaces ended up with three.
+        // There is no unique constraint that could have caught it, because
+        // "at most N rows for this owner" is not expressible as one.
+        //
+        // `pg_advisory_xact_lock` is the repository's canonical serialisation
+        // primitive for exactly this shape (see
+        // `establishOrganizationSessionContext`): transaction-scoped, released
+        // on commit or rollback, and effective across API instances rather
+        // than merely across one process's event loop. The pre-flight check
+        // stays where it is so the common denial keeps its rich error body
+        // without paying for a transaction; this is the authority.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`owned-workspace-create:${ownerUserId}`}))`;
+        const liveOwnedCount = await tx.team.count({
+          where: {
+            ownerUserId,
+            isPersonal: false,
+            NOT: { organization: { kind: "CUSTOMER" } },
+          },
+        });
+        if (liveOwnedCount >= ownershipState.maxOwnedTeams) {
+          const err: Error & {
+            statusCode?: number;
+            code?: string;
+            details?: Record<string, unknown>;
+          } = new Error("Team limit reached for current plan");
+          err.statusCode = 409;
+          err.code = "TEAM_WORKSPACE_LIMIT_REACHED";
+          err.details = {
+            plan: ownershipState.plan,
+            maxOwnedTeams: ownershipState.maxOwnedTeams,
+            ownedTeamCount: liveOwnedCount,
+          };
+          throw err;
+        }
+
         const org = await tx.organization.create({
           data: {
             name: body.name.trim(),
@@ -573,7 +639,16 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden" },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        // PHASE 12 — POINT 7 (2026-08-05). A workspace the caller is not a
+        // member of answers exactly as a workspace that does not exist.
+        //
+        // This used to return 403 while a nonexistent id returned 404, which
+        // makes the pair an existence oracle: an outsider walking ids learns
+        // which ones are real workspaces, and workspace ids are not secrets —
+        // they appear in URLs, deep links and shared references. The audit
+        // record above still distinguishes the two cases, because the
+        // OPERATOR should see the difference; the caller should not.
+        return reply.code(404).send({ message: "Team not found" });
       }
 
       const userIds = team.members.map((m) => m.userId);
@@ -639,6 +714,12 @@ export async function teamsRoutes(app: FastifyInstance) {
         overSeatLimit: team.overSeatLimit,
         currentUserRole: actorMembership.role,
         canManageMembers: hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN),
+        // PHASE 12 POINT 4 STEP 1 — OWNER-level workspace authority, projected
+        // so the web console never re-derives it from a role string. Mirrors
+        // the `actor.role !== TeamRole.OWNER` gate on DELETE /v1/teams/:id and
+        // the workspace-closure routes; those gates remain the enforcement
+        // point on every direct API call.
+        canManageWorkspace: actorMembership.role === prismaPkg.TeamRole.OWNER,
         stats: {
           memberCount: team.members.length,
           pendingInviteCount,

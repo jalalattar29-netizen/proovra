@@ -33,8 +33,7 @@ import { MatterWorkspace } from "../../../../components/cases-experience/MatterW
 // cases-list advanced controls. Backend selectors + routes are
 // unchanged for both audiences.
 import { SimpleCaseDetail } from "../../../../components/cases-experience/simple-case-detail/SimpleCaseDetail";
-import { canAccessSurface } from "../../../../lib/surface/access";
-import { useSurfaceUserContext } from "../../../../lib/surface/useSurfaceUserContext";
+import { useEnterpriseSurfaceAccess } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 
@@ -51,17 +50,13 @@ function CaseDetailPageInner() {
   const router = useRouter();
   const raw = params?.id;
   const caseId = Array.isArray(raw) ? raw[0] : raw;
-  // Phase CASE-DETAIL-PERSONAL-UX — same gate as the Cases list page.
-  // ENTERPRISE/investigation workspaces keep the 12-tab MatterWorkspace
+  // Phase CASE-DETAIL-PERSONAL-UX / Track 1A — same gate as the Cases
+  // list page. Enterprise workspaces keep the 12-tab MatterWorkspace
   // surface; Personal / small-team workspaces get the 5-tab
   // SimpleCaseDetail with no SLA / Risk / SIU / Audit / Holds /
   // Decisions / Assignments / Graph / Timeline. Backend routes are
-  // identical for both audiences.
-  const surfaceUserCtx = useSurfaceUserContext();
-  const canSeeAdvancedCaseOps = canAccessSurface(
-    surfaceUserCtx,
-    "/investigation",
-  );
+  // identical for both audiences. Server-projected boolean only.
+  const canSeeAdvancedCaseOps = useEnterpriseSurfaceAccess();
 
   const onOpenEvidence = useCallback(
     (evidenceId: string) => {

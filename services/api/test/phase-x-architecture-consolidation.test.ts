@@ -29,7 +29,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  CanonicalDecision,
   RUNTIME_OWNERSHIP_MAP,
   canonicalCanEnterPendingDestruction,
   canonicalEvaluateExportEligibility,

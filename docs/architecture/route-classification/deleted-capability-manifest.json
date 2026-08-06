@@ -1,0 +1,1186 @@
+{
+  "generatedForBaseline": "HEAD (pre-Phase-12)",
+  "target": "working tree",
+  "totals": {
+    "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY": 13,
+    "DEAD_DUPLICATE_WITH_ZERO_UNIQUE_CAPABILITY": 5,
+    "APPROVED_PRODUCT_SCOPE_REMOVAL": 0,
+    "ACCIDENTAL_CAPABILITY_LOSS": 52,
+    "UNPROVEN": 70
+  },
+  "routes": [
+    {
+      "method": "DELETE",
+      "path": "/v1/graph/relationships/manual/:manualRelationshipId",
+      "file": "graph.routes.ts",
+      "key": "DELETE /v1/graph/relationships/manual/:manualRelationshipId",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/identity/capabilities/:id",
+      "file": "identity.routes.ts",
+      "key": "DELETE /v1/identity/capabilities/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/identity/delegated-admin/:id",
+      "file": "identity.routes.ts",
+      "key": "DELETE /v1/identity/delegated-admin/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/identity/external-mappings/:id",
+      "file": "identity.routes.ts",
+      "key": "DELETE /v1/identity/external-mappings/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/redaction/policy-assignments/:id",
+      "file": "redaction.routes.ts",
+      "key": "DELETE /v1/redaction/policy-assignments/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/redaction/regions/:id",
+      "file": "redaction.routes.ts",
+      "key": "DELETE /v1/redaction/regions/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/siu/saved-views/:id",
+      "file": "siu.routes.ts",
+      "key": "DELETE /v1/siu/saved-views/:id",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/analytics/funnel",
+      "file": "analytics.routes.ts",
+      "key": "GET /v1/admin/analytics/funnel",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/analytics/geography",
+      "file": "analytics.routes.ts",
+      "key": "GET /v1/admin/analytics/geography",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/analytics/pages",
+      "file": "analytics.routes.ts",
+      "key": "GET /v1/admin/analytics/pages",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/analytics/recent",
+      "file": "analytics.routes.ts",
+      "key": "GET /v1/admin/analytics/recent",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/analytics/summary",
+      "file": "analytics.routes.ts",
+      "key": "GET /v1/admin/analytics/summary",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/analytics/trends",
+      "file": "analytics.routes.ts",
+      "key": "GET /v1/admin/analytics/trends",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/audit-log/export",
+      "file": "admin-audit.routes.ts",
+      "key": "GET /v1/admin/audit-log/export",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/identity/role-matrix",
+      "file": "admin-identity.routes.ts",
+      "key": "GET /v1/admin/identity/role-matrix",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/analytics/_window",
+      "file": "analytics-operations.routes.ts",
+      "key": "GET /v1/analytics/_window",
+      "classification": "DEAD_DUPLICATE_WITH_ZERO_UNIQUE_CAPABILITY",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/billing/payments",
+      "file": "billing.routes.ts",
+      "key": "GET /v1/billing/payments",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/collaboration/catalogs",
+      "file": "collaboration.routes.ts",
+      "key": "GET /v1/collaboration/catalogs",
+      "classification": "DEAD_DUPLICATE_WITH_ZERO_UNIQUE_CAPABILITY",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/executive/metrics",
+      "file": "intelligence-platform.routes.ts",
+      "key": "GET /v1/executive/metrics",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/access-reviews/escalated",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/governance/access-reviews/escalated",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/case-legal-holds",
+      "file": "governance.routes.ts",
+      "key": "GET /v1/governance/case-legal-holds",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/legal-holds (11 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/destruction-executions",
+      "file": "governance-operations.routes.ts",
+      "key": "GET /v1/governance/destruction-executions",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/legal-holds",
+      "file": "governance.routes.ts",
+      "key": "GET /v1/governance/legal-holds",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/legal-holds (11 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/me/department-scope",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/governance/me/department-scope",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/policies/effective",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/governance/policies/effective",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/policy",
+      "file": "governance.routes.ts",
+      "key": "GET /v1/governance/policy",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/reviewer-ops/sla-policy (5 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/reconciliation-runs",
+      "file": "governance-operations.routes.ts",
+      "key": "GET /v1/governance/reconciliation-runs",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/retention-candidates",
+      "file": "governance.routes.ts",
+      "key": "GET /v1/governance/retention-candidates",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/retention (10 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/governance/retention-policies/effective",
+      "file": "governance-lifecycle.routes.ts",
+      "key": "GET /v1/governance/retention-policies/effective",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/retention (10 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/graph/diagnostics",
+      "file": "graph.routes.ts",
+      "key": "GET /v1/graph/diagnostics",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/graph/evidence/:evidenceId",
+      "file": "graph.routes.ts",
+      "key": "GET /v1/graph/evidence/:evidenceId",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/graph/search",
+      "file": "graph.routes.ts",
+      "key": "GET /v1/graph/search",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/external-mappings",
+      "file": "identity.routes.ts",
+      "key": "GET /v1/identity/external-mappings",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/members",
+      "file": "identity.routes.ts",
+      "key": "GET /v1/identity/members",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/mfa-admin/events/:teamId",
+      "file": "mfa-admin.routes.ts",
+      "key": "GET /v1/identity/mfa-admin/events/:teamId",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/mfa-admin/policy/:teamId",
+      "file": "mfa-admin.routes.ts",
+      "key": "GET /v1/identity/mfa-admin/policy/:teamId",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/mfa-admin/posture/:teamId/:userId",
+      "file": "mfa-admin.routes.ts",
+      "key": "GET /v1/identity/mfa-admin/posture/:teamId/:userId",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/mfa-admin/recovery-events",
+      "file": "mfa-admin.routes.ts",
+      "key": "GET /v1/identity/mfa-admin/recovery-events",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/policy",
+      "file": "identity.routes.ts",
+      "key": "GET /v1/identity/policy",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/identity/service-accounts",
+      "file": "identity.routes.ts",
+      "key": "GET /v1/identity/service-accounts",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/integrations/webhooks/deliveries",
+      "file": "product-and-lifecycle.routes.ts",
+      "key": "GET /v1/integrations/webhooks/deliveries",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/intelligence/catalogs",
+      "file": "intelligence.routes.ts",
+      "key": "GET /v1/intelligence/catalogs",
+      "classification": "DEAD_DUPLICATE_WITH_ZERO_UNIQUE_CAPABILITY",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/intelligence/records/:id",
+      "file": "intelligence-platform.routes.ts",
+      "key": "GET /v1/intelligence/records/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/intelligence/records/:id/corrections",
+      "file": "intelligence-platform.routes.ts",
+      "key": "GET /v1/intelligence/records/:id/corrections",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/intelligence/records/:id/version-chain",
+      "file": "intelligence-platform.routes.ts",
+      "key": "GET /v1/intelligence/records/:id/version-chain",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/lifecycle/verification-package/preview",
+      "file": "product-and-lifecycle.routes.ts",
+      "key": "GET /v1/lifecycle/verification-package/preview",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/lifecycle/violations",
+      "file": "product-and-lifecycle.routes.ts",
+      "key": "GET /v1/lifecycle/violations",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/lifecycle/violations/counts",
+      "file": "product-and-lifecycle.routes.ts",
+      "key": "GET /v1/lifecycle/violations/counts",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/presence/here",
+      "file": "presence.routes.ts",
+      "key": "GET /v1/me/presence/here",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ops/bulk-actions/:id",
+      "file": "ops.routes.ts",
+      "key": "GET /v1/ops/bulk-actions/:id",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ops/causality/chains",
+      "file": "ops.routes.ts",
+      "key": "GET /v1/ops/causality/chains",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ops/causality/chains/:id",
+      "file": "ops.routes.ts",
+      "key": "GET /v1/ops/causality/chains/:id",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ops/workflows",
+      "file": "ops.routes.ts",
+      "key": "GET /v1/ops/workflows",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ops/workflows/:id",
+      "file": "ops.routes.ts",
+      "key": "GET /v1/ops/workflows/:id",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/platform/rbac/matrix",
+      "file": "teams.routes.ts",
+      "key": "GET /v1/platform/rbac/matrix",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/provenance/:evidenceId",
+      "file": "capture-trust.routes.ts",
+      "key": "GET /v1/provenance/:evidenceId",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/redaction/derivatives/:id",
+      "file": "redaction.routes.ts",
+      "key": "GET /v1/redaction/derivatives/:id",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/redaction/evidence/:evidenceId/detection-manifest",
+      "file": "redaction.routes.ts",
+      "key": "GET /v1/redaction/evidence/:evidenceId/detection-manifest",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/redaction/policy/assignments",
+      "file": "redaction.routes.ts",
+      "key": "GET /v1/redaction/policy/assignments",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/redaction/policy/effective",
+      "file": "redaction.routes.ts",
+      "key": "GET /v1/redaction/policy/effective",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/redaction/public/verify/:evidenceId",
+      "file": "redaction.routes.ts",
+      "key": "GET /v1/redaction/public/verify/:evidenceId",
+      "classification": "DEAD_DUPLICATE_WITH_ZERO_UNIQUE_CAPABILITY",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/review/queue",
+      "file": "evidence-requests.routes.ts",
+      "key": "GET /v1/review/queue",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/search/audit",
+      "file": "search.routes.ts",
+      "key": "GET /v1/search/audit",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/search/cases",
+      "file": "search.routes.ts",
+      "key": "GET /v1/search/cases",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "unified /v1/search (9 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/search/evidence",
+      "file": "search.routes.ts",
+      "key": "GET /v1/search/evidence",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "unified /v1/search (9 web files)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/security-policy",
+      "file": "enterprise-security.routes.ts",
+      "key": "GET /v1/security-policy",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/security-policy/high-security/readiness",
+      "file": "enterprise-security.routes.ts",
+      "key": "GET /v1/security-policy/high-security/readiness",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/security/events",
+      "file": "security.routes.ts",
+      "key": "GET /v1/security/events",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/security/scans",
+      "file": "security.routes.ts",
+      "key": "GET /v1/security/scans",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/security/summary",
+      "file": "security.routes.ts",
+      "key": "GET /v1/security/summary",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/siu/intake-templates",
+      "file": "siu.routes.ts",
+      "key": "GET /v1/siu/intake-templates",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/siu/saved-views",
+      "file": "siu.routes.ts",
+      "key": "GET /v1/siu/saved-views",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/siu/saved-views/custom",
+      "file": "siu.routes.ts",
+      "key": "GET /v1/siu/saved-views/custom",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/trust/drift/stale",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/trust/drift/stale",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/trust/security-claims",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/trust/security-claims",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/trust/verification-package/preview",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/trust/verification-package/preview",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/trust/verify-references",
+      "file": "trust-and-governance.routes.ts",
+      "key": "GET /v1/trust/verify-references",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/legal-status",
+      "file": "users.routes.ts",
+      "key": "GET /v1/users/legal-status",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/users/legal-acceptance (14 web files) + requireAuthAndLegal server enforcement"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/identity/mfa-admin/policy/:teamId",
+      "file": "mfa-admin.routes.ts",
+      "key": "PATCH /v1/identity/mfa-admin/policy/:teamId",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/identity/service-accounts/:id/hardening",
+      "file": "identity.routes.ts",
+      "key": "PATCH /v1/identity/service-accounts/:id/hardening",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/security-policy",
+      "file": "enterprise-security.routes.ts",
+      "key": "PATCH /v1/security-policy",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/siu/saved-views/:id",
+      "file": "siu.routes.ts",
+      "key": "PATCH /v1/siu/saved-views/:id",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/identity/elevations",
+      "file": "admin-identity.routes.ts",
+      "key": "POST /v1/admin/identity/elevations",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ai/copilot-runs/:runId/observations",
+      "file": "ai-reviewer.routes.ts",
+      "key": "POST /v1/ai/copilot-runs/:runId/observations",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/billing/credits",
+      "file": "billing.routes.ts",
+      "key": "POST /v1/billing/credits",
+      "classification": "DEAD_DUPLICATE_WITH_ZERO_UNIQUE_CAPABILITY",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/billing/plan",
+      "file": "billing.routes.ts",
+      "key": "POST /v1/billing/plan",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/billing/restore",
+      "file": "billing.routes.ts",
+      "key": "POST /v1/billing/restore",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/cases/bulk",
+      "file": "cases.routes.ts",
+      "key": "POST /v1/cases/bulk",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/communications/preferences",
+      "file": "communications.routes.ts",
+      "key": "POST /v1/communications/preferences",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/communications/verify/check",
+      "file": "communications.routes.ts",
+      "key": "POST /v1/communications/verify/check",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/communications/verify/start",
+      "file": "communications.routes.ts",
+      "key": "POST /v1/communications/verify/start",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/exchange/deliveries/:id/download",
+      "file": "product-and-lifecycle.routes.ts",
+      "key": "POST /v1/exchange/deliveries/:id/download",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/governance/case-legal-holds",
+      "file": "governance.routes.ts",
+      "key": "POST /v1/governance/case-legal-holds",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/legal-holds (11 web files)"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/governance/case-legal-holds/:id/release",
+      "file": "governance.routes.ts",
+      "key": "POST /v1/governance/case-legal-holds/:id/release",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/legal-holds (11 web files)"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/governance/departments/memberships/:id/revoke",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/governance/departments/memberships/:id/revoke",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/governance/legal-holds",
+      "file": "governance.routes.ts",
+      "key": "POST /v1/governance/legal-holds",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/legal-holds (11 web files)"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/governance/legal-holds/:id/release",
+      "file": "governance.routes.ts",
+      "key": "POST /v1/governance/legal-holds/:id/release",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/lifecycle/legal-holds (11 web files)"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/graph/relationships/manual",
+      "file": "graph.routes.ts",
+      "key": "POST /v1/graph/relationships/manual",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/access-reviews/regenerate",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/access-reviews/regenerate",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/external-mappings",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/external-mappings",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/members/:id/capabilities",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/members/:id/capabilities",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/members/:id/delegated-admin",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/members/:id/delegated-admin",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/members/:id/restore",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/members/:id/restore",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/members/:id/revoke",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/members/:id/revoke",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/members/:id/role",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/members/:id/role",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/members/:id/suspend",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/members/:id/suspend",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/mfa-admin/digest-preferences/preview/send-test",
+      "file": "mfa-admin.routes.ts",
+      "key": "POST /v1/identity/mfa-admin/digest-preferences/preview/send-test",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
+      "file": "mfa-admin.routes.ts",
+      "key": "POST /v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
+      "file": "mfa-admin.routes.ts",
+      "key": "POST /v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
+      "file": "mfa-admin.routes.ts",
+      "key": "POST /v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/mfa/challenge/verify",
+      "file": "mfa.routes.ts",
+      "key": "POST /v1/identity/mfa/challenge/verify",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/service-accounts/:id/disable",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/service-accounts/:id/disable",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity/service-accounts/:id/enable",
+      "file": "identity.routes.ts",
+      "key": "POST /v1/identity/service-accounts/:id/enable",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/intelligence/corrections",
+      "file": "intelligence-platform.routes.ts",
+      "key": "POST /v1/intelligence/corrections",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/intelligence/corrections/:id/accept",
+      "file": "intelligence-platform.routes.ts",
+      "key": "POST /v1/intelligence/corrections/:id/accept",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/intelligence/corrections/:id/revert",
+      "file": "intelligence-platform.routes.ts",
+      "key": "POST /v1/intelligence/corrections/:id/revert",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/bulk-actions",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/bulk-actions",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/assign",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/assign",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/escalate",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/escalate",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/mitigation",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/mitigation",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/reopen",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/reopen",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/resolve",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/resolve",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/schedule-retry",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/schedule-retry",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/start",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/start",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ops/workflows/:id/suppress",
+      "file": "ops.routes.ts",
+      "key": "POST /v1/ops/workflows/:id/suppress",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/packaging/entitlements/grant",
+      "file": "product-and-lifecycle.routes.ts",
+      "key": "POST /v1/packaging/entitlements/grant",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/redaction/derivatives/:id/mark-failed",
+      "file": "redaction.routes.ts",
+      "key": "POST /v1/redaction/derivatives/:id/mark-failed",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/redaction/derivatives/:id/mark-ready",
+      "file": "redaction.routes.ts",
+      "key": "POST /v1/redaction/derivatives/:id/mark-ready",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/reviewer-ops/queue-intelligence",
+      "file": "reviewer-ops.routes.ts",
+      "key": "POST /v1/reviewer-ops/queue-intelligence",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/security-policy/high-security/activate",
+      "file": "enterprise-security.routes.ts",
+      "key": "POST /v1/security-policy/high-security/activate",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/siu/saved-views",
+      "file": "siu.routes.ts",
+      "key": "POST /v1/siu/saved-views",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/siu/saved-views/:id/use",
+      "file": "siu.routes.ts",
+      "key": "POST /v1/siu/saved-views/:id/use",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/trust/articles/seed",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/trust/articles/seed",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/trust/drift/scan",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/trust/drift/scan",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/trust/security-claims/scan",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/trust/security-claims/scan",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/trust/status/incidents",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/trust/status/incidents",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/trust/status/incidents/:id/updates",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/trust/status/incidents/:id/updates",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/v1/trust/status/maintenance",
+      "file": "trust-and-governance.routes.ts",
+      "key": "POST /v1/trust/status/maintenance",
+      "classification": "UNPROVEN",
+      "note": ""
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/governance/policy",
+      "file": "governance.routes.ts",
+      "key": "PUT /v1/governance/policy",
+      "classification": "SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY",
+      "note": "/v1/reviewer-ops/sla-policy (5 web files)"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/identity/policy",
+      "file": "identity.routes.ts",
+      "key": "PUT /v1/identity/policy",
+      "classification": "ACCIDENTAL_CAPABILITY_LOSS",
+      "note": ""
+    }
+  ],
+  "restoreFiles": [
+    "admin-audit.routes.ts",
+    "admin-identity.routes.ts",
+    "ai-reviewer.routes.ts",
+    "analytics.routes.ts",
+    "billing.routes.ts",
+    "capture-trust.routes.ts",
+    "cases.routes.ts",
+    "communications.routes.ts",
+    "enterprise-security.routes.ts",
+    "evidence-requests.routes.ts",
+    "governance-operations.routes.ts",
+    "graph.routes.ts",
+    "identity.routes.ts",
+    "intelligence-platform.routes.ts",
+    "mfa-admin.routes.ts",
+    "mfa.routes.ts",
+    "ops.routes.ts",
+    "presence.routes.ts",
+    "product-and-lifecycle.routes.ts",
+    "redaction.routes.ts",
+    "reviewer-ops.routes.ts",
+    "search.routes.ts",
+    "security.routes.ts",
+    "siu.routes.ts",
+    "teams.routes.ts",
+    "trust-and-governance.routes.ts"
+  ],
+  "keepDeletedCount": 18,
+  "resolution": {
+    "date": "2026-07-28",
+    "outcome": "ALL_RESTORED",
+    "deletionsAfterAudit": 0,
+    "routesRestored": 140,
+    "backingServicesRestored": 13,
+    "testSuitesRestored": 2,
+    "finalGate": {
+      "ACCIDENTAL_CAPABILITY_LOSS": 0,
+      "UNPROVEN": 0,
+      "DEAD_LEGACY_ROUTE": 0,
+      "MISSING_PRODUCT_CONSUMER_backlog": 131
+    },
+    "note": "No deletion met SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY at the required bar (full server-behavior parity unproven even for web-consumed twins); a coding agent may not self-authorize APPROVED_PRODUCT_SCOPE_REMOVAL. Every route+service restored from HEAD. Preserved-but-unwired capabilities tracked as MISSING_PRODUCT_CONSUMER (slice-e.json). Route count may decrease again ONLY when preservation is proven. See CAPABILITY-AUDIT-RESOLUTION.md.",
+    "tscErrors": 0,
+    "apiSuite": {
+      "passed": 18238,
+      "failed": 2,
+      "failuresPreExistingUnrelated": [
+        "phase-p1 SAML docstring (prior uncommitted web edit)",
+        "production-trust-center CRLF-vs-\n literal indexOf artifact; requireDelegatedTierAny present"
+      ]
+    }
+  }
+}

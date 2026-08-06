@@ -147,14 +147,13 @@ function CapturePageInner() {
   // Canonical template ordering. NEVER hides templates; only reorders
   // so the canonical priority templates appear first. The operator can
   // always pick any template.
-  const collectionPlansBase = serverTemplates.length
-    ? serverTemplates
-    : COLLECTION_PLAN_TEMPLATES;
-  const collectionPlans = [
-    ...orderTemplatesByWorkflow({
-      templates: collectionPlansBase,
-    }),
-  ];
+  // Memoised: a new array each render re-fired the step-seeding effect.
+  const collectionPlans = useMemo(
+    () => [...orderTemplatesByWorkflow({
+      templates: serverTemplates.length ? serverTemplates : COLLECTION_PLAN_TEMPLATES,
+    })],
+    [serverTemplates],
+  );
 
   const selectedCollectionPlan = useMemo(
     () => collectionPlans.find((plan) => plan.id === collectionPlanId),
@@ -284,11 +283,14 @@ function CapturePageInner() {
     await openCameraDevice(mode);
   };
 
+  // Release this session's object URLs on unmount. `revokeAllPreviews` is
+  // memoised by the orchestration hook, so listing it as the dependency it
+  // actually is does not re-register the cleanup on every render.
   useEffect(() => {
     return () => {
       revokeAllPreviews();
     };
-  }, []);
+  }, [revokeAllPreviews]);
 
   useEffect(() => {
     const validStepIds = new Set(
@@ -302,7 +304,9 @@ function CapturePageInner() {
           : item
       )
     );
-  }, [selectedCollectionPlan?.id]);
+    // `steps` is the value actually read and is stable per plan (the plan
+    // list is memoised); `setSessionItems` is a useState setter.
+  }, [selectedCollectionPlan?.id, selectedCollectionPlan?.steps, setSessionItems]);
 
   useEffect(() => {
     draftPersistence.scheduleSave({

@@ -258,9 +258,15 @@ describe("Phase 32.6 — bounded observability counters", () => {
 // =============================================================================
 
 describe("Phase 32.6 — polling never triggers download/custody events", () => {
-  const PAGE_SRC = readSource(
+  // PHASE 12 POINT 4 — the poll lives in its own hook now (the orchestrator
+  // holds orchestration, not mechanisms); read both so the side-effect-free
+  // guarantee is still asserted against the code that actually polls.
+  const PAGE_SRC = [
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
-  );
+    "../../../apps/web/app/(app)/evidence/[id]/_hooks/useArtifactReadinessPoll.ts",
+  ]
+    .map(readSource)
+    .join("\n\n");
 
   it("polling path uses /v1/evidence/:id/artifacts/status (side-effect-free)", () => {
     expect(PAGE_SRC).toMatch(

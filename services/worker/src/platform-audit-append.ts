@@ -6,6 +6,20 @@ import {
 } from "./lib/admin-audit-chain.js";
 import { prisma } from "./db.js";
 
+/**
+ * PHASE 12 POINT 3 — this appender wrote `chainVersion: 2` and never bound
+ * tenant scope, because the worker's copy of `lib/admin-audit-chain.ts` was an
+ * older fork that had no V3 variant at all. Every worker-originated audit row
+ * was therefore a NEW V2 write, and carried NULL organization/workspace columns
+ * that the V3 hash is supposed to bind.
+ *
+ * The chain library is now synced with the API's, and this writer emits V3.
+ * `organizationId` / `workspaceId` are supplied by the caller from the
+ * PERSISTED row it is auditing (evidence.organizationId / evidence.teamId) —
+ * never inferred from an actor or ambient context. When a worker action
+ * genuinely has no tenant subject the columns stay NULL and are hashed as the
+ * explicit null-scope sentinel, which is an honest "unscoped", not a guess.
+ */
 export async function appendWorkerAuditLog(params: {
   userId: string | null;
   action: string;
@@ -17,6 +31,9 @@ export async function appendWorkerAuditLog(params: {
   resourceId?: string | null;
   requestId?: string | null;
   metadata?: Prisma.InputJsonValue;
+  /** Authoritative persisted tenant scope of the audited row. */
+  organizationId?: string | null;
+  workspaceId?: string | null;
 }): Promise<void> {
   const action = params.action.trim().slice(0, 128);
   if (!action) return;
@@ -29,6 +46,8 @@ export async function appendWorkerAuditLog(params: {
   const resourceId = params.resourceId?.trim().slice(0, 128) || null;
   const requestId = params.requestId?.trim().slice(0, 64) || null;
   const metadata = (params.metadata ?? {}) as Prisma.InputJsonValue;
+  const organizationId = params.organizationId ?? null;
+  const workspaceId = params.workspaceId ?? null;
 
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`
@@ -46,7 +65,7 @@ export async function appendWorkerAuditLog(params: {
     );
 
     const hash = computeAuditLogChainHash({
-      chainVersion: 2,
+      chainVersion: 3,
       userId: params.userId ?? null,
       action,
       category,
@@ -56,6 +75,8 @@ export async function appendWorkerAuditLog(params: {
       resourceType,
       resourceId,
       requestId,
+      organizationId,
+      workspaceId,
       metadataCanonical,
       createdAtIso: createdAt.toISOString(),
       prevHash: last?.hash ?? null,
@@ -78,7 +99,9 @@ export async function appendWorkerAuditLog(params: {
         userAgent: "proovra-worker",
         hash,
         prevHash: last?.hash ?? null,
-        chainVersion: 2,
+        chainVersion: 3,
+        organizationId,
+        workspaceId,
         createdAt,
       },
     });

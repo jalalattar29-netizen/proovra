@@ -128,7 +128,7 @@ export async function mfaRoutes(app: FastifyInstance) {
   app.get(
     "/v1/identity/mfa/factors",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, _reply: FastifyReply) => {
+    async (req: FastifyRequest) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const status = await readMfaStatus({ userId });
@@ -142,7 +142,7 @@ export async function mfaRoutes(app: FastifyInstance) {
   app.post(
     "/v1/identity/mfa/enroll/start",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, _reply: FastifyReply) => {
+    async (req: FastifyRequest) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const body = EnrollStartBody.parse(req.body ?? {});

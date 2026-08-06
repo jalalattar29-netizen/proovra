@@ -21,7 +21,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell } from "../../../../components/ui";
@@ -78,24 +78,32 @@ function TeamDetail() {
     null,
   );
 
-  const refresh = async () => {
+  // `isStale` lets the effect drop a detail response that arrived after the
+  // team changed (or the page unmounted) — the previous team must never paint.
+  const refresh = useCallback(async (isStale?: () => boolean) => {
     if (!teamId) return;
     setLoading(true);
     setError(null);
     try {
       const detail = await getTeam(teamId);
+      if (isStale?.()) return;
       setTeam(detail);
     } catch (err) {
+      if (isStale?.()) return;
       const safe = toSafeUserError(err, { message: "We couldn't load the team." });
       setError({ message: safe.message, requestId: safe.supportReference });
     } finally {
-      setLoading(false);
+      if (!isStale?.()) setLoading(false);
     }
-  };
+  }, [teamId]);
 
   useEffect(() => {
-    void refresh();
-  }, [teamId]);
+    let cancelled = false;
+    void refresh(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
 
   // PROOVRA Phase 10 — header billing summary hook MUST be called at the
   // top level of the component, before any early return / loading / error

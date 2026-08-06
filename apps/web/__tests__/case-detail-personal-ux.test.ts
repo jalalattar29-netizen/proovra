@@ -71,7 +71,7 @@ test("page imports both SimpleCaseDetail and MatterWorkspace (preserves enterpri
 test("page computes canSeeAdvancedCaseOps via canAccessSurface(ctx, '/investigation')", () => {
   assert.match(
     PAGE,
-    /const canSeeAdvancedCaseOps = canAccessSurface\(\s*\n?\s*surfaceUserCtx,\s*\n?\s*"\/investigation",\s*\n?\s*\);/,
+    /const canSeeAdvancedCaseOps = useEnterpriseSurfaceAccess\(\);/,
   );
 });
 
@@ -365,17 +365,15 @@ test("Backend attach gate (evaluateCrossTeamAttach) still enforces strict same-w
   );
 });
 
-test("Backend remove-from-case route still only NULLs `caseId` (never deletes evidence)", () => {
-  // Anchor on the DELETE route, then assert the prisma update sets
-  // caseId to null and the route never calls `evidence.delete`.
+test("Backend remove-from-case route detaches via the canonical link authority (never deletes evidence)", () => {
+  // PHASE 12B Track 1B — the route delegates to detachEvidenceFromCase
+  // (the CaseEvidenceLink authority; it syncs the legacy caseId mirror inside
+  // the ONE canonical service) and never deletes the evidence row.
   const start = CASE_ROUTES.indexOf('"/v1/cases/:id/evidence/:evidenceId"');
   assert.ok(start > 0, "unlink route anchor missing");
   const end = CASE_ROUTES.indexOf("app.", start + 1);
   const block = CASE_ROUTES.slice(start, end > 0 ? end : start + 6000);
-  assert.match(
-    block,
-    /prisma\.evidence\.update\(\{[\s\S]{0,500}?caseId: null,/,
-  );
+  assert.match(block, /detachEvidenceFromCase\(/);
   assert.doesNotMatch(block, /prisma\.evidence\.delete/);
 });
 
@@ -388,16 +386,12 @@ test("Backend delete-case route still has the legal-hold gate AND only unlinks e
     CASE_ROUTES,
     /const deleteGate = await resolveCaseDestructiveGate\(\{[\s\S]{0,200}?mutation: "DELETE",/,
   );
-  // The DELETE flow's bulk unlink: evidence.updateMany sets caseId
-  // to null (never deletes evidence rows).
-  assert.match(
-    CASE_ROUTES,
-    /prisma\.evidence\.updateMany\(\{[\s\S]{0,300}?caseId: null/,
-  );
+  // PHASE 12B Track 1B — the DELETE flow's bulk unlink now runs through the
+  // canonical link authority (detachAllEvidenceFromCase), which detaches every
+  // CaseEvidenceLink and syncs the legacy caseId mirror atomically. It never
+  // deletes evidence rows.
+  assert.match(CASE_ROUTES, /detachAllEvidenceFromCase\(/);
   // Anti-regression: the DELETE handler must not call
-  // `prisma.evidence.deleteMany` or `prisma.evidence.delete`.
+  // `prisma.evidence.deleteMany`.
   assert.doesNotMatch(CASE_ROUTES, /prisma\.evidence\.deleteMany/);
-  // (Note: `prisma.evidence.delete` is used elsewhere in the file
-  // for the per-record evidence DELETE; we just assert that the
-  // case-delete path does NOT use deleteMany.)
 });

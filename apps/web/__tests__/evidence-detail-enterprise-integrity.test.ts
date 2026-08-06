@@ -106,3 +106,40 @@ test("technical readiness wording is separated from workflow lifecycle", () => {
   );
   assert.match(SRC, /Review workflow/);
 });
+
+// ============================================================================
+// PHASE 12B (Evidence Operations, 2026-07-29) — Provenance chain.
+//
+// GET /v1/provenance/:evidenceId had no product consumer. It is now the
+// canonical Provenance surface inside the Evidence detail Integrity tab.
+// ============================================================================
+
+test("Integrity tab mounts the canonical provenance-chain section", () => {
+  assert.match(SRC, /EvidenceProvenanceChainSection/);
+  assert.match(SRC, /<EvidenceProvenanceChainSection evidenceId=\{evidenceId\} \/>/);
+});
+
+test("provenance section reads the server projection and holds no client trust authority", () => {
+  const panel = readFileSync(
+    join(EVIDENCE_DETAIL_DIR, "_tabs/EvidenceProvenanceChainSection.tsx"),
+    "utf8",
+  );
+  // Canonical client only; workspace scope is server-held (no teamId on
+  // the wire) so the component cannot widen it.
+  assert.match(panel, /apiFetch\(\s*`\/v1\/provenance\/\$\{encodeURIComponent\(evidenceId\)\}`/);
+  assert.ok(!/teamId=/.test(panel));
+  // Never render a projection for a different record.
+  assert.match(panel, /chain\.evidenceId !== evidenceId/);
+  // Full state coverage: loading / denial / error / ready.
+  assert.match(panel, /data-evidence-provenance-loading/);
+  assert.match(panel, /data-evidence-provenance-denied/);
+  assert.match(panel, /data-evidence-provenance-error/);
+  assert.match(panel, /data-evidence-provenance-body/);
+  // Stale-context rejection + safe error copy + workspace re-key.
+  assert.match(panel, /useTenantGuard/);
+  assert.match(panel, /isStale\(captured\)/);
+  assert.match(panel, /toSafeUserError/);
+  assert.match(panel, /useActiveWorkspaceId/);
+  // Standing limitations are always surfaced.
+  assert.match(panel, /data-evidence-provenance-limitations/);
+});

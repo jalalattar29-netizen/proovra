@@ -4,7 +4,6 @@ import { ensureEntitlement } from "./billing.service.js";
 // §9.4 corrected — the canonical API classifier entry (delegates to the
 // shared single implementation).
 import { resolveWorkspaceKind } from "./identity/workspace-kind.js";
-import { getPlanCapabilities } from "./plan-catalog.service.js";
 import {
   type BillingWorkspaceScope,
   type WorkspaceScopeType,
@@ -142,20 +141,22 @@ export async function getPersonalWorkspaceScope(
       }),
     ]);
 
-  // Phase HOME-DATA-OWNERSHIP — a TEAM-tier account still owns a
-  // personal workspace. `getPlanCapabilities(TEAM).allowsPersonalWorkspace`
-  // is false, and the previous behaviour was to let
-  // assertWorkspacePlanCompatible THROW here — which 500'd
-  // /v1/billing/overview and broke personal-scope resolution (incl.
-  // capture) for every TEAM-plan account. The platform already treats
-  // TEAM accounts as pro-grade (PRO_PLAN_KEYS = {PRO, TEAM} in
-  // platform-context), so resolve the personal scope at PRO grade
-  // instead of throwing. Team workspaces keep full TEAM semantics via
-  // getTeamWorkspaceScope; this only affects the PERSONAL space.
-  const personalPlan = getPlanCapabilities(entitlement.plan)
-    .allowsPersonalWorkspace
-    ? entitlement.plan
-    : prismaPkg.PlanType.PRO;
+  // PHASE 12 — POINT 7 (2026-08-05). The PERSONAL space of a TEAM-plan
+  // account used to resolve as **PRO** — a plan the account does not hold and
+  // no catalog row grants it. It was introduced to stop
+  // `assertWorkspacePlanCompatible` throwing (TEAM has
+  // `allowsPersonalWorkspace: false`), which had 500'd `/v1/billing/overview`
+  // and broken personal capture for every TEAM account. The 500 was real; the
+  // fix was a silent plan substitution, and a substituted plan is a commercial
+  // decision made by an input adapter.
+  //
+  // The account's plan IS its plan. `allowsPersonalWorkspace` describes which
+  // workspace kinds a plan may CREATE, not what a personal space that already
+  // exists resolves to, so the compatibility assert is scoped below to the
+  // TEAM-workspace subject where that question is actually being asked. A
+  // TEAM-plan account's personal space therefore resolves at TEAM — its real,
+  // strictly more generous entitlement — and nothing is invented.
+  const personalPlan = entitlement.plan;
 
   const scope: WorkspaceScope = {
     workspaceType: "PERSONAL",
@@ -222,28 +223,56 @@ export async function getTeamWorkspaceScope(
   // legacyRecordCapOverride, which is a per-payer cap, not a plan).
   const ownerEntitlement = await ensureEntitlement(team.ownerUserId);
 
+  const workspaceKind = resolveWorkspaceKind({
+    workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
+    isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
+    billingPlan: team.billingPlan,
+    teamLoaded: true,
+  });
+
   const effective = resolveWorkspaceEffectivePlan({
-    workspaceKind: resolveWorkspaceKind({
-      workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
-      isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
-      billingPlan: team.billingPlan,
-      teamLoaded: true,
-    }),
+    workspaceKind,
     billingPlan: team.billingPlan as prismaPkg.PlanType,
     billingStatus: team.billingStatus as WorkspaceBillingStatus,
     ownerPlan: ownerEntitlement.plan as prismaPkg.PlanType,
   });
   const effectivePlan = effective.plan as prismaPkg.PlanType;
 
+  /**
+   * PHASE 12 — POINT 7 (2026-08-05): the BILLING-SCOPE vocabulary now derives
+   * from the canonical KIND instead of being hardcoded.
+   *
+   * `getTeamWorkspaceScope` is reached by team ID, and it stamped every scope
+   * `workspaceType: "TEAM"` — including the user's PERSONAL workspace, which
+   * is also a `Team` row. Everything downstream reads that field as "this is a
+   * collaboration workspace", and two of them then contradicted the
+   * effective-plan policy in the same package:
+   *
+   *   - `assertWorkspacePlanCompatible` rejects PAYG on a TEAM scope, because
+   *     PAYG is an operation entitlement and never a workspace plan. But
+   *     `resolveWorkspaceEffectivePlan` returns PAYG for exactly one case —
+   *     a PERSONAL workspace whose owner is on PAYG — so the assert could
+   *     only ever fire on a workspace that was not a team. Result: EVERY PAYG
+   *     account got an unhandled 500 from `/v1/billing/overview`.
+   *   - `assertWorkspaceAllowsEvidenceCreation` refuses TEAM scope on a plan
+   *     without `allowsTeamWorkspace`, which is right for an Owned workspace
+   *     on FREE and wrong for a FREE user's own Personal Space.
+   *
+   * The ledger already recorded this as the Phase-12 condition: "migrate to
+   * workspaceKind in Phase 12". A PERSONAL-kind row is a PERSONAL billing
+   * scope; OWNED and ORGANIZATION are TEAM scopes; UNKNOWN keeps the stricter
+   * TEAM reading, which fails closed.
+   */
+  const workspaceType: WorkspaceScopeType =
+    workspaceKind === "PERSONAL" ? "PERSONAL" : "TEAM";
+
   const activeStorageAddonBytes = await getActiveWorkspaceStorageAddonBytes({
     ownerUserId: team.ownerUserId,
     teamId: team.id,
   });
 
-  const effectiveCaps = getPlanCapabilities(effectivePlan);
-
   const scope: WorkspaceScope = {
-    workspaceType: "TEAM",
+    workspaceType,
     ownerUserId: team.ownerUserId,
     teamId: team.id,
     // Phase A1 — Stage 6 makes this column NOT NULL at the schema
@@ -254,12 +283,20 @@ export async function getTeamWorkspaceScope(
     organizationId: team.organizationId,
     plan: effectivePlan,
     credits: 0,
-    teamSeats: Math.max(
-      0,
-      team.includedSeats ?? 0,
-      effectiveCaps.maxMembersPerTeam ?? 0,
-      effectiveCaps.includedSeats ?? 0
-    ),
+    // Canonical seat cap lives in @proovra/shared-billing; this service
+    // must not re-derive the plan-cap precedence itself.
+    teamSeats: getEffectiveSeatLimit({
+      // POINT 7 — the SAME resolved scope type, not a second hardcoded one.
+      // A Personal Space has no seats to sell; passing "TEAM" here gave it the
+      // plan's member cap, which the seat projection then reported as capacity
+      // that cannot be filled.
+      workspaceType,
+      ownerUserId: team.ownerUserId,
+      teamId: team.id,
+      plan: effectivePlan,
+      credits: 0,
+      teamSeats: team.includedSeats ?? 0,
+    }),
     storageBytesOverride: team.storageBytesOverride ?? null,
     activeStorageAddonBytes,
     // Pricing-hardening: TEAM workspaces inherit the team OWNER's

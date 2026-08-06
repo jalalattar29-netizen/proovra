@@ -156,8 +156,7 @@ describe("Pin 7 — the external reviewer admin surface is enterprise-only", () 
 
   function ctx(over: Partial<SurfaceUserContext>): SurfaceUserContext {
     return {
-      plan: null,
-      role: null,
+      planFeatures: null,
       isPlatformAdmin: false,
       isEnterpriseWorkspace: false,
       ...over,
@@ -166,21 +165,21 @@ describe("Pin 7 — the external reviewer admin surface is enterprise-only", () 
 
   it("personal (free) users cannot access it", () => {
     assert.equal(
-      canAccessSurface(ctx({ plan: "FREE", role: "OWNER" }), SURFACE_PATH),
+      canAccessSurface(ctx({ planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false } }), SURFACE_PATH),
       false,
     );
   });
 
   it("pro users cannot access it", () => {
     assert.equal(
-      canAccessSurface(ctx({ plan: "PRO", role: "OWNER" }), SURFACE_PATH),
+      canAccessSurface(ctx({ planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true } }), SURFACE_PATH),
       false,
     );
   });
 
   it("team-plan admins cannot access it (role alone never unlocks)", () => {
     assert.equal(
-      canAccessSurface(ctx({ plan: "TEAM", role: "ADMIN" }), SURFACE_PATH),
+      canAccessSurface(ctx({ planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true } }), SURFACE_PATH),
       false,
     );
   });

@@ -64,8 +64,16 @@ function readSrc(rel: string): string {
 type HoldFixture = {
   /** Active EvidenceLegalHold on this evidence (Stack B per-record). */
   evidenceLegalHold?: boolean;
-  /** Active 4B LegalHold rows (Stack A). Each row is { kind, scopeTargetId }. */
-  legalHold4B?: Array<{ kind: string; scopeTargetId: string | null }>;
+  /**
+   * Canonical hold rows. Post-cutover every hold — whichever store it
+   * originally came from — is a row here with an explicit scope.
+   */
+  canonicalHolds?: Array<{
+    scope: "EVIDENCE" | "CASE" | "WORKSPACE";
+    evidenceId?: string | null;
+    caseId?: string | null;
+    historical?: boolean;
+  }>;
   /** Evidence row context for scope resolution. */
   evidence?: { teamId: string | null; caseId: string | null } | null;
   /** Simulate an absent `legal_holds` table (older environment). */
@@ -77,47 +85,88 @@ const TEAM_ID = "22222222-2222-4222-8222-222222222222";
 const CASE_ID = "33333333-3333-4333-8333-333333333333";
 
 function makeStub(fx: HoldFixture) {
-  const evidenceRow =
+  const fixtureEvidence =
     fx.evidence === undefined
       ? { teamId: TEAM_ID, caseId: null }
       : fx.evidence;
+  // Track 1B closure — the service reads case linkage via the canonical
+  // `caseLinks` relation / CaseEvidenceLink table; the fixture's single
+  // caseId is projected into both shapes.
+  const caseLinks = fixtureEvidence?.caseId
+    ? [{ caseId: fixtureEvidence.caseId }]
+    : [];
+  const evidenceRow =
+    fixtureEvidence === null
+      ? null
+      : { teamId: fixtureEvidence.teamId, caseLinks };
 
   return {
+    // PHASE 12B CLUSTER 8 — the gate now runs through the ONE effective-hold
+    // evaluator, which reads with `findMany` and distinguishes the
+    // evidence-direct clause (pre-canonical columns only) from the
+    // scope-aware clause (`scope` / `historical`).
+    // PHASE 12 POINT 3 — ONE canonical delegate. Clause A of the evaluator
+    // asks for evidence-direct rows; clause B asks for scope-aware rows
+    // (CASE / WORKSPACE / historical). Both are answered from the same
+    // fixture set, which is exactly how production now behaves.
     evidenceLegalHold: {
       findFirst: async () => (fx.evidenceLegalHold ? { id: "elh-1" } : null),
-      findMany: async () => [],
+      findMany: async (args?: { where?: Record<string, unknown> }) =>
+        matchCanonicalHolds(args?.where ?? {}),
     },
-    caseLegalHold: {
-      findFirst: async () => null,
+    caseEvidenceLink: {
+      findMany: async () => caseLinks,
+      findFirst: async () => caseLinks[0] ?? null,
     },
     evidence: {
       findUnique: async () => evidenceRow,
       findFirst: async () => evidenceRow,
     },
-    legalHold: {
-      findFirst: async (args: {
-        where: { teamId: string; state: string; OR: Array<Record<string, unknown>> };
-      }) => {
-        if (fx.legalHoldTableMissing) {
-          throw Object.assign(new Error("P2021"), { code: "P2021" });
-        }
-        const rows = fx.legalHold4B ?? [];
-        // Match the OR clauses the production query builds.
-        for (const clause of args.where.OR) {
-          for (const row of rows) {
-            if (row.kind !== clause.kind) continue;
-            // ORGANIZATION has no scopeTargetId constraint.
-            if (clause.kind === "ORGANIZATION") return { id: "lh4b-org" };
-            if (row.scopeTargetId === (clause as { scopeTargetId?: string }).scopeTargetId) {
-              return { id: `lh4b-${row.kind}` };
-            }
-          }
-        }
-        return null;
-      },
-      findMany: async () => [],
-    },
   } as never;
+
+  /**
+   * Answers a canonical evaluator query from the fixture's hold set.
+   *
+   * The scope filter is the whole point: a CASE row must NOT satisfy an
+   * evidence-direct probe, a WORKSPACE row carries NO target columns (so it
+   * can never be matched by echoing an id back), and a historical row is
+   * matched only by the historical clause — which is what makes an
+   * unresolvable ACTIVE hold fail closed instead of silently disappearing.
+   */
+  function matchCanonicalHolds(
+    where: Record<string, unknown>,
+  ): Array<{ id: string; scope: string }> {
+    if (fx.legalHoldTableMissing) {
+      throw Object.assign(new Error("P2021"), { code: "P2021" });
+    }
+    const rows = [
+      ...(fx.evidenceLegalHold ? [{ scope: "EVIDENCE" as const, evidenceId: EVIDENCE_ID }] : []),
+      ...(fx.canonicalHolds ?? []),
+    ];
+    const clauses = Array.isArray(where.OR)
+      ? (where.OR as Array<Record<string, unknown>>)
+      : [where];
+    const out: Array<{ id: string; scope: string }> = [];
+    for (const clause of clauses) {
+      for (const row of rows) {
+        if (row.historical) {
+          if (clause.historical === true) out.push({ id: `clh-${row.scope}`, scope: row.scope });
+          continue;
+        }
+        if (clause.historical === true) continue;
+        if (clause.scope !== undefined && clause.scope !== row.scope) continue;
+        if (clause.scope === undefined && where.scope === undefined && !clause.evidenceId) continue;
+        if (clause.evidenceId !== undefined && clause.evidenceId !== row.evidenceId) continue;
+        if (clause.caseId !== undefined) {
+          const want = clause.caseId as { in?: string[] } | string;
+          const ids = typeof want === "string" ? [want] : (want.in ?? []);
+          if (!row.caseId || !ids.includes(row.caseId)) continue;
+        }
+        out.push({ id: `clh-${row.scope}`, scope: row.scope });
+      }
+    }
+    return out;
+  }
 }
 
 // ===========================================================================
@@ -131,7 +180,7 @@ describe("Phase 5 — delete gate honours the Stack B EvidenceLegalHold model", 
   });
 
   it("does not block when no hold exists in either model", async () => {
-    const client = makeStub({ evidenceLegalHold: false, legalHold4B: [] });
+    const client = makeStub({ evidenceLegalHold: false, canonicalHolds: [] });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(false);
   });
 });
@@ -144,7 +193,7 @@ describe("Phase 5 — SCOPE-E: delete gate now honours the Stack A 4B LegalHold 
   it("blocks on a 4B EVIDENCE-scoped hold (the live Surface-A UI path)", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "EVIDENCE", scopeTargetId: EVIDENCE_ID }],
+      canonicalHolds: [{ scope: "EVIDENCE", evidenceId: EVIDENCE_ID }],
     });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(true);
   });
@@ -152,7 +201,7 @@ describe("Phase 5 — SCOPE-E: delete gate now honours the Stack A 4B LegalHold 
   it("blocks on a 4B WORKSPACE-scoped hold", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "WORKSPACE", scopeTargetId: TEAM_ID }],
+      canonicalHolds: [{ scope: "WORKSPACE" }],
     });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(true);
   });
@@ -160,7 +209,7 @@ describe("Phase 5 — SCOPE-E: delete gate now honours the Stack A 4B LegalHold 
   it("blocks on a 4B ORGANIZATION-scoped hold", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "ORGANIZATION", scopeTargetId: null }],
+      canonicalHolds: [{ scope: "WORKSPACE" }],
     });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(true);
   });
@@ -169,7 +218,7 @@ describe("Phase 5 — SCOPE-E: delete gate now honours the Stack A 4B LegalHold 
     const client = makeStub({
       evidenceLegalHold: false,
       evidence: { teamId: TEAM_ID, caseId: CASE_ID },
-      legalHold4B: [{ kind: "CASE", scopeTargetId: CASE_ID }],
+      canonicalHolds: [{ scope: "CASE", caseId: CASE_ID }],
     });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(true);
   });
@@ -177,7 +226,7 @@ describe("Phase 5 — SCOPE-E: delete gate now honours the Stack A 4B LegalHold 
   it("does NOT block on a 4B EVIDENCE hold scoped to a DIFFERENT evidence", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "EVIDENCE", scopeTargetId: "99999999-9999-4999-8999-999999999999" }],
+      canonicalHolds: [{ scope: "EVIDENCE", evidenceId: "99999999-9999-4999-8999-999999999999" }],
     });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(false);
   });
@@ -188,15 +237,14 @@ describe("Phase 5 — SCOPE-E: delete gate now honours the Stack A 4B LegalHold 
 //    and the Stack B check still runs fail-closed regardless.
 // ===========================================================================
 
-describe("Phase 5 — union tolerates a missing 4B legal_holds table", () => {
-  it("degrades to the Stack B result when the 4B table is absent", async () => {
-    // 4B table missing, but an EvidenceLegalHold exists → still blocked.
-    const blocked = makeStub({ evidenceLegalHold: true, legalHoldTableMissing: true });
-    expect(await isUnderActiveLegalHold(EVIDENCE_ID, blocked)).toBe(true);
-
-    // 4B table missing, no EvidenceLegalHold → not blocked (no crash).
-    const clear = makeStub({ evidenceLegalHold: false, legalHoldTableMissing: true });
-    expect(await isUnderActiveLegalHold(EVIDENCE_ID, clear)).toBe(false);
+describe("Phase 12 Point 3 — the canonical store is NOT optional", () => {
+  it("FAILS CLOSED when the canonical hold table cannot be queried", async () => {
+    // Before the cutover an absent OPTIONAL legacy table was allowed to
+    // degrade to 'no 4B hold'. There is now exactly one hold store, so a
+    // query failure against it can never be read as 'nothing is held' —
+    // that would make held evidence destructible. It must propagate.
+    const broken = makeStub({ evidenceLegalHold: false, legalHoldTableMissing: true });
+    await expect(isUnderActiveLegalHold(EVIDENCE_ID, broken)).rejects.toThrow();
   });
 
   it("does not block when the evidence has no resolvable teamId", async () => {
@@ -204,7 +252,7 @@ describe("Phase 5 — union tolerates a missing 4B legal_holds table", () => {
     const client = makeStub({
       evidenceLegalHold: false,
       evidence: { teamId: null, caseId: null },
-      legalHold4B: [{ kind: "ORGANIZATION", scopeTargetId: null }],
+      canonicalHolds: [{ scope: "WORKSPACE" }],
     });
     expect(await isUnderActiveLegalHold(EVIDENCE_ID, client)).toBe(false);
   });
@@ -222,7 +270,7 @@ describe("Phase 5 — deletion + archive decisions block on a 4B hold", () => {
   it("canDeleteEvidence is blocked_by_legal_hold on a 4B EVIDENCE hold", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "EVIDENCE", scopeTargetId: EVIDENCE_ID }],
+      canonicalHolds: [{ scope: "EVIDENCE", evidenceId: EVIDENCE_ID }],
     });
     const decision = await canDeleteEvidence({
       role: "ADMIN",
@@ -237,7 +285,7 @@ describe("Phase 5 — deletion + archive decisions block on a 4B hold", () => {
   it("canArchiveEvidence is blocked_by_legal_hold on a 4B WORKSPACE hold", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "WORKSPACE", scopeTargetId: TEAM_ID }],
+      canonicalHolds: [{ scope: "WORKSPACE" }],
     });
     const decision = await canArchiveEvidence({
       role: "ADMIN",
@@ -250,7 +298,7 @@ describe("Phase 5 — deletion + archive decisions block on a 4B hold", () => {
   });
 
   it("canDeleteEvidence still ALLOWS when no hold exists in either model", async () => {
-    const client = makeStub({ evidenceLegalHold: false, legalHold4B: [] });
+    const client = makeStub({ evidenceLegalHold: false, canonicalHolds: [] });
     const decision = await canDeleteEvidence({
       role: "ADMIN",
       evidence: { id: EVIDENCE_ID, teamId: TEAM_ID, retentionUntilUtc: null },
@@ -267,25 +315,27 @@ describe("Phase 5 — deletion + archive decisions block on a 4B hold", () => {
 // ===========================================================================
 
 describe("Phase 5 — 4B canonical isUnderLegalHold consults both hold models", () => {
-  it("reports underHold with source 4B for a 4B EVIDENCE hold", async () => {
+  it("reports underHold for an EVIDENCE-scoped canonical hold", async () => {
     const client = makeStub({
       evidenceLegalHold: false,
-      legalHold4B: [{ kind: "EVIDENCE", scopeTargetId: EVIDENCE_ID }],
+      canonicalHolds: [{ scope: "EVIDENCE", evidenceId: EVIDENCE_ID }],
     });
-    // isUnderLegalHold builds its own legalHold.findMany query; give it one.
+    // PHASE 12B CLUSTER 8 — isUnderLegalHold now delegates to the ONE
+    // effective-hold evaluator, which reads every store with `findMany`.
+    // PHASE 12 POINT 3 — the evaluator reads ONE store. The hold is an
+    // evidence-direct canonical row, so the reported source is
+    // EVIDENCE_LEGAL_HOLD.
     const c = {
       ...(client as Record<string, unknown>),
-      legalHold: {
-        findMany: async () => [{ id: "lh4b-EVIDENCE" }],
-        findFirst: async () => null,
-      },
-      evidenceLegalHold: { findFirst: async () => null },
-      caseLegalHold: { findFirst: async () => null },
-      evidence: { findUnique: async () => ({ caseId: null }) },
+      caseEvidenceLink: { findMany: async () => [] },
+      evidence: { findUnique: async () => ({ teamId: TEAM_ID, caseLinks: [] }) },
     } as never;
     const res = await isUnderLegalHold({ prisma: c, teamId: TEAM_ID, evidenceId: EVIDENCE_ID });
     expect(res.underHold).toBe(true);
-    expect(res.sources).toContain("4B");
+    // `isUnderLegalHold` reports the CANONICAL stack as '4A'. The retired
+    // scope-generic store was '4B'; it can no longer appear at all.
+    expect(res.sources).toContain("4A");
+    expect(res.sources).not.toContain("4B");
   });
 });
 
@@ -298,25 +348,49 @@ describe("Phase 5 — canonical-stack lock: both hold entry points consult the 4
   const governanceSrc = readSrc("services/governance.service.ts");
   const lifecycleHoldSrc = readSrc("services/lifecycle/legal-hold.service.ts");
 
-  it("the direct delete gate consults the 4B LegalHold model + all four scopes", () => {
-    // The union block was added to isUnderActiveLegalHold.
+  // PHASE 12B CLUSTER 8 — the hand-rolled union in isUnderActiveLegalHold is
+  // gone: the gate now DELEGATES to the ONE effective-hold evaluator
+  // (services/governance/effective-legal-hold.ts), which reads all THREE
+  // stores and only degrades on a genuinely-absent relation. The lock moves
+  // with it — assert the delegation plus the evaluator's own scope coverage.
+  it("the direct delete gate delegates to the ONE effective-hold evaluator", () => {
     const fnIdx = governanceSrc.indexOf("export async function isUnderActiveLegalHold");
     expect(fnIdx).toBeGreaterThan(0);
     const fn = governanceSrc.slice(fnIdx, fnIdx + 2600);
-    expect(fn).toContain("client.legalHold.findFirst");
-    expect(fn).toContain('kind: "EVIDENCE"');
-    expect(fn).toContain('kind: "WORKSPACE"');
-    expect(fn).toContain('kind: "ORGANIZATION"');
-    expect(fn).toContain('kind: "CASE"');
-    // Fail-tolerant on a missing 4B table.
-    expect(fn).toMatch(/try\s*\{/);
-    expect(fn).toContain("SCOPE-E");
+    expect(fn).toContain("evaluateEffectiveLegalHold(");
+    // No private per-store union may survive inside the gate.
+    expect(fn).not.toContain("client.legalHold.findFirst");
   });
 
-  it("the delete gate still consults the Stack B EvidenceLegalHold model first (unchanged)", () => {
-    const fnIdx = governanceSrc.indexOf("export async function isUnderActiveLegalHold");
-    const fn = governanceSrc.slice(fnIdx, fnIdx + 2600);
-    expect(fn).toContain("client.evidenceLegalHold.findFirst");
+  it("the ONE evaluator covers every scope, in the ONE canonical store", () => {
+    const evaluator = readSrc("services/governance/effective-legal-hold.ts");
+    // PHASE 12 POINT 3 — the legacy `kind`-shaped clauses retired with their
+    // stores. Scope coverage is now proven by the canonical vocabulary plus
+    // the historical clause that makes an unresolvable hold fail closed.
+    expect(evaluator).toContain('scope: "EVIDENCE"');
+    expect(evaluator).toContain('scope: "CASE"');
+    expect(evaluator).toContain('scope: "WORKSPACE"');
+    expect(evaluator).toContain("historical");
+    expect(evaluator).toContain("prisma.evidenceLegalHold.findMany");
+    // No second store may reappear.
+    expect(evaluator).not.toContain("prisma.caseLegalHold.");
+    expect(evaluator).not.toContain("prisma.legalHold.");
+  });
+
+  it("the evaluator FAILS CLOSED — only an absent relation may degrade", () => {
+    const evaluator = readSrc("services/governance/effective-legal-hold.ts");
+    expect(evaluator).toContain("isAbsentRelationError");
+    expect(evaluator).toMatch(/P2021/);
+    expect(evaluator).toMatch(/P2022/);
+    expect(evaluator).toMatch(/throw err;/);
+  });
+
+  it("the evidence-direct clause is never degradable", () => {
+    const evaluator = readSrc("services/governance/effective-legal-hold.ts");
+    const idx = evaluator.indexOf("---- Clause A");
+    const clauseA = evaluator.slice(idx, evaluator.indexOf("---- Clause B"));
+    expect(idx).toBeGreaterThan(0);
+    expect(clauseA).not.toContain("tolerateAbsentRelation");
   });
 
   it("the 4B canonical isUnderLegalHold carries the cross-stack lock-step pointer", () => {

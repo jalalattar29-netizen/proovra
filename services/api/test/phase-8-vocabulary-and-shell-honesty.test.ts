@@ -149,84 +149,29 @@ describe("Phase 8 — admin layout uses 'Organization' as the canonical label", 
 // (4) Security tab — honest "Not configured" empty states.
 // ---------------------------------------------------------------------------
 
-describe("Phase 8 — /admin/security renders honest 'Not configured' empty states", () => {
+describe("PHASE 12B — /admin/security is the REAL OrganizationSecurityPolicyEditor (page wrapper honesty)", () => {
   const security = readWeb(
     "app/(app)/organizations/[id]/admin/security/page.tsx",
   );
 
-  it("declares a Multi-factor authentication readiness row", () => {
-    expect(security).toMatch(/Multi-factor authentication/);
+  it("mounts the canonical editor behind the org-detail route gate", () => {
+    // The static readiness hub (fabricated "Not configured" rows +
+    // configureHref deep-links) was REPLACED by the real org-keyed
+    // security-policy editor in 12B Batch 2 — the honesty contract moved
+    // from "never fake readiness" to "render only server-projected policy
+    // states" (loading / not_provisioned / not_applicable / error / ready),
+    // proven behaviorally in security-policy-editor.render.test.tsx.
+    expect(security).toMatch(/OrganizationSecurityPolicyEditor/);
+    expect(security).toMatch(/PageRouteGate routeId="account.organization-detail"/);
   });
 
-  it("declares an SSO (SAML / OIDC) readiness row", () => {
-    expect(security).toMatch(/SSO\s*\(SAML\s*\/\s*OIDC\)/);
-  });
-
-  it("declares a SCIM provisioning readiness row", () => {
-    expect(security).toMatch(/SCIM/);
-  });
-
-  it("declares a Session policy readiness row", () => {
-    expect(security).toMatch(/Session policy/);
-  });
-
-  it("renders the literal 'Not configured' state badge", () => {
-    expect(security).toMatch(/Not configured/);
-  });
-
-  it("does NOT render fake-positive copy (no 'All set', 'Enabled', 'Configured ✓')", () => {
-    // Cover the most common fake-positive phrasing.
+  it("the page wrapper itself renders no fake-positive or fabricated readiness copy", () => {
     expect(security).not.toMatch(/All set/i);
-    expect(security).not.toMatch(/\bConfigured ✓/);
     expect(security).not.toMatch(/Ready to go/i);
-  });
-
-  it("declares the data-state='not-configured' attribute on every readiness row", () => {
-    expect(security).toMatch(/data-state="not-configured"/);
+    expect(security).not.toMatch(/Not configured/);
+    expect(security).not.toMatch(/configureHref/);
   });
 });
-
-// ---------------------------------------------------------------------------
-// (5) Configure affordances always link OUT to a canonical config
-// surface — there is NO in-shell mutation form on the security tab.
-// ---------------------------------------------------------------------------
-
-describe("Phase 8 — /admin/security 'Configure' actions deep-link OUT to canonical surfaces", () => {
-  const security = readWeb(
-    "app/(app)/organizations/[id]/admin/security/page.tsx",
-  );
-
-  it("MFA row deep-links to the Settings Security section", () => {
-    // Settings IA refactor (2026-07-17): /settings/security merged into
-    // the unified workspace; the deep link targets its section anchor.
-    expect(security).toMatch(/configureHref:\s*"\/settings#security"/);
-  });
-
-  it("SSO row deep-links to /admin/identity", () => {
-    expect(security).toMatch(/configureHref:\s*"\/admin\/identity"/);
-  });
-
-  it("SCIM row deep-links to /admin/identity/scim", () => {
-    expect(security).toMatch(/configureHref:\s*"\/admin\/identity\/scim"/);
-  });
-
-  it("Sessions row deep-links to /admin/identity/sessions", () => {
-    expect(security).toMatch(/configureHref:\s*"\/admin\/identity\/sessions"/);
-  });
-
-  it("the security tab contains no <form> tag (no in-shell configuration form)", () => {
-    // The tab is read-only by construction — there's no submit form,
-    // no input element binding to a mutation. Mutations live on
-    // /admin/identity + /settings/security.
-    expect(security).not.toMatch(/<form\b/);
-    expect(security).not.toMatch(/<input\b/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Defense-in-depth: the entire admin shell has no `window.confirm`
-// usage (constitutional rule).
-// ---------------------------------------------------------------------------
 
 describe("Phase 8 — no raw window.confirm anywhere in the admin shell", () => {
   for (const file of ADMIN_FILES) {

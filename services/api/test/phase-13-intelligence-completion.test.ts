@@ -77,6 +77,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
 
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
@@ -293,8 +294,13 @@ describe("Phase 13 S4.5 — timeline UNION extended with extracted-text + entity
 describe("Phase 13 S4.6 — single shared text-similarity handler in existing processor", () => {
   const src = readSrc(WORKER_PROCESSOR);
 
-  it("branches on reconcile + textKind for the new text-similarity sub-path", () => {
-    expect(src).toMatch(/kind\s*===\s*"reconcile"\s*&&\s*job\.data\?.textKind/);
+  it("branches on the RUN's kind for the text-similarity sub-path", () => {
+    // PHASE 12 — POINT 5: the sub-path was selected by an optional `textKind`
+    // payload field that NO producer ever set, so the branch was unreachable.
+    // It is now selected by the run kind, read from the durable row.
+    expect(src).toMatch(/kind === "reconcile_ocr_similarity"/);
+    expect(src).toMatch(/kind === "reconcile_transcript_similarity"/);
+    expect(src).not.toMatch(/job\.data\?\.textKind/);
   });
 
   it("invokes a single shared processTextSimilarityPromotion handler", () => {
@@ -327,11 +333,20 @@ describe("Phase 13 S4.6 — single shared text-similarity handler in existing pr
 // S4.7 — WORKER_QUEUE_PAYLOAD
 // ===========================================================================
 
-describe("Phase 13 S4.7 — MediaIntelligenceJobPayload carries optional textKind", () => {
+describe("Phase 13 S4.7 — the text-similarity selector is durable, not a payload field", () => {
   const src = readSrc(WORKER_QUEUE);
 
-  it("extends the payload with textKind?: 'OCR' | 'TRANSCRIPT'", () => {
-    expect(src).toMatch(/textKind\?\s*:\s*"OCR"\s*\|\s*"TRANSCRIPT"/);
+  it("the payload carries NO textKind — the run kind carries it instead", () => {
+    // PHASE 12 — POINT 5. `textKind?: "OCR" | "TRANSCRIPT"` was an optional
+    // field on the wire that no producer set, which made the promotion path
+    // unreachable. The capability is preserved as two bounded run kinds; the
+    // field is deleted, because a selector on an untrusted message is exactly
+    // the shape this phase exists to remove.
+    expect(src).not.toMatch(/textKind/);
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain("reconcile_ocr_similarity");
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain(
+      "reconcile_transcript_similarity",
+    );
   });
 });
 

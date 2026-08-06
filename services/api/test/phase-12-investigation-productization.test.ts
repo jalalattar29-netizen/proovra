@@ -66,17 +66,14 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
+import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
 
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const WEB_ROOT = resolve(REPO_ROOT, "apps/web");
 const WORKER_ROOT = resolve(REPO_ROOT, "services/worker");
 const SHARED_RUNTIME_ROOT = resolve(REPO_ROOT, "packages/shared-runtime");
-
-const EVIDENCE_DETAIL_PAGE = resolve(
-  WEB_ROOT,
-  "app/(app)/evidence/[id]/page.tsx",
-);
 const INVESTIGATION_PAGE = resolve(
   WEB_ROOT,
   "app/(app)/investigation/page.tsx",
@@ -100,7 +97,6 @@ const PHASE_12_MIGRATION_SQL = resolve(
   PHASE_12_MIGRATION_DIR,
   "migration.sql",
 );
-const WORKER_QUEUE = resolve(WORKER_ROOT, "src/queue.ts");
 const WORKER_PROCESSOR = resolve(
   WORKER_ROOT,
   "src/media-intelligence.processor.ts",
@@ -356,10 +352,14 @@ describe("Phase 12 NEW_MIGRATION_PERCEPTUAL — schema.prisma mirror", () => {
 // ===========================================================================
 
 describe("Phase 12 NEW_WORKER_PERCEPTUAL — compute_perceptual_hashes job", () => {
-  it("services/worker/src/queue.ts adds compute_perceptual_hashes to MediaIntelligenceJobKind", () => {
-    const src = readSrc(WORKER_QUEUE);
-    expect(src).toMatch(/MediaIntelligenceJobKind/);
-    expect(src).toMatch(/["']compute_perceptual_hashes["']/);
+  it("compute_perceptual_hashes is a registered job kind AND a recordable run kind", () => {
+    // PHASE 12 — POINT 5: this used to source-grep the worker's private
+    // `MediaIntelligenceJobKind` union, which is now a re-export of the shared
+    // catalog. Asserting the value instead caught the defect the union hid:
+    // `compute_perceptual_hashes` was enqueueable but the database CHECK
+    // constraint rejected it, so no run row could ever be created for it.
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain("compute_perceptual_hashes");
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toContain("compute_perceptual_hashes");
   });
 
   it("services/worker/src/media-intelligence.processor.ts handles the compute_perceptual_hashes branch", () => {

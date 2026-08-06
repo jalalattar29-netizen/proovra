@@ -171,6 +171,24 @@ function projectVersion(v: VersionWithChildren): RedactionVersionProjection {
     publishedAtUtc: v.publishedAtUtc?.toISOString() ?? null,
     rationale: v.rationale,
     regionCount: v.regions.length,
+    // PHASE 12B — surface the authored regions so the operator surface
+    // can list + remove them (DELETE /v1/redaction/regions/:id). Bounded
+    // fields only; geometry is the same normalized shape the renderer
+    // consumes, and never a raw provider payload.
+    regions: v.regions.map(
+      (r): RedactionRegionProjection => ({
+        id: r.id,
+        kind: r.kind as RedactionRegionKind,
+        method: r.method as RedactionMethod,
+        geometry: (r.geometry ?? {}) as Readonly<Record<string, unknown>>,
+        createdAtUtc: r.createdAt.toISOString(),
+        rationale: r.rationale,
+        sourceDetectionId: r.sourceDetectionId,
+        sourceProvider:
+          (r.sourceProvider as RedactionDetectionProvider | null) ?? null,
+        authoredByUserId: r.authoredByUserId ?? "",
+      }),
+    ),
     acceptedDetectionCount: v.detections.filter(
       (d) => d.decisionState === "ACCEPTED" || d.decisionState === "MODIFIED",
     ).length,
@@ -193,8 +211,6 @@ function projectVersion(v: VersionWithChildren): RedactionVersionProjection {
           id: v.derivative.id,
           kind: v.derivative.kind as RedactionDerivativeKind,
           state: v.derivative.state as RedactionDerivativeState,
-          storageKey: v.derivative.storageKey,
-          storageBucket: v.derivative.storageBucket,
           byteSize: v.derivative.byteSize
             ? Number(v.derivative.byteSize)
             : null,

@@ -19,7 +19,46 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { PrismaClient } from "@prisma/client";
+
+import {
+  asPrismaDouble,
+  rec,
+  str,
+  type DelegateArgs,
+  type JsonRecord,
+} from "./support/prisma-double.js";
+
+// ---------------------------------------------------------------------------
+// Macro-Wave A2 — email TRANSPORT mock. ONLY the transport is mocked; the
+// durable outbox + atomic-claim + token-rotation writers under proof are the
+// REAL org-invite-delivery.service implementation.
+// ---------------------------------------------------------------------------
+const { deliverySendMock } = vi.hoisted(() => ({
+  deliverySendMock: vi.fn<
+    (input: { to: string; subject: string; html: string; text: string }) => Promise<
+      | { ok: true; providerMessageId: string | null }
+      | { ok: false; errorCode: string; errorMessage: string }
+    >
+  >(async () => ({ ok: true as const, providerMessageId: "msg-1" })),
+}));
+vi.mock("../src/services/email.service.js", () => ({
+  sendCustomEmailViaResend: deliverySendMock,
+  // POINT 5 — the delivery path now derives a provider idempotency key. The
+  // stand-in is deterministic and injective for the same reason the real one
+  // is: a mock that returned a constant would hide a caller passing the wrong
+  // discriminator.
+  deterministicEmailKey: (templateKey: string, ...parts: string[]) =>
+    [templateKey, ...parts].join(":"),
+  renderEmailShell: (input: { bodyHtml: string }) => `<html>${input.bodyHtml}</html>`,
+  escapeEmailHtml: (s: string) => s,
+  getEmailBrandName: () => "PROOVRA",
+  getEmailFromHeader: () => "PROOVRA <no-reply@proovra.test>",
+  getEmailWebBaseUrl: () => "https://app.proovra.test",
+}));
 
 import {
   parseCsv,
@@ -32,6 +71,15 @@ import {
   INVITE_DOMAIN_RESTRICTION_KEY,
 } from "../src/routes/organizations-bulk-invite.routes.js";
 import { ORG_AUDIT_EVENT_TYPES } from "../src/services/organization/org-audit.service.js";
+import {
+  ORG_INVITE_DELIVERY_EVENT_TYPE,
+  ORG_INVITE_DELIVERY_MAX_ATTEMPTS,
+  attemptInitialOrgInviteDelivery,
+  hashOrgInviteToken,
+  processDueOrgInviteDeliveries,
+  recordOrgInviteDeliveryPending,
+  resendOrgInviteDelivery,
+} from "../src/services/organization/org-invite-delivery.service.js";
 
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
@@ -285,5 +333,548 @@ describe("Phase 8 Group 4 — audit event catalog", () => {
   it("registers the two new bulk-invitation event types", () => {
     expect(ORG_AUDIT_EVENT_TYPES).toContain("ORG_BULK_INVITATION_STARTED");
     expect(ORG_AUDIT_EVENT_TYPES).toContain("ORG_BULK_INVITATION_COMPLETED");
+  });
+
+  it("registers the Macro-Wave A2 rotation event type", () => {
+    expect(ORG_AUDIT_EVENT_TYPES).toContain("ORG_INVITE_DELIVERY_ROTATED");
+  });
+});
+
+// =============================================================================
+// Macro-Wave A2 — durable invite delivery chain (behavioral matrix).
+//
+// REAL writers under proof: recordOrgInviteDeliveryPending (outbox in-tx),
+// attemptInitialOrgInviteDelivery (inline first attempt), the sweep's
+// atomic claim (updateMany state precondition), rotateAndSend (token
+// rotation + lifecycle/binding guards), resendOrgInviteDelivery. ONLY the
+// email transport is mocked. Zero raw-token leakage is asserted against
+// every durable store (delivery rows + audit rows).
+// =============================================================================
+
+const ACCEPT_URL_RE = /org-invites\/([0-9a-f]{64})\/accept/;
+
+function sha256(raw: string): string {
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+/** Extract the raw token from the accept URL handed to the (mocked) transport. */
+function tokenFromSendCall(callIndex: number): string {
+  const arg = deliverySendMock.mock.calls[callIndex]![0] as { text: string };
+  const m = ACCEPT_URL_RE.exec(arg.text);
+  if (!m) throw new Error("no accept url in email text");
+  return m[1]!;
+}
+
+/**
+ * The OrganizationInvite columns this world serves. Explicit (not an index of
+ * any) so a column the delivery/rotation runtime starts reading cannot silently
+ * come back undefined and pass a assertion by accident.
+ */
+type InviteRow = {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: string;
+  acceptedAt: Date | null;
+  revokedAt: Date | null;
+  invitedByUserId: string;
+  token: string | null;
+  tokenHash: string;
+  expiresAt: Date;
+} & JsonRecord;
+
+/** The NotificationDelivery columns the durable outbox writes and reads back. */
+type DeliveryRow = {
+  id: string;
+  eventType?: string;
+  status: string;
+  retryCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  providerMessageId: string | null;
+  sentAtUtc: Date | null;
+  failedAtUtc: Date | null;
+  nextAttemptAtUtc: Date | null;
+  metadata: JsonRecord | null;
+  createdAt: Date;
+} & JsonRecord;
+
+function makeDeliveryWorld() {
+  const invite: InviteRow = {
+    id: "inv-1",
+    organizationId: "org-1",
+    email: "owner@acme.test",
+    role: "ORG_OWNER",
+    acceptedAt: null,
+    revokedAt: null,
+    invitedByUserId: "admin-1",
+    token: null,
+    tokenHash: "initial-hash",
+    expiresAt: new Date(Date.now() + 7 * 86_400_000),
+  };
+  const deliveries: DeliveryRow[] = [];
+  const audits: JsonRecord[] = [];
+
+  const world = {
+    notificationDelivery: {
+      create: async ({ data }: DelegateArgs) => {
+        const row: DeliveryRow = {
+          id: `del-${deliveries.length + 1}`,
+          status: "PENDING",
+          retryCount: 0,
+          errorCode: null,
+          errorMessage: null,
+          providerMessageId: null,
+          sentAtUtc: null,
+          failedAtUtc: null,
+          nextAttemptAtUtc: null,
+          metadata: null,
+          createdAt: new Date(),
+          ...rec(data),
+        };
+        deliveries.push(row);
+        return { ...row };
+      },
+      findUnique: async ({ where }: DelegateArgs) => {
+        const row = deliveries.find((d) => d.id === str(rec(where).id));
+        return row ? { ...row } : null;
+      },
+      findFirst: async ({ where }: DelegateArgs) => {
+        const w = rec(where);
+        const inviteId = str(rec(w.metadata).equals);
+        const rows = deliveries.filter(
+          (d) =>
+            d.eventType === str(w.eventType) &&
+            (!inviteId || str(rec(d.metadata).inviteId) === inviteId),
+        );
+        return rows.length ? { ...rows[rows.length - 1]! } : null;
+      },
+      findMany: async ({ where, take }: DelegateArgs) => {
+        const w = rec(where);
+        // PHASE 12 POINT 5 — two shapes reach this delegate now. The SWEEP
+        // query is due-bounded and retry-bounded; the RESEND query reads the
+        // invite's intent CHAIN newest-first so it can act on the live end of
+        // it rather than on a retired predecessor. Serving only the first
+        // shape made the second throw the sweep's own guard message.
+        const chainInviteId = str(rec(w.metadata).equals);
+        if (chainInviteId && !w.status) {
+          return deliveries
+            .filter(
+              (d) =>
+                d.eventType === str(w.eventType) &&
+                str(rec(d.metadata).inviteId) === chainInviteId,
+            )
+            .slice()
+            .reverse()
+            .slice(0, take ?? 25)
+            .map((d) => ({ ...d }));
+        }
+        const due = rec(w.nextAttemptAtUtc).lte;
+        const maxRetry = Number(rec(w.retryCount).lt);
+        if (!(due instanceof Date)) throw new Error("sweep query lost its due bound");
+        return deliveries
+          .filter(
+            (d) =>
+              d.eventType === str(w.eventType) &&
+              d.status === str(w.status) &&
+              d.retryCount < maxRetry &&
+              d.nextAttemptAtUtc instanceof Date &&
+              d.nextAttemptAtUtc.getTime() <= due.getTime(),
+          )
+          .slice(0, take)
+          .map((d) => ({ ...d }));
+      },
+      // The ATOMIC claim — preconditions are enforced faithfully so a
+      // concurrent duplicate sweep genuinely loses the race.
+      updateMany: async ({ where, data }: DelegateArgs) => {
+        const w = rec(where);
+        const row = deliveries.find((d) => d.id === str(w.id));
+        if (!row) return { count: 0 };
+        const wantStatus = str(w.status);
+        if (wantStatus && row.status !== wantStatus) return { count: 0 };
+        const due = rec(w.nextAttemptAtUtc).lte;
+        if (due instanceof Date) {
+          if (
+            !(row.nextAttemptAtUtc instanceof Date) ||
+            row.nextAttemptAtUtc.getTime() > due.getTime()
+          ) {
+            return { count: 0 };
+          }
+        }
+        Object.assign(row, rec(data));
+        return { count: 1 };
+      },
+      update: async ({ where, data }: DelegateArgs) => {
+        const row = deliveries.find((d) => d.id === str(rec(where).id));
+        if (!row) throw new Error("delivery_not_found");
+        Object.assign(row, rec(data));
+        return { ...row };
+      },
+    },
+    organizationInvite: {
+      findUnique: async ({ where }: DelegateArgs) =>
+        invite.id === str(rec(where).id) ? { ...invite } : null,
+      update: async ({ where, data }: DelegateArgs) => {
+        if (invite.id !== str(rec(where).id)) throw new Error("invite_not_found");
+        Object.assign(invite, rec(data));
+        return { ...invite };
+      },
+    },
+    organization: {
+      findUnique: async () => ({ name: "Acme Corp" }),
+    },
+    user: {
+      findUnique: async () => ({
+        displayName: "Admin",
+        email: "admin@acme.test",
+      }),
+    },
+    organizationAuditEvent: {
+      create: async ({ data }: DelegateArgs) => {
+        audits.push(rec(data));
+        return rec(data);
+      },
+    },
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(client),
+  };
+  const client = asPrismaDouble<PrismaClient>(world);
+
+  /** Seed the canonical outbox row (as the create-invite tx does). */
+  async function seedPendingDelivery(): Promise<string> {
+    const { deliveryId } = await recordOrgInviteDeliveryPending(client, {
+      inviteId: invite.id,
+      organizationId: invite.organizationId,
+      email: invite.email,
+      initiatedByUserId: "admin-1",
+    });
+    return deliveryId;
+  }
+
+  /** Force the row due so the sweep picks it up. */
+  function makeDue(deliveryId: string) {
+    const row = deliveries.find((d) => d.id === deliveryId)!;
+    row.nextAttemptAtUtc = new Date(Date.now() - 1_000);
+  }
+
+  function assertNoRawTokenLeak(rawTokens: string[]) {
+    const durable = JSON.stringify(deliveries) + JSON.stringify(audits);
+    for (const t of rawTokens) {
+      expect(t).toMatch(/^[0-9a-f]{64}$/);
+      expect(durable).not.toContain(t);
+    }
+  }
+
+  return {
+    client,
+    invite,
+    deliveries,
+    audits,
+    seedPendingDelivery,
+    makeDue,
+    assertNoRawTokenLeak,
+  };
+}
+
+describe("Macro-Wave A2 — durable invite delivery chain", () => {
+  beforeEach(() => {
+    deliverySendMock.mockClear();
+    deliverySendMock.mockImplementation(async () => ({
+      ok: true as const,
+      providerMessageId: "msg-1",
+    }));
+  });
+
+  it("outbox commit + inline first attempt → SENT; the accept URL exists only in the email; durable rows/audits carry no token", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+
+    const row = w.deliveries[0]!;
+    expect(row.eventType).toBe(ORG_INVITE_DELIVERY_EVENT_TYPE);
+    expect(row.status).toBe("PENDING");
+    // POINT 5 BLOCK 0.2 — ids plus the minted provider idempotency key. The
+    // guarantee this line protects is that NO TOKEN and NO ACCEPT URL is in
+    // the row, which is asserted exactly rather than by an equality that also
+    // pins unrelated additions.
+    expect(row.metadata).toMatchObject({
+      inviteId: "inv-1",
+      organizationId: "org-1",
+    });
+    // POINT 5 — the safe id pair, the minted provider key, and the bounded
+    // CONTENT IDENTITY that lets a rotation be recognised as new content and
+    // given its own key. Still no token and no accept URL, which is what this
+    // exact key set is here to protect.
+    expect(Object.keys(row.metadata as object).sort()).toEqual([
+      "contentFingerprint",
+      "contentVersion",
+      "idempotencyKey",
+      "inviteId",
+      "organizationId",
+    ]);
+
+    const rawToken = "a".repeat(64);
+    const state = await attemptInitialOrgInviteDelivery(
+      {
+        deliveryId,
+        rawToken,
+        organizationName: "Acme Corp",
+        role: "ORG_OWNER",
+        inviterDisplay: "Admin",
+        expiresAt: w.invite.expiresAt,
+      },
+      w.client,
+    );
+    expect(state).toMatchObject({ status: "SENT", attempts: 1 });
+    expect(deliverySendMock).toHaveBeenCalledTimes(1);
+    expect(tokenFromSendCall(0)).toBe(rawToken);
+    w.assertNoRawTokenLeak([rawToken]);
+  });
+
+  it("an inline attempt against an already-SENT row does NOT re-send (duplicate-invocation safety)", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+    const rawToken = "b".repeat(64);
+    const input = {
+      deliveryId,
+      rawToken,
+      organizationName: "Acme Corp",
+      role: "ORG_OWNER",
+      expiresAt: w.invite.expiresAt,
+    };
+    await attemptInitialOrgInviteDelivery(input, w.client);
+    const replay = await attemptInitialOrgInviteDelivery(input, w.client);
+    expect(replay).toMatchObject({ status: "SENT", attempts: 1 });
+    expect(deliverySendMock).toHaveBeenCalledTimes(1); // zero duplicate emails
+  });
+
+  it("delivery failure → observable PENDING with bounded error; the sweep retry ROTATES the token so the old emailed link is DEAD", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+
+    // First (inline) attempt fails transiently.
+    deliverySendMock.mockImplementationOnce(async () => ({
+      ok: false as const,
+      errorCode: "rate_limit",
+      errorMessage: "429 too many requests " + "x".repeat(500),
+    }));
+    const firstToken = "c".repeat(64);
+    const afterFail = await attemptInitialOrgInviteDelivery(
+      {
+        deliveryId,
+        rawToken: firstToken,
+        organizationName: "Acme Corp",
+        role: "ORG_OWNER",
+        expiresAt: w.invite.expiresAt,
+      },
+      w.client,
+    );
+    expect(afterFail).toMatchObject({ status: "PENDING", attempts: 1 });
+    expect(afterFail!.lastError!.length).toBeLessThanOrEqual(300);
+    // The invite still holds its original hash — the failed attempt did
+    // not rotate anything.
+    expect(w.invite.tokenHash).toBe("initial-hash");
+
+    // Sweep picks the due row up and retries WITH ROTATION.
+    w.makeDue(deliveryId);
+    const summary = await processDueOrgInviteDeliveries({}, w.client);
+    expect(summary).toMatchObject({ pickedUp: 1, sent: 1, failed: 0 });
+
+    // A fresh token was minted and emailed; ONLY its hash was stored.
+    expect(deliverySendMock).toHaveBeenCalledTimes(2);
+    const rotatedToken = tokenFromSendCall(1);
+    expect(rotatedToken).not.toBe(firstToken);
+    expect(w.invite.tokenHash).toBe(sha256(rotatedToken));
+    expect(w.invite.token).toBeNull();
+    // The PREVIOUS emailed link is dead: its hash no longer matches the
+    // invite (acceptance is a tokenHash lookup).
+    expect(sha256(firstToken)).not.toBe(w.invite.tokenHash);
+    expect(hashOrgInviteToken(firstToken)).not.toBe(w.invite.tokenHash);
+
+    // Rotation is audited WITHOUT the token.
+    const rotation = w.audits.find(
+      (a) => a.eventType === "ORG_INVITE_DELIVERY_ROTATED",
+    );
+    expect(rotation).toBeTruthy();
+    expect(rotation!.metadata).toMatchObject({
+      inviteId: "inv-1",
+      deliveryId,
+    });
+    w.assertNoRawTokenLeak([firstToken, rotatedToken]);
+  });
+
+  it("duplicate concurrent sweeps send ZERO duplicate emails (atomic claim: exactly one wins)", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+    // Put the row in retryable-PENDING shape (a prior failed attempt).
+    const row = w.deliveries[0]!;
+    row.retryCount = 1;
+    w.makeDue(deliveryId);
+
+    const [s1, s2] = await Promise.all([
+      processDueOrgInviteDeliveries({}, w.client),
+      processDueOrgInviteDeliveries({}, w.client),
+    ]);
+    expect(s1.pickedUp + s2.pickedUp).toBe(1);
+    expect(s1.sent + s2.sent).toBe(1);
+    expect(deliverySendMock).toHaveBeenCalledTimes(1);
+    // POINT 5 — the rotation retired the intent it read and delivered under a
+    // SUCCESSOR with its own provider key. One email either way; what changed
+    // is which row records it, and that the retired one can never send again.
+    expect(row.status).toBe("CANCELLED");
+    expect(row.errorCode).toBe("superseded_by_rotation");
+    expect(w.deliveries).toHaveLength(2);
+    expect(w.deliveries[1]!.status).toBe("SENT");
+  });
+
+  it("a dead invite is never re-mailed: accepted → CANCELLED, revoked → CANCELLED, zero emails", async () => {
+    for (const kill of [
+      { acceptedAt: new Date() },
+      { revokedAt: new Date() },
+    ]) {
+      deliverySendMock.mockClear();
+      const w = makeDeliveryWorld();
+      const deliveryId = await w.seedPendingDelivery();
+      Object.assign(w.invite, kill);
+      w.makeDue(deliveryId);
+      const summary = await processDueOrgInviteDeliveries({}, w.client);
+      expect(summary).toMatchObject({ pickedUp: 1, cancelled: 1, sent: 0 });
+      expect(w.deliveries[0]!.status).toBe("CANCELLED");
+      expect(deliverySendMock).not.toHaveBeenCalled();
+    }
+  });
+
+  it("binding denial: a delivery row whose recipient drifted from the invite email FAILS hard with zero emails", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+    w.deliveries[0]!.recipient = "attacker@evil.test";
+    w.makeDue(deliveryId);
+    const summary = await processDueOrgInviteDeliveries({}, w.client);
+    expect(summary).toMatchObject({ pickedUp: 1, failed: 1, sent: 0 });
+    expect(w.deliveries[0]!.status).toBe("FAILED");
+    expect(w.deliveries[0]!.errorCode).toBe("recipient_binding_mismatch");
+    expect(deliverySendMock).not.toHaveBeenCalled();
+  });
+
+  it("cross-Organization denial: a delivery row bound to a different org FAILS hard with zero emails", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+    w.deliveries[0]!.metadata = {
+      inviteId: "inv-1",
+      organizationId: "org-OTHER",
+    };
+    w.makeDue(deliveryId);
+    const summary = await processDueOrgInviteDeliveries({}, w.client);
+    expect(summary).toMatchObject({ pickedUp: 1, failed: 1, sent: 0 });
+    expect(w.deliveries[0]!.errorCode).toBe("organization_binding_mismatch");
+    expect(deliverySendMock).not.toHaveBeenCalled();
+  });
+
+  it("exhausted rows (retryCount ≥ max) are never picked up again", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+    w.deliveries[0]!.retryCount = ORG_INVITE_DELIVERY_MAX_ATTEMPTS;
+    w.makeDue(deliveryId);
+    const summary = await processDueOrgInviteDeliveries({}, w.client);
+    expect(summary).toMatchObject({ pickedUp: 0 });
+    expect(deliverySendMock).not.toHaveBeenCalled();
+  });
+
+  it("operator resend of a FAILED delivery rotates + re-sends; the fresh accept URL is returned once and never persisted", async () => {
+    const w = makeDeliveryWorld();
+    const deliveryId = await w.seedPendingDelivery();
+    // Drive the row to FAILED via a permanent provider error.
+    deliverySendMock.mockImplementationOnce(async () => ({
+      ok: false as const,
+      errorCode: "invalid_recipient",
+      errorMessage: "mailbox does not exist",
+    }));
+    const failedToken = "d".repeat(64);
+    const failedState = await attemptInitialOrgInviteDelivery(
+      {
+        deliveryId,
+        rawToken: failedToken,
+        organizationName: "Acme Corp",
+        role: "ORG_OWNER",
+        expiresAt: w.invite.expiresAt,
+      },
+      w.client,
+    );
+    expect(failedState).toMatchObject({ status: "FAILED", attempts: 1 });
+
+    // Operator retry affordance.
+    const resent = await resendOrgInviteDelivery(
+      {
+        inviteId: "inv-1",
+        organizationId: "org-1",
+        email: "owner@acme.test",
+        actorUserId: "admin-2",
+      },
+      w.client,
+    );
+    expect(resent).toBeTruthy();
+    expect(resent!.state).toMatchObject({ status: "SENT", attempts: 2 });
+    expect(deliverySendMock).toHaveBeenCalledTimes(2);
+    const rotatedToken = tokenFromSendCall(1);
+    expect(resent!.acceptUrl).toContain(`/org-invites/${rotatedToken}/accept`);
+    expect(w.invite.tokenHash).toBe(sha256(rotatedToken));
+    w.assertNoRawTokenLeak([failedToken, rotatedToken]);
+  });
+});
+
+// =============================================================================
+// Macro-Wave A2 — wiring source-contracts (invite creation paths + sweep
+// endpoint + observability surfaces).
+// =============================================================================
+describe("Macro-Wave A2 — delivery wiring source contracts", () => {
+  const ORGS_SRC = readFileSync(
+    apiPath("src/routes/organizations.routes.ts"),
+    "utf8",
+  );
+  const PROVISIONING_SRC = readFileSync(
+    apiPath("src/services/enterprise-provisioning.service.ts"),
+    "utf8",
+  );
+
+  it("ALL THREE invite-creation paths commit the outbox row in the SAME transaction (single, bulk, activation-owner)", () => {
+    for (const src of [ORGS_SRC, ROUTE_SRC, PROVISIONING_SRC]) {
+      expect(src).toMatch(/recordOrgInviteDeliveryPending\(tx, \{/);
+      expect(src).toMatch(/attemptInitialOrgInviteDelivery\(/);
+    }
+  });
+
+  it("the sweep endpoint is cron-secret-guarded and delegates to the canonical sweeper", () => {
+    expect(ORGS_SRC).toContain('app.post("/v1/org-invite-deliveries/process"');
+    expect(ORGS_SRC).toMatch(
+      /requireIntegrationCronSecret\(req, reply\);\s*\r?\n\s*if \(!ok\) return;\s*[\s\S]{0,300}processDueOrgInviteDeliveries/,
+    );
+  });
+
+  it("resend surfaces re-deliver through the durable chain (single + bulk)", () => {
+    expect(ORGS_SRC).toMatch(/resendOrgInviteDelivery\(\{/);
+    expect(ROUTE_SRC).toMatch(/resendOrgInviteDelivery\(\{/);
+  });
+
+  it("the invite listing endpoint exposes per-invite delivery state (no tokens)", () => {
+    expect(ORGS_SRC).toMatch(/getOrgInviteDeliveryStates\(/);
+    expect(ORGS_SRC).toMatch(/delivery: deliveryByInvite\.get\(i\.id\) \?\? null/);
+  });
+
+  it("the delivery outbox NEVER persists a raw token or accept URL (service-level contract)", () => {
+    const DELIVERY_SRC = readFileSync(
+      apiPath("src/services/organization/org-invite-delivery.service.ts"),
+      "utf8",
+    );
+    // PHASE 12 POINT 5 — this pinned an inline metadata literal that no longer
+    // exists. Both intent-creating paths now build metadata through ONE
+    // builder, so a successor intent minted by a rotation cannot be shaped
+    // differently from the intent it replaces. The property the pin was
+    // protecting is unchanged, and is asserted where it now lives: the
+    // builder may write ids, a version, a bounded fingerprint and the provider
+    // key, and nothing token-shaped.
+    const at = DELIVERY_SRC.indexOf("function buildIntentMetadata(");
+    expect(at).toBeGreaterThan(0);
+    const builder = DELIVERY_SRC.slice(at, at + 900);
+    expect(builder).not.toMatch(/rawToken|acceptUrl|tokenHash/);
+    // Rotation stores ONLY the hash; the legacy plaintext column stays NULL.
+    expect(DELIVERY_SRC).toMatch(/token: null,\s*\r?\n\s*tokenHash: newTokenHash/);
   });
 });

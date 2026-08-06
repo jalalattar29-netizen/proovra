@@ -4,8 +4,14 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { isValidOtsBitcoinTxid, resolveEffectiveOtsStatus } from "@proovra/shared";
+import { randomUUID } from "node:crypto";
+import {
+  JOB_NAMES,
+  isValidOtsBitcoinTxid,
+  resolveEffectiveOtsStatus,
+} from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
+import { decodeCanonicalJob } from "./canonical-job.js";
 import type { Prisma } from "@prisma/client";
 import { appendCustodyEventTx } from "./custody-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
@@ -23,7 +29,6 @@ import { logger, withJobContext } from "./logger.js";
 import {
   classifyOtsResult,
   parseOtsUpgradeOutput,
-  shouldTreatOtsAsAnchored,
   type OtsClassification,
 } from "./ots-upgrade-output.js";
 
@@ -60,33 +65,30 @@ function now(): Date {
 //      operations UI can highlight it without waiting for the 30-day
 //      hard stop.
 
-export const OTS_FOLLOWUP_JOB_PREFIX = "ots-upgrade-followup-";
-
 /**
- * Stable jobId so BullMQ's `attempts` ceiling is enforced across
- * re-enqueues. The previous timestamp-bearing id reset the counter.
+ * PHASE 12 — POINT 5: the follow-up job id is DELETED, not renamed.
+ *
+ * There is now exactly one id for an OTS upgrade of a given evidence record —
+ * `ots-upgrade-<evidenceId>`, built by `buildCanonicalJobId` from the registry
+ * prefix — and the follow-up reuses it. That is what the "stable jobId per
+ * evidenceId" note above was reaching for; it just implemented it as a SECOND
+ * stable id (`ots-upgrade-followup-<evidenceId>`), which meant a follow-up and
+ * an initial upgrade for the same evidence had separate attempt budgets and
+ * could both be runnable at once.
+ *
+ * The 30-day global budget and the stuck-detection counter below are unchanged
+ * — they were always the real ceiling, since the happy-path PENDING return
+ * never throws and so never consumed a BullMQ attempt.
  */
-export function buildFollowUpJobId(evidenceId: string): string {
-  return `${OTS_FOLLOWUP_JOB_PREFIX}${evidenceId}`;
-}
+export const OTS_FOLLOWUP_JOB_PREFIX = "ots-upgrade-";
 
 const OTS_GLOBAL_BUDGET_DAYS_DEFAULT = 30;
-const OTS_STUCK_ATTEMPT_THRESHOLD_DEFAULT = 10;
 
 function readOtsGlobalBudgetDays(): number {
   const raw = process.env.OTS_GLOBAL_BUDGET_DAYS;
   if (!raw) return OTS_GLOBAL_BUDGET_DAYS_DEFAULT;
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : OTS_GLOBAL_BUDGET_DAYS_DEFAULT;
-}
-
-function readOtsStuckThreshold(): number {
-  const raw = process.env.OTS_STUCK_ATTEMPT_THRESHOLD;
-  if (!raw) return OTS_STUCK_ATTEMPT_THRESHOLD_DEFAULT;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0
-    ? n
-    : OTS_STUCK_ATTEMPT_THRESHOLD_DEFAULT;
 }
 
 /**
@@ -120,8 +122,24 @@ export function isOtsGlobalBudgetExhausted(params: {
   );
 }
 
-export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
-  const { evidenceId } = job.data;
+/**
+ * PHASE 12 — POINT 5.
+ *
+ * The payload was `{ evidenceId }` — already reference-only, which is why this
+ * processor needed no tenancy fix. What it did NOT have was a strict decode:
+ * it read `job.data.evidenceId` directly, so a payload carrying extra fields
+ * (a `teamId`, a `forceRegenerate`, an unknown schema version) was accepted
+ * silently. The reference happened to be the only field it used; nothing
+ * enforced that.
+ *
+ * It now goes through the same decoder as every other chain, which means an
+ * unknown field or an unknown version is a counted refusal before the first
+ * database read.
+ */
+export async function processOtsUpgrade(job: Job<unknown>) {
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(JOB_NAMES.UPGRADE_OTS, job, { requestId });
+  const evidenceId = decoded.commandId;
   const startedAt = Date.now();
 
   logger.info(
@@ -342,9 +360,14 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
         });
       });
 
+      // PHASE 12 — POINT 5. The regeneration is authorized HERE, by the worker
+      // that just anchored the timestamp, and that decision is PERSISTED on the
+      // request row. It is not a flag on a queue message any more.
       await enqueueReportJob(evidenceId, {
         forceRegenerate: true,
         regenerateReason: "ots_anchored",
+        purpose: "ots_upgrade_completed",
+        machineId: "worker.ots-upgrade",
       });
 
       logger.info(
@@ -465,6 +488,8 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
         await enqueueReportJob(evidenceId, {
           forceRegenerate: true,
           regenerateReason: "ots_anchor_material_recovered",
+          purpose: "ots_upgrade_completed",
+          machineId: "worker.ots-upgrade",
         });
       } else {
         // Phase Final-Worker-Visibility — global attempt budget. The
@@ -549,11 +574,21 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
           return;
         }
 
-        // Stable jobId — see comment block on `buildFollowUpJobId`.
+        // PHASE 12 — POINT 5. There is now ONE job id for an evidence record's
+        // OTS upgrade (`ots-upgrade-<evidenceId>`) instead of two, and it is
+        // built by the shared authority.
+        //
+        // `selfJobId` is what keeps the ladder alive across that change. This
+        // call runs INSIDE the job holding that id, so a plain enqueue would
+        // find its own active job and collapse onto it — scheduling nothing,
+        // and leaving the evidence OTS-PENDING with no future retry. That is
+        // the exact production incident the `excludeJobId` machinery was
+        // written for; the mechanism moved into the shared helper, the
+        // guarantee did not change.
         await enqueueOtsUpgradeJob(evidenceId, {
           delayMs: 60 * 60 * 1000,
-          jobId: buildFollowUpJobId(evidenceId),
-          excludeJobId: job.id,
+          traceId: "ots_followup",
+          selfJobId: job.id,
         });
       }
 
@@ -609,7 +644,6 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       }),
       "ots.upgrade.failed"
     );
-
 
     throw new Error("OTS_UPGRADE_FAILED");
   } finally {

@@ -183,7 +183,7 @@ describe("Phase A3 — analytics endpoint hardening", () => {
         ? ANALYTICS_ROUTES.indexOf("app.get(")
         : ANALYTICS_ROUTES.length,
     );
-    expect(trackBlock).not.toMatch(/\.body[^,}\)]*\}\s*,\s*"analytics/);
+    expect(trackBlock).not.toMatch(/\.body[^,})]*\}\s*,\s*"analytics/);
     expect(trackBlock).toContain("message.slice(0, 200)");
   });
 });

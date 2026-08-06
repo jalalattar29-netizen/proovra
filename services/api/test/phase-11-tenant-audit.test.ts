@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-const H = vi.hoisted(() => ({ calls: [] as any[] }));
+type AuditMeta = { [key: string]: AuditMeta | undefined } & Record<string, unknown>;
+type AuditRow = Record<string, unknown> & { metadata?: AuditMeta };
+const H = vi.hoisted(() => ({ calls: [] as AuditRow[] }));
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
-  appendPlatformAuditLog: async (p: any) => { H.calls.push(p); },
+  appendPlatformAuditLog: async (p: AuditRow) => { H.calls.push(p); },
 }));
 import { emitTenantAudit } from "../src/services/audit/tenant-audit.service.js";
 afterEach(() => { H.calls.length = 0; });
@@ -20,19 +22,19 @@ describe("Phase 11 — emitTenantAudit (ONE envelope authority over the hash-cha
   });
   it("NEVER stores secrets — token/jwt/secret keys are redacted", async () => {
     await emitTenantAudit({ action: "sso.login", outcome: "success", sourceApp: "SSO", actorUserId: "u1", metadata: { relayState: "x", nested: { apiKey: "k", ok: 1 }, jwt: "e.y.z" } });
-    const m = H.calls[0].metadata;
+    const m = H.calls[0]!.metadata as AuditMeta;
     expect(m.relayState).toBe("[redacted]");
     expect(m.jwt).toBe("[redacted]");
-    expect(m.nested.apiKey).toBe("[redacted]");
-    expect(m.nested.ok).toBe(1);
+    expect((m.nested as AuditMeta).apiKey).toBe("[redacted]");
+    expect((m.nested as AuditMeta).ok).toBe(1);
   });
   it("denial is audited with a bounded reason (warning severity)", async () => {
     await emitTenantAudit({ action: "evidence.read", outcome: "denied", denialReason: "not_a_member", sourceApp: "API", actorUserId: "u1", resourceType: "evidence", resourceId: "ev-1" });
     expect(H.calls[0]).toMatchObject({ severity: "warning", outcome: "denied" });
-    expect(H.calls[0].metadata.denialReason).toBe("not_a_member");
+    expect(H.calls[0]!.metadata?.denialReason).toBe("not_a_member");
   });
   it("break-glass attribution is captured", async () => {
     await emitTenantAudit({ action: "session.revoke", outcome: "success", sourceApp: "API", actorUserId: "op-1", breakGlassGrantId: "eag-1", workspaceId: "team-1" });
-    expect(H.calls[0].metadata.breakGlassGrantId).toBe("eag-1");
+    expect(H.calls[0]!.metadata?.breakGlassGrantId).toBe("eag-1");
   });
 });

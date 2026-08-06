@@ -109,10 +109,22 @@ describe("Phase 8 §11.6/§11.16 — SCIM deprovisioning end-to-end (behavioral)
       "../src/services/access-control/scim.service.js"
     );
 
-    const client = new Proxy(
+    // PHASE 3 (2026-07-21) — deactivation became ONE atomic composition:
+    // suspend + unlink + heal now run inside a single `$transaction` so a
+    // failure between them cannot leave a SUSPENDED member still linked. The
+    // double therefore has to answer `$transaction` as a real function; it
+    // runs the callback against the SAME recording client, which keeps every
+    // assertion below (which inspects the recorded calls) meaningful.
+    const client: unknown = new Proxy(
       {},
       {
         get(_t, model: string) {
+          if (model === "$transaction") {
+            return async (arg: unknown) =>
+              typeof arg === "function"
+                ? await (arg as (tx: unknown) => Promise<unknown>)(client)
+                : await Promise.all(arg as Promise<unknown>[]);
+          }
           return new Proxy(
             {},
             {

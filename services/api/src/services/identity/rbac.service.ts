@@ -57,7 +57,12 @@ export type RbacErrorCode =
   | "capability_not_found"
   | "delegated_scope_already_active"
   | "delegated_scope_not_found"
-  | "role_transition_to_owner_forbidden";
+  | "role_transition_to_owner_forbidden"
+  // PHASE 12B (2026-07-30) — the workspace must never be left without a
+  // single ACTIVE administrator. Raised by `assertNotLastAdministrator`,
+  // which re-counts the remaining administrators INSIDE the mutating
+  // transaction (see `runAtomically`).
+  | "last_administrator_protected";
 
 export class RbacError extends Error {
   readonly code: RbacErrorCode;
@@ -68,6 +73,62 @@ export class RbacError extends Error {
 }
 
 const PERMISSION_SET = new Set<string>(PERMISSIONS);
+
+// -----------------------------------------------------------------------------
+// PHASE 12B (2026-07-30) — atomicity primitives.
+//
+// Every transition below is a READ-COMPARE-WRITE: it loads the target, decides
+// legality against what it read, then writes. Performed on the bare client the
+// decision could be made against a state another operator has already
+// replaced (two concurrent demotions each observing "one other admin remains"
+// would BOTH commit, leaving the workspace with zero administrators).
+// `runAtomically` puts the read, the guard and the write in ONE interactive
+// transaction so the guard re-counts under the same snapshot as the write.
+//
+// The `$transaction`-absent fallback exists for the injected in-memory
+// transports used by the service-level suites; production always takes the
+// real transaction path.
+// -----------------------------------------------------------------------------
+
+async function runAtomically<T>(
+  client: PrismaClient,
+  fn: (tx: PrismaClient) => Promise<T>,
+): Promise<T> {
+  const runner = (client as unknown as { $transaction?: unknown }).$transaction;
+  if (typeof runner !== "function") return fn(client);
+  return client.$transaction(async (tx) => fn(tx as unknown as PrismaClient));
+}
+
+/**
+ * LAST-ADMINISTRATOR PROTECTION (atomic).
+ *
+ * Called INSIDE the mutating transaction, immediately before the write, for
+ * every transition that removes administrative capability from `target`
+ * (suspend / revoke / demotion out of the OWNER+ADMIN tier). It re-counts the
+ * OTHER ACTIVE administrators under the transaction's snapshot; when none
+ * remain the transition is refused and the transaction rolls back, so no
+ * partial state is ever observable.
+ */
+async function assertNotLastAdministrator(
+  tx: PrismaClient,
+  input: { teamId: string; teamMemberId: string; role: prismaPkg.TeamRole },
+): Promise<void> {
+  if (
+    input.role !== prismaPkg.TeamRole.OWNER &&
+    input.role !== prismaPkg.TeamRole.ADMIN
+  ) {
+    return;
+  }
+  const remaining = await tx.teamMember.count({
+    where: {
+      teamId: input.teamId,
+      id: { not: input.teamMemberId },
+      status: prismaPkg.TeamMemberStatus.ACTIVE,
+      role: { in: [prismaPkg.TeamRole.OWNER, prismaPkg.TeamRole.ADMIN] },
+    },
+  });
+  if (remaining === 0) throw new RbacError("last_administrator_protected");
+}
 
 // -----------------------------------------------------------------------------
 // Lifecycle: suspend / revoke / restore / role change
@@ -159,43 +220,53 @@ export async function suspendMember(
   input: LifecycleInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
-  if (target.userId === input.actorUserId) {
-    throw new RbacError("self_action_forbidden");
-  }
-  assertNotOwner(target.role);
-  if (
-    !isAllowedTeamMemberStatusTransition(
-      target.status as TeamMemberStatus,
-      "SUSPENDED",
-    )
-  ) {
-    throw new RbacError("invalid_status_transition");
-  }
-  const updated = await client.teamMember.update({
-    where: { id: target.id },
-    data: {
-      status: prismaPkg.TeamMemberStatus.SUSPENDED,
-      suspendedAtUtc: new Date(),
-      suspendedByUserId: input.actorUserId,
-      suspensionReason: input.reason ?? null,
-    },
+  const { updated, subjectUserId } = await runAtomically(client, async (tx) => {
+    const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+    if (target.userId === input.actorUserId) {
+      throw new RbacError("self_action_forbidden");
+    }
+    assertNotOwner(target.role);
+    if (
+      !isAllowedTeamMemberStatusTransition(
+        target.status as TeamMemberStatus,
+        "SUSPENDED",
+      )
+    ) {
+      throw new RbacError("invalid_status_transition");
+    }
+    await assertNotLastAdministrator(tx, {
+      teamId: input.teamId,
+      teamMemberId: target.id,
+      role: target.role,
+    });
+    const row = await tx.teamMember.update({
+      where: { id: target.id },
+      data: {
+        status: prismaPkg.TeamMemberStatus.SUSPENDED,
+        suspendedAtUtc: new Date(),
+        suspendedByUserId: input.actorUserId,
+        suspensionReason: input.reason ?? null,
+      },
+    });
+    await emitMemberAudit(tx, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      action: "identity.member.suspend",
+      subjectMemberId: target.id,
+      subjectUserId: target.userId,
+      eventType: "member_suspended" as SecurityEventType,
+      reason: input.reason,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
+    return { updated: row, subjectUserId: target.userId };
   });
-  await emitMemberAudit(client, {
-    teamId: input.teamId,
-    actorUserId: input.actorUserId,
-    action: "identity.member.suspend",
-    subjectMemberId: target.id,
-    subjectUserId: target.userId,
-    eventType: "member_suspended" as SecurityEventType,
-    reason: input.reason,
-    ipAddress: input.ipAddress,
-    userAgent: input.userAgent,
-  });
-  // Phase 19 — suspended members lose every active session.
+  // Phase 19 — suspended members lose every active session. Best-effort and
+  // deliberately AFTER the commit: it is a downstream effect, never part of
+  // the membership transition's atomic unit.
   await autoRevokeAllSessions(client, {
     teamId: input.teamId,
-    userId: target.userId,
+    userId: subjectUserId,
     reason: "MEMBER_SUSPENDED",
     actorUserId: input.actorUserId,
     ipAddress: input.ipAddress,
@@ -208,50 +279,58 @@ export async function revokeMember(
   input: LifecycleInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
-  if (target.userId === input.actorUserId) {
-    throw new RbacError("self_action_forbidden");
-  }
-  assertNotOwner(target.role);
-  if (
-    !isAllowedTeamMemberStatusTransition(
-      target.status as TeamMemberStatus,
-      "REVOKED",
-    )
-  ) {
-    throw new RbacError("invalid_status_transition");
-  }
-  const updated = await client.teamMember.update({
-    where: { id: target.id },
-    data: {
-      status: prismaPkg.TeamMemberStatus.REVOKED,
-      revokedAtUtc: new Date(),
-      revokedByUserId: input.actorUserId,
-      revocationReason: input.reason ?? null,
-    },
+  const { updated, subjectUserId } = await runAtomically(client, async (tx) => {
+    const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+    if (target.userId === input.actorUserId) {
+      throw new RbacError("self_action_forbidden");
+    }
+    assertNotOwner(target.role);
+    if (
+      !isAllowedTeamMemberStatusTransition(
+        target.status as TeamMemberStatus,
+        "REVOKED",
+      )
+    ) {
+      throw new RbacError("invalid_status_transition");
+    }
+    await assertNotLastAdministrator(tx, {
+      teamId: input.teamId,
+      teamMemberId: target.id,
+      role: target.role,
+    });
+    const row = await tx.teamMember.update({
+      where: { id: target.id },
+      data: {
+        status: prismaPkg.TeamMemberStatus.REVOKED,
+        revokedAtUtc: new Date(),
+        revokedByUserId: input.actorUserId,
+        revocationReason: input.reason ?? null,
+      },
+    });
+    // PHASE 3 (2026-07-21) — a manual admin revocation is authoritative over
+    // EVERY grant source (SCIM/SSO/group/invite); mark all provenance rows
+    // revoked so no automated source silently "still grants" this access.
+    await revokeAllMembershipGrants(tx, {
+      teamMemberId: target.id,
+      actorUserId: input.actorUserId,
+    });
+    await emitMemberAudit(tx, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      action: "identity.member.revoke",
+      subjectMemberId: target.id,
+      subjectUserId: target.userId,
+      eventType: "member_revoked" as SecurityEventType,
+      reason: input.reason,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
+    return { updated: row, subjectUserId: target.userId };
   });
-  // PHASE 3 (2026-07-21) — a manual admin revocation is authoritative over
-  // EVERY grant source (SCIM/SSO/group/invite); mark all provenance rows
-  // revoked so no automated source silently "still grants" this access.
-  await revokeAllMembershipGrants(client, {
-    teamMemberId: target.id,
-    actorUserId: input.actorUserId,
-  });
-  await emitMemberAudit(client, {
-    teamId: input.teamId,
-    actorUserId: input.actorUserId,
-    action: "identity.member.revoke",
-    subjectMemberId: target.id,
-    subjectUserId: target.userId,
-    eventType: "member_revoked" as SecurityEventType,
-    reason: input.reason,
-    ipAddress: input.ipAddress,
-    userAgent: input.userAgent,
-  });
-  // Phase 19 — revoked members lose every active session.
+  // Phase 19 — revoked members lose every active session (post-commit).
   await autoRevokeAllSessions(client, {
     teamId: input.teamId,
-    userId: target.userId,
+    userId: subjectUserId,
     reason: "MEMBER_REVOKED",
     actorUserId: input.actorUserId,
     ipAddress: input.ipAddress,
@@ -264,45 +343,47 @@ export async function restoreMember(
   input: LifecycleInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
-  assertNotOwner(target.role);
-  if (
-    !isAllowedTeamMemberStatusTransition(
-      target.status as TeamMemberStatus,
-      "ACTIVE",
-    )
-  ) {
-    throw new RbacError("invalid_status_transition");
-  }
-  const updated = await client.teamMember.update({
-    where: { id: target.id },
-    data: {
-      status: prismaPkg.TeamMemberStatus.ACTIVE,
-      suspendedAtUtc: null,
-      suspendedByUserId: null,
-      suspensionReason: null,
-    },
+  return runAtomically(client, async (tx) => {
+    const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+    assertNotOwner(target.role);
+    if (
+      !isAllowedTeamMemberStatusTransition(
+        target.status as TeamMemberStatus,
+        "ACTIVE",
+      )
+    ) {
+      throw new RbacError("invalid_status_transition");
+    }
+    const updated = await tx.teamMember.update({
+      where: { id: target.id },
+      data: {
+        status: prismaPkg.TeamMemberStatus.ACTIVE,
+        suspendedAtUtc: null,
+        suspendedByUserId: null,
+        suspensionReason: null,
+      },
+    });
+    // PHASE 3 — provenance: manual reactivation restores the HELD role.
+    await recordMembershipGrant(tx, {
+      teamMemberId: target.id,
+      source: "MANUAL",
+      intent: "MEMBER_REACTIVATION",
+      grantedByUserId: input.actorUserId,
+      grantedRole: target.role,
+    });
+    await emitMemberAudit(tx, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      action: "identity.member.restore",
+      subjectMemberId: target.id,
+      subjectUserId: target.userId,
+      eventType: "member_restored" as SecurityEventType,
+      reason: input.reason,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
+    return updated;
   });
-  // PHASE 3 — provenance: manual reactivation restores the HELD role.
-  await recordMembershipGrant(client, {
-    teamMemberId: target.id,
-    source: "MANUAL",
-    intent: "MEMBER_REACTIVATION",
-    grantedByUserId: input.actorUserId,
-    grantedRole: target.role,
-  });
-  await emitMemberAudit(client, {
-    teamId: input.teamId,
-    actorUserId: input.actorUserId,
-    action: "identity.member.restore",
-    subjectMemberId: target.id,
-    subjectUserId: target.userId,
-    eventType: "member_restored" as SecurityEventType,
-    reason: input.reason,
-    ipAddress: input.ipAddress,
-    userAgent: input.userAgent,
-  });
-  return updated;
 }
 
 export type RoleChangeInput = LifecycleInput & {
@@ -313,7 +394,8 @@ export async function changeMemberRole(
   input: RoleChangeInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
+  return runAtomically(client, async (tx) => {
+  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
   if (target.userId === input.actorUserId) {
     throw new RbacError("self_action_forbidden");
   }
@@ -322,19 +404,28 @@ export async function changeMemberRole(
     // OWNERSHIP TRANSFER is intentionally NOT part of Phase 17.
     throw new RbacError("role_transition_to_owner_forbidden");
   }
-  const updated = await client.teamMember.update({
+  // A demotion out of the administrative tier is guarded atomically: the
+  // count runs under the same transaction snapshot as the write below.
+  if (input.newRole !== prismaPkg.TeamRole.ADMIN) {
+    await assertNotLastAdministrator(tx, {
+      teamId: input.teamId,
+      teamMemberId: target.id,
+      role: target.role,
+    });
+  }
+  const updated = await tx.teamMember.update({
     where: { id: target.id },
     data: { role: input.newRole },
   });
   // PHASE 3 — provenance: manual admin role assignment.
-  await recordMembershipGrant(client, {
+  await recordMembershipGrant(tx, {
     teamMemberId: target.id,
     source: "MANUAL",
     intent: "ADMIN_ASSIGNMENT",
     grantedByUserId: input.actorUserId,
     grantedRole: input.newRole,
   });
-  await emitMemberAudit(client, {
+  await emitMemberAudit(tx, {
     teamId: input.teamId,
     actorUserId: input.actorUserId,
     action: "identity.member.role.change",
@@ -347,6 +438,7 @@ export async function changeMemberRole(
     userAgent: input.userAgent,
   });
   return updated;
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -371,11 +463,12 @@ export async function grantCapability(
   if (!PERMISSION_SET.has(input.permission)) {
     throw new RbacError("capability_unknown");
   }
-  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
+  return runAtomically(client, async (tx) => {
+  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
   // Re-issue path: if a grant already exists, refuse so callers must
   // explicitly revoke first. This keeps the audit trail honest about
   // when a grant was last issued.
-  const existing = await client.memberCapabilityGrant.findUnique({
+  const existing = await tx.memberCapabilityGrant.findUnique({
     where: {
       teamMemberId_permission: {
         teamMemberId: target.id,
@@ -399,11 +492,11 @@ export async function grantCapability(
     revokedReason: null,
   };
   const grant = existing
-    ? await client.memberCapabilityGrant.update({
+    ? await tx.memberCapabilityGrant.update({
         where: { id: existing.id },
         data: { ...data, grantedAtUtc: new Date() },
       })
-    : await client.memberCapabilityGrant.create({ data });
+    : await tx.memberCapabilityGrant.create({ data });
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,
@@ -418,7 +511,7 @@ export async function grantCapability(
         reason: input.reason ?? null,
       },
     },
-    client,
+    tx,
   );
   await emitTenantAudit({
     action: "identity.capability.grant",
@@ -437,8 +530,9 @@ export async function grantCapability(
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
     },
-  }, client);
+  }, tx);
   return grant;
+  });
 }
 
 export type RevokeCapabilityInput = {
@@ -454,12 +548,13 @@ export async function revokeCapability(
   input: RevokeCapabilityInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.MemberCapabilityGrant> {
-  const grant = await client.memberCapabilityGrant.findFirst({
+  return runAtomically(client, async (tx) => {
+  const grant = await tx.memberCapabilityGrant.findFirst({
     where: { id: input.grantId, teamId: input.teamId, revokedAtUtc: null },
     select: { id: true, teamMemberId: true, permission: true },
   });
   if (!grant) throw new RbacError("capability_not_found");
-  const updated = await client.memberCapabilityGrant.update({
+  const updated = await tx.memberCapabilityGrant.update({
     where: { id: grant.id },
     data: {
       revokedAtUtc: new Date(),
@@ -479,7 +574,7 @@ export async function revokeCapability(
         reason: input.reason ?? null,
       },
     },
-    client,
+    tx,
   );
   await emitTenantAudit({
     action: "identity.capability.revoke",
@@ -495,8 +590,9 @@ export async function revokeCapability(
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
     },
-  }, client);
+  }, tx);
   return updated;
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -518,8 +614,9 @@ export async function grantDelegatedAdminScope(
   input: GrantDelegatedAdminInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.MemberDelegatedAdminScope> {
-  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
-  const existing = await client.memberDelegatedAdminScope.findUnique({
+  return runAtomically(client, async (tx) => {
+  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+  const existing = await tx.memberDelegatedAdminScope.findUnique({
     where: {
       teamMemberId_scopeKind: {
         teamMemberId: target.id,
@@ -543,11 +640,11 @@ export async function grantDelegatedAdminScope(
     revokedReason: null,
   };
   const scope = existing
-    ? await client.memberDelegatedAdminScope.update({
+    ? await tx.memberDelegatedAdminScope.update({
         where: { id: existing.id },
         data: { ...data, grantedAtUtc: new Date() },
       })
-    : await client.memberDelegatedAdminScope.create({ data });
+    : await tx.memberDelegatedAdminScope.create({ data });
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,
@@ -562,7 +659,7 @@ export async function grantDelegatedAdminScope(
         reason: input.reason ?? null,
       },
     },
-    client,
+    tx,
   );
   await emitTenantAudit({
     action: "identity.delegated_admin.grant",
@@ -581,8 +678,9 @@ export async function grantDelegatedAdminScope(
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
     },
-  }, client);
+  }, tx);
   return scope;
+  });
 }
 
 export type RevokeDelegatedAdminInput = {
@@ -598,12 +696,13 @@ export async function revokeDelegatedAdminScope(
   input: RevokeDelegatedAdminInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.MemberDelegatedAdminScope> {
-  const scope = await client.memberDelegatedAdminScope.findFirst({
+  return runAtomically(client, async (tx) => {
+  const scope = await tx.memberDelegatedAdminScope.findFirst({
     where: { id: input.scopeId, teamId: input.teamId, revokedAtUtc: null },
     select: { id: true, scopeKind: true, teamMemberId: true },
   });
   if (!scope) throw new RbacError("delegated_scope_not_found");
-  const updated = await client.memberDelegatedAdminScope.update({
+  const updated = await tx.memberDelegatedAdminScope.update({
     where: { id: scope.id },
     data: {
       revokedAtUtc: new Date(),
@@ -623,7 +722,7 @@ export async function revokeDelegatedAdminScope(
         reason: input.reason ?? null,
       },
     },
-    client,
+    tx,
   );
   await emitTenantAudit({
     action: "identity.delegated_admin.revoke",
@@ -639,8 +738,9 @@ export async function revokeDelegatedAdminScope(
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
     },
-  }, client);
+  }, tx);
   return updated;
+  });
 }
 
 // -----------------------------------------------------------------------------

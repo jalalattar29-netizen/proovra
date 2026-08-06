@@ -7,8 +7,7 @@ import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
-import { canAccessSurface } from "../../../lib/surface/access";
-import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
+import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
 import { EvidenceMetrics } from "./components/EvidenceMetrics";
@@ -1153,14 +1152,13 @@ function EvidenceLibraryPageInner() {
     setPageNumber((current) => current + 1);
   };
 
-  // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — capability gate.
-  // The QueueSelectionPreview's reviewer-assignment + due-date rows
-  // are enterprise-only — they assume an external reviewer is on
-  // the workflow. Personal Space / small-business workspaces hide
-  // those rows; the user IS the reviewer there. Backend
-  // authorization is unchanged — this is a visibility cleanup only.
-  const surfaceUserCtx = useSurfaceUserContext();
-  const canSeeReviewerOps = canAccessSurface(surfaceUserCtx, "/reviewer-ops");
+  // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) / Track 1A — the
+  // QueueSelectionPreview's reviewer-assignment + due-date rows are
+  // enterprise-only — they assume an external reviewer is on the
+  // workflow. Personal Space / small-business workspaces hide those
+  // rows; the user IS the reviewer there. Server-projected boolean
+  // only; backend authorization is unchanged.
+  const canSeeReviewerOps = useEnterpriseSurfaceAccess();
 
   return (
     <PageShell className="evidence-library-page" data-evidence-library-page>

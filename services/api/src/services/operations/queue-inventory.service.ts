@@ -44,8 +44,77 @@ function getConnection(): IORedis {
     // time. The first `getJobCounts()` call surfaces the error.
     enableOfflineQueue: false,
     lazyConnect: false,
+    // PHASE 12 POINT 8 — bound the SOCKET attempt too. `maxRetriesPerRequest:
+    // null` is what BullMQ wants, and it is kept, but it means a command is
+    // retried indefinitely; without a connect timeout each retry also waits on
+    // the OS default. The per-call deadline in `withDeadline` is the guarantee;
+    // this stops the client accumulating long-lived connect attempts behind it.
+    connectTimeout: 2000,
+  });
+  // An unreachable Redis emits `error` on every retry. Without a listener those
+  // are unhandled 'error' events on an EventEmitter, which crash the process.
+  // The inventory's job is to PROJECT unavailability, not to be killed by it.
+  _connection.on("error", () => {
+    /* projected as `outage` by the inventory; never rethrown */
   });
   return _connection;
+}
+
+/**
+ * PHASE 12 — POINT 8: every Redis await in this module is bounded.
+ *
+ * The module's contract says it is best-effort and projects `outage` when a
+ * queue cannot be read. That projection was UNREACHABLE. `getConnection()`
+ * builds the client with `maxRetriesPerRequest: null`, so a command issued
+ * against an unreachable Redis is retried forever rather than rejected — and a
+ * promise that never settles is not caught by `catch`. Measured: with
+ * `REDIS_URL` pointing at a closed loopback port, `getQueueInventory()` was
+ * still pending after six seconds with two live sockets retrying.
+ *
+ * That is a production hang, not only a test problem: `GET /v1/graph/diagnostics`
+ * awaits this helper, and its own `try/catch` is equally powerless. With Redis
+ * down the request would hang until something upstream gave up.
+ *
+ * A deadline turns "never settles" into the rejection the existing failure
+ * projection already knows how to render. It does not swallow anything — a
+ * timed-out queue is reported as `outage`, which is honest, rather than as
+ * healthy-with-zero-counts.
+ */
+const QUEUE_PROBE_TIMEOUT_MS = Number(process.env.QUEUE_PROBE_TIMEOUT_MS ?? 2000);
+
+/**
+ * A per-probe deadline alone is NOT a bound on this function. The inventory
+ * walks fifteen queues SEQUENTIALLY, so fifteen timeouts is thirty seconds —
+ * measured, not assumed: with the per-probe deadline in place and Redis
+ * unreachable, `getQueueInventory()` was still pending after six.
+ *
+ * So the whole call carries a budget. When it is spent, the remaining queues
+ * are projected without being probed. They are reported `unknown` rather than
+ * `outage`: "we ran out of time" and "Redis refused us" are different facts,
+ * and neither is ever reported as healthy.
+ */
+const QUEUE_INVENTORY_BUDGET_MS = Number(process.env.QUEUE_INVENTORY_BUDGET_MS ?? 3000);
+
+class QueueProbeTimeout extends Error {
+  constructor(operation: string) {
+    super(`queue probe "${operation}" exceeded ${QUEUE_PROBE_TIMEOUT_MS}ms`);
+    this.name = "QueueProbeTimeout";
+  }
+}
+
+function withDeadline<T>(operation: string, work: Promise<T>, budgetMs?: number): Promise<T> {
+  const ms = Math.max(1, Math.min(QUEUE_PROBE_TIMEOUT_MS, budgetMs ?? QUEUE_PROBE_TIMEOUT_MS));
+  let timer: NodeJS.Timeout | undefined;
+  return Promise.race([
+    work,
+    new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new QueueProbeTimeout(operation)), ms);
+      // The API process must not be held open by a probe timer.
+      timer.unref?.();
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  }) as Promise<T>;
 }
 
 const _queues = new Map<string, Queue>();
@@ -106,16 +175,21 @@ export type QueueInventoryItem = {
 // adding a new queue here is a deliberate review step.
 // ---------------------------------------------------------------------------
 
-const DISABLED_QUEUES: Record<string, string> = {
-  // mi-ocr / mi-transcript subsystem processors log
-  // "not_configured_completed" and return — there is no upstream
-  // producer in the current build. Automatic OCR / transcript
-  // extraction flows through the media-intelligence queue
-  // (extract_ocr_azure / extract_transcript_deepgram) instead.
-  "mi-ocr": "Not in current build. Automatic OCR runs via the media-intelligence queue.",
-  "mi-transcript":
-    "Not in current build. Automatic transcripts run via the media-intelligence queue.",
-};
+// PHASE 12 POINT 5 — this map is EMPTY, and that is the outcome, not an
+// oversight. Its only two entries were `mi-ocr` and `mi-transcript`, queues
+// whose processors logged "not_configured_completed" and returned success.
+// Those queues no longer exist: OCR and transcript extraction run on the
+// media-intelligence queue (extract_ocr_azure / extract_transcript_deepgram)
+// against a durable run row, which is where they always actually ran.
+//
+// A queue that needs an entry here is a queue with no live processor — which
+// Point 5 does not permit. Keep the map so adding one stays a deliberate
+// review step, and keep it empty.
+const DISABLED_QUEUES: Record<string, string> = {};
+
+/** Read-only view for the honesty contract test. Not a runtime seam. */
+export const DISABLED_QUEUES_FOR_TESTS: Readonly<Record<string, string>> =
+  DISABLED_QUEUES;
 
 const QUEUE_LABELS: Record<string, string> = {
   report: "Report PDFs",
@@ -127,8 +201,6 @@ const QUEUE_LABELS: Record<string, string> = {
   "media-intelligence-dlq": "Media intelligence DLQ",
   "mi-derived-assets": "MI · derived assets",
   "mi-exif": "MI · EXIF",
-  "mi-ocr": "MI · OCR",
-  "mi-transcript": "MI · transcripts",
   "mi-search-index": "MI · search index",
   "graph-reconcile": "Graph reconcile",
   "graph-domain-sync": "Graph · domain sync",
@@ -155,7 +227,9 @@ export async function getQueueInventory(): Promise<
   ReadonlyArray<QueueInventoryItem>
 > {
   const out: QueueInventoryItem[] = [];
+  const budgetExpiresAt = Date.now() + QUEUE_INVENTORY_BUDGET_MS;
   for (const name of KNOWN_QUEUE_NAMES) {
+    const remainingBudgetMs = budgetExpiresAt - Date.now();
     const disabledReason = DISABLED_QUEUES[name] ?? null;
     if (disabledReason) {
       out.push({
@@ -171,20 +245,33 @@ export async function getQueueInventory(): Promise<
     }
     const q = getQueueHandle(name);
     if (!q) continue;
+    if (remainingBudgetMs <= 0) {
+      // Budget spent by earlier queues. Say so rather than probing a Redis
+      // that is evidently not answering, and never claim health we did not
+      // observe.
+      out.push({
+        queueName: name,
+        label: QUEUE_LABELS[name] ?? name,
+        counts: { waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 },
+        stalledCount: 0,
+        health: "unknown",
+        oldestWaitingAgeMs: null,
+        disabledReason: "not probed — queue inventory time budget exhausted",
+      });
+      continue;
+    }
     try {
-      const counts = await q.getJobCounts(
-        "waiting",
-        "active",
-        "delayed",
-        "failed",
-        "completed",
+      const counts = await withDeadline(
+        `${name}.getJobCounts`,
+        q.getJobCounts("waiting", "active", "delayed", "failed", "completed"),
+        remainingBudgetMs,
       );
       // Stalled count: BullMQ tracks stalled jobs separately; we
       // peek at the waiting queue and check for jobs older than the
       // lock duration. This is a best-effort signal.
       let stalledCount = 0;
       try {
-        const waitingJobs = await q.getWaiting(0, 1);
+        const waitingJobs = await withDeadline(`${name}.getWaiting.stalled`, q.getWaiting(0, 1), budgetExpiresAt - Date.now());
         const now = Date.now();
         for (const j of waitingJobs) {
           if (
@@ -200,7 +287,7 @@ export async function getQueueInventory(): Promise<
       // Oldest waiting age.
       let oldestWaitingAgeMs: number | null = null;
       try {
-        const waitingJobs = await q.getWaiting(0, 0);
+        const waitingJobs = await withDeadline(`${name}.getWaiting.oldest`, q.getWaiting(0, 0), budgetExpiresAt - Date.now());
         if (waitingJobs.length > 0 && typeof waitingJobs[0].timestamp === "number") {
           oldestWaitingAgeMs = Date.now() - waitingJobs[0].timestamp;
         }

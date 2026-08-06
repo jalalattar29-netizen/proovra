@@ -31,6 +31,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
     workspace,
     workspaceCaps,
+    evidenceId,
     publicVerificationState,
     shareUrl,
     stalePending,
@@ -165,6 +166,8 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         onDownloadVerificationPackage={() => void downloadVerificationPackage()}
         formatDateTime={formatUserDateTime}
         formatBytes={formatBytes}
+        evidenceId={evidenceId}
+        teamId={workspace.evidence.teamId}
       />
 
       <section className="evidence-detail-section">

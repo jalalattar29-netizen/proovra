@@ -62,7 +62,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../db.js";
 import { appendCustodyEventTx } from "../services/custody-events.service.js";
-import { enqueueGenerateReportJob } from "../queue/report-queue.js";
+import { requestReportGeneration } from "../services/reports/report-generation-authority.service.js";
 import { parseTsaReply } from "../services/timestamp/parse-tsa-reply.js";
 
 const execFileAsync = promisify(execFile);
@@ -311,11 +311,14 @@ async function main(): Promise<void> {
     // tsaStatus='STAMPED' is the durable record; the regen is a
     // downstream view update.
     try {
-      const result = await enqueueGenerateReportJob(row.id, {
+      const result = await requestReportGeneration({
+        evidenceId: row.id,
+        purpose: "tsa_repair",
         forceRegenerate: true,
         regenerateReason: "tsa_repaired",
+        requestedByMachineId: "script.repair-tsa",
       });
-      if (result.enqueued) {
+      if (result.requested && result.enqueued) {
         summary.enqueuedJobs += 1;
         console.log(`[repair-tsa]   → enqueued report regen for ${idShort}`);
       } else {

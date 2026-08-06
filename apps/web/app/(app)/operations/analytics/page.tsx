@@ -118,6 +118,17 @@ const ANALYTICS_WINDOW_OPTIONS = [7, 14, 30, 60, 90, 180] as const;
 type AnalyticsWindowOption = (typeof ANALYTICS_WINDOW_OPTIONS)[number];
 const DEFAULT_WINDOW: AnalyticsWindowOption = 30;
 
+/**
+ * PHASE 12 — VERTICAL B. The bounded window contract published by
+ * `GET /v1/analytics/_window`. The API clamps every request into this
+ * range, so the selector must not offer anything outside it.
+ */
+type AnalyticsWindowContract = {
+  minDays: number;
+  maxDays: number;
+  defaultDays: number;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -225,6 +236,53 @@ function AnalyticsPageInner(): JSX.Element {
   const teamId = useActiveSpaceId();
   const [windowDays, setWindowDays] = useState<AnalyticsWindowOption>(DEFAULT_WINDOW);
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // PHASE 12 — VERTICAL B. The window selector is bounded by the SERVER
+  // contract (`GET /v1/analytics/_window`), not by a client constant.
+  // Offering a range the API silently clamps is a quiet lie about what
+  // the numbers below actually cover.
+  const [windowContract, setWindowContract] =
+    useState<AnalyticsWindowContract | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(`/v1/analytics/_window`, { method: "GET" })
+      .then((res: AnalyticsWindowContract) => {
+        if (cancelled) return;
+        setWindowContract(res);
+        setWindowDays((current) => {
+          const clamped = Math.min(
+            Math.max(current, res.minDays),
+            res.maxDays,
+          );
+          const allowed = ANALYTICS_WINDOW_OPTIONS.filter(
+            (d) => d >= res.minDays && d <= res.maxDays,
+          );
+          if (allowed.includes(current as AnalyticsWindowOption)) return current;
+          return (allowed.find((d) => d >= clamped) ??
+            allowed[allowed.length - 1] ??
+            current) as AnalyticsWindowOption;
+        });
+      })
+      .catch(() => {
+        // The contract is advisory metadata. If it is unavailable the
+        // page still works against the built-in option list — it just
+        // cannot annotate the clamp.
+        if (!cancelled) setWindowContract(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const allowedWindowOptions = useMemo<ReadonlyArray<AnalyticsWindowOption>>(
+    () =>
+      windowContract
+        ? ANALYTICS_WINDOW_OPTIONS.filter(
+            (d) => d >= windowContract.minDays && d <= windowContract.maxDays,
+          )
+        : ANALYTICS_WINDOW_OPTIONS,
+    [windowContract],
+  );
 
   useEffect(() => {
     if (!teamId) {
@@ -357,7 +415,7 @@ function AnalyticsPageInner(): JSX.Element {
             value={windowDays}
             onChange={(e) => {
               const next = Number(e.target.value) as AnalyticsWindowOption;
-              if (ANALYTICS_WINDOW_OPTIONS.includes(next)) {
+              if (allowedWindowOptions.includes(next)) {
                 setWindowDays(next);
               }
             }}
@@ -368,7 +426,7 @@ function AnalyticsPageInner(): JSX.Element {
               borderRadius: 6,
             }}
           >
-            {ANALYTICS_WINDOW_OPTIONS.map((d) => (
+            {allowedWindowOptions.map((d) => (
               <option key={d} value={d}>
                 Last {d} days
               </option>
@@ -381,6 +439,17 @@ function AnalyticsPageInner(): JSX.Element {
             >
               {formatUserDate(headerWindow.start)} →{" "}
               {formatUserDate(headerWindow.end)}
+            </span>
+          ) : null}
+          {windowContract ? (
+            <span
+              data-analytics-window-contract
+              data-analytics-window-min={windowContract.minDays}
+              data-analytics-window-max={windowContract.maxDays}
+              style={{ fontSize: 11, color: "#94a3b8" }}
+              title={`The API clamps any window to ${windowContract.minDays}–${windowContract.maxDays} days.`}
+            >
+              {windowContract.minDays}–{windowContract.maxDays} day range
             </span>
           ) : null}
         </div>

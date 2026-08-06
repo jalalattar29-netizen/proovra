@@ -23,6 +23,7 @@ import {
   CROSS_ORG_REVIEW_STATES,
   DELEGATED_ADMIN_TIERS,
   DEPARTMENT_MEMBERSHIP_ROLES,
+  DEPARTMENT_MEMBERSHIP_STATES,
   GOVERNANCE_POLICY_ENFORCEMENT_MODES,
   GOVERNANCE_POLICY_KINDS,
   GOVERNANCE_POLICY_SCOPES,
@@ -41,6 +42,15 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// PHASE 12B CLUSTER 10 / 14 — canonical authorization. `resolveWorkspace`
+// below derives the workspace server-side but does NOT check membership
+// status, parent-Organization lifecycle, access expiry, or capability.
+// Evidence-Operations department + effective-policy routes compose BOTH:
+// resolveWorkspace for the authoritative teamId, then `authorizeOrFail` for
+// ACTIVE membership + lifecycle + capability + audit + anti-enumeration.
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 import {
   requireDelegatedTier,
   requireDelegatedTierAny,
@@ -362,12 +372,69 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 VERTICAL C — operator-triggered re-seed.
+      //
+      //   * `publish` now DEFAULTS TO FALSE. The canonical articles land in
+      //     DRAFT so nothing unreviewed reaches the Trust Center through a
+      //     button press. The self-healing READ path above is unchanged —
+      //     it still publishes, because that path exists precisely so the
+      //     platform documentation is never absent.
+      //   * A publishing re-seed is a PUBLICATION: it requires the
+      //     `governance.policy.manage` capability AND a fresh target-bound
+      //     step-up. A DRAFT re-seed only requires ACTIVE workspace
+      //     membership (`governance.policy.read`), which preserves the
+      //     production fix that opened this route to ordinary members.
+      const body = z
+        .object({ publish: z.boolean().optional() })
+        .parse(req.body ?? {});
+      const publish = body.publish === true;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: publish
+          ? "governance.policy.manage"
+          : "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
+      if (publish) {
+        const stepUp = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          // NOTE (reported upstream): PROOVRA has no dedicated
+          // TRUST_CONTENT_PUBLISH step-up purpose and `STEP_UP_PURPOSES`
+          // lives in packages/shared. `PUBLIC_VERIFY_PUBLISH` is the
+          // existing "publish to the public" purpose; the challenge is
+          // TARGET-BOUND to (TRUST_ARTICLE_SEED, teamId) so an approval
+          // for any other resource cannot be spent here.
+          // PHASE 12 — dedicated purpose. This previously borrowed
+          // PUBLIC_VERIFY_PUBLISH, which conflated trust-content publication
+          // with evidence verify-page publication on the audit trail.
+          purpose: "TRUST_CONTENT_PUBLISH",
+          resourceKind: "TRUST_ARTICLE_SEED",
+          resourceId: ctx.teamId,
+        });
+        if (stepUp.sent) return reply;
+      }
       const summary = await ensureTrustCenterSeed({
         teamId: ctx.teamId,
         systemUserId: ctx.userId,
-        publish: true,
+        publish,
       });
-      return reply.code(200).send({ ...summary });
+      await emitTrustEvent({
+        teamId: ctx.teamId,
+        code: publish ? "TRUST_ARTICLE_PUBLISHED" : "TRUST_ARTICLE_CREATED",
+        actorUserId: ctx.userId,
+        targetType: "TRUST_ARTICLE",
+        reason: `trust_seed:${publish ? "published" : "draft"}`,
+        payload: {
+          created: summary.created,
+          updated: summary.updated,
+          published: publish,
+        },
+      });
+      return reply.code(200).send({ ...summary, published: publish });
     },
   );
 
@@ -549,6 +616,15 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 VERTICAL C — a status incident is PUBLISHED to the status
+      // page the moment it is created. Capability → target-bound step-up →
+      // idempotent write → audit (emitted by the ONE writer).
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const body = z
         .object({
           title: z.string().min(1).max(200),
@@ -558,6 +634,16 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           body: z.string().max(2000).nullable().optional(),
         })
         .parse(req.body);
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "STATUS_INCIDENT_PUBLISH",
+        resourceKind: "STATUS_INCIDENT",
+        resourceId: ctx.teamId,
+      });
+      if (stepUp.sent) return reply;
       const incident = await createIncident({
         teamId: ctx.teamId,
         title: body.title,
@@ -567,7 +653,11 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         body: body.body ?? null,
         authoredByUserId: ctx.userId,
       });
-      return reply.code(201).send({ incidentId: incident.id });
+      // A retried submit with the same externalRef is a 200 no-op, not a
+      // second published incident.
+      return reply
+        .code(incident.reused ? 200 : 201)
+        .send({ incidentId: incident.id, reused: incident.reused });
     },
   );
 
@@ -577,23 +667,54 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({
           state: z.enum(STATUS_INCIDENT_STATES),
           body: z.string().min(1).max(2000),
           postmortemUrl: z.string().url().nullable().optional(),
+          // Optimistic concurrency — the state the console rendered.
+          expectedState: z.enum(STATUS_INCIDENT_STATES).optional(),
         })
         .parse(req.body);
-      await appendIncidentUpdate({
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "STATUS_INCIDENT_PUBLISH",
+        resourceKind: "STATUS_INCIDENT",
+        // Bound to THIS incident — an approval for another incident (or for
+        // incident creation, which binds to the workspace) cannot be spent.
+        resourceId: id,
+      });
+      if (stepUp.sent) return reply;
+      const res = await appendIncidentUpdate({
         teamId: ctx.teamId,
         incidentId: id,
         state: body.state,
         body: body.body,
         authoredByUserId: ctx.userId,
         postmortemUrl: body.postmortemUrl ?? null,
+        expectedState: body.expectedState ?? null,
       });
-      return reply.code(200).send({ ok: true });
+      if (!res.ok) {
+        // A foreign-workspace incident id is concealed as 404 — identical to
+        // a missing one.
+        if (res.denial === "NOT_FOUND") {
+          return reply.code(404).send({ denial: "NOT_FOUND" });
+        }
+        return reply
+          .code(409)
+          .send({ denial: "STALE_STATE", currentState: res.currentState });
+      }
+      return reply.code(200).send({ ok: true, state: res.state });
     },
   );
 
@@ -603,6 +724,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const body = z
         .object({
           title: z.string().min(1).max(200),
@@ -612,6 +739,16 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           endsAtUtc: z.string().datetime(),
         })
         .parse(req.body);
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "STATUS_MAINTENANCE_PUBLISH",
+        resourceKind: "STATUS_MAINTENANCE",
+        resourceId: ctx.teamId,
+      });
+      if (stepUp.sent) return reply;
       const w = await createMaintenanceWindow({
         teamId: ctx.teamId,
         title: body.title,
@@ -619,27 +756,45 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         componentKeys: body.componentKeys as never,
         startsAtUtc: new Date(body.startsAtUtc),
         endsAtUtc: new Date(body.endsAtUtc),
+        authoredByUserId: ctx.userId,
       });
+      if (!w.ok) return reply.code(409).send({ denial: w.denial });
       return reply.code(201).send({ id: w.id });
     },
   );
 
   // ===== Departments =====
 
+  // PHASE 12B CLUSTER 14 — the listing now echoes the SERVER-derived
+  // Organization for this workspace, so the departments console never has to
+  // ask an operator to type an Organization UUID (which made the client
+  // authoritative over tenancy) and never has to infer it from a row.
   app.get(
     "/v1/governance/departments",
     { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      const q = z
-        .object({ organizationId: z.string().uuid().optional() })
-        .parse(req.query ?? {});
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
+      const workspace = await prisma.team.findFirst({
+        where: { id: ctx.teamId },
+        select: { organizationId: true },
+      });
+      if (!workspace) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const departments = await listDepartments({
         teamId: ctx.teamId,
-        organizationId: q.organizationId,
+        organizationId: workspace.organizationId,
       });
-      return reply.code(200).send({ departments });
+      return reply
+        .code(200)
+        .send({ departments, organizationId: workspace.organizationId });
     },
   );
 
@@ -656,14 +811,31 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       } catch { /* engine failure must not break route */ }
       const body = z
         .object({
-          organizationId: z.string().uuid(),
+          // PHASE 12B CLUSTER 14 — now OPTIONAL and non-authoritative. The
+          // Organization comes from the resolved workspace row; a supplied
+          // value is only ever used to REJECT a mismatch, never to widen the
+          // tenancy the caller writes into.
+          organizationId: z.string().uuid().optional(),
           name: z.string().min(1).max(200),
           slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
         })
         .parse(req.body);
+      const workspace = await prisma.team.findFirst({
+        where: { id: ctx.teamId },
+        select: { organizationId: true },
+      });
+      if (!workspace) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      if (
+        body.organizationId &&
+        body.organizationId !== workspace.organizationId
+      ) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const res = await createDepartment({
         teamId: ctx.teamId,
-        organizationId: body.organizationId,
+        organizationId: workspace.organizationId,
         name: body.name,
         slug: body.slug,
         createdByUserId: ctx.userId,
@@ -924,28 +1096,71 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     },
   );
 
+  // PHASE 12B CLUSTER 10 — effective governance policy resolver.
+  //
+  // The inheritance chain (ORGANIZATION → DEPARTMENT → WORKSPACE) is now
+  // resolved from SERVER-derived context. Previously the caller supplied
+  // `organizationId` / `workspaceId` outright, so a client could declare a
+  // foreign Organization and read its policy chain — and omitting them
+  // silently returned `[]`, which read as "no policy" instead of "no scope
+  // requested". Now:
+  //
+  //   * `organizationId` + `workspaceId` come from the resolved workspace
+  //     row. They are NOT accepted from the request.
+  //   * `departmentId` is the only caller-supplied scope, and it must
+  //     belong to THIS workspace or it is dropped (bounded 404 rather than
+  //     a cross-Organization read).
+  //   * the response echoes the scope actually resolved so the console can
+  //     render the chain without re-deriving it.
   app.get(
     "/v1/governance/policies/effective",
     { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const q = z
         .object({
-          organizationId: z.string().uuid().optional(),
           departmentId: z.string().uuid().optional(),
-          workspaceId: z.string().uuid().optional(),
           kind: z.enum(GOVERNANCE_POLICY_KINDS).optional(),
         })
         .parse(req.query ?? {});
+      const workspace = await prisma.team.findFirst({
+        where: { id: ctx.teamId },
+        select: { id: true, organizationId: true },
+      });
+      if (!workspace) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      if (q.departmentId) {
+        const dept = await prisma.department.findFirst({
+          where: { id: q.departmentId, teamId: ctx.teamId },
+          select: { id: true },
+        });
+        if (!dept) {
+          return reply.code(404).send({ error: { code: "not_found" } });
+        }
+      }
       const effective = await resolveEffectivePolicies({
         teamId: ctx.teamId,
-        organizationId: q.organizationId ?? null,
+        organizationId: workspace.organizationId,
         departmentId: q.departmentId ?? null,
-        workspaceId: q.workspaceId ?? null,
+        workspaceId: workspace.id,
         kind: q.kind,
       });
-      return reply.code(200).send({ effective });
+      return reply.code(200).send({
+        effective,
+        scope: {
+          organizationId: workspace.organizationId,
+          departmentId: q.departmentId ?? null,
+          workspaceId: workspace.id,
+        },
+      });
     },
   );
 
@@ -1235,7 +1450,28 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const result = await runTrustArticleDriftScan({ teamId: ctx.teamId });
+      // The scan is a governance evaluation over published trust content —
+      // recorded so "when did we last prove our trust docs still match the
+      // implementation?" is answerable from the audit stream.
+      await emitTrustEvent({
+        teamId: ctx.teamId,
+        code: "POLICY_EVALUATED",
+        actorUserId: ctx.userId,
+        targetType: "TRUST_ARTICLE",
+        reason: "trust_drift_scan",
+        payload: {
+          scanned: result.scanned,
+          stale: result.stale,
+          missingReferenceCount: result.missingReferenceCount,
+        },
+      });
       return reply.code(200).send({ result });
     },
   );
@@ -1246,6 +1482,14 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // `missingReferences` are INTERNAL repository paths. This read is
+      // operator-only and never reaches a public surface.
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const articles = await listStaleTrustArticles({ teamId: ctx.teamId });
       return reply.code(200).send({ articles });
     },
@@ -1257,7 +1501,21 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const result = await runSecurityClaimChecks({ teamId: ctx.teamId });
+      await emitTrustEvent({
+        teamId: ctx.teamId,
+        code: "POLICY_EVALUATED",
+        actorUserId: ctx.userId,
+        targetType: "TRUST_ARTICLE",
+        reason: "security_claim_scan",
+        payload: { controlsChecked: result.length },
+      });
       return reply.code(200).send({ result });
     },
   );
@@ -1268,21 +1526,62 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // `evidencePaths` are INTERNAL repository paths — operator-only read.
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const checks = await listSecurityClaimChecks({ teamId: ctx.teamId });
       return reply.code(200).send({ checks });
     },
   );
 
+  // PHASE 12B CLUSTER 10 — escalated access-review items. Read gate is the
+  // canonical `governance.policy.read` capability (was: membership-blind).
   app.get(
     "/v1/governance/access-reviews/escalated",
     { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      const items = await listEscalatedItems({ teamId: ctx.teamId });
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
+      const q = z
+        .object({ limit: z.coerce.number().int().min(1).max(500).optional() })
+        .parse(req.query ?? {});
+      const items = await listEscalatedItems({
+        teamId: ctx.teamId,
+        limit: q.limit,
+      });
       return reply.code(200).send({ items });
     },
   );
+
+  // ===== Department memberships (PHASE 12B CLUSTER 14) =====
+  //
+  // The department membership set is what `resolveUserDepartmentScope`
+  // reads to decide which evidence a non-admin operator may see. Every
+  // route below therefore composes, in order:
+  //
+  //   1. `resolveWorkspace`  — SERVER-derived workspace/Organization. The
+  //      client never declares which Organization it is acting in.
+  //   2. `authorizeOrFail`   — ACTIVE membership + parent-Organization
+  //      lifecycle + access expiry + capability + audit + 404
+  //      anti-enumeration for cross-Organization probes.
+  //   3. `requireDelegatedTier("DEPARTMENT_ADMIN")` — delegated-admin tier
+  //      (mutations only).
+  //   4. `requireStepUpForSensitiveAction` — fresh step-up (mutations
+  //      only), AFTER authorization and BEFORE the write.
+  //   5. the service call, which itself enforces stale-state rejection,
+  //      idempotency, cross-Organization subject isolation, and
+  //      single-transaction (zero partial) mutation.
+  //   6. canonical audit via `emitTrustEvent`.
 
   app.get(
     "/v1/governance/departments/:id/memberships",
@@ -1290,10 +1589,24 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const q = z
+        .object({
+          state: z.enum(DEPARTMENT_MEMBERSHIP_STATES).optional(),
+          limit: z.coerce.number().int().min(1).max(500).optional(),
+        })
+        .parse(req.query ?? {});
       const memberships = await listDepartmentMemberships({
         teamId: ctx.teamId,
         departmentId: id,
+        state: q.state,
+        limit: q.limit,
       });
       return reply.code(200).send({ memberships });
     },
@@ -1305,22 +1618,70 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({
           userId: z.string().uuid(),
           role: z.enum(DEPARTMENT_MEMBERSHIP_ROLES).optional(),
+          // Stale-state guard. `"NONE"` = the console rendered no
+          // membership row for this (department, user) pair.
+          expectedState: z
+            .union([z.enum(DEPARTMENT_MEMBERSHIP_STATES), z.literal("NONE")])
+            .optional(),
         })
         .parse(req.body);
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "DEPARTMENT_MEMBERSHIP_GRANT",
+        resourceKind: "DEPARTMENT",
+        resourceId: id,
+      });
+      if (stepUp.sent) return reply;
       const res = await grantDepartmentMembership({
         teamId: ctx.teamId,
         departmentId: id,
         userId: body.userId,
         role: body.role,
         grantedByUserId: ctx.userId,
+        expectedState: body.expectedState,
       });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(201).send({ membershipId: res.membershipId });
+      if (!res.ok) {
+        // DEPARTMENT_NOT_FOUND is an anti-enumeration 404 (the department
+        // may belong to another Organization); the rest are conflicts.
+        const status = res.denial === "DEPARTMENT_NOT_FOUND" ? 404 : 409;
+        return reply.code(status).send({ denial: res.denial });
+      }
+      // Canonical audit — skipped when the grant was a no-op so a
+      // double-submit never inflates the governance audit stream.
+      if (!res.unchanged) {
+        await emitTrustEvent({
+          teamId: ctx.teamId,
+          code: "DEPARTMENT_MEMBERSHIP_GRANTED",
+          actorUserId: ctx.userId,
+          targetType: "DEPARTMENT_MEMBERSHIP",
+          targetId: res.membershipId,
+          recordId: id,
+          reason: `department_membership_grant:${id}`,
+          payload: {
+            departmentId: id,
+            subjectUserId: body.userId,
+            role: body.role ?? "MEMBER",
+            priorState: res.priorState,
+          },
+        });
+      }
+      return reply
+        .code(res.unchanged ? 200 : 201)
+        .send({ membershipId: res.membershipId, unchanged: res.unchanged });
     },
   );
 
@@ -1330,23 +1691,65 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.manage",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z
+        .object({
+          expectedState: z.enum(DEPARTMENT_MEMBERSHIP_STATES).optional(),
+        })
+        .parse(req.body ?? {});
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "DEPARTMENT_MEMBERSHIP_REVOKE",
+        resourceKind: "DEPARTMENT_MEMBERSHIP",
+        resourceId: id,
+      });
+      if (stepUp.sent) return reply;
       const res = await revokeDepartmentMembership({
         teamId: ctx.teamId,
         membershipId: id,
         actorUserId: ctx.userId,
+        expectedState: body.expectedState,
       });
-      if (!res.ok) return reply.code(404).send({ denial: res.denial });
+      if (!res.ok) {
+        const status = res.denial === "NOT_FOUND" ? 404 : 409;
+        return reply.code(status).send({ denial: res.denial });
+      }
+      await emitTrustEvent({
+        teamId: ctx.teamId,
+        code: "DEPARTMENT_MEMBERSHIP_REVOKED",
+        actorUserId: ctx.userId,
+        targetType: "DEPARTMENT_MEMBERSHIP",
+        targetId: id,
+        reason: `department_membership_revoke:${id}`,
+      });
       return reply.code(200).send({ ok: true });
     },
   );
 
+  // PHASE 12B CLUSTER 10 — the caller's OWN effective department scope.
+  // Self-read: no capability beyond ACTIVE workspace membership, which
+  // `authorizeOrFail` establishes via the baseline read permission.
   app.get(
     "/v1/governance/me/department-scope",
     { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const envelope = await resolveUserDepartmentScope({
         teamId: ctx.teamId,
         userId: ctx.userId,
@@ -1368,6 +1771,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const [trust, methodology, aiDisclosure, security, subprocessors] =
         await Promise.all([
           listTrustArticles({ teamId: ctx.teamId, kind: "TRUST_CENTER", state: "PUBLISHED" }),
@@ -1441,6 +1850,17 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PHASE 12 VERTICAL C — the preview goes through the CANONICAL package
+      // authority (`buildVerificationPackagePreview`, the same builder the
+      // worker uses for the emitted ZIP). It is workspace-scoped, takes no
+      // client-declared storage key, and AUTHORIZATION ALONE emits no
+      // "downloaded" event — nothing here records a delivery.
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: ctx.teamId,
+        permission: "governance.policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return reply;
       const q = z
         .object({
           kind: z.enum(VERIFICATION_PACKAGE_PREVIEW_KINDS),

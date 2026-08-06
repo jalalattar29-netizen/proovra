@@ -285,13 +285,74 @@ describe("Phase IA-route-authz — governance mutations stay gated", () => {
     expect(calls.length).toBeGreaterThanOrEqual(4);
   });
 
+  // PHASE 12 POINT 3 — the /v1/lifecycle/legal-holds family is the surface the
+  // product actually calls, and it reached `resolveWorkspace`, a helper that
+  // resolves a workspace but authorizes NOTHING. Its two mutations did carry a
+  // delegated-tier preHandler, so they were never open to any member, but no
+  // capability was checked. The canonical gate is now wired there too, and this
+  // pins it so the compatibility adapters above cannot be the only place a
+  // legal-hold mutation is capability-gated.
+  it("the lifecycle legal-hold surface carries the canonical capability gate", () => {
+    const LIFECYCLE = readSource("../src/routes/product-and-lifecycle.routes.ts");
+    const manage =
+      LIFECYCLE.match(/permission:\s*"governance\.legal_hold\.manage"/g) ?? [];
+    // POST place + POST release.
+    expect(manage.length).toBeGreaterThanOrEqual(2);
+    expect(LIFECYCLE).toMatch(/permission:\s*"governance\.policy\.read"/);
+  });
+
   it("evidence publish/unpublish/suspend/restore mutations gate on evidence.publish_verify", () => {
     const calls = gatedOn(GOV, "evidence.publish_verify") ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(4);
   });
 
-  it("policy upsert gates on governance.policy.manage", () => {
-    expect(gatedOn(GOV, "governance.policy.manage")?.length ?? 0).toBeGreaterThanOrEqual(1);
+  // PHASE 12B CLUSTER 9: the two `/v1/governance/policy` operations no longer
+  // take their Workspace subject from the request, so they can no longer go
+  // through the `requireMember` wrapper (whose 3rd argument IS a request-supplied
+  // teamId). They call `resolveGovernancePolicyWorkspace`, which derives the
+  // subject from the server-side `User.currentWorkspaceId` rail and hands it to
+  // the SAME canonical `authorizeOrFail` primitive with the SAME permission.
+  // The gating intent is unchanged; only the origin of the subject changed.
+  const serverDerivedGate = (
+    src: string,
+    permission: string,
+  ): RegExpMatchArray | null =>
+    src.match(
+      new RegExp(
+        `resolveGovernancePolicyWorkspace\\(\\s*req,\\s*reply,\\s*"${permission.replace(/\./g, "\\.")}",?\\s*\\)`,
+        "g",
+      ),
+    );
+
+  it("policy update gates on governance.policy.manage (server-derived subject)", () => {
+    expect(
+      serverDerivedGate(GOV, "governance.policy.manage")?.length ?? 0,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("policy read gates on governance.policy.read (server-derived subject)", () => {
+    expect(
+      serverDerivedGate(GOV, "governance.policy.read")?.length ?? 0,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("the server-derived policy resolver still routes through authorizeOrFail", () => {
+    // The subject moved; the primitive did not. A resolver that skipped
+    // authorizeOrFail would be a membership/lifecycle bypass.
+    expect(GOV).toMatch(
+      /async function resolveGovernancePolicyWorkspace[\s\S]{0,1600}authorizeOrFail\(req, reply, \{/,
+    );
+  });
+
+  it("the policy operations accept no request-supplied workspace subject", () => {
+    // The PUT body schema must not carry teamId, and must be `.strict()` so a
+    // client cannot smuggle one past the schema either.
+    const putBlock =
+      GOV.match(/app\.put\(\s*"\/v1\/governance\/policy"[\s\S]*?\n {2}\);/)?.[0] ??
+      "";
+    expect(putBlock.length).toBeGreaterThan(200);
+    expect(putBlock).not.toMatch(/teamId:\s*z\.string\(\)/);
+    expect(putBlock).toMatch(/\.strict\(\)/);
   });
 
   it("retention candidates GET gates on governance.retention.manage", () => {
@@ -375,5 +436,104 @@ describe("Phase IA-route-authz — /v1/insights cleanup", () => {
     const NEXT = readSource("../../../apps/web/next.config.js");
     expect(NEXT).toMatch(/source:\s*"\/dashboard\/insights"/);
     expect(NEXT).toMatch(/destination:\s*"\/home"/);
+  });
+});
+
+// ===========================================================================
+// PHASE 12 POINT 4 — product-and-lifecycle canonical authorization.
+//
+// `resolveWorkspace` in that module derives the workspace server-side but
+// authorizes NOTHING: no capability, no ACTIVE-membership, no
+// parent-Organization lifecycle, no anti-enumeration. Every authenticated
+// member — including a VIEWER — could therefore mint a signed URL to evidence
+// and send it to an arbitrary recipient, because the Exchange mutations sat
+// behind `requireAuth` alone.
+//
+// These pin the canonical gate per surface so the capability cannot be dropped
+// again, and so a future route added to this file cannot quietly ship with
+// resolveWorkspace as its only "authorization".
+// ===========================================================================
+
+describe("Phase 12 Point 4 — lifecycle/exchange routes carry canonical capability", () => {
+  const SRC = readSource("../src/routes/product-and-lifecycle.routes.ts");
+
+  /** Every `app.<verb>(` registration with its body, from the real source. */
+  function routes(): Array<{
+    method: string;
+    path: string;
+    body: string;
+  }> {
+    const lines = SRC.split(/\r?\n/);
+    const out: Array<{ method: string; path: string; body: string }> = [];
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^\s*app\.(get|post|put|delete)\($/);
+      if (!m) continue;
+      const pm = (lines[i + 1] ?? "").match(/"(\/v1\/[^"]+)"/);
+      if (!pm) continue;
+      let end = lines.length;
+      for (let k = i + 1; k < lines.length; k++) {
+        if (/^\s*app\.(get|post|put|delete)\($/.test(lines[k])) {
+          end = k;
+          break;
+        }
+      }
+      out.push({
+        method: m[1].toUpperCase(),
+        path: pm[1],
+        body: lines.slice(i, end).join("\n"),
+      });
+    }
+    return out;
+  }
+
+  const gated = (b: string) =>
+    /permission:\s*"[a-z_.]+"/.test(b) ||
+    /requireDelegatedTier/.test(b) ||
+    /requireIntegrationCronSecret/.test(b);
+
+  it("every MUTATION carries a canonical capability or a delegated-tier gate", () => {
+    const ungated = routes()
+      .filter((r) => r.method !== "GET" && !gated(r.body))
+      .map((r) => `${r.method} ${r.path}`);
+    expect(
+      ungated,
+      `privileged mutations reachable on requireAuth alone:\n${ungated.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the four evidence-exporting Exchange mutations carry the export capability", () => {
+    const want: Record<string, string> = {
+      "POST /v1/exchange/packages": "evidence.generate_package",
+      "POST /v1/exchange/packages/:id/sign-url": "evidence.generate_package",
+      "POST /v1/exchange/packages/:id/deliveries": "evidence.generate_package",
+      // Recording a download is weaker than issuing the delivery.
+      "POST /v1/exchange/deliveries/:id/download": "evidence.download_package",
+    };
+    for (const r of routes()) {
+      const key = `${r.method} ${r.path}`;
+      const expected = want[key];
+      if (!expected) continue;
+      expect(r.body, `${key} must gate on ${expected}`).toContain(
+        `permission: "${expected}"`,
+      );
+    }
+    // All four must actually be present in the file.
+    const found = routes()
+      .map((r) => `${r.method} ${r.path}`)
+      .filter((k) => k in want);
+    expect(found.sort()).toEqual(Object.keys(want).sort());
+  });
+
+  it("resolveWorkspace is never a route's only authorization", () => {
+    const bare = routes()
+      .filter(
+        (r) =>
+          /resolveWorkspace\(req, reply\)/.test(r.body) && !gated(r.body),
+      )
+      .map((r) => `${r.method} ${r.path}`);
+    expect(
+      bare,
+      `routes whose only gate is resolveWorkspace (which authorizes nothing):\n${bare.join("\n")}`,
+    ).toEqual([]);
   });
 });

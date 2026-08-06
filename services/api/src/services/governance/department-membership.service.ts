@@ -32,12 +32,44 @@ import { prisma as defaultPrisma } from "../../db.js";
 // ---------------------------------------------------------------------------
 
 export type GrantDepartmentMembershipResult =
-  | { ok: true; membershipId: string }
-  | { ok: false; denial: "POLICY_REJECTED" | "DEPARTMENT_NOT_FOUND" };
+  | {
+      ok: true;
+      membershipId: string;
+      /**
+       * PHASE 12B CLUSTER 14 — idempotency signal. `true` when the row was
+       * ALREADY `ACTIVE` with the requested role, so no write happened. The
+       * route surfaces this so an accidental double-submit is a no-op
+       * instead of a second audit event.
+       */
+      unchanged: boolean;
+      /** Bounded state the row held BEFORE this call (`null` = new row). */
+      priorState: DepartmentMembershipState | null;
+    }
+  | {
+      ok: false;
+      denial:
+        | "POLICY_REJECTED"
+        | "DEPARTMENT_NOT_FOUND"
+        // PHASE 12B CLUSTER 14 — cross-Organization isolation. The subject
+        // must be an ACTIVE member of the SAME workspace; a bare user UUID
+        // from another Organization is never grantable.
+        | "USER_NOT_A_MEMBER"
+        // PHASE 12B CLUSTER 14 — stale-state rejection. The caller declared
+        // the state it observed; the row has moved on since.
+        | "STALE_STATE";
+    };
 
 export type RevokeDepartmentMembershipResult =
   | { ok: true }
-  | { ok: false; denial: "NOT_FOUND" | "ALREADY_REVOKED" };
+  | { ok: false; denial: "NOT_FOUND" | "ALREADY_REVOKED" | "STALE_STATE" };
+
+/**
+ * PHASE 12B CLUSTER 14 — the state a mutating caller declares it observed.
+ * `"NONE"` means "I saw no membership row for this (department, user)".
+ * Omitting it entirely skips the check (used only by non-interactive
+ * callers); the departments console ALWAYS sends it.
+ */
+export type ObservedMembershipState = DepartmentMembershipState | "NONE";
 
 // ---------------------------------------------------------------------------
 // Grant.
@@ -50,6 +82,8 @@ export type GrantDepartmentMembershipInput = {
   userId: string;
   role?: DepartmentMembershipRole;
   grantedByUserId: string;
+  /** PHASE 12B CLUSTER 14 — stale-state guard; see {@link ObservedMembershipState}. */
+  expectedState?: ObservedMembershipState;
 };
 
 /**
@@ -81,36 +115,86 @@ export async function grantDepartmentMembership(
     return { ok: false, denial: "DEPARTMENT_NOT_FOUND" };
   }
 
-  const existing = await prisma.departmentMembership.findFirst({
-    where: { departmentId: input.departmentId, userId: input.userId },
-    select: { id: true, state: true },
+  // PHASE 12B CLUSTER 14 — cross-Organization isolation. Without this the
+  // route accepted ANY user UUID, so an operator could attach a member of a
+  // different Organization to this workspace's department and hand them
+  // department-scoped evidence visibility. The subject must hold an ACTIVE
+  // workspace membership in the SAME workspace as the department.
+  const subject = await prisma.teamMember.findFirst({
+    where: { teamId: input.teamId, userId: input.userId, status: "ACTIVE" },
+    select: { id: true },
   });
+  if (!subject) {
+    return { ok: false, denial: "USER_NOT_A_MEMBER" };
+  }
 
-  if (existing) {
-    await prisma.departmentMembership.update({
-      where: { id: existing.id },
+  // ZERO PARTIAL MUTATION — the read-compare-write sequence runs inside one
+  // transaction so a concurrent grant/revoke cannot interleave between the
+  // stale-state check and the write.
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.departmentMembership.findFirst({
+      where: { departmentId: input.departmentId, userId: input.userId },
+      select: { id: true, state: true, role: true },
+    });
+
+    // STALE-STATE REJECTION — the caller declared what it saw; if the row
+    // moved on (someone else granted / revoked it), refuse rather than
+    // silently overwrite another operator's decision.
+    if (input.expectedState !== undefined) {
+      const observed: ObservedMembershipState = existing
+        ? (existing.state as DepartmentMembershipState)
+        : "NONE";
+      if (observed !== input.expectedState) {
+        return { ok: false, denial: "STALE_STATE" } as const;
+      }
+    }
+
+    if (existing) {
+      // IDEMPOTENCY — already ACTIVE with the requested role: no write, no
+      // audit event, same membership id returned.
+      if (existing.state === "ACTIVE" && existing.role === role) {
+        return {
+          ok: true,
+          membershipId: existing.id,
+          unchanged: true,
+          priorState: existing.state as DepartmentMembershipState,
+        } as const;
+      }
+      await tx.departmentMembership.update({
+        where: { id: existing.id },
+        data: {
+          role,
+          state: "ACTIVE",
+          grantedByUserId: input.grantedByUserId,
+          revokedAtUtc: null,
+        },
+      });
+      return {
+        ok: true,
+        membershipId: existing.id,
+        unchanged: false,
+        priorState: existing.state as DepartmentMembershipState,
+      } as const;
+    }
+
+    const row = await tx.departmentMembership.create({
       data: {
+        teamId: input.teamId,
+        departmentId: input.departmentId,
+        userId: input.userId,
         role,
         state: "ACTIVE",
         grantedByUserId: input.grantedByUserId,
-        revokedAtUtc: null,
       },
+      select: { id: true },
     });
-    return { ok: true, membershipId: existing.id };
-  }
-
-  const row = await prisma.departmentMembership.create({
-    data: {
-      teamId: input.teamId,
-      departmentId: input.departmentId,
-      userId: input.userId,
-      role,
-      state: "ACTIVE",
-      grantedByUserId: input.grantedByUserId,
-    },
-    select: { id: true },
+    return {
+      ok: true,
+      membershipId: row.id,
+      unchanged: false,
+      priorState: null,
+    } as const;
   });
-  return { ok: true, membershipId: row.id };
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +206,8 @@ export type RevokeDepartmentMembershipInput = {
   teamId: string;
   membershipId: string;
   actorUserId: string;
+  /** PHASE 12B CLUSTER 14 — stale-state guard; see {@link ObservedMembershipState}. */
+  expectedState?: ObservedMembershipState;
 };
 
 /**
@@ -136,22 +222,35 @@ export async function revokeDepartmentMembership(
   input: RevokeDepartmentMembershipInput,
 ): Promise<RevokeDepartmentMembershipResult> {
   const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.departmentMembership.findFirst({
-    where: { id: input.membershipId, teamId: input.teamId },
-    select: { id: true, state: true },
-  });
-  if (!row) return { ok: false, denial: "NOT_FOUND" };
-  if (row.state !== "ACTIVE") {
-    return { ok: false, denial: "ALREADY_REVOKED" };
-  }
   // Touch the row using a bounded mutation; actorUserId is reserved
   // for the audit emitter the caller is expected to invoke separately.
   void input.actorUserId;
-  await prisma.departmentMembership.update({
-    where: { id: row.id },
-    data: { state: "REVOKED", revokedAtUtc: new Date() },
+  // ZERO PARTIAL MUTATION — read-compare-write inside one transaction, so a
+  // concurrent revoke cannot double-apply.
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.departmentMembership.findFirst({
+      // Workspace-anchored: a membershipId from another Organization reads
+      // as NOT_FOUND, never as a revocable row.
+      where: { id: input.membershipId, teamId: input.teamId },
+      select: { id: true, state: true },
+    });
+    if (!row) return { ok: false, denial: "NOT_FOUND" } as const;
+    // STALE-STATE REJECTION — the console declares the state it rendered.
+    if (
+      input.expectedState !== undefined &&
+      (row.state as DepartmentMembershipState) !== input.expectedState
+    ) {
+      return { ok: false, denial: "STALE_STATE" } as const;
+    }
+    if (row.state !== "ACTIVE") {
+      return { ok: false, denial: "ALREADY_REVOKED" } as const;
+    }
+    await tx.departmentMembership.update({
+      where: { id: row.id },
+      data: { state: "REVOKED", revokedAtUtc: new Date() },
+    });
+    return { ok: true } as const;
   });
-  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +262,10 @@ export type ListDepartmentMembershipsInput = {
   teamId: string;
   departmentId?: string;
   userId?: string;
+  /** PHASE 12B CLUSTER 14 — server-side state filter for the console. */
+  state?: DepartmentMembershipState;
+  /** PHASE 12B CLUSTER 14 — deterministic page size (1..500, default 100). */
+  limit?: number;
 };
 
 /**
@@ -179,9 +282,13 @@ export async function listDepartmentMemberships(
       teamId: input.teamId,
       ...(input.departmentId ? { departmentId: input.departmentId } : {}),
       ...(input.userId ? { userId: input.userId } : {}),
+      ...(input.state ? { state: input.state } : {}),
     },
-    orderBy: { createdAt: "desc" },
-    take: 500,
+    // DETERMINISTIC ORDER — `createdAt` alone is not a total order (two rows
+    // can share a millisecond), which made the page-size boundary unstable.
+    // `id` is the tiebreaker.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: Math.min(Math.max(input.limit ?? 100, 1), 500),
   });
   return rows.map((r: (typeof rows)[number]) => ({
     id: r.id,

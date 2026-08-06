@@ -65,6 +65,18 @@ export {
   useCan,
   useDuplicatePersonalCandidates,
 } from "./useTenantModel";
+// Track 1A (surface-tier removal) — server-projection gate hooks. The
+// sanctioned successors of the deleted lib/surface/* tier layer.
+export {
+  useEnterpriseSurfaceAccess,
+  usePlanFeature,
+  usePlanFeatureGate,
+  // POINT 7 — the server-projected numeric limits. The client renders these;
+  // it no longer derives them from a plan name.
+  useWorkspaceLimits,
+  type PlanFeatureBooleanKey,
+  type ServerWorkspaceLimits,
+} from "./useServerProjectionGates";
 // Canonical terminology accessor (persona-override dimension removed
 // 2026-07-20 — returns the single canonical vocabulary).
 export { useTerminology, resolveTerminology } from "./useTerminology";

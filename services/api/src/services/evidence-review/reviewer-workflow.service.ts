@@ -2,6 +2,9 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+// PHASE 12 POINT 4 PASS C1 — the ONE definition of "this status is a verdict".
+import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
+import { AppError, ErrorCode } from "../../errors.js";
 import {
   templateIdentityAuditMetadata,
   type TemplateIdentityStampSource,
@@ -151,6 +154,28 @@ export async function upsertEvidenceReviewerWorkflow(params: {
    */
   templateIdentitySource?: TemplateIdentityStampSource;
 }) {
+  // PHASE 12 POINT 4 PASS C1 — this upsert is the ADMINISTRATIVE writer
+  // (assignment, priority, due date, template trio). It is NOT the decision
+  // authority, and it may not project a verdict.
+  //
+  // Until now a caller could PATCH `status: "APPROVED_INTERNAL"` straight
+  // onto the row: no immutable decision was appended, no second-review or
+  // adjudication rule ran, no stale/terminal check applied, and the workflow
+  // then carried an approval its own decision log did not contain. Verdicts
+  // belong to `recordReviewDecision`, which appends the immutable row and
+  // derives this status in the same transaction.
+  if (isDecisionDerivedWorkflowStatus(params.status)) {
+    throw new AppError(
+      ErrorCode.INVALID_STATE_TRANSITION,
+      "Review verdicts are recorded as decisions, not assigned as a status.",
+      {
+        reason: "decision_status_requires_decision_authority",
+        field: "status",
+        value: String(params.status),
+      },
+    );
+  }
+
   const existing = await prisma.evidenceReviewWorkflow.findUnique({
     where: { evidenceId: params.evidenceId },
     select: {

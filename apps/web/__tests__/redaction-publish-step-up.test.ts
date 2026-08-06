@@ -146,3 +146,91 @@ describe("Pin 6 — targets the redaction publish endpoint (no re-point, no para
     assert.doesNotMatch(src, /\/v1\/redaction\/publish/);
   });
 });
+
+// ============================================================================
+// PHASE 12B (Evidence Operations, 2026-07-29) — redaction administration
+// surfaces. Five ops that previously had no reachable caller are now wired
+// to the project workspace and the Policy console.
+// ============================================================================
+
+describe("Phase 12B — redaction administration wiring", () => {
+  const REGION_PANEL = resolve(
+    APP_ROOT,
+    "components/redaction/RegionListPanel.tsx",
+  );
+  const MANIFEST_PANEL = resolve(
+    APP_ROOT,
+    "components/redaction/DetectionManifestPanel.tsx",
+  );
+  const SCOPE_PANEL = resolve(
+    APP_ROOT,
+    "components/redaction/PolicyScopePanel.tsx",
+  );
+  const POLICY_PAGE = resolve(APP_ROOT, "app/(app)/redaction/policy/page.tsx");
+
+  it("the project workspace mounts the region list + detection manifest panels", () => {
+    const src = read(PAGE);
+    assert.match(src, /<RegionListPanel/);
+    assert.match(src, /regions=\{version\.regions \?\? \[\]\}/);
+    assert.match(src, /<DetectionManifestPanel evidenceId=\{project\.evidenceId\}/);
+  });
+
+  it("region removal calls DELETE /v1/redaction/regions/:id with confirm + bounded denials", () => {
+    const src = read(REGION_PANEL);
+    assert.match(src, /apiFetch\(`\/v1\/redaction\/regions\/\$\{encodeURIComponent\(regionId\)\}`/);
+    assert.match(src, /method: "DELETE"/);
+    // Explicit confirm step before an irreversible removal.
+    assert.match(src, /data-redaction-region-remove-confirm/);
+    // Server denial codes rendered as the server's decision, never ours.
+    assert.match(src, /VERSION_LOCKED/);
+    assert.match(src, /NOT_PERMITTED/);
+    // Empty + stale-context + safe-error coverage.
+    assert.match(src, /data-redaction-region-empty/);
+    assert.match(src, /isStale\(captured\)/);
+    assert.match(src, /toSafeUserError/);
+  });
+
+  it("detection manifest panel reads the workspace-anchored manifest op", () => {
+    const src = read(MANIFEST_PANEL);
+    assert.match(
+      src,
+      /\/v1\/redaction\/evidence\/\$\{encodeURIComponent\(\s*evidenceId,?\s*\)\}\/detection-manifest/,
+    );
+    assert.match(src, /manifest\.evidenceId !== evidenceId/);
+    assert.match(src, /data-redaction-detection-manifest-loading/);
+    assert.match(src, /data-redaction-detection-manifest-empty/);
+    assert.match(src, /data-redaction-detection-manifest-denied/);
+    assert.match(src, /data-redaction-detection-manifest-error/);
+    assert.match(src, /isStale\(captured\)/);
+  });
+
+  it("policy console mounts the scope panel that reads effective policy + assignments", () => {
+    assert.match(read(POLICY_PAGE), /<PolicyScopePanel/);
+    const src = read(SCOPE_PANEL);
+    assert.match(src, /\/v1\/redaction\/policy\/assignments\?/);
+    assert.match(src, /\/v1\/redaction\/policy\/effective/);
+    // Precedence is resolved SERVER-side; the panel only renders it.
+    assert.match(src, /effective\.resolution/);
+  });
+
+  it("withdrawing a policy assignment is step-up gated AND version-concurrency guarded", () => {
+    const src = read(SCOPE_PANEL);
+    assert.match(src, /useStepUpAction/);
+    assert.match(src, /<StepUpModal control=\{stepUp\} \/>/);
+    assert.match(src, /stepUp\.runStepUpAction/);
+    assert.match(
+      src,
+      /\/v1\/redaction\/policy-assignments\/\$\{encodeURIComponent\(\s*row\.id,?\s*\)\}\?expectedPolicyVersionId=/,
+    );
+    assert.match(src, /method: "DELETE"/);
+    // Cancelling step-up must not revoke, and a superseded assignment
+    // must surface the stale-view message instead of a silent revoke.
+    assert.match(src, /STEP_UP_CANCEL/);
+    assert.match(src, /INVALID_TRANSITION/);
+    // Denial + safe error + stale-context coverage.
+    assert.match(src, /data-redaction-policy-scope-denied/);
+    assert.match(src, /data-redaction-policy-scope-error/);
+    assert.match(src, /isStale\(captured\)/);
+    assert.match(src, /toSafeUserError/);
+  });
+});

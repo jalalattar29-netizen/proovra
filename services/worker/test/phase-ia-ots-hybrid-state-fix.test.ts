@@ -41,7 +41,6 @@ import {
   classifyOtsResult,
   parseOtsUpgradeOutput,
   parseOtsVerifyOutput,
-  type OtsClassification,
 } from "../src/ots-upgrade-output.js";
 import {
   mapOtsStatusPublicLabelWithTxid,

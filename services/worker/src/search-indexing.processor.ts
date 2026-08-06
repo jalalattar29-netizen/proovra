@@ -31,6 +31,13 @@ import {
   buildWorkflowInstanceProjection,
   type SearchDocumentProjection,
   type SearchDocumentType,
+  // PHASE 12 POINT 5 — canonical payload contract.
+  JOB_NAMES,
+  QueuePayloadRejected,
+  decodeJobPayload,
+  getWorkEntryOrThrow,
+  parseSearchIndexCommandId,
+  type SearchIndexDocumentKind,
 } from "@proovra/shared";
 
 // HOTFIX — Worker startup regression.
@@ -54,22 +61,18 @@ import {
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 
-export type SearchIndexingDocumentKind =
-  | "evidence"
-  | "workflow_instance"
-  | "workflow_step"
-  | "review_event"
-  | "operational_incident"
-  | "case"
-  | "ocr_text"
-  | "transcript"
-  | "relationship";
+/**
+ * PHASE 12 POINT 5 — the document-kind catalog has ONE definition
+ * (`@proovra/shared`). This file previously declared its own nine-kind union
+ * while both producers declared a different six, so three of the kinds a
+ * producer could enqueue were silently discarded here as `unsupported_kind`.
+ */
+export type SearchIndexingDocumentKind = SearchIndexDocumentKind;
 
-export type SearchIndexingJobPayload = {
-  teamId: string;
-  kind: SearchIndexingDocumentKind;
-  sourceId: string;
-  reason: string;
+const REGISTRY_ENTRY = getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
+const EXPECT = {
+  jobName: REGISTRY_ENTRY.workName,
+  schemaVersion: REGISTRY_ENTRY.schemaVersion,
 };
 
 // =============================================================================
@@ -83,12 +86,18 @@ type BuildOutcome =
   | { kind: "delete"; documentType: SearchDocumentType; sourceId: string }
   | { kind: "skip"; reason: string };
 
-async function buildForEvidence(
-  teamId: string,
-  evidenceId: string,
-): Promise<BuildOutcome> {
-  const evidence = await prisma.evidence.findFirst({
-    where: { id: evidenceId, teamId },
+/**
+ * PHASE 12 POINT 5 — the tenant is DERIVED, never supplied.
+ *
+ * The job payload names only the source row. This lookup is by primary key
+ * alone; `teamId` below is read off the row that came back and is the value
+ * every subsequent scoped read uses. The previous signature took the tenant
+ * from the queue payload and passed it into the WHERE clause, which meant a
+ * tampered or stale payload chose which workspace the worker operated in.
+ */
+async function buildForEvidence(evidenceId: string): Promise<BuildOutcome> {
+  const evidence = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
     select: {
       id: true,
       teamId: true,
@@ -98,7 +107,8 @@ async function buildForEvidence(
       type: true,
       mimeType: true,
       captureMethod: true,
-      caseId: true,
+      // PHASE 12B — index projects the primary linked case (earliest link).
+      caseLinks: { select: { caseId: true }, orderBy: { linkedAtUtc: "asc" }, take: 1 },
       deletedAt: true,
       lifecycleState: true,
       archivedAt: true,
@@ -114,6 +124,15 @@ async function buildForEvidence(
     // Source disappeared — treat as a delete from index. Worker
     // converges the search corpus toward reality.
     return { kind: "delete", documentType: "EVIDENCE", sourceId: evidenceId };
+  }
+  // `Evidence.teamId` is nullable in the schema. Scope resolution that comes
+  // back empty FAILS CLOSED — it must never be quietly resolved to a personal
+  // workspace, and it must not fall back to whatever the job payload claimed.
+  // A skip leaves the projection untouched and surfaces as indexing lag, which
+  // is the recoverable outcome; guessing a tenant is not.
+  const teamId = evidence.teamId;
+  if (!teamId) {
+    return { kind: "skip", reason: "tenant_unresolved" };
   }
   // Optional workflow status — same selection the API service uses.
   let workflowState: string | null = null;
@@ -184,7 +203,7 @@ async function buildForEvidence(
       type: evidence.type,
       mimeType: evidence.mimeType,
       captureMethod: evidence.captureMethod,
-      caseId: evidence.caseId,
+      caseId: evidence.caseLinks?.[0]?.caseId ?? null,
       deletedAt: evidence.deletedAt,
       lifecycleState: evidence.lifecycleState,
       archivedAt: evidence.archivedAt,
@@ -209,11 +228,10 @@ async function buildForEvidence(
 }
 
 async function buildForWorkflowInstance(
-  teamId: string,
   instanceId: string,
 ): Promise<BuildOutcome> {
-  const instance = await prisma.evidenceWorkflowInstance.findFirst({
-    where: { id: instanceId, teamId },
+  const instance = await prisma.evidenceWorkflowInstance.findUnique({
+    where: { id: instanceId },
     select: {
       id: true,
       teamId: true,
@@ -233,6 +251,7 @@ async function buildForWorkflowInstance(
   if (!instance) {
     return { kind: "delete", documentType: "WORKFLOW", sourceId: instanceId };
   }
+  const teamId = instance.teamId;
   const result = buildWorkflowInstanceProjection({
     teamId,
     workflowInstanceId: instanceId,
@@ -265,42 +284,40 @@ async function buildForWorkflowInstance(
 // row so its searchable_text body picks up the new chunk. Cleanest
 // idempotent mapping — re-derive parent from sourceId.
 async function buildForOcrOrTranscriptOrRelationship(
-  teamId: string,
   sourceId: string,
   kind: "ocr_text" | "transcript" | "relationship",
 ): Promise<BuildOutcome> {
   let parentEvidenceId: string | null = null;
-  try {
-    if (kind === "ocr_text") {
-      const r = (await prisma.$queryRawUnsafe(
-        `SELECT "evidence_id" FROM "evidence_ocr_text"
-           WHERE "team_id" = $1 AND "id" = $2 LIMIT 1`,
-        teamId,
-        sourceId,
-      )) as Array<{ evidence_id: string }>;
-      parentEvidenceId = r[0]?.evidence_id ?? null;
-    } else if (kind === "transcript") {
-      const r = (await prisma.$queryRawUnsafe(
-        `SELECT "evidence_id" FROM "evidence_transcript_segments"
-           WHERE "team_id" = $1 AND "id" = $2 LIMIT 1`,
-        teamId,
-        sourceId,
-      )) as Array<{ evidence_id: string }>;
-      parentEvidenceId = r[0]?.evidence_id ?? null;
-    } else {
-      const rel = await prisma.evidenceRelationship.findFirst({
-        where: { id: sourceId, teamId },
-        select: { sourceEvidenceId: true },
-      });
-      parentEvidenceId = rel?.sourceEvidenceId ?? null;
-    }
-  } catch {
-    parentEvidenceId = null;
+  // The chunk row is looked up by its own primary key; the parent evidence id
+  // comes off that row, and `buildForEvidence` then derives the tenant from the
+  // evidence row. No step consults a payload-supplied workspace.
+  //
+  // A DB error here must NOT be swallowed into "parent not found": that would
+  // turn an outage into a silent skip and leave the corpus stale while the job
+  // reports success. It propagates so BullMQ retries.
+  if (kind === "ocr_text") {
+    const r = (await prisma.$queryRawUnsafe(
+      `SELECT "evidence_id" FROM "evidence_ocr_text" WHERE "id" = $1 LIMIT 1`,
+      sourceId,
+    )) as Array<{ evidence_id: string }>;
+    parentEvidenceId = r[0]?.evidence_id ?? null;
+  } else if (kind === "transcript") {
+    const r = (await prisma.$queryRawUnsafe(
+      `SELECT "evidence_id" FROM "evidence_transcript_segments" WHERE "id" = $1 LIMIT 1`,
+      sourceId,
+    )) as Array<{ evidence_id: string }>;
+    parentEvidenceId = r[0]?.evidence_id ?? null;
+  } else {
+    const rel = await prisma.evidenceRelationship.findUnique({
+      where: { id: sourceId },
+      select: { sourceEvidenceId: true },
+    });
+    parentEvidenceId = rel?.sourceEvidenceId ?? null;
   }
   if (!parentEvidenceId) {
     return { kind: "skip", reason: "parent_evidence_not_found" };
   }
-  return buildForEvidence(teamId, parentEvidenceId);
+  return buildForEvidence(parentEvidenceId);
 }
 
 // =============================================================================
@@ -384,18 +401,23 @@ async function persistProjection(
   });
 }
 
+/**
+ * Remove a stale projection whose source row no longer exists.
+ *
+ * Scoped by `(documentType, sourceId)` and NOT by workspace, because there is
+ * no longer a workspace to scope by: the source row is gone, so no tenant can
+ * be derived from it, and the payload's workspace is exactly the thing this
+ * pass stopped trusting. That is the safe direction — source ids are UUIDs, so
+ * the pair identifies at most one row, and removing a projection whose source
+ * has been deleted can never leak across tenants, whereas leaving it can.
+ */
 async function deleteIndexRow(
-  teamId: string,
   documentType: SearchDocumentType,
   sourceId: string,
 ): Promise<void> {
-  try {
-    await prisma.evidenceSearchDocument.deleteMany({
-      where: { teamId, documentType, sourceId },
-    });
-  } catch {
-    /* best-effort */
-  }
+  await prisma.evidenceSearchDocument.deleteMany({
+    where: { documentType, sourceId },
+  });
 }
 
 // =============================================================================
@@ -403,55 +425,81 @@ async function deleteIndexRow(
 // =============================================================================
 
 export async function processSearchIndexingJob(
-  job: Job<SearchIndexingJobPayload>,
+  job: Job<unknown>,
 ): Promise<void> {
   const startedAt = Date.now();
-  const { teamId, kind, sourceId, reason } = job.data;
+
+  // PHASE 12 POINT 5 — job name, then payload schema, then the bounded document
+  // kind. All three are checked before a single row is read or written, so a
+  // malformed, misrouted or unknown-version job causes zero mutation.
+  if (job.name && job.name !== REGISTRY_ENTRY.workName) {
+    logger.warn(
+      { searchIndexing: true, jobId: job.id, jobName: job.name },
+      "worker.search.indexing.job_name_mismatch",
+    );
+    return;
+  }
+
+  let kind: SearchIndexDocumentKind;
+  let sourceId: string;
+  let reason: string;
+  try {
+    const decoded = decodeJobPayload(EXPECT, job.data);
+    const parsed = parseSearchIndexCommandId(decoded.commandId);
+    kind = parsed.kind;
+    sourceId = parsed.sourceId;
+    reason = decoded.traceId;
+    if (decoded.discardedAuthorityFields.length > 0) {
+      logger.warn(
+        {
+          searchIndexing: true,
+          jobId: job.id,
+          discarded: decoded.discardedAuthorityFields,
+        },
+        "worker.search.indexing.payload_authority_fields_discarded",
+      );
+    }
+  } catch (err) {
+    logger.warn(
+      {
+        searchIndexing: true,
+        jobId: job.id,
+        code: err instanceof QueuePayloadRejected ? err.code : "malformed",
+      },
+      "worker.search.indexing.payload_rejected",
+    );
+    // A structurally invalid payload is not retryable — retrying it produces
+    // the identical rejection. Return instead of throwing so it does not churn
+    // through the backoff ladder on its way to the same conclusion.
+    return;
+  }
+
   logger.info(
     {
       searchIndexing: true,
       jobId: job.id,
-      teamId,
       kind,
       sourceId,
-      reason: reason?.slice(0, 64) ?? "",
+      reason: reason.slice(0, 64),
       attempt: job.attemptsMade + 1,
     },
     "worker.search.indexing.started",
   );
-  if (!teamId || !kind || !sourceId) {
-    logger.warn(
-      { searchIndexing: true, jobId: job.id, reason: "invalid_payload" },
-      "worker.search.indexing.failed",
-    );
-    throw new Error("invalid_payload");
-  }
 
   let outcome: BuildOutcome;
   try {
     if (kind === "evidence") {
-      outcome = await buildForEvidence(teamId, sourceId);
+      outcome = await buildForEvidence(sourceId);
     } else if (kind === "workflow_instance" || kind === "workflow_step") {
-      outcome = await buildForWorkflowInstance(teamId, sourceId);
-    } else if (
-      kind === "ocr_text" ||
-      kind === "transcript" ||
-      kind === "relationship"
-    ) {
-      outcome = await buildForOcrOrTranscriptOrRelationship(
-        teamId,
-        sourceId,
-        kind,
-      );
+      outcome = await buildForWorkflowInstance(sourceId);
     } else {
-      outcome = { kind: "skip", reason: `unsupported_kind:${kind}` };
+      outcome = await buildForOcrOrTranscriptOrRelationship(sourceId, kind);
     }
   } catch (err) {
     logger.error(
       {
         searchIndexing: true,
         jobId: job.id,
-        teamId,
         kind,
         sourceId,
         error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
@@ -464,13 +512,20 @@ export async function processSearchIndexingJob(
   let upserted = false;
   let deleted = false;
   let projectedEvidenceId: string | null = null;
+  // The authoritative workspace, derived from the row the builder loaded. Null
+  // when nothing was projected (skip / delete), and every use below is guarded
+  // on `upserted`, so there is no path where an un-derived tenant scopes a
+  // write. Failing closed here is the point: no projection, no tenant, no
+  // follow-on mutation.
+  let derivedTeamId: string | null = null;
   try {
     if (outcome.kind === "upsert") {
       await persistProjection(outcome.projection);
       upserted = true;
       projectedEvidenceId = outcome.projection.evidenceId;
+      derivedTeamId = outcome.projection.teamId;
     } else if (outcome.kind === "delete") {
-      await deleteIndexRow(teamId, outcome.documentType, outcome.sourceId);
+      await deleteIndexRow(outcome.documentType, outcome.sourceId);
       deleted = true;
     }
   } catch (err) {
@@ -478,7 +533,7 @@ export async function processSearchIndexingJob(
       {
         searchIndexing: true,
         jobId: job.id,
-        teamId,
+        teamId: derivedTeamId,
         kind,
         sourceId,
         outcome: outcome.kind,
@@ -496,7 +551,8 @@ export async function processSearchIndexingJob(
   let ocrIndexed = 0;
   let transcriptIndexed = 0;
   let semanticEmbedded = 0;
-  if (upserted && projectedEvidenceId) {
+  if (upserted && projectedEvidenceId && derivedTeamId) {
+    const teamId = derivedTeamId;
     const now = new Date();
     try {
       ocrIndexed = await prisma.$executeRawUnsafe(
@@ -570,7 +626,7 @@ export async function processSearchIndexingJob(
     {
       searchIndexing: true,
       jobId: job.id,
-      teamId,
+      teamId: derivedTeamId,
       kind,
       sourceId,
       outcome: outcome.kind,

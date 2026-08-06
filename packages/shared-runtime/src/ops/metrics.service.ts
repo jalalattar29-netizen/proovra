@@ -291,6 +291,10 @@ export const COUNTER_NAMES = [
   // phase; video frames + waveforms reserved for future ffmpeg
   // wiring). Dedicated `mi-derived-assets` BullMQ queue.
   "derived_assets_enqueue_total",
+  // PHASE 12B Wave 2A — redaction derivative durable enqueue.
+  "redaction_derivative_enqueue_total",
+  "redaction_derivative_enqueue_failed_total",
+  "redaction_derivative_reconciled_total",
   "derived_assets_enqueue_failed_total",
   "derived_assets_processor_started_total",
   "derived_assets_processor_completed_total",
@@ -677,6 +681,37 @@ export const COUNTER_NAMES = [
   // SRE to monitor enqueue health and drift between API and worker.
   "semantic_embed_enqueue_failed_total",
   "semantic_embed_enqueued_total",
+  // PHASE 12 — POINT 5: queue/worker integrity counters.
+  //
+  // These are the numbers an operator alerts on, and they are deliberately
+  // ABOUT REFUSALS rather than about throughput. A payload carrying a tenant
+  // id, a schema version nobody deployed, or a job name belonging to another
+  // queue is not noise to be absorbed — it means something is writing to Redis
+  // that should not be, and the only honest response is a counted, alertable
+  // refusal. None of them carry a tenant, a payload or a value; they count
+  // events, and the operator projection resolves the detail under
+  // authorization.
+  "queue_payload_rejected_total",
+  "queue_schema_version_rejected_total",
+  "queue_job_name_mismatch_total",
+  "queue_workspace_mismatch_total",
+  "queue_legacy_payload_total",
+  // A pre-Point-5 job whose payload carried no durable authority reference —
+  // counted separately from a malformed one, because it is not a bug: it was
+  // legitimately produced before the durable row was mandatory. Non-zero here
+  // means an operator has replay work waiting, not that something is broken.
+  "queue_legacy_quarantined_total",
+  "queue_stale_request_blocked_total",
+  "queue_replay_noop_total",
+  "queue_claim_lost_total",
+  // Report/package generation authority.
+  "report_generation_request_created_total",
+  "report_generation_enqueue_total",
+  "report_generation_enqueue_failed_total",
+  "report_generation_reconciled_total",
+  // Canonical transport client — one pair for every converged api producer.
+  "canonical_enqueue_total",
+  "canonical_enqueue_failed_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

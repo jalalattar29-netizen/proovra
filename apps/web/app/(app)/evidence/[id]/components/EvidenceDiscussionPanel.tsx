@@ -83,6 +83,23 @@ type Message = {
 type ThreadsResponse = { threads: Thread[] };
 type MessagesResponse = { messages: Message[] };
 
+// PHASE 12B — the SERVER owns the collaboration vocabulary
+// (GET /v1/collaboration/catalogs). These maps are presentation only:
+// curated wording for the kinds we have copy for. A kind the server
+// offers that we have no copy for is humanised rather than dropped, so
+// the client can never silently hide a vocabulary the server accepts.
+type CollaborationCatalogs = {
+  threadKinds: ReadonlyArray<string>;
+  threadStatuses: ReadonlyArray<string>;
+  threadVisibilities: ReadonlyArray<string>;
+  participantRoles: ReadonlyArray<string>;
+};
+
+function humaniseToken(token: string): string {
+  const lower = token.replace(/_/g, " ").toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
 const KIND_LABELS: Record<ThreadKind, string> = {
   EVIDENCE_GENERAL: "General",
   REVIEW_REQUEST_CLARIFICATION: "Review clarification",
@@ -177,6 +194,9 @@ export default function EvidenceDiscussionPanel({
   // Phase G2 (C2.5) — operational discussion filters. The bounded
   // thread list (≤200 rows) is client-filterable; no realtime, no
   // social features, no AI summarisation.
+  // Server-projected collaboration vocabulary. Never blocks the panel:
+  // if the catalog is unavailable the curated labels still render.
+  const [catalogs, setCatalogs] = useState<CollaborationCatalogs | null>(null);
   const [filterText, setFilterText] = useState("");
   const [filterPreset, setFilterPreset] = useState<
     "all" | "unresolved" | "escalated" | "resolved"
@@ -209,6 +229,36 @@ export default function EvidenceDiscussionPanel({
       setLoadingThreads(false);
     }
   }, [evidenceId, teamId]);
+
+  // Server-projected collaboration vocabulary (one fetch per mount).
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const data = (await apiFetch(
+          "/v1/collaboration/catalogs",
+        )) as CollaborationCatalogs | null;
+        if (alive && data) setCatalogs(data);
+      } catch {
+        // Vocabulary is presentation metadata — curated labels still render.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Label resolution: curated copy first, then any kind the SERVER offers,
+  // then the raw token. The client never decides which kinds exist.
+  const labelForKind = useCallback(
+    (kind: string): string => {
+      const curated = KIND_LABELS[kind as ThreadKind];
+      if (curated) return curated;
+      if (catalogs?.threadKinds.includes(kind)) return humaniseToken(kind);
+      return kind;
+    },
+    [catalogs],
+  );
 
   useEffect(() => {
     void loadThreads();
@@ -556,7 +606,7 @@ export default function EvidenceDiscussionPanel({
                           flexWrap: "wrap",
                         }}
                       >
-                        <span>{KIND_LABELS[t.kind] ?? t.kind}</span>
+                        <span>{labelForKind(t.kind)}</span>
                         <span>·</span>
                         <span>{STATUS_LABELS[t.status] ?? t.status}</span>
                         {t.escalatedAtUtc ? (
@@ -612,7 +662,7 @@ export default function EvidenceDiscussionPanel({
                   }}
                 >
                   <span>
-                    {KIND_LABELS[selectedThread.kind] ?? selectedThread.kind}
+                    {labelForKind(selectedThread.kind)}
                   </span>
                   <span>·</span>
                   <span>

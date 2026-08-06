@@ -36,7 +36,6 @@ import * as prismaPkg from "@prisma/client";
 import {
   type CommunicationChannel,
   type CommunicationPurpose,
-  type CommunicationStatus,
   COMMUNICATION_CHANNELS,
   COMMUNICATION_PURPOSES,
   COMMUNICATION_STATUSES,
@@ -50,7 +49,10 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+// PHASE 12 VERTICAL A (2026-07-30) — THE canonical authorization primitive.
+// The workspace-actor helper below composes it instead of re-implementing the
+// evaluate → 403 shape (see that helper's contract note).
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   buildProviderHealthSnapshot,
@@ -58,6 +60,7 @@ import {
 } from "../services/communications/provider-registry.js";
 import {
   dispatchPendingMessage,
+  hashRecipientPhone,
   projectCommunicationMessage,
 } from "../services/communications/communication.service.js";
 import {
@@ -91,6 +94,21 @@ function requestUa(req: FastifyRequest): string | null {
 /**
  * 404-on-non-member + identity.* permission gate. Mirrors the Phase 17
  * pattern so the surface is consistent across ops UIs.
+ *
+ * PHASE 12 VERTICAL A (2026-07-30) — the permission decision is no longer
+ * evaluated here. It is DELEGATED to the canonical `authorizeOrFail`
+ * primitive, so every communications operation now inherits, without a
+ * parallel implementation:
+ *
+ *   - org-lifecycle enforcement (a SUSPENDED/TERMINATED organization denies),
+ *   - service-account / contributor-session denials,
+ *   - the server-verified support-context runtime guard,
+ *   - fail-closed 503 on an unevaluable policy (never a silent allow),
+ *   - the bounded denial vocabulary (no free-text `detail` passthrough).
+ *
+ * The explicit non-member 404 pre-check is RETAINED (rather than relying on
+ * `antiEnumeration`) because it is the documented anti-enumeration contract
+ * of this surface and is asserted by `test/communications.test.ts`.
  */
 async function requireCommunicationsActor(
   req: FastifyRequest,
@@ -107,22 +125,50 @@ async function requireCommunicationsActor(
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  const decision = await evaluateMemberAccess({
+  // Canonical gate — sends its own bounded 401/403/404/503 on deny.
+  const authorized = await authorizeOrFail(req, reply, {
     teamId,
-    userId,
     permission,
+    resourceKind: "communications",
   });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
+  if (!authorized) return null;
+  return { userId: authorized.actorUserId };
+}
+
+/**
+ * Safe projection of a CommunicationPreference row.
+ *
+ * PHASE 12B — deliberately DROPS `externalContactHash`: it is the HMAC of
+ * the recipient phone and is a recipient-linkable identifier that no
+ * client surface needs. Everything retained is operator-facing state.
+ */
+function projectCommunicationPreference(
+  row: prismaPkg.CommunicationPreference,
+): {
+  id: string;
+  teamId: string;
+  userId: string | null;
+  /** True when the row targets an external contact rather than a user. */
+  isExternalContact: boolean;
+  smsOptOut: boolean;
+  whatsappOptOut: boolean;
+  preferredChannel: string | null;
+  optOutReason: string | null;
+  optOutAtUtc: string | null;
+  updatedAt: string;
+} {
+  return {
+    id: row.id,
+    teamId: row.teamId,
+    userId: row.userId ?? null,
+    isExternalContact: row.externalContactHash !== null,
+    smsOptOut: row.smsOptOut,
+    whatsappOptOut: row.whatsappOptOut,
+    preferredChannel: row.preferredChannel ?? null,
+    optOutReason: row.optOutReason ?? null,
+    optOutAtUtc: row.optOutAtUtc?.toISOString() ?? null,
+    updatedAt: row.updatedAt.toISOString(),
+  };
 }
 
 function handleVerificationError(reply: FastifyReply, err: unknown): boolean {
@@ -296,6 +342,20 @@ export async function communicationsRoutes(app: FastifyInstance) {
 
   // -------------------------------------------------------------------------
   // Preferences
+  //
+  // PHASE 12B (Evidence Operations) — two hardenings:
+  //
+  //   1. The response is a SAFE PROJECTION. The route previously sent the
+  //      raw Prisma `CommunicationPreference` row, which carries
+  //      `externalContactHash` (the HMAC of the recipient phone). No
+  //      client needs it and it is a recipient-linkable identifier.
+  //
+  //   2. Verified-contact state is SERVER-AUTHORITATIVE. Opting an
+  //      external contact IN to a messaging channel now requires an
+  //      APPROVED VerificationAttempt for that (teamId, recipient) pair.
+  //      The client cannot declare a contact verified; it can only ask,
+  //      and the server answers from the attempt ledger. Opting OUT is
+  //      never gated — suppression must always be possible.
   // -------------------------------------------------------------------------
 
   const PreferenceBody = z.object({
@@ -333,12 +393,41 @@ export async function communicationsRoutes(app: FastifyInstance) {
                 ? undefined
                 : (body.preferredChannel as CommunicationChannel | null),
           });
-          return reply.code(200).send({ preference: pref });
+          return reply.code(200).send({ preference: projectCommunicationPreference(pref) });
         }
         const phone = normaliseToE164(body.target.phone);
         if (!phone) {
           reply.code(400).send({ error: { code: "invalid_phone" } });
           return;
+        }
+        // Server-authoritative verification gate. `smsOptOut === false`
+        // (and the WhatsApp equivalent) is an explicit opt-IN, as is
+        // naming a preferred channel. Any of those requires a recorded
+        // APPROVED verification for this recipient in this workspace.
+        const optsIn =
+          body.smsOptOut === false ||
+          body.whatsappOptOut === false ||
+          (body.preferredChannel !== undefined && body.preferredChannel !== null);
+        if (optsIn) {
+          const approved = await prisma.verificationAttempt.findFirst({
+            where: {
+              teamId: body.teamId,
+              recipientHash: hashRecipientPhone(phone),
+              status: prismaPkg.VerificationAttemptStatus.APPROVED,
+            },
+            select: { id: true, approvedAtUtc: true },
+            orderBy: { createdAt: "desc" },
+          });
+          if (!approved) {
+            reply.code(409).send({
+              error: {
+                code: "contact_not_verified",
+                message:
+                  "This contact must complete channel verification before messaging can be enabled.",
+              },
+            });
+            return;
+          }
         }
         const pref = await upsertContactPreference({
           teamId: body.teamId,
@@ -352,7 +441,7 @@ export async function communicationsRoutes(app: FastifyInstance) {
               : (body.preferredChannel as CommunicationChannel | null),
           optOutReason: body.optOutReason ?? null,
         });
-        return reply.code(200).send({ preference: pref });
+        return reply.code(200).send({ preference: projectCommunicationPreference(pref) });
       } catch (err) {
         req.log.error({ err }, "communications.preference upsert failed");
         reply.code(500).send({ error: { code: "internal_error" } });

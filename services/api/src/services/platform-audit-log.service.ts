@@ -484,6 +484,17 @@ export async function listAdminAuditLogs(params: {
   category?: string | null;
   severity?: string | null;
   outcome?: string | null;
+  /**
+   * PHASE 12 BATCH A1 — bounded `source` filter.
+   *
+   * The Admin Audit page has always exposed a source filter and sent it on the
+   * list read, but this canonical query accepted no such parameter, so the
+   * backend silently ignored it: the operator narrowed the view, the table did
+   * not change, and an export "with filters" carried a different set than the
+   * screen. Filtering is applied DATABASE-side here, in the same `where` the
+   * list and export both build, so the two can never diverge again.
+   */
+  source?: string | null;
   search?: string | null;
   db?: PrismaClient;
 }): Promise<{
@@ -526,6 +537,12 @@ export async function listAdminAuditLogs(params: {
     ...(params.category ? { category: params.category } : {}),
     ...(params.severity ? { severity: params.severity } : {}),
     ...(params.outcome ? { outcome: params.outcome } : {}),
+    // PHASE 12 BATCH A1 — bounded, DB-side source narrowing. Trimmed and
+    // length-capped so a pathological value can never become an unbounded scan;
+    // an unmatched value simply yields an empty page rather than an error.
+    ...(params.source && params.source.trim()
+      ? { source: params.source.trim().slice(0, 64) }
+      : {}),
     ...(params.search
       ? {
           OR: [

@@ -89,67 +89,41 @@ describe("Phase 32.7.6 — `runGovernanceHandler` and bounded helpers still expo
 // Part 2 — case-legal-holds GET no longer uses runGovernanceHandler
 // =============================================================================
 
-describe("Phase 32.7.6 — case-legal-holds GET uses per-endpoint optional-subsystem handler", () => {
+describe("Phase 12 Point 3 — case-legal-holds GET fails CLOSED (degradation removed)", () => {
   const SRC = readApi("src/routes/governance.routes.ts");
-  // Locate the GET handler block specifically.
   const getHandlerIdx = SRC.indexOf(
     'app.get(\n    "/v1/governance/case-legal-holds"',
   );
   expect(getHandlerIdx).toBeGreaterThan(-1);
-  // The handler runs up to the next `app.post(`.
   const nextHandlerIdx = SRC.indexOf("app.post(", getHandlerIdx);
   expect(nextHandlerIdx).toBeGreaterThan(getHandlerIdx);
   const handler = SRC.slice(getHandlerIdx, nextHandlerIdx);
 
-  it("the case-legal-holds GET no longer wraps the body in runGovernanceHandler", () => {
-    expect(handler).not.toMatch(/runGovernanceHandler\(/);
+  // This block previously REQUIRED the endpoint to answer 200 with
+  // `{ caseLegalHolds: [], subsystemEnabled: false }` when Prisma reported
+  // P2021/P2022. That was correct while `case_legal_holds` was an optional
+  // Phase-14 table. The read now resolves against the ONE canonical store
+  // (`evidence_legal_holds`), which is never optional — so answering "no
+  // case-level legal holds placed" on an unreadable store would report
+  // evidence as unheld when holds may exist. The assertions are INVERTED
+  // rather than deleted, so the fail-open shape cannot be reintroduced.
+
+  it("does NOT swallow a missing table/column into an empty 200", () => {
+    expect(handler).not.toMatch(/isPrismaTableOrColumnMissing\(/);
+    expect(handler).not.toMatch(/subsystemEnabled/);
   });
 
-  it("the handler uses an explicit try/catch around listCaseLegalHolds", () => {
-    expect(handler).toMatch(/try\s*\{[\s\S]{0,1200}listCaseLegalHolds\(/);
-    expect(handler).toMatch(/\}\s*catch\s*\(\s*err\s*\)\s*\{/);
+  it("has no catch arm that converts a store failure into an empty list", () => {
+    expect(handler).not.toMatch(/caseLegalHolds:\s*\[\]/);
   });
 
-  it("catch arm checks isPrismaTableOrColumnMissing(err) first", () => {
-    expect(handler).toMatch(/if\s*\(\s*isPrismaTableOrColumnMissing\(err\)\s*\)/);
-  });
-
-  it("on P2021/P2022 the route returns 200 with `{ caseLegalHolds: [], subsystemEnabled: false }`", () => {
-    expect(handler).toMatch(/reply\.code\(200\)\.send\(\s*\{[\s\S]{0,400}caseLegalHolds:\s*\[\][\s\S]{0,200}subsystemEnabled:\s*false/);
-  });
-
-  it("the catch arm logs a bounded WARN with the canonical diagnostic fields", () => {
-    expect(handler).toMatch(/reply\.log\.warn\(/);
-    expect(handler).toMatch(
-      /event:\s*"governance\.case_legal_holds\.subsystem_not_deployed"/,
-    );
-    // Bounded triage fields surfaced for SRE:
-    for (const field of [
-      "requestId",
-      "teamId",
-      "prismaName",
-      "prismaCode",
-      "missingTable",
-      "missingColumn",
-      "modelName",
-      "message",
-    ]) {
-      const re = new RegExp(`${field}:`);
-      expect(handler, `WARN log missing bounded field ${field}`).toMatch(re);
-    }
-  });
-
-  it("non-schema-drift errors continue to propagate (re-thrown — NOT swallowed)", () => {
-    // The fallthrough after the if-block must be `throw err`.
-    const catchIdx = handler.indexOf("} catch (err) {");
-    expect(catchIdx).toBeGreaterThan(-1);
-    const catchBlock = handler.slice(catchIdx);
-    expect(catchBlock).toMatch(/throw err/);
+  it("reads through the canonical legacy-shape adapter", () => {
+    expect(handler).toMatch(/listCaseScopedLegalHoldsLegacyShape\(/);
   });
 
   it("success path returns the projected rows with 200", () => {
     expect(handler).toMatch(
-      /reply\.code\(200\)\.send\(\s*\{\s*caseLegalHolds:\s*rows\.map\(projectCaseLegalHold\)/,
+      /reply\.code\(200\)\.send\(\s*\{\s*caseLegalHolds:\s*rows\s*\}\)/,
     );
   });
 });
@@ -186,8 +160,9 @@ describe("Phase 32.7.6 — adjacent governance endpoints continue to use runGove
   });
 
   it("case-legal-holds POST place + POST release are unchanged (no try/catch added there)", () => {
-    expect(SRC).toMatch(/placeCaseLegalHold\(\{/);
-    expect(SRC).toMatch(/releaseCaseLegalHold\(\{/);
+    // PHASE 12B CLUSTER 8 — the writers are the canonical commands now.
+    expect(SRC).toMatch(/placeCanonicalLegalHold\(\{/);
+    expect(SRC).toMatch(/releaseLegalHoldAnyStore\(\{/);
   });
 });
 

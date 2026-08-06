@@ -49,10 +49,14 @@ describe("repair-ots-hybrid-state — safety contract", () => {
     expect(SOURCE).not.toMatch(/execFile.*upgrade/);
   });
 
-  it("re-enqueues via the stable `ots-upgrade-followup-<id>` job id", () => {
-    expect(SOURCE).toMatch(
-      /function buildFollowUpJobId[\s\S]{0,300}`ots-upgrade-followup-\$\{evidenceId\}`/,
-    );
+  it("re-enqueues through the ONE canonical enqueue path, not a private job id", () => {
+    // PHASE 12 — POINT 5. The script used to carry its own copy of
+    // `buildFollowUpJobId`, explicitly "mirroring" the processor's — two
+    // definitions of one id, kept in sync by a comment. Both are deleted: the
+    // deterministic `ots-upgrade-<evidenceId>` id is built once, inside the
+    // shared enqueue authority, and this script just names the evidence.
+    expect(SOURCE).not.toMatch(/buildFollowUpJobId/);
+    expect(SOURCE).toMatch(/enqueueOtsUpgradeJob\(row\.id/);
   });
 
   it("NEVER updates the DB directly (no prisma.evidence.update / upsert / delete calls)", () => {

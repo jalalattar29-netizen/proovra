@@ -26,9 +26,18 @@
  *   POST   /v1/redaction/versions/:id/approve
  *   POST   /v1/redaction/versions/:id/publish
  *   POST   /v1/redaction/versions/:id/derivative
- *   POST   /v1/redaction/derivatives/:id/mark-ready   (worker callback)
- *   POST   /v1/redaction/derivatives/:id/mark-failed  (worker callback)
  *   GET    /v1/redaction/derivatives/:id              (download metadata)
+ *   GET    /v1/redaction/derivatives/:id/download-url (short-lived signed URL)
+ *
+ *   GET    /v1/redaction/evidence/:evidenceId/detection-manifest
+ *   GET    /v1/redaction/policy/effective
+ *   GET    /v1/redaction/policy/assignments
+ *   DELETE /v1/redaction/policy-assignments/:id       (step-up gated)
+ *
+ * PHASE 12B (Evidence Operations, 2026-07-29): the anonymous
+ * GET /v1/redaction/public/verify/:evidenceId badge probe was DELETED and
+ * its fields converged into the token-bound Verify authority
+ * GET /public/verify/:id (`redaction` key). See the note where it lived.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -46,6 +55,10 @@ import {
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+// Macro-Wave A1 — the derivative download-url endpoint reuses the CANONICAL
+// short-lived presign primitive (same one evidence.routes.ts uses). Raw
+// storage keys are NEVER returned to the client.
+import { presignGetObject } from "../storage.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 // Phase 3A redaction closure — publishing a redacted derivative is the
@@ -85,8 +98,6 @@ import { recordDetectionDecision } from "../services/redaction/redaction-decisio
 import { recordRedactionApproval } from "../services/redaction/redaction-approval.service.js";
 import {
   getDerivativeForVersion,
-  markDerivativeFailed,
-  markDerivativeReady,
   requestRedactionDerivative,
 } from "../services/redaction/redaction-derivative.service.js";
 import {
@@ -342,20 +353,7 @@ const PublishBody = z.object({
   rationale: z.string().max(600).optional(),
 });
 
-const DerivativeReadyBody = z.object({
-  storageBucket: z.string().min(1).max(180),
-  storageKey: z.string().min(1).max(400),
-  storageRegion: z.string().max(40).optional(),
-  byteSize: z.number().int().nonnegative(),
-  fileSha256: z.string().min(64).max(64).regex(/^[0-9a-f]+$/),
-  contentType: z.string().min(1).max(120),
-  renderEngine: z.string().min(1).max(40),
-});
 
-const DerivativeFailedBody = z.object({
-  failureReason: z.string().min(1).max(120),
-  errorPreview: z.string().max(400).optional(),
-});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -447,72 +445,27 @@ export async function redactionRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
-  // Public verify-page badge — anonymous + workspace-anchored by
-  // evidenceId. Exposes ONLY the existence + version ordinal +
-  // published-at + approval count. NEVER region geometry,
-  // NEVER detection text, NEVER rationale.
+  // PHASE 12B (Evidence Operations, 2026-07-29) — the anonymous
+  // GET /v1/redaction/public/verify/:evidenceId badge probe was DELETED.
+  //
+  // It was the WRONG shape for a public surface: an unauthenticated,
+  // un-rate-limited, un-audited existence probe keyed on a bare
+  // evidenceId, with NO workspace anchoring (it matched redaction
+  // projects across every tenant), NO publication-state gate, NO
+  // integrity / destroyed / finalization gate. It answered 200 for
+  // records the canonical Verify product refuses with an
+  // anti-enumeration 404.
+  //
+  // The capability is preserved in full behind the canonical
+  // token-bound Verify authority GET /public/verify/:id
+  // (services/api/src/routes/evidence.routes.ts). Every field it
+  // emitted — hasPublishedDerivative, publishedVersionOrdinal,
+  // publishedAtUtc, approvalCount, videoProvenance{totalFrames,
+  // acceptedTracks} and the four standing limitation codes — is
+  // projected by services/redaction/verify-redaction-projection.service.ts
+  // and returned on the `redaction` key of that response, rendered by
+  // apps/web/app/verify/[token]/page.tsx.
   // -------------------------------------------------------------------------
-
-  app.get(
-    "/v1/redaction/public/verify/:evidenceId",
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { evidenceId } = z
-        .object({ evidenceId: z.string().uuid() })
-        .parse(req.params);
-      const project = await prisma.redactionProject.findFirst({
-        where: { evidenceId },
-        select: {
-          id: true,
-          versions: {
-            where: { state: "PUBLISHED" },
-            select: {
-              versionOrdinal: true,
-              publishedAtUtc: true,
-              approvals: { select: { id: true } },
-            },
-            orderBy: { publishedAtUtc: "desc" },
-            take: 1,
-          },
-        },
-      });
-      const published = project?.versions[0] ?? null;
-      // Phase 3A Elite Closure — bounded video provenance counts.
-      // NEVER per-track geometry. NEVER detection text. Bounded
-      // count-only.
-      const acceptedTracksCount = await prisma.videoTrack.count({
-        where: {
-          teamId: project?.versions[0]?.publishedAtUtc
-            ? undefined
-            : undefined,
-          evidenceId,
-          state: "ACCEPTED",
-        },
-      });
-      const totalFramesCount = await prisma.videoFrame.count({
-        where: { evidenceId },
-      });
-      const badge = {
-        hasPublishedDerivative: published !== null,
-        publishedVersionOrdinal: published?.versionOrdinal ?? null,
-        publishedAtUtc: published?.publishedAtUtc?.toISOString() ?? null,
-        approvalCount: published?.approvals.length ?? 0,
-        videoProvenance:
-          totalFramesCount > 0
-            ? {
-                totalFrames: totalFramesCount,
-                acceptedTracks: acceptedTracksCount,
-              }
-            : null,
-        limitations: [
-          "REDACTION_NEVER_MODIFIES_ORIGINAL",
-          "REDACTION_DERIVATIVE_IS_NOT_ORIGINAL",
-          "REDACTION_APPROVAL_IS_HUMAN_JUDGEMENT",
-          "REDACTION_TRACKING_IS_PROVENANCE_ONLY",
-        ],
-      };
-      return reply.code(200).send({ badge });
-    },
-  );
 
   // -------------------------------------------------------------------------
   // Projects
@@ -1136,10 +1089,34 @@ export async function redactionRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.administer"))) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PHASE 12B — optimistic concurrency. The Policy console renders the
+      // assignment's policy VERSION id next to the revoke control and sends
+      // it back; a stale console can therefore never revoke an assignment
+      // that has since been re-pointed at a different version.
+      const q = z
+        .object({ expectedPolicyVersionId: z.string().uuid().optional() })
+        .parse(req.query ?? {});
+      // PHASE 12B — STEP-UP: revoking a policy assignment removes the
+      // detection policy governing future redaction work at that scope,
+      // which widens what may be published without detection review. Gate
+      // it AFTER the redaction.administer RBAC check and BEFORE the write.
+      // On failure the middleware has already sent 401 STEP_UP_REQUIRED
+      // (or 403 on CRITICAL risk) and we early-return.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "REDACTION_POLICY_ASSIGNMENT_REVOKE",
+        resourceKind: "redaction_policy_assignment",
+        resourceId: id,
+      });
+      if (stepUp.sent) return reply;
       const res = await revokePolicyAssignment({
         teamId: ctx.teamId,
         assignmentId: id,
         actorUserId: ctx.userId,
+        expectedPolicyVersionId: q.expectedPolicyVersionId ?? null,
       });
       if (!res.ok) return reply.code(409).send({ denial: res.denial });
       return reply.code(200).send({ ok: true });
@@ -1501,52 +1478,11 @@ export async function redactionRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post(
-    "/v1/redaction/derivatives/:id/mark-ready",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      if (!(await gate(reply, ctx, "redaction.administer"))) return reply;
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = DerivativeReadyBody.parse(req.body);
-      const res = await markDerivativeReady({
-        teamId: ctx.teamId,
-        derivativeId: id,
-        storageBucket: body.storageBucket,
-        storageKey: body.storageKey,
-        storageRegion: body.storageRegion,
-        byteSize: body.byteSize,
-        fileSha256: body.fileSha256,
-        contentType: body.contentType,
-        renderEngine: body.renderEngine,
-        actorUserId: ctx.userId,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(200).send({ ok: true });
-    },
-  );
-
-  app.post(
-    "/v1/redaction/derivatives/:id/mark-failed",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      if (!(await gate(reply, ctx, "redaction.administer"))) return reply;
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = DerivativeFailedBody.parse(req.body);
-      const res = await markDerivativeFailed({
-        teamId: ctx.teamId,
-        derivativeId: id,
-        failureReason: body.failureReason,
-        errorPreview: body.errorPreview,
-        actorUserId: ctx.userId,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(200).send({ ok: true });
-    },
-  );
+  // PHASE 12B WAVE 2A — the user-session mark-ready/mark-failed callbacks were
+  // DELETED. READY/FAILED transitions have exactly ONE authority: the worker-side
+  // writer (services/worker/src/redaction/redaction-derivative-writer.ts), which
+  // claims QUEUED→RENDERING atomically and rejects stale/replayed completions.
+  // Guard: phase-12-dead-routes-removed.test.ts.
 
   app.get(
     "/v1/redaction/derivatives/:id",
@@ -1564,39 +1500,97 @@ export async function redactionRoutes(app: FastifyInstance) {
           .code(404)
           .send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
       }
-      // Bump the audit counter + emit DERIVATIVE_DOWNLOADED on every fetch.
-      await prisma.redactionDerivative.update({
-        where: { id },
-        data: { downloadCount: { increment: 1 } },
-      });
-      const version = await prisma.redactionVersion.findFirst({
-        where: { id: d.versionId },
-        select: { projectId: true },
-      });
-      if (version) {
-        await emitRedactionActivity({
-          teamId: ctx.teamId,
-          projectId: version.projectId,
-          versionId: d.versionId,
-          code: "DERIVATIVE_DOWNLOADED",
-          actorUserId: ctx.userId,
-          payload: { derivativeId: id },
-        });
-      }
+      // PHASE 12 POINT 4 PASS C2 — this endpoint is a STATE READ, not a
+      // download, and it must not claim otherwise.
+      //
+      // It used to increment `downloadCount` and append a
+      // DERIVATIVE_DOWNLOADED activity row on every fetch. The redaction UI
+      // POLLS this endpoint every 5 seconds while a render is in flight, so a
+      // single render wrote a stream of "downloaded" events for bytes nobody
+      // received, and double-counted against the signed-URL endpoint that
+      // actually grants access. The operator timeline sits next to evidence
+      // custody; it may not carry invented access records.
+      //
+      // The download counter + DERIVATIVE_DOWNLOADED now belong exclusively to
+      // the signed-URL issuance below, which is the moment access is granted.
+      // Macro-Wave A1 — raw storage coordinates (bucket/key/region) are
+      // NEVER returned to the client. Bytes are reached exclusively via the
+      // short-lived signed URL endpoint below.
       return reply.code(200).send({
         derivative: {
           id: d.id,
           state: d.state,
           kind: d.kind,
-          storageBucket: d.storageBucket,
-          storageKey: d.storageKey,
-          storageRegion: d.storageRegion,
           byteSize: d.byteSize ? Number(d.byteSize) : null,
           fileSha256: d.fileSha256,
           contentType: d.contentType,
           renderedAtUtc: d.renderedAtUtc?.toISOString() ?? null,
           downloadCount: d.downloadCount,
         },
+      });
+    },
+  );
+
+  // Macro-Wave A1 — authorized download. Returns a SHORT-LIVED signed URL
+  // for the derivative object via the canonical presign primitive
+  // (storage.ts presignGetObject — the same rail evidence parts use).
+  // READY-only: any other state answers the bounded DERIVATIVE_NOT_READY
+  // denial. The response never contains storage bucket/key/region.
+  app.get(
+    "/v1/redaction/derivatives/:id/download-url",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (!(await gate(reply, ctx, "redaction.derivative.download"))) return reply;
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PHASE 12 POINT 4 PASS C2 — the project is loaded WITH the derivative.
+      //
+      // The audit event used to depend on a second `redactionVersion` lookup
+      // and was skipped when that lookup returned nothing — so a signed URL
+      // could be issued, granting access to redacted bytes, with no record of
+      // it. One query removes the branch: if we can authorize the download we
+      // can always record it.
+      const d = await prisma.redactionDerivative.findFirst({
+        where: { id, teamId: ctx.teamId },
+        include: { version: { select: { projectId: true } } },
+      });
+      if (!d) {
+        return reply
+          .code(404)
+          .send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
+      }
+      if (d.state !== "READY" || !d.storageBucket || !d.storageKey) {
+        return reply
+          .code(409)
+          .send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
+      }
+      const expiresInSeconds = 300;
+      const downloadUrl = await presignGetObject({
+        bucket: d.storageBucket,
+        key: d.storageKey,
+        expiresInSeconds,
+      });
+      // Audit the ACTUAL access grant — counter + timeline event, always.
+      await prisma.redactionDerivative.update({
+        where: { id },
+        data: { downloadCount: { increment: 1 } },
+      });
+      await emitRedactionActivity({
+        teamId: ctx.teamId,
+        projectId: d.version.projectId,
+        versionId: d.versionId,
+        code: "DERIVATIVE_DOWNLOADED",
+        actorUserId: ctx.userId,
+        payload: { derivativeId: id },
+      });
+      return reply.code(200).send({
+        downloadUrl,
+        expiresAtUtc: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+        kind: d.kind,
+        contentType: d.contentType,
+        byteSize: d.byteSize ? Number(d.byteSize) : null,
+        fileSha256: d.fileSha256,
       });
     },
   );

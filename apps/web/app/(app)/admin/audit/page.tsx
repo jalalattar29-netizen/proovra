@@ -11,6 +11,7 @@ import type { BadgeTone } from "../../../../components/ui/Badge";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
+import { useTenantGuard } from "../../../../lib/platform-context";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
 
@@ -127,6 +128,10 @@ export default function AdminAuditPage() {
   const [items, setItems] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  // PHASE 12 — context-generation guard: an export that resolves after the
+  // operator switched context must not produce a file from the old context.
+  const { stamp, isStale } = useTenantGuard();
   const [verify, setVerify] = useState<VerifyState>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -158,6 +163,59 @@ export default function AdminAuditPage() {
       setLoading(false);
     }
   }, [addToast, categoryFilter, severityFilter, sourceFilter]);
+
+  /**
+   * PHASE 12 — Admin audit export.
+   *
+   * Uses the ONE canonical export authority (`GET /v1/admin/audit-log/export`),
+   * which applies the platform-admin gate and the row projection server-side and
+   * returns CSV. Nothing is filtered or shaped in the browser.
+   *
+   * FILTER FIDELITY: the export sends the SAME filter set as the list read
+   * above — category, severity and source. `source` is now honoured
+   * database-side by the canonical `listAdminAuditLogs` query (PHASE 12 BATCH
+   * A1); before that fix the backend silently ignored it, so the table and the
+   * exported file could disagree. Both paths build their filters from the same
+   * page state and hit the same authority, so they cannot diverge.
+   */
+  const exportAudit = useCallback(async () => {
+    const captured = stamp();
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (categoryFilter.trim()) params.set("category", categoryFilter.trim());
+      if (severityFilter !== "all") params.set("severity", severityFilter);
+      if (sourceFilter.trim()) params.set("source", sourceFilter.trim());
+      const qs = params.toString();
+      const csv = await apiFetch(
+        `/v1/admin/audit-log/export${qs ? `?${qs}` : ""}`,
+        { method: "GET" },
+      );
+      // A context switch mid-export must not hand the operator a file built
+      // from the previous context.
+      if (isStale(captured)) return;
+      const body = typeof csv === "string" ? csv : String(csv ?? "");
+      const stampText = new Date().toISOString().replace(/[:.]/g, "-");
+      const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `admin-audit-log-${stampText}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addToast("Audit log exported.", "success");
+    } catch (err) {
+      // A denial must produce NO file at all — the download only runs past a
+      // successful response.
+      notifyApiError(addToast, err, {
+        message: "We couldn't export the admin audit log.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [addToast, categoryFilter, severityFilter, sourceFilter, stamp, isStale]);
 
   const verifyChain = useCallback(async () => {
     try {
@@ -222,9 +280,20 @@ export default function AdminAuditPage() {
             </Button>
           }
           primaryAction={
-            <Button variant="primary" onClick={() => void verifyChain()}>
-              {verifying ? "Verifying..." : "Verify Chain"}
-            </Button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button
+                variant="secondary"
+                data-admin-audit-export
+                disabled={exporting}
+                loading={exporting}
+                onClick={() => void exportAudit()}
+              >
+                {exporting ? "Exporting…" : "Export CSV"}
+              </Button>
+              <Button variant="primary" onClick={() => void verifyChain()}>
+                {verifying ? "Verifying..." : "Verify Chain"}
+              </Button>
+            </div>
           }
         />
       }

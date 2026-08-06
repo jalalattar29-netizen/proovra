@@ -24,7 +24,11 @@ const evidenceRelationshipSelect = {
       displayFileName: true,
       originalFileName: true,
       status: true,
-      caseId: true,
+      caseLinks: {
+        orderBy: { linkedAtUtc: "asc" },
+        select: { caseId: true },
+        take: 1,
+      },
       teamId: true,
     },
   },
@@ -35,7 +39,11 @@ const evidenceRelationshipSelect = {
       displayFileName: true,
       originalFileName: true,
       status: true,
-      caseId: true,
+      caseLinks: {
+        orderBy: { linkedAtUtc: "asc" },
+        select: { caseId: true },
+        take: 1,
+      },
       teamId: true,
     },
   },
@@ -90,7 +98,7 @@ function mapRelationship(
         linkedEvidence.originalFileName ??
         "Untitled evidence",
       status: linkedEvidence.status,
-      caseId: linkedEvidence.caseId ?? null,
+      caseId: linkedEvidence.caseLinks[0]?.caseId ?? null,
       teamId: linkedEvidence.teamId ?? null,
     },
     createdBy:

@@ -58,7 +58,6 @@ import {
   // Operational contracts
   isQueuePayloadEnvelope,
   isValidCorrelationId,
-  newCorrelationId,
   newQueuePayloadEnvelope,
   parseQueueEnvelope,
   QUEUE_RETRY_PROFILES,

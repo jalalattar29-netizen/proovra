@@ -40,6 +40,11 @@ function personal(plan: string): SettingsUiContextInput {
     activeSpace: { type: "PERSONAL", id: "p-1", displayName: "Personal Space" },
     workspacePlan: plan,
     accountPlan: plan,
+    // PHASE 12 POINT 4 STEP 1 — SERVER capability projections. A personal
+    // space owner holds both; the enterprise flag is server-derived.
+    canManageBilling: true,
+    canManageWorkspaceSettings: true,
+    isEnterpriseWorkspace: false,
     organizations: [],
     planFeatures: {
       reviewerOperationsIncluded: false,
@@ -57,6 +62,12 @@ function orgMember(
     activeSpace: { type: "ORGANIZATION", id: "o-1", displayName: "Acme Legal" },
     workspacePlan: plan,
     accountPlan: "FREE", // personal entitlement stays FREE — the org plan must win
+    // PHASE 12 POINT 4 STEP 1 — the SERVER grants BILLING_MANAGE /
+    // SETTINGS_MANAGE to OWNER+ADMIN exactly; mirror that projection here
+    // instead of letting the resolver re-derive it from .
+    canManageBilling: role === "OWNER" || role === "ADMIN",
+    canManageWorkspaceSettings: role === "OWNER" || role === "ADMIN",
+    isEnterpriseWorkspace: plan === "ENTERPRISE",
     organizations: [
       {
         id: "o-1",

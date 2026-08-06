@@ -99,12 +99,13 @@ describe("Phase IA-self-serve-regression-fix — BUG 2: Invite teammate + /teams
     expect(VM).not.toMatch(/invite_first_teammate/);
   });
 
-  it("intake surfaces remain plan-gated on isProOrTeam (FREE/PAYG never see them)", () => {
-    // The create-intake-link Workspace Priority is gated by
-    // isProOrTeam; the intake pipeline card locks for non-pro plans.
+  it("intake surfaces remain entitlement-gated on the SERVER projection (excluded plans never see them)", () => {
+    // PHASE 12B Track 1A — the create-intake-link Workspace Priority and the
+    // intake pipeline lock are gated by the SERVER-projected
+    // features.intakeIncluded boolean, never a client plan-name check.
     const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(/isProOrTeam\(args\.plan\)[\s\S]{0,400}create_intake_link/);
-    expect(HOME).toMatch(/locked=\{!pro\}/);
+    expect(VM).toMatch(/args\.intakeIncluded[\s\S]{0,200}create_intake_link/);
+    expect(HOME).toMatch(/locked=\{!intakeIncluded\}/);
   });
 
   it("/teams/page.tsx no longer wraps content in JSX `<PageRouteGate routeId=\"admin.teams\">`", () => {

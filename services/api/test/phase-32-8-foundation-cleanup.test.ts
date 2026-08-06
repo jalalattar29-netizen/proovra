@@ -161,9 +161,11 @@ describe("Phase 32.8 Foundation cleanup — useActiveWorkspaceId removal", () =>
 // =============================================================================
 
 describe("Phase 32.8 Foundation cleanup — legacy nav isolation", () => {
-  it("lib/workspace-profile.ts carries a @deprecated marker", () => {
-    const src = readWeb("lib/workspace-profile.ts");
-    expect(src).toMatch(/@deprecated/);
+  it("lib/workspace-profile.ts is deleted (no longer on disk)", () => {
+    // PHASE 12 POINT 4 PASS D — the module was deprecated-but-present with
+    // ZERO importers. A `@deprecated` marker keeps dead code shipping; the
+    // module is now gone, in the same way navigation-config went below.
+    expect(existsSync(join(WEB_ROOT, "lib/workspace-profile.ts"))).toBe(false);
   });
 
   it("lib/navigation-config.ts is deleted (no longer on disk)", () => {
@@ -298,7 +300,6 @@ describe("Phase 32.8 Foundation cleanup — reviewer/governance gate cleanup", (
   const ESC = readWeb("app/(app)/reviewer-ops/escalations/page.tsx");
   const REV = readWeb("app/(app)/reviewer-ops/[reviewId]/page.tsx");
   const POLICY = readWeb("app/(app)/governance/policy/page.tsx");
-  const GATE = readWeb("app/(app)/reviewer-ops/WorkspaceGateState.tsx");
 
   it("SLA page declares its required capability via the canonical route registry", () => {
     // Phase 38.11 — SLA page migrated from a local WorkspaceGateState
@@ -347,23 +348,59 @@ describe("Phase 32.8 Foundation cleanup — reviewer/governance gate cleanup", (
     );
   });
 
-  it("WorkspaceGateState consumes the canonical TeamWorkspaceGateState shape", () => {
-    expect(GATE).toMatch(/TeamWorkspaceGateState/);
-    expect(GATE).toMatch(/CapabilityDegradedPanel/);
-    expect(GATE).toMatch(/requiredCapability/);
-    // No legacy ActiveWorkspaceState import.
-    const live = stripComments(GATE);
-    expect(live).not.toMatch(/ActiveWorkspaceState/);
+  it("the unmounted local WorkspaceGateState renderer stays removed", () => {
+    // Phase 12 Point 4 Pass D — every reviewer-ops / governance page
+    // above migrated to <PageRouteGate>, leaving the local renderer
+    // with zero importers. It was deleted; the canonical gate owns
+    // loading / denial / recovery for these surfaces.
+    expect(
+      existsSync(join(WEB_ROOT, "app/(app)/reviewer-ops/WorkspaceGateState.tsx")),
+    ).toBe(false);
   });
 
-  it("gate renders CapabilityDegradedPanel for personal-mode reason, not a plain text wall", () => {
-    expect(GATE).toMatch(/reason === ['"]personal['"]/);
-    // Personal-mode branch returns the CapabilityDegradedPanel.
-    const personalBlockMatch = GATE.match(
-      /reason === ['"]personal['"][\s\S]{0,1200}/,
+  it("the canonical gate consumes server-projected access, never a client-derived tenant", () => {
+    // The invariant the deleted renderer used to carry (a gate must
+    // read the canonical platform-context projection and must not
+    // re-derive tenant / role / plan on the client) now lives on
+    // PageRouteGate, which is what these pages actually mount.
+    const gate = stripComments(readWeb("components/navigation/PageRouteGate.tsx"));
+    expect(gate).toMatch(/usePlatformContext/);
+    expect(gate).toMatch(/resolveRouteAccess/);
+    // Capabilities come from the envelope — no local capability fetch.
+    expect(gate).toMatch(/capabilities:\s*envelope\?\.capabilities/);
+    expect(gate).not.toMatch(/ActiveWorkspaceState/);
+  });
+
+  it("personal-mode users get a structured CapabilityDegradedPanel, not a plain text wall", () => {
+    // The deleted reviewer-ops renderer carried this invariant for its
+    // own surfaces. It is asserted here against the live team-scoped
+    // surfaces that actually render the personal-mode branch today.
+    for (const rel of [
+      "components/governance-experience/GovernanceControlPlane.tsx",
+      "components/cases-experience/CasesIndex.tsx",
+    ]) {
+      const live = stripComments(readWeb(rel));
+      expect(
+        live,
+        `${rel} must render CapabilityDegradedPanel with an explicit requiredCapability`,
+      ).toMatch(/<CapabilityDegradedPanel[\s\S]{0,800}requiredCapability=/);
+      // Recovery affordances, not a dead end.
+      expect(live, `${rel} must offer recovery alternatives`).toMatch(
+        /alternatives=\{\[/,
+      );
+    }
+    // The governance branch is capability-derived (envelope `can(...)`),
+    // never a client-side role/plan string comparison.
+    const governance = stripComments(
+      readWeb("components/governance-experience/GovernanceControlPlane.tsx"),
     );
-    expect(personalBlockMatch).not.toBeNull();
-    expect(personalBlockMatch![0]).toMatch(/CapabilityDegradedPanel/);
+    expect(governance).toMatch(/ctx\.can\(\s*"GOVERNANCE_VIEW"\s*\)/);
+    // The cases branch is reserved for the genuine no-subject case —
+    // personal users with a healthy personal space are NOT locked out.
+    const cases = stripComments(
+      readWeb("components/cases-experience/CasesIndex.tsx"),
+    );
+    expect(cases).toMatch(/personalSpace\?\.status\s*===\s*"active"/);
   });
 });
 

@@ -27,7 +27,7 @@ vi.mock("../src/db.js", () => {
   // which preserves the original intent: the owner's plan drives the rails.
   const track =
     (name: string) =>
-    async (..._args: unknown[]) => {
+    async () => {
       H.writes.push(name);
       return { id: "x" };
     };

@@ -224,7 +224,6 @@ describe("Phase O — backfill safety", () => {
       const idx = stripped.indexOf(upd);
       const ctxBefore = stripped.slice(Math.max(0, idx - 1200), idx);
       const ctxAfter = stripped.slice(idx, idx + 500);
-      const ctx = ctxBefore + ctxAfter;
       const hasIsColumnsCheck =
         /information_schema\.columns/i.test(ctxBefore);
       const hasNullGuard =

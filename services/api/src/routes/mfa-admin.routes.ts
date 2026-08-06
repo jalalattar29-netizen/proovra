@@ -56,6 +56,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { getAuthUserId } from "../auth.js";
@@ -82,7 +84,8 @@ import {
 } from "../services/security/mfa-recovery-request.service.js";
 import {
   getMfaPolicy,
-  updateMfaPolicy,
+  updateMfaPolicyVersioned,
+  MfaPolicyVersionConflictError,
   type ResolvedMfaPolicy,
 } from "../services/identity-security/mfa-policy.service.js";
 import {
@@ -92,13 +95,20 @@ import {
 import { previewDigestForAdmin } from "../services/security/mfa-recovery-digest-preview.service.js";
 import { readRecoveryEventFeed } from "../services/security/mfa-recovery-event-feed.service.js";
 import {
+  listTrustedDevicesForUser,
+  projectTrustedDevice,
+} from "../services/identity-security/trusted-device.service.js";
+import {
   signMfaDigestSnoozeToken,
   verifyMfaDigestSnoozeToken,
   MFA_DIGEST_SNOOZE_TTL_SECONDS,
 } from "../services/security/mfa-digest-snooze-token.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { verifyJwt } from "../services/jwt.js";
-import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import {
+  projectSecurityEventDetails,
+  safeEmitSecurityEvent,
+} from "../services/security/security-event.service.js";
 import { getEmailService } from "../services/email.service.js";
 import {
   absoluteInternalUrl,
@@ -154,6 +164,121 @@ function mapScopeFailure(reason: MfaAdminScopeFailure): {
   }
 }
 
+/**
+ * PHASE 12B (2026-07-30) — SERVER-AUTHORIZED workspace scope for the
+ * `/v1/identity/mfa-admin/*` surface.
+ *
+ * DEFECT CLOSED: these routes carry `:teamId` (and `:userId`) in the PATH,
+ * so before this pass the CLIENT declared the tenant and the only thing
+ * standing between an attacker and another Organization's MFA posture was
+ * the service-level `assertAdminCanAct` membership lookup — which answers
+ * with DISTINGUISHABLE 403 (`admin_not_in_team`) vs 404
+ * (`target_not_in_team`) codes and therefore ENUMERATES workspaces and
+ * memberships. The path SHAPE is unchanged (other consumers/tests
+ * reference it); the ENFORCEMENT is now:
+ *
+ *   1. `authorizeOrFail` with `antiEnumeration: true` — ACTIVE membership,
+ *      Organization lifecycle, capability, audit emission, fail-closed.
+ *      A teamId belonging to another Organization returns 404 not_found.
+ *   2. OWNER/ADMIN-only narrowing (the identity.* capabilities are not
+ *      admin-exclusive) — concealed as 404, never 403.
+ *   3. The TARGET userId must hold an ACTIVE membership in the SAME
+ *      workspace — otherwise concealed 404.
+ *
+ * Every denial from this helper is the SAME 404 body, so an outside caller
+ * cannot tell "team does not exist" from "you are not an admin of it" from
+ * "that user is not a member".
+ */
+async function authorizeMfaAdminScope(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  opts: {
+    teamId: string;
+    permission:
+      | "identity.org_policy.read"
+      | "identity.org_policy.manage"
+      | "identity.access_review.action";
+    targetUserId?: string | null;
+  },
+): Promise<{ actorUserId: string; teamId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId: opts.teamId,
+    permission: opts.permission,
+    antiEnumeration: true,
+  });
+  if (!outcome) return null;
+  const conceal = () => {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  };
+  const actorMembership = await prisma.teamMember.findFirst({
+    where: {
+      teamId: opts.teamId,
+      userId: outcome.actorUserId,
+      status: "ACTIVE",
+    },
+    select: { role: true },
+  });
+  if (
+    !actorMembership ||
+    (actorMembership.role !== "OWNER" && actorMembership.role !== "ADMIN")
+  ) {
+    return conceal();
+  }
+  if (opts.targetUserId) {
+    const target = await prisma.teamMember.findFirst({
+      where: {
+        teamId: opts.teamId,
+        userId: opts.targetUserId,
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    });
+    if (!target) return conceal();
+  }
+  return outcome;
+}
+
+/**
+ * PHASE 12B — SAFE factor projection for the admin posture surface.
+ * The operator needs a factor id to revoke a single factor; the row also
+ * carries the AES-GCM envelope (`secretCiphertext` / `secretIv` /
+ * `secretAuthTag` / `secretKekId`). Those columns are NEVER selected here,
+ * so they cannot reach a response, a log, or the DOM.
+ */
+async function listSafeFactorsForTarget(userId: string): Promise<
+  Array<{
+    id: string;
+    kind: string;
+    status: string;
+    label: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+  }>
+> {
+  const rows = await prisma.mfaFactor.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 25,
+    select: {
+      id: true,
+      kind: true,
+      status: true,
+      label: true,
+      createdAt: true,
+      lastUsedAt: true,
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    kind: String(r.kind),
+    status: String(r.status),
+    label: r.label,
+    createdAt: r.createdAt.toISOString(),
+    lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
+  }));
+}
+
 const TeamUserParams = z.object({
   teamId: z.string().uuid(),
   userId: z.string().uuid(),
@@ -189,6 +314,11 @@ const VerifyEmailBody = z.object({
   token: z.string().trim().min(16).max(128),
 });
 const PatchPolicyBody = z.object({
+  // PHASE 12B — optimistic concurrency. The client MUST send the
+  // `policyVersion` it read; the value becomes part of the ATOMIC database
+  // mutation predicate (see `updateMfaPolicyVersioned`). A stale value
+  // mutates NOTHING and returns 409.
+  expectedPolicyVersion: z.number().int().min(0),
   level: MfaPolicyLevelSchema,
   stepUpTtlSeconds: z.number().int().min(60).max(3600).optional(),
   trustedDeviceTtlDays: z.number().int().min(1).max(180).optional(),
@@ -216,20 +346,34 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/posture/:teamId/:userId",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamUserParams.parse(req.params);
+      const scope = await authorizeMfaAdminScope(req, reply, {
+        teamId: params.teamId,
+        permission: "identity.org_policy.read",
+        targetUserId: params.userId,
+      });
+      if (!scope) return;
       const result = await readUserMfaPosture({
         teamId: params.teamId,
-        actorUserId,
+        actorUserId: scope.actorUserId,
         targetUserId: params.userId,
       });
       if (!result.ok) {
-        const m = mapScopeFailure(result.reason!);
-        reply.code(m.code);
-        return { error: m.message };
+        // The scope was already server-authorized above; any residual
+        // service-level refusal is concealed identically.
+        reply.code(404);
+        return { error: { code: "not_found" } };
       }
-      return { posture: result.posture };
+      return {
+        posture: result.posture,
+        factors: await listSafeFactorsForTarget(params.userId),
+        trustedDevices: (
+          await listTrustedDevicesForUser({
+            teamId: params.teamId,
+            userId: params.userId,
+          })
+        ).map(projectTrustedDevice),
+      };
     },
   );
 
@@ -240,13 +384,33 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamUserFactorParams.parse(req.params);
       const body = RevokeFactorBody.parse(req.body ?? {});
+      const scope = await authorizeMfaAdminScope(req, reply, {
+        teamId: params.teamId,
+        permission: "identity.access_review.action",
+        targetUserId: params.userId,
+      });
+      if (!scope) return;
+      // TARGET-BOUND step-up: the challenge is bound to the exact factor
+      // being revoked, so an approval for factor A can never satisfy a
+      // revoke of factor B.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: params.teamId,
+        userId: scope.actorUserId,
+        // PHASE 12B — dedicated purpose. Borrowing MFA_POLICY_UPDATE meant a
+        // challenge approved to change the workspace policy could also be spent
+        // to revoke a specific member's factor.
+        purpose: "MFA_FACTOR_REVOKE",
+        resourceKind: "mfa_factor",
+        resourceId: params.factorId,
+      });
+      if (gate.sent) return;
       const result = await revokeUserFactor({
         teamId: params.teamId,
-        actorUserId,
+        actorUserId: scope.actorUserId,
         targetUserId: params.userId,
         factorId: params.factorId,
         reason: body.reason,
@@ -254,18 +418,12 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         userAgent: readUserAgent(req),
       });
       if (!result.ok) {
-        if (
-          result.reason === "factor_not_found" ||
-          result.reason === "factor_not_active"
-        ) {
-          reply.code(404);
-          return { error: result.reason };
-        }
-        const m = mapScopeFailure(result.reason as MfaAdminScopeFailure);
-        reply.code(m.code);
-        return { error: m.message };
+        // Every refusal (missing factor, already-revoked factor, residual
+        // scope refusal) collapses to one concealed 404.
+        reply.code(404);
+        return { error: { code: "not_found" } };
       }
-      return { ok: true };
+      return { ok: true, targetUserId: params.userId, factorId: params.factorId };
     },
   );
 
@@ -276,24 +434,42 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamUserParams.parse(req.params);
       const body = RequireReenrollBody.parse(req.body ?? {});
+      const scope = await authorizeMfaAdminScope(req, reply, {
+        teamId: params.teamId,
+        permission: "identity.access_review.action",
+        targetUserId: params.userId,
+      });
+      if (!scope) return;
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: params.teamId,
+        userId: scope.actorUserId,
+        // PHASE 12B — dedicated purpose (see the factor-revoke note above).
+        purpose: "MFA_REENROLLMENT_REQUIRE",
+        resourceKind: "user",
+        resourceId: params.userId,
+      });
+      if (gate.sent) return;
       const result = await requireUserReenrollment({
         teamId: params.teamId,
-        actorUserId,
+        actorUserId: scope.actorUserId,
         targetUserId: params.userId,
         reason: body.reason,
         ipAddress: req.ip ?? null,
         userAgent: readUserAgent(req),
       });
       if (!result.ok) {
-        const m = mapScopeFailure(result.reason!);
-        reply.code(m.code);
-        return { error: m.message };
+        reply.code(404);
+        return { error: { code: "not_found" } };
       }
-      return { ok: true, revokedFactorCount: result.revokedFactorCount };
+      return {
+        ok: true,
+        targetUserId: params.userId,
+        revokedFactorCount: result.revokedFactorCount,
+      };
     },
   );
 
@@ -304,24 +480,42 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamUserParams.parse(req.params);
       const body = ResetTrustedDevicesBody.parse(req.body ?? {});
+      const scope = await authorizeMfaAdminScope(req, reply, {
+        teamId: params.teamId,
+        permission: "identity.access_review.action",
+        targetUserId: params.userId,
+      });
+      if (!scope) return;
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: params.teamId,
+        userId: scope.actorUserId,
+        // PHASE 12B — dedicated purpose (see the factor-revoke note above).
+        purpose: "MFA_TRUSTED_DEVICE_RESET",
+        resourceKind: "user_trusted_devices",
+        resourceId: params.userId,
+      });
+      if (gate.sent) return;
       const result = await resetTrustedDevicesForUser({
         teamId: params.teamId,
-        actorUserId,
+        actorUserId: scope.actorUserId,
         targetUserId: params.userId,
         reason: body.reason,
         ipAddress: req.ip ?? null,
         userAgent: readUserAgent(req),
       });
       if (!result.ok) {
-        const m = mapScopeFailure(result.reason!);
-        reply.code(m.code);
-        return { error: m.message };
+        reply.code(404);
+        return { error: { code: "not_found" } };
       }
-      return { ok: true, resetCount: result.resetCount };
+      return {
+        ok: true,
+        targetUserId: params.userId,
+        resetCount: result.resetCount,
+      };
     },
   );
 
@@ -332,19 +526,34 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/events/:teamId",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamParams.parse(req.params);
+      const scope = await authorizeMfaAdminScope(req, reply, {
+        teamId: params.teamId,
+        permission: "identity.org_policy.read",
+      });
+      if (!scope) return;
       const result = await listRecentMfaEvents({
         teamId: params.teamId,
-        actorUserId,
+        actorUserId: scope.actorUserId,
         limit: 50,
       });
       if (!result.ok) {
-        reply.code(403);
-        return { error: result.reason };
+        reply.code(404);
+        return { error: { code: "not_found" } };
       }
-      return { events: result.events };
+      // PHASE 12B — the service returns the RAW `details` JSON blob, which
+      // can carry device id hashes / correlation material an emitter folded
+      // in. Route the blob through the canonical allow-list projector so no
+      // hash or secret can reach the operator surface.
+      return {
+        events: result.events.map((e) => ({
+          id: e.id,
+          eventType: e.eventType,
+          severity: e.severity,
+          createdAt: e.createdAt,
+          details: projectSecurityEventDetails(e.details),
+        })),
+      };
     },
   );
 
@@ -576,7 +785,7 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
   // session signals.
   app.post(
     "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
-    async (req, _reply) => {
+    async (req) => {
       const actorUserId = readOptionalSessionUserId(req);
       void writeAnalyticsEvent({
         eventType: "mfa_recovery_verify_page_viewed",
@@ -680,12 +889,21 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         actorUserId,
       });
       if (!result.ok) {
-        if (result.reason === "request_not_found") {
-          reply.code(404);
-          return { error: "request_not_found" };
-        }
-        reply.code(403);
-        return { error: "not_authorized" };
+        // PHASE 12B ACCEPTANCE — CROSS-ORGANIZATION CONCEALMENT.
+        //
+        // This previously answered 403 `not_authorized` for a request the
+        // caller may not read and 404 `request_not_found` for one that does not
+        // exist. The difference made recovery-request ids ENUMERABLE across
+        // Organizations: an authenticated caller could walk ids and learn which
+        // ones name a real MFA recovery in someone else's Organization — that
+        // is, which of another tenant's users lost a second factor and when.
+        //
+        // Both outcomes are now byte-identical, matching the anti-enumeration
+        // contract `authorizeOrFail({ antiEnumeration: true })` applies
+        // everywhere else in this vertical: "not yours" and "not there" are
+        // indistinguishable.
+        reply.code(404);
+        return { error: "request_not_found" };
       }
       return { detail: result.detail };
     },
@@ -709,12 +927,12 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         actorUserId,
       });
       if (!result.ok) {
-        if (result.reason === "request_not_found") {
-          reply.code(404);
-          return { error: "request_not_found" };
-        }
-        reply.code(403);
-        return { error: "not_authorized" };
+        // PHASE 12B ACCEPTANCE — same cross-Organization concealment as the
+        // detail route above: the approval chain names WHO approved a recovery,
+        // so a distinguishable denial leaked both the request's existence and
+        // its approvers to another tenant.
+        reply.code(404);
+        return { error: "request_not_found" };
       }
       return { approvals: result.approvals };
     },
@@ -734,21 +952,12 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/policy/:teamId",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamParams.parse(req.params);
-      // Admin scope guard — re-uses the posture helper to check
-      // the actor is OWNER/ADMIN of the team.
-      const guard = await readUserMfaPosture({
+      const scope = await authorizeMfaAdminScope(req, reply, {
         teamId: params.teamId,
-        actorUserId,
-        targetUserId: actorUserId,
+        permission: "identity.org_policy.read",
       });
-      if (!guard.ok) {
-        const m = mapScopeFailure(guard.reason!);
-        reply.code(m.code);
-        return { error: m.message };
-      }
+      if (!scope) return;
       const policy: ResolvedMfaPolicy = await getMfaPolicy(params.teamId);
       return { policy };
     },
@@ -758,8 +967,6 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/policy/:teamId",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamParams.parse(req.params);
       const body = PatchPolicyBody.parse(req.body ?? {});
       // Pricing-hardening: MFA enforcement administration is Enterprise-only.
@@ -776,21 +983,28 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           },
         });
       }
-      // Same admin scope guard.
-      const guard = await readUserMfaPosture({
+      const scope = await authorizeMfaAdminScope(req, reply, {
         teamId: params.teamId,
-        actorUserId,
-        targetUserId: actorUserId,
+        permission: "identity.org_policy.manage",
       });
-      if (!guard.ok) {
-        const m = mapScopeFailure(guard.reason!);
-        reply.code(m.code);
-        return { error: m.message };
-      }
+      if (!scope) return;
+      // Changing the org MFA posture is itself a sensitive action, bound to
+      // the workspace whose posture is being rewritten.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: params.teamId,
+        userId: scope.actorUserId,
+        purpose: "MFA_POLICY_UPDATE",
+        resourceKind: "organization_security_policy",
+        resourceId: params.teamId,
+      });
+      if (gate.sent) return;
       try {
-        const updated = await updateMfaPolicy({
+        const updated = await updateMfaPolicyVersioned({
           teamId: params.teamId,
-          actorUserId,
+          actorUserId: scope.actorUserId,
+          expectedPolicyVersion: body.expectedPolicyVersion,
           level: body.level,
           ...(body.stepUpTtlSeconds !== undefined
             ? { stepUpTtlSeconds: body.stepUpTtlSeconds }
@@ -806,10 +1020,28 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         });
         return { policy: updated };
       } catch (err) {
+        if (err instanceof MfaPolicyVersionConflictError) {
+          reply.code(409);
+          return {
+            error: {
+              code: "MFA_POLICY_VERSION_CONFLICT",
+              message:
+                "The MFA policy changed while you were editing it. Reload, review, and retry.",
+              details: {
+                expectedVersion: err.expectedVersion,
+                currentVersion: err.currentVersion,
+              },
+            },
+          };
+        }
         const msg = err instanceof Error ? err.message : "policy_update_failed";
         if (msg === "invalid_fail_mode") {
           reply.code(400);
-          return { error: "invalid_fail_mode" };
+          return { error: { code: "invalid_fail_mode" } };
+        }
+        if (msg === "org_security_policy_not_applicable") {
+          reply.code(400);
+          return { error: { code: "ORG_SECURITY_POLICY_NOT_APPLICABLE" } };
         }
         throw err;
       }
@@ -1158,6 +1390,7 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           details: {
             actorUserId,
             reason: "transport_error",
+            errorCode: err instanceof Error ? err.name.slice(0, 64) : "unknown_error",
           },
         });
         void writeAnalyticsEvent({

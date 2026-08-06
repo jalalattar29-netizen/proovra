@@ -47,11 +47,16 @@ const OPS_ROUTES = readApi("src/routes/ops.routes.ts");
 const COMMAND_CENTER = readApi(
   "src/services/dashboard/command-center.service.ts",
 );
-const REVIEWER_BACKEND = readApi(
-  "src/services/reviewer-ops/reviewer-command.service.ts",
-);
+// Phase 12 Point 4 — the reviewer-ops command aggregator + its
+// unmounted `ReviewerCommandConsole` were removed. The canonical
+// reviewer read path is the console aggregator, and the canonical
+// reviewer surface is `/review` → `ReviewerConsole`.
+const REVIEWER_BACKEND = readApi("src/routes/reviewer-console.routes.ts");
 const REVIEWER_TSX = readWeb(
-  "components/reviewer-experience/ReviewerCommandConsole.tsx",
+  "components/reviewer-experience/ReviewerConsole.tsx",
+);
+const REVIEWER_BULK_TSX = readWeb(
+  "components/reviewer-experience/ReviewerBulkOpsBar.tsx",
 );
 const GOVERNANCE_TSX = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",
@@ -72,24 +77,28 @@ const CC_TSX = readWeb("components/command-center/CommandCenter.tsx");
 describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
   it("Reviewer Ops does NOT early-return a plain text fallback for personal workspace", () => {
     // The previous broken pattern wrapped EVERY non-team workspace in a
-    // <section data-reviewer-personal> with only text. The new layout
-    // renders the full surface plus an inline banner.
+    // <section data-reviewer-personal> with only text. The reviewer
+    // surface never ships that shape: page-level denial is the
+    // structured PageRouteGate panel, and the only team-only affordance
+    // inside the console (bulk triage) degrades to a labelled banner
+    // rather than blanking the surface.
     expect(REVIEWER_TSX).not.toMatch(
       /<section className="cc-section" data-reviewer-personal>/,
     );
-    expect(REVIEWER_TSX).toMatch(/data-reviewer-personal-banner/);
+    expect(REVIEWER_BULK_TSX).toMatch(/data-reviewer-bulk-personal-banner/);
   });
 
-  it("Reviewer Ops renders all section components for both scopes", () => {
-    // The non-team branch used to skip these. Now they render every time.
-    const block = REVIEWER_TSX.match(/!isTeam \? \([\s\S]*?\) : null\}[\s\S]*?ReconciliationSection/);
-    expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/<SummarySection/);
-    expect(block![0]).toMatch(/<QueuePeekSection/);
-    expect(block![0]).toMatch(/<EscalationsSection/);
-    expect(block![0]).toMatch(/<WorkloadSection/);
-    expect(block![0]).toMatch(/<PolicySection/);
-    expect(block![0]).toMatch(/<ReconciliationSection/);
+  it("Reviewer Ops renders every console section for both scopes", () => {
+    // The console renders its sections unconditionally; scope only
+    // changes what is actionable, never what is visible.
+    expect(REVIEWER_TSX).toMatch(/<QueueTable/);
+    expect(REVIEWER_TSX).toMatch(/<EscalationsTable/);
+    expect(REVIEWER_TSX).toMatch(/<WorkloadTable/);
+    expect(REVIEWER_TSX).toMatch(/<SlaPanel/);
+    expect(REVIEWER_TSX).toMatch(/<SavedViewsPanel/);
+    expect(REVIEWER_TSX).toMatch(/<MultiStageReviewSummaryCard/);
+    // No scope-conditional early return that swaps the whole surface.
+    expect(REVIEWER_TSX).not.toMatch(/!isTeam \? \(/);
   });
 
   it("Governance does NOT early-return a plain text fallback for personal workspace", () => {
@@ -99,18 +108,16 @@ describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
     expect(GOVERNANCE_TSX).toMatch(/data-governance-personal-banner/);
   });
 
-  it("Reviewer Ops backend returns status='ok' (not 'not_applicable') for personal workspace", () => {
-    expect(REVIEWER_BACKEND).toMatch(
-      /scope === "PERSONAL"[\s\S]{0,400}status:\s*"ok"/,
-    );
-    expect(REVIEWER_BACKEND).not.toMatch(
-      /scope === "PERSONAL"[\s\S]{0,400}status:\s*"not_applicable"/,
-    );
+  it("Reviewer Ops backend never marks a section 'not_applicable' by scope", () => {
+    // The console aggregator degrades a section only when its own
+    // sub-query fails; workspace scope never turns a section off.
+    expect(REVIEWER_BACKEND).toMatch(/status:\s*"degraded"/);
+    expect(REVIEWER_BACKEND).not.toMatch(/status:\s*"not_applicable"/);
   });
 
-  it("Reviewer Ops personal banner labels team-only actions explicitly", () => {
-    expect(REVIEWER_TSX).toMatch(
-      /Team-only actions[\s\S]{0,200}disabled with clear labels/,
+  it("Reviewer Ops personal banner labels the team-only action explicitly", () => {
+    expect(REVIEWER_BULK_TSX).toMatch(
+      /Bulk reviewer operations require a workspace[\s\S]{0,200}open each workflow individually/,
     );
   });
 
@@ -150,8 +157,6 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
   // /v1/teams itself. The canonical envelope's
   // `envelope.availableWorkspaces` carries pre-resolved names. See
   // phase-32-8-foundation-platform-context.test.ts.
-  it.skip("teams fetch does NOT fall back to the raw id as the name", () => {});
-
   it("workspace switcher options render canonical labels, never raw UUIDs (P3/P4 domain remediation 2026-07-21)", () => {
     // ENTERPRISE TENANT MODEL — the switcher is the persistent context chip's
     // canonical panel; EVERY group renders its options through the ONE shared
@@ -169,9 +174,15 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
     // organizations fall back to displayName / name / "Organization
     // workspace", never to the raw id.
     expect(ACCOUNT_RESOLVER).toMatch(/label:\s*"Personal Space"/);
+    // Phase 12 Point 4: this pinned a dead `orgLabel(org)` helper that read the
+    // FLAT `organizations` list Pass E replaced with the server-authorized
+    // `contextOptions` projection. The live organization-workspace label comes
+    // from that projection, and still falls back to a bounded literal rather
+    // than to the raw id.
     expect(ACCOUNT_RESOLVER).toMatch(
-      /org\.displayName \?\?[\s\S]{0,80}Organization workspace/,
+      /label:\s*w\.workspaceName \?\? "Organization workspace"/,
     );
+    expect(ACCOUNT_RESOLVER).not.toMatch(/function orgLabel\(/);
     // The resolver never uses the workspace id as a label fallback either.
     expect(ACCOUNT_RESOLVER).not.toMatch(/label:\s*w\.workspaceId/); // (P3/P4 domain remediation 2026-07-21)
   });
@@ -701,7 +712,7 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
   });
 
   it("reviewer-ops + governance UI gating fix preserves the SectionShell pattern", () => {
-    expect(REVIEWER_TSX).toMatch(/<SummarySection/);
+    expect(REVIEWER_TSX).toMatch(/<PageSection/);
     expect(GOVERNANCE_TSX).toMatch(/<nav className="case-tabs"/);
   });
 });

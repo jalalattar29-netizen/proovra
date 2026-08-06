@@ -12,7 +12,7 @@
  *   Public verify DESTROYED — anti-enumeration 404.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -46,8 +46,14 @@ const LIFECYCLE_BADGE = readSource(
 const GOVERNANCE_SUMMARY = readSource(
   "../../../apps/web/components/governance/GovernanceSummary.tsx",
 );
+// Phase 12 Point 4 — the Phase G1 `ExportEligibilityPreflight` was a
+// duplicate of the Phase G2 `GovernedExportAction` wrapper that
+// actually ships (mounted on evidence detail + the reports index). Its
+// unique presentation (bounded outcome labels, lifecycle state, honest
+// error copy) was migrated onto the wrapper and the duplicate deleted.
+// The F.3 contract below now targets the surface operators see.
 const EXPORT_PREFLIGHT = readSource(
-  "../../../apps/web/components/governance/ExportEligibilityPreflight.tsx",
+  "../../../apps/web/components/governance/GovernedExportAction.tsx",
 );
 const RETENTION_CONFLICT = readSource(
   "../../../apps/web/components/governance/RetentionConflictAlert.tsx",
@@ -231,10 +237,75 @@ describe("Phase G1 (F.2) — GovernanceSummary component", () => {
 });
 
 // ===========================================================================
-// F.3 — ExportEligibilityPreflight
+// F.3 — export eligibility pre-flight (canonical GovernedExportAction)
 // ===========================================================================
 
-describe("Phase G1 (F.3) — ExportEligibilityPreflight component", () => {
+describe("Phase G1 (F.3) — export eligibility pre-flight", () => {
+  it("the duplicate preflight component stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../../../apps/web/components/governance/ExportEligibilityPreflight.tsx",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("is mounted on the surfaces that actually offer exports", () => {
+    // The F.3 capability is only real if it gates a real button.
+    //
+    // Phase 12 Point 4 (Pass E) — retargeted from the evidence-library
+    // `ArtifactPanel`, which had been unmounted when the library preview
+    // pane moved to `QueueSelectionPreview`, leaving evidence exports with
+    // NO governance preflight. The wrapper now lives on
+    // `ArtifactHistorySection`, the canonical Artifacts-tab surface that
+    // owns the real "Download latest" buttons.
+    const artifactHistory = readSource(
+      "../../../apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
+    );
+    const reportsIndex = readSource(
+      "../../../apps/web/components/reports-experience/ReportsIndex.tsx",
+    );
+    for (const [name, src] of [
+      ["ArtifactHistorySection", artifactHistory],
+      ["ReportsIndex", reportsIndex],
+    ] as const) {
+      expect(src, `${name} must mount the governed export wrapper`).toMatch(
+        /<GovernedExportAction/,
+      );
+      // A2 vocabulary — Report PDF and Verification Package ZIP are
+      // never collapsed into one "Export" action.
+      expect(src).toMatch(/actionLabel="Download Report PDF"/);
+      expect(src).toMatch(
+        /actionLabel="Download Verification Package ZIP"/,
+      );
+    }
+  });
+
+  it("renders the bounded outcome label + lifecycle state from the server projection", () => {
+    expect(EXPORT_PREFLIGHT).toMatch(/OUTCOME_LABEL\[outcome!\]/);
+    expect(EXPORT_PREFLIGHT).toMatch(/Blocked by legal hold/);
+    expect(EXPORT_PREFLIGHT).toMatch(/Blocked by lifecycle state/);
+    expect(EXPORT_PREFLIGHT).toMatch(/Blocked by active destruction review/);
+    expect(EXPORT_PREFLIGHT).toMatch(/Blocked by workspace policy/);
+    expect(EXPORT_PREFLIGHT).toMatch(/data-governed-export-lifecycle/);
+  });
+
+  it("surfaces the eligibility-check failure instead of swallowing it", () => {
+    expect(EXPORT_PREFLIGHT).toMatch(/toSafeUserError\(/);
+    expect(EXPORT_PREFLIGHT).toMatch(/Could not check export eligibility/);
+    // No bare empty catch on the eligibility read.
+    expect(EXPORT_PREFLIGHT).not.toMatch(/\}\s*catch\s*\{\s*\n\s*if \(mountedRef/);
+  });
+
+  it("never enables the action unless the server says ALLOWED", () => {
+    expect(EXPORT_PREFLIGHT).toMatch(/const allowed = outcome === "ALLOWED"/);
+    expect(EXPORT_PREFLIGHT).toMatch(/if \(!allowed\) return;/);
+    expect(EXPORT_PREFLIGHT).toMatch(/disabled: !allowed/);
+  });
   it("consumes /v1/governance/export-eligibility with teamId + evidenceId", () => {
     expect(EXPORT_PREFLIGHT).toMatch(
       /\/v1\/governance\/export-eligibility\?teamId=\$\{encodeURIComponent/,
@@ -251,9 +322,27 @@ describe("Phase G1 (F.3) — ExportEligibilityPreflight component", () => {
   });
 
   it("renders next-step copy for each blocked outcome", () => {
-    expect(EXPORT_PREFLIGHT).toContain("data-export-preflight-next-step");
+    expect(EXPORT_PREFLIGHT).toContain("data-governed-export-next-step");
     expect(EXPORT_PREFLIGHT).toMatch(/Release the active legal hold/);
     expect(EXPORT_PREFLIGHT).toMatch(/destruction review must resolve/);
+  });
+
+  it("the eligibility verdict the UI shows is enforced server-side", () => {
+    // Without this, a direct API call bypasses the gate the product
+    // told the operator was in force.
+    const evidenceRoutes = readSource("../src/routes/evidence.routes.ts");
+    const blocks =
+      evidenceRoutes.match(/checkExportEligibility\(\{[\s\S]{0,400}?\}\)/g) ?? [];
+    expect(
+      blocks.length,
+      "report + package download routes must both consult checkExportEligibility",
+    ).toBeGreaterThanOrEqual(2);
+    expect(evidenceRoutes).toMatch(
+      /Report download is blocked by evidence export eligibility/,
+    );
+    expect(evidenceRoutes).toMatch(
+      /Verification package download is blocked by evidence export eligibility/,
+    );
   });
 
   it("is read-only — never mutates state", () => {
@@ -264,7 +353,8 @@ describe("Phase G1 (F.3) — ExportEligibilityPreflight component", () => {
   });
 
   it("supports per-call actionLabel so Report PDF / Verification Package ZIP are not collapsed", () => {
-    expect(EXPORT_PREFLIGHT).toMatch(/actionLabel\s*=\s*"Export"/);
+    expect(EXPORT_PREFLIGHT).toMatch(/actionLabel: string;/);
+    expect(EXPORT_PREFLIGHT).toMatch(/data-governed-export-action=\{actionLabel\}/);
   });
 });
 
@@ -298,7 +388,7 @@ describe("Phase G1 — vocabulary discipline", () => {
   const surfaces: Array<{ name: string; src: string }> = [
     { name: "LifecycleStateBadge", src: LIFECYCLE_BADGE },
     { name: "GovernanceSummary", src: GOVERNANCE_SUMMARY },
-    { name: "ExportEligibilityPreflight", src: EXPORT_PREFLIGHT },
+    { name: "GovernedExportAction", src: EXPORT_PREFLIGHT },
     { name: "RetentionConflictAlert", src: RETENTION_CONFLICT },
   ];
 

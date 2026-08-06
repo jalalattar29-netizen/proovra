@@ -130,7 +130,7 @@ export class DisabledEmbeddingProvider implements EmbeddingProvider {
   readonly name = "disabled";
   readonly model = "disabled";
   readonly dimensions = 0;
-  async embedText(_text: string): Promise<Float32Array | null> {
+  async embedText(): Promise<Float32Array | null> {
     return null;
   }
   async embedBatch(texts: string[]): Promise<Array<Float32Array | null>> {

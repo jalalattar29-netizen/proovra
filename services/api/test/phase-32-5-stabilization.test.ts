@@ -30,7 +30,7 @@
  *      but had no creator).
  */
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -143,8 +143,12 @@ describe("Phase 32.5 — evidence detail page artifact polling", () => {
   // Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
   // concatenate the orchestrator + every tab body so source-shape
   // assertions still find the relevant snippets.
+  // PHASE 12 POINT 4 — the artifact-readiness poll was extracted from the
+  // orchestrator into its own hook (the page is orchestration only, enforced
+  // by an 80 KB guard). Included here for the same reason the tab bodies are.
   const PAGE_SRC = [
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_hooks/useArtifactReadinessPoll.ts",
     "../../../apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
@@ -185,7 +189,11 @@ describe("Phase 32.5 — evidence detail page artifact polling", () => {
     expect(code).toMatch(
       /stateChanged\s*=\s*reportNowAvailable !== priorReportAvailable \|\|\s*packageNowAvailable !== priorPackageAvailable/,
     );
-    expect(code).toMatch(/if \(stateChanged\) \{\s*await loadWorkspace\(\);/);
+    // The reload is injected into the extracted hook as `reloadWorkspace`
+    // (bound to the orchestrator's `loadWorkspace`), so the requirement is
+    // that the reload happens ONLY inside the state-transition branch.
+    expect(code).toMatch(/if \(stateChanged\) \{\s*await reloadWorkspace\(\);/);
+    expect(code).toMatch(/reloadWorkspace: loadWorkspace,/);
   });
 
   it("polling is gated on finalized status (SIGNED or REPORTED) — no polling for CREATED/UPLOADING", () => {
@@ -201,7 +209,6 @@ describe("Phase 32.5 — evidence detail page artifact polling", () => {
 
 describe("Phase 32.5 — governance route schema-drift bounded handler", () => {
   const HELPER_SRC = readSource("../src/routes/_governance-error-bound.ts");
-  const ROUTES_SRC = readSource("../src/routes/governance.routes.ts");
 
   it("helper recognises Prisma schema-drift codes P2022 / P2021 / P2025", () => {
     expect(HELPER_SRC).toMatch(/"P2022".*Column does not exist/);
@@ -224,31 +231,10 @@ describe("Phase 32.5 — governance route schema-drift bounded handler", () => {
     expect(HELPER_SRC).toMatch(/throw err;/);
   });
 
-  it("the CORE governance read routes consume runGovernanceHandler", () => {
-    // Phase 32.7.6 — `/v1/governance/case-legal-holds` was lifted
-    // OUT of the generic `runGovernanceHandler` wrapper into a
-    // per-endpoint optional-subsystem handler (P2021/P2022 → 200
-    // empty + WARN log). The 3 remaining CORE read routes still
-    // wrap with the 503 fail-closed contract:
-    //   * /v1/governance/policy
-    //   * /v1/governance/legal-holds
-    //   * /v1/governance/retention-candidates
-    const wrapsCount = (
-      ROUTES_SRC.match(/await runGovernanceHandler\(reply,/g) ?? []
-    ).length;
-    expect(wrapsCount).toBeGreaterThanOrEqual(3);
-
-    // And the case-legal-holds GET is intentionally NOT among
-    // them — that's the Phase 32.7.6 optional-subsystem
-    // contract.
-    const caseGetIdx = ROUTES_SRC.indexOf(
-      'app.get(\n    "/v1/governance/case-legal-holds"',
-    );
-    expect(caseGetIdx).toBeGreaterThan(-1);
-    const caseNextHandler = ROUTES_SRC.indexOf("app.post(", caseGetIdx);
-    const caseGetBody = ROUTES_SRC.slice(caseGetIdx, caseNextHandler);
-    expect(caseGetBody).not.toMatch(/runGovernanceHandler\(reply,/);
-  });
+  // Phase 12 convergence — the CORE governance read routes (policy /
+  // legal-holds / retention-candidates / case-legal-holds) were removed as
+  // DEAD_LEGACY; their runGovernanceHandler wrap assertions retired with them.
+  // The _governance-error-bound helper (HELPER_SRC above) is still validated.
 });
 
 // =============================================================================
@@ -256,55 +242,28 @@ describe("Phase 32.5 — governance route schema-drift bounded handler", () => {
 // =============================================================================
 
 describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
-  const PROFILE_SRC = readSource(
-    "../../../apps/web/lib/workspace-profile.ts",
-  );
-  const SIDEBAR_SRC = readSource(
-    "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
-  );
-  // Phase 38.6 — the canonical navigation source of truth is the
-  // route registry (`lib/navigation/routeRegistry.ts`). The legacy
-  // `lib/navigation-config.ts` was deleted; route/href invariants
-  // that used to be asserted against it are re-pointed here.
+  // PHASE 12 POINT 4 PASS D/G — `lib/workspace-profile.ts` had ZERO importers
+  // (the shell reads the canonical route registry) and was deleted. The three
+  // tests that lived here described the internal shape of that dead module —
+  // its profile catalog, its role catalog and its visibility predicate — none
+  // of which any shipped surface consumed. They are replaced by a guard that
+  // keeps the module from returning, and by the registry invariants below,
+  // which assert the navigation behaviour users actually get.
+  // Phase 38.6 — the canonical navigation source of truth is the route
+  // registry (`lib/navigation/routeRegistry.ts`); the legacy
+  // `lib/navigation-config.ts` was deleted and its href invariants live here.
   const NAV_CONFIG_SRC = readSource(
     "../../../apps/web/lib/navigation/routeRegistry.ts",
   );
 
-  it("workspace profile catalog has 6 bounded values including INDIVIDUAL and ENTERPRISE_ADMIN", () => {
-    const m = PROFILE_SRC.match(
-      /export const WORKSPACE_PROFILES = \[([\s\S]*?)\] as const/,
-    );
-    expect(m).toBeTruthy();
-    const entries = (m![1].match(/"[A-Z_]+"/g) ?? []).map((e) => e.slice(1, -1));
-    expect(entries.sort()).toEqual([
-      "ENTERPRISE_ADMIN",
-      "INDIVIDUAL",
-      "INSURANCE",
-      "INVESTIGATION",
-      "JOURNALISM",
-      "LEGAL",
-    ]);
-  });
-
-  it("workspace role catalog includes the bounded set", () => {
-    const m = PROFILE_SRC.match(
-      /export const WORKSPACE_ROLES = \[([\s\S]*?)\] as const/,
-    );
-    expect(m).toBeTruthy();
-    const entries = (m![1].match(/"[A-Z_]+"/g) ?? []).map((e) => e.slice(1, -1));
-    expect(entries).toContain("OWNER");
-    expect(entries).toContain("ADMIN");
-    expect(entries).toContain("MEMBER");
-    expect(entries).toContain("VIEWER");
-  });
-
-  it("filterByVisibility honours platform-admin + roles + profiles predicates", () => {
-    const code = stripComments(PROFILE_SRC);
-    expect(code).toMatch(
-      /if \(v\.requiresPlatformAdmin && !context\.isPlatformAdmin\) return false/,
-    );
-    expect(code).toMatch(/if \(!v\.roles\.includes\(context\.role\)\) return false/);
-    expect(code).toMatch(/if \(!v\.profiles\.includes\(context\.profile\)\) return false/);
+  it("the unmounted workspace-profile module stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL("../../../apps/web/lib/workspace-profile.ts", import.meta.url),
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("sidebar removes the duplicate /governance#... anchor links", () => {
@@ -331,12 +290,9 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
   // structural assertion no longer has a source to read. Role gating
   // is now enforced server-side and covered by the platform-context
   // + route-authz tests.
-  it.skip("administration items gate visibility on OWNER/ADMIN role (removed with navigation-config)", () => {});
-
   // OBSOLETE — Phase 32.8 Foundation removed `selectNavigationGroups`
   // from the sidebar entirely. The server pre-filters navigation via
   // /v1/platform/context. See phase-32-8-foundation-platform-context.test.ts.
-  it.skip("sidebar consumes selectNavigationGroups exactly once (Phase 32.8B data-driven)", () => {});
 });
 
 // =============================================================================
@@ -348,21 +304,44 @@ describe("Phase 32.5 — consolidated migration absorbs drift patches", () => {
     "../prisma/migrations/20260620100000_phase24_31_consolidated_drift_patches/migration.sql";
   const MIGRATION_SRC = readSource(MIGRATION_PATH);
 
-  it("migration absorbs every drift patch listed in services/api/sql/drift-patches/", () => {
+  it("every drift patch is absorbed by SOME migration", () => {
+    // The invariant is "no drift patch exists that no migration applies" —
+    // otherwise a fresh database and a patched one diverge, silently.
+    //
+    // This used to check absorption by the 2026-06 consolidated migration
+    // ALONE, which was correct only while that migration was the newest one.
+    // A patch authored later is absorbed by its own migration and would fail a
+    // check scoped to the consolidation — a false negative that would push the
+    // next author to either skip the patch or backdate it into a migration that
+    // has already been applied in production. Both are worse than widening the
+    // search.
     const driftDir = fileURLToPath(
       new URL("../../api/sql/drift-patches/", import.meta.url),
     );
+    const migrationsDir = fileURLToPath(
+      new URL("../prisma/migrations/", import.meta.url),
+    );
     const patches = readdirSync(driftDir).filter((f) => f.endsWith(".sql"));
     expect(patches.length).toBeGreaterThanOrEqual(16);
-    // The migration's header lists every patch by filename. Verify
-    // every drift-patch file appears as a "BLOCK:" anchor or in the
-    // header preamble.
+
+    const migrationBodies = readdirSync(migrationsDir)
+      .filter((d) => /^\d{14}_/.test(d))
+      .map((d) => {
+        const p = fileURLToPath(
+          new URL(`../prisma/migrations/${d}/migration.sql`, import.meta.url),
+        );
+        return existsSync(p) ? readFileSync(p, "utf8") : "";
+      });
+
     for (const patch of patches) {
-      expect(
+      // A patch is absorbed either by NAME (the consolidation lists each one)
+      // or by CONTENT (a later migration carries the same statements and names
+      // the patch in its own header).
+      const absorbed =
         MIGRATION_SRC.includes(`BLOCK: ${patch}`) ||
-          MIGRATION_SRC.includes(patch),
-        `Migration must absorb drift patch ${patch}`,
-      ).toBe(true);
+        MIGRATION_SRC.includes(patch) ||
+        migrationBodies.some((body) => body.includes(patch));
+      expect(absorbed, `No migration absorbs drift patch ${patch}`).toBe(true);
     }
   });
 

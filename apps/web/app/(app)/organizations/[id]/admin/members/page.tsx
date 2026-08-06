@@ -81,7 +81,26 @@ interface InviteRow {
   lastResentAt: string | null;
   resendCount: number;
   createdAt: string;
+  /** Macro-Wave A2 — durable email-delivery state for this invite.
+   *  Safe projection only (never a token or accept URL). */
+  delivery: {
+    deliveryId: string;
+    status: "PENDING" | "SENT" | "FAILED" | "CANCELLED";
+    attempts: number;
+    lastError: string | null;
+  } | null;
 }
+
+/** Plain-language label + tone for the invite email-delivery state. */
+const DELIVERY_LABEL: Record<
+  NonNullable<InviteRow["delivery"]>["status"],
+  { label: string; color: string }
+> = {
+  PENDING: { label: "Email queued", color: "var(--ink-muted, #94a3b8)" },
+  SENT: { label: "Email sent", color: "var(--status-ok-fg, #166534)" },
+  FAILED: { label: "Email failed", color: "var(--status-risk-fg, #991b1b)" },
+  CANCELLED: { label: "Email cancelled", color: "var(--ink-muted, #94a3b8)" },
+};
 
 interface InvitesResponse {
   organizationId: string;
@@ -640,6 +659,24 @@ function MembersTab() {
                       {formatUserDateTime(i.expiresAt)}
                       {i.resendCount > 0 ? ` · resent ${i.resendCount}×` : ""}
                     </div>
+                    {i.delivery ? (
+                      <div
+                        data-delivery-status={i.delivery.status}
+                        style={{
+                          marginTop: 2,
+                          fontSize: 12,
+                          color: DELIVERY_LABEL[i.delivery.status].color,
+                        }}
+                      >
+                        {DELIVERY_LABEL[i.delivery.status].label}
+                        {i.delivery.attempts > 1
+                          ? ` · ${i.delivery.attempts} attempts`
+                          : ""}
+                        {i.delivery.status === "FAILED"
+                          ? " — use Resend to retry with a fresh link"
+                          : ""}
+                      </div>
+                    ) : null}
                     {err ? (
                       <div role="alert" style={{ marginTop: 4, fontSize: 12, color: "var(--status-risk-fg, #991b1b)" }}>
                         {err}

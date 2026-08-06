@@ -45,6 +45,10 @@ export const TRUST_AUDIT_TARGET_TYPES = [
   "CROSS_ORG_REVIEW",
   "DELEGATED_ADMIN_GRANT",
   "DEPARTMENT",
+  // PHASE 12B CLUSTER 14 — the membership row itself is the audit subject
+  // for DEPARTMENT_MEMBERSHIP_GRANTED / _REVOKED. `DEPARTMENT` remains the
+  // subject for department create / archive.
+  "DEPARTMENT_MEMBERSHIP",
 ] as const;
 export type TrustAuditTargetType = (typeof TRUST_AUDIT_TARGET_TYPES)[number];
 

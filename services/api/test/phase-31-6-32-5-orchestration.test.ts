@@ -29,6 +29,14 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  JOB_NAMES,
+  LIVE_QUEUE_JOB_STATES,
+  MEDIA_INTELLIGENCE_JOB_KINDS,
+  buildCanonicalJobId,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
+import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -95,17 +103,57 @@ describe("Phase 31.6 — API enqueue producer", () => {
   const src = readSource(
     "../../../services/api/src/queue/media-intelligence-queue.ts",
   );
+  // The shared transport client this module now delegates its Redis handle to.
+  const clientSrc = readSource(
+    "../../../services/api/src/queue/canonical-queue-client.ts",
+  );
 
-  it("lazy-inits the Redis connection (so importing the module without REDIS_URL doesn't crash tests)", () => {
-    expect(src).toMatch(/let _queue:\s*Queue\s*\|\s*null\s*=\s*null/);
-    expect(src).toMatch(/function getQueue\(\):\s*Queue/);
-    expect(src).toMatch(/if \(_queue\) return _queue/);
+  /**
+   * PHASE 12 — POINT 5 moved this module's transport and identity concerns out.
+   *
+   * The lazy Redis handle now lives in `canonical-queue-client.ts` (one
+   * connection, shared by every api producer, memoised per queue) and the job
+   * id is `buildCanonicalJobId` from the registry prefix. The three assertions
+   * this replaces pinned a private `_queue` singleton and a private
+   * `buildMediaIntelligenceJobId` — both deleted, both duplication.
+   *
+   * The GUARANTEES they encoded are preserved and asserted below against the
+   * thing that now owns them.
+   */
+  it("importing the module without REDIS_URL is safe (lazy transport)", () => {
+    // The property that mattered: tests import this module freely. It is now
+    // true because the module holds no connection at all — it delegates.
+    expect(src).not.toMatch(/new IORedis\(/);
+    expect(src).toMatch(/canonical-queue-client\.js/);
+    expect(clientSrc).toMatch(/let _connection: IORedis \| null = null/);
+    expect(clientSrc).toMatch(/function getConnection\(\): IORedis/);
   });
 
-  it("buildMediaIntelligenceJobId uses the bounded mi-<kind>-<evidenceId> pattern", () => {
-    expect(src).toMatch(
-      /export function buildMediaIntelligenceJobId\([\s\S]*?return `mi-\$\{kind\}-\$\{evidenceId\}`/,
+  it("the job id is deterministic and names the DURABLE ROW, not two payload fields", () => {
+    // `mi-<kind>-<evidenceId>` re-encoded two fields the processor had to
+    // believe. The id is now `mi-run-<runId>`: one live job per run row, which
+    // is what "one job per durable authority" means.
+    // The DECLARATION is gone; the deletion note that names it is allowed to
+    // survive, because a reader arriving from the old code needs to find out
+    // where the identity went.
+    expect(src).not.toMatch(/function buildMediaIntelligenceJobId/);
+    const entry = getWorkEntryOrThrow(JOB_NAMES.RUN_MEDIA_INTELLIGENCE);
+    expect(entry.jobIdPrefix).toBe("mi-run");
+    expect(entry.durableAuthority.model).toBe("MediaIntelligenceRun");
+    const prefixed = { jobIdPrefix: entry.jobIdPrefix! };
+    expect(buildCanonicalJobId(prefixed, "run-1")).toBe("mi-run-run-1");
+    expect(buildCanonicalJobId(prefixed, "run-1")).toBe(
+      buildCanonicalJobId(prefixed, "run-1"),
     );
+  });
+
+  it("the durable run row is MANDATORY before enqueue (no orphan jobs)", () => {
+    // The regression this pins is a real production defect: `runId` used to be
+    // OPTIONAL and the finalization fan-out passed none, so those jobs ran with
+    // no row to record PROCESSING / COMPLETED / FAILED on — invisible to
+    // operators and unrecoverable by any reconciler.
+    expect(src).toMatch(/enqueueMediaIntelligenceRun\(/);
+    expect(src).toMatch(/run_tracker_unavailable/);
   });
 
   it("enqueue returns { enqueued: false, reason } on Redis outage — never throws", () => {
@@ -126,17 +174,23 @@ describe("Phase 31.6 — API enqueue producer", () => {
   });
 
   it("idempotently collapses repeat triggers (re-uses queued/active/delayed job)", () => {
-    expect(src).toMatch(/getJob\(jobId\)/);
-    expect(src).toMatch(/state === "waiting"/);
-    expect(src).toMatch(/state === "active"/);
-    expect(src).toMatch(/state === "delayed"/);
+    // The collapse ladder moved into the ONE shared enqueue authority. Having
+    // it here was the duplication: the api and the worker each carried a copy
+    // and the two had already drifted on whether a collapsed enqueue reports
+    // success. Behavioural proof of the ladder itself lives in the Point-5 gate.
+    expect(src).not.toMatch(/state === "waiting"/);
+    expect(src).toMatch(/enqueueCanonicalWork\(/);
+    expect(LIVE_QUEUE_JOB_STATES).toContain("waiting");
+    expect(LIVE_QUEUE_JOB_STATES).toContain("active");
+    expect(LIVE_QUEUE_JOB_STATES).toContain("delayed");
   });
 
   it("MEDIA_INTELLIGENCE_JOB_KINDS catalog exposes the active enqueue kinds", () => {
-    // Phase Repair: compute_duplicates / compute_lineage were dropped
-    // from the queue vocabulary because no producer enqueues them and
-    // no UI advertises them. They remain in the DB-backed
-    // MEDIA_INTELLIGENCE_RUN_KINDS for legacy row history only.
+    // PHASE 12 — POINT 5: the catalog is re-exported from the shared registry
+    // rather than declared here. It had drifted three ways — this file, the
+    // worker's branch set and the run tracker each had a different list, and
+    // the tracker's was narrow enough that four kinds the worker implements
+    // could not have a run row created for them at all.
     for (const kind of [
       "analyze_metadata",
       "extract_assets",
@@ -144,21 +198,29 @@ describe("Phase 31.6 — API enqueue producer", () => {
       "reindex",
       "reconcile",
     ]) {
-      expect(src, `kind ${kind} missing`).toContain(`"${kind}"`);
+      expect(MEDIA_INTELLIGENCE_JOB_KINDS, `kind ${kind} missing`).toContain(
+        kind,
+      );
     }
   });
 
   it("MEDIA_INTELLIGENCE_JOB_KINDS no longer advertises reserved no-op kinds", () => {
-    // The vocabulary should NOT include compute_duplicates /
-    // compute_lineage as live job-kind strings (the comment block that
-    // documents the removal is allowed to mention them).
-    const arrayMatch = src.match(
-      /MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[([\s\S]*?)\]\s*as const/,
-    );
-    expect(arrayMatch, "MEDIA_INTELLIGENCE_JOB_KINDS array not found").toBeTruthy();
-    const arrayBody = arrayMatch?.[1] ?? "";
-    expect(arrayBody).not.toMatch(/^\s*"compute_duplicates"/m);
-    expect(arrayBody).not.toMatch(/^\s*"compute_lineage"/m);
+    // No producer enqueues these and no queue accepts them. They survive ONLY
+    // in the DB-backed MEDIA_INTELLIGENCE_RUN_KINDS, for legacy row history.
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).not.toContain("compute_duplicates");
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).not.toContain("compute_lineage");
+  });
+
+  it("the queue catalog is a SUBSET of the run-row catalog", () => {
+    // The invariant that stops the three-way drift from recurring: anything
+    // enqueueable must be recordable. It is asserted as a relation between two
+    // live values rather than as two hand-maintained lists.
+    for (const kind of MEDIA_INTELLIGENCE_JOB_KINDS) {
+      expect(
+        MEDIA_INTELLIGENCE_RUN_KINDS,
+        `${kind} is enqueueable but has no run-row kind`,
+      ).toContain(kind);
+    }
   });
 });
 

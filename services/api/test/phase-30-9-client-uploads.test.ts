@@ -381,7 +381,7 @@ describe("Phase 30.9 — orchestrator custody-safety", () => {
 
   it("snapshot projection never exposes storage keys / multipartUploadId / signed URLs", () => {
     // Surface check on the snapshot() function only.
-    const snapshotFn = src.match(/snapshot\(\):\s*UploadProgressSnapshot[\s\S]*?\n  \}/)?.[0];
+    const snapshotFn = src.match(/snapshot\(\):\s*UploadProgressSnapshot[\s\S]*?\n {2}\}/)?.[0];
     expect(snapshotFn).toBeTruthy();
     for (const banned of [
       "storageBucket",
@@ -424,7 +424,7 @@ describe("Phase 30.9 — orchestrator custody-safety", () => {
   it("safeToClose only true when no parts in flight + state is terminal/paused/ready", () => {
     // The helper is `private computeSafeToClose(): boolean { ... }`.
     const fn = src.match(
-      /private computeSafeToClose\(\)[\s\S]*?\n  \}/,
+      /private computeSafeToClose\(\)[\s\S]*?\n {2}\}/,
     )?.[0];
     expect(fn).toBeTruthy();
     expect(fn!).toMatch(/this\.inFlightCount\s*>\s*0/);

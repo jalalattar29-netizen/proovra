@@ -26,6 +26,9 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+// PHASE 12 POINT 4 PASS C — the ONE seat-limit policy under behavioral test.
+import { computeOverSeatLimit } from "../src/services/billing.service.js";
+
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -239,5 +242,68 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
       svcAccept,
       "expected assertCollaborationTeamMemberLimit inside service acceptInvite",
     ).toMatch(/assertCollaborationTeamMemberLimit\s*\(/);
+  });
+});
+
+// ===========================================================================
+// PHASE 12 POINT 4 PASS C — ONE seat-limit policy.
+//
+// The rule "is this workspace over its seat limit" existed twice with
+// DIFFERENT behaviour:
+//   * billing.service#refreshTeamSeatState counted ACTIVE members only (the
+//     P5 domain remediation) and treated includedSeats:0 as unlimited;
+//   * enterprise-provisioning#grantEnterprisePlanToOrg recomputed it inline
+//     over ALL members with no zero-guard.
+// A suspended or revoked member therefore inflated the count on the
+// provisioning path and could mark a workspace over its seat limit when it was
+// not — a false commercial restriction, applied silently and with no billing
+// event. Both paths now share `computeOverSeatLimit`.
+// ===========================================================================
+
+describe("Phase 12 Point 4 — one seat-limit policy", () => {
+  it("treats includedSeats: 0 as unlimited, never as zero seats allowed", () => {
+    expect(
+      computeOverSeatLimit({ activeMemberCount: 500, includedSeats: 0 }),
+    ).toBe(false);
+  });
+
+  it("is over the limit only when ACTIVE members exceed the seats", () => {
+    expect(
+      computeOverSeatLimit({ activeMemberCount: 5, includedSeats: 5 }),
+    ).toBe(false);
+    expect(
+      computeOverSeatLimit({ activeMemberCount: 6, includedSeats: 5 }),
+    ).toBe(true);
+  });
+
+  it("the provisioning path counts ACTIVE members only", () => {
+    const src = readFileSync(
+      fileURLToPath(
+        new URL("../src/services/enterprise-provisioning.service.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    // The grant loop must scope its member count, not count every row.
+    expect(src).toMatch(/members:\s*\{\s*where:\s*\{\s*status:\s*"ACTIVE"\s*\}\s*\}/);
+  });
+
+  it("neither module re-implements the comparison inline", () => {
+    for (const rel of [
+      "../src/services/enterprise-provisioning.service.ts",
+      "../src/services/billing.service.ts",
+    ]) {
+      const src = readFileSync(
+        fileURLToPath(new URL(rel, import.meta.url)),
+        "utf8",
+      );
+      const body = src
+        .split(/\r?\n/)
+        .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+        .join("\n");
+      // `_count.members > seats` style comparisons are the duplicated policy.
+      expect(body, `${rel} re-implements the seat comparison`).not.toMatch(
+        /_count\.members\s*>\s*\w*[Ss]eats/,
+      );
+    }
   });
 });

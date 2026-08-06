@@ -6,8 +6,8 @@ import { requireAuth } from "../middleware/auth.js";
 import { cancelPayPalSubscription } from "../services/paypal.service.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
+import { devAuthEnabled } from "../dev/dev-login.js";
 import {
-  addCredits,
   setPersonalPlan,
   activateTeamPlan,
   cancelTeamPlan,
@@ -459,25 +459,69 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  /**
+   * PHASE 12 VERTICAL A (2026-07-30) — the canonical PAYMENT LEDGER read.
+   *
+   * `/v1/billing/overview` carries a 20-row payment SNAPSHOT for the summary
+   * cards; this endpoint is the dedicated ledger the Billing page's payment
+   * history renders from, so the history can be re-read (and paged) without
+   * re-deriving the entire overview aggregate.
+   *
+   * Subject is SERVER-DERIVED from the session (`getAuthUserId`) — the caller
+   * cannot name a userId/teamId, so cross-account reads are impossible by
+   * construction. The response is an EXPLICIT SAFE PROJECTION: the raw Prisma
+   * row was previously sent verbatim, which leaked `userId` and would leak any
+   * column a future migration adds to `payments`.
+   */
   app.get(
     "/v1/billing/payments",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const items = await prisma.payment.findMany({
+
+      const query = z
+        .object({ limit: z.coerce.number().int().min(1).max(100).optional() })
+        .safeParse(req.query ?? {});
+      if (!query.success) {
+        return reply.code(400).send({ error: { code: "invalid_query" } });
+      }
+      const limit = query.data.limit ?? 20;
+
+      const rows = await prisma.payment.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: limit,
+        select: {
+          id: true,
+          provider: true,
+          providerPaymentId: true,
+          amountCents: true,
+          currency: true,
+          status: true,
+          createdAt: true,
+          teamId: true,
+        },
       });
+
+      const items = rows.map((row) => ({
+        id: row.id,
+        provider: row.provider,
+        providerPaymentId: row.providerPaymentId,
+        amountCents: row.amountCents,
+        currency: row.currency,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+        teamId: row.teamId ?? null,
+      }));
 
       auditBillingAction(req, {
         userId,
         action: "billing.payments_list",
         outcome: "success",
-        metadata: { count: items.length },
+        metadata: { count: items.length, limit },
       });
 
-      return reply.code(200).send({ items });
+      return reply.code(200).send({ items, count: items.length, limit });
     }
   );
 
@@ -784,6 +828,23 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  /**
+   * PHASE 12 VERTICAL A (2026-07-30) — "restore purchases" / entitlement
+   * re-sync.
+   *
+   * A provider checkout completes out-of-band (Stripe/PayPal webhook), so a
+   * customer who returns to the app before the webhook lands sees a stale
+   * entitlement. This endpoint re-reads the SERVER-AUTHORITATIVE commercial
+   * state for the session's own account and returns the canonical overview
+   * projection.
+   *
+   * Idempotent by construction: `readBillingOverview` → `ensureEntitlement`
+   * only creates the entitlement row when it is missing, and the plan itself
+   * is derived by `resolveCommercialContext` from the persisted subscription
+   * state. NOTHING here accepts a client-declared plan, teamId or credit
+   * amount — a retry converges on the same server truth, so the action is
+   * safe to repeat.
+   */
   app.post(
     "/v1/billing/restore",
     { preHandler: requireAuthAndLegal },
@@ -801,7 +862,18 @@ export async function billingRoutes(app: FastifyInstance) {
         },
       });
 
-      return reply.code(200).send(overview);
+      return reply.code(200).send({
+        ...overview,
+        // Bounded, server-decided outcome the client renders verbatim — the
+        // frontend never re-derives "did anything change?" from raw plan
+        // values.
+        restore: {
+          restoredAtUtc: new Date().toISOString(),
+          plan: overview.entitlement.plan,
+          credits: overview.entitlement.credits,
+          ownedWorkspaceCount: overview.workspaces.teams.length,
+        },
+      });
     }
   );
 
@@ -1107,36 +1179,20 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
-  app.post(
-    "/v1/billing/credits",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const body = z
-        .object({ credits: z.number().int().positive() })
-        .parse(req.body);
-      const userId = getAuthUserId(req);
-
-      await addCredits(userId, body.credits);
-
-      auditBillingAction(req, {
-        userId,
-        action: "billing.credits_added",
-        outcome: "success",
-        metadata: { credits: body.credits },
-      });
-
-      fireBillingAnalyticsEvent({
-        eventType: "billing_credits_added",
-        userId,
-        req,
-        metadata: { credits: body.credits },
-      });
-
-      return reply.code(200).send({ ok: true });
-    }
-  );
-
-  app.post(
+  // PHASE 12 CAPABILITY-PRESERVATION AUDIT (2026-07-28) — the dev-only
+  // no-payment credit grant POST /v1/billing/credits was moved OUT of this
+  // product route file into src/dev/dev-billing-credits.routes.ts, mounted only
+  // inside the dev-auth boundary (devAuthEnabled()). Production route
+  // registration is now 0 — it is no longer a permanent-403 product surface.
+  //
+  // POST /v1/billing/plan is the same dev/test-only direct plan mutation (real
+  // checkout in production goes through /v1/billing/checkout/*). It stays in this
+  // file because it shares the assertPersonalCheckoutAllowed / assertOwnedTeamForCheckout
+  // governance guards, but its REGISTRATION is now gated behind devAuthEnabled()
+  // (NODE_ENV !== production AND DEV_AUTH_ENABLED === "true"), so production route
+  // registration = 0 rather than a permanent-403 product surface.
+  if (devAuthEnabled()) {
+    app.post(
     "/v1/billing/plan",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
@@ -1149,8 +1205,9 @@ export async function billingRoutes(app: FastifyInstance) {
 
       const userId = getAuthUserId(req);
 
-      if (process.env.NODE_ENV === "production") {
-        return reply.code(403).send({ message: "Direct plan change is disabled" });
+      // Layer-2 defense: refuse even if somehow registered outside the dev boundary.
+      if (!devAuthEnabled()) {
+        return reply.code(404).send({ error: { code: "not_found" } });
       }
 
       if (body.plan === prismaPkg.PlanType.TEAM) {
@@ -1203,5 +1260,6 @@ export async function billingRoutes(app: FastifyInstance) {
 
       return reply.code(200).send(overview);
     }
-  );
+    );
+  }
 }

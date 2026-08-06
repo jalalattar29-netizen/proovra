@@ -60,7 +60,7 @@ const ARTIFACT_STATUS_SERVICE = readSource(
   "../src/services/evidence-artifact-status.service.ts",
 );
 const ARTIFACT_PANEL = readSource(
-  "../../../apps/web/app/(app)/evidence/components/ArtifactPanel.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
 );
 const EVIDENCE_DETAIL_PAGE = readSource(
   "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
@@ -160,11 +160,16 @@ describe("Phase A2 — PDF artifact status (source contract)", () => {
     );
   });
 
-  it("ArtifactPanel uses the disambiguated labels", () => {
+  // Phase 12 Point 4 (Pass E) — the evidence-library `ArtifactPanel` these
+  // three contracts pinned had been unmounted (the library preview pane
+  // moved to `QueueSelectionPreview`) and was deleted. Each invariant is
+  // retargeted to the canonical surface that actually owns it:
+  //   * governed download labels → ArtifactHistorySection (Artifacts tab)
+  //   * PDF signature verdict    → _tabs/_lib.describeReportPdfSignature,
+  //     rendered by EvidenceIntegrityTab as "Report PDF signature".
+  it("the governed download actions use the disambiguated labels", () => {
     expect(ARTIFACT_PANEL).toContain("Download Report PDF");
     expect(ARTIFACT_PANEL).toContain("Download Verification Package ZIP");
-    expect(ARTIFACT_PANEL).toContain("Report PDF readiness");
-    expect(ARTIFACT_PANEL).toContain("Verification Package ZIP");
   });
 
   it("Evidence detail hero uses the disambiguated labels", () => {
@@ -185,14 +190,32 @@ describe("Phase A2 — PDF artifact status (source contract)", () => {
     ).toBeUndefined();
   });
 
-  it("ArtifactPanel renders Signed Report PDF ONLY when status === SIGNED", () => {
-    // The badge must be gated on `=== "SIGNED"` literal, not on a
-    // truthy check or a label-string heuristic.
-    expect(ARTIFACT_PANEL).toMatch(
-      /pdfSignature\.status\s*===\s*"SIGNED"/,
+  it("the evidence detail reports a Signed PDF ONLY on the SIGNED literal", () => {
+    // The verdict must be driven by the `pdfSignature.status` enum, never
+    // by a truthy check or a label-string heuristic. The canonical helper
+    // switches on the literal and names every other outcome explicitly, so
+    // an unsigned/failed/unavailable artifact can never read as "Signed".
+    const detailLib = readSource(
+      "../../../apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
     );
-    expect(ARTIFACT_PANEL).toContain("Signed Report PDF");
-    expect(ARTIFACT_PANEL).toContain("Unsigned Report PDF artifact");
+    expect(detailLib).toMatch(
+      /switch\s*\(\s*artifactStatus\.report\.pdfSignature\.status\s*\)/,
+    );
+    expect(detailLib).toMatch(/case\s*"SIGNED":\s*\n\s*return\s*"Signed";/);
+    for (const other of [
+      "UNSIGNED_OPT_OUT",
+      "SIGNING_UNAVAILABLE",
+      "SIGNING_FAILED",
+      "NOT_APPLICABLE",
+    ]) {
+      expect(detailLib).toContain(`case "${other}":`);
+    }
+    // …and it is actually rendered on the Integrity tab.
+    const integrityTab = readSource(
+      "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    );
+    expect(integrityTab).toContain("describeReportPdfSignature");
+    expect(integrityTab).toContain("Report PDF signature");
   });
 
   it("vocabulary discipline — forbidden artifact phrases are absent from critical artifact UI", () => {

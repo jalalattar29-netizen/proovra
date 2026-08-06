@@ -149,7 +149,7 @@ The Phase R11 source-contract test (`services/api/test/phase-r11-domain-stabiliz
 | `envelope.workspace` (legacy field, marked deprecated) | `services/api/src/services/platform-context/types.ts:598-603` | **PHASE-4** | Retire after consumer migration. |
 | `envelope.availableWorkspaces` (deprecated, no production consumer) | `types.ts:609-611` | **PHASE-4** | Safe to remove once envelope schema bumps. |
 | `envelope.navigation.groups` (deprecated, replaced by sidebar.pillars + accountMenu) | `types.ts:362-367` | **PHASE-4** | Stop emitting after consumer migration. |
-| 8 components consult `workspace.scope === "PERSONAL" \| "TEAM"` | AppTopbarV2, AppSidebarV2, ReviewerCommandConsole, CommandCenter, GovernanceControlPlane, GlobalRuntimeIndicator, WorkspaceAdminPanel, CapabilityDegradedPanel | **PHASE-3** | Replace with `isPersonalWorkspaceKind` / `isOrganizationWorkspaceKind` from `@proovra/shared` (added Phase 2). |
+| 7 components consult `workspace.scope === "PERSONAL" \| "TEAM"` | AppTopbarV2, AppSidebarV2, CommandCenter, GovernanceControlPlane, GlobalRuntimeIndicator, WorkspaceAdminPanel, CapabilityDegradedPanel (ReviewerCommandConsole deleted, Phase 12 Point 4) | **PHASE-3** | Replace with `isPersonalWorkspaceKind` / `isOrganizationWorkspaceKind` from `@proovra/shared` (added Phase 2). |
 | `useActiveWorkspaceId` "documented as removed but still defined" | `apps/web/lib/platform-context/index.ts:7-12` (comment) + `useTeamWorkspaceGate.ts:90,109` | **PHASE-3** | Reconcile documentation vs reality. |
 
 ---

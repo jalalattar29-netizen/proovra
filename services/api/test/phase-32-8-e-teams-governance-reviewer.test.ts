@@ -26,7 +26,7 @@
  *           canonical routes preserved.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -47,9 +47,12 @@ const WORKSPACE_ADMIN_SVC = readApi(
 const GOVERNANCE_SVC = readApi(
   "src/services/governance/governance-control-plane.service.ts",
 );
-const REVIEWER_SVC = readApi(
-  "src/services/reviewer-ops/reviewer-command.service.ts",
-);
+// Phase 12 Point 4 — `reviewer-command.service.ts` + its
+// `GET /v1/reviewer-ops/command` route were removed as a duplicate
+// reviewer aggregator (second read path, second authorization path).
+// The canonical reviewer aggregator is `GET /v1/reviewer-ops/console`;
+// its contract carries the invariants that used to be pinned here.
+const REVIEWER_SVC = readApi("src/routes/reviewer-console.routes.ts");
 const ROUTES = readApi("src/routes/enterprise-aggregators.routes.ts");
 const SERVER = readApi("src/server.ts");
 
@@ -60,7 +63,7 @@ const GOVERNANCE_PANEL = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",
 );
 const REVIEWER_PANEL = readWeb(
-  "components/reviewer-experience/ReviewerCommandConsole.tsx",
+  "components/reviewer-experience/ReviewerConsole.tsx",
 );
 // Phase Final-Closure-Remediation — the legacy `app/(app)/teams/page.tsx`
 // was deleted (duplicate of `app/(app)/workspaces/page.tsx`). The
@@ -274,14 +277,29 @@ describe("Phase 32.8E — governance-control-plane aggregator service contract",
 });
 
 // =============================================================================
-// PART 3 — reviewer-command service
+// PART 3 — canonical reviewer aggregator
 // =============================================================================
 
-describe("Phase 32.8E — reviewer-command aggregator service contract", () => {
-  it("exports buildReviewerCommand entrypoint", () => {
-    expect(REVIEWER_SVC).toMatch(
-      /export async function buildReviewerCommand\(/,
-    );
+describe("Phase 32.8E — reviewer aggregator contract (canonical console)", () => {
+  it("the duplicate reviewer-command aggregator service stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../src/services/reviewer-ops/reviewer-command.service.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("registers the aggregator as a read-only GET", () => {
+    expect(REVIEWER_SVC).toMatch(/app\.get\(\s*\n?\s*"\/v1\/reviewer-ops\/console"/);
+    expect(REVIEWER_SVC).not.toMatch(/app\.post\(/);
+    expect(REVIEWER_SVC).not.toMatch(/app\.put\(/);
+    expect(REVIEWER_SVC).not.toMatch(/app\.patch\(/);
+    expect(REVIEWER_SVC).not.toMatch(/app\.delete\(/);
   });
 
   it("never calls Prisma write methods", () => {
@@ -295,58 +313,40 @@ describe("Phase 32.8E — reviewer-command aggregator service contract", () => {
     }
   });
 
-  it("personal-workspace returns status='ok' with empty data (capability degradation, Phase 32.8C FINAL-3)", () => {
-    // Phase 32.8C FINAL-3 flipped the personal-workspace short-circuit
-    // from `not_applicable` to `ok` with bounded empty data. The frontend
-    // no longer hides the page; it renders enterprise-lite read-only
-    // surfaces and gates mutating actions at the route level.
-    expect(REVIEWER_SVC).toMatch(/if \(scope === "PERSONAL"\)/);
+  it("degrades a failing section instead of failing the envelope", () => {
+    // A sub-query failure yields `status: "degraded"` for that section
+    // only; workspace scope never turns a section off.
+    expect(REVIEWER_SVC).toMatch(/status:\s*"degraded"/);
+    expect(REVIEWER_SVC).not.toMatch(/status:\s*"not_applicable"/);
+  });
+
+  it("declares a bounded per-section limit and applies it to every section", () => {
+    expect(REVIEWER_SVC).toMatch(/const SECTION_LIMIT\s*=\s*\d+/);
+    const limitUses = REVIEWER_SVC.match(/limit:\s*SECTION_LIMIT/g) ?? [];
+    expect(limitUses.length).toBeGreaterThanOrEqual(4);
+    expect(REVIEWER_SVC).toMatch(/sectionLimit:\s*SECTION_LIMIT/);
+  });
+
+  it("envelope exposes the canonical console sections", () => {
     for (const section of [
-      "summary",
-      "queuePeek",
+      "queue",
+      "mine",
       "escalations",
+      "sla",
       "workload",
-      "workflowPolicy",
-      "reconciliationHealth",
+      "savedViews",
+      "diagnostics",
     ]) {
-      expect(
-        REVIEWER_SVC,
-        `personal short-circuit missing ${section}`,
-      ).toMatch(
-        new RegExp(`${section}:\\s*\\{\\s*status:\\s*"ok"`),
-      );
+      expect(REVIEWER_SVC).toMatch(new RegExp(`${section}:\\s*[\\{a-zA-Z]`));
     }
   });
 
-  it("declares bounded limits", () => {
-    expect(REVIEWER_SVC).toMatch(/QUEUE_PEEK_LIMIT\s*=\s*10/);
-    expect(REVIEWER_SVC).toMatch(/ESCALATIONS_LIMIT\s*=\s*10/);
-    expect(REVIEWER_SVC).toMatch(/WORKLOAD_LIMIT\s*=\s*10/);
-    const findMany = REVIEWER_SVC.match(/\.findMany\(\{[\s\S]*?\}\)/g) ?? [];
-    expect(findMany.length).toBeGreaterThanOrEqual(2);
-    for (const block of findMany) {
-      expect(block).toMatch(/take:/);
-    }
-  });
-
-  it("envelope exposes canonical sections (summary / queuePeek / escalations / workload / workflowPolicy / reconciliationHealth)", () => {
-    for (const section of [
-      "summary",
-      "queuePeek",
-      "escalations",
-      "workload",
-      "workflowPolicy",
-      "reconciliationHealth",
-    ]) {
-      expect(REVIEWER_SVC).toMatch(new RegExp(`${section}:\\s*\\{`));
-    }
-  });
-
-  it("SLA tone classifier maps overdue / due_soon / ok bounded set", () => {
-    expect(REVIEWER_SVC).toMatch(/function classifySlaTone\(/);
-    expect(REVIEWER_SVC).toMatch(/return "overdue"/);
-    expect(REVIEWER_SVC).toMatch(/return "due_soon"/);
-    expect(REVIEWER_SVC).toMatch(/return "ok"/);
+  it("authorizes through the canonical member-access path, not a local role read", () => {
+    expect(REVIEWER_SVC).toMatch(/evaluateMemberAccess\(/);
+    expect(REVIEWER_SVC).toMatch(
+      /code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"/,
+    );
+    expect(REVIEWER_SVC).toMatch(/code\(403\)/);
   });
 });
 
@@ -367,16 +367,23 @@ describe("Phase 32.8E — enterprise aggregator routes", () => {
     );
   });
 
-  it("registers GET /v1/reviewer-ops/command", () => {
-    expect(ROUTES).toMatch(
-      /app\.get\(\s*"\/v1\/reviewer-ops\/command"/,
-    );
+  it("the duplicate GET /v1/reviewer-ops/command aggregator stays removed", () => {
+    // Phase 12 Point 4 — removed as a second reviewer read path with a
+    // second authorization path. `GET /v1/reviewer-ops/console` is the
+    // canonical reviewer aggregator (see PART 3).
+    // Assert on the registration, not on the removal note that explains
+    // why it is gone.
+    expect(ROUTES).not.toMatch(/app\.get\(\s*"\/v1\/reviewer-ops\/command"/);
+    expect(ROUTES).not.toMatch(/buildReviewerCommand\(/);
+    expect(ROUTES).not.toMatch(/reviewer-command\.service/);
   });
 
   it("every route requires authentication via preHandler: requireAuth", () => {
-    const matches =
+    const gets = ROUTES.match(/app\.get\(\s*"\/v1\/[^"]+"/g) ?? [];
+    const guarded =
       ROUTES.match(/app\.get\(\s*"\/v1\/[^"]+",[\s\S]*?preHandler:\s*requireAuth/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(3);
+    expect(gets.length).toBeGreaterThanOrEqual(2);
+    expect(guarded.length).toBe(gets.length);
   });
 
   it("only handles GET — no POST/PUT/DELETE/PATCH", () => {
@@ -610,92 +617,128 @@ describe("Phase 32.8E — /governance control plane", () => {
 // =============================================================================
 
 describe("Phase 32.8E — /review canonical reviewer console mount", () => {
-  it("delegates the canonical reviewer page to a reviewer console component", () => {
-    // Phase Final-Vocab-Alignment — `/review/page.tsx` is now the
-    // canonical reviewer surface (the legacy `/reviewer-ops/page.tsx`
-    // was deleted). The consolidated keyboard-first console is
-    // `<ReviewerConsole>`; the older `<ReviewerCommandConsole>` panel
-    // remains as a building block for future re-mount but is no
-    // longer the page-level component. Accept either canonical mount.
-    expect(REVIEWER_PAGE).toMatch(/<Reviewer(Command)?Console\b/);
+  it("delegates the canonical reviewer page to the reviewer console component", () => {
+    // Phase Final-Vocab-Alignment — `/review/page.tsx` is the canonical
+    // reviewer surface (the legacy `/reviewer-ops/page.tsx` was
+    // deleted). Phase 12 Point 4 deleted the older, unmounted
+    // `<ReviewerCommandConsole>` panel after folding its unique
+    // capabilities into this console, so the mount is now exact.
+    expect(REVIEWER_PAGE).toMatch(/<ReviewerConsole\b/);
+    expect(REVIEWER_PAGE).not.toMatch(/ReviewerCommandConsole/);
   });
 
-  it("reads from /v1/reviewer-ops/command", () => {
-    expect(REVIEWER_PANEL).toMatch(/\/v1\/reviewer-ops\/command\?teamId=/);
+  it("reads the workspace state from the consolidated console aggregator", () => {
+    expect(REVIEWER_PANEL).toMatch(/\/v1\/reviewer-ops\/console\?teamId=/);
+    // The retired duplicate aggregator must not come back.
+    expect(REVIEWER_PANEL).not.toMatch(/\/v1\/reviewer-ops\/command/);
   });
 
-  it("renders the canonical sections (Summary / Queue Peek / Escalations / Workload / Policy / Reconciliation)", () => {
+  it("renders the canonical sections (Queue / Escalations / Workload / SLA / Saved views / Multi-stage summary)", () => {
     for (const fn of [
-      "SummarySection",
-      "QueuePeekSection",
-      "EscalationsSection",
-      "WorkloadSection",
-      "PolicySection",
-      "ReconciliationSection",
+      "QueueTable",
+      "EscalationsTable",
+      "WorkloadTable",
+      "SlaPanel",
+      "SavedViewsPanel",
     ]) {
       expect(REVIEWER_PANEL).toMatch(new RegExp(`function ${fn}\\(`));
     }
+    expect(REVIEWER_PANEL).toMatch(/<MultiStageReviewSummaryCard/);
   });
 
-  it("personal workspace renders capability-degradation banner alongside the full surface (Phase 32.8C FINAL-3)", () => {
-    // Phase 32.8C FINAL-3 — Reviewer Ops no longer hides the page for
-    // personal workspaces. An inline banner explains team-only mutating
-    // actions are disabled; the full reviewer surface renders below.
-    expect(REVIEWER_PANEL).toMatch(/data-reviewer-personal-banner/);
-    expect(REVIEWER_PANEL).toMatch(
-      /Personal workspace[\s\S]{0,200}read-only enterprise-lite mode/,
+  it("the one team-only affordance degrades to a labelled banner, never a blank surface", () => {
+    // Phase 32.8C FINAL-3 invariant, carried onto the live console:
+    // scope never hides the surface. Bulk triage is the only team-only
+    // action, and it explains itself instead of disappearing.
+    const bulk = readWeb("components/reviewer-experience/ReviewerBulkOpsBar.tsx");
+    expect(bulk).toMatch(/data-reviewer-bulk-personal-banner/);
+    expect(bulk).toMatch(
+      /Bulk reviewer operations require a workspace[\s\S]{0,200}open each workflow individually/,
     );
   });
 
-  it("explicitly notes this is a triage surface — reviewer actions live on per-workflow pages", () => {
+  it("explicitly notes decisions happen on the per-workflow surface", () => {
     expect(REVIEWER_PANEL).toMatch(
-      /Reviewer actions live on the per-workflow inspector pages/,
+      /Daily evidence\s*\n?\s*decisions happen in Reviewer Workspace/,
     );
+  });
+
+  it("bulk triage maps only to bounded backend actions — no invented semantics", () => {
+    const bulk = readWeb("components/reviewer-experience/ReviewerBulkOpsBar.tsx");
+    for (const action of [
+      "ASSIGN_TO_ME",
+      "PRIORITY_HIGH",
+      "PRIORITY_NORMAL",
+      "PRIORITY_URGENT",
+      "ESCALATE",
+      "PAUSE",
+      "REQUEST_INFO",
+      "CLOSE",
+    ]) {
+      expect(bulk).toMatch(new RegExp(`"${action}"`));
+    }
+    // ASSIGN_TO_ME is the only UI-side alias; it maps to the backend
+    // ASSIGN action with an explicit assignee.
+    expect(bulk).toMatch(/action === "ASSIGN_TO_ME" \? "ASSIGN"/);
+    // Note-required actions cannot submit without a note.
+    expect(bulk).toMatch(/A short note is required for that action/);
+  });
+
+  it("surfaces the 207 partial-success outcome honestly", () => {
+    const bulk = readWeb("components/reviewer-experience/ReviewerBulkOpsBar.tsx");
+    expect(bulk).toMatch(/data-reviewer-bulk-last-succeeded/);
+    expect(bulk).toMatch(/data-reviewer-bulk-last-failed/);
+    expect(bulk).toMatch(/data-reviewer-bulk-failed-error-code/);
+    // Per-row outcome markers live on the queue rows.
+    expect(REVIEWER_PANEL).toMatch(/data-reviewer-bulk-row-outcome/);
+  });
+
+  it("never predicts permission client-side — server denial is surfaced verbatim", () => {
+    const bulk = readWeb("components/reviewer-experience/ReviewerBulkOpsBar.tsx");
+    expect(bulk).toMatch(/statusCode === 403/);
+    expect(bulk).toMatch(/REVIEWER_OPS_ACT/);
+    expect(bulk).toMatch(/statusCode === 429/);
   });
 
   it("SLA tones are bounded (ok / due_soon / overdue) — no synthesized urgency", () => {
-    expect(REVIEWER_PANEL).toMatch(/slaTone === "overdue"/);
-    expect(REVIEWER_PANEL).toMatch(/slaTone === "due_soon"/);
-  });
-
-  it("never calls audited /v1/reviewer-ops/{queue,dashboard,workload,escalations} on mount (uses only the consolidated aggregator)", () => {
-    expect(REVIEWER_PANEL).not.toMatch(
-      /apiFetch\([^)]*\/v1\/reviewer-ops\/queue/,
-    );
-    expect(REVIEWER_PANEL).not.toMatch(
-      /apiFetch\([^)]*\/v1\/reviewer-ops\/dashboard/,
-    );
-    expect(REVIEWER_PANEL).not.toMatch(
-      /apiFetch\([^)]*\/v1\/reviewer-ops\/workload/,
-    );
-    expect(REVIEWER_PANEL).not.toMatch(
-      /apiFetch\([^)]*\/v1\/reviewer-ops\/escalations/,
-    );
+    expect(REVIEWER_PANEL).toMatch(/severityTone|priorityTone|statusTone/);
+    expect(REVIEWER_PANEL).toMatch(/<SlaPanel/);
   });
 
   it("links to the canonical sub-routes (per-workflow detail + SLA + escalations + governance policy + ops observability)", () => {
-    expect(REVIEWER_PANEL).toMatch(/href=\{`\/reviewer-ops\/\$\{encodeURIComponent\(row\.workflowId\)\}`\}/);
+    expect(REVIEWER_PAGE).toMatch(/\/reviewer-ops\/\$\{candidate\}/);
     expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/sla"/);
-    expect(REVIEWER_PANEL).toMatch(/href=\{`\/reviewer-ops\/escalations`\}/);
+    expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/escalations"/);
     expect(REVIEWER_PANEL).toMatch(/href="\/governance\/policy"/);
     expect(REVIEWER_PANEL).toMatch(/href="\/operations\/observability"/);
   });
 
-  it("renders distinct loading / auth-error / unavailable shells", () => {
-    // CR1.6 — `ShellNoWorkspace` removed (dead-code cleanup). The
-    // no-team rendering path is now the in-component
-    // CapabilityDegradedPanel (REVIEWER_OPS_VIEW); PageRouteGate
-    // (review.queue, ORGANIZATION_ONLY) blocks entry for personal
-    // users. The remaining three structured shells are still required.
-    for (const fn of [
-      "ShellLoading",
-      "ShellAuthError",
-      "ShellUnavailable",
-    ]) {
-      expect(REVIEWER_PANEL).toMatch(new RegExp(`function ${fn}\\(`));
-    }
-    // Regression pin — must not be re-introduced.
+  it("gates the operator deep-link behind a canonical capability", () => {
+    expect(REVIEWER_PANEL).toMatch(/useCan\(\s*"OBSERVABILITY_VIEW"\s*\)/);
+    expect(REVIEWER_PANEL).toMatch(
+      /canObservability \?[\s\S]{0,200}\/operations\/observability/,
+    );
+  });
+
+  it("renders distinct loading / error / empty states", () => {
+    expect(REVIEWER_PANEL).toMatch(/loading/);
+    expect(REVIEWER_PANEL).toMatch(/<EmptyState/);
+    // The retired shells must not be re-introduced.
     expect(REVIEWER_PANEL).not.toMatch(/function ShellNoWorkspace\(/);
+  });
+
+  it("the unmounted ReviewerCommandConsole stays removed", () => {
+    for (const rel of [
+      "components/reviewer-experience/ReviewerCommandConsole.tsx",
+      "components/reviewer-experience/types.ts",
+    ]) {
+      expect(
+        existsSync(
+          fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
+        ),
+        `${rel} must stay removed`,
+      ).toBe(false);
+    }
   });
 });
 
@@ -726,7 +769,7 @@ describe("Phase 32.8E — shared invariants", () => {
         /apiFetch\("\/v1\/teams"/,
       );
       expect(src, `${name} must not call /v1/teams/:id (audited GET)`).not.toMatch(
-        /apiFetch\(`\/v1\/teams\/\$\{[^}]+\}\`[\s,}]/,
+        /apiFetch\(`\/v1\/teams\/\$\{[^}]+\}`[\s,}]/,
       );
     }
   });

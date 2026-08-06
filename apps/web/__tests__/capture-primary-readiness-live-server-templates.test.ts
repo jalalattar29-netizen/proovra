@@ -49,7 +49,6 @@ import {
 } from "../app/(app)/capture/_lib/captureReadiness";
 import type { SessionItem, ChecklistStep } from "../app/(app)/capture/_lib/types";
 
-const PROFILE = "VERIFICATION_DOCUMENTATION" as const;
 
 function makeItem(overrides: Partial<SessionItem>): SessionItem {
   return {

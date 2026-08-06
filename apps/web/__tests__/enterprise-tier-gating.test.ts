@@ -29,11 +29,16 @@ const PROFESSIONAL_PLANS: WorkspacePlan[] = ["PRO", "TEAM"];
 // Mirror the backend derivation: an enterprise workspace is one on the
 // ENTERPRISE plan. Nothing else.
 function ctxFor(plan: WorkspacePlan): SurfaceUserContext {
+  // PHASE 12B Track 1A — mirror the SERVER projection for each plan: the
+  // context carries catalog-derived booleans, never the plan name itself.
   return {
-    plan,
-    role: "OWNER",
     isPlatformAdmin: false,
-    isEnterpriseWorkspace: plan === "ENTERPRISE",
+    isEnterpriseWorkspace: (plan as string) === "ENTERPRISE",
+    planFeatures: {
+      intakeIncluded: null,
+      professionalSurfacesIncluded:
+        plan === "PRO" || plan === "TEAM" || (plan as string) === "ENTERPRISE",
+    },
   };
 }
 

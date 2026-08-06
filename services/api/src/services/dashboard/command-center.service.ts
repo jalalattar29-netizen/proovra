@@ -40,7 +40,6 @@ import {
 } from "./queue-telemetry.service.js";
 import { listLatestWorkerTelemetry } from "./worker-telemetry.service.js";
 import {
-  backfillCaseEvidenceLinks,
   listCaseSharedEvidenceClusters,
   listEvidenceLinkedToMultipleCases,
 } from "./case-evidence-link.service.js";
@@ -1701,7 +1700,7 @@ async function runOperationalPressure(
   if (scope === "TEAM") {
     try {
       const rows = await prisma.evidence.findMany({
-        where: { teamId, caseId: null },
+        where: { teamId, caseLinks: { none: {} } },
         orderBy: { createdAt: "desc" },
         take: PRESSURE_PER_KIND,
         select: { id: true, title: true, createdAt: true },
@@ -1836,9 +1835,9 @@ async function runCaseOperations(
   try {
     const now = new Date();
     const activeCasesCount = await prisma.case.count({ where: { teamId } });
-    const evidenceWithCase = await prisma.evidence.groupBy({
+    const evidenceWithCase = await prisma.caseEvidenceLink.groupBy({
       by: ["caseId"],
-      where: { teamId, caseId: { not: null } },
+      where: { evidence: { teamId } },
       _count: { _all: true },
       orderBy: { caseId: "asc" },
       take: 1000,
@@ -1849,7 +1848,7 @@ async function runCaseOperations(
       activeCasesCount - casesWithEvidenceCount,
     );
     const unlinkedEvidenceCount = await prisma.evidence.count({
-      where: { teamId, caseId: null },
+      where: { teamId, caseLinks: { none: {} } },
     });
 
     let unreviewedEvidenceCount = 0;
@@ -1876,14 +1875,15 @@ async function runCaseOperations(
     });
     const caseIds = recentCases.map((c) => c.id);
     const [evidenceCounts, holdsByCase, reviewByCase, unreviewedByCase] = await Promise.all([
-      prisma.evidence.groupBy({
+      prisma.caseEvidenceLink.groupBy({
         by: ["caseId"],
         where: { caseId: { in: caseIds } },
         _count: { _all: true },
       }),
-      prisma.caseLegalHold
+      // P12.3 canonical-only (scope=CASE).
+      prisma.evidenceLegalHold
         .findMany({
-          where: { caseId: { in: caseIds }, status: "ACTIVE" },
+          where: { caseId: { in: caseIds }, scope: "CASE", status: "ACTIVE" },
           select: { caseId: true },
           take: caseIds.length * 4,
         })
@@ -1892,26 +1892,37 @@ async function runCaseOperations(
         ? prisma.evidenceReviewWorkflow.findMany({
             where: {
               teamId,
-              evidence: { caseId: { in: caseIds } },
+              evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
               status: {
                 in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
               },
             },
             select: {
               dueAt: true,
-              evidence: { select: { caseId: true } },
+              evidence: {
+                select: {
+                  caseLinks: {
+                    where: { caseId: { in: caseIds } },
+                    orderBy: { linkedAtUtc: "asc" },
+                    select: { caseId: true },
+                    take: 1,
+                  },
+                },
+              },
             },
             take: 500,
           })
         : Promise.resolve([]),
       scope === "TEAM"
-        ? prisma.evidence.groupBy({
+        ? prisma.caseEvidenceLink.groupBy({
             by: ["caseId"],
             where: {
-              teamId,
               caseId: { in: caseIds },
-              status: { in: ["UPLOADED", "SIGNED"] },
-              reviewWorkflow: null,
+              evidence: {
+                teamId,
+                status: { in: ["UPLOADED", "SIGNED"] },
+                reviewWorkflow: null,
+              },
             },
             _count: { _all: true },
           })
@@ -1922,7 +1933,7 @@ async function runCaseOperations(
       { open: number; overdue: number }
     >();
     for (const r of reviewByCase) {
-      const cid = r.evidence?.caseId;
+      const cid = r.evidence?.caseLinks[0]?.caseId;
       if (!cid) continue;
       const entry = reviewByCaseMap.get(cid) ?? { open: 0, overdue: 0 };
       entry.open += 1;
@@ -1938,7 +1949,7 @@ async function runCaseOperations(
       if (e.caseId) unreviewedByCaseMap.set(e.caseId, e._count._all);
     }
     const holdsSet = new Set<string>();
-    for (const h of holdsByCase) holdsSet.add(h.caseId);
+    for (const h of holdsByCase) if (h.caseId) holdsSet.add(h.caseId);
 
     let openEscalationsByCase = new Map<string, number>();
     if (scope === "TEAM") {
@@ -1947,13 +1958,30 @@ async function runCaseOperations(
           where: {
             teamId,
             status: "OPEN",
-            workflow: { evidence: { caseId: { in: caseIds } } },
+            workflow: {
+              evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
+            },
           },
-          select: { workflow: { select: { evidence: { select: { caseId: true } } } } },
+          select: {
+            workflow: {
+              select: {
+                evidence: {
+                  select: {
+                    caseLinks: {
+                      where: { caseId: { in: caseIds } },
+                      orderBy: { linkedAtUtc: "asc" },
+                      select: { caseId: true },
+                      take: 1,
+                    },
+                  },
+                },
+              },
+            },
+          },
           take: 200,
         });
         for (const e of escalations) {
-          const cid = e.workflow?.evidence?.caseId;
+          const cid = e.workflow?.evidence?.caseLinks[0]?.caseId;
           if (!cid) continue;
           openEscalationsByCase.set(
             cid,
@@ -1978,33 +2006,34 @@ async function runCaseOperations(
     };
     const [reportsByCase, packagesByCase, verifyLiveByCase] =
       await Promise.all([
-        prisma.evidence
-          .groupBy({
-            by: ["caseId"],
-            where: { teamId, caseId: { in: caseIds }, reports: { some: {} } },
-            _count: { _all: true },
-          })
-          .then(toCaseCountMap)
-          .catch(() => new Map<string, number>()),
-        prisma.evidence
+        prisma.caseEvidenceLink
           .groupBy({
             by: ["caseId"],
             where: {
-              teamId,
               caseId: { in: caseIds },
-              verificationPackages: { some: {} },
+              evidence: { teamId, reports: { some: {} } },
             },
             _count: { _all: true },
           })
           .then(toCaseCountMap)
           .catch(() => new Map<string, number>()),
-        prisma.evidence
+        prisma.caseEvidenceLink
           .groupBy({
             by: ["caseId"],
             where: {
-              teamId,
               caseId: { in: caseIds },
-              publicVerifyState: "PUBLISHED",
+              evidence: { teamId, verificationPackages: { some: {} } },
+            },
+            _count: { _all: true },
+          })
+          .then(toCaseCountMap)
+          .catch(() => new Map<string, number>()),
+        prisma.caseEvidenceLink
+          .groupBy({
+            by: ["caseId"],
+            where: {
+              caseId: { in: caseIds },
+              evidence: { teamId, publicVerifyState: "PUBLISHED" },
             },
             _count: { _all: true },
           })
@@ -2465,8 +2494,9 @@ async function runGovernancePosture(
   }
 
   try {
-    activeCaseLegalHoldsCount = await prisma.caseLegalHold.count({
-      where: { teamId, status: "ACTIVE" },
+    activeCaseLegalHoldsCount = await prisma.evidenceLegalHold.count({
+      // P12.3 canonical-only (scope='CASE').
+      where: { scope: "CASE", teamId, status: "ACTIVE" },
     });
     anyOk = true;
   } catch {
@@ -3072,7 +3102,11 @@ async function runRecentEvidence(
         status: true,
         verificationStatus: true,
         createdAt: true,
-        caseId: true,
+        caseLinks: {
+          orderBy: { linkedAtUtc: "asc" },
+          select: { caseId: true },
+          take: 1,
+        },
       },
     });
     return {
@@ -3083,7 +3117,7 @@ async function runRecentEvidence(
         status: e.status,
         verificationStatus: e.verificationStatus ?? null,
         createdAt: e.createdAt.toISOString(),
-        caseId: e.caseId ?? null,
+        caseId: e.caseLinks[0]?.caseId ?? null,
       })),
     };
   } catch {
@@ -3902,14 +3936,16 @@ async function runInvestigationIntelligence(
 
     const [
       evidenceByCase,
-      reviewByCase,
+      // reviewByCase is intentionally elided — this destructuring never reads
+      // it, and an array elision keeps the remaining positions correct.
+      ,
       overdueByCase,
       escalationsByCase,
       holdsByCase,
       blockedExportsByCase,
       missingReportsByCase,
     ] = await Promise.all([
-      prisma.evidence.groupBy({
+      prisma.caseEvidenceLink.groupBy({
         by: ["caseId"],
         where: { caseId: { in: caseIds } },
         _count: { _all: true },
@@ -3932,9 +3968,20 @@ async function runInvestigationIntelligence(
             teamId,
             status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
             dueAt: { lt: now },
-            evidence: { caseId: { in: caseIds } },
+            evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
           },
-          select: { evidence: { select: { caseId: true } } },
+          select: {
+            evidence: {
+              select: {
+                caseLinks: {
+                  where: { caseId: { in: caseIds } },
+                  orderBy: { linkedAtUtc: "asc" },
+                  select: { caseId: true },
+                  take: 1,
+                },
+              },
+            },
+          },
           take: 500,
         })
         .catch(() => []),
@@ -3943,38 +3990,55 @@ async function runInvestigationIntelligence(
           where: {
             teamId,
             status: "OPEN",
-            workflow: { evidence: { caseId: { in: caseIds } } },
+            workflow: {
+              evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
+            },
           },
-          select: { workflow: { select: { evidence: { select: { caseId: true } } } } },
+          select: {
+            workflow: {
+              select: {
+                evidence: {
+                  select: {
+                    caseLinks: {
+                      where: { caseId: { in: caseIds } },
+                      orderBy: { linkedAtUtc: "asc" },
+                      select: { caseId: true },
+                      take: 1,
+                    },
+                  },
+                },
+              },
+            },
+          },
           take: 500,
         })
         .catch(() => []),
-      prisma.caseLegalHold
+      // P12.3 canonical-only (scope=CASE).
+      prisma.evidenceLegalHold
         .findMany({
-          where: { caseId: { in: caseIds }, status: "ACTIVE" },
+          where: { caseId: { in: caseIds }, scope: "CASE", status: "ACTIVE" },
           select: { caseId: true },
           take: caseIds.length * 4,
         })
         .catch(() => []),
-      prisma.evidence
+      prisma.caseEvidenceLink
         .findMany({
           where: {
             caseId: { in: caseIds },
-            status: { in: ["SIGNED", "REPORTED"] },
+            evidence: { status: { in: ["SIGNED", "REPORTED"] } },
           },
           select: {
             caseId: true,
-            verificationPackageMetadata: true,
+            evidence: { select: { verificationPackageMetadata: true } },
           },
           take: 1000,
         })
         .catch(() => []),
-      prisma.evidence
+      prisma.caseEvidenceLink
         .findMany({
           where: {
             caseId: { in: caseIds },
-            status: "SIGNED",
-            reports: { none: {} },
+            evidence: { status: "SIGNED", reports: { none: {} } },
           },
           select: { caseId: true },
           take: 500,
@@ -3989,14 +4053,14 @@ async function runInvestigationIntelligence(
     }
     const overdueCountByCase = new Map<string, number>();
     for (const r of overdueByCase) {
-      const cid = r.evidence?.caseId;
+      const cid = r.evidence?.caseLinks[0]?.caseId;
       if (typeof cid === "string") {
         overdueCountByCase.set(cid, (overdueCountByCase.get(cid) ?? 0) + 1);
       }
     }
     const escalationsCountByCase = new Map<string, number>();
     for (const e of escalationsByCase) {
-      const cid = e.workflow?.evidence?.caseId;
+      const cid = e.workflow?.evidence?.caseLinks[0]?.caseId;
       if (typeof cid === "string") {
         escalationsCountByCase.set(
           cid,
@@ -4005,10 +4069,11 @@ async function runInvestigationIntelligence(
       }
     }
     const holdsByCaseSet = new Set<string>();
-    for (const h of holdsByCase) holdsByCaseSet.add(h.caseId);
+    // scope='CASE' guarantees a case target; narrow rather than assert.
+    for (const h of holdsByCase) if (h.caseId) holdsByCaseSet.add(h.caseId);
     const blockedByCase = new Map<string, number>();
     for (const row of blockedExportsByCase) {
-      const meta = row.verificationPackageMetadata as Record<
+      const meta = row.evidence?.verificationPackageMetadata as Record<
         string,
         unknown
       > | null;
@@ -4127,7 +4192,7 @@ async function runInvestigationIntelligence(
               teamId,
               assignedToUserId: { not: null },
               status: { in: ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-              evidence: { caseId: { in: caseIds } },
+              evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
             },
             _count: { _all: true },
             having: { assignedToUserId: { _count: { gte: 5 } } },
@@ -4817,12 +4882,12 @@ async function runRelationshipIntelligence(
       if (!g.fileSha256) continue;
       const members = await prisma.evidence.findMany({
         where: { teamId, fileSha256: g.fileSha256 },
-        select: { id: true, caseId: true },
+        select: { id: true, caseLinks: { select: { caseId: true } } },
         take: 10,
       });
       const evidenceIds = members.map((m) => m.id);
       const caseIds = Array.from(
-        new Set(members.map((m) => m.caseId).filter((c): c is string => c !== null)),
+        new Set(members.flatMap((m) => m.caseLinks.map((l) => l.caseId))),
       );
       clusters.push({
         id: `dup_hash:${g.fileSha256.slice(0, 16)}`,
@@ -4889,10 +4954,10 @@ async function runRelationshipIntelligence(
       const sample = await prisma.evidence.findMany({
         where: { teamId, submittedByUserId: g.submittedByUserId },
         take: 5,
-        select: { id: true, caseId: true },
+        select: { id: true, caseLinks: { select: { caseId: true } } },
       });
       const caseIds = Array.from(
-        new Set(sample.map((s) => s.caseId).filter((c): c is string => c !== null)),
+        new Set(sample.flatMap((s) => s.caseLinks.map((l) => l.caseId))),
       );
       clusters.push({
         id: `submitter:${g.submittedByUserId.slice(0, 12)}`,
@@ -4972,11 +5037,6 @@ async function runCrossCaseIntelligenceV2(
     return { meta: { ...meta, status: "not_applicable" }, signals: [] };
   }
 
-  // Phase 32.8C+++++ — lazy backfill from Evidence.caseId so that
-  // CaseEvidenceLink-derived signals see existing linkage data without
-  // requiring a UI to populate the table first. Idempotent and bounded.
-  await backfillCaseEvidenceLinks({ teamId, limit: 200 }).catch(() => {});
-
   // Cross-case evidence: evidence rows linked to >1 cases.
   try {
     const multiCaseEvidence = await listEvidenceLinkedToMultipleCases({
@@ -5037,12 +5097,12 @@ async function runCrossCaseIntelligenceV2(
       where: {
         teamId,
         status: { in: ["SIGNED", "REPORTED"] },
-        caseId: { not: null },
+        caseLinks: { some: {} },
       },
       take: 500,
       select: {
         id: true,
-        caseId: true,
+        caseLinks: { select: { caseId: true } },
         verificationPackageMetadata: true,
       },
     });
@@ -5053,8 +5113,8 @@ async function runCrossCaseIntelligenceV2(
         string,
         unknown
       > | null;
-      if (m && m.blocked === true && row.caseId) {
-        blockedCases.add(row.caseId);
+      if (m && m.blocked === true && row.caseLinks.length > 0) {
+        for (const l of row.caseLinks) blockedCases.add(l.caseId);
         blockedEvidence.push(row.id);
       }
     }
@@ -5091,14 +5151,14 @@ async function runCrossCaseIntelligenceV2(
     if (evidenceIds.length >= 3) {
       const relatedEvidence = await prisma.evidence.findMany({
         where: { id: { in: evidenceIds } },
-        select: { id: true, caseId: true },
+        select: { id: true, caseLinks: { select: { caseId: true } } },
         take: 50,
       });
       const cases = new Set<string>();
       const evs: string[] = [];
       for (const e of relatedEvidence) {
-        if (e.caseId) {
-          cases.add(e.caseId);
+        if (e.caseLinks.length > 0) {
+          for (const l of e.caseLinks) cases.add(l.caseId);
           evs.push(e.id);
         }
       }
@@ -5129,7 +5189,12 @@ async function runCrossCaseIntelligenceV2(
       where: {
         teamId,
         updatedAt: { lt: since30d },
-        legalHolds: { some: { status: "ACTIVE" } },
+        // PHASE 12 POINT 3 — the legacy `legalHolds` relation pointed at the
+        // dropped `case_legal_holds` table. CASE-scoped rows now live in the
+        // canonical store, reached through `canonicalLegalHolds`; `scope` is
+        // stated explicitly so this cannot silently widen if the relation
+        // ever carries another scope.
+        canonicalLegalHolds: { some: { scope: "CASE", status: "ACTIVE" } },
       },
       orderBy: { updatedAt: "asc" },
       take: 12,

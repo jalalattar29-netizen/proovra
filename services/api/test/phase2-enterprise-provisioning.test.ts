@@ -29,21 +29,52 @@ import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PrismaClient } from "@prisma/client";
+import type { FastifyRequest } from "fastify";
+
+import {
+  asPrismaDouble,
+  rec,
+  str,
+  type DelegateArgs,
+  type JsonRecord,
+} from "./support/prisma-double.js";
+
 // ---------------------------------------------------------------------------
 // Mocks — bound BEFORE the SUT imports.
 // ---------------------------------------------------------------------------
 
-const { emitOrgAuditEventMock, appendPlatformAuditLogMock } = vi.hoisted(
-  () => ({
+const { emitOrgAuditEventMock, appendPlatformAuditLogMock, sendEmailMock } =
+  vi.hoisted(() => ({
     emitOrgAuditEventMock: vi.fn(async () => undefined),
     appendPlatformAuditLogMock: vi.fn(async () => undefined),
-  }),
-);
+    // Macro-Wave A2 — email TRANSPORT mock (the delivery chain writers stay
+    // real). Default: provider accepts the send.
+    sendEmailMock: vi.fn<
+      (input: { to: string; subject: string; html: string; text: string }) => Promise<
+        | { ok: true; providerMessageId: string }
+        | { ok: false; errorCode: string; errorMessage: string }
+      >
+    >(async () => ({ ok: true as const, providerMessageId: "msg-1" })),
+  }));
 vi.mock("../src/services/organization/org-audit.service.js", () => ({
   emitOrgAuditEvent: emitOrgAuditEventMock,
 }));
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
   appendPlatformAuditLog: appendPlatformAuditLogMock,
+}));
+// Macro-Wave A2 — mock ONLY the email transport module (render helpers are
+// trivially faked; the durable outbox + rotation writers under proof are
+// the REAL org-invite-delivery.service implementation).
+vi.mock("../src/services/email.service.js", () => ({
+  sendCustomEmailViaResend: sendEmailMock,
+  deterministicEmailKey: (templateKey: string, ...parts: string[]) =>
+    [templateKey, ...parts].join(":"),
+  renderEmailShell: (input: { bodyHtml: string }) => `<html>${input.bodyHtml}</html>`,
+  escapeEmailHtml: (s: string) => s,
+  getEmailBrandName: () => "PROOVRA",
+  getEmailFromHeader: () => "PROOVRA <no-reply@proovra.test>",
+  getEmailWebBaseUrl: () => "https://app.proovra.test",
 }));
 
 // The service only needs `prisma` for its default client — every test
@@ -86,6 +117,24 @@ type Org = {
   pendingEnterpriseSeats: number | null;
 };
 
+/**
+ * The NotificationDelivery columns the durable-outbox runtime writes and reads
+ * back. Declared explicitly (rather than an index signature of any) so a column
+ * the delivery service starts reading cannot silently resolve to undefined.
+ */
+type DeliveryRow = {
+  id: string;
+  status: string;
+  retryCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  providerMessageId: string | null;
+  sentAtUtc: Date | null;
+  failedAtUtc: Date | null;
+  nextAttemptAtUtc: Date | null;
+  metadata: JsonRecord | null;
+} & JsonRecord;
+
 function makeClient(seed: {
   orgs?: (Omit<Org, "pendingEnterpriseSeats"> & {
     pendingEnterpriseSeats?: number | null;
@@ -113,60 +162,64 @@ function makeClient(seed: {
     invitedByUserId: string;
     expiresAt: Date;
   }[] = [];
+  // Macro-Wave A2 — durable delivery outbox rows (NotificationDelivery).
+  const deliveries: DeliveryRow[] = [];
 
   let seq = 0;
   const nextId = (prefix: string) => `${prefix}-${++seq}`;
 
   const tx = {
     organization: {
-      findUnique: vi.fn(async ({ where }: any) => orgs.get(where.id) ?? null),
+      findUnique: vi.fn(async ({ where }: DelegateArgs) => orgs.get(String(rec(where).id)) ?? null),
       // (P1 domain remediation 2026-07-21) — grantEnterprisePlanToOrg now
       // also promotes the org to kind: "CUSTOMER"; the fake supports the
       // update so the existing behavioral assertions keep running.
-      update: vi.fn(async ({ where, data }: any) => {
-        const org = orgs.get(where.id);
-        if (org) Object.assign(org, data);
+      update: vi.fn(async ({ where, data }: DelegateArgs) => {
+        const org = orgs.get(String(rec(where).id));
+        if (org) Object.assign(org, rec(data));
         return org ?? {};
       }),
-      create: vi.fn(async ({ data }: any) => {
+      create: vi.fn(async ({ data }: DelegateArgs) => {
+        const d = rec(data);
         const org: Org = {
           id: nextId("org"),
-          name: data.name,
-          status: data.status,
-          billingOwnerUserId: data.billingOwnerUserId ?? null,
-          pendingEnterpriseSeats: data.pendingEnterpriseSeats ?? null,
+          name: String(d.name),
+          status: String(d.status),
+          billingOwnerUserId: str(d.billingOwnerUserId),
+          pendingEnterpriseSeats: typeof d.pendingEnterpriseSeats === "number" ? d.pendingEnterpriseSeats : null,
         };
         orgs.set(org.id, org);
         return { id: org.id };
       }),
     },
     team: {
-      findMany: vi.fn(async ({ where }: any) => {
+      findMany: vi.fn(async ({ where }: DelegateArgs) => {
         const rows = [...teams.values()].filter(
-          (t) => t.organizationId === where.organizationId,
+          (t) => t.organizationId === str(rec(where).organizationId),
         );
         return rows.map((t) => ({
           id: t.id,
           _count: { members: t.memberCount },
         }));
       }),
-      update: vi.fn(async ({ where, data }: any) => {
-        const t = teams.get(where.id)!;
-        Object.assign(t, data);
+      update: vi.fn(async ({ where, data }: DelegateArgs) => {
+        const t = teams.get(String(rec(where).id))!;
+        Object.assign(t, rec(data));
         return t;
       }),
-      create: vi.fn(async ({ data }: any) => {
+      create: vi.fn(async ({ data }: DelegateArgs) => {
+        const d = rec(data);
         const t: Team = {
           id: nextId("team"),
-          organizationId: data.organizationId,
-          ownerUserId: data.ownerUserId,
-          billingOwnerUserId: data.billingOwnerUserId ?? null,
-          name: data.name,
-          billingPlan: data.billingPlan,
-          billingStatus: data.billingStatus,
-          includedSeats: data.includedSeats,
-          overSeatLimit: data.overSeatLimit ?? false,
-          memberCount: data.members?.create ? 1 : 0,
+          organizationId: str(d.organizationId),
+          ownerUserId: String(d.ownerUserId),
+          billingOwnerUserId: str(d.billingOwnerUserId),
+          name: String(d.name),
+          billingPlan: String(d.billingPlan),
+          billingStatus: String(d.billingStatus),
+          includedSeats: Number(d.includedSeats),
+          overSeatLimit: d.overSeatLimit === true,
+          memberCount: rec(d.members).create ? 1 : 0,
         };
         teams.set(t.id, t);
         return { id: t.id };
@@ -176,16 +229,43 @@ function makeClient(seed: {
       // PHASE 3: the canonical orchestrator checks for an existing
       // membership before creating (idempotent grant).
       findFirst: vi.fn(async () => null),
-      create: vi.fn(async ({ data }: any) => {
-        memberships.push(data);
+      create: vi.fn(async ({ data }: DelegateArgs) => {
+        const d = rec(data);
+        memberships.push({
+          organizationId: String(d.organizationId),
+          userId: String(d.userId),
+          role: String(d.role),
+        });
         return { id: nextId("mem") };
       }),
     },
     organizationInvite: {
-      create: vi.fn(async ({ data }: any) => {
-        const invite = { id: nextId("inv"), ...data };
+      create: vi.fn(async ({ data }: DelegateArgs) => {
+        const d = rec(data);
+        const invite = {
+          id: nextId("inv"),
+          organizationId: String(d.organizationId),
+          email: String(d.email),
+          role: String(d.role),
+          token: str(d.token),
+          tokenHash: String(d.tokenHash),
+          invitedByUserId: String(d.invitedByUserId),
+          expiresAt: d.expiresAt instanceof Date ? d.expiresAt : new Date(String(d.expiresAt)),
+        };
         invites.push(invite);
         return { id: invite.id };
+      }),
+      // PHASE 12 POINT 5 — the delivery producer now reads the invite it is
+      // creating an intent for, inside the same transaction, so the intent can
+      // carry a bounded CONTENT FINGERPRINT over (inviteId, tokenHash,
+      // expiry). That is what lets a rotation be recognised as new content and
+      // given its own provider idempotency key instead of reusing the old one.
+      findUnique: vi.fn(async ({ where }: DelegateArgs & { where?: JsonRecord }) => {
+        const id = String(rec(where).id ?? "");
+        const found = invites.find((i) => i.id === id);
+        return found
+          ? { tokenHash: found.tokenHash, expiresAt: found.expiresAt }
+          : null;
       }),
     },
     // PHASE 10 §Step-1 — CUSTOMER-org creators now provision the baseline
@@ -193,30 +273,67 @@ function makeClient(seed: {
     // contract transactionally. The fake supports both so provisioning runs.
     organizationSecurityPolicy: {
       findUnique: vi.fn(async () => null),
-      create: vi.fn(async ({ data }: any) => ({ id: nextId("osp"), ...data })),
+      create: vi.fn(async ({ data }: DelegateArgs) => ({ id: nextId("osp"), ...rec(data) })),
     },
     enterpriseContract: {
-      upsert: vi.fn(async ({ create }: any) => ({ id: nextId("ec"), ...create })),
+      upsert: vi.fn(async ({ create }: DelegateArgs & { create?: JsonRecord }) => ({ id: nextId("ec"), ...rec(create) })),
+    },
+    // Macro-Wave A2 — durable invite-delivery outbox rows. The delivery
+    // service creates the row in the SAME tx as the invite and the inline
+    // first attempt reads/updates it after commit.
+    notificationDelivery: {
+      create: vi.fn(async ({ data }: DelegateArgs) => {
+        const row: DeliveryRow = {
+          id: nextId("del"),
+          status: "PENDING",
+          retryCount: 0,
+          errorCode: null,
+          errorMessage: null,
+          providerMessageId: null,
+          sentAtUtc: null,
+          failedAtUtc: null,
+          nextAttemptAtUtc: null,
+          metadata: null,
+          ...rec(data),
+        };
+        deliveries.push(row);
+        return { id: row.id };
+      }),
+      findUnique: vi.fn(async ({ where }: DelegateArgs) =>
+        deliveries.find((d) => d.id === str(rec(where).id)) ?? null,
+      ),
+      findFirst: vi.fn(async () => null),
+      update: vi.fn(async ({ where, data }: DelegateArgs) => {
+        const row = deliveries.find((d) => d.id === str(rec(where).id));
+        if (!row) throw new Error("delivery_not_found");
+        Object.assign(row, rec(data));
+        return { ...row };
+      }),
     },
   };
 
-  const client: any = {
+  const client = asPrismaDouble<PrismaClient>({
     ...tx,
     user: {
-      findFirst: vi.fn(async ({ where }: any) => {
-        const u = users.find((x) => x.email === where.email);
+      findFirst: vi.fn(async ({ where }: DelegateArgs) => {
+        const u = users.find((x) => x.email === str(rec(where).email));
         return u ? { id: u.id } : null;
       }),
     },
-    $transaction: vi.fn(async (fn: any) => fn(tx)),
-  };
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(tx)),
+  });
 
-  return { client, orgs, teams, memberships, invites };
+  return { client, orgs, teams, memberships, invites, deliveries };
 }
 
 beforeEach(() => {
   emitOrgAuditEventMock.mockClear();
   appendPlatformAuditLogMock.mockClear();
+  sendEmailMock.mockClear();
+  sendEmailMock.mockImplementation(async () => ({
+    ok: true as const,
+    providerMessageId: "msg-1",
+  }));
 });
 
 // ---------------------------------------------------------------------------
@@ -428,9 +545,13 @@ describe("provisionEnterpriseCustomer — missing owner", () => {
     expect(res).toMatchObject({ provisioned: false, pendingOwner: true });
     if (res.provisioned) throw new Error("expected pending owner");
 
-    // Raw token returned once; invite URL points at the canonical accept flow.
+    // Raw token returned once; invite URL points at the CANONICAL org-invite
+    // accept route (the exact path delivery emails contain and the web app
+    // serves at app/(app)/org-invites/[token]/accept). The old `/invite/…`
+    // path belonged to the TEAM invite journey and could never accept an
+    // OrganizationInvite.
     expect(res.ownerInviteToken).toMatch(/^[0-9a-f]{64}$/);
-    expect(res.inviteUrl).toBe(`/invite/${res.ownerInviteToken}`);
+    expect(res.inviteUrl).toBe(`/org-invites/${res.ownerInviteToken}/accept`);
 
     // No workspace created (Team.ownerUserId is required).
     expect(teams.size).toBe(0);
@@ -495,6 +616,149 @@ describe("provisionEnterpriseCustomer — missing owner", () => {
       }),
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Macro-Wave A2 — durable owner-invite delivery chain.
+  // -------------------------------------------------------------------------
+
+  it("commits a durable PENDING delivery outbox row WITH the invite and sends the email inline (SENT); zero raw-token leakage into durable rows or audit", async () => {
+    const { client, invites, deliveries } = makeClient({ users: [] });
+
+    const res = await provisionEnterpriseCustomer(
+      {
+        organizationName: "Beta LLC",
+        ownerEmail: "new-owner@beta.test",
+        actorUserId: "admin-1",
+      },
+      client,
+    );
+    if (res.provisioned) throw new Error("expected pending owner");
+
+    // One outbox row, created against the SAME tx as the invite, bound to
+    // the invite by id — metadata carries ONLY safe ids.
+    expect(deliveries).toHaveLength(1);
+    const row = deliveries[0]!;
+    expect(row.eventType).toBe("org_invite_delivery");
+    expect(row.recipient).toBe("new-owner@beta.test");
+    expect(row.metadata).toMatchObject({
+      inviteId: invites[0]!.id,
+      organizationId: res.organizationId,
+    });
+    // POINT 5 — safe ids, the minted provider idempotency key, and the
+    // bounded content identity, and NOTHING ELSE. The guarantee this protects
+    // is that no token and no accept URL is in the row, which an exact key set
+    // asserts directly.
+    //
+    // `contentVersion` + `contentFingerprint` arrived with the rotation
+    // contract: a rotation is new content and must get a new intent under a
+    // new key, so the intent has to record WHICH content it is for. The
+    // fingerprint is a digest over the STORED HASH, never the token — the
+    // assertion below states that as a value check rather than leaving it to
+    // the key name.
+    expect(Object.keys(row.metadata as object).sort()).toEqual([
+      "contentFingerprint",
+      "contentVersion",
+      "idempotencyKey",
+      "inviteId",
+      "organizationId",
+    ]);
+    const md = row.metadata as Record<string, unknown>;
+    expect(md.contentVersion).toBe(1);
+    expect(md.contentFingerprint).toMatch(/^[0-9a-f]{32}$/);
+    expect(md.contentFingerprint).not.toBe(invites[0]!.tokenHash);
+
+    // Inline first attempt succeeded → SENT, one provider call, and the
+    // accept URL handed to the transport contains the raw token (in memory
+    // only) at the canonical accept path.
+    expect(row.status).toBe("SENT");
+    expect(row.retryCount).toBe(1);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    const emailArg = sendEmailMock.mock.calls[0]![0] as { to: string; text: string };
+    expect(emailArg.to).toBe("new-owner@beta.test");
+    expect(emailArg.text).toContain(
+      `/org-invites/${res.ownerInviteToken}/accept`,
+    );
+    expect(res.ownerInviteDelivery).toMatchObject({
+      status: "SENT",
+      attempts: 1,
+    });
+
+    // ZERO raw-token leakage: the raw token appears in NO durable delivery
+    // row and NO audit metadata (org audit + platform audit).
+    const rawToken = res.ownerInviteToken;
+    expect(JSON.stringify(deliveries)).not.toContain(rawToken);
+    expect(JSON.stringify(emitOrgAuditEventMock.mock.calls)).not.toContain(
+      rawToken,
+    );
+    expect(JSON.stringify(appendPlatformAuditLogMock.mock.calls)).not.toContain(
+      rawToken,
+    );
+  });
+
+  it("a transient send failure leaves the row PENDING (observable, scheduled for the rotation sweep) — the invite itself still commits", async () => {
+    sendEmailMock.mockImplementation(async () => ({
+      ok: false as const,
+      errorCode: "rate_limit",
+      errorMessage: "429 too many requests",
+    }));
+    const { client, invites, deliveries } = makeClient({ users: [] });
+    const res = await provisionEnterpriseCustomer(
+      {
+        organizationName: "Beta LLC",
+        ownerEmail: "new-owner@beta.test",
+        actorUserId: "admin-1",
+      },
+      client,
+    );
+    if (res.provisioned) throw new Error("expected pending owner");
+
+    expect(invites).toHaveLength(1);
+    const row = deliveries[0]!;
+    expect(row.status).toBe("PENDING");
+    expect(row.retryCount).toBe(1);
+    expect(row.errorCode).toBe("rate_limit");
+    expect(row.nextAttemptAtUtc).toBeInstanceOf(Date);
+    expect(res.ownerInviteDelivery).toMatchObject({
+      status: "PENDING",
+      attempts: 1,
+    });
+    expect(res.ownerInviteDelivery!.lastError).toContain("rate_limit");
+  });
+
+  it("a structural send failure (provider not configured) is an honest observable FAILED — never a silent success", async () => {
+    sendEmailMock.mockImplementation(async () => ({
+      ok: false as const,
+      errorCode: "not_configured",
+      errorMessage: "RESEND_API_KEY missing",
+    }));
+    const { client, deliveries } = makeClient({ users: [] });
+    const res = await provisionEnterpriseCustomer(
+      {
+        organizationName: "Beta LLC",
+        ownerEmail: "new-owner@beta.test",
+        actorUserId: "admin-1",
+      },
+      client,
+    );
+    if (res.provisioned) throw new Error("expected pending owner");
+    expect(deliveries[0]!.status).toBe("FAILED");
+    expect(res.ownerInviteDelivery).toMatchObject({ status: "FAILED" });
+  });
+
+  it("SOURCE — the idempotency snapshot redacts BOTH one-time secrets (ownerInviteToken AND the token-embedding inviteUrl)", () => {
+    const src = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../src/services/enterprise-provisioning.service.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    expect(src).toMatch(/delete rest\.ownerInviteToken;/);
+    expect(src).toMatch(/delete rest\.inviteUrl;/);
+    expect(src).toMatch(/ownerInviteToken: null,\s*\r?\n\s*inviteUrl: null/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -557,8 +821,10 @@ describe("admin-provisioning route gate", () => {
 
     // requireAuth: succeed and stamp a user, without touching JWT/session.
     vi.doMock("../src/middleware/auth.js", () => ({
-      requireAuth: vi.fn(async (req: any) => {
-        req.user = { sub: "not-an-admin" };
+      // Stamp the SAME session shape production stamps — `provider` is
+      // required, and the previous `any` hid that this double omitted it.
+      requireAuth: vi.fn(async (req: FastifyRequest) => {
+        req.user = { sub: "not-an-admin", provider: "EMAIL" };
       }),
     }));
     // isPlatformAdmin: deny.

@@ -33,13 +33,16 @@
  *     (requirePlatformAdmin) remains the authoritative boundary.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useActiveWorkspaceId } from "../../../../lib/platform-context";
+import {
+  useActiveWorkspaceId,
+  useTenantGuard,
+} from "../../../../lib/platform-context";
 import {
   StepUpModal,
   useStepUpAction,
@@ -54,6 +57,7 @@ import {
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
+import { InvitationGovernanceSection } from "./_sections/InvitationGovernanceSection";
 
 // ---------------------------------------------------------------------------
 // Response shapes (match services/api/src/services/enterprise-provisioning.service.ts)
@@ -70,6 +74,14 @@ type ProvisionPendingResult = {
   organizationId: string;
   ownerInviteToken: string;
   inviteUrl: string;
+  /** Macro-Wave A2 — durable email-delivery state of the owner invite
+   *  (safe projection: never a token/URL). */
+  ownerInviteDelivery?: {
+    deliveryId: string;
+    status: "PENDING" | "SENT" | "FAILED" | "CANCELLED";
+    attempts: number;
+    lastError: string | null;
+  } | null;
   provisioned: false;
   pendingOwner: true;
 };
@@ -88,8 +100,8 @@ function isProvisioned(r: ProvisionResult): r is ProvisionProvisionedResult {
 }
 
 // Build the absolute invite URL from the relative path the API returns
-// (`/invite/{token}`), so the operator can copy a link that works when
-// pasted straight to the customer.
+// (the canonical `/org-invites/{token}/accept` accept route), so the
+// operator can copy a link that works when pasted straight to the customer.
 function absoluteInviteUrl(relative: string): string {
   if (typeof window === "undefined") return relative;
   try {
@@ -119,6 +131,11 @@ function AdminProvisioningInner() {
   // admin-only tenant, so we never ask the operator to switch into one.
   const teamId = useActiveWorkspaceId();
 
+  // PHASE 12B — the provisioning TARGET flows from the server's own result into
+  // the downstream panels, so the operator never has to copy an organization id
+  // by hand to finish the journey (grant the plan, govern the invitations).
+  const [targetOrganizationId, setTargetOrganizationId] = useState("");
+
   return (
     <PageShell
       data-testid="admin-provisioning"
@@ -145,14 +162,31 @@ function AdminProvisioningInner() {
             title="Provision new enterprise customer"
             description="Stand up a brand-new organization and its enterprise workspace, or invite an owner who doesn't have an account yet."
           >
-            <ProvisionPanel teamId={teamId} />
+            <ProvisionPanel
+              teamId={teamId}
+              onOrganizationProvisioned={setTargetOrganizationId}
+            />
           </PageSection>
 
           <PageSection
             title="Grant enterprise to an existing organization"
             description="Apply the ENTERPRISE plan to every workspace in an organization that already exists."
           >
-            <GrantPlanPanel teamId={teamId} />
+            <GrantPlanPanel
+              teamId={teamId}
+              organizationId={targetOrganizationId}
+              onOrganizationIdChange={setTargetOrganizationId}
+            />
+          </PageSection>
+
+          <PageSection
+            title="Invitations for this organization"
+            description="Durable delivery state for every pending invitation, with resend (which rotates the link) and revoke."
+          >
+            <InvitationGovernanceSection
+              organizationId={targetOrganizationId}
+              onOrganizationIdChange={setTargetOrganizationId}
+            />
           </PageSection>
 
           <PageSection
@@ -293,15 +327,25 @@ function RecentEventsCard() {
 // Panel 1 — Provision a NEW enterprise customer.
 // ---------------------------------------------------------------------------
 
-function ProvisionPanel({ teamId }: { teamId: string }) {
+function ProvisionPanel({
+  teamId,
+  onOrganizationProvisioned,
+}: {
+  teamId: string;
+  onOrganizationProvisioned: (organizationId: string) => void;
+}) {
   const { addToast } = useToast();
   const stepUp = useStepUpAction({ teamId });
+  const { stamp, isStale } = useTenantGuard();
 
   const [organizationName, setOrganizationName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [seats, setSeats] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [busy, setBusy] = useState(false);
+  // Stable per-intent idempotency key (12B 2B) — survives retries of the same
+  // submission; reset when the inputs change.
+  const idempotencyRef = useRef<{ sig: string; key: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -335,13 +379,25 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
 
     const workspace = workspaceName.trim();
 
+    // PHASE 12B WAVE 2B — the API REQUIRES idempotencyKey (min 8): the same
+    // submission (identical inputs) retries with the SAME key so a retry can
+    // never provision a duplicate Organization/Workspace/owner/seat set; any
+    // input change mints a fresh key (a new intent).
+    const intentSig = JSON.stringify({ teamId, name, email, seatsValue, workspace });
+    if (!idempotencyRef.current || idempotencyRef.current.sig !== intentSig) {
+      idempotencyRef.current = { sig: intentSig, key: crypto.randomUUID() };
+    }
+    const idempotencyKey = idempotencyRef.current.key;
+
     setBusy(true);
+    const captured = stamp();
     try {
       const res = (await stepUp.runStepUpAction(async (headers) => {
         return (await apiFetch("/v1/admin/enterprise/provision", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
           body: JSON.stringify({
+            idempotencyKey,
             teamId,
             organizationName: name,
             ownerEmail: email,
@@ -350,15 +406,18 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
           }),
         })) as ProvisionResult;
       })) as ProvisionResult;
+      if (isStale(captured)) return;
 
       setResult(res);
+      if (res.organizationId) onOrganizationProvisioned(res.organizationId);
       addToast(
         isProvisioned(res)
           ? "Enterprise workspace created."
-          : "Owner invited — copy the invite URL below.",
+          : "Owner invited — the invitation email is on its way.",
         "success",
       );
     } catch (err) {
+      if (isStale(captured)) return;
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") {
         setError("Step-up cancelled — nothing was provisioned.");
@@ -383,6 +442,9 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
     workspaceName,
     stepUp,
     addToast,
+    onOrganizationProvisioned,
+    stamp,
+    isStale,
   ]);
 
   const copyInvite = useCallback(async (url: string) => {
@@ -493,11 +555,25 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
           </div>
         ) : (
           <div style={successBoxStyle} data-testid="provision-success-pending">
-            <strong>Owner invited.</strong> Send this invite URL to the owner.
+            <strong>Owner invited.</strong>{" "}
+            {result.ownerInviteDelivery?.status === "SENT"
+              ? "The invitation email was sent to the owner automatically."
+              : result.ownerInviteDelivery?.status === "FAILED"
+                ? "The invitation email could not be sent — share the invite URL below with the owner directly."
+                : "The invitation email is queued for delivery — you can also share the invite URL below directly."}{" "}
             After they accept, come back and use “Grant enterprise to an
             existing organization” below with organization id{" "}
             <span style={monoStyle}>{result.organizationId}</span> to activate
             the plan.
+            {result.ownerInviteDelivery ? (
+              <div
+                data-testid="provision-invite-delivery"
+                data-delivery-status={result.ownerInviteDelivery.status}
+                style={{ marginTop: 6, ...mutedStyle }}
+              >
+                Email delivery: {result.ownerInviteDelivery.status.toLowerCase()}
+              </div>
+            ) : null}
             <div
               style={{
                 marginTop: 10,
@@ -537,11 +613,23 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
 // Panel 2 — Grant ENTERPRISE to an EXISTING organization.
 // ---------------------------------------------------------------------------
 
-function GrantPlanPanel({ teamId }: { teamId: string }) {
+function GrantPlanPanel({
+  teamId,
+  organizationId,
+  onOrganizationIdChange,
+}: {
+  teamId: string;
+  organizationId: string;
+  onOrganizationIdChange: (next: string) => void;
+}) {
   const { addToast } = useToast();
   const stepUp = useStepUpAction({ teamId });
+  const { stamp, isStale } = useTenantGuard();
 
-  const [orgId, setOrgId] = useState("");
+  // The target id is shared with the provisioning + invitation panels so the
+  // journey never depends on the operator copying it by hand.
+  const orgId = organizationId;
+  const setOrgId = onOrganizationIdChange;
   const [seats, setSeats] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -568,6 +656,7 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
     }
 
     setBusy(true);
+    const captured = stamp();
     try {
       const res = (await stepUp.runStepUpAction(async (headers) => {
         return (await apiFetch(
@@ -575,7 +664,7 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
           {
             method: "PATCH",
             headers: {
-              "Content-Type": "application/json",
+              "content-type": "application/json",
               ...(headers ?? {}),
             },
             body: JSON.stringify({
@@ -586,10 +675,12 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
           },
         )) as GrantPlanResult;
       })) as GrantPlanResult;
+      if (isStale(captured)) return;
 
       setResult(res);
       addToast("ENTERPRISE plan granted.", "success");
     } catch (err) {
+      if (isStale(captured)) return;
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") {
         setError("Step-up cancelled — the plan was not changed.");
@@ -606,7 +697,7 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
     } finally {
       setBusy(false);
     }
-  }, [teamId, orgId, seats, stepUp, addToast]);
+  }, [teamId, orgId, seats, stepUp, addToast, stamp, isStale]);
 
   return (
     <Card

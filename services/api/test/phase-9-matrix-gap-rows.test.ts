@@ -22,7 +22,7 @@ vi.mock("../src/db.js", () => {
           {},
           {
             get(_t2, method: string) {
-              return async (args?: { where?: Record<string, unknown> }) => {
+              return async () => {
                 if (/^(create|update|upsert|delete)/.test(String(method)))
                   H.writes.push(`${String(model)}.${String(method)}`);
                 if (String(model) === "team" && method === "findUnique")

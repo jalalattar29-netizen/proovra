@@ -42,10 +42,17 @@
  *   * `reindex` — search projection rebuild (reserved)
  */
 
+import { randomUUID } from "node:crypto";
+
 import type { Job } from "bullmq";
+import {
+  JOB_NAMES,
+  type MediaIntelligenceJobKind,
+} from "@proovra/shared";
+
+import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import type { MediaIntelligenceJobPayload } from "./queue.js";
 import { getObjectRange } from "./storage.js";
 // Wave 5 — Worker → API internal callback for automatic provider extraction.
 // Replaces the previous cross-package `import("../../api/src/...")` that
@@ -93,21 +100,208 @@ async function tryBump(
 // Public surface — registered via safeRegisterWorker in index.ts
 // =============================================================================
 
-export async function processMediaIntelligenceJob(
-  job: Job<MediaIntelligenceJobPayload>,
+/**
+ * PHASE 12 — POINT 5: the text-similarity producer.
+ *
+ * Creates the durable `MediaIntelligenceRun` FIRST, then enqueues its id —
+ * the same commit-then-enqueue ordering every converged chain uses, and for
+ * the same reason: a run row with no job is recoverable by the stranded-run
+ * reconciler, whereas a job with no run row is invisible to operators and
+ * unrecoverable by anything.
+ *
+ * The idempotency key collapses repeat passes for the same (kind, evidence),
+ * so a re-extraction does not queue a second identical comparison.
+ *
+ * Best-effort by contract: a failure here must never fail the extraction that
+ * already succeeded and is already durable.
+ */
+async function enqueueTextSimilarityPass(input: {
+  teamId: string;
+  evidenceId: string;
+  kind: "reconcile_ocr_similarity" | "reconcile_transcript_similarity";
+}): Promise<void> {
+  try {
+    const { enqueueMediaIntelligenceRun } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    );
+    const run = await enqueueMediaIntelligenceRun(
+      {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        kind: input.kind,
+        idempotencyKey: `${input.kind}:${input.evidenceId}`,
+      },
+      prisma,
+    );
+    if (!run.ok) {
+      logger.warn(
+        { evidenceId: input.evidenceId, kind: input.kind },
+        "media_intelligence.text_similarity_run_unavailable",
+      );
+      return;
+    }
+    const { enqueueMediaIntelligenceRunById } = await import("./queue.js");
+    const outcome = await enqueueMediaIntelligenceRunById(run.run.id, {
+      traceId: input.kind,
+    });
+    if (!outcome.enqueued) {
+      // The run row survives in PENDING; the stranded-run reconciler owns it.
+      logger.warn(
+        {
+          evidenceId: input.evidenceId,
+          kind: input.kind,
+          runId: run.run.id,
+          reason: outcome.reason,
+        },
+        "media_intelligence.text_similarity_enqueue_deferred",
+      );
+    }
+  } catch {
+    /* best-effort: never fail a durable extraction over a follow-on pass */
+  }
+}
+
+/**
+ * PHASE 12 — POINT 5: the `mi-exif` queue's OWN entry point.
+ *
+ * `mi-exif` and `media-intelligence` used to share `processMediaIntelligenceJob`
+ * outright. That is why the old payload had to carry BOTH a run id and a part
+ * id and trust whichever was present: one function had two identities, and its
+ * command meant different things depending on which queue delivered it.
+ *
+ * They are now separate work names with separate authorities, so they need
+ * separate entry points. An EXIF job addresses the PART whose bytes it reads;
+ * a media-intelligence job addresses the RUN row that tracks its lifecycle.
+ * Binding `mi-exif` to the run-shaped handler would make every EXIF job fail
+ * its job-name check — which is exactly what the closure gate caught.
+ */
+export async function processExifQueueJob(
+  job: Job<unknown>,
 ): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
-  const { teamId, evidenceId, kind, runId, evidencePartId } =
-    job.data ?? ({} as MediaIntelligenceJobPayload);
-  if (!teamId || !evidenceId || !kind) {
-    // Malformed payload — log + return success so BullMQ doesn't
-    // ballast on a structurally-invalid job. The producer's
-    // payload validation already prevents this on the happy path.
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(JOB_NAMES.EXTRACT_EXIF, job, { requestId });
+
+  // The part is the authority, and its workspace comes from the evidence row it
+  // hangs off — an `EvidencePart` has no `team_id` column of its own.
+  const part = await prisma.evidencePart.findFirst({
+    where: { id: decoded.commandId, evidence: { deletedAt: null } },
+    select: {
+      id: true,
+      evidenceId: true,
+      evidence: { select: { teamId: true } },
+    },
+  });
+  if (!part?.evidence?.teamId) {
     logger.warn(
-      { jobId: job.id, kind, missing: { teamId: !teamId, evidenceId: !evidenceId, kind: !kind } },
-      "media_intelligence.malformed_payload",
+      { requestId, jobId: job.id, kind: "mi-exif" },
+      "media_intelligence.exif_part_unresolved",
     );
     return { ok: true, signalsEmitted: 0 };
   }
+
+  await tryBump("media_intelligence_processor_started_total");
+
+  // The run row is OPTIONAL here and that is correct: an EXIF extraction is
+  // addressed by its part, and the run row — when the producer created one —
+  // only tracks lifecycle. Looked up rather than trusted.
+  const run = await prisma.mediaIntelligenceRun.findFirst({
+    where: {
+      evidenceId: part.evidenceId,
+      teamId: part.evidence.teamId,
+      kind: "extract_exif",
+      status: { in: ["PENDING", "PROCESSING"] },
+    },
+    orderBy: { createdAtUtc: "desc" },
+    select: { id: true },
+  });
+
+  return processExtractExifJob({
+    jobId: job.id,
+    teamId: part.evidence.teamId,
+    evidenceId: part.evidenceId,
+    evidencePartId: part.id,
+    runId: run?.id ?? null,
+    attemptsMade: job.attemptsMade ?? 0,
+    attemptsAllowed: job.opts?.attempts ?? 1,
+  });
+}
+
+/**
+ * PHASE 12 — POINT 5: the media-intelligence entry point.
+ *
+ * The payload was `{ teamId, evidenceId, kind, runId?, evidencePartId?,
+ * textKind? }`, and `teamId` was used to scope every read and every write this
+ * processor performs — including the AI-policy lookup and the provider SPEND
+ * gate, which means the workspace CHARGED for a vendor call was whichever one
+ * the message named.
+ *
+ * The command now names a `MediaIntelligenceRun`. That row already carried the
+ * workspace, the evidence and the kind: it was being created by the authorized
+ * path and then ignored in favour of the copies on the wire.
+ *
+ * `evidencePartId` and `textKind` are gone from the wire rather than moved:
+ * the EXIF path (the only one that pinned a part) is now its own work name with
+ * the part as its authority, and the text-similarity path derives its kind from
+ * the run's own `kind` column.
+ */
+export async function processMediaIntelligenceJob(
+  job: Job<unknown>,
+): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
+  const requestId = randomUUID();
+  const decoded = decodeCanonicalJob(JOB_NAMES.RUN_MEDIA_INTELLIGENCE, job, {
+    requestId,
+  });
+
+  const run = await prisma.mediaIntelligenceRun.findUnique({
+    where: { id: decoded.commandId },
+    select: {
+      id: true,
+      teamId: true,
+      evidenceId: true,
+      kind: true,
+      status: true,
+    },
+  });
+  if (!run) {
+    // The run row is not going to appear on a retry.
+    logger.warn(
+      { requestId, jobId: job.id },
+      "media_intelligence.run_not_found",
+    );
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  // A finished run is not re-executed by a replayed delivery. Without this, a
+  // duplicate would re-invoke the AI provider and re-charge the workspace for
+  // an extraction whose output is already persisted.
+  if (run.status === "COMPLETED" || run.status === "FAILED") {
+    logger.info(
+      { requestId, jobId: job.id, runId: run.id, status: run.status },
+      "media_intelligence.replay_noop",
+    );
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  // The evidence row is the second half of the tenancy check: a run whose
+  // evidence has moved workspace, or been deleted, is refused before any read
+  // of its bytes.
+  const evidence = await prisma.evidence.findFirst({
+    where: { id: run.evidenceId, deletedAt: null },
+    select: { id: true, teamId: true },
+  });
+  if (!evidence || evidence.teamId !== run.teamId) {
+    logger.warn(
+      { requestId, jobId: job.id, runId: run.id },
+      "media_intelligence.evidence_scope_mismatch",
+    );
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  const teamId = run.teamId;
+  const evidenceId = run.evidenceId;
+  const kind = run.kind as MediaIntelligenceJobKind;
+  const runId = run.id;
+  const evidencePartId: string | null = null;
 
   await tryBump("media_intelligence_processor_started_total");
 
@@ -122,8 +316,8 @@ export async function processMediaIntelligenceJob(
       jobId: job.id,
       teamId,
       evidenceId,
-      evidencePartId: evidencePartId ?? null,
-      runId: runId ?? null,
+      evidencePartId,
+      runId,
       attemptsMade: job.attemptsMade ?? 0,
       attemptsAllowed: job.opts?.attempts ?? 1,
     });
@@ -139,7 +333,7 @@ export async function processMediaIntelligenceJob(
       jobId: job.id,
       teamId,
       evidenceId,
-      evidencePartId: evidencePartId ?? null,
+      evidencePartId,
     });
   }
 
@@ -153,7 +347,7 @@ export async function processMediaIntelligenceJob(
       jobId: job.id,
       teamId,
       evidenceId,
-      evidencePartId: evidencePartId ?? null,
+      evidencePartId,
     });
   }
 
@@ -169,7 +363,7 @@ export async function processMediaIntelligenceJob(
       jobId: job.id,
       teamId,
       evidenceId,
-      runId: runId ?? null,
+      runId,
     });
   }
 
@@ -181,30 +375,31 @@ export async function processMediaIntelligenceJob(
       jobId: job.id,
       teamId,
       evidenceId,
-      runId: runId ?? null,
+      runId,
     });
   }
 
-  // Phase 13 — text-similarity sub-branch on the `reconcile` job
-  // kind. When the producer supplies a `textKind` of OCR or
-  // TRANSCRIPT, the worker:
-  //   1. runs the existing Phase 15 text-similarity detector
-  //      (services/api/.../similarity.service.ts via lazy import),
-  //      which writes EvidenceSimilarity rows of kind OCR_SIMILAR /
-  //      TRANSCRIPT_SIMILAR;
-  //   2. promotes the MEDIUM / HIGH band rows into SIMILAR_TO
-  //      graph edges via UPSERT against investigation_graph_edges,
-  //      back-referencing the resulting edge id on the
-  //      EvidenceSimilarity row (one-way promotion only).
-  // Errors here NEVER throw to BullMQ — returns success so the
-  // queue drains cleanly; the run row (if any) is left for the
-  // bottom-of-handler analyzer dispatch to settle.
-  if (kind === "reconcile" && job.data?.textKind) {
+  // Phase 13 — text-similarity promotion. The worker:
+  //   1. runs the Phase 15 text-similarity detector, which writes
+  //      EvidenceSimilarity rows of kind OCR_SIMILAR / TRANSCRIPT_SIMILAR;
+  //   2. promotes the MEDIUM / HIGH band rows into SIMILAR_TO graph edges via
+  //      UPSERT against investigation_graph_edges, back-referencing the
+  //      resulting edge id on the EvidenceSimilarity row (one-way only).
+  // Errors here NEVER throw to BullMQ — the queue drains cleanly and the run
+  // row is left for the bottom-of-handler analyzer dispatch to settle.
+  //
+  // PHASE 12 POINT 5: which pass to run comes from the RUN KIND, not from an
+  // optional `textKind` field on the payload. That field had no producer, so
+  // this branch was unreachable.
+  if (
+    kind === "reconcile_ocr_similarity" ||
+    kind === "reconcile_transcript_similarity"
+  ) {
     return processTextSimilarityPromotion({
       jobId: job.id,
       teamId,
       evidenceId,
-      textKind: job.data.textKind,
+      textKind: kind === "reconcile_ocr_similarity" ? "OCR" : "TRANSCRIPT",
     });
   }
 
@@ -240,6 +435,8 @@ export async function processMediaIntelligenceJob(
   let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
   let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
   let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  /** Claim generation for this run, set when the claim is won. */
+  let runFence: number | undefined;
   try {
     ({ runMediaIntelligenceAnalysis } = await import(
       "@proovra/shared-runtime/media-intelligence"
@@ -261,6 +458,10 @@ export async function processMediaIntelligenceJob(
   // Transition run → PROCESSING (if a runId was supplied).
   if (runId) {
     const proc = await markRunProcessing(runId, teamId, prisma);
+    // PHASE 12 POINT 5 — the fence for THIS claim. Every terminal write
+    // below carries it, so a worker whose lease expired cannot write its
+    // late outcome over the result of the worker that replaced it.
+    if (proc.ok) runFence = proc.fence;
     if (!proc.ok) {
       if (proc.reason === "max_retries_exceeded") {
         // Permanent failure for this run. Return success so the
@@ -293,6 +494,7 @@ export async function processMediaIntelligenceJob(
         teamId,
         `analyzer_${result.reason}`,
         prisma,
+        runFence,
       );
     }
     await tryBump("media_intelligence_processor_failed_total");
@@ -311,7 +513,7 @@ export async function processMediaIntelligenceJob(
   }
 
   if (runId) {
-    await markRunCompleted(runId, teamId, prisma);
+    await markRunCompleted(runId, teamId, prisma, runFence);
   }
   await tryBump("media_intelligence_processor_completed_total");
   logger.info(
@@ -353,6 +555,8 @@ async function processExtractExifJob(
   let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
   let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
   let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  /** Claim generation for this run, set when the claim is won. */
+  let runFence: number | undefined;
   let extractExifSafe: typeof import("@proovra/shared-runtime/media-intelligence")["extractExifSafe"];
   let upsertExifSummary: typeof import("@proovra/shared-runtime/media-intelligence")["upsertExifSummary"];
   let recordExifSummaryFailure: typeof import("@proovra/shared-runtime/media-intelligence")["recordExifSummaryFailure"];
@@ -378,6 +582,10 @@ async function processExtractExifJob(
   // semantics as the analyze_metadata branch.
   if (runId) {
     const proc = await markRunProcessing(runId, teamId, prisma);
+    // PHASE 12 POINT 5 — the fence for THIS claim. Every terminal write
+    // below carries it, so a worker whose lease expired cannot write its
+    // late outcome over the result of the worker that replaced it.
+    if (proc.ok) runFence = proc.fence;
     if (!proc.ok) {
       if (proc.reason === "max_retries_exceeded") {
         await tryBump("media_intelligence_dlq_total");
@@ -419,7 +627,7 @@ async function processExtractExifJob(
 
   if (parts.length === 0) {
     if (runId) {
-      await markRunFailed(runId, teamId, "no_parts_found", prisma);
+      await markRunFailed(runId, teamId, "no_parts_found", prisma, runFence);
     }
     await tryBump("media_intelligence_processor_failed_total");
     logger.warn(
@@ -527,7 +735,7 @@ async function processExtractExifJob(
 
   if (runId) {
     if (succeeded > 0 || failed === 0) {
-      await markRunCompleted(runId, teamId, prisma);
+      await markRunCompleted(runId, teamId, prisma, runFence);
     } else {
       await markRunFailed(
         runId,
@@ -1353,6 +1561,8 @@ async function processExtractOcrAzureJob(
   let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
   let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
   let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  /** Claim generation for this run, set when the claim is won. */
+  let runFence: number | undefined;
   try {
     ({ markRunProcessing, markRunCompleted, markRunFailed } = await import(
       "@proovra/shared-runtime/media-intelligence"
@@ -1367,6 +1577,10 @@ async function processExtractOcrAzureJob(
 
   if (runId) {
     const proc = await markRunProcessing(runId, teamId, prisma);
+    // PHASE 12 POINT 5 — the fence for THIS claim. Every terminal write
+    // below carries it, so a worker whose lease expired cannot write its
+    // late outcome over the result of the worker that replaced it.
+    if (proc.ok) runFence = proc.fence;
     if (!proc.ok) {
       if (proc.reason === "max_retries_exceeded") {
         await tryBump("media_intelligence_dlq_total");
@@ -1413,12 +1627,31 @@ async function processExtractOcrAzureJob(
       /* best-effort */
     }
 
+    // PHASE 12 — POINT 5: the text-similarity producer that never existed.
+    //
+    // The promotion path (EvidenceSimilarity rows -> SIMILAR_TO graph edges)
+    // was originally selected by an optional `textKind` field on the queue
+    // payload that NO producer anywhere set, so the branch was unreachable.
+    // Point 5 turned that selector into a run KIND, which made the path
+    // addressable — but addressable is not reachable, and nothing emitted the
+    // new kind either. The capability was still dead.
+    //
+    // Here is its trigger, and it is the only correct one: the pass compares
+    // this record's OCR text against other records', so it can only run once
+    // that text durably exists. Enqueuing it at finalization would race the
+    // extraction it depends on.
+    await enqueueTextSimilarityPass({
+      teamId,
+      evidenceId,
+      kind: "reconcile_ocr_similarity",
+    });
+
     if (runId) {
       // If the API processed 0 parts (e.g. no image/PDF parts on the
       // row) we still mark the run COMPLETED — the orchestrator
       // returns success with 0 records and that's the canonical no-op
       // signal for a runtime job.
-      await markRunCompleted(runId, teamId, prisma);
+      await markRunCompleted(runId, teamId, prisma, runFence);
     }
     await tryBump(
       result.recordsCreated > 0
@@ -1451,7 +1684,7 @@ async function processExtractOcrAzureJob(
     240,
   );
   if (runId) {
-    await markRunFailed(runId, teamId, errorSummary, prisma);
+    await markRunFailed(runId, teamId, errorSummary, prisma, runFence);
   }
   await tryBump("media_intelligence_processor_failed_total");
   // Bounded log; error is already <= 240 chars and contains no raw text.
@@ -1495,6 +1728,8 @@ async function processExtractTranscriptDeepgramJob(
   let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
   let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
   let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  /** Claim generation for this run, set when the claim is won. */
+  let runFence: number | undefined;
   try {
     ({ markRunProcessing, markRunCompleted, markRunFailed } = await import(
       "@proovra/shared-runtime/media-intelligence"
@@ -1509,6 +1744,10 @@ async function processExtractTranscriptDeepgramJob(
 
   if (runId) {
     const proc = await markRunProcessing(runId, teamId, prisma);
+    // PHASE 12 POINT 5 — the fence for THIS claim. Every terminal write
+    // below carries it, so a worker whose lease expired cannot write its
+    // late outcome over the result of the worker that replaced it.
+    if (proc.ok) runFence = proc.fence;
     if (!proc.ok) {
       if (proc.reason === "max_retries_exceeded") {
         await tryBump("media_intelligence_dlq_total");
@@ -1544,8 +1783,16 @@ async function processExtractTranscriptDeepgramJob(
       /* best-effort */
     }
 
+    // The transcript half of the same missing producer — see the note on the
+    // OCR branch above.
+    await enqueueTextSimilarityPass({
+      teamId,
+      evidenceId,
+      kind: "reconcile_transcript_similarity",
+    });
+
     if (runId) {
-      await markRunCompleted(runId, teamId, prisma);
+      await markRunCompleted(runId, teamId, prisma, runFence);
     }
     await tryBump("media_intelligence_processor_completed_total");
     logger.info(
@@ -1567,7 +1814,7 @@ async function processExtractTranscriptDeepgramJob(
     240,
   );
   if (runId) {
-    await markRunFailed(runId, teamId, errorSummary, prisma);
+    await markRunFailed(runId, teamId, errorSummary, prisma, runFence);
   }
   await tryBump("media_intelligence_processor_failed_total");
   logger.warn(

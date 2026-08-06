@@ -34,9 +34,6 @@ function readSource(rel: string): string {
 const PILLAR_REGISTRY = readSource(
   "../../../apps/web/lib/navigation/pillarRegistry.ts",
 );
-const CANONICAL_GROUPS = readSource(
-  "../../../apps/web/lib/navigation/canonicalNavigationGroups.ts",
-);
 const GROUPING_RESOLVER = readSource(
   "../../../apps/web/lib/navigation/navigationGroupingResolver.ts",
 );
@@ -112,7 +109,7 @@ describe("Phase 1A — route coverage", () => {
   it("every registered route id is mapped to a pillar", () => {
     // Extract all route ids from routeRegistry.ts
     const routeIdMatches = Array.from(
-      ROUTE_REGISTRY.matchAll(/\bid:\s*"([a-z0-9_.\-]+)"/gi),
+      ROUTE_REGISTRY.matchAll(/\bid:\s*"([a-z0-9_.-]+)"/gi),
     ).map((m) => m[1]!);
     // Filter to entries that look like real route ids (have a domain prefix)
     const routeIds = routeIdMatches.filter((id) => /\./.test(id));
@@ -123,7 +120,7 @@ describe("Phase 1A — route coverage", () => {
     );
     expect(mappingBlock).toBeTruthy();
     const mappedIds = new Set(
-      Array.from(mappingBlock![1]!.matchAll(/"([a-z0-9_.\-]+)"\s*,/gi)).map(
+      Array.from(mappingBlock![1]!.matchAll(/"([a-z0-9_.-]+)"\s*,/gi)).map(
         (m) => m[1]!,
       ),
     );

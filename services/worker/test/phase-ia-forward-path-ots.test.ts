@@ -177,10 +177,14 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     expect(block).toMatch(/classifierReason:\s*classification\.reason/);
   });
 
-  it("PENDING branch re-enqueues follow-up with a STABLE jobId (no counter reset)", () => {
-    // The stable jobId is the production fix that keeps BullMQ's
-    // `attempts` ceiling enforced across re-enqueues.
-    expect(UP).toMatch(/buildFollowUpJobId\(evidenceId\)/);
+  it("PENDING branch re-enqueues a delayed follow-up that is not collapsed away", () => {
+    // PHASE 12 — POINT 5: there is now ONE job id for an evidence record's OTS
+    // upgrade, built by the shared authority, instead of a separate
+    // `ots-upgrade-followup-<id>`. `selfJobId` is what keeps the ladder alive
+    // across that change: this call runs inside the job holding the target id,
+    // so without it the enqueue collapses onto its own active job and
+    // schedules nothing.
+    expect(UP).toMatch(/selfJobId:\s*job\.id/);
     expect(UP).toMatch(/enqueueOtsUpgradeJob\(evidenceId,\s*\{/);
     expect(UP).toMatch(/delayMs:\s*60\s*\*\s*60\s*\*\s*1000/);
   });
@@ -190,12 +194,20 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     // gated on FULLY_ANCHORED or txidRecoveredWhileAnchored (which is
     // the legacy already-ANCHORED-but-no-txid case). Pin both arms so
     // a refactor cannot add a stray regen on bare PENDING.
+    // PHASE 12 — POINT 5: `enqueueReportJob` now records a durable
+    // `ReportGenerationRequest` and enqueues its id, so both call sites gained
+    // a `purpose` and a machine principal. The count is what this pins, and it
+    // is unchanged: exactly two, both on an anchored classification.
     const regenSites = UP.match(/enqueueReportJob\(evidenceId,/g) ?? [];
     expect(regenSites.length).toBe(2);
     const firstIdx = UP.indexOf("enqueueReportJob(evidenceId");
     const beforeFirst = UP.slice(0, firstIdx);
+    // Distance-based heuristic: the nearest thing above the first regen call
+    // must be the FULLY_ANCHORED branch. Widened from 3000 to 4000 because the
+    // Point-5 comment explaining WHY the regeneration is authorized here (and
+    // persisted rather than flagged on a message) sits between them.
     expect(beforeFirst).toMatch(
-      /classification\.kind === "FULLY_ANCHORED"[\s\S]{0,3000}$/,
+      /classification\.kind === "FULLY_ANCHORED"[\s\S]{0,4000}$/,
     );
   });
 

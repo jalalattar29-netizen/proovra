@@ -43,13 +43,19 @@ import { Button } from "../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
-// Phase IA-self-serve-simplification — gate the admin-only "Enable
-// semantic search" deep link on /integrations eligibility. Self-serve
-// admins still have isAdmin=true, but /integrations is ENTERPRISE_ONLY
-// for their tier — they must not see the link.
-import { canAccessSurface } from "../../../lib/surface/access";
-import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
+// Phase IA-self-serve-simplification / Track 1A — gate the enterprise
+// pivot links + admin-only deep links on the SERVER-projected
+// enterprise-experience booleans (flags.isEnterpriseWorkspace /
+// platform.isPlatformAdmin), never a client-derived plan/tier.
+import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
 import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
+// PHASE 12B (Evidence Operations) — the Discovery audit log
+// (GET /v1/search/audit) is the sole public authority over the
+// search-activity data domain. It is a DIFFERENT data domain from the
+// unified GET /v1/search content projection (different gate:
+// search-operator vs. search-actor), so it is surfaced as a scope tab
+// on this console rather than folded into the content query.
+import { SearchAuditLogPanel } from "../../../components/search/SearchAuditLogPanel";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -130,8 +136,10 @@ type SearchResponse = {
 // copy ("Search index preparing", "Workspace has no records yet")
 // when the underlying cause is NOT "no matching rows" — preventing
 // the runtime path from rendering a misleading "0 results."
-// Older backends without the endpoint return 404; the page collapses
-// to null and falls back to the legacy empty-state branches.
+// `GET /v1/search/diagnostics` is registered on the canonical API
+// (search.routes.ts). A failed request collapses to null and the page
+// renders the generic empty-state branches — runtime-failure tolerance,
+// not backend-version compatibility.
 type SearchDiagnostics = {
   workspace: { id: string; name: string | null; isPersonal: boolean | null };
   evidence: { total: number };
@@ -351,32 +359,22 @@ function SearchInner() {
   // the panel and the dry-run endpoint stays unreached from the UI.
   const { envelope } = usePlatformContext();
   const isPlatformAdmin = envelope?.platform?.isPlatformAdmin === true;
-  // Phase IA-self-serve-simplification — surface-tier check for the
-  // "Enable semantic search" deep link. /integrations is ENTERPRISE
-  // (with a bounded redirect for non-eligible users), so we hide the
-  // link from sidebar/topbar/All Tools AND from this no-results CTA.
-  const surfaceUserCtx = useSurfaceUserContext();
-  // Phase SEARCH-REMEDIATION-3 — `canSeeIntegrations` is no longer
-  // consumed by the search page (NoResultsHelp was removed). Kept
-  // as a `void` reference so removing the surface-context hook
-  // stays an explicit, reviewed change.
-  const canSeeIntegrations = canAccessSurface(
-    surfaceUserCtx,
-    "/integrations",
-  );
-  void canSeeIntegrations;
-  // Phase IA-self-serve-completion — gates for the inspector pivot
-  // links. /workflows and /investigation are both ENTERPRISE_ONLY
-  // surfaces; clicking them as a self-serve user previously hit a
-  // bounded 404. We now hide the pivot links and rename the section
-  // so self-serve users see a clean "Related evidence" rail instead
-  // of an "Investigation pivots" rail that promised features they
-  // could not reach.
-  const canSeeWorkflows = canAccessSurface(surfaceUserCtx, "/workflows");
-  const canSeeInvestigation = canAccessSurface(
-    surfaceUserCtx,
-    "/investigation",
-  );
+  // Phase IA-self-serve-completion / Track 1A — gates for the inspector
+  // pivot links. Workflow templates and investigation power tools belong
+  // to the Enterprise workspace experience; clicking them as a
+  // self-serve user previously hit a bounded 404. We hide the pivot
+  // links and rename the section so self-serve users see a clean
+  // "Related evidence" rail instead of an "Investigation pivots" rail
+  // that promised features they could not reach. Server-projected
+  // booleans only.
+  const enterpriseSurfaces = useEnterpriseSurfaceAccess();
+  const canSeeWorkflows = enterpriseSurfaces;
+  const canSeeInvestigation = enterpriseSurfaces;
+  // PHASE 12B — console scope. "records" is the unified content search
+  // (GET /v1/search); "activity" is the workspace search-activity log
+  // (GET /v1/search/audit). Two data domains, one console — never two
+  // authorities over the same domain.
+  const [scope, setScope] = useState<"records" | "activity">("records");
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -400,10 +398,10 @@ function SearchInner() {
   const [dateSinceDraft, setDateSinceDraft] = useState<string>("");
   const [dateUntilDraft, setDateUntilDraft] = useState<string>("");
   const { confirm } = useConfirmAction();
-  // Phase 16 — semantic status envelope. The chip + mode selector
-  // honor this when present and silently degrade to the per-response
-  // `results.semanticAvailable` when the endpoint is missing (older
-  // backends). One fetch per teamId; no polling.
+  // Phase 16 — semantic status envelope. The chip + mode selector honor
+  // this when present and degrade to the per-response
+  // `results.semanticAvailable` when the request fails. One fetch per
+  // teamId; no polling.
   const [semanticStatus, setSemanticStatus] =
     useState<SemanticStatusResponse | null>(null);
   const [backfillResult, setBackfillResult] =
@@ -447,9 +445,8 @@ function SearchInner() {
   // to render explicit empty-state copy ("Search index preparing",
   // "Workspace has no records yet") instead of a misleading
   // "0 results" when the underlying cause is API down / empty index /
-  // wrong workspace. One fetch per teamId. Missing endpoint (older
-  // backend) collapses to null and the page falls back to the legacy
-  // empty-state branches.
+  // wrong workspace. One fetch per teamId. A failed request collapses to
+  // null and the page renders the generic empty-state branches.
   const [searchHealth, setSearchHealth] = useState<SearchDiagnostics | null>(
     null,
   );
@@ -951,7 +948,8 @@ function SearchInner() {
         );
       }
     },
-    [teamId]
+    // `confirm` is memoised once by ConfirmActionProvider — stable identity.
+    [teamId, confirm]
   );
 
   // Phase SEARCH-REMEDIATION-3 — rename a saved view via the new
@@ -1347,6 +1345,44 @@ function SearchInner() {
           stay primary. */}
       <ContextualHelp surface="search" collapsedByDefault />
 
+      {/* PHASE 12B — scope tabs. Records = unified content search;
+          Activity = the workspace search-activity log. Switching scope
+          never changes the workspace: both read the same server-projected
+          `teamId`. */}
+      <div
+        data-search-scope-tabs
+        role="tablist"
+        aria-label="Search console scope"
+        style={scopeTabStripStyle}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === "records"}
+          data-search-scope-tab="records"
+          data-search-scope-active={scope === "records" ? "true" : "false"}
+          onClick={() => setScope("records")}
+          style={scopeTabStyle(scope === "records")}
+        >
+          Records
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === "activity"}
+          data-search-scope-tab="activity"
+          data-search-scope-active={scope === "activity" ? "true" : "false"}
+          onClick={() => setScope("activity")}
+          style={scopeTabStyle(scope === "activity")}
+        >
+          Search activity
+        </button>
+      </div>
+
+      {scope === "activity" ? (
+        <SearchAuditLogPanel teamId={teamId} />
+      ) : (
+      <>
       {error ? (
         <Card variant="status" tone="risk" padding="compact" style={{ marginTop: 12 }}>
           <span style={{ fontSize: 13, color: "var(--status-risk-fg, #991b1b)" }}>
@@ -1856,6 +1892,8 @@ function SearchInner() {
           )}
         </Card>
       </div>
+      </>
+      )}
      </PageShell>
     </main>
   );
@@ -2385,10 +2423,10 @@ function SemanticStatusChip({
   requestedMode: SearchMode;
   modeUsed: SearchMode;
   fallbackReason: string | null;
-  // Phase 16 — when the status endpoint isn't present (older
-  // backend), we fall back to the legacy per-response signal and
-  // skip the "disabled vs unavailable" split. The chip still renders
-  // the Phase 13 / Phase 15 wording in that case.
+  // Phase 16 — when the `GET /v1/search/semantic/status` request fails
+  // we use the per-response signal instead and skip the "disabled vs
+  // unavailable" split. The chip still renders the Phase 13 / Phase 15
+  // wording in that case.
   statusEndpointAvailable: boolean;
 }) {
   // Variant resolution — keeps the chip honest about what actually
@@ -2873,6 +2911,27 @@ const chipGroupStyle: React.CSSProperties = {
 // The compact metrics are kept (the rail is denser than the Cases
 // segment strip) but the colours map onto the shared design system;
 // active never reads as the old dark-slate pill.
+// PHASE 12B — scope tab strip (Records / Search activity).
+const scopeTabStripStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 6,
+  marginTop: 12,
+  borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
+};
+
+function scopeTabStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "8px 14px",
+    border: "none",
+    borderBottom: active ? "2px solid #0f172a" : "2px solid transparent",
+    background: "transparent",
+    color: active ? "#0f172a" : "#475569",
+    fontSize: 13,
+    fontWeight: active ? 600 : 500,
+    cursor: "pointer",
+  };
+}
+
 function chipButtonStyle(active: boolean): React.CSSProperties {
   return {
     padding: "4px 10px",

@@ -22,82 +22,51 @@
  *     declares it first.
  */
 
-import { Queue } from "bullmq";
-import IORedis from "ioredis";
+import type { Queue } from "bullmq";
+import {
+  JOB_NAMES,
+  MEDIA_INTELLIGENCE_JOB_KINDS as SHARED_MI_KINDS,
+  QUEUE_NAMES,
+  isMediaIntelligenceJobKind,
+  type MediaIntelligenceJobKind,
+} from "@proovra/shared";
 
 import { bump } from "../services/ops/metrics.service.js";
+import {
+  enqueueCanonicalWork,
+  getReadOnlyQueueHandle,
+} from "./canonical-queue-client.js";
 
-const mediaIntelligenceQueueName = "media-intelligence";
-const mediaIntelligenceJobName = "RunMediaIntelligence";
-
-function must(name: string): string {
-  const v = process.env[name];
-  if (!v || !v.trim()) {
-    throw new Error(`${name} is not set`);
-  }
-  return v.trim();
-}
-
-// Lazy-init the connection so importing this module doesn't fail
-// in environments where REDIS_URL is unset (e.g. tests). The
-// queue is constructed on first use.
-let _queue: Queue | null = null;
-function getQueue(): Queue {
-  if (_queue) return _queue;
-  const redisConnection = new IORedis(must("REDIS_URL"), {
-    maxRetriesPerRequest: null,
-  });
-  _queue = new Queue(mediaIntelligenceQueueName, {
-    connection: redisConnection as never,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 10_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    },
-  });
-  return _queue;
+/**
+ * PHASE 12 — POINT 5. Queue name, job name, job id and retry policy come from
+ * the registry, and the Redis handle comes from the shared transport client.
+ * This module's private copies of all five are deleted.
+ *
+ * What is left is the OPERATOR surface: DLQ replay and single-job retry, which
+ * genuinely need a queue handle because they act on jobs rather than creating
+ * them.
+ */
+function getQueue(): Queue | null {
+  return getReadOnlyQueueHandle(
+    QUEUE_NAMES.MEDIA_INTELLIGENCE,
+    JOB_NAMES.RUN_MEDIA_INTELLIGENCE,
+  );
 }
 
 // =============================================================================
 // Bounded vocabulary — mirrors services/worker/src/queue.ts
 // =============================================================================
 
-export const MEDIA_INTELLIGENCE_JOB_KINDS = [
-  "analyze_metadata",
-  // Phase 31.8 — real EXIF extraction (bytes → bounded summary).
-  "extract_exif",
-  "extract_assets",
-  // Note: compute_duplicates / compute_lineage are intentionally not in
-  // the queue vocabulary. Both kinds remain in the database-backed
-  // MEDIA_INTELLIGENCE_RUN_KINDS catalog (legacy row history) but no
-  // producer enqueues them and no UI surface advertises them.
-  // Wave 2 — perceptual-hash producer for image / video evidence.
-  // The worker branch has existed since Phase 12; Wave 2 wires the
-  // producer from the evidence finalization fanout so SIMILAR_TO /
-  // POSSIBLE_DERIVATIVE_OF edges can actually populate on real data.
-  "compute_perceptual_hashes",
-  // Wave 4 — automatic OCR (Azure Document Intelligence) producer for
-  // PDF / image evidence. The worker calls the canonical azure adapter
-  // via runProviderOperation so the automatic path inherits the same
-  // budget + entitlement + policy gate chain as the manual route.
-  "extract_ocr_azure",
-  // Wave 4 — automatic transcript (Deepgram) producer for audio /
-  // video evidence. Same adapter-routed contract as extract_ocr_azure.
-  "extract_transcript_deepgram",
-  "wire_ocr_transcript",
-  "reindex",
-  // Enterprise Technical Metadata layer — deterministic Layer-1 file
-  // metadata extraction (dimensions / codec / EXIF presence / PDF
-  // producer). Worker downloads bytes per part, dispatches to the
-  // image/video/pdf parser, and writes EvidencePart.technical_metadata.
-  // Never blocks the lifecycle; graceful-degrades to FAILED/UNSUPPORTED.
-  "extract_technical_metadata",
-  "reconcile",
-] as const;
+/**
+ * PHASE 12 — POINT 5. The bounded kind catalog is re-exported from the shared
+ * registry rather than declared here. It had drifted before: this file listed
+ * kinds the worker did not implement, and the worker implemented kinds this
+ * file did not list, so a producer could enqueue work that was silently
+ * discarded.
+ */
+export const MEDIA_INTELLIGENCE_JOB_KINDS = SHARED_MI_KINDS;
 
-export type MediaIntelligenceJobKind =
-  (typeof MEDIA_INTELLIGENCE_JOB_KINDS)[number];
+export type { MediaIntelligenceJobKind };
 
 export type MediaIntelligenceJobPayload = {
   teamId: string;
@@ -110,19 +79,21 @@ export type MediaIntelligenceJobPayload = {
   evidencePartId?: string | null;
 };
 
-export function buildMediaIntelligenceJobId(
-  kind: MediaIntelligenceJobKind,
-  evidenceId: string,
-): string {
-  return `mi-${kind}-${evidenceId}`;
-}
+// `buildMediaIntelligenceJobId` is DELETED. The job id is now `mi-run-<runId>`,
+// built by `buildCanonicalJobId` from the registry prefix, so the id names the
+// durable row rather than re-encoding two payload fields.
 
 // =============================================================================
 // Enqueue
 // =============================================================================
 
 export type EnqueueResult =
-  | { enqueued: true; jobId: string; reused: false }
+  | {
+      enqueued: true;
+      jobId: string;
+      /** True when the enqueue collapsed onto a job that was already live. */
+      reused: boolean;
+    }
   | { enqueued: false; reason: string };
 
 /**
@@ -158,18 +129,8 @@ export async function replayMediaIntelligenceDlq(
   reason: string;
 }> {
   const maxJobs = Math.max(1, Math.min(options.maxJobs ?? 50, 200));
-  let queue: Queue;
-  try {
-    queue = getQueue();
-  } catch (err) {
-    return {
-      ok: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
+  const queue = getQueue();
+  if (!queue) return { ok: false, reason: "queue_unavailable" };
   try {
     const failed = await queue.getFailed(0, maxJobs - 1);
     let retried = 0;
@@ -212,18 +173,8 @@ export async function retryMediaIntelligenceJob(
   | { ok: true; retried: true }
   | { ok: false; reason: string }
 > {
-  let queue: Queue;
-  try {
-    queue = getQueue();
-  } catch (err) {
-    return {
-      ok: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
+  const queue = getQueue();
+  if (!queue) return { ok: false, reason: "queue_unavailable" };
   try {
     const job = await queue.getJob(jobId);
     if (!job) {
@@ -247,65 +198,67 @@ export async function retryMediaIntelligenceJob(
   }
 }
 
+/**
+ * PHASE 12 — POINT 5.
+ *
+ * The old signature took `{ teamId, evidenceId, kind, runId? }` and put all
+ * four on the wire. Two things were wrong with that beyond the tenancy:
+ *
+ *   * `runId` was OPTIONAL. `evidence-finalization-fanout.service.ts` called
+ *     this with no run id at all, so the processor had no row to record
+ *     PROCESSING / COMPLETED / FAILED on. Those jobs ran and left no trace an
+ *     operator could see, and no reconciler could recover them because there
+ *     was nothing to find.
+ *
+ *   * `kind` selected which extraction ran — and therefore which AI provider
+ *     was called and which budget was spent — off an unverified message field.
+ *
+ * The run row is now MANDATORY and is created here before the enqueue. It
+ * carries the workspace, the evidence and the kind, so the queue carries only
+ * its id.
+ */
 export async function enqueueMediaIntelligenceAnalysis(
   payload: MediaIntelligenceJobPayload,
   options: { delayMs?: number } = {},
 ): Promise<EnqueueResult> {
-  const jobId = buildMediaIntelligenceJobId(payload.kind, payload.evidenceId);
-  let queue: Queue;
-  try {
-    queue = getQueue();
-  } catch (err) {
-    bump("media_intelligence_enqueue_failed_total");
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
+  if (!isMediaIntelligenceJobKind(payload.kind)) {
+    return { enqueued: false, reason: "unknown_media_intelligence_kind" };
   }
-  try {
-    const existing = await queue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        // Idempotent collapse — not a failure, but not a new enqueue
-        // either. Counted under the success counter so SRE can see
-        // total intent-to-enqueue traffic without inflating "failed"
-        // by retries the platform deliberately deduplicated.
-        bump("media_intelligence_enqueue_total");
-        return { enqueued: false, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        // ignore race
-      }
-    }
-    await queue.add(mediaIntelligenceJobName, payload, {
-      jobId,
-      delay: Math.max(0, options.delayMs ?? 0),
-      attempts: 3,
-      backoff: { type: "exponential", delay: 10_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
+
+  // The durable authority. `idempotencyKey` collapses repeat intent for the
+  // same (kind, evidence) into one run row; the deterministic job id then
+  // collapses the two enqueues onto one job.
+  let runId = payload.runId ?? null;
+  if (!runId) {
+    const { enqueueMediaIntelligenceRun } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    );
+    const runResult = await enqueueMediaIntelligenceRun({
+      teamId: payload.teamId,
+      evidenceId: payload.evidenceId,
+      kind: payload.kind,
+      idempotencyKey: `${payload.kind}:${payload.evidenceId}`,
     });
-    bump("media_intelligence_enqueue_total");
-    return { enqueued: true, jobId, reused: false };
-  } catch (err) {
-    bump("media_intelligence_enqueue_failed_total");
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
+    if (!runResult.ok) {
+      bump("media_intelligence_enqueue_failed_total");
+      return { enqueued: false, reason: "run_tracker_unavailable" };
+    }
+    runId = runResult.run.id;
   }
+
+  const outcome = await enqueueCanonicalWork({
+    workName: JOB_NAMES.RUN_MEDIA_INTELLIGENCE,
+    commandId: runId,
+    traceId: payload.kind,
+    delayMs: options.delayMs,
+  });
+
+  if (outcome.enqueued) {
+    bump("media_intelligence_enqueue_total");
+    return { enqueued: true, jobId: outcome.jobId, reused: outcome.collapsed };
+  }
+  // The run row exists in PENDING regardless, so a Redis outage is recoverable:
+  // the stranded-run reconciler re-enqueues it.
+  bump("media_intelligence_enqueue_failed_total");
+  return { enqueued: false, reason: outcome.reason };
 }

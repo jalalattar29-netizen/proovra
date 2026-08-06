@@ -26,7 +26,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * (Phase 3) so users see problems BEFORE any tab body renders.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -43,12 +43,16 @@ import {
 } from "lucide-react";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { canAccessSurface } from "../../../../lib/surface/access";
-import { useSurfaceUserContext } from "../../../../lib/surface/useSurfaceUserContext";
+import {
+  useEnterpriseSurfaceAccess,
+  usePlanFeatureGate,
+} from "../../../../lib/platform-context";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { CaseOption } from "../lib/evidence-library-types";
+// PHASE 12 POINT 4 PASS C1 — routing statuses vs server-derived verdicts.
+import { isRoutingReviewerStatus } from "../lib/reviewer-status";
 import type { ReviewWorkspaceResponse } from "./review-workspace-types";
 import {
   fetchEvidenceIntelligence,
@@ -80,6 +84,7 @@ import {
   type EvidenceDetailCtx,
   type EvidenceDetailTab,
 } from "./_tabs/_lib";
+import { useArtifactReadinessPoll } from "./_hooks/useArtifactReadinessPoll";
 import { EvidenceOverviewTab } from "./_tabs/EvidenceOverviewTab";
 import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
 import { EvidenceCustodyTab } from "./_tabs/EvidenceCustodyTab";
@@ -113,20 +118,25 @@ function EvidenceDetailPageInner() {
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
 
-  const surfaceUserCtx = useSurfaceUserContext();
-  const canSeeReviewerOps = canAccessSurface(surfaceUserCtx, "/reviewer-ops");
-  const canSeeGovernance = canAccessSurface(surfaceUserCtx, "/governance");
-  const canSeeIntelligence = canAccessSurface(surfaceUserCtx, "/intelligence");
-  const canSeeIntakeLinks = canAccessSurface(surfaceUserCtx, "/intake-links");
+  // Track 1A (surface-tier removal) — reviewer-ops / governance /
+  // intelligence / investigation affordances belong to the Enterprise
+  // workspace experience; the gate is the SERVER-projected
+  // `flags.isEnterpriseWorkspace` / `platform.isPlatformAdmin` booleans.
+  const enterpriseSurfaces = useEnterpriseSurfaceAccess();
+  const canSeeReviewerOps = enterpriseSurfaces;
+  const canSeeGovernance = enterpriseSurfaces;
+  const canSeeIntelligence = enterpriseSurfaces;
+  // Intake links are a COMMERCIAL entitlement — the SERVER-projected
+  // `planFeatures.intakeIncluded` boolean decides (platform admins pass).
+  const canSeeIntakeLinks = usePlanFeatureGate("intakeIncluded");
   // Phase EVIDENCE-RELATIONSHIPS-GATE — Manage Relationships is an
   // evidence-graph workflow useful for enterprise / legal / investigation
-  // setups, but noisy for Personal / small-team workspaces. Tied to the
-  // existing `/investigation` surface (graph/timeline/relationships,
-  // ENTERPRISE tier). When the user can't reach that surface AND has no
-  // existing relationships on this record, the Manage button + per-row
-  // Remove buttons are hidden; the read-only Linked-evidence list still
-  // shows if items already exist.
-  const canSeeInvestigation = canAccessSurface(surfaceUserCtx, "/investigation");
+  // setups, but noisy for Personal / small-team workspaces. When the user
+  // isn't in the enterprise experience AND has no existing relationships
+  // on this record, the Manage button + per-row Remove buttons are
+  // hidden; the read-only Linked-evidence list still shows if items
+  // already exist.
+  const canSeeInvestigation = enterpriseSurfaces;
 
   const initialTab: EvidenceDetailTab = (() => {
     const raw = searchParams?.get("tab");
@@ -196,7 +206,8 @@ function EvidenceDetailPageInner() {
   const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
   const [stalePending, setStalePending] = useState(false);
 
-  const loadWorkflowEvents = async () => {
+
+  const loadWorkflowEvents = useCallback(async () => {
     if (!evidenceId) return;
     setWorkflowEventsLoading(true);
     try {
@@ -221,7 +232,7 @@ function EvidenceDetailPageInner() {
     } finally {
       setWorkflowEventsLoading(false);
     }
-  };
+  }, [evidenceId, addToast]);
 
   /**
    * Phase EVIDENCE-STALE-BANNER-FIX — load (or reload) the review
@@ -247,7 +258,7 @@ function EvidenceDetailPageInner() {
    * the client-side baseline so the warning surface stops shouting
    * at users about their own writes.
    */
-  const loadWorkspace = async (opts?: { bumpBaseline?: boolean }) => {
+  const loadWorkspace = useCallback(async (opts?: { bumpBaseline?: boolean }) => {
     if (!evidenceId) return;
     setLoading(true);
     setError(null);
@@ -303,16 +314,16 @@ function EvidenceDetailPageInner() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [evidenceId]);
 
   useEffect(() => {
     void loadWorkspace();
-  }, [evidenceId]);
+  }, [loadWorkspace]);
 
   useEffect(() => {
     if (!evidenceId) return;
     void loadWorkflowEvents();
-  }, [evidenceId]);
+  }, [evidenceId, loadWorkflowEvents]);
 
   useEffect(() => {
     const teamId = workspace?.reviewWorkflow?.teamId ?? null;
@@ -329,99 +340,17 @@ function EvidenceDetailPageInner() {
     };
   }, [evidenceId, workspace?.reviewWorkflow?.teamId]);
 
-  // Phase 32.5 — Artifact-readiness polling. Identical contract to
-  // the pre-decomposition implementation. Side-effect-free endpoint
-  // (verified by the artifact-status route's contract test). The
-  // 60s stale window then surfaces an actionable state instead of
-  // looping forever.
-  useEffect(() => {
-    if (!evidenceId) return;
-    if (!shouldPollArtifactReadiness(workspace)) {
-      setPollStartedAt(null);
-      setStalePending(false);
-      return;
-    }
-    const activeWorkspace = workspace;
-    if (!activeWorkspace) return;
-    if (pollStartedAt === null) setPollStartedAt(Date.now());
-
-    let cancelled = false;
-    let priorReportAvailable = activeWorkspace.artifactStatus.report.available;
-    let priorPackageAvailable = activeWorkspace.artifactStatus.verificationPackage.available;
-
-    type ArtifactStatusResponse = {
-      report: { available: boolean; pending: boolean };
-      verificationPackage: {
-        available: boolean;
-        pending: boolean;
-        unavailable?: boolean;
-        unavailableReason?: string | null;
-      };
-    };
-
-    const STALE_PENDING_AFTER_MS = 60_000;
-
-    const pollOnce = async (): Promise<boolean> => {
-      try {
-        const r = (await apiFetch(
-          `/v1/evidence/${evidenceId}/artifacts/status`,
-        )) as ArtifactStatusResponse;
-        if (cancelled) return false;
-        const reportNowAvailable = r.report?.available === true;
-        const packageNowAvailable = r.verificationPackage?.available === true;
-        const stateChanged =
-          reportNowAvailable !== priorReportAvailable ||
-          packageNowAvailable !== priorPackageAvailable;
-        priorReportAvailable = reportNowAvailable;
-        priorPackageAvailable = packageNowAvailable;
-        if (stateChanged) {
-          await loadWorkspace();
-          setPollStartedAt(Date.now());
-          setStalePending(false);
-        }
-        const reportStillPending = r.report?.pending === true;
-        const packageStillPending = r.verificationPackage?.pending === true;
-        const stillWaiting = reportStillPending || packageStillPending;
-        const startedAt = pollStartedAt ?? Date.now();
-        if (stillWaiting && Date.now() - startedAt > STALE_PENDING_AFTER_MS) {
-          setStalePending(true);
-          return false;
-        }
-        return stillWaiting;
-      } catch {
-        return true;
-      }
-    };
-
-    let timer: ReturnType<typeof setInterval> | null = null;
-    let shouldContinue = true;
-    void pollOnce().then((cont) => {
-      if (cancelled) return;
-      shouldContinue = cont;
-      if (!shouldContinue) return;
-      timer = setInterval(() => {
-        if (typeof document !== "undefined" && document.hidden) return;
-        void pollOnce().then((cont2) => {
-          if (cancelled) return;
-          if (!cont2 && timer) {
-            clearInterval(timer);
-            timer = null;
-          }
-        });
-      }, 3000);
-    });
-    return () => {
-      cancelled = true;
-      if (timer) clearInterval(timer);
-    };
-  }, [
+  // Phase 32.5 — Artifact-readiness polling. Extracted to its own hook in
+  // Phase 12 Point 4: the orchestrator holds orchestration, not mechanisms.
+  useArtifactReadinessPoll({
     evidenceId,
-    workspace?.evidence?.status,
-    workspace?.artifactStatus?.report?.available,
-    workspace?.artifactStatus?.verificationPackage?.available,
-    workspace?.artifactStatus?.verificationPackage?.blocked,
-    workspace?.artifactStatus?.verificationPackage?.unavailable,
-  ]);
+    shouldPoll: shouldPollArtifactReadiness(workspace),
+    workspace,
+    pollStartedAt,
+    setPollStartedAt,
+    setStalePending,
+    reloadWorkspace: loadWorkspace,
+  });
 
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
@@ -507,7 +436,14 @@ function EvidenceDetailPageInner() {
         method: "PATCH",
         body: JSON.stringify({
           assignedToUserId: workflowAssigneeDraft || null,
-          status: workflowStatusDraft,
+          // PHASE 12 POINT 4 PASS C1 — this administrative save carries a
+          // status ONLY when it is a routing state. A record already resolved
+          // to a verdict keeps that derived status: editing its priority or
+          // assignee here must never silently overwrite a recorded decision,
+          // and the server refuses verdict statuses on this route anyway.
+          ...(isRoutingReviewerStatus(workflowStatusDraft)
+            ? { status: workflowStatusDraft }
+            : {}),
           priority: workflowPriorityDraft,
           dueAt: workflowDueAtDraft ? new Date(workflowDueAtDraft).toISOString() : null,
           note: workflowNoteDraft || null,
@@ -1577,12 +1513,15 @@ function EvidenceDetailPageInner() {
               value={workflowStatusDraft}
               onChange={(event) => setWorkflowStatusDraft(event.target.value)}
             >
+              {/* PHASE 12 POINT 4 PASS C1 — ROUTING states only. A verdict
+                  (accept / reject / request more context) is recorded as a
+                  DECISION on the review surface; the server derives the
+                  resulting status from the immutable decision log, so this
+                  administrative control can no longer assign one. */}
               {[
                 "NOT_STARTED",
                 "IN_REVIEW",
-                "NEEDS_INFO",
                 "READY_FOR_EXTERNAL_REVIEW",
-                "APPROVED_INTERNAL",
                 "ESCALATED",
                 "CLOSED",
               ].map((value) => (

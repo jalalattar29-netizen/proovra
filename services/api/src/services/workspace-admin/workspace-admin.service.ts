@@ -307,8 +307,11 @@ export async function buildWorkspaceAdmin(input: {
       prisma.evidenceLegalHold.count({
         where: { teamId: input.teamId, status: "ACTIVE" },
       }),
-      prisma.caseLegalHold
-        .count({ where: { teamId: input.teamId, status: "ACTIVE" } })
+      // P12.3 canonical-only (scope=CASE).
+      prisma.evidenceLegalHold
+        .count({
+          where: { teamId: input.teamId, scope: "CASE", status: "ACTIVE" },
+        })
         .catch(() => 0),
       prisma.evidenceRetentionPolicy
         .count({ where: { teamId: input.teamId, status: "ACTIVE" } })

@@ -6,7 +6,6 @@ import { getSecret } from "../config/runtime-secrets.js";
 import {
   ANALYTICS_EVENT_NAMES,
   ANALYTICS_LIMITS,
-  type AnalyticsEventName,
   type AnalyticsRejectionReason,
 } from "@proovra/shared";
 import { prisma } from "../db.js";
@@ -23,18 +22,6 @@ import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
-
-type AnalyticsTrackBody = {
-  eventType?: string;
-  userId?: string | null;
-  sessionId?: string;
-  visitorId?: string;
-  path?: string | null;
-  referrer?: string | null;
-  entityType?: string | null;
-  entityId?: string | null;
-  metadata?: Prisma.InputJsonValue | null;
-};
 
 type TrendBucket = {
   date: string;
@@ -1252,204 +1239,14 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get("/v1/admin/analytics/summary", ADMIN_PRE, async (request, reply) => {
-    try {
-      const result = await getSummary();
-
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.summary_view",
-        outcome: "success",
-      });
-
-      return reply.send(result);
-    } catch (err: unknown) {
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.summary_view",
-        outcome: "failure",
-        severity: "warning",
-        metadata: {
-          reason: err instanceof Error ? err.message : "unknown_error",
-        },
-      });
-
-      app.log.error({ err }, "admin.analytics.summary.failed");
-      return reply.code(500).send({
-        error: "Failed to load admin analytics summary",
-      });
-    }
-  });
-
-  app.get(
-    "/v1/admin/analytics/geography",
-    ADMIN_PRE,
-    async (request, reply) => {
-      try {
-        const query = readAdminAnalyticsQuery(request);
-        const result = await getGeography(query);
-
-        auditAdminAnalyticsAction(request, {
-          action: "admin.analytics.geography_view",
-          outcome: "success",
-          metadata: {
-            dateRange: query.dateRangeKey,
-            eventType: query.eventType,
-            routeType: query.routeType,
-            path: query.path,
-            countryCode: query.countryCode,
-            cityNormalized: query.cityNormalized,
-          },
-        });
-
-        return reply.send(result);
-      } catch (err: unknown) {
-        auditAdminAnalyticsAction(request, {
-          action: "admin.analytics.geography_view",
-          outcome: "failure",
-          severity: "warning",
-          metadata: {
-            reason: err instanceof Error ? err.message : "unknown_error",
-          },
-        });
-
-        app.log.error({ err }, "analytics.geography.failed");
-        return reply.code(500).send({ error: "Failed geography analytics" });
-      }
-    }
-  );
-
-  app.get("/v1/admin/analytics/pages", ADMIN_PRE, async (request, reply) => {
-    try {
-      const query = readAdminAnalyticsQuery(request);
-      const result = await getPages(query);
-
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.pages_view",
-        outcome: "success",
-        metadata: {
-          dateRange: query.dateRangeKey,
-          eventType: query.eventType,
-          routeType: query.routeType,
-          path: query.path,
-          countryCode: query.countryCode,
-          cityNormalized: query.cityNormalized,
-        },
-      });
-
-      return reply.send(result);
-    } catch (err: unknown) {
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.pages_view",
-        outcome: "failure",
-        severity: "warning",
-        metadata: {
-          reason: err instanceof Error ? err.message : "unknown_error",
-        },
-      });
-
-      app.log.error({ err }, "analytics.pages.failed");
-      return reply.code(500).send({ error: "Failed pages analytics" });
-    }
-  });
-
-  app.get("/v1/admin/analytics/recent", ADMIN_PRE, async (request, reply) => {
-    try {
-      const query = readAdminAnalyticsQuery(request);
-      const result = await getRecent(query);
-
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.recent_view",
-        outcome: "success",
-        metadata: {
-          dateRange: query.dateRangeKey,
-          eventType: query.eventType,
-          routeType: query.routeType,
-          path: query.path,
-          countryCode: query.countryCode,
-          cityNormalized: query.cityNormalized,
-        },
-      });
-
-      return reply.send(result);
-    } catch (err: unknown) {
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.recent_view",
-        outcome: "failure",
-        severity: "warning",
-        metadata: {
-          reason: err instanceof Error ? err.message : "unknown_error",
-        },
-      });
-
-      app.log.error({ err }, "analytics.recent.failed");
-      return reply.code(500).send({ error: "Failed recent analytics" });
-    }
-  });
-
-  app.get("/v1/admin/analytics/trends", ADMIN_PRE, async (request, reply) => {
-    try {
-      const query = readAdminAnalyticsQuery(request);
-      const result = await getTrends(query);
-
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.trends_view",
-        outcome: "success",
-        metadata: {
-          dateRange: query.dateRangeKey,
-          eventType: query.eventType,
-          routeType: query.routeType,
-          path: query.path,
-          countryCode: query.countryCode,
-          cityNormalized: query.cityNormalized,
-        },
-      });
-
-      return reply.send(result);
-    } catch (err: unknown) {
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.trends_view",
-        outcome: "failure",
-        severity: "warning",
-        metadata: {
-          reason: err instanceof Error ? err.message : "unknown_error",
-        },
-      });
-
-      app.log.error({ err }, "analytics.trends.failed");
-      return reply.code(500).send({ error: "Failed trends analytics" });
-    }
-  });
-
-  app.get("/v1/admin/analytics/funnel", ADMIN_PRE, async (request, reply) => {
-    try {
-      const query = readAdminAnalyticsQuery(request);
-      const result = await getFunnel(query);
-
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.funnel_view",
-        outcome: "success",
-        metadata: {
-          dateRange: query.dateRangeKey,
-          eventType: query.eventType,
-          routeType: query.routeType,
-          path: query.path,
-          countryCode: query.countryCode,
-          cityNormalized: query.cityNormalized,
-        },
-      });
-
-      return reply.send(result);
-    } catch (err: unknown) {
-      auditAdminAnalyticsAction(request, {
-        action: "admin.analytics.funnel_view",
-        outcome: "failure",
-        severity: "warning",
-        metadata: {
-          reason: err instanceof Error ? err.message : "unknown_error",
-        },
-      });
-
-      app.log.error({ err }, "analytics.funnel.failed");
-      return reply.code(500).send({ error: "Failed funnel analytics" });
-    }
-  });
+  // PHASE 12 — FULL_PARITY_REMOVE: the six granular admin-analytics public
+  // routes (summary / geography / pages / recent / trends / funnel) were
+  // DELETED here. GET /v1/admin/analytics/dashboard is the ONE public product
+  // authority: it awaits exactly the same six producers and returns them under
+  // those keys, so parity is literal rather than argued. The admin dashboard
+  // page consumes only the composite, and a repo-wide search (web, mobile,
+  // worker, e2e, tests) found ZERO callers of the granular paths before
+  // removal. getSummary/getGeography/getPages/getRecent/getTrends/getFunnel are
+  // retained as INTERNAL composition for the composite — the capability is
+  // preserved, only the duplicate public surface is gone.
 }

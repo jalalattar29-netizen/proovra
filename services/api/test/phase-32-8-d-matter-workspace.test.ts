@@ -197,8 +197,10 @@ describe("Phase 32.8D — risk engine", () => {
     expect(RISK).toMatch(/export async function listCaseEvidenceIds\(/);
   });
 
-  it("listCaseEvidenceIds UNIONs legacy Evidence.caseId + canonical CaseEvidenceLink", () => {
-    expect(RISK).toMatch(/prisma\.evidence\.findMany[\s\S]{0,200}caseId:\s*input\.caseId/);
+  it("listCaseEvidenceIds reads ONLY the canonical CaseEvidenceLink table (Track 1B closure)", () => {
+    // The legacy Evidence.caseId column was dropped; the link table is
+    // the ONE relationship source.
+    expect(RISK).not.toMatch(/prisma\.evidence\.findMany/);
     expect(RISK).toMatch(
       /prisma\.caseEvidenceLink\.findMany[\s\S]{0,200}caseId:\s*input\.caseId/,
     );
@@ -222,7 +224,12 @@ describe("Phase 32.8D — risk engine", () => {
   it("reads from real tables only — no fabricated counters", () => {
     expect(RISK).toMatch(/prisma\.operationalIncident\.count/);
     expect(RISK).toMatch(/prisma\.operationalWorkflow\.count/);
-    expect(RISK).toMatch(/prisma\.caseLegalHold\.count/);
+    // PHASE 12 POINT 3 — the hold counter reads the ONE canonical table with an
+    // explicit CASE scope. The invariant is unchanged: every counter comes from
+    // a real table, never a fabricated number.
+    expect(RISK).toMatch(/prisma\.evidenceLegalHold\.count/);
+    expect(RISK).toMatch(/scope: "CASE"/);
+    expect(RISK).not.toMatch(/prisma\.caseLegalHold\./);
     expect(RISK).toMatch(/prisma\.evidenceIntegritySnapshot\.findMany/);
     expect(RISK).toMatch(/prisma\.reviewerCapacitySnapshot\.count/);
   });
@@ -357,7 +364,10 @@ describe("Phase 32.8D — Matter Queue API", () => {
   it("each row carries the real counters from the risk engine + workflow tables", () => {
     expect(MATTER_QUEUE).toMatch(/prisma\.operationalIncident\.count/);
     expect(MATTER_QUEUE).toMatch(/prisma\.operationalWorkflow\.count/);
-    expect(MATTER_QUEUE).toMatch(/prisma\.caseLegalHold\.count/);
+    // PHASE 12 POINT 3 — canonical table, explicit CASE scope (see above).
+    expect(MATTER_QUEUE).toMatch(/prisma\.evidenceLegalHold\.count/);
+    expect(MATTER_QUEUE).toMatch(/scope: "CASE"/);
+    expect(MATTER_QUEUE).not.toMatch(/prisma\.caseLegalHold\./);
     expect(MATTER_QUEUE).toMatch(/prisma\.caseRiskSnapshot\.findMany/);
   });
 
@@ -480,24 +490,10 @@ describe("Phase 32.8D — routes", () => {
   // on TeamRole — TeamRole = OWNER/ADMIN/MEMBER/VIEWER). The
   // canonical gate now consults the bounded `gateCaseMutation`
   // helper. New tests live in phase-32-8-d-frontend-closure.test.ts.
-  it.skip("status mutation route restricts to OWNER/ADMIN/OPERATOR/INVESTIGATOR", () => {
-    const block = ROUTES.match(
-      /app\.post\(\s*"\/v1\/cases\/:id\/status"[\s\S]*?\}\s*,\s*\)/,
-    );
-    expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/role !== "OWNER"/);
-    expect(block![0]).toMatch(/role !== "ADMIN"/);
-    expect(block![0]).toMatch(/role !== "OPERATOR"/);
-    expect(block![0]).toMatch(/role !== "INVESTIGATOR"/);
-  });
-
   // OBSOLETE — the canonical case-mutation guard now lives in
   // `gateCaseMutation` / `evaluateCaseMutationPermission`. Per-route
   // inline role-string checks were removed. See
   // phase-32-8-d-frontend-closure.test.ts for the new contract.
-  it.skip("assignment mutation route restricts to OWNER/ADMIN", () => {});
-  it.skip("comment route rejects VIEWER/AUDITOR", () => {});
-
   it("error mapper translates CaseError codes to bounded HTTP statuses", () => {
     expect(ROUTES).toMatch(/handleCaseError/);
     expect(ROUTES).toMatch(/active_legal_hold_blocks_closure[\s\S]{0,200}409/);

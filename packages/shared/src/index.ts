@@ -211,20 +211,14 @@ export type {
 
 export { maskPublicEmail, maskPublicEmailsInText } from "./public-identifiers.js";
 
-export type {
-  EnqueueReportJobOptions,
-  ReportJobPayload,
-  ExistingReportJobState,
-  ReportJobEnqueueDecision,
-} from "./report-queue.js";
-
-export {
-  buildReportJobId,
-  buildReportJobPayload,
-  decideReportJobEnqueueAction,
-  generateReportJobName,
-  normalizeRegenerateReason,
-} from "./report-queue.js";
+// PHASE 12 — POINT 5. `report-queue.ts` is deleted, not moved.
+//
+// It held a second copy of the report chain's job name, job-id builder, payload
+// shape and enqueue decision ladder — every one of which now has exactly one
+// definition in `queue-integrity/`. Its payload type in particular
+// (`{ evidenceId, forceRegenerate, regenerateReason }`) is the shape this phase
+// exists to remove from the wire: `forceRegenerate` is an authorization outcome
+// and it now lives on the `ReportGenerationRequest` row instead.
 
 export type { CustodyEventCategory } from "./custody.js";
 export type { EvidenceIntelligence } from "./evidence-intelligence.js";
@@ -2218,3 +2212,8 @@ export type {
 
 export * from "./timestamp-format.js";
 export * from "./tenant-url.js";
+
+// PHASE 12 — POINT 5: the ONE queue/worker integrity authority. Queue names,
+// job names, payload schema + version, deterministic job ids, retry policy,
+// terminal vocabulary and the single enqueue helper both processes import.
+export * from "./queue-integrity/index.js";

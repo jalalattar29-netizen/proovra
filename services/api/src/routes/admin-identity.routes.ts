@@ -58,6 +58,14 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+// PHASE 12B (2026-07-30) — the canonical authorization primitive. The two
+// routes the identity-administration console consumes (role-matrix +
+// elevations) compose SERVER-derived workspace resolution with
+// `authorizeOrFail`; they no longer re-implement the membership/status
+// approximation that `requireIdentityAdmin` (still used by the SSO / SCIM /
+// session surfaces owned by other tracks) performs inline.
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   RbacEngineError,
@@ -185,6 +193,110 @@ function sendError(reply: FastifyReply, err: unknown): boolean {
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ParamsId = z.object({ id: z.string().uuid() });
 const BoundedNote = z.string().min(1).max(400);
+
+// -----------------------------------------------------------------------------
+// PHASE 12B (2026-07-30) — reconcile entrypoints are DUAL-MODE.
+//
+// The two reconcile sweeps below are consumed by BOTH the scheduler (machine,
+// shared-secret authenticated, unchanged) AND an operator in the identity
+// administration console. Exactly one mode applies per request:
+//
+//   machine  — valid `x-cron-secret`; the scheduler names the workspace it was
+//              configured for; no session, no step-up, no operator audit.
+//   operator — a real session (requireAuth), a SERVER-derived workspace, the
+//              canonical `authorizeOrFail` chain, step-up bound to that
+//              workspace, and a canonical audit entry carrying the actor and
+//              the reconcile outcome.
+//
+// The secret check stays FIRST so an unauthenticated machine request still
+// fails with the scheduler's 401 rather than a session error.
+// -----------------------------------------------------------------------------
+
+function hasValidReconcileCronSecret(req: FastifyRequest): boolean {
+  const expected =
+    process.env["IDENTITY_RECONCILE_CRON_SECRET"] ||
+    process.env["INTEGRATION_CRON_SECRET"] ||
+    "";
+  const got = req.headers["x-cron-secret"];
+  return (
+    expected.length > 0 &&
+    typeof got === "string" &&
+    got.length > 0 &&
+    got === expected
+  );
+}
+
+/**
+ * Entry guard for the dual-mode reconciles. A request carrying the shared
+ * secret is the scheduler and proceeds unauthenticated-by-session; anything
+ * else MUST present a real session before the handler runs.
+ */
+async function reconcileEntrypointAuth(
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<unknown> {
+  if (hasValidReconcileCronSecret(req)) return;
+  return requireAuth(req, reply);
+}
+
+/**
+ * Canonical audit for an OPERATOR-triggered reconcile: actor identity plus the
+ * workspace acted on and the bounded outcome counts (never row contents).
+ * Audit failures never mask a completed sweep.
+ */
+async function auditOperatorReconcile(
+  req: FastifyRequest,
+  input: { teamId: string; action: string; outcome: Record<string, unknown> },
+): Promise<void> {
+  try {
+    await emitTenantAudit({
+      action: input.action,
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: getAuthUserId(req),
+      workspaceId: input.teamId,
+      resourceType: "team",
+      resourceId: input.teamId,
+      metadata: { ...input.outcome, trigger: "operator" },
+    });
+  } catch {
+    /* audit is append-only and best-effort here; the sweep already committed */
+  }
+}
+
+/**
+ * PHASE 12B (2026-07-30) — SERVER-DERIVED workspace subject for the identity
+ * administration console. The authoritative workspace is the persisted
+ * `User.currentWorkspaceId` rail (written only by the audited workspace
+ * switcher in platform-context.routes.ts). A `teamId` supplied by the client
+ * is accepted only to REJECT a mismatch — it never selects the scope. Absent
+ * context is a concealed 404, matching the canonical primitive's
+ * not-a-member path.
+ */
+async function resolveAdminWorkspace(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  declaredTeamId: string | undefined,
+  permission: Permission,
+): Promise<{ teamId: string; userId: string } | null> {
+  const userId = getAuthUserId(req);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { currentWorkspaceId: true },
+  });
+  const teamId = user?.currentWorkspaceId ?? null;
+  if (!teamId || (declaredTeamId && declaredTeamId !== teamId)) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
+  });
+  if (!outcome) return null;
+  return { teamId: outcome.teamId, userId: outcome.actorUserId };
+}
 
 // -----------------------------------------------------------------------------
 // Routes
@@ -426,15 +538,25 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
     },
   );
 
+  // PHASE 12B — the AUTHORITATIVE role→permission projection consumed by
+  // `/admin/identity/permission-matrix`. The console renders this matrix; it
+  // never computes role precedence or effective permissions client-side.
   app.get(
     "/v1/admin/identity/role-matrix",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
-      if (!actor) return;
+      const q = z
+        .object({ teamId: z.string().uuid().optional() })
+        .parse(req.query ?? {});
+      const ctx = await resolveAdminWorkspace(
+        req,
+        reply,
+        q.teamId,
+        "identity.org_policy.read",
+      );
+      if (!ctx) return;
       const matrix = computeEffectiveRoleMatrix();
-      return reply.code(200).send({ matrix });
+      return reply.code(200).send({ matrix, teamId: ctx.teamId });
     },
   );
 
@@ -453,27 +575,33 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         });
       }
       const body = parsed.data;
-      const actor = await requireIdentityAdmin(
+      // PHASE 12B — the workspace is SERVER-derived; `body.teamId` (required by
+      // the strict shared schema) only ever rejects a mismatch. The elevation
+      // is always written into the derived workspace, and the subject must be
+      // an ACTIVE member of it (enforced by `grantTemporaryElevation`, whose
+      // RBAC_MEMBER_NOT_FOUND surfaces as a concealed 404 for a subject that
+      // belongs to another Organization).
+      const ctx = await resolveAdminWorkspace(
         req,
         reply,
         body.teamId,
         "identity.capability.grant",
       );
-      if (!actor) return;
+      if (!ctx) return;
       // Phase 26.75 — runtime adaptive gate.
       const runtimeGateElev = await runtimeAdaptiveGate({
         req,
         reply,
-        teamId: body.teamId,
-        userId: actor.userId,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
         action: "RBAC_TEMPORARY_ELEVATION",
       });
       if (!runtimeGateElev.allow) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
-        teamId: body.teamId,
-        userId: actor.userId,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
         purpose: "CAPABILITY_GRANT",
         resourceKind: "temporary_elevation",
         resourceId: body.userId,
@@ -486,7 +614,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         );
         const result = await grantTemporaryElevation({
           ...body,
-          grantedByUserId: actor.userId,
+          teamId: ctx.teamId,
+          grantedByUserId: ctx.userId,
           ttlSeconds: ttl,
         });
         return reply.code(201).send(result);
@@ -587,6 +716,21 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      // PHASE 12B (2026-07-30) — SCIM token CREATE and ROTATE are step-up
+      // gated; revoke was not, so the weakest leg decided how hard it is to
+      // change directory-provisioning access. Gated here with the same
+      // external-identity purpose, bound to the TOKEN being revoked, AFTER
+      // authorization and BEFORE the write.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        purpose: "EXTERNAL_IDENTITY_UNLINK",
+        resourceKind: "SCIM_TOKEN",
+        resourceId: id,
+      });
+      if (gate.sent) return;
       const projection = await revokeScimToken({
         teamId: body.teamId,
         id,
@@ -657,16 +801,26 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
-      const projection = await revokeActiveSession({
+      const result = await revokeActiveSession({
         teamId: body.teamId,
         sessionId: id,
         actorUserId: actor.userId,
         reason: body.reason as SessionRevocationReason | undefined,
       });
-      if (!projection) {
+      if (!result.ok) {
+        // PHASE 12B C4 — "no such session in this workspace" stays a concealed
+        // 404 (identical to a cross-Organization id); "already revoked" is a
+        // bounded 409 so the operator learns the state instead of being told the
+        // session does not exist, and so a double submit cannot re-attribute the
+        // revocation to the second caller.
+        if (result.reason === "already_revoked") {
+          return reply
+            .code(409)
+            .send({ error: { code: "session_already_revoked" } });
+        }
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      return reply.code(200).send({ projection });
+      return reply.code(200).send({ projection: result.projection });
     },
   );
 
@@ -773,29 +927,50 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/admin/identity/sessions/reconcile-stale",
+    { preHandler: reconcileEntrypointAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const expected =
-        process.env["IDENTITY_RECONCILE_CRON_SECRET"] ||
-        process.env["INTEGRATION_CRON_SECRET"] ||
-        "";
-      const got = req.headers["x-cron-secret"];
-      if (
-        !expected ||
-        typeof got !== "string" ||
-        got.length === 0 ||
-        got !== expected
-      ) {
-        return reply.code(401).send({ error: { code: "unauthorized" } });
-      }
+      const machine = hasValidReconcileCronSecret(req);
       const body = z
         .object({
-          teamId: z.string().uuid(),
+          // Required on the MACHINE path (the scheduler names the workspace it
+          // was configured for). On the OPERATOR path it is non-authoritative
+          // and only ever rejects a mismatch.
+          teamId: z.string().uuid().optional(),
           staleMinutes: z.number().int().min(1).max(1440).optional(),
           batchSize: z.number().int().min(1).max(1000).optional(),
         })
         .parse(req.body ?? {});
+      let teamId: string;
+      if (machine) {
+        if (!body.teamId) {
+          return reply.code(400).send({ error: { code: "validation_error" } });
+        }
+        teamId = body.teamId;
+      } else {
+        // PHASE 12B — operator-triggered reconcile. Server-derived workspace +
+        // canonical authorization + step-up bound to that workspace, because
+        // the sweep REVOKES sessions (it is a mutation, not a read).
+        const ctx = await resolveAdminWorkspace(
+          req,
+          reply,
+          body.teamId,
+          "identity.contributor_session.revoke",
+        );
+        if (!ctx) return;
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "ORG_SECURITY_POLICY_UPDATE",
+          resourceKind: "team",
+          resourceId: ctx.teamId,
+        });
+        if (gate.sent) return;
+        teamId = ctx.teamId;
+      }
       const result = await sweepStaleSessions({
-        teamId: body.teamId,
+        teamId,
         staleMinutes: body.staleMinutes,
         batchSize: body.batchSize,
         revoke: true,
@@ -803,10 +978,18 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       // Also sweep stale OIDC callback attempts.
       const callbackSweep = await sweepStaleCallbackAttempts({});
       // Refresh the high-risk-sessions gauge.
-      await refreshHighRiskSessionGauge({ teamId: body.teamId });
+      await refreshHighRiskSessionGauge({ teamId });
+      if (!machine) {
+        await auditOperatorReconcile(req, {
+          teamId,
+          action: "identity.sessions.reconcile_stale",
+          outcome: { sessions: result, callbackAttempts: callbackSweep },
+        });
+      }
       return reply.code(200).send({
         sessions: result,
         callbackAttempts: callbackSweep,
+        teamId,
       });
     },
   );
@@ -1001,23 +1184,12 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/admin/identity/runtime/reconcile",
+    { preHandler: reconcileEntrypointAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const expected =
-        process.env["IDENTITY_RECONCILE_CRON_SECRET"] ||
-        process.env["INTEGRATION_CRON_SECRET"] ||
-        "";
-      const got = req.headers["x-cron-secret"];
-      if (
-        !expected ||
-        typeof got !== "string" ||
-        got.length === 0 ||
-        got !== expected
-      ) {
-        return reply.code(401).send({ error: { code: "unauthorized" } });
-      }
+      const machine = hasValidReconcileCronSecret(req);
       const body = z
         .object({
-          teamId: z.string().uuid(),
+          teamId: z.string().uuid().optional(),
           recomputeWindowMinutes: z
             .number()
             .int()
@@ -1027,19 +1199,55 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
           decayStaleDays: z.number().int().min(1).max(180).optional(),
         })
         .parse(req.body ?? {});
+      let teamId: string;
+      if (machine) {
+        if (!body.teamId) {
+          return reply.code(400).send({ error: { code: "validation_error" } });
+        }
+        teamId = body.teamId;
+      } else {
+        // PHASE 12B — operator-triggered runtime reconcile. The sweeps release
+        // quarantines and decay trusted devices, so the operator path is
+        // authorized canonically and step-up gated on the derived workspace.
+        const ctx = await resolveAdminWorkspace(
+          req,
+          reply,
+          body.teamId,
+          "identity.contributor_session.revoke",
+        );
+        if (!ctx) return;
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "ORG_SECURITY_POLICY_UPDATE",
+          resourceKind: "team",
+          resourceId: ctx.teamId,
+        });
+        if (gate.sent) return;
+        teamId = ctx.teamId;
+      }
       const [risk, decay, releases, geo] = await Promise.all([
         runtimeRiskRecomputeSweep({
-          teamId: body.teamId,
+          teamId,
           recomputeWindowMinutes: body.recomputeWindowMinutes,
         }),
         sweepTrustedDeviceDecay({
-          teamId: body.teamId,
+          teamId,
           staleDays: body.decayStaleDays,
         }),
-        sweepQuarantineReleases({ teamId: body.teamId }),
+        sweepQuarantineReleases({ teamId }),
         sweepGeoCache(),
       ]);
-      return reply.code(200).send({ risk, decay, releases, geo });
+      if (!machine) {
+        await auditOperatorReconcile(req, {
+          teamId,
+          action: "identity.runtime.reconcile",
+          outcome: { risk, decay, releases, geo },
+        });
+      }
+      return reply.code(200).send({ risk, decay, releases, geo, teamId });
     },
   );
 }

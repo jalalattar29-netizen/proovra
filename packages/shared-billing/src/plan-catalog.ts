@@ -50,6 +50,14 @@ export type PlanCapabilities = {
   intakeIncluded: boolean;
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
+  /**
+   * PHASE 12B Track 1A — does this plan unlock the PROFESSIONAL surface
+   * tier (professional Evidence/Case/Intake/Reports/Search/collaboration
+   * product surfaces)? THE one commercial source for surface-tier
+   * visibility; the frontend consumes the server projection of this flag
+   * and never derives it from the plan name.
+   */
+  professionalSurfacesIncluded: boolean;
   reviewQueuesIncluded: boolean;
 
   /**
@@ -77,7 +85,29 @@ export type PlanCapabilities = {
    */
   aiAdvisoryMonthlyOperations: number | null;
 
-  allowsPersonalWorkspace: boolean;
+  /**
+   * PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): renamed from
+   * `allowsPersonalWorkspace`, which was one boolean serving two questions.
+   *
+   * IT ANSWERS: "may this plan be PURCHASED with a Personal Workspace as the
+   * target?" TEAM says no because `teamWorkspaceRequired` is true — you buy
+   * TEAM for a team, not for yourself.
+   *
+   * IT DOES NOT ANSWER: "may this identity HAVE a Personal Space?" That is
+   * `resolvePersonalSpaceEligibility` in services/api — identity mode plus the
+   * Organization's `noPersonalSpace` policy — and it is deliberately
+   * plan-independent, because every authenticated user is bootstrapped a
+   * Personal Team at first login regardless of what they pay.
+   *
+   * Under the old name the two readings were indistinguishable, and the
+   * platform had already picked the wrong one twice: the structural assert
+   * applied the purchase rule to scope RESOLUTION, so a TEAM-plan account's
+   * own Personal Space threw — and both the API and the worker papered over it
+   * by resolving that space at PRO, a plan the account does not hold. A TEAM
+   * user keeps their Personal Space; only an explicit Organization policy can
+   * take it away.
+   */
+  allowsPersonalWorkspacePurchase: boolean;
   allowsTeamWorkspace: boolean;
   teamWorkspaceRequired: boolean;
 
@@ -169,12 +199,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     intakeIncluded: false,
     casesIncluded: false,
     reviewerOperationsIncluded: false,
+    professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
     maxEvidenceRecords: 3,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 0,
-    allowsPersonalWorkspace: true,
+    allowsPersonalWorkspacePurchase: true,
     allowsTeamWorkspace: false,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
@@ -197,12 +228,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     intakeIncluded: true,
     casesIncluded: false,
     reviewerOperationsIncluded: false,
+    professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 1,
     aiAdvisoryMonthlyOperations: 50,
-    allowsPersonalWorkspace: true,
+    allowsPersonalWorkspacePurchase: true,
     allowsTeamWorkspace: false,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
@@ -225,12 +257,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     intakeIncluded: true,
     casesIncluded: true,
     reviewerOperationsIncluded: false,
+    professionalSurfacesIncluded: true,
     reviewQueuesIncluded: false,
     maxEvidenceRecords: 100,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 100,
-    allowsPersonalWorkspace: true,
+    allowsPersonalWorkspacePurchase: true,
     allowsTeamWorkspace: true,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 2,
@@ -253,12 +286,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     intakeIncluded: true,
     casesIncluded: true,
     reviewerOperationsIncluded: true,
+    professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: 500,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 500,
-    allowsPersonalWorkspace: false,
+    allowsPersonalWorkspacePurchase: false,
     allowsTeamWorkspace: true,
     teamWorkspaceRequired: true,
     maxOwnedTeams: 5,
@@ -281,12 +315,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     intakeIncluded: true,
     casesIncluded: true,
     reviewerOperationsIncluded: true,
+    professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: null,
-    allowsPersonalWorkspace: true,
+    allowsPersonalWorkspacePurchase: true,
     allowsTeamWorkspace: true,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 1000,
@@ -476,8 +511,8 @@ export function canPlanUseTeams(plan: PlanType): boolean {
   return getPlanCapabilities(plan).allowsTeamWorkspace;
 }
 
-export function canPlanUsePersonalWorkspace(plan: PlanType): boolean {
-  return getPlanCapabilities(plan).allowsPersonalWorkspace;
+export function canPlanPurchasePersonalWorkspacePlan(plan: PlanType): boolean {
+  return getPlanCapabilities(plan).allowsPersonalWorkspacePurchase;
 }
 
 export function canPlanGenerateReports(plan: PlanType): boolean {

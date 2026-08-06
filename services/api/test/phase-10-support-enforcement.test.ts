@@ -332,10 +332,14 @@ describe("support-context token — REAL operation authorization", () => {
     H.grants = [grantRow()];
     const app = await makeApp();
     const good = signSupportContextToken({ grantId: "grant-1", supportUserId: ACTOR, sessionIdHash: SESSION_A });
-    // Flip the last character of the signature segment.
+    // Flip a bit in the signature BYTES. Substituting the last base64url
+    // character can re-encode to the same bytes (it carries padding bits), so
+    // the byte-level mutation is what makes this deterministic.
     const [payloadB64, sigB64] = good.split(".");
-    const tamperedSig = sigB64.slice(0, -1) + (sigB64.endsWith("A") ? "B" : "A");
-    const forged = `${payloadB64}.${tamperedSig}`;
+    const sigBytes = Buffer.from(sigB64, "base64url");
+    sigBytes[0] ^= 0x01;
+    const forged = `${payloadB64}.${sigBytes.toString("base64url")}`;
+    expect(forged).not.toBe(good);
     const res = await app.inject({
       method: "POST",
       url: "/op",

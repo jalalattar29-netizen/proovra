@@ -49,12 +49,6 @@ function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
 
-function stripComments(s: string): string {
-  return s
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/[^\n]*/g, "");
-}
-
 /**
  * Slice the /v1/investigation/reviewers handler body out of
  * MI_ROUTES_SRC so test assertions don't bleed into the next route's
@@ -77,7 +71,7 @@ function sliceReviewersHandler(src: string): string {
   }
   const tail = src.slice(start + 5); // skip past the literal `app.get(`
   // The next handler registration starts the next slice boundary.
-  const next = tail.search(/\n  app\.(get|post|put|delete)\(/);
+  const next = tail.search(/\n {2}app\.(get|post|put|delete)\(/);
   return next > 0 ? tail.slice(0, next) : tail;
 }
 

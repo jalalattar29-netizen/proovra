@@ -2,10 +2,16 @@ import { Tabs } from "expo-router";
 import React from "react";
 
 import { DeepLinkGate } from "../src/DeepLinkGate";
+import { ErrorBoundary } from "../src/error-boundary";
 
 export default function TabsLayout() {
   return (
-    <>
+    /* Phase 12 Point 4 (Pass E) — the global crash boundary. It existed
+       with a Sentry report path (`mobile_global_error`) but was never
+       mounted, so an unhandled render error in any screen produced a
+       blank/crashed app and reported nothing. The Expo Router root
+       layout is the ONE mount point that covers every route. */
+    <ErrorBoundary>
     {/* PHASE 11 §5 — the ONE universal/deep-link consumer (server-resolved). */}
     <DeepLinkGate />
     <Tabs
@@ -40,6 +46,6 @@ export default function TabsLayout() {
   options={{ title: "Locked Evidence" }}
 />
     </Tabs>
-    </>
+    </ErrorBoundary>
   );
 }

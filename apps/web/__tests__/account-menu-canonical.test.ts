@@ -38,9 +38,33 @@ function input(overrides: Partial<AccountMenuInput> = {}): AccountMenuInput {
     personalSpace: { id: "personal-1", status: "active" },
     organizations: [],
     accountPlan: "FREE",
+    // Phase 12 Point 4 (Pass E) — `contextOptions` is the canonical,
+    // server-authorized switcher source and is now REQUIRED (the API
+    // projects it unconditionally). `null` models "envelope not loaded
+    // yet", not "older API"; tests that need workspaces override it.
+    contextOptions: null,
     ...overrides,
   };
 }
+
+/** Canonical `contextOptions` carrying Personal + the given organizations. */
+const ctxWithOrgs = (
+  orgs: ReadonlyArray<{ id: string; name: string }>,
+): NonNullable<AccountMenuInput["contextOptions"]> => ({
+  personalSpace: {
+    workspaceId: "personal-1",
+    name: "Personal Space",
+    role: "OWNER",
+  },
+  ownedWorkspaces: [],
+  organizations: orgs.map((o) => ({
+    organizationId: `parent-${o.id}`,
+    organizationName: o.name,
+    workspaces: [
+      { workspaceId: o.id, workspaceName: o.name, workspaceRole: "MEMBER" },
+    ],
+  })),
+});
 
 const activeOrg = (id: string, name = id) =>
   ({
@@ -188,9 +212,10 @@ test("a PENDING-only invitation does NOT surface org settings or a switchable or
 // ---------------------------------------------------------------------------
 
 // (P3 domain remediation 2026-07-21) — the switcher is grouped Personal /
-// Your workspaces (OWNED) / Organizations (grouped by parent org). The
-// legacy flat input (no contextOptions) falls back to a single ungrouped
-// organizations bucket.
+// Your workspaces (OWNED) / Organizations (grouped by parent org), built
+// EXCLUSIVELY from the server-authorized `contextOptions`. Phase 12 Point 4
+// (Pass E) deleted the legacy flat-`organizations` rollout fallback, so this
+// invariant is now expressed through the canonical input.
 const flatWorkspaces = (m: ReturnType<typeof resolveAccountMenu>) =>
   m.workspaces.organizations.flatMap((g) => g.workspaces);
 
@@ -199,6 +224,10 @@ test("switcher: Personal Space always present; ACTIVE orgs listed; active flag c
     input({
       activeSpace: { type: "ORGANIZATION", id: "org-2" },
       organizations: [activeOrg("org-1", "Acme"), activeOrg("org-2", "Globex")],
+      contextOptions: ctxWithOrgs([
+        { id: "org-1", name: "Acme" },
+        { id: "org-2", name: "Globex" },
+      ]),
     }),
   );
   assert.ok(m.workspaces.personal, "personal space present");
@@ -215,6 +244,7 @@ test("PHASE 10 §13.2 STEP 6: personalSpaceAllowed=false hides the Personal Spac
     input({
       personalSpaceAllowed: false,
       organizations: [activeOrg("org-1", "Acme")],
+      contextOptions: ctxWithOrgs([{ id: "org-1", name: "Acme" }]),
     }),
   );
   assert.equal(m.workspaces.personal, null, "personal space suppressed for a managed identity");
@@ -224,7 +254,7 @@ test("PHASE 10 §13.2 STEP 6: personalSpaceAllowed=false hides the Personal Spac
 
 test("PHASE 10 §13.2 STEP 6: personalSpaceAllowed absent/true is unaffected (STANDARD identity default)", () => {
   const absent = resolveAccountMenu(input({}));
-  assert.ok(absent.workspaces.personal, "personal space present when the flag is absent (legacy envelope)");
+  assert.ok(absent.workspaces.personal, "personal space present when the flag is absent");
   const explicitTrue = resolveAccountMenu(input({ personalSpaceAllowed: true }));
   assert.ok(explicitTrue.workspaces.personal, "personal space present when explicitly allowed");
 });
@@ -235,7 +265,12 @@ test("invited-then-accepted user keeps Personal Space AND gains the org (never m
   assert.equal(before.workspaces.total, 1);
   assert.ok(before.workspaces.personal);
   // After acceptance (envelope now carries the ACTIVE org): both present.
-  const after = resolveAccountMenu(input({ organizations: [activeOrg("org-1")] }));
+  const after = resolveAccountMenu(
+    input({
+      organizations: [activeOrg("org-1")],
+      contextOptions: ctxWithOrgs([{ id: "org-1", name: "org-1" }]),
+    }),
+  );
   assert.ok(after.workspaces.personal, "Personal Space still present");
   assert.equal(flatWorkspaces(after).length, 1);
   assert.equal(after.workspaces.total, 2);

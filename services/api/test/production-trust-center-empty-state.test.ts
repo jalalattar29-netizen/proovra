@@ -64,10 +64,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 function readRepo(rel: string): string {
+  // Normalize CRLF → LF so multi-line source assertions are not sensitive to
+  // the checkout's line-ending style (git autocrlf on Windows).
   return readFileSync(
     fileURLToPath(new URL(`../../../${rel}`, import.meta.url)),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
 }
 
 const ROUTES = readRepo("services/api/src/routes/trust-and-governance.routes.ts");

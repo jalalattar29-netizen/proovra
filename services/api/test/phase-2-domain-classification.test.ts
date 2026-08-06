@@ -101,8 +101,23 @@ describe("Phase 2 — creation paths write canonical kinds", () => {
     const src = read("src/routes/teams.routes.ts");
     expect(src).toMatch(/kind:\s*"SYSTEM"/);
     expect(src).toMatch(/workspaceKind:\s*"OWNED"/);
-    // Self-service must NEVER mint a CUSTOMER organization.
-    expect(src).not.toMatch(/kind:\s*"CUSTOMER"/);
+    // Self-service must NEVER MINT a CUSTOMER organization.
+    //
+    // STALE_SOURCE_PIN (POINT 7): this was a bare `not.toMatch(/kind:
+    // "CUSTOMER"/)` over the whole file, which is a proxy for "no CUSTOMER org
+    // is created here" that cannot tell a CREATE from a WHERE. The owned-
+    // workspace cap now excludes provisioned Organization workspaces with
+    // `NOT: { organization: { kind: "CUSTOMER" } }` — a read filter — and the
+    // proxy read that as a violation. The pin now asserts the property it
+    // meant: every `organization.create` in this file writes SYSTEM.
+    const creates = [...src.matchAll(/organization\.create\(\{[\s\S]{0,600}?\n\s*\}\)/g)].map(
+      (m) => m[0],
+    );
+    expect(creates.length).toBeGreaterThan(0);
+    for (const block of creates) {
+      expect(block).toMatch(/kind:\s*"SYSTEM"/);
+      expect(block).not.toMatch(/kind:\s*"CUSTOMER"/);
+    }
   });
 
   it("enterprise provisioning → CUSTOMER org + ORGANIZATION workspaces", () => {

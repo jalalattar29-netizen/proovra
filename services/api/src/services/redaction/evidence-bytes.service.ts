@@ -155,7 +155,9 @@ async function streamToBytes(
     const reader = anyBody.getReader();
     const chunks: Uint8Array[] = [];
     let total = 0;
-    while (true) {
+    // Terminates on the stream's own `done` signal, or earlier via the
+    // `maxBytes` ceiling below.
+    for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
       if (!(value instanceof Uint8Array)) continue;

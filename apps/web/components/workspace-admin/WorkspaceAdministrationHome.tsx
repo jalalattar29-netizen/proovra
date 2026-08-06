@@ -90,8 +90,15 @@ export function WorkspaceAdministrationHome() {
             </span>
           </div>
           <div className="cases-row-meta">
-            <span data-personal-space-plan={personalSpace?.plan ?? "FREE"}>
-              Plan: {personalSpace?.plan ?? account?.accountPlan ?? "FREE"}
+            {/*
+              PHASE 12 — POINT 7. The Personal Space's OWN plan, or nothing.
+              This read `personalSpace?.plan ?? account?.accountPlan ?? "FREE"`:
+              an owner-plan fallback followed by a fabricated FREE, so an
+              envelope that had resolved no plan displayed a confident "Plan:
+              FREE" for a workspace whose plan was simply unknown.
+            */}
+            <span data-personal-space-plan={personalSpace?.plan ?? "unknown"}>
+              Plan: {personalSpace?.plan ?? "—"}
             </span>
             <Link
               href="/billing"

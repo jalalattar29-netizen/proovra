@@ -47,7 +47,6 @@ import { fetchEvidenceBytes } from "./evidence-bytes.service.js";
 // Phase 3A Closure — real SDK provider runners.
 import {
   detectFaces as rekognitionDetectFaces,
-  detectLabels as rekognitionDetectLabels,
   detectText as rekognitionDetectText,
 } from "./providers/rekognition-client.js";
 import { analyzeDocumentLayout as azureAnalyzeDocumentLayout } from "./providers/azure-document-intelligence-client.js";

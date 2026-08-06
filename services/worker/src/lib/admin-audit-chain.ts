@@ -87,6 +87,19 @@ type AuditHashParamsV2 = AuditHashParamsV1 & {
   requestId: string | null;
 };
 
+// PHASE 11 §1 — V3 hash-BINDS the authoritative tenant scope. The
+// organizationId/workspaceId columns are the query authority for tenant
+// isolation, so they MUST be inside the tamper-evident hash: modifying either
+// column breaks verification. V3 is the ONLY new write format; V1/V2 rows are
+// historical/immutable and verified with their own algorithm.
+type AuditHashParamsV3 = AuditHashParamsV2 & {
+  organizationId: string | null;
+  workspaceId: string | null;
+};
+
+// Deterministic null representation for hashed nullable scope columns.
+const NULL_SCOPE = "\0";
+
 function computeAuditLogChainHashV1(params: AuditHashParamsV1): string {
   const segment = auditLogHashUserSegment(params.userId);
   const prev = params.prevHash ?? "";
@@ -118,11 +131,46 @@ function computeAuditLogChainHashV2(params: AuditHashParamsV2): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
 }
 
+function computeAuditLogChainHashV3(params: AuditHashParamsV3): string {
+  const segment = auditLogHashUserSegment(params.userId);
+  const prev = params.prevHash ?? "";
+
+  const input = [
+    "v3",
+    segment,
+    params.action,
+    params.category ?? "",
+    params.severity ?? "",
+    params.source ?? "",
+    params.outcome ?? "",
+    params.resourceType ?? "",
+    params.resourceId ?? "",
+    // AUTHORITATIVE tenant scope — bound into the hash (§1).
+    params.organizationId ?? NULL_SCOPE,
+    params.workspaceId ?? NULL_SCOPE,
+    params.requestId ?? "",
+    params.metadataCanonical,
+    params.createdAtIso,
+    prev,
+  ].join("|");
+
+  return createHash("sha256").update(input, "utf8").digest("hex");
+}
+
+/**
+ * The ONE version-aware hasher. Supports a continuous mixed V1→V2→V3 chain:
+ * each row is verified with the algorithm of its own `chainVersion`, and the
+ * chain links across versions via `prevHash`. V3 is the only format written now.
+ */
 export function computeAuditLogChainHash(
   params:
     | ({ chainVersion?: 1 | null } & AuditHashParamsV1)
     | ({ chainVersion: 2 } & AuditHashParamsV2)
+    | ({ chainVersion: 3 } & AuditHashParamsV3)
 ): string {
+  if (params.chainVersion === 3) {
+    return computeAuditLogChainHashV3(params);
+  }
   if (params.chainVersion === 2) {
     return computeAuditLogChainHashV2(params);
   }

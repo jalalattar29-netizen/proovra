@@ -90,7 +90,8 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       where: { id: { in: ids }, teamId, deletedAt: null },
       select: {
         id: true, teamId: true, title: true, type: true, mimeType: true, status: true,
-        verificationStatus: true, caseId: true, verificationPackageVersion: true, latestReportVersion: true,
+        verificationStatus: true, verificationPackageVersion: true, latestReportVersion: true,
+        caseLinks: { select: { caseId: true }, take: 1 },
       },
     });
     if (rows.length !== ids.length) {
@@ -126,7 +127,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     const selectedEvidence = rows.map((r) =>
       buildEvidenceContext({ ...base, routeClass: "EVIDENCE" }, {
         id: r.id, teamId: r.teamId, title: r.title, type: r.type, mimeType: r.mimeType,
-        status: r.status, verificationStatus: r.verificationStatus, caseLinked: Boolean(r.caseId),
+        status: r.status, verificationStatus: r.verificationStatus, caseLinked: r.caseLinks.length > 0,
         verificationPackageVersion: r.verificationPackageVersion, latestReportVersion: r.latestReportVersion,
       }),
     );

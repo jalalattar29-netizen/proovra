@@ -936,33 +936,6 @@ export async function buildInboxAggregation(
               _max: { createdAt: true },
             });
 
-      // -----------------------------------------------------------------
-      // Source 3b: Phase B.3 — multi-stage review attention.
-      //
-      // Two operator-relevant signals for the caller:
-      //   (a) workflows in `conflict_detected` state in teams where the
-      //       caller is OWNER/ADMIN (i.e. an adjudicator). These need
-      //       resolution and only an adjudicator can act.
-      //   (b) workflows where the caller submitted the FIRST decision
-      //       and the workflow is now in `second_required` state — pure
-      //       awareness signal so the caller knows their decision is
-      //       pending peer review.
-      //
-      // Both queries are workspace-scoped via teamIds the caller is a
-      // member of. We further filter (a) to teams where the caller's
-      // role is OWNER/ADMIN.
-      // -----------------------------------------------------------------
-      const adminTeamIds = teamMemberships
-        .filter((tm) =>
-          tm.team
-            ? // We need the role; refetch lightweight to avoid widening
-              // the earlier query. Cost: one bounded query for callers
-              // who happen to have many teams.
-              true
-            : false,
-        )
-        .map((tm) => tm.team.id);
-
       // Caller's per-team role lookup for the adjudicator subset.
       const teamRoles =
         teamIds.length === 0
@@ -1466,7 +1439,11 @@ export async function buildInboxAggregation(
                   select: {
                     id: true,
                     teamId: true,
-                    caseId: true,
+                    caseLinks: {
+                      orderBy: { linkedAtUtc: "asc" },
+                      select: { caseId: true },
+                      take: 1,
+                    },
                     title: true,
                     originalFileName: true,
                     otsFailureReason: true,
@@ -1613,7 +1590,11 @@ export async function buildInboxAggregation(
                   select: {
                     id: true,
                     teamId: true,
-                    caseId: true,
+                    caseLinks: {
+                      orderBy: { linkedAtUtc: "asc" },
+                      select: { caseId: true },
+                      take: 1,
+                    },
                     title: true,
                     originalFileName: true,
                     tsaFailureReason: true,
@@ -2237,7 +2218,7 @@ export async function buildInboxAggregation(
             teamId: ev.teamId ?? null,
             teamName,
             evidenceId: ev.id,
-            caseId: ev.caseId ?? null,
+            caseId: ev.caseLinks[0]?.caseId ?? null,
             failureCode: reasonCode,
             otsHash: ev.otsHash ?? null,
           },
@@ -2271,7 +2252,7 @@ export async function buildInboxAggregation(
             teamId: ev.teamId ?? null,
             teamName,
             evidenceId: ev.id,
-            caseId: ev.caseId ?? null,
+            caseId: ev.caseLinks[0]?.caseId ?? null,
             failureReason: reason,
           },
         });

@@ -45,7 +45,16 @@ ENV NODE_OPTIONS="--max-old-space-size=6144"
 COPY tsconfig.json ./tsconfig.json
 
 COPY services/api/src services/api/src
-COPY services/api/keys services/api/keys
+# PHASE 12 — POINT 8: `services/api/keys` is NOT copied.
+#
+# It holds the repository's committed dev/test signing fixture. The runner
+# stage below does `COPY --from=build /app/services/api`, so copying the
+# fixture here put a real Ed25519 private key — one that is public in Git —
+# inside the production image, one unset environment variable away from
+# signing evidence that a verifier could not tell from the genuine article.
+# Production supplies its key by mount or by SIGNING_PRIVATE_KEY_PEM; the
+# build needs no key at all. `assertNotCommittedFixture` refuses the fixture
+# by public-key fingerprint as the second line of defence.
 COPY services/api/prisma services/api/prisma
 COPY services/api/prisma.config.ts services/api/prisma.config.ts
 COPY services/api/tsconfig.json services/api/tsconfig.json

@@ -17,7 +17,7 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
-import { useTeamId } from "../../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   errorBoxStyle,
@@ -25,9 +25,15 @@ import {
   mutedStyle,
 } from "../ui-tokens";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
+import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 
 type SessionRow = {
   id: string;
@@ -65,14 +71,30 @@ const QUARANTINE_REASONS = [
   "EMERGENCY_ORG_WIDE",
 ] as const;
 
+/**
+ * PHASE 12B (2026-07-30) — result of an operator-triggered identity-security
+ * reconcile. The server returns the scope it actually swept plus the two
+ * counts, so the projection below is the server's answer, never an
+ * optimistic client guess.
+ */
+type ReconcileResult = {
+  scope: "workspace" | "platform_cron";
+  expiredStepUps: number;
+  expiredDevices: number;
+  ranAt: string;
+};
+
 export default function IdentityRuntimePage() {
   const teamId = useTeamId();
+  const { stamp, isStale } = useTenantGuard();
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [quarantined, setQuarantined] = useState<QuarantineRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [reconcile, setReconcile] = useState<ReconcileResult | null>(null);
   const { confirm } = useConfirmAction();
+  const stepUp = useStepUpAction({ teamId });
 
 const load = useCallback(() => {
     if (!teamId) return;
@@ -226,7 +248,66 @@ const load = useCallback(() => {
     } finally {
       setBusy(null);
     }
-  }, [teamId, load]);
+    // `confirm` comes from the globally-mounted ConfirmActionProvider and is
+    // memoised there with an empty dep array, so listing it is stable — it
+    // cannot re-create this callback on every render.
+  }, [teamId, load, confirm]);
+
+  /**
+   * PHASE 12B — operator-triggered identity-security reconcile.
+   *
+   * `POST /v1/identity-security/reconcile` existed only as a cron entry
+   * point, so when step-up challenges or trusted devices were left stranded
+   * past their TTL an operator had no product action and had to wait for the
+   * next scheduled tick. On this path the server takes the workspace from
+   * the authorized request (not from anything typed here), gates it behind a
+   * step-up bound to that workspace, SCOPES the sweep to that workspace so
+   * it can never become a platform-wide mutation, runs both sweeps in ONE
+   * transaction, and audits the outcome with the actor and the target.
+   */
+  const runReconcile = useCallback(async () => {
+    if (!teamId) return;
+    const ok = await confirm({
+      title: "Reconcile this workspace's identity runtime?",
+      description:
+        "Expires step-up challenges that are past their deadline and removes device trust that has run out. Nothing that is still valid is touched, and no one is signed out.",
+      confirmLabel: "Run reconcile",
+      testId: "identity-runtime-reconcile",
+    });
+    if (!ok) return;
+    const captured = stamp();
+    setBusy("reconcile");
+    try {
+      const res = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/identity-security/reconcile", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({ teamId }),
+        }),
+      )) as Omit<ReconcileResult, "ranAt"> | null;
+      if (isStale(captured)) return;
+      setReconcile({
+        scope: res?.scope ?? "workspace",
+        expiredStepUps: res?.expiredStepUps ?? 0,
+        expiredDevices: res?.expiredDevices ?? 0,
+        ranAt: new Date().toISOString(),
+      });
+      setError(null);
+      setNotice(null);
+      load();
+    } catch (err) {
+      if (isStale(captured)) return;
+      const code = ((err as { code?: string }).code ?? "").toUpperCase();
+      if (code === "STEP_UP_CANCEL") return;
+      setError(
+        toSafeUserError(err, {
+          message: "We couldn't reconcile the identity runtime.",
+        }).message,
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [teamId, confirm, stepUp, stamp, isStale, load]);
 
   if (!teamId) {
     return (
@@ -363,6 +444,46 @@ const load = useCallback(() => {
         </div>
       ) : null}
 
+      <PageSection
+        title="Runtime reconcile"
+        description="Clears identity state that has already run out: step-up challenges past their deadline and device trust past its lifetime. This is scoped to the workspace you are in, runs as one transaction, requires step-up verification, and is recorded in the audit log. It never signs anyone out and never touches state that is still valid."
+        data-identity-runtime-reconcile
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => void runReconcile()}
+            loading={busy === "reconcile"}
+            disabled={busy !== null}
+          >
+            Run reconcile
+          </Button>
+        }
+      >
+        <Card padding="comfortable">
+          {reconcile === null ? (
+            <p style={{ margin: 0, ...mutedStyle }}>
+              Not run in this session. The scheduled sweep also does this
+              automatically — running it here only makes it happen now.
+            </p>
+          ) : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Badge tone="verified">
+                {reconcile.expiredStepUps} step-up challenge
+                {reconcile.expiredStepUps === 1 ? "" : "s"} expired
+              </Badge>
+              <Badge tone="verified">
+                {reconcile.expiredDevices} device trust
+                {reconcile.expiredDevices === 1 ? "" : "s"} withdrawn
+              </Badge>
+              <Badge tone="neutral">
+                scope: {reconcile.scope === "workspace" ? "this workspace" : "platform"}
+              </Badge>
+              <Badge tone="neutral">ran {formatDateTime(reconcile.ranAt)}</Badge>
+            </div>
+          )}
+        </Card>
+      </PageSection>
+
       <PageSection title="Quarantined sessions">
         <DataTable
           columns={quarantineColumns}
@@ -424,6 +545,8 @@ const load = useCallback(() => {
           )}
         />
       </PageSection>
+
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

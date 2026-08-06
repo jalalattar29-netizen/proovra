@@ -24,6 +24,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { getWallClockHourMinute, isValidIanaTimezone } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
@@ -75,15 +76,9 @@ export type NotificationFrequency = (typeof NOTIFICATION_FREQUENCIES)[number];
 export const MANDATORY_ORG_PREFERENCE_TYPES: ReadonlyArray<NotificationPreferenceType> =
   ["GOVERNANCE_UPDATE"];
 
-/** IANA timezone validation via the runtime's own tz database. */
+/** IANA timezone validation — delegated to the ONE shared timestamp layer. */
 export function isValidTimezone(tz: string): boolean {
-  if (typeof tz !== "string" || tz.length === 0 || tz.length > 64) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
+  return isValidIanaTimezone(tz);
 }
 
 export type NotificationPreferenceProjection = {
@@ -318,27 +313,11 @@ export function isWithinQuietHours(
   now: Date,
 ): boolean {
   if (!schedule.quietHoursEnabled) return false;
-  let hour = now.getUTCHours();
-  let minute = now.getUTCMinutes();
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      // Callers pass the EFFECTIVE timezone (override → account → UTC);
-      // a null override falls back to UTC here as well.
-      timeZone: schedule.timezone ?? "UTC",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(now);
-    const h = Number(parts.find((p) => p.type === "hour")?.value);
-    const m = Number(parts.find((p) => p.type === "minute")?.value);
-    if (Number.isFinite(h) && Number.isFinite(m)) {
-      hour = h % 24;
-      minute = m;
-    }
-  } catch {
-    /* invalid tz row (should be prevented by validation) → UTC */
-  }
-  const local = hour * 60 + minute;
+  // Callers pass the EFFECTIVE timezone (override → account → UTC); a null
+  // override falls back to UTC inside the shared helper, as does an invalid
+  // tz row (prevented upstream by validation).
+  const { hour, minute } = getWallClockHourMinute(now, schedule.timezone);
+  const local = (hour % 24) * 60 + minute;
   const start = schedule.quietStartMinute;
   const end = schedule.quietEndMinute;
   if (start === end) return false;

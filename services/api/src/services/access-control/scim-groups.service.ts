@@ -53,6 +53,30 @@ import {
 } from "./scim-managed-ownership.service.js";
 
 // -----------------------------------------------------------------------------
+// PHASE 12B — explicit member-reference failure.
+//
+// A member reference the workspace cannot resolve (unknown user, or a user
+// belonging to ANOTHER Organization — the lookup is teamId-scoped, so a
+// cross-Organization `value` is simply unresolvable here) used to be SILENTLY
+// SKIPPED: the IdP received 200 OK for a group it believed had been applied.
+// It now throws, which rolls the ENTIRE Operation set back and returns a
+// SCIM-shaped error — zero partial mutation, no dishonest success.
+// -----------------------------------------------------------------------------
+
+export class ScimGroupMemberError extends Error {
+  readonly statusCode = 409;
+  constructor(
+    readonly code:
+      | "SCIM_GROUP_MEMBER_UNRESOLVED"
+      | "SCIM_GROUP_MEMBER_INACTIVE",
+    readonly memberValue: string,
+  ) {
+    super(code);
+    this.name = "ScimGroupMemberError";
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Group resource construction
 // -----------------------------------------------------------------------------
 
@@ -146,34 +170,61 @@ export async function scimCreateGroup(
     }
   }
 
+  // PHASE 12B — ATOMIC group create: the ScimGroup row AND the initial member
+  // role changes the IdP supplied on create are ONE outcome. Previously the
+  // group row was committed first and membership applied afterwards, so an
+  // unresolved/cross-Organization member left a committed group with partially
+  // applied membership. Now any member failure rolls the group row back too.
   let row: DbGroup;
   try {
-    row = await client.scimGroup.create({
-      data: {
-        teamId: ctx.teamId,
-        displayName: parsed.data.displayName.slice(0, 180),
-        externalId: parsed.data.externalId ?? null,
-        mappedRole: parsed.data.mappedRole,
-        status: "ACTIVE",
-      },
+    row = await client.$transaction(async (tx) => {
+      const txc = tx as unknown as PrismaClient;
+      const created = await txc.scimGroup.create({
+        data: {
+          teamId: ctx.teamId,
+          displayName: parsed.data.displayName.slice(0, 180),
+          externalId: parsed.data.externalId ?? null,
+          mappedRole: parsed.data.mappedRole,
+          status: "ACTIVE",
+        },
+      });
+      if (parsed.data.members && parsed.data.members.length > 0) {
+        await applyGroupMembership(
+          ctx,
+          created,
+          parsed.data.members.map((m) => m.value),
+          "add",
+          txc,
+        );
+      }
+      return created;
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof ScimGroupMemberError) {
+      return {
+        ok: false,
+        status: 409,
+        detail:
+          err.code === "SCIM_GROUP_MEMBER_UNRESOLVED"
+            ? "group_member_unresolved"
+            : "group_member_inactive",
+      };
+    }
+    if (err instanceof ScimManagedOwnershipError) {
+      return {
+        ok: false,
+        status: 409,
+        detail:
+          err.code === "SCIM_MANAGED_CROSS_ORG_CONFLICT"
+            ? "managed_cross_org_conflict"
+            : "managed_identity_unresolved",
+      };
+    }
     return {
       ok: false,
       status: 409,
       detail: "group_already_exists",
     };
-  }
-
-  // If the IdP supplied members on create, apply them as role changes.
-  if (parsed.data.members && parsed.data.members.length > 0) {
-    await applyGroupMembership(
-      ctx,
-      row,
-      parsed.data.members.map((m) => m.value),
-      "add",
-      client,
-    );
   }
 
   bump("scim_group_created_total");
@@ -334,6 +385,16 @@ export async function scimPatchGroup(
       }
     });
   } catch (err) {
+    if (err instanceof ScimGroupMemberError) {
+      return {
+        ok: false,
+        status: 409,
+        detail:
+          err.code === "SCIM_GROUP_MEMBER_UNRESOLVED"
+            ? "group_member_unresolved"
+            : "group_member_inactive",
+      };
+    }
     if (err instanceof ScimManagedOwnershipError) {
       return {
         ok: false,
@@ -378,35 +439,42 @@ export async function scimDeleteGroup(
     where: { id: groupId, teamId: ctx.teamId },
   });
   if (!row) return { ok: false };
-  // Demote every member to MEMBER (the conservative default) so we
-  // never silently revoke privileged access (admin role members) or
-  // hard-delete users.
-  await client.scimGroup.update({
-    where: { id: row.id },
-    data: { status: "ARCHIVED" },
-  });
-  if (row.mappedRole !== "MEMBER") {
+  // PHASE 12B — ATOMIC soft delete: archiving the group AND demoting every
+  // member the group's mapped role granted are ONE outcome. Previously the
+  // archive committed first, so a demotion failure left an ARCHIVED group whose
+  // members kept the elevated role it had granted.
+  //
+  // Demotion targets MEMBER (the conservative default) so we never silently
+  // revoke privileged access (OWNER/ADMIN rows) or hard-delete users.
+  const demoted = await client.$transaction(async (tx) => {
+    const txc = tx as unknown as PrismaClient;
+    await txc.scimGroup.update({
+      where: { id: row.id },
+      data: { status: "ARCHIVED" },
+    });
+    if (row.mappedRole === "MEMBER") return 0;
     // PHASE 3 — canonical orchestrator: bulk group-archive demotion
     // (IDP_GROUP provenance per affected member).
-    const affected = await demoteGroupMappedRoleOnArchive(client, {
+    const affected = await demoteGroupMappedRoleOnArchive(txc, {
       teamId: ctx.teamId,
       mappedRole: row.mappedRole,
       externalRef: `scim-group:${row.id}`,
     });
-    if (affected.count > 0) {
-      safeEmitSecurityEvent({
-        teamId: ctx.teamId,
-        eventType: "scim_group_membership_changed",
-        severity: "WARNING",
-        details: {
-          tokenId: ctx.tokenId,
-          groupId: row.id,
-          demotedCount: affected.count,
-          fromRole: row.mappedRole,
-          toRole: "MEMBER",
-        },
-      });
-    }
+    return affected.count;
+  });
+  if (demoted > 0) {
+    safeEmitSecurityEvent({
+      teamId: ctx.teamId,
+      eventType: "scim_group_membership_changed",
+      severity: "WARNING",
+      details: {
+        tokenId: ctx.tokenId,
+        groupId: row.id,
+        demotedCount: demoted,
+        fromRole: row.mappedRole,
+        toRole: "MEMBER",
+      },
+    });
   }
   bump("scim_group_deleted_total");
   bump("scim_group_sync_total");
@@ -466,7 +534,20 @@ async function applyGroupMembership(
       where: { teamId: ctx.teamId, userId },
       select: { id: true, role: true, status: true },
     });
-    if (!member || member.status !== "ACTIVE") continue;
+    // PHASE 12B — EXPLICIT failure for an unresolved / cross-Organization
+    // member reference (never a silent skip). `findFirst` is teamId-scoped, so
+    // a `value` belonging to another Organization does not resolve and is
+    // rejected here with the whole Operation set rolled back.
+    if (!member) {
+      throw new ScimGroupMemberError("SCIM_GROUP_MEMBER_UNRESOLVED", userId);
+    }
+    if (member.status !== "ACTIVE") {
+      // A group REMOVE against an already-inactive member is idempotently
+      // satisfied; a group ADD onto an inactive member is not something the
+      // model can honour, so it fails explicitly rather than reporting success.
+      if (op === "remove") continue;
+      throw new ScimGroupMemberError("SCIM_GROUP_MEMBER_INACTIVE", userId);
+    }
 
     // PATH 3/9 — enforce the managed-ownership invariant BEFORE the group role
     // change (never assume "already managed"). This runs INSIDE the group PATCH

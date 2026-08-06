@@ -231,11 +231,17 @@ describe("R8.1.8 — HTML digest email", () => {
   // 11. HTML digest email exists.
   // ---------------------------------------------------------------------------
   it("test 11: worker sendAdminDigest builds an `html` body AND sends it to Resend", () => {
-    // The worker builds an html string and passes it in the
-    // Resend HTTP-API request body.
+    // The worker builds an html string and hands it to the transport.
+    //
+    // PHASE 12 POINT 5 — it used to assemble the Resend HTTP request itself,
+    // which made it the third independent email transport in the repository:
+    // its own key handling, no timeout, no idempotency key, and a `throw` on
+    // any non-2xx that the caller could only read as "failed". Rendering
+    // stayed; the socket moved to `deliverEmail`.
     expect(DIGEST_WORKER).toMatch(/const html\s*=\s*`<!DOCTYPE html>/);
+    expect(DIGEST_WORKER).not.toMatch(/api\.resend\.com/);
     expect(DIGEST_WORKER).toMatch(
-      /body:\s*JSON\.stringify\(\s*\{\s*from,[\s\S]*?text,[\s\S]*?html,\s*\}\s*\)/,
+      /deliverEmail\(\{[\s\S]*?text,[\s\S]*?html,[\s\S]*?idempotencyKey/,
     );
   });
 

@@ -123,7 +123,7 @@ export async function startVerification(
   }
 
   if (!provider.isConfigured()) {
-    const failed = await client.verificationAttempt.create({
+    await client.verificationAttempt.create({
       data: {
         teamId: input.teamId,
         channel: input.channel,
@@ -156,7 +156,7 @@ export async function startVerification(
     channel: input.channel,
   });
   if (!result.ok) {
-    const failed = await client.verificationAttempt.create({
+    await client.verificationAttempt.create({
       data: {
         teamId: input.teamId,
         channel: input.channel,

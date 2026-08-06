@@ -112,9 +112,11 @@ export const SCENARIOS = [
   {
     name: "search_evidence",
     method: "GET",
-    pathTemplate: "/v1/search/evidence?q=loadtest",
+    // PHASE 12 — the legacy /v1/search/evidence route was deleted; the unified
+    // /v1/search endpoint requires a teamId scope.
+    pathTemplate: "/v1/search?q=loadtest&teamId=:teamId",
     auth: true,
-    note: "Evidence search (query param). Read-only.",
+    note: "Unified search (query + workspace scope). Read-only.",
   },
   {
     name: "audit_events",

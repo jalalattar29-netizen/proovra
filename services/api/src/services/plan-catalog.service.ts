@@ -2,7 +2,7 @@ export {
   PLAN_CAPABILITIES,
   canPlanGenerateReports,
   canPlanGenerateVerificationPackage,
-  canPlanUsePersonalWorkspace,
+  canPlanPurchasePersonalWorkspacePlan,
   canPlanUseTeams,
   formatBytesHuman,
   getPlanCapabilities,

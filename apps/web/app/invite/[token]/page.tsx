@@ -81,7 +81,9 @@ export default function InviteAcceptPage() {
     };
 
     verify();
-  }, [token]);
+    // `router` (next/navigation) and `addToast` (memoised by ToastProvider) are
+    // both stable, so listing them cannot re-run the one-shot verification.
+  }, [token, router, addToast]);
 
   const renderCard = () => {
     if (state === "loading") {

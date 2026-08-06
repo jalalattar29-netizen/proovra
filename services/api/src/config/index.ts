@@ -31,11 +31,9 @@
 
 const PROD = (): boolean => process.env.NODE_ENV === "production";
 
-const HASH_SECRET_NAMES = [
-  "COMMUNICATIONS_RECIPIENT_HASH_SECRET",
-  "IDENTITY_SECURITY_HASH_SECRET",
-] as const;
-export type HashSecretName = (typeof HASH_SECRET_NAMES)[number];
+export type HashSecretName =
+  | "COMMUNICATIONS_RECIPIENT_HASH_SECRET"
+  | "IDENTITY_SECURITY_HASH_SECRET";
 
 const CORE_REQUIRED_PROD = [
   "DATABASE_URL",
@@ -126,6 +124,8 @@ export type FeatureSnapshot = {
   };
   notifications: FeatureStatus & {
     resend: FeatureStatus;
+    /** PHASE 12 POINT 5 — the dedicated provider idempotency secret. */
+    idempotencySecret: FeatureStatus;
   };
   ai: FeatureStatus;
   integrations: FeatureStatus;
@@ -175,6 +175,10 @@ export function getFeatureSnapshot(): FeatureSnapshot {
         ? { configured: true, reason: null }
         : { configured: false, reason: "NOTIFICATIONS_ENABLED_off" }),
       resend: flagOk("RESEND_API_KEY"),
+      // PHASE 12 POINT 5 — the dedicated provider idempotency secret. Without
+      // it no email may be sent, because a send whose retries cannot be
+      // deduplicated is a send that can deliver twice.
+      idempotencySecret: flagOk("EMAIL_IDEMPOTENCY_SECRET"),
     },
     ai: envBool("OPENAI_AI_ENABLED")
       ? flagOk("OPENAI_API_KEY")
@@ -238,6 +242,17 @@ export function collectStartupViolations(): StartupConfigViolation[] {
     if ((process.env.IDENTITY_SECURITY_HASH_SECRET ?? "").trim().length === 0) {
       out.push({
         envName: "IDENTITY_SECURITY_HASH_SECRET",
+        reason: "feature_enabled_secret_missing",
+      });
+    }
+  }
+  // PHASE 12 POINT 5 — a configured email transport REQUIRES the dedicated
+  // idempotency secret. The pairing is the point: the moment this deployment
+  // can send mail, it must also be able to mint a stable retry key.
+  if ((process.env.RESEND_API_KEY ?? "").trim().length > 0) {
+    if ((process.env.EMAIL_IDEMPOTENCY_SECRET ?? "").trim().length === 0) {
+      out.push({
+        envName: "EMAIL_IDEMPOTENCY_SECRET",
         reason: "feature_enabled_secret_missing",
       });
     }

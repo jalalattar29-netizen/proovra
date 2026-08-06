@@ -54,9 +54,37 @@ const MAX_SUBTITLE = 200;
 const MAX_SUMMARY = 400;
 const MAX_BODY = 16 * 1024;
 
+/**
+ * True for the control characters this scrubber removes: the C0 range EXCEPT
+ * TAB (0x09) and LF (0x0A), plus DEL (0x7F). Expressed as explicit code-point
+ * ranges so the control characters are named rather than embedded in a regex
+ * literal — same set, no `no-control-regex` suppression.
+ */
+function isScrubbedControlCode(code: number): boolean {
+  return (code >= 0x00 && code <= 0x08) || (code >= 0x0b && code <= 0x1f) || code === 0x7f;
+}
+
+/** Collapse each RUN of those control characters into a single space. */
+function scrubControlRuns(value: string): string {
+  let out = "";
+  let inRun = false;
+  for (const ch of value) {
+    if (isScrubbedControlCode(ch.charCodeAt(0))) {
+      if (!inRun) {
+        out += " ";
+        inRun = true;
+      }
+      continue;
+    }
+    inRun = false;
+    out += ch;
+  }
+  return out;
+}
+
 function clip(s: string | null | undefined, max: number): string | null {
   if (s == null) return null;
-  const t = String(s).replace(/[\x00-\x08\x0B-\x1F\x7F]+/g, " ").trim();
+  const t = scrubControlRuns(String(s)).trim();
   if (t.length === 0) return null;
   if (t.length <= max) return t;
   return t.slice(0, Math.max(1, max - 1)) + "…";
@@ -90,7 +118,7 @@ export async function indexReport(
         evidence: {
           select: {
             teamId: true,
-            caseId: true,
+            caseLinks: { select: { caseId: true }, orderBy: { linkedAtUtc: "asc" }, take: 1 },
             title: true,
             displayFileName: true,
             originalFileName: true,
@@ -159,7 +187,7 @@ export async function indexReport(
     summary,
     searchableText,
     evidenceId: row.evidenceId,
-    caseId: row.evidence.caseId ?? null,
+    caseId: row.evidence.caseLinks?.[0]?.caseId ?? null,
     workflowState: row.verificationStatusSnapshot ?? null,
     metadata: {
       reportVersion: row.version,
@@ -191,7 +219,7 @@ export async function indexPackage(
         evidence: {
           select: {
             teamId: true,
-            caseId: true,
+            caseLinks: { select: { caseId: true }, orderBy: { linkedAtUtc: "asc" }, take: 1 },
             title: true,
             displayFileName: true,
             originalFileName: true,
@@ -266,7 +294,7 @@ export async function indexPackage(
     summary: null,
     searchableText,
     evidenceId: row.evidenceId,
-    caseId: row.evidence.caseId ?? null,
+    caseId: row.evidence.caseLinks?.[0]?.caseId ?? null,
     workflowState: null,
     metadata: {
       packageVersion: row.version,

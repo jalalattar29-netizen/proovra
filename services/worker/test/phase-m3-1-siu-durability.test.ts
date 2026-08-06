@@ -210,11 +210,78 @@ describe("M3.1 — SIU routes", () => {
   it("exposes the new durable endpoints", () => {
     for (const path of [
       '"/v1/cases/:id/siu-exports"',
-      '"/v1/siu/saved-views"',
       '"/v1/cases/:id/siu-profile/reveal-pii"',
     ]) {
       expect(src).toContain(path);
     }
+  });
+
+  /**
+   * The SIU saved-views family is a PRESERVED shipping capability.
+   *
+   * This assertion used to require the family to be ABSENT
+   * ("stays removed (MISSING_PRODUCT_CONSUMER)"), which contradicted the
+   * accepted target architecture. Checked once against the executable
+   * registry: all six operations are `BACKEND_ONLY_UNWIRED` in
+   * current-runtime-capability-map.json and `MISSING` in wiring-registry.json —
+   * i.e. registered, preserved, and awaiting product wiring. Neither registry
+   * says FULL_PARITY_REMOVED. The Phase-12 doctrine is explicit that the
+   * MISSING backlog "ratchets down (never fake-closed by deletion)" and that
+   * absence of a caller was the discovered wiring defect, not proof of
+   * obsolescence — so the capability stays and the stale assertion goes.
+   *
+   * Presence alone is not proof, so the family's real tenancy contract is
+   * pinned here: every leg is authenticated, every leg is workspace-scoped by
+   * an ACTIVE-membership check, and the mutating legs answer a foreign id with
+   * a bounded 404 rather than acting on it.
+   */
+  it("saved-views is a PRESERVED capability: all six operations are registered", () => {
+    for (const decl of [
+      '"/v1/siu/saved-views"',
+      '"/v1/siu/saved-views/custom"',
+      '"/v1/siu/saved-views/:id"',
+      '"/v1/siu/saved-views/:id/use"',
+    ]) {
+      expect(src).toContain(decl);
+    }
+    // GET + POST share the collection path; PATCH + DELETE share the item path.
+    expect((src.match(/"\/v1\/siu\/saved-views"/g) ?? []).length).toBe(2);
+    expect((src.match(/"\/v1\/siu\/saved-views\/:id"/g) ?? []).length).toBe(2);
+  });
+
+  it("every saved-views leg is authenticated and ACTIVE-membership scoped", () => {
+    // Slice the saved-views region: from the first declaration to the export
+    // download route that follows the family.
+    const start = src.indexOf('"/v1/siu/saved-views/custom"');
+    const end = src.indexOf('"/v1/cases/:id/siu-exports/:exportId/download"');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const family = src.slice(start, end);
+
+    // Five handlers live in this region (custom, create, patch, delete, use).
+    const handlers = family.match(/preHandler: requireAuth/g) ?? [];
+    expect(handlers.length).toBe(5);
+    // Each one resolves membership and refuses a non-ACTIVE member. The tenancy
+    // key is always a caller-supplied teamId that is CHECKED, never trusted.
+    const memberChecks = family.match(/teamId_userId: \{ teamId: [^,]+, userId \}/g) ?? [];
+    expect(memberChecks.length).toBe(5);
+    const inactiveDenials = family.match(/member\.status !== "ACTIVE"/g) ?? [];
+    expect(inactiveDenials.length).toBe(5);
+    expect((family.match(/code: "member_inactive"/g) ?? []).length).toBe(5);
+  });
+
+  it("saved-views item operations answer a foreign/unknown id with a bounded 404", () => {
+    const start = src.indexOf('"/v1/siu/saved-views/:id"');
+    const end = src.indexOf('"/v1/cases/:id/siu-exports/:exportId/download"');
+    const items = src.slice(start, end);
+    // update / delete / markUsed each resolve within (id, teamId, userId) and
+    // return 404 when the row is not theirs — cross-workspace isolation, not a
+    // 403 that would confirm the row exists elsewhere.
+    for (const svc of ["updateSavedView(", "deleteSavedView(", "markSavedViewUsed("]) {
+      expect(items).toContain(svc);
+    }
+    expect((items.match(/code: "not_found"/g) ?? []).length).toBe(3);
+    expect((items.match(/teamId: [qb]\.teamId/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
   it("reveal-pii endpoint is step-up gated + audited", () => {

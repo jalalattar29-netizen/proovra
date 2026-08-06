@@ -1,0 +1,274 @@
+[
+  {
+    "route": "/v1/governance/reconcile-retention",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/governance.routes.ts:763",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler (cron)",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "retention reconciliation cron sweep (governance.routes.ts:763)",
+    "proofSuite": "services/api/test/phase27_5-governance-operations.test.ts",
+    "owner": "platform-ops",
+    "productReason": "cron trigger for retention reconciliation sweeper"
+  },
+  {
+    "route": "/v1/identity-security/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/identity-security.routes.ts:17",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler (cron)",
+    "authMode": "cron secret",
+    "evidence": "route header: 'cron secret' reconciliation",
+    "proofSuite": "services/api/test/identity-security.test.ts",
+    "owner": "platform-ops",
+    "productReason": "cron trigger for identity-security reconciliation"
+  },
+  {
+    "route": "/v1/ops/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/ops.routes.ts:8",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler (cron)",
+    "authMode": "cron secret",
+    "evidence": "route header: 'master reconciliation cron'",
+    "proofSuite": "services/api/test/phase-32-8-c-enterprise-gap-closure.test.ts",
+    "owner": "platform-ops",
+    "productReason": "master reconciliation cron"
+  },
+  {
+    "route": "/v1/reliability/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/reliability.routes.ts:8",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler (cron)",
+    "authMode": "cron-protected",
+    "evidence": "route header: '(cron-protected)'",
+    "proofSuite": null,
+    "owner": "platform-ops",
+    "productReason": "cron trigger for reliability reconciliation"
+  },
+  {
+    "route": "/v1/review-operations/reconcile-slas",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/review-operations.routes.ts:11",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler (cron); exercised by phase-37-98 live gate",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "route header: 'cron SLA sweep'",
+    "proofSuite": "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts",
+    "owner": "platform-ops",
+    "productReason": "cron trigger for reviewer SLA sweep"
+  },
+  {
+    "route": "/v1/reviewer-ops/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts:23",
+    "class": "WORKER_OR_MACHINE_CONSUMER",
+    "consumer": "services/worker (the one worker-called reconcile, per prior census)",
+    "authMode": "cron-secret protected",
+    "evidence": "route header: 'cron-secret protected'; worker is the sole in-repo caller",
+    "proofSuite": "services/api/test/worker-plan-resolver-parity.contract.test.ts",
+    "owner": "platform-ops"
+  },
+  {
+    "route": "/v1/search/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/internal-reindex.routes.ts:18",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "search operator (manual)",
+    "authMode": "requireAuth + workspace (real user token)",
+    "evidence": "route header: 'requires a real user token + workspace'",
+    "proofSuite": "services/api/test/phase24-search.test.ts",
+    "owner": "search platform",
+    "productReason": "operator reconciliation escape hatch"
+  },
+  {
+    "route": "/v1/internal/search/reindex",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/internal-reindex.routes.ts:10",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler + backfill CLI (scripts/backfill-search-index.ts)",
+    "authMode": "x-internal-secret (cron-secret)",
+    "evidence": "internal secret-gated reindex; production bulk path",
+    "proofSuite": "services/api/test/phase24-search.test.ts",
+    "owner": "search platform",
+    "productReason": "internal secret-gated bulk reindex"
+  },
+  {
+    "route": "/v1/internal/media-intelligence/extract",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/internal-media-intelligence-extract.routes.ts:27",
+    "class": "WORKER_OR_MACHINE_CONSUMER",
+    "consumer": "media-intelligence worker processor",
+    "authMode": "internal secret",
+    "evidence": "internal extraction callback for the MI worker pipeline",
+    "proofSuite": "services/api/test/phase-31-14-derived-assets-bytes.test.ts",
+    "owner": "platform-ops"
+  },
+  {
+    "route": "/v1/auth/sso/callback",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/sso-auth.routes.ts:5",
+    "class": "EXTERNAL_PROVIDER_CALLBACK",
+    "consumer": "customer IdP (OIDC/SAML) redirect after authentication",
+    "authMode": "signed state token + nonce/audience validation (sso-hardening); browser-redirect, not apiFetch",
+    "evidence": "post-login destination safety proven in phase-11-auth-destination-safety",
+    "proofSuite": "services/api/test/phase-11-auth-destination-safety.test.ts"
+  },
+  {
+    "route": "/v1/auth/sso/:connectionId/initiate",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/sso-auth.routes.ts:4",
+    "class": "EXTERNAL_PROVIDER_CALLBACK",
+    "consumer": "browser SSO-initiation redirect (login page nav, not apiFetch)",
+    "authMode": "connection-bound; issues signed state and redirects to the IdP authorizationUrl",
+    "evidence": "browser navigation flow; RelayState/state protections in sso-hardening",
+    "proofSuite": "services/api/test/phase-11-auth-destination-safety.test.ts"
+  },
+  {
+    "route": "/v1/external-review/access/:token",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/external-review.routes.ts:276",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external reviewer (invited, non-account) accepting a grant via emailed token link",
+    "authMode": "opaque invitation token (no session)",
+    "evidence": "external reviewer portal grant acceptance (external-review.routes.ts:276)",
+    "proofSuite": "apps/web/__tests__/external-review-grant-step-up.test.ts"
+  },
+  {
+    "route": "/v1/external-review/access/:token/context",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/external-review.routes.ts",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external reviewer portal (token-authed session context)",
+    "authMode": "opaque invitation token",
+    "evidence": "external reviewer portal context read",
+    "proofSuite": "apps/web/__tests__/external-review-denial.test.ts"
+  },
+  {
+    "route": "/v1/admin/identity/sessions/reconcile-stale",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/admin-identity.routes.ts:775",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler (cron)",
+    "authMode": "cron secret",
+    "evidence": "stale-session reconciliation cron",
+    "proofSuite": null,
+    "owner": "platform-ops",
+    "productReason": "cron trigger for stale-session cleanup"
+  },
+  {
+    "route": "/v1/admin/identity/runtime/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/admin-identity.routes.ts:993",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external scheduler (cron)",
+    "authMode": "cron-secret protected",
+    "evidence": "route header: 'cron-secret protected'",
+    "proofSuite": null,
+    "owner": "platform-ops",
+    "productReason": "cron trigger for identity runtime reconciliation"
+  },
+  {
+    "route": "/v1/governance/legal-holds",
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/governance.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "COMPATIBILITY_TEMPORARY adapter — no product surface by design; /v1/lifecycle/legal-holds is the product surface",
+    "authMode": "authorizeOrFail + step-up (LEGAL_HOLD_PLACE)",
+    "evidence": "PHASE 12 POINT 1 / C2: retained as a thin adapter over the ONE canonical Legal-Hold authority (services/api/src/services/governance/legal-hold.service.ts) because legacy case_legal_holds / legal_holds rows are not yet backfilled. Removal conditions are machine-checked.",
+    "proofSuite": "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+    "owner": "governance",
+    "productReason": "reads and releases legal holds that the backfill migration has not yet converted; deleted once the migration is applied and verified (see services/api/test/phase-12-legal-hold-compatibility.test.ts)"
+  },
+  {
+    "route": "/v1/governance/legal-holds/:id/release",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/governance.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "COMPATIBILITY_TEMPORARY adapter — no product surface by design; /v1/lifecycle/legal-holds is the product surface",
+    "authMode": "authorizeOrFail + step-up (LEGAL_HOLD_RELEASE)",
+    "evidence": "PHASE 12 POINT 1 / C2: delegates to releaseLegalHoldAnyStore, the ONE release command, which still resolves un-backfilled legacy rows.",
+    "proofSuite": "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+    "owner": "governance",
+    "productReason": "releases an un-backfilled hold; deleted once the migration is applied and verified (see services/api/test/phase-12-legal-hold-compatibility.test.ts)"
+  },
+  {
+    "route": "/v1/governance/case-legal-holds",
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/governance.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "COMPATIBILITY_TEMPORARY adapter — no product surface by design; /v1/lifecycle/legal-holds is the product surface",
+    "authMode": "authorizeOrFail + step-up (LEGAL_HOLD_PLACE)",
+    "evidence": "PHASE 12 POINT 1 / C2: case-scoped sibling of the evidence adapters; same canonical authority, same removal conditions.",
+    "proofSuite": "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+    "owner": "governance",
+    "productReason": "case-scoped legacy hold access; deleted once the migration is applied and verified (see services/api/test/phase-12-legal-hold-compatibility.test.ts)"
+  },
+  {
+    "route": "/v1/governance/case-legal-holds/:id/release",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/governance.routes.ts",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "COMPATIBILITY_TEMPORARY adapter — no product surface by design; /v1/lifecycle/legal-holds is the product surface",
+    "authMode": "authorizeOrFail + release-approval gate + step-up (LEGAL_HOLD_RELEASE)",
+    "evidence": "PHASE 12 POINT 1 / C2: enforces the workspace release-approval gate before delegating to the ONE release command.",
+    "proofSuite": "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+    "owner": "governance",
+    "productReason": "releases an un-backfilled case hold; deleted once the migration is applied and verified (see services/api/test/phase-12-legal-hold-compatibility.test.ts)"
+  },
+  {
+    "route": "/v1/org-invite-deliveries/process",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/organizations.routes.ts:1348",
+    "class": "WORKER_OR_MACHINE_CONSUMER",
+    "consumer": "worker interval scheduler (services/worker)",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "cron-secret-guarded sweep for stranded/due PENDING invite deliveries; the same worker→API machine-auth pattern as /v1/integrations/process-webhook-retries",
+    "proofSuite": "services/api/test/phase-12-coverage-manifest.test.ts",
+    "owner": "platform-ops",
+    "productReason": "machine-triggered invite-delivery retry sweep; never operator-invoked"
+  }
+]

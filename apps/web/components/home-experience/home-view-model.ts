@@ -43,12 +43,20 @@ export type HomePlan = "FREE" | "PAYG" | "PRO" | "TEAM" | null;
 /** Which kind of workspace the user is currently in. */
 export type ActiveSpaceType = "PERSONAL" | "ORGANIZATION" | null;
 
-export function isProOrTeam(plan: HomePlan): boolean {
-  return plan === "PRO" || plan === "TEAM";
-}
-export function isFreePlan(plan: HomePlan): boolean {
-  return plan === "FREE";
-}
+/**
+ * Track 1A (surface-tier removal, 2026-07-28) — SERVER-projected
+ * commercial entitlements consumed by the Home decisions. Sourced from
+ * the canonical `envelope.planFeatures` (backend PLAN_CAPABILITIES
+ * projection) and resolved FAIL-CLOSED (unknown → false) by
+ * `normalizeHomeViewModel`. The view model never derives an
+ * entitlement from the raw plan name — `plan` is retained for DISPLAY
+ * only (e.g. the `data-self-serve-plan` attribute).
+ */
+export type HomePlanFeatures = {
+  intakeIncluded: boolean;
+  teamCollaborationIncluded: boolean;
+  reportsIncluded: boolean;
+};
 
 // ============================================================================
 // Phase HOME-CTA-NORMALIZATION — single source of truth for Home CTA
@@ -738,6 +746,14 @@ export type RichRecentEvidenceRow = {
 
 export type HomeViewModel = {
   plan: HomePlan;
+  /**
+   * Track 1A — SERVER-projected plan entitlements (envelope.planFeatures).
+   * The dashboard derives every entitlement decision from these booleans;
+   * it never branches on the raw plan name.
+   */
+  features: HomePlanFeatures;
+  /** True when the server projection actually carried reportsIncluded. */
+  reportsIncludedKnown: boolean;
   /** Active workspace id — needed for workspace-scoped mutations (retry). */
   workspaceId: string | null;
   /** Workspace display name for the greeting line. */
@@ -1053,8 +1069,11 @@ export type HomeEvidenceListInput = {
 // Shape mirrors `RecordsByTypeResponse` from the API service
 // (services/api/src/services/dashboard/records-by-type.service.ts).
 // The hook fetches /v1/dashboard/records-by-type and passes the raw
-// JSON straight in; partial-failure returns null so the view-model
-// falls back to the legacy latest-100 classifier transparently.
+// JSON straight in; partial-failure returns null so the view-model uses
+// the latest-100 sample classifier instead. The substitution is NOT
+// silent: the distribution carries `source: "latest-sample"` and the
+// widget renders it, so an approximate count is never presented as an
+// authoritative workspace total.
 // ----------------------------------------------------------------------------
 export type HomeRecordsByTypeInput = {
   records?: {
@@ -1714,7 +1733,8 @@ function buildActivity(args: {
 }
 
 function buildTeamWork(args: {
-  plan: HomePlan;
+  /** SERVER-projected `planFeatures.teamCollaborationIncluded` (fail-closed). */
+  teamCollaborationIncluded: boolean;
   activeSpaceType: ActiveSpaceType;
   orgs: HomeOrgsInput | null;
   workspaceId: string | null;
@@ -1725,7 +1745,7 @@ function buildTeamWork(args: {
   // A PRO user sitting in their Personal Space must NOT see it, even
   // if they belong to a team elsewhere (Phase 10 rule).
   if (args.activeSpaceType !== "ORGANIZATION") return null;
-  if (!isProOrTeam(args.plan)) return null;
+  if (!args.teamCollaborationIncluded) return null;
   const orgs = args.orgs ?? [];
   // Scope to the active workspace's org when we can match it; otherwise
   // fall back to the active orgs the user owns.
@@ -1799,7 +1819,8 @@ function buildChecklist(args: {
  * rules never emit; zero data emits nothing (the UI shows all-clear).
  */
 function buildWorkspacePriorities(args: {
-  plan: HomePlan;
+  /** SERVER-projected `planFeatures.intakeIncluded` (fail-closed). */
+  intakeIncluded: boolean;
   trust: TrustState;
   pipeline: PipelineData;
   submissionsCount: number;
@@ -1984,7 +2005,7 @@ function buildWorkspacePriorities(args: {
       derivedFrom: ["dashboard/command-center.pipelineDetail.reports.ready"],
     });
   }
-  if (isProOrTeam(args.plan) && args.collectionStats.activeLinks === 0) {
+  if (args.intakeIncluded && args.collectionStats.activeLinks === 0) {
     out.push({
       key: "create_intake_link",
       severity: "info",
@@ -2120,7 +2141,8 @@ function buildExecutiveSummary(args: {
 }
 
 function pickHeroAction(args: {
-  plan: HomePlan;
+  /** SERVER-projected `planFeatures.intakeIncluded` (fail-closed). */
+  intakeIncluded: boolean;
   cc: HomeCommandCenterInput | null;
   submissions: SubmissionRow[];
   trust: TrustState;
@@ -2245,7 +2267,7 @@ function pickHeroAction(args: {
       tone: "calm",
     };
   }
-  if (isProOrTeam(args.plan)) {
+  if (args.intakeIncluded) {
     return {
       kind: "request_evidence",
       title: "Request evidence from someone",
@@ -3147,7 +3169,8 @@ function formatKpiNumber(n: number): string {
 }
 
 function buildKpis(args: {
-  plan: HomePlan;
+  /** SERVER-projected `planFeatures.intakeIncluded` (fail-closed). */
+  intakeIncluded: boolean;
   trust: TrustState;
   scoped: WorkspaceEvidenceItem[];
   listHasMore: boolean;
@@ -3218,7 +3241,9 @@ function buildKpis(args: {
   const deliverablesPending = rp.reportsPending + rp.packagesPending;
 
   const cs = args.collectionStats;
-  const pro = isProOrTeam(args.plan);
+  // Track 1A — the intake KPI lock follows the SERVER-projected
+  // commercial entitlement, not the plan name.
+  const pro = args.intakeIncluded;
 
   return [
     {
@@ -3319,7 +3344,14 @@ function buildKpis(args: {
 }
 
 export type NormalizeInputs = {
+  /** DISPLAY-ONLY plan label (e.g. the data-self-serve-plan attribute). */
   plan: HomePlan;
+  /**
+   * Track 1A — SERVER-projected `envelope.planFeatures` entitlements.
+   * All Home entitlement decisions read these; unknown/absent values
+   * resolve fail-closed (false).
+   */
+  planFeatures?: Partial<HomePlanFeatures> | null;
   workspaceId: string | null;
   /** Active workspace display name (greeting line). */
   workspaceName?: string | null;
@@ -3351,6 +3383,18 @@ export function normalizeHomeViewModel(
 ): HomeViewModel {
   const cc = inputs.commandCenter;
   const nowMs = inputs.nowMs ?? Date.now();
+
+  // Track 1A — resolve the server-projected entitlements FAIL-CLOSED.
+  const features: HomePlanFeatures = {
+    intakeIncluded: inputs.planFeatures?.intakeIncluded === true,
+    teamCollaborationIncluded:
+      inputs.planFeatures?.teamCollaborationIncluded === true,
+    reportsIncluded: inputs.planFeatures?.reportsIncluded === true,
+  };
+  // While the envelope is loading the reports entitlement is UNKNOWN —
+  // expose that tri-state so upsell copy is not shown prematurely.
+  const reportsIncludedKnown =
+    typeof inputs.planFeatures?.reportsIncluded === "boolean";
 
   const flagged = integrityFlaggedIds(cc);
   const trustState = buildTrustState(inputs.trustSummary);
@@ -3410,7 +3454,7 @@ export function normalizeHomeViewModel(
   }).length;
 
   const teamWork = buildTeamWork({
-    plan: inputs.plan,
+    teamCollaborationIncluded: features.teamCollaborationIncluded,
     activeSpaceType: inputs.activeSpaceType,
     orgs: inputs.orgs,
     workspaceId: inputs.workspaceId,
@@ -3438,7 +3482,7 @@ export function normalizeHomeViewModel(
     trustState.verifyPublished === 0;
 
   const heroAction = pickHeroAction({
-    plan: inputs.plan,
+    intakeIncluded: features.intakeIncluded,
     cc,
     submissions,
     trust: trustState,
@@ -3511,7 +3555,7 @@ export function normalizeHomeViewModel(
   });
   const listHasMore = inputs.evidenceList?.pageInfo?.hasMore === true;
   const kpis = buildKpis({
-    plan: inputs.plan,
+    intakeIncluded: features.intakeIncluded,
     trust: trustState,
     scoped: scopedEvidence,
     listHasMore,
@@ -3529,9 +3573,9 @@ export function normalizeHomeViewModel(
     nowMs,
   });
   // Phase HOME-RECORDS-BY-TYPE — prefer the workspace-aggregate
-  // endpoint (counts every active non-deleted row). Fall back to the
-  // legacy latest-100 classifier ONLY if the endpoint is unavailable;
-  // the widget surfaces the source so users can tell which is which.
+  // endpoint (counts every active non-deleted row). Use the latest-100
+  // sample classifier ONLY if that request failed; the widget surfaces
+  // `source` so users can tell which is which.
   const recordsAggregate = inputs.recordsByType?.records;
   const typeDistribution =
     recordsAggregate &&
@@ -3551,7 +3595,7 @@ export function normalizeHomeViewModel(
   // Phase HOME-INTELLIGENCE — ranked active-user priorities (cross-
   // domain signals) + overall health verdict.
   const workspacePriorities = buildWorkspacePriorities({
-    plan: inputs.plan,
+    intakeIncluded: features.intakeIncluded,
     trust: trustState,
     pipeline,
     submissionsCount: submissions.length,
@@ -3581,6 +3625,8 @@ export function normalizeHomeViewModel(
 
   return {
     plan: inputs.plan,
+    features,
+    reportsIncludedKnown,
     workspaceId: inputs.workspaceId,
     workspaceName: inputs.workspaceName ?? null,
     kpis,

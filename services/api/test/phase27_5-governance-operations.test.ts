@@ -21,7 +21,7 @@
  *   - Wording sweep on Phase 27.5 UI surfaces.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -419,8 +419,11 @@ describe("Phase 27.5 — Worker wiring", () => {
   });
 
   it("retention worker is hold-aware + immutable-aware + auto-extends", () => {
-    expect(retentionSrc).toContain("LegalHoldStatus.ACTIVE");
-    expect(retentionSrc).toContain("CaseLegalHoldStatus.ACTIVE");
+    // PHASE 12B CLUSTER 8 — the worker's three per-store hold lookups are
+    // replaced by ONE union evaluator that reads all three stores and FAILS
+    // CLOSED. Hold-awareness is asserted through the evaluator it calls.
+    expect(retentionSrc).toContain("evaluateEffectiveLegalHold(prisma");
+    expect(retentionSrc).toContain("effectiveHold.held");
     expect(retentionSrc).toContain("immutable");
     expect(retentionSrc).toContain("autoExtensionEnabled");
     expect(retentionSrc).toContain("autoExtensionDays");
@@ -601,9 +604,20 @@ describe("Phase 27.5 — UI wording sweep", () => {
     );
   });
 
-  it("LifecycleIndicators component is enterprise-grade", () => {
-    assertCleanOf(
-      "../../../apps/web/components/governance/LifecycleIndicators.tsx",
-    );
+  // PHASE 12 POINT 4 PASS D/G — `components/governance/LifecycleIndicators.tsx`
+  // had zero importers and was deleted. The wording rule applies to files
+  // users can reach; asserting it against an unmounted file proved nothing.
+  // The guard below keeps it from returning unnoticed.
+  it("the unmounted LifecycleIndicators component stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../../../apps/web/components/governance/LifecycleIndicators.tsx",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
   });
 });

@@ -252,7 +252,8 @@ function Inner() {
         setActionBusy(null);
       }
     },
-    [load, requestId],
+    // `confirm` is memoised once by ConfirmActionProvider — stable identity.
+    [load, requestId, confirm],
   );
 
   const [requestMoreReveal, setRequestMoreReveal] = useState<{
@@ -312,7 +313,7 @@ function Inner() {
         setActionBusy(null);
       }
     },
-    [load, requestId],
+    [load, requestId, confirm],
   );
 
   if (loading) {

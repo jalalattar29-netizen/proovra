@@ -39,8 +39,12 @@ const CONCRETE = "/organizations/org_123/admin/governance/external-reviewers";
 
 function ctxFor(plan: WorkspacePlan): SurfaceUserContext {
   return {
-    plan,
-    role: "OWNER",
+    // PHASE 12B Track 1A — server-projected booleans, never the plan name.
+    planFeatures: {
+      intakeIncluded: null,
+      professionalSurfacesIncluded:
+        plan === "PRO" || plan === "TEAM" || (plan as string) === "ENTERPRISE",
+    },
     isPlatformAdmin: false,
     isEnterpriseWorkspace: plan === "ENTERPRISE",
   };

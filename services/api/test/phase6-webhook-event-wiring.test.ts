@@ -87,6 +87,8 @@ const EVIDENCE_COMPLETE_SERVICE = readApi(
   "src/services/evidence-complete.service.ts",
 );
 const GOVERNANCE_SERVICE = readApi("src/services/governance.service.ts");
+// The ONE canonical Legal-Hold authority (PHASE 12B CLUSTER 8).
+const LEGAL_HOLD_SERVICE = readApi("src/services/governance/legal-hold.service.ts");
 const PAGE = readWeb("app/(app)/integrations/page.tsx");
 
 // ===========================================================================
@@ -286,8 +288,17 @@ describe("PHASE 6 — pre-existing emit sites are unchanged", () => {
     );
   });
 
-  it("governance.service still emits both governance events", () => {
-    expect(GOVERNANCE_SERVICE).toMatch(
+  it("both governance events still have exactly one live producer", () => {
+    // PHASE 12B CLUSTER 8 / PHASE 12 POINT 1 — legal-hold placement moved out
+    // of governance.service.ts into the ONE canonical Legal-Hold authority.
+    // The Phase-6 invariant is that the event still has a live producer and
+    // still has only ONE, which is what is asserted here; pinning the emit to
+    // the old file would have required keeping a second placement command
+    // alive purely to satisfy a test.
+    expect(LEGAL_HOLD_SERVICE).toMatch(
+      /eventType:\s*"governance\.legal_hold_placed"/,
+    );
+    expect(GOVERNANCE_SERVICE).not.toMatch(
       /eventType:\s*"governance\.legal_hold_placed"/,
     );
     expect(GOVERNANCE_SERVICE).toMatch(

@@ -156,10 +156,29 @@ describe("Wave A CHAIN 6 — destruction: retention → legal-hold precedence �
     "utf8",
   );
 
-  it("purge re-asserts ALL THREE hold families at execute time (hold placed after enqueue still blocks)", () => {
-    expect(processor).toMatch(/evidenceLegalHold\.findFirst/);
-    expect(processor).toMatch(/caseLegalHold\.findFirst/);
-    expect(processor).toMatch(/hasActiveLifecycleLegalHold/);
+  it("purge re-asserts every hold family at execute time (hold placed after enqueue still blocks)", () => {
+    // PHASE 12B CLUSTER 8 — one union evaluator replaces the three per-store
+    // lookups. All three families are still consulted, and a transient DB
+    // failure now aborts the purge instead of reporting "no hold".
+    expect(processor).toMatch(/evaluateEffectiveLegalHold\(prisma/);
+    const evaluator = readFileSync(
+      fileURLToPath(
+        new URL("../../worker/src/governance/effective-legal-hold.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    // PHASE 12 POINT 3 — one store, every scope. Coverage is proven by the
+    // canonical scope vocabulary plus the historical clause that makes an
+    // unresolvable ACTIVE hold fail closed.
+    expect(evaluator).toMatch(/prisma\.evidenceLegalHold\.findMany/);
+    expect(evaluator).toMatch(/scope: "EVIDENCE"/);
+    expect(evaluator).toMatch(/scope: "CASE"/);
+    expect(evaluator).toMatch(/scope: "WORKSPACE"/);
+    expect(evaluator).toMatch(/historical/);
+    // No retired store may reappear.
+    expect(evaluator).not.toMatch(/prisma\.caseLegalHold\./);
+    expect(evaluator).not.toMatch(/prisma\.legalHold\./);
+    expect(evaluator).toMatch(/throw err;/);
   });
 
   it("an active hold RESCHEDULES (zero destruction), it does not proceed", () => {

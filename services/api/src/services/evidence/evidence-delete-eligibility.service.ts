@@ -33,9 +33,9 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 
 export type EvidenceDeleteReasonCode =
   | "COMPLIANCE_RETENTION"
@@ -62,6 +62,12 @@ export type EvidenceDeleteEligibility = {
  */
 export type EvidenceDeleteEligibilityInput = {
   id: string;
+  /**
+   * PHASE 12B CLUSTER 8 — tenant of the record. Optional for backwards
+   * compatibility; when omitted the async path resolves it so the union
+   * evaluator can see WORKSPACE-scoped holds. `null` = personal scope.
+   */
+  teamId?: string | null;
   deletedAt: Date | string | null;
   lockedAt: Date | string | null;
   storageObjectLockMode: string | null;
@@ -75,11 +81,6 @@ function toDateOrNull(value: Date | string | null | undefined): Date | null {
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
-}
-
-function isoOrNull(value: Date | string | null | undefined): string | null {
-  const d = toDateOrNull(value);
-  return d ? d.toISOString() : null;
 }
 
 function formatDateForCopy(value: Date | string | null | undefined): string | null {
@@ -179,14 +180,19 @@ export function computeEvidenceDeleteEligibilitySync(
 }
 
 /**
- * Async variant — same precedence, plus a follow-up check against
- * the `evidence_legal_holds` table (mirrors
- * `isUnderActiveLegalHold` in governance.service.ts) when the
- * synchronous branch did not already block.
+ * Async variant — same precedence, plus a follow-up check against the ONE
+ * effective-hold evaluator when the synchronous branch did not already block.
  *
- * Use this on single-record paths (Evidence Detail response). For
- * list views, prefer the sync variant + the Object Lock legal-hold
- * column which we already select.
+ * PHASE 12B CLUSTER 8 — this used to read `evidence_legal_holds` ALONE, so a
+ * CASE-scoped hold or a scope-generic lifecycle hold left the UI advertising
+ * "you can delete this" while the write path blocked. It now evaluates the
+ * UNION of all three stores through
+ * `services/governance/effective-legal-hold.ts` and FAILS CLOSED: a transient
+ * database failure surfaces as "not eligible", never as "go ahead".
+ *
+ * Use this on single-record paths (Evidence Detail response). For list views,
+ * prefer the sync variant + the Object Lock legal-hold column we already
+ * select.
  */
 export async function computeEvidenceDeleteEligibility(
   evidence: EvidenceDeleteEligibilityInput,
@@ -195,18 +201,33 @@ export async function computeEvidenceDeleteEligibility(
   const sync = computeEvidenceDeleteEligibilitySync(evidence);
   if (!sync.canMoveToTrash) return sync;
 
-  const activeHold = await client.evidenceLegalHold.findFirst({
-    where: { evidenceId: evidence.id, status: prismaPkg.LegalHoldStatus.ACTIVE },
-    select: { id: true },
-  });
-  if (activeHold) {
-    return {
-      canMoveToTrash: false,
-      reasonCode: "LEGAL_HOLD",
-      blockedUntil: null,
-      message:
-        "This record is under an active legal hold and cannot be moved to trash.",
-    };
+  const heldMessage: EvidenceDeleteEligibility = {
+    canMoveToTrash: false,
+    reasonCode: "LEGAL_HOLD",
+    blockedUntil: null,
+    message:
+      "This record is under an active legal hold and cannot be moved to trash.",
+  };
+
+  let teamId = evidence.teamId ?? null;
+  try {
+    if (evidence.teamId === undefined) {
+      const row = await client.evidence.findUnique({
+        where: { id: evidence.id },
+        select: { teamId: true },
+      });
+      teamId = row?.teamId ?? null;
+    }
+    const held = await evaluateEffectiveLegalHold(client, {
+      teamId,
+      evidenceId: evidence.id,
+    });
+    if (held.held) return heldMessage;
+  } catch {
+    // FAIL CLOSED. This surface tells the operator whether deletion is
+    // possible; if we cannot prove the absence of a hold we must NOT
+    // advertise the record as destructible.
+    return heldMessage;
   }
 
   return sync;

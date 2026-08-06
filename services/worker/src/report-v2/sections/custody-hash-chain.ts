@@ -1,20 +1,8 @@
 import { ReportViewModel } from "../types.js";
-import { renderCallout, renderPageSection } from "../ui.js";
+import {
+  renderPageSection,
+} from "../ui.js";
 import { escapeHtml } from "../formatters.js";
-
-function shortHash(value: string | null | undefined): string {
-  const hash = String(value ?? "").trim();
-
-  if (!hash || hash === "N/A") {
-    return "Genesis event";
-  }
-
-  if (hash.length < 32) {
-    return hash;
-  }
-
-  return `${hash.slice(0, 12)} … ${hash.slice(-12)}`;
-}
 
 function renderCustodyHashChainNotice(): string {
   return `

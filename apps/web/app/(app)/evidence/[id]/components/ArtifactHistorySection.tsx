@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "../../../../../components/ui";
+import { GovernedExportAction } from "../../../../../components/governance/GovernedExportAction";
 
 type ArtifactHistory = {
   reports: Array<{
@@ -28,15 +29,35 @@ export function ArtifactHistorySection({
   onDownloadVerificationPackage,
   formatDateTime,
   formatBytes,
+  evidenceId,
+  teamId,
 }: {
   history: ArtifactHistory | undefined;
   onDownloadReport: () => void;
   onDownloadVerificationPackage: () => void;
   formatDateTime: (value: string | null | undefined) => string;
   formatBytes: (value: string | number | null | undefined) => string;
+  /**
+   * Phase 12 Point 4 (Pass E) — export-governance preflight. Both
+   * "Download latest" actions consult `/v1/governance/export-eligibility`
+   * BEFORE the operator can click; blocked outcomes render the gate
+   * that blocked them plus its next-step copy verbatim.
+   *
+   * This wrapping used to live on the evidence-library `ArtifactPanel`,
+   * which had been unmounted when the library preview pane moved to
+   * `QueueSelectionPreview` — so evidence exports were reaching the
+   * download path with no governance preflight at all. The capability
+   * is re-attached here, on the canonical Artifacts surface that owns
+   * the real download buttons. When the ids are unavailable the panel
+   * degrades to the plain buttons (server authorization is unchanged
+   * either way).
+   */
+  evidenceId?: string | null;
+  teamId?: string | null;
 }) {
   const reports = history?.reports ?? [];
   const packages = history?.verificationPackages ?? [];
+  const governed = Boolean(evidenceId && teamId);
 
   return (
     <section id="artifacts" className="evidence-detail-card">
@@ -51,9 +72,32 @@ export function ArtifactHistorySection({
         <article className="evidence-detail-related-card">
           <div className="evidence-detail-item-row">
             <strong>PDF reports</strong>
-            <Button variant="secondary" onClick={onDownloadReport} disabled={reports.length === 0}>
-              Download latest
-            </Button>
+            {governed ? (
+              <GovernedExportAction
+                evidenceId={evidenceId as string}
+                teamId={teamId as string}
+                actionLabel="Download Report PDF"
+                compactWhenAllowed
+                onAction={onDownloadReport}
+                renderAction={({ disabled, onClick }) => (
+                  <Button
+                    variant="secondary"
+                    onClick={onClick}
+                    disabled={disabled || reports.length === 0}
+                  >
+                    Download latest
+                  </Button>
+                )}
+              />
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={onDownloadReport}
+                disabled={reports.length === 0}
+              >
+                Download latest
+              </Button>
+            )}
           </div>
           {reports.length === 0 ? (
             <p>No artifact history available beyond latest artifact.</p>
@@ -71,13 +115,32 @@ export function ArtifactHistorySection({
         <article className="evidence-detail-related-card">
           <div className="evidence-detail-item-row">
             <strong>Verification packages</strong>
-            <Button
-              variant="secondary"
-              onClick={onDownloadVerificationPackage}
-              disabled={packages.length === 0}
-            >
-              Download latest
-            </Button>
+            {governed ? (
+              <GovernedExportAction
+                evidenceId={evidenceId as string}
+                teamId={teamId as string}
+                actionLabel="Download Verification Package ZIP"
+                compactWhenAllowed
+                onAction={onDownloadVerificationPackage}
+                renderAction={({ disabled, onClick }) => (
+                  <Button
+                    variant="secondary"
+                    onClick={onClick}
+                    disabled={disabled || packages.length === 0}
+                  >
+                    Download latest
+                  </Button>
+                )}
+              />
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={onDownloadVerificationPackage}
+                disabled={packages.length === 0}
+              >
+                Download latest
+              </Button>
+            )}
           </div>
           {packages.length === 0 ? (
             <p>No artifact history available beyond latest artifact.</p>

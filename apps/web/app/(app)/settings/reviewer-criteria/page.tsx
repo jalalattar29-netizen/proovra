@@ -1,4 +1,5 @@
 "use client";
+import { formatUserDate } from "../../../../lib/date";
 
 /**
  * Phase P2 — Settings → Reviewer Criteria (management UI).
@@ -134,8 +135,8 @@ function ReviewerCriteriaPageInner() {
           </div>
           <div style={{ fontSize: 12, opacity: 0.65, marginTop: 6 }}>
             Latest: v{s.versions[0]?.version ?? 1} — {s.versions[0]?.title ?? ""}
-            {s.versions[0]?.publishedAt ? ` · published ${new Date(s.versions[0].publishedAt).toLocaleDateString()} (immutable)` : " · draft (editable until published)"}
-            {" · updated "}{new Date(s.updatedAt).toLocaleDateString()}
+            {s.versions[0]?.publishedAt ? ` · published ${formatUserDate(s.versions[0].publishedAt)} (immutable)` : " · draft (editable until published)"}
+            {" · updated "}{formatUserDate(s.updatedAt)}
           </div>
           {editId === s.id && s.status === "DRAFT" ? (
             <DraftEditor teamId={teamId} setId={s.id} onSaved={() => { setEditId(null); void load(); }} />
@@ -221,14 +222,14 @@ function VersionHistory({ teamId, setId }: { teamId: string; setId: string }) {
             <div style={{ fontSize: 13 }}>
               <strong>v{v.version}</strong> — {v.title}{" "}
               <span className={`app-chip ${v.publishedAt ? "app-chip--ok" : ""}`}>
-                {v.publishedAt ? `published ${new Date(v.publishedAt).toLocaleDateString()} · immutable` : "draft"}
+                {v.publishedAt ? `published ${formatUserDate(v.publishedAt)} · immutable` : "draft"}
               </span>
-              <span style={{ opacity: 0.6, marginLeft: 6 }}>created {new Date(v.createdAt).toLocaleDateString()}</span>
+              <span style={{ opacity: 0.6, marginLeft: 6 }}>created {formatUserDate(v.createdAt)}</span>
             </div>
             {u && u.runCount > 0 ? (
               <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
                 Used in {u.runCount} Copilot run(s) across {u.reviewCount} review(s) by {u.reviewerCount} reviewer(s)
-                {u.lastUsedAt ? ` · last used ${new Date(u.lastUsedAt).toLocaleDateString()}` : ""}
+                {u.lastUsedAt ? ` · last used ${formatUserDate(u.lastUsedAt)}` : ""}
               </div>
             ) : u ? (
               <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>Not used by any Copilot run yet.</div>

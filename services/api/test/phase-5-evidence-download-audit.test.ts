@@ -61,28 +61,31 @@ const EVIDENCE_ROUTES = readFileSync(
 );
 
 /**
- * Slice a bounded window starting at a route marker. The download
- * handlers are large, so we take a generous span that still stops well
- * before the next route.
+ * Slice one route handler, from its path marker to the start of the
+ * next route registration.
+ *
+ * Phase 12 Point 4 — this used to take a magic character span per
+ * handler, which silently truncated the slice (and failed the audit
+ * assertions at the tail) every time a handler grew. The window is now
+ * derived from the source structure: it ends at the next
+ * `app.get(` / `app.post(` / … registration, so the whole handler is
+ * always covered no matter how it evolves.
  */
-function sliceRoute(marker: string, span = 6000): string {
+const ROUTE_REGISTRATION = /\n\s{2}app\.(get|post|put|patch|delete)\(/g;
+
+function sliceRoute(marker: string): string {
   const idx = EVIDENCE_ROUTES.indexOf(marker);
   if (idx === -1) throw new Error(`route marker not found: ${marker}`);
-  return EVIDENCE_ROUTES.slice(idx, idx + span);
+  ROUTE_REGISTRATION.lastIndex = idx;
+  const next = ROUTE_REGISTRATION.exec(EVIDENCE_ROUTES);
+  const end = next ? next.index : EVIDENCE_ROUTES.length;
+  if (end <= idx) throw new Error(`empty route slice for: ${marker}`);
+  return EVIDENCE_ROUTES.slice(idx, end);
 }
 
-// Spans are sized to each handler's length (bounded before the next
-// route) so the download audit near the *serve* point at the bottom of
-// each handler is included.
-const REPORT_ROUTE = sliceRoute('"/v1/evidence/:id/report/latest"', 9200);
-const ORIGINAL_ROUTE = sliceRoute('"/v1/evidence/:id/original"', 9200);
-const PACKAGE_ROUTE = sliceRoute(
-  '"/v1/evidence/:id/verification-package"',
-  // (P0 remediation 2026-07-21) — span widened: the ACTIVE-only
-  // membership gate added a few lines to the handler, pushing the
-  // served-response tail past the old 12500-char slice.
-  12800,
-);
+const REPORT_ROUTE = sliceRoute('"/v1/evidence/:id/report/latest"');
+const ORIGINAL_ROUTE = sliceRoute('"/v1/evidence/:id/original"');
+const PACKAGE_ROUTE = sliceRoute('"/v1/evidence/:id/verification-package"');
 
 // ===========================================================================
 // PART 1 — distinct queryable download audit action per route
@@ -309,11 +312,11 @@ describe("Phase 5 — download audit is best-effort (fail-safe)", () => {
       "../src/services/custody-events-observability.js"
     );
 
-    const appendPlatformAuditLog = vi.fn(
-      async (_params: Record<string, unknown>): Promise<void> => {
-        throw new Error("audit chain down");
-      },
-    );
+    const appendPlatformAuditLog = vi.fn<
+      (params: Record<string, unknown>) => Promise<void>
+    >(async () => {
+      throw new Error("audit chain down");
+    });
 
     // Mirror the exact wrapper body: void ... .catch(noteCustodyFailure).
     let threw = false;

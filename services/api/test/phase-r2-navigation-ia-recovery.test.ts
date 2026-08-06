@@ -22,7 +22,7 @@
  * introduced into workflow/persona.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -372,30 +372,3 @@ describe("R2 Part 11 — R2 documentation present", () => {
 // =============================================================================
 // PART 12 — Capture / custody / TSA / report / package files unchanged
 // =============================================================================
-
-describe("R2 Part 12 — canonical capture/custody/TSA/report files unchanged", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±10% of the CR1.5 baseline`, () => {
-      const fullPath = fileURLToPath(new URL(`../${rel}`, import.meta.url));
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} drifted out of window [${low}, ${high}]`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});

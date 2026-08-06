@@ -13,7 +13,7 @@
  *   9  No-regression invariants
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -470,7 +470,7 @@ describe("Phase 32.8 Foundation — platform-context builder", () => {
     // catch{} blocks for user, workspace, capabilities, navigation,
     // and availableWorkspaces sections. Matches both `} catch {` and
     // `.catch(...)` styles.
-    const catchCount = (SVC.match(/(?:^|[^a-zA-Z_])catch\s*[\(\{]/g) ?? [])
+    const catchCount = (SVC.match(/(?:^|[^a-zA-Z_])catch\s*[({]/g) ?? [])
       .length;
     expect(catchCount).toBeGreaterThanOrEqual(5);
     expect(SVC).toMatch(/sectionStatus:/);
@@ -493,7 +493,10 @@ describe("Phase 32.8 Foundation — platform-context builder", () => {
   });
 
   it("builder includes authority schema versions in envelope", () => {
-    expect(SVC).toMatch(/AUTHORITY_SCHEMA_VERSION/);
+    // The authority version is NEGOTIATED per request (Phase B0 wire
+    // version 2|3), so the builder emits the field rather than a module
+    // constant. The capability/navigation versions remain constants.
+    expect(SVC).toMatch(/authoritySchemaVersion:\s*wireVersion/);
     expect(SVC).toMatch(/CAPABILITY_SCHEMA_VERSION/);
     expect(SVC).toMatch(/NAVIGATION_SCHEMA_VERSION/);
   });
@@ -839,17 +842,28 @@ describe("Phase 32.8 Foundation — Teams restoration (F-4)", () => {
 // =============================================================================
 
 describe("Phase 32.8 Foundation — ReviewerOps + Governance repair (F-5)", () => {
-  const REVIEWER_CONSOLE = readWeb(
-    "components/reviewer-experience/ReviewerCommandConsole.tsx",
-  );
+  // Phase 12 Point 4 — the reviewer capability gate moved off the
+  // (now deleted) in-component check in `ReviewerCommandConsole` onto
+  // the canonical `<PageRouteGate routeId="review.queue">` that the
+  // live `/review` page mounts. Same capability, same structured
+  // denial panel, one authority instead of two.
+  const REVIEWER_PAGE = readWeb("app/(app)/review/page.tsx");
+  const ROUTE_REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
   const GOVERNANCE_CONSOLE = readWeb(
     "components/governance-experience/GovernanceControlPlane.tsx",
   );
 
-  it("ReviewerCommandConsole gates personal mode via ctx.can('REVIEWER_OPS_VIEW')", () => {
-    expect(REVIEWER_CONSOLE).toMatch(/usePlatformContext/);
-    expect(REVIEWER_CONSOLE).toMatch(/can\(\s*['"]REVIEWER_OPS_VIEW['"]\s*\)/);
-    expect(REVIEWER_CONSOLE).toMatch(/CapabilityDegradedPanel/);
+  it("the reviewer surface gates personal mode via the canonical REVIEWER_OPS_VIEW route gate", () => {
+    expect(REVIEWER_PAGE).toMatch(/<PageRouteGate routeId="review\.queue">/);
+    expect(ROUTE_REGISTRY).toMatch(
+      /id:\s*"review\.queue"[\s\S]*?requiredCapabilities:\s*\["REVIEWER_OPS_VIEW"\]/,
+    );
+    expect(ROUTE_REGISTRY).toMatch(
+      /id:\s*"review\.queue"[\s\S]*?requiredActiveSpace:\s*"ORGANIZATION_ONLY"/,
+    );
+    // The gate renders a structured denial panel, never a blank page.
+    const gate = readWeb("components/navigation/PageRouteGate.tsx");
+    expect(gate).toMatch(/ProovraDenialState/);
   });
 
   it("GovernanceControlPlane gates personal mode via ctx.can('GOVERNANCE_VIEW')", () => {
@@ -858,13 +872,14 @@ describe("Phase 32.8 Foundation — ReviewerOps + Governance repair (F-5)", () =
     expect(GOVERNANCE_CONSOLE).toMatch(/CapabilityDegradedPanel/);
   });
 
-  it("ReviewerCommandConsole renders the structured panel BEFORE the legacy ShellNoWorkspace branch", () => {
-    const reviewerIdx = REVIEWER_CONSOLE.indexOf("CapabilityDegradedPanel");
-    const fallbackIdx = REVIEWER_CONSOLE.indexOf("ShellNoWorkspace />");
-    expect(reviewerIdx).toBeGreaterThan(0);
-    if (fallbackIdx > 0) {
-      expect(reviewerIdx).toBeLessThan(fallbackIdx);
-    }
+  it("the reviewer surface has no legacy in-component ShellNoWorkspace fallback", () => {
+    // The route gate decides before the console renders, so there is no
+    // second, later no-workspace branch that could win the race.
+    const console_ = readWeb(
+      "components/reviewer-experience/ReviewerConsole.tsx",
+    );
+    expect(console_).not.toMatch(/ShellNoWorkspace/);
+    expect(REVIEWER_PAGE).not.toMatch(/ShellNoWorkspace/);
   });
 
   it("GovernanceControlPlane renders the structured panel BEFORE the legacy ShellNoWorkspace branch", () => {
@@ -882,12 +897,21 @@ describe("Phase 32.8 Foundation — ReviewerOps + Governance repair (F-5)", () =
 // =============================================================================
 
 describe("Phase 32.8 Foundation — legacy cleanup (F-6)", () => {
-  const WEB_HEADER = readWeb("components/header.tsx");
-
-  it("dead AppHeader function + APP_NAV array are removed from header.tsx", () => {
-    expect(WEB_HEADER).not.toMatch(/export\s+function\s+AppHeader/);
-    expect(WEB_HEADER).not.toMatch(/APP_NAV:\s*AppNavItem\[\]\s*=/);
-    expect(WEB_HEADER).not.toMatch(/type\s+AppNavItem\s*=/);
+  // PHASE 12 POINT 4 PASS D/G — the whole module is gone.
+  //
+  // This asserted that three dead symbols were absent from
+  // `components/header.tsx`, a file with ZERO importers (the app shell
+  // renders `app-shell-v2/*`). Asserting the absence of dead code inside
+  // dead code is not a contract; the file was deleted and the guard below
+  // keeps it — and its AppHeader/APP_NAV shell — from coming back.
+  it("the unmounted legacy header module stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL("../../../apps/web/components/header.tsx", import.meta.url),
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("shell components do NOT import legacy workspace-profile / navigation-config", () => {

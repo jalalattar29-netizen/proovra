@@ -338,11 +338,17 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     const PINS = [
       { rel: "src/routes/capture.routes.ts", expected: 21793 },
       { rel: "src/services/evidence-complete.service.ts", expected: 46824 },
-      { rel: "src/services/custody-events.service.ts", expected: 5155 },
-      { rel: "src/services/timestamp.service.ts", expected: 12988 },
       {
-        rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 13118,
+              // Rebaselined 2026-07-31 (PHASE 12 POINT 3): Case-Evidence physical
+      // convergence. The artifact query filtered `prisma.evidence` by the legacy
+      // `Evidence.caseId` mirror column, which the canonical model no longer
+      // declares and 20271104000000 physically drops; it survived only because
+      // `whereBase` is typed `Record<string, unknown>`, so the compiler could
+      // not see the stale field. It now filters through the ONE runtime
+      // authority, CaseEvidenceLink. Sanctioned, audited growth — the pin is
+      // moved to the current size so it keeps catching UNAUDITED drift.
+rel: "src/services/reports/reports-aggregator.service.ts",
+        expected: 14446,
       },
     ];
     for (const { rel, expected } of PINS) {

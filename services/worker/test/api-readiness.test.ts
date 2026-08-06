@@ -11,6 +11,9 @@
  *   - Result type carries attempt count + latency for metrics.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it, beforeEach } from "vitest";
 
 import {
@@ -487,8 +490,6 @@ describe("api readiness — attempt timeout", () => {
 // -----------------------------------------------------------------------------
 
 describe("worker entrypoint wires the readiness probe", () => {
-  const { readFileSync } = require("node:fs");
-  const { fileURLToPath } = require("node:url");
   const src = readFileSync(
     fileURLToPath(new URL("../src/index.ts", import.meta.url)),
     "utf8",
@@ -535,8 +536,6 @@ describe("worker entrypoint wires the readiness probe", () => {
 // -----------------------------------------------------------------------------
 
 describe("docker-compose dependency on api", () => {
-  const { readFileSync } = require("node:fs");
-  const { fileURLToPath } = require("node:url");
   const fullSrc = readFileSync(
     fileURLToPath(
       new URL("../../../infra/docker/docker-compose.full.yml", import.meta.url),

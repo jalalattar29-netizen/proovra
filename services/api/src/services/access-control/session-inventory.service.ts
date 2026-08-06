@@ -207,11 +207,30 @@ export async function revokeActiveSession(
     userAgent?: string | null;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<ActiveSessionProjection | null> {
+): Promise<
+  | { ok: true; projection: ActiveSessionProjection }
+  | { ok: false; reason: "not_found" | "already_revoked" }
+> {
+  // PHASE 12B C4 — LIVE-STATE CHECK.
+  //
+  // This previously matched on (id, teamId) alone, so revoking an
+  // already-revoked session succeeded again: it wrote a SECOND RevokedSession
+  // entry, emitted a second security event, bumped the metric twice, and — the
+  // real damage — overwrote `revokedAtUtc` / `revokedByUserId`, so the audit
+  // trail attributed the revocation to whoever called LAST rather than to the
+  // operator who actually cut the session.
+  //
+  // The existence probe stays separate from the liveness probe so the caller can
+  // distinguish "no such session in this workspace" (404, anti-enumeration —
+  // identical to a cross-Organization id) from "already revoked" (409, a
+  // bounded conflict the operator can act on).
   const row = await client.authenticatedSession.findFirst({
     where: { id: input.sessionId, teamId: input.teamId },
   });
-  if (!row) return null;
+  if (!row) return { ok: false, reason: "not_found" };
+  if (row.revokedAtUtc !== null) {
+    return { ok: false, reason: "already_revoked" };
+  }
   const now = new Date();
   // Write the canonical RevokedSession entry so the JWT middleware
   // rejects subsequent requests immediately.
@@ -261,7 +280,7 @@ export async function revokeActiveSession(
       reason: input.reason ?? "OPERATOR_REVOKED",
     },
   }, client);
-  return projectSession(updated);
+  return { ok: true, projection: projectSession(updated) };
 }
 
 export async function revokeAllSessionsForUserAdmin(

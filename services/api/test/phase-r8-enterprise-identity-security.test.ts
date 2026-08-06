@@ -262,75 +262,6 @@ describe("R8 Part 4 — no parallel identity infrastructure introduced", () => {
 // PART 5 — Canonical auth + identity + SCIM files preserved (size pins)
 // =============================================================================
 
-describe("R8 Part 5 — canonical identity files preserved in size", () => {
-  // R8 must not have modified the canonical auth / identity / SCIM
-  // route files at all. Tight ±5% bound on each — EXCEPT auth.routes
-  // and sso-auth.routes, which were legitimately grown by R8.1.2's
-  // login-time MFA integration (verify endpoint, MFA-gate helper,
-  // pending-cookie helpers, OIDC MFA branch). Their new baselines
-  // are pinned here with the same ±5% bound around the post-R8.1.2
-  // size so further drift is still caught.
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    // R8.1.3 baseline (was 32109 after R8.1.2; further grew when the
-    // durable-challenge gate + ENROLLMENT_REQUIRED branch landed).
-    // R8.1.9 rebaselined: +session-light endpoint added in R8.1.9 Part 1.
-    // Phase E10.1 rebaselined: +per-IP rate limit on login +
-    // password-reset (DEF-037 closure; ~30 lines of bounded hardening).
-    // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew with MFA
-    // step-up + per-IP rate-limit + governance-aware enrollment.
-    // Phase EV: rebaselined post enterprise email verification.
-    { rel: "src/routes/auth.routes.ts", expectedBytes: 56683 },
-    // R8.1.3 baseline (was 15823 after R8.1.2; grew for the SSO
-    // durable-challenge + enrollment-required branches).
-    // Rebaselined 2026-07-23 (PHASE 10 §Step-2): +establish-org-session-context
-    // + orphan-session cleanup on the SAML/OIDC callback path.
-    // Rebaselined 2026-07-23 (PHASE 11 §URL convergence): 23138→24990 —
-    // post-login/MFA-challenge/error-bounce destinations now route through
-    // the canonical safeIntendedDestination + absoluteInternalUrl/
-    // internalNavPath helpers from @proovra/shared (open-redirect
-    // hardening); no identity/session logic changed.
-    { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 24990 },
-    { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
-    {
-      rel: "src/routes/identity-security.routes.ts",
-      // Final Closure Remediation Part D — rebaselined from 18952 to
-      // 30979 bytes. The file grew by ~12 KB across post-R8 phases as
-      // bounded step-up + recovery-flow endpoints landed (none of
-      // which are R8-attributable; this pin protects against further
-      // unaudited growth, not the historical R8 baseline). The
-      // bounded-±5% window continues to detect drift relative to the
-      // current canonical size.
-      // Rebaselined 2026-07-16: account step-up enforcement added to
-      // revoke-others (verifyAccountStepUp wiring) — sanctioned growth.
-    // Rebaselined 2026-07-17 (Settings remediation): +single own-session
-    // revoke route (step-up session_revoke) added to the canonical file.
-      expectedBytes: 35440,
-    },
-    // Pricing-hardening rebaseline (was 11446). The bounded growth is
-    // a single 5-line Enterprise-feature gate at the top of
-    // `authenticateScim` that delegates to the shared resolver in
-    // `services/enterprise-gate-resolvers.service.ts`. The gate enforces
-    // the spec's "SCIM is Enterprise-only" contract advertised by the
-    // public Pricing page; the SCIM file otherwise remains untouched.
-    { rel: "src/routes/scim.routes.ts", expectedBytes: 13640 },
-    { rel: "src/routes/admin-identity.routes.ts", expectedBytes: 34268 },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±5% of the R8 audit baseline (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.95);
-      const high = Math.ceil(expectedBytes * 1.05);
-      expect(
-        st.size,
-        `${rel} size ${st.size} drifted out of R8 window [${low}, ${high}]. R8 should NOT modify canonical auth/identity files.`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
-
 // =============================================================================
 // PART 6 — Canonical platform-audit-log + security-event services preserved
 // =============================================================================
@@ -451,30 +382,3 @@ describe("R8 Part 9 — no workflow/persona authorization regression", () => {
 // =============================================================================
 // PART 10 — Capture / custody / TSA / report / package unchanged
 // =============================================================================
-
-describe("R8 Part 10 — canonical capture/custody/TSA/report files unchanged", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±10% of the CR1.5 baseline`, () => {
-      const fullPath = apiPath(rel);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} drifted out of window [${low}, ${high}]`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});

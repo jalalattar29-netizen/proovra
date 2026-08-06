@@ -37,6 +37,8 @@ import {
   type Context,
 } from "@opentelemetry/api";
 
+import { runJobWithTelemetryContext } from "../sentry.js";
+
 /**
  * Bounded carrier shape — a string→string map per W3C TraceContext.
  * NEVER includes anything beyond the standard `traceparent` /
@@ -90,15 +92,26 @@ export function extractOtelContextFromJobData(
   data: unknown,
 ): Context {
   try {
-    if (
-      data === null ||
-      typeof data !== "object" ||
-      !("_otel" in data)
-    ) {
+    if (data === null || typeof data !== "object") {
       return context.active();
     }
-    const carrier = (data as { _otel: unknown })._otel;
+    const obj = data as Record<string, unknown>;
+
+    // PHASE 12 — POINT 5. A canonical payload carries the traceparent as a
+    // first-class envelope field rather than under an `_otel` blob, because
+    // the strict decoder rejects unknown keys and an opaque metadata bag is
+    // exactly the kind of unbounded field the contract forbids. Both shapes
+    // are read here so a converged worker still stitches the trace of a
+    // pre-Point-5 job that is still draining out of Redis.
+    if (typeof obj.traceparent === "string") {
+      return propagation.extract(context.active(), {
+        traceparent: obj.traceparent,
+      });
+    }
+
+    const carrier = obj._otel;
     if (
+      carrier === undefined ||
       carrier === null ||
       typeof carrier !== "object" ||
       Array.isArray(carrier)
@@ -108,6 +121,25 @@ export function extractOtelContextFromJobData(
     return propagation.extract(context.active(), carrier as OtelCarrier);
   } catch {
     return context.active();
+  }
+}
+
+/**
+ * The W3C traceparent of the currently active span, or null when there is no
+ * sampled trace (OTEL disabled, or outside a request).
+ *
+ * This is the producer-side counterpart of the extractor above: the shared
+ * enqueue authority takes a traceparent as an INPUT rather than reading one,
+ * so that `@proovra/shared` carries no OpenTelemetry dependency.
+ */
+export function currentTraceparent(): string | null {
+  try {
+    const carrier: OtelCarrier = {};
+    propagation.inject(context.active(), carrier);
+    const value = carrier.traceparent;
+    return typeof value === "string" && value ? value : null;
+  } catch {
+    return null;
   }
 }
 
@@ -150,35 +182,66 @@ export function wrapJobHandlerWithOtelContext<
   queueName: string,
   handler: (job: TJobLike) => Promise<TResult>,
 ): (job: TJobLike) => Promise<TResult> {
-  return async (job) => {
-    const parent = extractOtelContextFromJobData(job.data);
-    const tracer = trace.getTracer("proovra");
-    return context.with(parent, () =>
-      tracer.startActiveSpan(spanName, async (span) => {
-        try {
-          span.setAttribute("proovra.queue_name", queueName);
-          if (job.name) span.setAttribute("proovra.job_name", String(job.name));
-          if (job.id !== undefined && job.id !== null) {
-            span.setAttribute("proovra.job_id", String(job.id));
-          }
-          if (typeof job.attemptsMade === "number") {
-            span.setAttribute("proovra.attempt", job.attemptsMade + 1);
-          }
-          const result = await handler(job);
-          span.setAttribute("proovra.outcome", "success");
-          return result;
-        } catch (err) {
-          span.setAttribute("proovra.outcome", "failure");
-          if (err instanceof Error) {
-            // Bounded error code only — never the full message
-            // (could carry PII / signing-key paths / S3 keys).
-            span.setAttribute("proovra.error_code", err.name.slice(0, 40));
-          }
-          throw err;
-        } finally {
-          span.end();
-        }
-      }),
+  return async (job) =>
+    // PHASE 12 — POINT 7 (2026-08-05): one Sentry telemetry context per job.
+    //
+    // This wrapper is the ONE seam every BullMQ handler in the worker passes
+    // through, which makes it the only place a per-job isolation scope can be
+    // installed once rather than at twenty call sites. Without it, anything
+    // captured while a job runs lands on the process-wide scope, so it inherits
+    // whatever the last HTTP health probe left there — the exact confusion the
+    // two production incidents produced.
+    runJobWithTelemetryContext(
+      {
+        jobKind: typeof job.name === "string" ? job.name : queueName,
+        queueName,
+        jobId: job.id === undefined || job.id === null ? null : String(job.id),
+      },
+      () => runHandlerInOtelSpan(spanName, queueName, handler, job),
     );
-  };
+}
+
+function runHandlerInOtelSpan<
+  TJobLike extends {
+    id?: string | number | null | undefined;
+    name?: string | null | undefined;
+    data: unknown;
+    attemptsMade?: number;
+  },
+  TResult,
+>(
+  spanName: string,
+  queueName: string,
+  handler: (job: TJobLike) => Promise<TResult>,
+  job: TJobLike,
+): Promise<TResult> {
+  const parent: Context = extractOtelContextFromJobData(job.data);
+  const tracer = trace.getTracer("proovra");
+  return context.with(parent, () =>
+    tracer.startActiveSpan(spanName, async (span) => {
+      try {
+        span.setAttribute("proovra.queue_name", queueName);
+        if (job.name) span.setAttribute("proovra.job_name", String(job.name));
+        if (job.id !== undefined && job.id !== null) {
+          span.setAttribute("proovra.job_id", String(job.id));
+        }
+        if (typeof job.attemptsMade === "number") {
+          span.setAttribute("proovra.attempt", job.attemptsMade + 1);
+        }
+        const result = await handler(job);
+        span.setAttribute("proovra.outcome", "success");
+        return result;
+      } catch (err) {
+        span.setAttribute("proovra.outcome", "failure");
+        if (err instanceof Error) {
+          // Bounded error code only — never the full message
+          // (could carry PII / signing-key paths / S3 keys).
+          span.setAttribute("proovra.error_code", err.name.slice(0, 40));
+        }
+        throw err;
+      } finally {
+        span.end();
+      }
+    }),
+  );
 }

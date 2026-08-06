@@ -33,6 +33,8 @@ import {
   useAccount,
   type WorkspacePlan,
 } from "../../../../../lib/platform-context";
+// PHASE 12 POINT 4 — canonical server-projection gate reader.
+import { usePlanFeature } from "../../../../../lib/platform-context/useServerProjectionGates";
 import { useBillingSummary } from "../../../../../lib/api/billing-summary";
 import {
   type AccessReview,
@@ -358,7 +360,7 @@ function CommentsPanel({
                 comment={c}
                 directory={directory}
                 teamId={team.id}
-                viewerRole={team.viewerRole}
+                canModerate={team.viewerCapabilities?.canModerateComments === true}
                 onRefresh={refresh}
                 onError={onError}
               />
@@ -374,24 +376,33 @@ function CommentRow({
   comment,
   directory,
   teamId,
-  viewerRole,
+  canModerate,
   onRefresh,
   onError,
 }: {
   comment: Comment;
   directory: Record<string, CollaborationTeamUserDirectoryEntry>;
   teamId: string;
-  viewerRole: string | null;
+  /** SERVER-projected comment-moderation authority (viewerCapabilities). */
+  canModerate: boolean;
   onRefresh: () => Promise<void>;
   onError: (err: unknown) => void;
 }) {
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
   const author = directory[comment.authorUserId];
+  // PHASE 12 POINT 4 STEP 1 — authorship is decided against the VIEWER's own
+  // account id. The previous condition compared the comment's author id to
+  // `author?.userId`, which is that same author's directory entry — always
+  // true — so Edit/Delete were offered on every comment to every member and
+  // only the API's 403 stopped them. `editComment`/`deleteComment` allow
+  // `isAuthor || isModerator`; this now mirrors that exactly.
+  const viewerUserId = useAccount()?.userId ?? null;
+  const isAuthor =
+    viewerUserId !== null && comment.authorUserId === viewerUserId;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment.body);
   const [busy, setBusy] = useState(false);
-  const canModerate = viewerRole === "LEAD" || viewerRole === "ADMIN";
 
   const onSaveEdit = async () => {
     if (!draft.trim() || busy) return;
@@ -491,7 +502,7 @@ function CommentRow({
               {renderBodyWithMentions(comment.body)}
             </p>
           )}
-          {!editing ? (
+          {!editing && (canModerate || isAuthor) ? (
             <div style={{ display: "flex", gap: 4, marginLeft: -6 }}>
               <button
                 type="button"
@@ -501,7 +512,7 @@ function CommentRow({
               >
                 Edit
               </button>
-              {(canModerate || comment.authorUserId === author?.userId) ? (
+              {canModerate || isAuthor ? (
                 <button
                   type="button"
                   onClick={() => void onDelete()}
@@ -881,7 +892,7 @@ function GuestsCard({
   const [email, setEmail] = useState("");
   const [days, setDays] = useState(14);
   const [busy, setBusy] = useState(false);
-  const canManage = team.viewerRole === "LEAD" || team.viewerRole === "ADMIN";
+  const canManage = team.viewerCapabilities?.canManageGuests === true;
 
   // Phase 10 plan-gate. Mirrors the backend `assertCanCreateGuest`
   // derivation in `services/api/src/services/collaboration-team/billing-guards.ts`:
@@ -1160,8 +1171,19 @@ function useAccessReviewPlanGate(): {
 } {
   const account = useAccount();
   const plan: WorkspacePlan | null = account?.accountPlan ?? null;
-  const accessReviewEnabled = plan === "PRO" || plan === "TEAM";
-  return { accessReviewEnabled, plan };
+  // PHASE 12 POINT 4 PASS C0 — read the SERVER projection; do not decide here.
+  //
+  // This was `plan === "PRO" || plan === "TEAM"`, which made the browser the
+  // commercial authority and wrongly excluded ENTERPRISE. `canInviteGuests` is
+  // projected from the same catalog value the API enforces in
+  // collaboration-completion.service#inviteGuest (`canPlanUseTeams`), so the
+  // affordance and the enforcement cannot disagree, and an ENTERPRISE
+  // workspace is correctly eligible.
+  //
+  // `null` means the envelope is loading, degraded, or predates the field —
+  // fail CLOSED and show the locked state rather than an optimistic affordance.
+  const canInviteGuests = usePlanFeature("canInviteGuests");
+  return { accessReviewEnabled: canInviteGuests === true, plan };
 }
 
 /**
@@ -1223,7 +1245,7 @@ function AccessReviewCard({
   const { confirm } = useConfirmAction();
   const [reviews, setReviews] = useState<ReadonlyArray<AccessReview>>([]);
   const [busy, setBusy] = useState(false);
-  const canManage = team.viewerRole === "LEAD" || team.viewerRole === "ADMIN";
+  const canManage = team.viewerCapabilities?.canManageAccessReviews === true;
   const { accessReviewEnabled } = useAccessReviewPlanGate();
 
   const refresh = useCallback(async () => {

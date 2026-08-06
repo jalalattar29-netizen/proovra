@@ -359,9 +359,10 @@ describe("Phase 32.7 — page consumers scope the runtime banner", () => {
       domain: "reviewer_ops",
     },
     {
-      // Phase 32.8E — /reviewer-ops is a thin wrapper; the banner lives
-      // inside the ReviewerCommandConsole component.
-      file: "apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
+      // Phase 12 Point 4 — `/reviewer-ops` was retired in favour of the
+      // canonical `/review` console; the banner lives inside the
+      // ReviewerConsole component that page mounts.
+      file: "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
       domain: "reviewer_ops",
     },
     {

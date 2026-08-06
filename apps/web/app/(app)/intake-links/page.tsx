@@ -477,9 +477,11 @@ function IntakeLinksPageInner() {
   const ctxEnvelope = usePlatformContext().envelope;
   useEffect(() => {
     if (!ctxEnvelope) return;
-    // Prefer the canonical `activeSpace`. Fall back to the legacy
-    // `workspace` envelope when the backend hasn't projected
-    // `activeSpace` yet (older deployments).
+    // The canonical `activeSpace` is the post-tenant-model source of
+    // truth and the API projects it unconditionally. Phase 12 Point 4
+    // (Pass E) removed the "older deployments" fallback onto the
+    // deprecated `workspace.scope` envelope — the file's own comment
+    // above already states that field must not be consulted here.
     const active = ctxEnvelope.activeSpace;
     if (active?.id) {
       const name =
@@ -489,21 +491,13 @@ function IntakeLinksPageInner() {
       setCurrentTeam({ id: active.id, name });
       return;
     }
-    const ws = ctxEnvelope.workspace;
-    if (ws.status === "active" && ws.id) {
-      const name =
-        ws.scope === "PERSONAL"
-          ? "Personal Space"
-          : ws.name ?? "Workspace";
-      setCurrentTeam({ id: ws.id, name });
-      return;
-    }
     setCurrentTeam(null);
   }, [ctxEnvelope]);
 
   // Load links once we know the workspace. Reads the rich `items`
-  // envelope (lifecycle + delivery + activity); falls back to the
-  // legacy `links` array if the backend hasn't rolled out yet.
+  // envelope (lifecycle + delivery + activity). The comment here used to
+  // describe a fallback onto a legacy `links` array; no such branch
+  // exists in this file (Phase 12 Point 4, Pass E — stale comment).
   const refreshLinks = useMemo(
     () => async (teamId: string): Promise<void> => {
       try {
@@ -534,21 +528,26 @@ function IntakeLinksPageInner() {
     },
     [],
   );
+  // The workspace id IS the query key for both reads below; binding to it
+  // (rather than to the whole team object) keeps the dependency honest and
+  // stops an unrelated field change from re-fetching.
+  const currentTeamId = currentTeam?.id ?? null;
+
   useEffect(() => {
-    if (!currentTeam) return;
+    if (!currentTeamId) return;
     // PHASE 7 §10.G — drop the prior tenant's links before re-fetching so
     // a workspace switch never flashes another workspace's intake links.
     setItems(null);
     setTemplates(null);
-    void refreshLinks(currentTeam.id);
-  }, [currentTeam?.id, refreshLinks]);
+    void refreshLinks(currentTeamId);
+  }, [currentTeamId, refreshLinks]);
 
   // Load workflow templates for the workspace.
   useEffect(() => {
-    if (!currentTeam) return;
+    if (!currentTeamId) return;
     let cancelled = false;
     apiFetch(
-      `/v1/workflow/templates?teamId=${encodeURIComponent(currentTeam.id)}`,
+      `/v1/workflow/templates?teamId=${encodeURIComponent(currentTeamId)}`,
       { method: "GET" },
     )
       .then((res: { templates: WorkflowTemplateRow[] }) => {
@@ -556,12 +555,13 @@ function IntakeLinksPageInner() {
         setTemplates(res.templates ?? []);
       })
       .catch(() => {
+        if (cancelled) return;
         setTemplates([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [currentTeam?.id]);
+  }, [currentTeamId]);
 
   const eligibleTemplates = useMemo(() => {
     if (!templates) return [];

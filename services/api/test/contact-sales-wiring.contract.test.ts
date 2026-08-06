@@ -187,11 +187,16 @@ describe("Contact Sales — email service surface", () => {
     );
   });
 
-  it("configured singleton implements both methods via Resend client", () => {
+  it("configured singleton implements both methods via the canonical transport", () => {
     expect(e).toMatch(/async sendContactSalesNotification\(params\) \{/);
     expect(e).toMatch(/async sendContactSalesAutoReply\(params\) \{/);
-    // both call resend.emails.send
-    const matches = e.match(/resend\.emails\.send\(/g) ?? [];
+    // PHASE 12 POINT 5 — every template method now hands off to ONE transport.
+    // The check is unchanged in spirit and stronger in fact: it used to count
+    // direct `resend.emails.send(` calls, which is exactly the duplicate
+    // transport engine that has been removed. There must be no SDK send left
+    // in this file at all.
+    expect(e).not.toMatch(/resend\.emails\.send\(/);
+    const matches = e.match(/transportSend\(\{/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(8); // existing + 2 new
   });
 });

@@ -45,6 +45,9 @@ import {
   type StepUpMethods,
   type StepUpProof,
 } from "../../security-center/components/PersonalSecuritySections";
+// PHASE 12 VERTICAL A (2026-07-30) — server-authoritative legal acceptance
+// status + the accept action that clears the 428 legal gate.
+import { LegalAcceptanceStatusCard } from "./LegalAcceptanceStatusCard";
 
 type LegalAcceptanceItem = {
   id: string;
@@ -740,19 +743,24 @@ export function PrivacySection() {
   const [acceptances, setAcceptances] = useState<LegalAcceptanceItem[] | null>(null);
   const [cookieConsent, setCookieConsent] = useState<CookieConsentRecord | null>(null);
 
-  useEffect(() => {
+  const loadAcceptances = useCallback(() => {
     if (!user?.id) return;
     apiFetch("/v1/users/legal-acceptance")
       .then((data: { items?: LegalAcceptanceItem[] }) =>
         setAcceptances(Array.isArray(data.items) ? data.items : []),
       )
       .catch(() => setAcceptances([]));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    loadAcceptances();
     apiFetch("/v1/users/cookie-consent/latest")
       .then((data: { record?: CookieConsentRecord | null }) =>
         setCookieConsent(data.record ?? null),
       )
       .catch(() => setCookieConsent(null));
-  }, [user?.id]);
+  }, [user?.id, loadAcceptances]);
 
   const consentCategories = cookieConsent
     ? (
@@ -808,6 +816,12 @@ export function PrivacySection() {
             </Button>
           </div>
         </Card>
+
+        {/* B0. PHASE 12 VERTICAL A — live acceptance STATUS from the server
+            (GET /v1/users/legal-status). This is the resolution surface for
+            the 428 LEGAL_REACCEPT_REQUIRED gate that fronts billing and
+            checkout; the history card below is the immutable record. */}
+        <LegalAcceptanceStatusCard onAccepted={loadAcceptances} />
 
         {/* B. Legal acceptance history — structured, typed rows */}
         <Card variant="admin" padding="comfortable" data-cc-privacy-acceptances>

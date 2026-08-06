@@ -85,7 +85,7 @@ All scenarios live in `scenarios.mjs`. Public probes need no token.
 | `operations_readiness` | GET | `/v1/operations/readiness` | yes | Readiness posture (PLATFORM-ADMIN). |
 | `evidence_list` | GET | `/v1/evidence?limit=25` | yes | Evidence list (cursor pagination). |
 | `cases_list` | GET | `/v1/cases?limit=25` | yes | Case list. |
-| `search_evidence` | GET | `/v1/search/evidence?q=loadtest` | yes | Evidence search. |
+| `search_evidence` | GET | `/v1/search?q=loadtest&teamId=:teamId` | yes | Unified search (query + workspace scope). |
 | `audit_events` | GET | `/v1/orgs/:orgId/audit-events?limit=25` | yes | Org audit log. |
 | `reviewer_ops_queue` | GET | `/v1/reviewer-ops/queue?teamId=:teamId&limit=25` | yes | Reviewer queue. |
 | `reviewer_ops_dashboard` | GET | `/v1/reviewer-ops/dashboard?teamId=:teamId` | yes | Reviewer dashboard. |

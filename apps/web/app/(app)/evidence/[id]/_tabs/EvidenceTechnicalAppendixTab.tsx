@@ -40,6 +40,7 @@ import {
   type EvidenceDetailCtx,
 } from "./_lib";
 import { EvidenceTechnicalAppendix } from "./technical-appendix/EvidenceTechnicalAppendix";
+import MediaIntelligencePanel from "../../../../../components/media-intelligence/MediaIntelligencePanel";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
   PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
@@ -263,6 +264,9 @@ export function EvidenceTechnicalAppendixTab({
   onGoToCustody?: () => void;
 }) {
   const { workspace, preservation, trustDecision, evidenceId } = ctx;
+  // Server-projected workspace id — the same field every other panel on
+  // this page uses. The frontend never derives tenancy itself.
+  const mediaIntelligenceTeamId = workspace.reviewWorkflow?.teamId ?? null;
   const searchParams = useSearchParams();
   // Phase EVIDENCE-TRUSTDECISION-STRUCTURED — raw-JSON debug gate.
   // The previous always-on raw-JSON dump exposed internal projection
@@ -483,6 +487,20 @@ export function EvidenceTechnicalAppendixTab({
             )}
           </pre>
         </details>
+      ) : null}
+
+      {/* Phase 12 Point 4 — Honest-MI operator panel. `honest-mi-decision.md`
+          records this panel as the evidence-detail surface for advisory
+          media-intelligence signals; it had lost its mount. Signals are
+          deterministic heuristics rendered with the catalog's safe
+          wording — the panel never claims extraction, authenticity, or a
+          forensic finding. It renders nothing actionable without a
+          server-projected workspace id. */}
+      {mediaIntelligenceTeamId ? (
+        <MediaIntelligencePanel
+          evidenceId={evidenceId}
+          teamId={mediaIntelligenceTeamId}
+        />
       ) : null}
     </section>
   );

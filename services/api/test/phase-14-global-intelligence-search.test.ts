@@ -47,10 +47,6 @@ describe("Phase 14 — Stage 2 re-index triggers (backend)", () => {
     SHARED_RUNTIME_ROOT,
     "src/graph/graph-builder.service.ts",
   );
-  const EVIDENCE_COMPLETE_PATH = resolve(
-    API_ROOT,
-    "src/services/evidence-complete.service.ts",
-  );
   const MEDIA_INTEL_PATH = resolve(
     WORKER_ROOT,
     "src/media-intelligence.processor.ts",

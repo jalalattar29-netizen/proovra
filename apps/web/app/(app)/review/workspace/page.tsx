@@ -393,7 +393,10 @@ function ReviewerWorkspaceShell() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkflowId, workspace?.activeReview?.codingSchemaId]);
+    // teamId is a real dependency: the schema/coding reads are workspace-scoped,
+    // so a workspace switch must re-run this effect (and the cancelled guard
+    // discards the previous workspace's in-flight response).
+  }, [activeWorkflowId, workspace?.activeReview?.codingSchemaId, teamId]);
 
   // Coding writes.
   const onWrite = useCallback(
@@ -419,7 +422,9 @@ function ReviewerWorkspaceShell() {
         setStatusBanner(`Coding refused: ${res.denial}`);
       }
     },
-    [activeWorkflowId],
+    // Coding writes are workspace-scoped; the callback must not keep writing
+    // against the workspace that was active when it was first created.
+    [activeWorkflowId, teamId],
   );
 
   // Phase 2A Closure — auto-advance to the next assigned workflow
@@ -692,7 +697,7 @@ function ReviewerWorkspaceShell() {
         setDisagreeBusy(false);
       }
     },
-    [activeWorkflowId, disagreeBusy],
+    [activeWorkflowId, disagreeBusy, teamId],
   );
 
   // Cycle through side-pane modes (`]` forward, `[` backward).

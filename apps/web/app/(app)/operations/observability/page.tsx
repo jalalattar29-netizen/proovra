@@ -187,6 +187,55 @@ const GAUGE_GROUPS: Array<{
   },
 ];
 
+// The sampled "hot" signals and their ring-buffer size are FIXED configuration —
+// they depend on nothing the component renders. Declared at module scope so the
+// sampling effect can depend on them honestly instead of re-allocating the array
+// on every render (which is what made them an unlistable dependency before).
+const SAMPLE_CAP = 20;
+const HOT_METRICS: ReadonlyArray<{
+  key: string;
+  caption: string;
+  severity: SparklineSeverity;
+  source: "counter" | "gauge";
+}> = [
+  {
+    key: "reviewer_sla_breach_total",
+    caption: "SLA breaches",
+    severity: "high",
+    source: "counter",
+  },
+  {
+    key: "reviewer_escalation_raised_total",
+    caption: "Escalation rate",
+    severity: "high",
+    source: "counter",
+  },
+  {
+    key: "queue_depth",
+    caption: "Queue depth",
+    severity: "warning",
+    source: "gauge",
+  },
+  {
+    key: "worker_retries_total",
+    caption: "Worker retries",
+    severity: "warning",
+    source: "counter",
+  },
+  {
+    key: "webhook_invalid_signature_total",
+    caption: "Webhook bad-sig",
+    severity: "warning",
+    source: "counter",
+  },
+  {
+    key: "governance_incident_opened_total",
+    caption: "Governance incidents",
+    severity: "high",
+    source: "counter",
+  },
+];
+
 function classifyForGroup<T extends string>(
   name: T,
   groups: Array<{ title: string; prefixes: ReadonlyArray<string> }>,
@@ -366,50 +415,6 @@ function ObservabilityDashboardPageInner() {
   // care about gets a bounded queue of the last 20 polled values. This
   // is in-page session data only — not historical / persistent. Caller
   // sees REAL observed values, never fabricated counters.
-  const SAMPLE_CAP = 20;
-  const HOT_METRICS: ReadonlyArray<{
-    key: string;
-    caption: string;
-    severity: SparklineSeverity;
-    source: "counter" | "gauge";
-  }> = [
-    {
-      key: "reviewer_sla_breach_total",
-      caption: "SLA breaches",
-      severity: "high",
-      source: "counter",
-    },
-    {
-      key: "reviewer_escalation_raised_total",
-      caption: "Escalation rate",
-      severity: "high",
-      source: "counter",
-    },
-    {
-      key: "queue_depth",
-      caption: "Queue depth",
-      severity: "warning",
-      source: "gauge",
-    },
-    {
-      key: "worker_retries_total",
-      caption: "Worker retries",
-      severity: "warning",
-      source: "counter",
-    },
-    {
-      key: "webhook_invalid_signature_total",
-      caption: "Webhook bad-sig",
-      severity: "warning",
-      source: "counter",
-    },
-    {
-      key: "governance_incident_opened_total",
-      caption: "Governance incidents",
-      severity: "high",
-      source: "counter",
-    },
-  ];
   const [samples, setSamples] = useState<Record<string, number[]>>({});
 
   useEffect(() => {

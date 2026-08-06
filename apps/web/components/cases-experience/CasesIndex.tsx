@@ -58,19 +58,18 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import { useToast } from "../ui-legacy";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
-// Phase CASES-PERSONAL-UX — capability gate. The investigation surface
-// (ENTERPRISE-tier) is the existing signal for evidence-graph /
-// reviewer-ops / legal-ops workflows. We reuse it as the on/off switch
-// for the advanced Cases filters and card details so Personal /
-// small-team users see a simple list and enterprise users keep every
-// existing counter. Backend selectors are untouched — filter state is
-// preserved and still POSTs to the server, we just don't render the
-// advanced controls on personal workspaces.
-import { canAccessSurface } from "../../lib/surface/access";
-import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
+// Phase CASES-PERSONAL-UX / Track 1A — enterprise-experience gate. The
+// advanced Cases filters and card details render only for the Enterprise
+// workspace experience. The signal is the SERVER-projected
+// `flags.isEnterpriseWorkspace` / `platform.isPlatformAdmin` booleans
+// (via useEnterpriseSurfaceAccess) — never a client-derived plan/tier.
+// Backend selectors are untouched — filter state is preserved and still
+// POSTs to the server, we just don't render the advanced controls on
+// self-serve workspaces.
 import {
   CapabilityDegradedPanel,
   useActiveWorkspaceId,
+  useEnterpriseSurfaceAccess,
   usePersonalSpace,
   usePlatformContext,
 } from "../../lib/platform-context";
@@ -169,17 +168,11 @@ export function CasesIndex() {
   // re-render storm that used to remount the input every time.
   const [appliedSearch, setAppliedSearch] = useState("");
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  // Phase CASES-PERSONAL-UX — capability gate. ENTERPRISE-tier
-  // workspaces see the full risk/governance/legal-hold/overdue/
-  // assignment UI; Personal and small-team workspaces see the
-  // simplified Cases list (Status + Open issues + Missing
-  // report/package). Backend filter state still posts everything;
-  // hiding the controls just stops surfacing them.
-  const surfaceUserCtx = useSurfaceUserContext();
-  const canSeeAdvancedCaseOps = canAccessSurface(
-    surfaceUserCtx,
-    "/investigation",
-  );
+  // Phase CASES-PERSONAL-UX / Track 1A — enterprise workspaces see the
+  // full risk/governance/legal-hold/overdue/assignment UI; Personal and
+  // small-team workspaces see the simplified Cases list (Status + Open
+  // issues + Missing report/package). Server-projected boolean only.
+  const canSeeAdvancedCaseOps = useEnterpriseSurfaceAccess();
   // Phase 2.1 — Create Case modal local state. Toggled by the new
   // "Create case" button in the header and by the empty-state CTA.
   const [createOpen, setCreateOpen] = useState(false);
@@ -463,6 +456,7 @@ export function CasesIndex() {
           totalBeforeFilter={envelope.total}
           anyFilterActive={anyFilterActive}
           canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+          workspaceGeneration={workspaceId ?? "none"}
           onClearFilters={() => setFilters(DEFAULT_FILTERS)}
           onCreateCase={() => setCreateOpen(true)}
           onReload={reload}
@@ -709,16 +703,68 @@ function MatterQueueFilters({
 // Queue table
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// PHASE 12B CLUSTER 12 — bulk case actions (POST /v1/cases/bulk).
+//
+// The server is the sole authority: it re-resolves which cases the caller
+// may mutate (ownerUserId / access row / ACTIVE team membership) and returns
+// one explicit outcome per id. The client therefore NEVER pre-filters by
+// permission and never reports success it did not receive — an id the server
+// SKIPPED is rendered as skipped, with the server's bounded reason code.
+//
+// Selection is bound to the workspace generation: switching workspace clears
+// it, so a stale selection can never be submitted against another tenant.
+// ---------------------------------------------------------------------------
+
+type BulkAction = "CLOSE" | "ARCHIVE" | "RESOLVE";
+
+type BulkOutcome = {
+  id: string;
+  outcome: "SUCCESS" | "SKIPPED" | "FAILED";
+  reason?: string;
+};
+
+const BULK_ACTION_LABELS: Record<BulkAction, string> = {
+  CLOSE: "Close",
+  ARCHIVE: "Archive",
+  RESOLVE: "Resolve",
+};
+
+// Bounded, plain-language rendering of the server's reason codes. An
+// unrecognised code is humanised rather than hidden, so the operator always
+// sees why a case was skipped.
+const BULK_REASON_COPY: Record<string, string> = {
+  not_accessible: "You do not have access to this case",
+  invalid_transition: "Not allowed from its current status",
+  case_not_found: "Case no longer exists",
+  legal_hold_active: "Blocked by an active legal hold",
+};
+
+function bulkReasonText(reason: string | undefined): string {
+  if (!reason) return "Skipped";
+  return (
+    BULK_REASON_COPY[reason] ??
+    reason.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())
+  );
+}
+
 function MatterQueueTable({
   items,
   totalBeforeFilter,
   anyFilterActive,
   canSeeAdvancedCaseOps,
+  workspaceGeneration,
   onClearFilters,
   onCreateCase,
   onReload,
 }: {
   items: ReadonlyArray<MatterQueueItem>;
+  /**
+   * Workspace identity. Any change clears the selection and discards an
+   * in-flight bulk response so a selection made in one workspace can never
+   * be applied to, or reported against, another.
+   */
+  workspaceGeneration: string;
   totalBeforeFilter: number;
   /**
    * Phase CASES-PERSONAL-UX — drives which of the two spec-locked
@@ -734,6 +780,92 @@ function MatterQueueTable({
   onCreateCase: () => void;
   onReload: () => Promise<void> | void;
 }) {
+  const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([]);
+  const [bulkOutcomes, setBulkOutcomes] = useState<ReadonlyArray<BulkOutcome>>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  // Only ids the server currently returns for THIS workspace can be selected.
+  const visibleIds = useMemo(() => items.map((i) => i.id), [items]);
+
+  // Workspace switch (or a filter change that removes rows) invalidates the
+  // selection and any previous outcome report. Guarantees no cross-workspace
+  // id is ever submitted and no stale result is ever displayed.
+  useEffect(() => {
+    setSelectedIds([]);
+    setBulkOutcomes([]);
+    setBulkError(null);
+  }, [workspaceGeneration]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => visibleIds.includes(id)));
+  }, [visibleIds]);
+
+  const toggleOne = useCallback((id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setSelectedIds((prev) => (prev.length === visibleIds.length ? [] : visibleIds));
+  }, [visibleIds]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds([]);
+    setBulkOutcomes([]);
+    setBulkError(null);
+  }, []);
+
+  const runBulkAction = useCallback(
+    async (action: BulkAction, reason: string) => {
+      if (selectedIds.length === 0 || bulkBusy) return;
+      const submittedGeneration = workspaceGeneration;
+      // Submit ONLY ids the server currently returns for this workspace.
+      const ids = selectedIds.filter((id) => visibleIds.includes(id));
+      if (ids.length === 0) {
+        setBulkError("That selection is no longer current. Reselect the cases.");
+        return;
+      }
+      setBulkBusy(true);
+      setBulkError(null);
+      setBulkOutcomes([]);
+      try {
+        const data = (await apiFetch("/v1/cases/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ids,
+            action,
+            ...(reason.trim() ? { reason: reason.trim().slice(0, 400) } : {}),
+          }),
+        })) as { results?: ReadonlyArray<BulkOutcome> } | null;
+        // Discard a response that outlived its workspace context.
+        if (submittedGeneration !== workspaceGeneration) return;
+        const results = data?.results ?? [];
+        setBulkOutcomes(results);
+        // Keep only the cases the server did NOT complete selected, so a
+        // retry targets exactly the unfinished work and cannot re-apply a
+        // completed transition.
+        const unfinished = results
+          .filter((r) => r.outcome !== "SUCCESS")
+          .map((r) => r.id);
+        setSelectedIds(unfinished);
+        await onReload();
+      } catch (err) {
+        if (submittedGeneration !== workspaceGeneration) return;
+        setBulkError(
+          toSafeUserError(err as { message?: string }, {
+            message: "Could not apply the bulk action.",
+          }).message,
+        );
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [selectedIds, visibleIds, bulkBusy, workspaceGeneration, onReload],
+  );
+
   return (
     <PageSection
       data-matter-queue-table
@@ -798,6 +930,18 @@ function MatterQueueTable({
         // hover tint) instead of the prior card grid. Row markup + every
         // data-matter-queue-row* attribute is preserved verbatim.
         <div className="cases-panel cases-table" data-matter-queue-panel>
+          {canSeeAdvancedCaseOps ? (
+            <CaseBulkActionBar
+              selectedIds={selectedIds}
+              visibleIds={visibleIds}
+              outcomes={bulkOutcomes}
+              busy={bulkBusy}
+              error={bulkError}
+              onToggleAll={toggleAll}
+              onClear={clearSelection}
+              onRun={runBulkAction}
+            />
+          ) : null}
           {/* §1 — visible, aligned column header. Same grid track as the
               rows (`.cases-row-link`) so every column lines up. */}
           <div className="cases-table-head" role="row" aria-hidden="true">
@@ -815,6 +959,10 @@ function MatterQueueTable({
                 key={row.id}
                 row={row}
                 canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+                selectable={canSeeAdvancedCaseOps}
+                selected={selectedIds.includes(row.id)}
+                outcome={bulkOutcomes.find((o) => o.id === row.id) ?? null}
+                onToggleSelect={toggleOne}
                 onReload={onReload}
               />
             ))}
@@ -825,13 +973,125 @@ function MatterQueueTable({
   );
 }
 
+/**
+ * PHASE 12B CLUSTER 12 — bulk action bar. Renders only the actions the
+ * server's contract accepts (CLOSE | ARCHIVE | RESOLVE) and reports the
+ * server's own per-row outcome tally. It never claims an outcome the
+ * server did not return, and it never decides eligibility itself — a case
+ * the caller may not mutate comes back SKIPPED with a reason.
+ */
+function CaseBulkActionBar({
+  selectedIds,
+  visibleIds,
+  outcomes,
+  busy,
+  error,
+  onToggleAll,
+  onClear,
+  onRun,
+}: {
+  selectedIds: ReadonlyArray<string>;
+  visibleIds: ReadonlyArray<string>;
+  outcomes: ReadonlyArray<BulkOutcome>;
+  busy: boolean;
+  error: string | null;
+  onToggleAll: () => void;
+  onClear: () => void;
+  onRun: (action: BulkAction, reason: string) => Promise<void>;
+}) {
+  const [action, setAction] = useState<BulkAction>("CLOSE");
+  const [reason, setReason] = useState("");
+  const count = selectedIds.length;
+  const succeeded = outcomes.filter((o) => o.outcome === "SUCCESS").length;
+  const notApplied = outcomes.length - succeeded;
+
+  return (
+    <div className="cases-bulk-bar" data-case-bulk-bar>
+      <label className="cases-bulk-selectall">
+        <input
+          type="checkbox"
+          data-case-bulk-select-all
+          checked={count > 0 && count === visibleIds.length}
+          onChange={onToggleAll}
+          aria-label="Select all cases in view"
+        />
+        <span>
+          {count === 0 ? "Select cases" : `${count} selected`}
+        </span>
+      </label>
+
+      {count > 0 ? (
+        <>
+          <select
+            data-case-bulk-action
+            value={action}
+            onChange={(e) => setAction(e.target.value as BulkAction)}
+            disabled={busy}
+            aria-label="Bulk action"
+          >
+            {(["CLOSE", "ARCHIVE", "RESOLVE"] as const).map((a) => (
+              <option key={a} value={a}>
+                {BULK_ACTION_LABELS[a]}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            data-case-bulk-reason-input
+            value={reason}
+            maxLength={400}
+            placeholder="Reason (optional, recorded in the audit trail)"
+            onChange={(e) => setReason(e.target.value)}
+            disabled={busy}
+            aria-label="Reason for this bulk action"
+          />
+          <button
+            type="button"
+            data-case-bulk-apply
+            disabled={busy}
+            onClick={() => void onRun(action, reason)}
+          >
+            {busy
+              ? "Applying…"
+              : `${BULK_ACTION_LABELS[action]} ${count} case${count === 1 ? "" : "s"}`}
+          </button>
+          <button type="button" data-case-bulk-clear disabled={busy} onClick={onClear}>
+            Clear
+          </button>
+        </>
+      ) : null}
+
+      {outcomes.length > 0 ? (
+        <p data-case-bulk-summary>
+          {succeeded} applied
+          {notApplied > 0 ? ` · ${notApplied} not applied (see rows)` : ""}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" data-case-bulk-error>
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function MatterQueueRow({
   row,
   canSeeAdvancedCaseOps,
+  selectable = false,
+  selected = false,
+  outcome = null,
+  onToggleSelect,
   onReload,
 }: {
   row: MatterQueueItem;
   canSeeAdvancedCaseOps: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  /** Server-reported outcome from the last bulk run, if this row was in it. */
+  outcome?: BulkOutcome | null;
+  onToggleSelect?: (id: string) => void;
   onReload: () => Promise<void> | void;
 }) {
   const router = useRouter();
@@ -873,7 +1133,29 @@ function MatterQueueRow({
       data-matter-queue-row-id={row.id}
       data-matter-queue-row-risk={row.riskLevel ?? "NONE"}
       data-matter-queue-row-status={row.status}
+      data-case-bulk-outcome={outcome?.outcome ?? undefined}
     >
+      {selectable ? (
+        <label
+          className="cases-row-select"
+          // The checkbox must never trigger row navigation.
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            data-case-bulk-select={row.id}
+            checked={selected}
+            onChange={() => onToggleSelect?.(row.id)}
+            aria-label={`Select case ${row.name}`}
+          />
+        </label>
+      ) : null}
+      {outcome && outcome.outcome !== "SUCCESS" ? (
+        <p className="cases-row-bulk-note" data-case-bulk-reason={outcome.reason ?? ""}>
+          {outcome.outcome === "FAILED" ? "Failed: " : "Skipped: "}
+          {bulkReasonText(outcome.reason)}
+        </p>
+      ) : null}
       {/* §7 enterprise row — the row is an entry in ONE `.cases-panel`
           container (no card-in-card). `.cases-row-link` supplies the
           ~72px min-height, soft divider, hover tint, and padding from the

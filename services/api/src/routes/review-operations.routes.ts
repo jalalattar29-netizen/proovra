@@ -43,9 +43,18 @@ import {
   listReviewQueue,
   projectReviewWorkflow,
   reconcileReviewSlas,
-  recordReviewDecision,
+  recordLifecycleTransition,
   updateReviewSla,
 } from "../services/review-operations/review-operations.service.js";
+// Track 1C — canonical review-decision authority. Reviewer VERDICTS
+// (approve / reject / request-info) append an immutable
+// WorkflowReviewDecision row AND derive the workflow.status projection
+// in one transaction. Lifecycle routing (escalate / reopen / close)
+// stays on the Phase 13 lifecycle service above.
+import {
+  ReviewDecisionAuthorityError,
+  recordReviewDecision,
+} from "../services/reviewer-ops/review-decision.service.js";
 // Phase C0 — Sensitive review decision step-up enforcement.
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import type { StepUpPurpose } from "@proovra/shared";
@@ -103,6 +112,22 @@ async function requireAdminMember(
 }
 
 function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
+  // Track 1C — canonical decision-authority error surface. Conflicts
+  // (stale / already-resolved / duplicate / independence violations)
+  // are 409; a missing rationale is 422; anti-enumeration not-found is
+  // 404. NEVER 403 (anti-enumeration posture of this route file).
+  if (err instanceof ReviewDecisionAuthorityError) {
+    const status =
+      err.code === "workflow_not_found"
+        ? 404
+        : err.code === "rationale_required"
+          ? 422
+          : 409;
+    reply.code(status).send({
+      error: { code: err.code, details: err.details ?? null },
+    });
+    return;
+  }
   if (err instanceof ReviewOperationError) {
     const status =
       err.code === "workflow_not_found" || err.code === "evidence_not_in_workspace"
@@ -252,21 +277,32 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       const { evidenceId } = ParamsEvidenceId.parse(req.params);
       const body = z
         .object({
-          teamId: z.string().uuid(),
+          // PHASE 12 POINT 4 PASS C1 — OPTIONAL. The workspace subject is
+          // DERIVED from the workflow row, not asserted by the caller; when
+          // a client still sends one it must match, and a mismatch is
+          // concealed as not-found rather than described. This removes the
+          // last reason for the review surfaces to hold a tenant id.
+          teamId: z.string().uuid().optional(),
           decision: z.enum(REVIEW_DECISION_TYPES),
           note: z.string().max(2000).nullable().optional(),
           escalationReason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireReviewerMember(req, reply, body.teamId);
-      if (!ok) return;
       const workflow = await prisma.evidenceReviewWorkflow.findUnique({
         where: { evidenceId },
-        select: { teamId: true },
+        select: { id: true, teamId: true },
       });
-      if (!workflow || workflow.teamId !== body.teamId) {
+      if (
+        !workflow ||
+        !workflow.teamId ||
+        (body.teamId && workflow.teamId !== body.teamId)
+      ) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // The authorization subject is the persisted workspace of the record.
+      const teamId = workflow.teamId;
+      const ok = await requireReviewerMember(req, reply, teamId);
+      if (!ok) return;
 
       // Phase C0 — Sensitive reviewer decision step-up gate. When
       // the workspace governance flag for the chosen decision is
@@ -289,7 +325,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
             ? "reject"
             : null;
       if (stepUpGateKey) {
-        const flags = await loadWorkspaceReviewerOpsFlags(body.teamId);
+        const flags = await loadWorkspaceReviewerOpsFlags(teamId);
         const flagKey =
           stepUpGateKey === "approve"
             ? "requireStepUpForApprove"
@@ -302,7 +338,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           const result = await requireStepUpForSensitiveAction({
             req,
             reply,
-            teamId: body.teamId,
+            teamId: teamId,
             userId: ok.userId,
             purpose,
             resourceKind: "evidence_review_decision",
@@ -313,13 +349,49 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       }
 
       try {
-        const updated = await recordReviewDecision({
-          evidenceId,
-          decision: body.decision,
-          actorUserId: ok.userId,
-          note: body.note ?? null,
-          escalationReason: body.escalationReason ?? null,
-        });
+        let updated;
+        if (
+          body.decision === "APPROVE_INTERNAL" ||
+          body.decision === "REJECT_INSUFFICIENT" ||
+          body.decision === "REQUEST_MORE_INFO"
+        ) {
+          // Track 1C — reviewer VERDICT: the canonical decision
+          // authority appends the immutable decision row + derives the
+          // status projection atomically. Adjudicator authority is an
+          // informational role read (authorization already enforced by
+          // requireReviewerMember above).
+          const membership = await prisma.teamMember.findUnique({
+            where: {
+              teamId_userId: { teamId: teamId, userId: ok.userId },
+            },
+            select: { role: true },
+          });
+          const result = await recordReviewDecision({
+            workflowId: workflow.id,
+            teamId: teamId,
+            actorUserId: ok.userId,
+            decision:
+              body.decision === "APPROVE_INTERNAL"
+                ? "APPROVE"
+                : body.decision === "REJECT_INSUFFICIENT"
+                  ? "REJECT"
+                  : "REQUEST_INFO",
+            rationale: body.note ?? body.escalationReason ?? null,
+            actorIsAdjudicator:
+              membership?.role === "OWNER" || membership?.role === "ADMIN",
+          });
+          updated = result.workflow;
+        } else {
+          // ESCALATE / REOPEN / CLOSE — lifecycle routing, not a
+          // verdict; handled by the Phase 13 lifecycle service.
+          updated = await recordLifecycleTransition({
+            evidenceId,
+            decision: body.decision,
+            actorUserId: ok.userId,
+            note: body.note ?? null,
+            escalationReason: body.escalationReason ?? null,
+          });
+        }
         return reply
           .code(200)
           .send({ workflow: projectReviewWorkflow(updated) });

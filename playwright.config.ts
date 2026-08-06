@@ -46,7 +46,31 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testDir: "./e2e",
+      testIgnore: "point7/**",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    /**
+     * PHASE 12 — POINT 7: the product-behaviour browser matrix.
+     *
+     * Its own project because it needs its own stack (a disposable
+     * PostgreSQL 16 + Redis + MinIO on dedicated ports, addressed through
+     * `P7_DATABASE_URL`, `WEB_BASE` and `API_BASE`) and its own run
+     * identifier — see `e2e/point7/_global-setup.ts`. Kept out of the Phase-1
+     * project above via `testIgnore` so the two never share a database.
+     *
+     * Serial for the same reason the Phase-1 project is: the specs seed
+     * overlapping tenant namespaces in one database, and cross-tenant
+     * assertions must not race another spec's fixtures.
+     */
+    {
+      name: "point7",
+      testDir: "./e2e/point7",
       use: { ...devices["Desktop Chrome"] },
     },
   ],
+  globalSetup: process.env.POINT7 ? "./e2e/point7/_global-setup.ts" : undefined,
+  globalTeardown: process.env.POINT7
+    ? "./e2e/point7/_global-teardown.ts"
+    : undefined,
 });

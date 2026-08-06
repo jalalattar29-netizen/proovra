@@ -32,6 +32,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { formatUtcDate, formatUserDateTime } from "../../../../lib/date";
 import {
   useActiveWorkspaceId,
   usePlatformContext,
@@ -106,16 +107,8 @@ function resetDateLabel(monthUtc: string): string | null {
   const m = monthUtc.match(/^(\d{4})-(\d{2})$/);
   if (!m) return null;
   const next = new Date(Date.UTC(Number(m[1]), Number(m[2]), 1));
-  try {
-    return next.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  } catch {
-    return null;
-  }
+  const label = formatUtcDate(next);
+  return label === "Not available" ? null : label;
 }
 
 export function AiSection() {
@@ -136,20 +129,18 @@ export function AiSection() {
         ? "ORGANIZATION"
         : "PERSONAL";
   const isOrg = canonicalKind === "ORGANIZATION";
-  const activeOrg = isOrg
-    ? (envelope?.organizations ?? []).find(
-        (o) => o.id === envelope?.activeSpace?.id,
-      )
-    : null;
+  // PHASE 12 POINT 4 STEP 1 — the editable-governance decision is the SERVER
+  // capability projection for the ACTIVE workspace, not a client role read.
+  // Absent capabilities (envelope loading/degraded) resolve to `null` and the
+  // view falls back to the read-only summary.
+  const canManageWorkspaceAiPolicy =
+    typeof envelope?.capabilities?.SETTINGS_MANAGE === "boolean"
+      ? envelope.capabilities.SETTINGS_MANAGE
+      : null;
   const mode = deriveAiSettingsMode({
     workspaceKind: isOrg ? "ORGANIZATION" : "PERSONAL",
     monthlyAllowance: envelope?.planFeatures?.aiAssistanceMonthlyOperations,
-    orgRole: (activeOrg?.role ?? null) as
-      | "OWNER"
-      | "ADMIN"
-      | "MEMBER"
-      | "VIEWER"
-      | null,
+    canManageWorkspaceAiPolicy,
   });
 
   const [envelopeState, setEnvelopeState] = useState<PolicyEnvelope | null>(null);
@@ -728,7 +719,7 @@ function OrgAiView({
                 <span style={muted}>
                   Policy version {envelopeState?.version ?? 1}
                   {envelopeState?.lastModifiedAtUtc
-                    ? ` · last changed ${new Date(envelopeState.lastModifiedAtUtc).toLocaleString()}`
+                    ? ` · last changed ${formatUserDateTime(envelopeState.lastModifiedAtUtc)}`
                     : ""}
                 </span>
               </div>

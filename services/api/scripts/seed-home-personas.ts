@@ -1,3 +1,11 @@
+// PHASE 12 — POINT 7 (2026-08-05): load configuration EXPLICITLY.
+//
+// This script used to inherit its environment as a side effect of importing
+// `db.ts`, which opened with `import "dotenv/config"`. That implicit load was
+// the root cause of the production-isolation incident, so it is gone and every
+// entrypoint now asks for its configuration by name.
+import "../src/env.js";
+
 /**
  * Phase IA-home-acceptance — Home acceptance persona seed.
  *
@@ -386,7 +394,14 @@ async function seedTeamOrg(): Promise<void> {
       teamId: p.workspaceId,
       // Phase A1 CHECK — see seedProPopulated.
       organizationId: org,
-      caseId: ID.teamCase,
+      caseLinks: {
+        create: {
+          caseId: ID.teamCase,
+          teamId: p.workspaceId,
+          role: "PRIMARY",
+          source: "SYSTEM",
+        },
+      },
       title: "Field statement — contributor upload",
       mimeType: "application/pdf",
       originalFileName: "field-statement.pdf",
@@ -880,7 +895,14 @@ async function seedTeamMatterSpread(): Promise<void> {
       ownerUserId: p.userId,
       teamId: p.workspaceId,
       organizationId: org,
-      caseId: ID.teamCaseNeedsWork,
+      caseLinks: {
+        create: {
+          caseId: ID.teamCaseNeedsWork,
+          teamId: p.workspaceId,
+          role: "PRIMARY",
+          source: "SYSTEM",
+        },
+      },
       title: "Supplier yard overview clip",
       status: "SIGNED",
       tsaStatus: "OK",
@@ -907,7 +929,14 @@ async function seedTeamMatterSpread(): Promise<void> {
       ownerUserId: p.userId,
       teamId: p.workspaceId,
       organizationId: org,
-      caseId: ID.teamCaseAction,
+      caseLinks: {
+        create: {
+          caseId: ID.teamCaseAction,
+          teamId: p.workspaceId,
+          role: "PRIMARY",
+          source: "SYSTEM",
+        },
+      },
       title: "Dock damage photo",
       mimeType: "image/jpeg",
       originalFileName: "dock-damage.jpg",

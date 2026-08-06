@@ -5,12 +5,15 @@
  * active sessionIds per (userId, organizationId), is idempotent per sessionId,
  * serialises under a per-(user,org) advisory lock, and FAILS CLOSED (deny, no
  * eviction) beyond the limit. Runs against the REAL service with an in-memory
- * transactional prisma stub. The true concurrent-last-slot race is authored as a
- * live-DB gate (see the `.gate.` describe) — it needs Postgres advisory locks
- * and is NOT claimed to run here.
+ * transactional prisma stub.
+ *
+ * The TRUE concurrent-last-slot race needs Postgres advisory locks, so it is a
+ * database test and lives in the API integration project:
+ * `phase-10-concurrent-session-last-slot.integration.test.ts`. It is EXECUTED
+ * there against a disposable PostgreSQL — not skipped, and not claimed here.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -19,7 +22,6 @@ import {
   establishOrganizationSessionContext,
   releaseOrganizationSessionContext,
 } from "../src/services/identity/concurrent-session.service.js";
-import { isLiveIntegrationEnabled } from "./integration-harness.js";
 
 const API = resolve(__dirname, "..");
 const future = () => new Date(Date.now() + 3600_000);
@@ -28,6 +30,17 @@ type SessionRow = { id: string; organizationContextId: string | null; expiresAtU
 
 function mockDb(opts: {
   orgStatus?: string;
+  /**
+   * PHASE 12 POINT 7 — the container's KIND.
+   *
+   * Only a CUSTOMER Organization owns a security policy, and therefore only a
+   * CUSTOMER Organization has a concurrent-session limit to enforce; a SYSTEM
+   * container (the org behind a self-service Owned workspace) has no policy
+   * row, and resolving one for it threw `POLICY_NOT_PROVISIONED` out of a path
+   * with no handler. Defaults to CUSTOMER because every assertion in this
+   * suite is about the Organization limit.
+   */
+  orgKind?: string;
   session?: SessionRow;
   activeCount?: number;
   limit?: number | null;
@@ -38,7 +51,10 @@ function mockDb(opts: {
   const tx = {
     $executeRaw: async () => { calls.push("advisory_lock"); return 1; },
     organization: {
-      findUnique: async () => ({ status: opts.orgStatus ?? "ACTIVE" }),
+      findUnique: async () => ({
+        status: opts.orgStatus ?? "ACTIVE",
+        kind: opts.orgKind ?? "CUSTOMER",
+      }),
     },
     authenticatedSession: {
       findUnique: async () => { calls.push("session.findUnique"); return opts.session === undefined ? sessionDefault : opts.session; },
@@ -213,61 +229,25 @@ describe("§8 — machine metrics", () => {
     expect(SVC).not.toMatch(/req\.body|request\.body/);
   });
 
-  it("the live concurrency gate is CONDITIONAL (runIf), not permanently skipped", () => {
-    const testSrc = readFileSync(resolve(__dirname, "phase-10-concurrent-session.test.ts"), "utf8");
-    // The last-slot race is gated by the canonical live switch, so it executes
-    // under RUN_LIVE_INTEGRATION=1 — it is a real deployment gate, not skip-forever.
-    expect(testSrc).toMatch(/describe\.runIf\(isLiveIntegrationEnabled\(\)\)/);
-    expect(testSrc).not.toMatch(/describe\.skip\(/);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// §7 test 17 — TRUE concurrent-last-slot race (LIVE Postgres deployment gate).
-//
-// Runs ONLY when the repo's canonical live-integration switch is on:
-//   RUN_LIVE_INTEGRATION=1 TEST_DATABASE_URL=postgres://… \
-//     npx vitest run test/phase-10-concurrent-session.test.ts
-// Skipped otherwise (Docker/DB not available here) — but NOT permanently: the
-// `runIf` below actually executes it under live integration. The advisory-lock
-// serialisation cannot be exercised against a stub, so this is the authoritative
-// concurrency proof and is a MANDATORY deployment gate.
-// ─────────────────────────────────────────────────────────────────────────────
-describe.runIf(isLiveIntegrationEnabled())("§2 GATE (live Postgres) — last-slot race", () => {
-  it("two concurrent establishments for one remaining slot → exactly one succeeds", async () => {
-    const { PrismaClient } = await import("@prisma/client");
-    const url = process.env.TEST_DATABASE_URL;
-    const prisma = new PrismaClient({ datasourceUrl: url } as never);
-    try {
-      // Minimal fixtures: a CUSTOMER org with concurrentSessionLimit=2, one
-      // active session already holding org context (1 slot remains), and TWO
-      // fresh inventory sessions competing for it.
-      const org = await prisma.organization.create({ data: { name: "conc-test", kind: "CUSTOMER", status: "ACTIVE" } });
-      const user = await prisma.user.create({ data: { provider: "EMAIL", providerUserId: `conc-${org.id}`, email: `conc-${org.id}@x.test` } });
-      const team = await prisma.team.create({ data: { name: "ws", isPersonal: false, organizationId: org.id, ownerId: user.id } as never });
-      await prisma.organizationSecurityPolicy.create({ data: { teamId: team.id, organizationId: org.id, concurrentSessionLimit: 2 } as never });
-      const mkSession = async (hash: string, ctx: string | null) =>
-        prisma.authenticatedSession.create({
-          data: { userId: user.id, teamId: team.id, sessionIdHash: hash, organizationContextId: ctx, issuedAtUtc: new Date(), expiresAtUtc: new Date(Date.now() + 3600_000) } as never,
-        });
-      await mkSession("live-existing", org.id); // 1 active in-context → 1 slot left
-      await mkSession("live-a", null);
-      await mkSession("live-b", null);
-
-      const [a, b] = await Promise.all([
-        establishOrganizationSessionContext({ userId: user.id, organizationId: org.id, sessionIdHash: "live-a" }, prisma),
-        establishOrganizationSessionContext({ userId: user.id, organizationId: org.id, sessionIdHash: "live-b" }, prisma),
-      ]);
-      const successes = [a, b].filter((r) => r.allowed).length;
-      const denials = [a, b].filter((r) => !r.allowed).length;
-      expect(successes).toBe(1); // exactly one won the last slot
-      expect(denials).toBe(1);
-      const finalCount = await prisma.authenticatedSession.count({
-        where: { userId: user.id, organizationContextId: org.id, revokedAtUtc: null, expiresAtUtc: { gt: new Date() } },
-      });
-      expect(finalCount).toBe(2); // never exceeds the limit
-    } finally {
-      await prisma.$disconnect();
-    }
+  it("the concurrent-last-slot race is an EXECUTED database test, not a skip", () => {
+    // PHASE 12 POINT 4 — this used to assert the race was `runIf`-gated, which
+    // dressed a permanently-inert block up as a conditional gate. The race now
+    // lives in the integration project and runs unconditionally there against a
+    // real PostgreSQL; nothing in this family is skipped.
+    const gate = resolve(
+      __dirname,
+      "phase-10-concurrent-session-last-slot.integration.test.ts",
+    );
+    expect(existsSync(gate)).toBe(true);
+    const gateSrc = readFileSync(gate, "utf8");
+    expect(gateSrc).toMatch(/acquireIntegrationDatabase\(\)/);
+    expect(gateSrc).toMatch(/pg_advisory|establishOrganizationSessionContext/);
+    expect(gateSrc).not.toMatch(/describe\.(skip|runIf)|it\.(skip|todo)/);
+    // And this unit file no longer carries a runtime-skipped block.
+    const unitSrc = readFileSync(
+      resolve(__dirname, "phase-10-concurrent-session.test.ts"),
+      "utf8",
+    );
+    expect(unitSrc).not.toMatch(/describe\.(skip|runIf)/);
   });
 });

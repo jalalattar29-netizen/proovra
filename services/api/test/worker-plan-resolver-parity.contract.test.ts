@@ -59,17 +59,23 @@ const API_BILLING = readFileSync(
 );
 
 describe("Worker plan-resolver parity with API", () => {
-  it("worker getPersonalWorkspaceScope downgrades to PRO when allowsPersonalWorkspace is false (parity with API)", () => {
-    // The worker must use the same predicate the API uses
-    // (workspace-billing.service.ts:107-110) so an owner on a plan
-    // whose capability set does NOT allow a personal workspace is
-    // resolved at PRO grade rather than FREE.
-    expect(WORKER_BILLING).toMatch(/getPlanCapabilities\(\s*\w+\s*\)\.allowsPersonalWorkspace/);
-    expect(WORKER_BILLING).toMatch(/prismaPkg\.PlanType\.PRO/);
-    // The API still expresses the same rule (anti-drift sentinel: if
-    // someone "simplifies" the API away from this rule, the worker
-    // would still need updating — this test surfaces that linkage).
-    expect(API_BILLING).toMatch(/getPlanCapabilities\(\s*entitlement\.plan\s*\)\s*\n?\s*\.allowsPersonalWorkspace/);
+  it("neither worker nor API substitutes a plan for the PERSONAL scope (POINT 7 — replaces the PRO-downgrade parity pin)", () => {
+    // STALE_SOURCE_PIN, replaced rather than deleted. The original case
+    // pinned that BOTH files resolved a TEAM-plan owner's personal space at
+    // **PRO** — a plan the account does not hold — and that they did so
+    // identically. Parity was the right property; the rule being kept in
+    // parity was a defect (POINT 7 D4), and two copies of it were a second
+    // defect. Both are removed, so what has to be pinned now is the ABSENCE
+    // of the substitution on both sides, which is strictly stronger: the
+    // previous pin permitted any substituted plan as long as it matched.
+    expect(WORKER_BILLING).not.toMatch(/allowsPersonalWorkspace/);
+    expect(API_BILLING).not.toMatch(/\.allowsPersonalWorkspace\b/);
+    expect(WORKER_BILLING).not.toMatch(/prismaPkg\.PlanType\.PRO/);
+    expect(API_BILLING).not.toMatch(/prismaPkg\.PlanType\.PRO/);
+    // And both take the personal plan from the SAME place: the account's own
+    // entitlement row.
+    expect(WORKER_BILLING).toMatch(/personalPlan\s*=\s*entitlement\?\.plan\s*\?\?\s*prismaPkg\.PlanType\.FREE/);
+    expect(API_BILLING).toMatch(/personalPlan\s*=\s*entitlement\.plan/);
   });
 
   it("worker and API resolve the effective plan through ONE shared canonical policy (structural parity)", () => {

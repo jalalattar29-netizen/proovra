@@ -29,7 +29,7 @@ import {
 } from "../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
 
 import { ImageRedactionViewer } from "../../../../components/redaction/ImageRedactionViewer";
 import { PdfRedactionViewer } from "../../../../components/redaction/PdfRedactionViewer";
@@ -38,6 +38,18 @@ import { VideoReviewWorkspace } from "../../../../components/redaction/VideoRevi
 import { DetectionReviewPanel } from "../../../../components/redaction/DetectionReviewPanel";
 import { ApprovalPanel } from "../../../../components/redaction/ApprovalPanel";
 import { VersionHistoryPanel } from "../../../../components/redaction/VersionHistoryPanel";
+// PHASE 12B (Evidence Operations) — product surfaces for two previously
+// unreachable ops: DELETE /v1/redaction/regions/:id (region removal) and
+// GET /v1/redaction/evidence/:evidenceId/detection-manifest.
+import {
+  RegionListPanel,
+  type RedactionRegionRow,
+} from "../../../../components/redaction/RegionListPanel";
+import { DetectionManifestPanel } from "../../../../components/redaction/DetectionManifestPanel";
+import {
+  isDerivativeInFlight,
+  useDerivativePolling,
+} from "../../../../components/redaction/useDerivativePolling";
 
 type ProjectProjection = {
   schemaVersion: string;
@@ -63,6 +75,9 @@ type VersionProjection = {
   publishedAtUtc: string | null;
   rationale: string | null;
   regionCount: number;
+  // PHASE 12B — the server projection now returns the authored regions,
+  // so the operator can see and remove what will be masked.
+  regions: ReadonlyArray<RedactionRegionRow>;
   acceptedDetectionCount: number;
   rejectedDetectionCount: number;
   approvals: ReadonlyArray<{
@@ -75,7 +90,9 @@ type VersionProjection = {
   derivative: {
     id: string;
     state: string;
+    kind: string;
     fileSha256: string | null;
+    failureReason: string | null;
   } | null;
 };
 
@@ -110,25 +127,46 @@ function RedactionProjectShell({
   // parallel implementation, and viewing / authoring are never gated.
   const teamId = useTeamId();
   const stepUp = useStepUpAction({ teamId });
+  // §10.3 stale-response guard — a workspace switch between request and
+  // response makes the payload another tenant's data; drop it.
+  const { stamp, isStale } = useTenantGuard();
 
   const refresh = useCallback(async () => {
+    const captured = stamp();
     try {
       const res = await apiFetch(`/v1/redaction/projects/${projectId}`, {
         method: "GET",
       });
+      if (isStale(captured)) return; // workspace changed mid-flight — discard
       const p = res?.project as ProjectProjection | undefined;
       setProject(p ?? null);
       if (p && !selectedVersionId && p.versions.length > 0) {
         setSelectedVersionId(p.versions[0].id);
       }
     } catch {
-      setProject(null);
+      if (isStale(captured)) return;
+      // Keep whatever we already showed on a transient poll failure; only
+      // the initial load renders the empty state.
+      setProject((prev) => prev ?? null);
     }
-  }, [projectId, selectedVersionId]);
+  }, [projectId, selectedVersionId, stamp, isStale]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Macro-Wave A1 — while any version's derivative is QUEUED/RENDERING,
+  // poll the projection so the operator sees the render progress without
+  // reloading. Stops on unmount, when nothing is in flight, and on
+  // workspace change (tenant-generation keyed inside the hook).
+  const derivativeInFlight = useMemo(
+    () =>
+      (project?.versions ?? []).some((v) =>
+        isDerivativeInFlight(v.derivative?.state),
+      ),
+    [project],
+  );
+  useDerivativePolling({ active: derivativeInFlight, refresh });
 
   const selectedVersion = useMemo(
     () =>
@@ -156,7 +194,7 @@ function RedactionProjectShell({
   const onTransition = useCallback(
     async (
       versionId: string,
-      action: "submit" | "approve" | "publish",
+      action: "submit" | "approve" | "publish" | "derivative",
       verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
       rationale?: string,
     ) => {
@@ -356,7 +394,7 @@ function VersionWorkspace({
   version: VersionProjection;
   onTransition: (
     versionId: string,
-    action: "submit" | "approve" | "publish",
+    action: "submit" | "approve" | "publish" | "derivative",
     verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
     rationale?: string,
   ) => Promise<void>;
@@ -401,6 +439,7 @@ function VersionWorkspace({
           evidenceId={project.evidenceId}
           versionId={version.id}
           versionLocked={version.state !== "DRAFT"}
+          regions={version.regions ?? []}
           onChanged={onChanged}
         />
       ) : project.artifactKind === "PDF" ? (
@@ -440,14 +479,28 @@ function VersionWorkspace({
         </div>
       )}
 
+      {/* PHASE 12B — authored regions, with server-gated removal. The
+          list is the server projection; removal calls
+          DELETE /v1/redaction/regions/:id and then re-reads. */}
+      <RegionListPanel
+        regions={version.regions ?? []}
+        versionLocked={version.state !== "DRAFT"}
+        onChanged={onChanged}
+      />
+
       <DetectionReviewPanel
         versionId={version.id}
         versionLocked={version.state !== "DRAFT"}
         onChanged={onChanged}
       />
 
+      {/* PHASE 12B — bounded, count-only detection record for every
+          published version of this evidence. Read-only. */}
+      <DetectionManifestPanel evidenceId={project.evidenceId} />
+
       <ApprovalPanel
         version={version}
+        artifactKind={project.artifactKind}
         onTransition={onTransition}
       />
     </div>

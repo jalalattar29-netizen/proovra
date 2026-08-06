@@ -18,19 +18,21 @@
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ReportsIndex } from "../../../components/reports-experience/ReportsIndex";
 import { FreeReportsLockedNotice } from "../../../components/reports-experience/FreeReportsLockedNotice";
-import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
+import { usePlanFeature } from "../../../lib/platform-context";
 
 export default function ReportsPage() {
-  const surfaceUserCtx = useSurfaceUserContext();
-  // FREE-plan detection. PAYG/PRO/TEAM/Enterprise/platform-admin all
-  // see ReportsIndex unmodified. FREE renders the locked notice
-  // ABOVE ReportsIndex so the user still sees any existing report
-  // they may have generated under a prior PAYG entitlement, but the
-  // upgrade affordance is the dominant call-to-action.
-  const isFreePlan = surfaceUserCtx.plan === "FREE";
+  // Track 1A (surface-tier removal) — the locked notice follows the
+  // SERVER-projected `planFeatures.reportsIncluded` entitlement (the
+  // backend PLAN_CAPABILITIES projection; FREE excludes reports). Plans
+  // that include reports — and the loading/unknown state — see
+  // ReportsIndex unmodified. A KNOWN `false` renders the locked notice
+  // ABOVE ReportsIndex so the user still sees any existing report they
+  // may have generated under a prior entitlement, but the upgrade
+  // affordance is the dominant call-to-action.
+  const reportsIncluded = usePlanFeature("reportsIncluded");
   return (
     <PageRouteGate routeId="workspace.reports">
-      {isFreePlan ? <FreeReportsLockedNotice /> : null}
+      {reportsIncluded === false ? <FreeReportsLockedNotice /> : null}
       <ReportsIndex />
     </PageRouteGate>
   );

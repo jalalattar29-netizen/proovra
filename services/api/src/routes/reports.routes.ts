@@ -201,7 +201,7 @@ export default async function registerReportsRoutes(
         title: string | null;
         type: string;
         status: string;
-        caseId: string | null;
+        caseLinks: Array<{ caseId: string }>;
         createdAt: Date;
       };
       let rows: EvidenceListRow[] = [];
@@ -215,7 +215,11 @@ export default async function registerReportsRoutes(
             title: true,
             type: true,
             status: true,
-            caseId: true,
+            caseLinks: {
+              orderBy: { linkedAtUtc: "asc" },
+              select: { caseId: true },
+              take: 1,
+            },
             createdAt: true,
           },
         })) as EvidenceListRow[];
@@ -238,7 +242,11 @@ export default async function registerReportsRoutes(
             title: true,
             type: true,
             status: true,
-            caseId: true,
+            caseLinks: {
+              orderBy: { linkedAtUtc: "asc" },
+              select: { caseId: true },
+              take: 1,
+            },
             createdAt: true,
           },
         })) as EvidenceListRow[];
@@ -291,7 +299,7 @@ export default async function registerReportsRoutes(
           title: r.title,
           type: String(r.type),
           status: String(r.status),
-          caseId: r.caseId,
+          caseId: r.caseLinks[0]?.caseId ?? null,
           createdAt: r.createdAt.toISOString(),
           report: {
             available: report !== null,

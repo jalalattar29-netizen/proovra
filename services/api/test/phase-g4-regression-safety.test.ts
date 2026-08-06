@@ -29,7 +29,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
+
+import { evidenceSavedViewsRoutes } from "../src/routes/evidence.saved-views.routes.js";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -337,11 +340,40 @@ describe("Phase G4.6 — evidence.routes.ts refactor preserves contracts", () =>
     );
   });
 
-  it("auth preHandler preserved on every extracted route", () => {
-    const occurrences = (
-      EVIDENCE_SAVED_VIEWS.match(/preHandler: requireAuth/g) ?? []
-    ).length;
-    expect(occurrences).toBe(5);
+  it("auth preHandler preserved on EVERY extracted route", async () => {
+    // PHASE 12 POINT 4 STEP 3 (Pass G) — this was
+    // `expect(occurrences).toBe(5)` over `/preHandler: requireAuth/`. An
+    // occurrence count cannot tell which routes are covered: deleting the
+    // guard from one route and adding it twice to another kept it green, and
+    // adding a sixth route left it red for the wrong reason.
+    //
+    // Register the real module on a real Fastify instance and assert that
+    // EVERY registered route carries a preHandler. An unauthenticated
+    // saved-views route now fails here by name.
+    const app = Fastify({ logger: false });
+    const routes: Array<{ method: string; url: string; guarded: boolean }> = [];
+    app.addHook("onRoute", (route) => {
+      const methods = Array.isArray(route.method) ? route.method : [route.method];
+      const guarded = Array.isArray(route.preHandler)
+        ? route.preHandler.length > 0
+        : Boolean(route.preHandler);
+      for (const method of methods) routes.push({ method, url: route.url, guarded });
+    });
+
+    try {
+      await app.register(evidenceSavedViewsRoutes);
+      await app.ready();
+    } finally {
+      await app.close();
+    }
+
+    expect(routes.length, "no saved-views routes registered").toBeGreaterThan(0);
+    for (const r of routes) {
+      expect(
+        r.guarded,
+        `${r.method} ${r.url} has NO preHandler — it is unauthenticated`,
+      ).toBe(true);
+    }
   });
 });
 

@@ -241,7 +241,7 @@ describe("(8) Security seed contains no fake certifications or unsupported claim
     const matches: ReadonlyArray<number> = (() => {
       const out: number[] = [];
       let i = 0;
-      while (true) {
+      for (;;) {
         const next = TRUST_SERVICE.indexOf("SSE-KMS", i);
         if (next < 0) break;
         out.push(next);
@@ -566,7 +566,7 @@ describe('(22) encryption article body does not assert "Per-tenant KMS" as an ac
     // occurrence OR every occurrence is preceded (within 100 chars)
     // by "does not" / "not currently".
     let i = 0;
-    while (true) {
+    for (;;) {
       const at = TRUST_SERVICE.toLowerCase().indexOf("per-tenant kms", i);
       if (at < 0) break;
       const pre = TRUST_SERVICE.slice(Math.max(0, at - 100), at);

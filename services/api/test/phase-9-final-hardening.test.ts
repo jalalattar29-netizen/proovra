@@ -236,43 +236,11 @@ describe("§9.8 — one canonical seat authority", () => {
   });
 });
 
-// §9.8 — DB-level last-seat concurrency test: REGISTERED FOR THE LIVE GATE.
-// Requires a real Postgres (row locks); Docker/testcontainers unavailable in
-// this environment. Runs under RUN_LIVE_INTEGRATION with the phase-37-9x
-// harness. NOT claimed as executed.
-const LIVE = process.env.RUN_LIVE_INTEGRATION === "1" ? describe : describe.skip;
-LIVE("§9.8 LIVE GATE — concurrent last-seat allocation has exactly one winner", () => {
-  it("two concurrent acceptance/provisioning attempts on ONE remaining seat → one success, one deterministic capacity denial, no partial membership", async () => {
-    const { bootIntegrationHarness } = await import("./integration-harness.js");
-    const harness = await bootIntegrationHarness();
-    try {
-      const { grantWorkspaceMembership } = await import(
-        "../src/services/identity/membership-provisioning.service.js"
-      );
-      const { prisma } = await import("../src/db.js");
-      const teamId = harness.fixtures.teamA.teamId;
-      // Set includedSeats = current ACTIVE members + 1 (exactly one free seat).
-      const active = await prisma.teamMember.count({ where: { teamId, status: "ACTIVE" } });
-      await prisma.team.update({ where: { id: teamId }, data: { includedSeats: active + 1 } });
-      const mk = (uid: string) =>
-        prisma.$transaction((tx) =>
-          grantWorkspaceMembership(tx as never, {
-            teamId,
-            userId: uid,
-            role: "MEMBER",
-            source: "MANUAL",
-          } as never),
-        );
-      const [a, b] = await Promise.allSettled([mk("live-user-a"), mk("live-user-b")]);
-      const successes = [a, b].filter((r) => r.status === "fulfilled");
-      expect(successes.length).toBeLessThanOrEqual(1);
-      const nowActive = await prisma.teamMember.count({ where: { teamId, status: "ACTIVE" } });
-      expect(nowActive).toBeLessThanOrEqual(active + 1); // no over-allocation
-    } finally {
-      await harness.cleanup();
-    }
-  });
-});
+// §9.8 — the DB-level membership-allocation concurrency proof lives in
+// `phase-9-8-live-membership-allocation.test.ts`. It CANNOT live here: this
+// file `vi.mock`s `../src/db.js` (see the top of the file), so the integration
+// harness can never reach a real Postgres from this module. See that file for
+// the executed live proof and the canonical command.
 
 // ── §9.11 — web/mobile/worker raw commercial decisions = 0 ────────────────
 describe("§9.11 — client/worker raw commercial decisions = 0", () => {

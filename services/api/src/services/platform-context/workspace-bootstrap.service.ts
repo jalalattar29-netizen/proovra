@@ -43,7 +43,33 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 // PHASE 10 §13.2 (2026-07-22) — managed-identity guard (no personal space).
-import { personalSpaceAllowed } from "../identity/identity-mode.service.js";
+import { resolvePersonalSpaceEligibility } from "../identity/identity-mode.service.js";
+
+/**
+ * PHASE 12 — POINT 7 CORRECTIVE PASS: the bootstrap's gate.
+ *
+ * Delegates to the ONE personal-space decision and preserves the two distinct
+ * bounded codes, so an operator can tell an identity binding apart from an
+ * Organization policy switch without reading a stack trace.
+ */
+async function assertPersonalSpaceAllowedForBootstrap(
+  userId: string,
+  client: PrismaClient,
+): Promise<void> {
+  const eligibility = await resolvePersonalSpaceEligibility(userId, client);
+  if (eligibility.allowed) return;
+  const err = new Error(
+    eligibility.reason === "ORG_POLICY"
+      ? "This organization does not permit a personal workspace for its members."
+      : "Managed enterprise identities do not have a personal workspace.",
+  ) as Error & { statusCode?: number; code?: string };
+  err.statusCode = 403;
+  err.code =
+    eligibility.reason === "ORG_POLICY"
+      ? "ORG_POLICY_NO_PERSONAL_SPACE"
+      : "MANAGED_IDENTITY_NO_PERSONAL_SPACE";
+  throw err;
+}
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
   grantOrganizationMembership,
@@ -103,6 +129,24 @@ export async function ensurePersonalWorkspace(
   input: { userId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<PersonalWorkspaceBootstrapResult> {
+  // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): the permission is
+  // resolved BEFORE the existing-row fast path, not after it.
+  //
+  // It used to sit below, guarding only CREATION, with the comment "an
+  // existing personal space is returned above (grandfathered)". That reading
+  // works for the identity-mode rule it was written for — a newly-managed
+  // identity keeps what it had — and it is wrong for an Organization policy.
+  // `noPersonalSpace` is the Organization saying "members do not work in a
+  // personal space HERE", and a member who happened to sign in before the
+  // switch was flipped is exactly the member it is about. With the gate below
+  // the early return, this function handed that row back to every caller:
+  // the context builder, the capture path, the switch route. Creation was
+  // blocked and RESTORATION was not, which is the difference between a policy
+  // and a formality.
+  //
+  // Nothing is deleted. The row remains; this function stops returning it.
+  await assertPersonalSpaceAllowedForBootstrap(input.userId, client);
+
   const existing = await client.team.findFirst({
     where: { ownerUserId: input.userId, isPersonal: true },
     select: { id: true, name: true },
@@ -128,22 +172,6 @@ export async function ensurePersonalWorkspace(
       isPersonal: true,
       created: false,
     };
-  }
-
-  // PHASE 10 §13.2 + correction 2 — ONLY a STANDARD identity has a personal
-  // space. An existing personal space (created while STANDARD) is returned
-  // above (grandfathered); we never CREATE a new one for a MANAGED or a
-  // MANAGED_UNRESOLVED identity. `personalSpaceAllowed` is the canonical gate:
-  // it denies both MANAGED (org-controlled) and MANAGED_UNRESOLVED (inconsistent
-  // ownership → fail closed pending reconciliation). Dormant until the
-  // identity-mode migration is applied (every row resolves STANDARD until then).
-  if (!(await personalSpaceAllowed(input.userId, client))) {
-    const err = new Error(
-      "Managed enterprise identities do not have a personal workspace.",
-    ) as Error & { statusCode?: number; code?: string };
-    err.statusCode = 403;
-    err.code = "MANAGED_IDENTITY_NO_PERSONAL_SPACE";
-    throw err;
   }
 
   // Read user identity to compose the workspace name.

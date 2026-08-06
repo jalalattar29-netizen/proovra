@@ -19,6 +19,11 @@
  */
 
 import { Prisma } from "@prisma/client";
+import type {
+  CaseSiuChecklistItem as CaseSiuChecklistItemRow,
+  CaseSiuFollowUp as CaseSiuFollowUpRow,
+  CaseSiuReviewIndicator as CaseSiuReviewIndicatorRow,
+} from "@prisma/client";
 import {
   SIU_PROFILE_SCHEMA_VERSION,
   buildEmptySiuChecklist,
@@ -114,7 +119,7 @@ function projectProfile(row: ProfileRow, opts: {
 }
 
 function projectChecklistItem(
-  row: Prisma.CaseSiuChecklistItemGetPayload<{}>,
+  row: CaseSiuChecklistItemRow,
 ): SiuChecklistItem {
   return {
     itemId: row.templateItemId,
@@ -127,7 +132,7 @@ function projectChecklistItem(
 }
 
 function projectReviewIndicator(
-  row: Prisma.CaseSiuReviewIndicatorGetPayload<{}>,
+  row: CaseSiuReviewIndicatorRow,
 ): SiuReviewIndicator {
   return {
     code: row.code as SiuReviewIndicatorCode,
@@ -139,7 +144,7 @@ function projectReviewIndicator(
 }
 
 function projectFollowUp(
-  row: Prisma.CaseSiuFollowUpGetPayload<{}>,
+  row: CaseSiuFollowUpRow,
 ): SiuFollowUpRequest {
   return {
     id: row.id,

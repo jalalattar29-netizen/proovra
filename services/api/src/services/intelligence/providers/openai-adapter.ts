@@ -25,7 +25,6 @@ import { createHash } from "node:crypto";
 import {
   classifyIntelligenceConfidence,
   type MediaIntelligenceProvider,
-  type ProviderAdapterOperation,
   type ProviderAdapterProbe,
 } from "@proovra/shared";
 

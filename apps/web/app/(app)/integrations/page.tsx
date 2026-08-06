@@ -25,6 +25,10 @@ import {
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+// PHASE 12 VERTICAL C — durable evidence delivery history, read from the
+// server projection rather than from what this browser session happened to
+// record.
+import { EvidenceDeliveryHistorySection } from "./_sections/EvidenceDeliveryHistorySection";
 
 type ApiKey = {
   id: string;
@@ -762,6 +766,7 @@ useEffect(() => {
             webhooks={webhooks}
           />
           <HealthSummary teamId={teamId} />
+          <EvidenceDeliveryHistorySection />
           <SignatureDocsPanel />
           {/* Phase 4 (UI) — page-level link into the full Team Activity
               timeline. Admin-only because Team Activity is itself an

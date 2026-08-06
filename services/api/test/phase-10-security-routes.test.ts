@@ -25,10 +25,20 @@ const H = vi.hoisted(() => ({
   supportAllow: true,
   supportDenyReason: "support_read_only" as string,
   supportActionSeen: "" as string,
+  policyResolution: "org" as "org" | "not_provisioned" | "not_applicable",
+  stepUpBoundTeamId: "" as string,
 }));
 
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
+// PHASE 12B C10 — support-access / break-glass are now PLATFORM-STAFF gated
+// (they previously gated on the CUSTOMER capability `identity.org_policy.manage`
+// alone, so an org admin could mint support access over their own org). These
+// tests drive the staff-authorized path; the non-staff concealed-denial matrix
+// lives in phase-12b-identity-security-matrix.test.ts.
+vi.mock("../src/services/platform-admin.service.js", () => ({
+  isPlatformAdmin: async () => true,
+}));
 vi.mock("../src/middleware/authorize.js", () => ({
   authorizeOrFail: async (_req: unknown, reply: { code: (n: number) => { send: (b: unknown) => void } }) => {
     if (!H.authAllowed) { reply.code(403).send({ error: { code: "permission_denied" } }); return null; }
@@ -36,16 +46,38 @@ vi.mock("../src/middleware/authorize.js", () => ({
   },
 }));
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
-  requireStepUpForSensitiveAction: async (input: { reply: { code: (n: number) => { send: (b: unknown) => void } } }) => {
+  requireStepUpForSensitiveAction: async (input: { teamId: string; reply: { code: (n: number) => { send: (b: unknown) => void } } }) => {
+    H.stepUpBoundTeamId = input.teamId;
     if (H.stepUpSent) { input.reply.code(401).send({ error: { code: "STEP_UP_REQUIRED" } }); return { sent: true }; }
     return { sent: false, verifiedChallengeId: "verified-chal-1" };
   },
 }));
 // Canonical services — assert the routes CALL them (behavioral), not re-impl.
+// PHASE 12 CORRECTION 1 — the org-keyed OrganizationSecurityPolicy authority.
+vi.mock("../src/services/organization/org-access.js", () => ({
+  checkOrgAccess: async () => (H.authAllowed ? { kind: "ok", orgId: "org-1", role: "ORG_ADMIN" } : { kind: "forbidden" }),
+}));
 vi.mock("../src/services/identity/org-security-policy.service.js", () => ({
-  resolveSecurityPolicy: async () => ({ teamId: "ws-1", policyVersion: 1, ssoRequired: false }),
-  applySecurityPolicyPatch: async (i: { patch: Record<string, unknown> }) => { H.writes.push("applySecurityPolicyPatch"); return { teamId: "ws-1", policyVersion: 2, ...i.patch }; },
-  assembleHighSecurityReadiness: async () => H.readiness,
+  resolveOrgPolicyByOrgId: async () => {
+    if (H.policyResolution === "not_provisioned") { const e = new Error("no policy") as Error & { statusCode: number; code: string }; e.statusCode = 503; e.code = "POLICY_NOT_PROVISIONED"; throw e; }
+    if (H.policyResolution === "not_applicable") return { applicability: "NOT_APPLICABLE", reason: "SYSTEM" };
+    return { applicability: "ORGANIZATION", organizationId: "org-1", policy: { policyVersion: 1, ssoRequired: false } };
+  },
+  orgCanonicalTeamId: async () => "team-1",
+  applySecurityPolicyPatch: async (i: { patch: Record<string, unknown>; expectedPolicyVersion?: number | null }) => {
+    // Optimistic concurrency — a stale expected version is a 409 with ZERO write.
+    if (i.expectedPolicyVersion === 999) {
+      const e = new Error("stale") as Error & { statusCode: number; code: string; details: unknown };
+      e.statusCode = 409; e.code = "POLICY_VERSION_CONFLICT"; e.details = { expected: 999, current: 1 };
+      throw e;
+    }
+    H.writes.push("applySecurityPolicyPatch");
+    return { policyVersion: 2, ...i.patch };
+  },
+  checkHighSecurityReadiness: async () => {
+    const { evaluateHighSecurityActivation } = await import("../src/services/identity/enterprise-security-policy.policy.js");
+    return { readiness: evaluateHighSecurityActivation(H.readiness), prerequisites: H.readiness };
+  },
   activateHighSecurityMode: async () => {
     H.writes.push("activateHighSecurityMode");
     const { evaluateHighSecurityActivation } = await import("../src/services/identity/enterprise-security-policy.policy.js");
@@ -101,6 +133,7 @@ beforeEach(async () => {
   H.supportContext = { grantId: "sag-1", supportActorUserId: "support-1", organizationId: ORG, teamId: null, mode: "READ_ONLY", reason: "ticket", expiresAtUtc: new Date(Date.now() + 3600_000).toISOString() };
   H.supportContextReason = "no_grant"; H.supportAllow = true; H.supportDenyReason = "support_read_only"; H.supportActionSeen = "";
   H.readiness = { hasActiveSsoConnection: true, ssoConnectionTested: true, hasVerifiedDomain: true, hasBreakGlassReadiness: true, unresolvedPersonalCustodyUserIds: [], contractActive: true };
+  H.policyResolution = "org"; H.stepUpBoundTeamId = "";
   app = Fastify();
   await app.register(enterpriseSecurityRoutes);
   await app.ready();
@@ -110,28 +143,84 @@ const stepUpHeaders = { "content-type": "application/json", "x-proovra-step-up-c
 
 describe("§10.1/§10.7 — PATCH security policy (authorized + step-up)", () => {
   it("authorized manager with step-up patches the versioned policy", async () => {
-    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { teamId: TEAM, ssoRequired: true, maxSessionAgeSeconds: 3600 } });
+    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { organizationId: ORG, ssoRequired: true, maxSessionAgeSeconds: 3600 } });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).policy.policyVersion).toBe(2);
     expect(H.writes).toContain("applySecurityPolicyPatch");
   });
   it("missing step-up → 401, ZERO policy write", async () => {
     H.stepUpSent = true;
-    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: { "content-type": "application/json" }, payload: { teamId: TEAM, ssoRequired: true } });
+    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: { "content-type": "application/json" }, payload: { organizationId: ORG, ssoRequired: true } });
     expect(res.statusCode).toBe(401);
     expect(H.writes).toEqual([]);
   });
-  it("unauthorized → 403, ZERO write", async () => {
+  it("PHASE 12B acceptance — GET fails closed 503 POLICY_NOT_PROVISIONED for a Customer org with no policy", async () => {
+    H.policyResolution = "not_provisioned";
+    const res = await app.inject({ method: "GET", url: `/v1/security-policy?organizationId=${ORG}` });
+    expect(res.statusCode).toBe(503);
+    expect(JSON.parse(res.body).error.code).toBe("POLICY_NOT_PROVISIONED");
+  });
+  it("PHASE 12B acceptance — Personal/OWNED/SYSTEM return explicit NOT_APPLICABLE (no fabricated policy)", async () => {
+    H.policyResolution = "not_applicable";
+    const res = await app.inject({ method: "GET", url: `/v1/security-policy?organizationId=${ORG}` });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.applicability).toBe("NOT_APPLICABLE");
+    expect(body.policy).toBeNull();
+  });
+  it("PHASE 12B acceptance — step-up binds to the org's ONE canonical team (workspace-independent)", async () => {
+    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { organizationId: ORG, ssoRequired: true } });
+    expect(res.statusCode).toBe(200);
+    // The middleware was invoked with orgCanonicalTeamId(ORG) — the SAME
+    // binding for every admin regardless of which workspace they operate in.
+    expect(H.stepUpBoundTeamId).toBe("team-1");
+  });
+
+  it("PHASE 12B WAVE 1.2 — folded legacy fields flow through the ONE canonical writer", async () => {
+    const res = await app.inject({
+      method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders,
+      payload: {
+        organizationId: ORG,
+        mfaRequiredFlag: true,
+        allowedEmailDomains: ["ACME.com"],
+        restrictedIpRanges: ["10.0.0.0/8"],
+        reviewerSessionTimeoutSeconds: 3600,
+        contributorSessionTimeoutSeconds: 1800,
+        ssoReadyFlag: true,
+        scimReadyFlag: false,
+        notes: "compliance annotation",
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    // The write went through applySecurityPolicyPatch (versioned canonical writer).
+    expect(H.writes).toContain("applySecurityPolicyPatch");
+    const body = JSON.parse(res.body).policy;
+    expect(body.policyVersion).toBe(2);
+    expect(body.mfaRequiredFlag).toBe(true);
+  });
+
+  it("stale expectedPolicyVersion → 409 conflict, ZERO write", async () => {
+    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { organizationId: ORG, expectedPolicyVersion: 999, ssoRequired: true } });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error.code).toBe("POLICY_VERSION_CONFLICT");
+    expect(H.writes).toEqual([]);
+  });
+  it("readiness dry-run returns the org-wide prerequisite verdict", async () => {
+    const res = await app.inject({ method: "GET", url: `/v1/security-policy/high-security/readiness?organizationId=${ORG}` });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).readiness.ok).toBe(true);
+  });
+  it("non-org-admin → 404 (anti-enumeration), ZERO write", async () => {
     H.authAllowed = false;
-    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { teamId: TEAM, ssoRequired: true } });
-    expect(res.statusCode).toBe(403);
+    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { organizationId: ORG, ssoRequired: true } });
+    expect(res.statusCode).toBe(404);
     expect(H.writes).toEqual([]);
   });
 });
 
 describe("§10.4 — high-security atomic activation route", () => {
   it("all prerequisites met → activates HIGH_SECURITY + reports affected sessions", async () => {
-    const res = await app.inject({ method: "POST", url: "/v1/security-policy/high-security/activate", headers: stepUpHeaders, payload: { teamId: TEAM } });
+    const res = await app.inject({ method: "POST", url: "/v1/security-policy/high-security/activate", headers: stepUpHeaders, payload: { organizationId: ORG } });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.policy.securityMode).toBe("HIGH_SECURITY");
@@ -140,7 +229,7 @@ describe("§10.4 — high-security atomic activation route", () => {
   it("a missing prerequisite → 409, exact missing reasons, ZERO activation", async () => {
     H.readiness.hasVerifiedDomain = false;
     H.readiness.unresolvedPersonalCustodyUserIds = ["u1"];
-    const res = await app.inject({ method: "POST", url: "/v1/security-policy/high-security/activate", headers: stepUpHeaders, payload: { teamId: TEAM } });
+    const res = await app.inject({ method: "POST", url: "/v1/security-policy/high-security/activate", headers: stepUpHeaders, payload: { organizationId: ORG } });
     expect(res.statusCode).toBe(409);
     const body = JSON.parse(res.body);
     expect(body.error.code).toBe("HIGH_SECURITY_PREREQUISITES_UNMET");

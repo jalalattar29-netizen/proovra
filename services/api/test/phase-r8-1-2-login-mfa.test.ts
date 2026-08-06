@@ -40,7 +40,6 @@ const SSO_SRC = readFileSync(
   apiPath("src/routes/sso-auth.routes.ts"),
   "utf8",
 );
-const JWT_SRC = readFileSync(apiPath("src/services/jwt.ts"), "utf8");
 const MIDDLEWARE_SRC = readFileSync(
   apiPath("src/middleware/auth.ts"),
   "utf8",
@@ -241,8 +240,11 @@ describe("R8.1.2 Part 4 — POST /v1/auth/mfa/verify shape", () => {
 // =============================================================================
 
 describe("R8.1.2 Part 5 — OIDC callback respects MFA", () => {
-  it("test 15: sso-auth.routes.ts gates the SSO success branch on readMfaStatus", () => {
-    expect(SSO_SRC).toMatch(/readMfaStatus/);
+  it("test 15: sso-auth.routes.ts gates the SSO success branch on the MFA enforcement resolver", () => {
+    // R8.1.3 moved the factor read behind `resolveLoginMfaEnforcement`, so
+    // org policy is honoured identically on email / OAuth / SSO login. The
+    // route must consult the resolver; the resolver owns readMfaStatus.
+    expect(SSO_SRC).toMatch(/resolveLoginMfaEnforcement/);
     expect(SSO_SRC).toMatch(/signMfaPendingToken/);
     expect(SSO_SRC).toMatch(/proovra_mfa_pending/);
     expect(SSO_SRC).toMatch(/\/auth\/mfa-challenge/);

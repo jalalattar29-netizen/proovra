@@ -36,7 +36,7 @@ describe("§1 — historical tenant backfill readiness (provable-only, no fabric
   });
 
   it("V2 hash-valid row with a resolvable resource binding is RESOLVABLE (derived, not guessed)", async () => {
-    const resolve = vi.fn(async (_t: string, _i: string) => "team-DERIVED");
+    const resolve = vi.fn(async () => "team-DERIVED");
     const plan = await planAuditTenantScopeBackfill(
       [row({ id: "a", chainVersion: 2, resourceType: "evidence", resourceId: "ev-1" })],
       resolve,

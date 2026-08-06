@@ -20,17 +20,52 @@ export type PlatformContextPlanFeatures = {
   reportsIncluded: boolean;
   verificationPackageIncluded: boolean;
   intakeIncluded: boolean;
+  /** PHASE 12B Track 1A — PROFESSIONAL surface tier included (catalog-derived, server-projected). */
+  professionalSurfacesIncluded?: boolean;
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
   reviewQueuesIncluded: boolean;
   /** Team ownership included (maxOwnedTeams > 0). */
   teamCollaborationIncluded: boolean;
   /**
+   * PHASE 12 POINT 4 — guest-invitation eligibility, server-projected from the
+   * SAME catalog value the API enforces (canPlanUseTeams).
+   *
+   * Declared REQUIRED, like its sibling booleans, so it is reachable through
+   * `usePlanFeature` — that hook's key union is built with a `-?` mapped type
+   * whose lookup still yields `boolean | undefined` for an optional property,
+   * which excludes optional keys from the union. The hook already fails closed
+   * at runtime (`typeof value === "boolean" ? value : null`), so an older
+   * envelope that predates the field yields `null` and the caller shows the
+   * locked state rather than an optimistic affordance.
+   */
+  canInviteGuests: boolean;
+  /**
    * Monthly AI-assistance operation allowance (2026-07-17): 0 = AI not
    * included (FREE), n>0 = monthly cap, null = custom (Enterprise).
    * Optional so envelopes emitted before the field existed still parse.
    */
   aiAssistanceMonthlyOperations?: number | null;
+  /**
+   * PHASE 12 — POINT 7 (2026-08-05): the NUMERIC commercial limits for the
+   * ACTIVE workspace, resolved by the server from the one catalog.
+   *
+   * Render these; never recompute them. The collaboration surfaces used to
+   * call `getCollaborationTeamPlanLimits(accountPlan)` in the browser, which
+   * made the client a limit authority AND asked the wrong subject — a
+   * collaboration team's capacity belongs to its workspace, not to the account
+   * that happens to own it.
+   *
+   * OPTIONAL, because an envelope emitted before this field existed must not
+   * be read as "the limits are zero". Call sites treat an absent block as
+   * UNKNOWN and render the honest unknown state rather than a fabricated cap.
+   */
+  limits?: {
+    maxOwnedWorkspaces: number;
+    maxMembersPerTeam: number;
+    maxPendingInvitesPerTeam: number;
+    maxInvitesPer24h: number;
+  };
 };
 
 /**
@@ -412,12 +447,21 @@ export type PlatformContextActiveSpace =
       id: string | null;
       displayName: "Personal Space";
       roleLabel: "Owner";
+      /**
+       * PHASE 12 POINT 4 STEP 1 — SERVER-resolved plan of the ACTIVE space.
+       * The canonical place to read the active plan. Never re-derive it from
+       * `account` / `personalSpace` / `organizations`, and never fall back to
+       * the owner's Account plan.
+       */
+      plan: WorkspacePlan | null;
     }
   | {
       type: "ORGANIZATION";
       id: string;
       displayName: string | null;
       roleLabel: WorkspaceRole | null;
+      /** SERVER-resolved plan of the ACTIVE organization space. */
+      plan: WorkspacePlan | null;
     };
 
 export type PlatformContextDuplicatePersonalCandidate = {
@@ -523,19 +567,32 @@ export type PlatformContextEnvelope = {
   persona: PlatformContextPersona;
   capabilities: CapabilityMap;
   planFeatures: PlatformContextPlanFeatures;
-  /** Operational eligibility projection (see type doc). Optional for
-   *  backward compatibility with a degraded / pre-migration envelope. */
-  operationalEligibility?: PlatformContextOperationalEligibility;
+  /** Operational eligibility projection (see type doc). REQUIRED, matching
+   *  the canonical server contract — `deriveOperationalEligibility` runs on
+   *  every envelope build. Phase 12 Point 4 (Pass E) removed the optional
+   *  marker that described a "degraded / pre-migration envelope"; consumers
+   *  still fail closed on a null projection, which is the load-bearing
+   *  safety property (see `useOperationsUiContext`). */
+  operationalEligibility: PlatformContextOperationalEligibility;
   navigation: PlatformContextNavigation;
   /** @deprecated read `personalSpace` + `organizations` instead. */
   availableWorkspaces: ReadonlyArray<PlatformContextAvailableWorkspace>;
   // ENTERPRISE TENANT MODEL — canonical product model.
-  account?: PlatformContextAccount;
-  personalSpace?: PlatformContextPersonalSpace;
-  organizations?: ReadonlyArray<PlatformContextOrganization>;
-  activeSpace?: PlatformContextActiveSpace;
+  //
+  // Phase 12 Point 4 (Pass E) — these five were declared OPTIONAL here
+  // while `services/api/src/services/platform-context/types.ts` declares
+  // them REQUIRED and the service returns them unconditionally. The
+  // client-side optionality was the sole reason every "older deployment /
+  // older envelope shape" fallback branch existed, and one of those
+  // branches fabricated a synthetic `organizationId: "legacy"` group.
+  // The web contract now matches the server contract; the fallbacks are
+  // deleted rather than left as unreachable legacy paths.
+  account: PlatformContextAccount;
+  personalSpace: PlatformContextPersonalSpace;
+  organizations: ReadonlyArray<PlatformContextOrganization>;
+  activeSpace: PlatformContextActiveSpace;
   /** P3 (2026-07-21) — canonical grouped context options (see type doc). */
-  contextOptions?: PlatformContextContextOptions;
+  contextOptions: PlatformContextContextOptions;
   duplicatePersonalCandidates?: ReadonlyArray<PlatformContextDuplicatePersonalCandidate>;
   diagnostics: PlatformContextDiagnostics;
   /**

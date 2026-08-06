@@ -43,7 +43,10 @@ function SchemasShell() {
     text: string;
   } | null>(null);
 
-  const refresh = useCallback(async () => {
+  // `isStale` lets the effect discard a response that arrived after the
+  // workspace changed (or the page unmounted) — the previous workspace's
+  // schemas must never paint under the newly selected one.
+  const refresh = useCallback(async (isStale?: () => boolean) => {
     if (!teamId) {
       setSchemas([]);
       return;
@@ -53,18 +56,24 @@ function SchemasShell() {
         `/v1/coding/schemas?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       );
+      if (isStale?.()) return;
       setSchemas((res?.schemas ?? []) as CodingSchemaRow[]);
     } catch {
+      if (isStale?.()) return;
       setSchemas([]);
       setBanner({
         tone: "error",
         text: "Schema list could not be loaded. Try again or verify workspace access.",
       });
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    void refresh(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   const onSeed = useCallback(async () => {
@@ -98,7 +107,7 @@ function SchemasShell() {
     } finally {
       setSeeding(false);
     }
-  }, [refresh]);
+  }, [refresh, teamId]);
 
   if (!teamId) {
     return (

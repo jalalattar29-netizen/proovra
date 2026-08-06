@@ -1,0 +1,295 @@
+[
+  {
+    "route": "/v1/identity/mfa-admin/digest-preferences/snooze-link",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/mfa-admin.routes.ts:1000",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "one-click snooze link in admin digest email (services/worker/src/mfa-recovery-digest.ts:481)",
+    "authMode": "signed JWT snooze token + JTI replay guard",
+    "evidence": "worker email producer at mfa-recovery-digest.ts:481",
+    "proofSuite": "services/api/test/phase-r8-1-9-mfa-recovery-finalization.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/evidence",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-api.routes.ts:112",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations (keys minted on web /integrations page); staging smoke scripts/verify-integrations-staging.sh",
+    "authMode": "requireApiKey + requireApiScope('integration.evidence.read') + runWithApiAudit",
+    "evidence": "API-key-only prefix by design",
+    "proofSuite": "services/api/test/integrations-hardening.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/evidence-requests",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-api.routes.ts:280",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope + audit",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/integrations-hardening.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/evidence-requests/:id",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-api.routes.ts:344",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope + audit",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/integrations-hardening.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/evidence/:id",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-api.routes.ts:159",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope + audit",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/integrations-hardening.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/intake-links",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-api.routes.ts:183",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope + audit",
+    "evidence": "API-key-only prefix",
+    "proofSuite": null
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:308",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key machine uploads (first-party uses /v1/uploads/sessions)",
+    "authMode": "requireApiKey + scope('integration.evidence.upload') + legal-hold gate + audit",
+    "evidence": "deliberate machine twin on API-key prefix",
+    "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId",
+    "methods": [
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:363",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/abort",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:471",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/complete",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:437",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/multipart/abort",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:604",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/multipart/complete",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:569",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/multipart/initiate",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:509",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/parts/:partIndex/presign",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:537",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
+  },
+  {
+    "route": "/v1/integrations/api/uploads/sessions/:sessionId/parts/:partIndex/uploaded",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:391",
+    "class": "PUBLIC_EXTERNAL_API",
+    "consumer": "external API-key integrations",
+    "authMode": "requireApiKey + scope",
+    "evidence": "API-key-only prefix",
+    "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
+  },
+  {
+    "route": "/v1/integrations/process-secret-cleanup",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations.routes.ts:1354",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler (no in-repo producer)",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "cron-sweeper by design; idempotent",
+    "proofSuite": "services/api/test/phase-closure-integration-secret-cleanup.test.ts",
+    "owner": "platform-ops",
+    "productReason": "machine trigger for secret-rotation grace-window sweeper"
+  },
+  {
+    "route": "/v1/integrations/process-webhook-retries",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations.routes.ts:1301",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler; staging smoke script",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "documented cron trigger for webhook-retry-processor",
+    "proofSuite": "services/api/test/phase-closure-integration-secret-cleanup.test.ts",
+    "owner": "platform-ops",
+    "productReason": "cron trigger for webhook retry sweeper"
+  },
+  {
+    "route": "/v1/integrations/webhooks/cleanup-deliveries",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/integrations.routes.ts:1322",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "retention sweeper for terminal webhook deliveries",
+    "proofSuite": "services/api/test/phase-closure-integration-secret-cleanup.test.ts",
+    "owner": "platform-ops",
+    "productReason": "cron trigger for delivery-row retention cleanup"
+  },
+  {
+    "route": "/v1/notifications/process-retries",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/notifications.routes.ts:229",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler (no in-repo producer)",
+    "authMode": "requireNotificationCronSecret",
+    "evidence": "designed for external scheduler per route comment",
+    "proofSuite": null,
+    "owner": "platform-ops",
+    "productReason": "cron trigger for notification retry sweeper"
+  },
+  {
+    "route": "/v1/notifications/run-digests",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/notifications.routes.ts:269",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler",
+    "authMode": "requireNotificationCronSecret",
+    "evidence": "digest scheduler trigger",
+    "proofSuite": "services/api/test/phase-opscenter-completion.test.ts",
+    "owner": "platform-ops",
+    "productReason": "cron trigger for email digests"
+  },
+  {
+    "route": "/v1/notifications/run-reminders",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/notifications.routes.ts:248",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "external deployment scheduler",
+    "authMode": "requireNotificationCronSecret",
+    "evidence": "same cron pattern",
+    "proofSuite": null,
+    "owner": "platform-ops",
+    "productReason": "cron trigger for reminder scheduler"
+  },
+  {
+    "route": "/v1/ops/seed/reviewer-ops",
+    "methods": [
+      "POST",
+      "GET"
+    ],
+    "registeringFile": "services/api/src/routes/ops-seed.routes.ts:121,162",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "e2e specs + load harness",
+    "authMode": "requireAuth + requireSeedActor + x-operational-seed-secret",
+    "evidence": "secret-gated seed harness",
+    "proofSuite": "services/api/test/reviewer-ops-e2e-operational.test.ts",
+    "owner": "platform-ops",
+    "productReason": "demo/e2e data-seeding harness"
+  },
+  {
+    "route": "/v1/ops/seed/reviewer-ops/:seedRunId",
+    "methods": [
+      "DELETE"
+    ],
+    "registeringFile": "services/api/src/routes/ops-seed.routes.ts:180",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "e2e/load harnesses",
+    "authMode": "requireAuth + requireSeedActor + seed secret",
+    "evidence": "cleanup half of the harness",
+    "proofSuite": "services/api/test/reviewer-ops-e2e-operational.test.ts",
+    "owner": "platform-ops",
+    "productReason": "seed-run cleanup"
+  }
+]

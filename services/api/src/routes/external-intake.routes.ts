@@ -47,6 +47,10 @@ import {
   transitionIntakeSession,
   validateIntakeToken,
   WorkflowIntakeSessionError,
+  recordIntakeSubmitterIdentity,
+  INTAKE_PSEUDONYM_MAX_LENGTH,
+  INTAKE_DISPLAY_NAME_MAX_LENGTH,
+  INTAKE_EMAIL_MAX_LENGTH,
 } from "../services/workflow-intake-session.service.js";
 import {
   addExternalEvidencePart,
@@ -70,16 +74,31 @@ const ParamsTokenSession = z.object({
   sid: z.string().uuid(),
 });
 
-const OpenBody = z
-  .object({
-    pseudonym: z.string().max(80).optional(),
-    submitterDisplayName: z.string().max(180).optional(),
-    submitterEmail: z.string().email().max(320).optional(),
-  })
-  .optional();
-
 const ConsentBody = z.object({
   consent: WorkflowIntakeConsentSnapshotSchema,
+});
+
+/**
+ * Contributor-declared identity for an OPEN session. Bounded here and
+ * normalized again in the service (which is the authority on WHICH of these
+ * the link's intake mode permits — the client cannot widen it).
+ */
+const SubmitterIdentityBody = z.object({
+  pseudonym: z
+    .string()
+    .max(INTAKE_PSEUDONYM_MAX_LENGTH)
+    .nullable()
+    .optional(),
+  submitterDisplayName: z
+    .string()
+    .max(INTAKE_DISPLAY_NAME_MAX_LENGTH)
+    .nullable()
+    .optional(),
+  submitterEmail: z
+    .string()
+    .max(INTAKE_EMAIL_MAX_LENGTH)
+    .nullable()
+    .optional(),
 });
 
 const TransitionBody = z.object({
@@ -364,6 +383,10 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "We couldn't accept your consent details. Please review and submit again.";
     case "INTAKE_MODE_MISMATCH":
       return "This upload link uses a different submission mode. Contact the sender for a fresh link.";
+    case "SUBMITTER_IDENTITY_INVALID":
+      // Deliberately describes the REQUIREMENT, never the submitted value —
+      // echoing it back would put contributor identity in an error surface.
+      return "Please enter a display name to continue.";
     case "LOCATION_REQUIRED":
       return "Sharing your location is required for this request. Allow location in your browser and try again, or contact the sender if location isn't available on your device.";
     case "INVALID_LOCATION_BODY":
@@ -468,6 +491,14 @@ function intakeErrorToReply(
         },
       });
       return;
+    case "submitter_identity_invalid":
+      reply.code(400).send({
+        error: {
+          code: "SUBMITTER_IDENTITY_INVALID",
+          message: friendly("SUBMITTER_IDENTITY_INVALID"),
+        },
+      });
+      return;
     case "feature_disabled":
     case "session_expired":
     case "session_revoked":
@@ -542,6 +573,59 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         return reply
           .code(500)
           .send({ error: { code: "INTERNAL_ERROR" } });
+      }
+    },
+  );
+
+  // POST /v1/external-intake/:token/sessions/:sid/identity
+  //
+  // Records the contributor's self-declared identity for an OPEN session.
+  // This is a POST, not a query parameter on the validation GET: contributor
+  // identity is personal data and must never travel in a URL (proxy logs,
+  // Referer headers, browser history).
+  //
+  // Authority: the WORKSPACE comes from the persisted link resolved by the
+  // validated token — never from the request. WHICH fields are accepted is
+  // decided by the link's intake mode inside the service, so a modified
+  // client cannot attach a real name to a pseudonymous link.
+  app.post(
+    "/v1/external-intake/:token/sessions/:sid/identity",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+
+      const params = ParamsTokenSession.parse(req.params);
+      const okRate = await applyRateLimits(req, reply, params.token);
+      if (!okRate) return;
+
+      try {
+        const { link } = await validateIntakeToken(params.token);
+        const body = SubmitterIdentityBody.parse(req.body ?? {});
+
+        const updated = await recordIntakeSubmitterIdentity({
+          sessionId: params.sid,
+          link,
+          pseudonym: body.pseudonym ?? null,
+          submitterDisplayName: body.submitterDisplayName ?? null,
+          submitterEmail: body.submitterEmail ?? null,
+        });
+
+        // The public session projection carries no identity field, so the
+        // response cannot echo what was just submitted.
+        return reply.code(200).send({
+          session: projectIntakeSessionForExternalView(updated),
+        });
+      } catch (err) {
+        if (err instanceof WorkflowIntakeSessionError) {
+          intakeErrorToReply(err, reply);
+          return;
+        }
+        // Never surface the parse/driver detail: it can quote the submitted
+        // value back into a log or an error body.
+        return reply.code(400).send({
+          error: { code: "SUBMITTER_IDENTITY_INVALID" },
+        });
       }
     },
   );

@@ -112,9 +112,12 @@ describe("Phase 32.8D-frontend-closure-2 — legacy Evidence.caseId unlink", () 
     );
   });
 
-  it("legacy unlink refuses when evidence.caseId !== caseId (returns evidence_not_found)", () => {
-    expect(LIFECYCLE).toMatch(/evidence\.caseId\s*!==\s*input\.caseId/);
+  it("legacy unlink refuses with evidence_not_found (Track 1B closure: legacy-only attachments are unrepresentable)", () => {
+    // The legacy Evidence.caseId column was dropped by migration
+    // 20271105000000_evidence_case_id_removal; the endpoint keeps its
+    // 404 contract but there is nothing legacy left to unlink.
     expect(LIFECYCLE).toMatch(/throw new CaseError\(\s*['"]evidence_not_found['"]/);
+    expect(LIFECYCLE).toMatch(/legacy-only attachment/);
   });
 
   it("legacy unlink refuses when a canonical CaseEvidenceLink already exists", () => {
@@ -122,21 +125,18 @@ describe("Phase 32.8D-frontend-closure-2 — legacy Evidence.caseId unlink", () 
     expect(LIFECYCLE).toMatch(/throw new CaseError\(\s*['"]evidence_link_exists['"]/);
   });
 
-  it("legacy unlink sets Evidence.caseId to null (does not delete the row)", () => {
-    expect(LIFECYCLE).toMatch(/evidence\.update[\s\S]*?caseId:\s*null/);
+  it("legacy unlink performs ZERO mutation (does not delete or update the evidence row)", () => {
+    // Track 1B closure — the legacy mirror column is gone; the endpoint
+    // is a compatibility shim that only reports not-found / link-exists.
+    expect(LIFECYCLE).toMatch(/ZERO mutation/);
     // Explicit guard against a destructive delete.
     expect(LIFECYCLE).not.toMatch(
       /removeLegacyEvidenceCaseId[\s\S]{0,2000}prisma\.evidence\.delete/,
     );
-  });
-
-  it("legacy unlink emits an audit log with cases.legacy_evidence_unlinked", () => {
-    expect(LIFECYCLE).toMatch(/cases\.legacy_evidence_unlinked/);
-    // PHASE 11 §3 Batch A — migrated onto the canonical tenant-audit
-    // facade; workspace is now an authoritative DB column, not a
-    // free-form "cases.lifecycle" category string.
-    expect(LIFECYCLE).toMatch(/emitTenantAudit/);
-    expect(LIFECYCLE).toMatch(/workspaceId:\s*evidence\.teamId/);
+    // And against ANY evidence write inside the shim body.
+    expect(LIFECYCLE).not.toMatch(
+      /removeLegacyEvidenceCaseId[\s\S]{0,2000}\.evidence\.update/,
+    );
   });
 
   it("legacy unlink emits no custody/download events / no signed URLs / no generation", () => {

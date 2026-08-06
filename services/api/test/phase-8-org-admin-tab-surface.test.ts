@@ -286,8 +286,11 @@ describe("Phase 8 — admin shell deep-links to canonical Phase 4A pages (featur
     expect(trustTab).toMatch(/\/trust-center/);
   });
 
-  it("Security tab deep-links to /admin/identity (canonical SSO/SCIM config)", () => {
-    expect(securityTab).toMatch(/\/admin\/identity/);
+  it("Security tab mounts the canonical OrganizationSecurityPolicyEditor (12B: real editor, not deep-links)", () => {
+    // PHASE 12B — the static deep-link hub was replaced by the real
+    // org-keyed security-policy editor (Batch 2 acceptance closed).
+    expect(securityTab).toMatch(/OrganizationSecurityPolicyEditor/);
+    expect(securityTab).toMatch(/PageRouteGate routeId="account.organization-detail"/);
   });
 
   it("Retention tab deep-links to /evidence-lifecycle (canonical retention surface)", () => {

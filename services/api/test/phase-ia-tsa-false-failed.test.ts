@@ -286,10 +286,23 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
     expect(SCRIPT).toMatch(/repair_source:\s*"tsa_replay_from_token"/);
   });
 
-  it("enqueues report regen with reason `tsa_repaired` AFTER the transaction commits", () => {
+  it("records a durable regeneration REQUEST with reason `tsa_repaired`, after the transaction commits", () => {
+    // PHASE 12 — POINT 5: `enqueueGenerateReportJob` is deleted along with the
+    // api's private report producer. The script now calls the durable report
+    // AUTHORITY, which persists a `ReportGenerationRequest` — carrying the
+    // force decision, the reason and the machine principal — and then enqueues
+    // that row's id. `forceRegenerate` is no longer a boolean on a message.
     expect(SCRIPT).toMatch(
-      /enqueueGenerateReportJob\([\s\S]{0,200}regenerateReason:\s*"tsa_repaired"/,
+      /requestReportGeneration\(\{[\s\S]{0,300}regenerateReason:\s*"tsa_repaired"/,
     );
+    expect(SCRIPT).toMatch(/purpose:\s*"tsa_repair"/);
+    expect(SCRIPT).toMatch(/requestedByMachineId:\s*"script\.repair-tsa"/);
+    // Still strictly after the commit: the DB correction is the durable record
+    // and a queue failure must not roll it back.
+    const txIdx = SCRIPT.indexOf("transaction failed for");
+    const reqIdx = SCRIPT.indexOf("requestReportGeneration({");
+    expect(txIdx).toBeGreaterThan(-1);
+    expect(reqIdx).toBeGreaterThan(txIdx);
   });
 
   it("does NOT call prisma update / delete outside the transaction", () => {

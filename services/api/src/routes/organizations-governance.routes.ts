@@ -81,8 +81,6 @@ const RetentionTemplateBody = z.object({
   description: z.string().trim().max(400).nullable().default(null),
 });
 
-type RetentionTemplate = z.infer<typeof RetentionTemplateBody>;
-
 const RETENTION_POLICY_KEY = "retention.default";
 
 async function requireOrgAdmin(input: {

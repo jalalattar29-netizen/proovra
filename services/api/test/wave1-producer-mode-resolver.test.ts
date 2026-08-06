@@ -88,7 +88,7 @@ describe("Wave 1 — resolveProducerModeStatuses", () => {
   // returns [] so lastRunAt / lastError stay undefined.
   const stubPrisma = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    $queryRawUnsafe: async (..._args: any[]) => [],
+    $queryRawUnsafe: async () => [],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 

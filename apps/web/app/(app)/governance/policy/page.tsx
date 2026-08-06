@@ -13,9 +13,9 @@
  * Behavior, API contract, and step-up requirements are unchanged
  * from Phase 25.5 — only the URL changed.
  *
- * Shared helpers (`WorkspaceGateState`, `ui-tokens`) still live
- * under `/reviewer-ops/` until Phase 32.8C relocates them to a
- * neutral home. We import them by relative path until then.
+ * Gating is owned by the canonical `<PageRouteGate>`; the shared
+ * `ui-tokens` styling module still lives under `/reviewer-ops/` and is
+ * imported by relative path.
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -29,6 +29,12 @@ import { PageShell, PageHeader, PageSection } from "../../../../components/ui/Pa
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { inputStyle, mutedStyle, TOKENS } from "../../reviewer-ops/ui-tokens";
+// PHASE 12B CLUSTER 9 — the WorkspaceGovernancePolicy surface. A SEPARATE
+// engine from the reviewer SLA policy this page already administers: different
+// table, different endpoint, different write contract (optimistic
+// concurrency + step-up). Mounted alongside, never merged — one Save button
+// must never write two unrelated policy stores.
+import { WorkspaceGovernancePolicySection } from "./_sections/WorkspaceGovernancePolicySection";
 
 type Policy = {
   policy: {
@@ -159,6 +165,13 @@ function GovernancePolicyPageInner() {
         ) : (
           <p style={mutedStyle}>Loading policy…</p>
         )}
+        {/*
+          The workspace governance policy is a DIFFERENT engine from the SLA
+          policy above. It stays administrable even when the SLA policy cannot
+          be read — coupling them would let one engine's outage hide the
+          other's controls.
+        */}
+        <WorkspaceGovernancePolicySection />
       </PageShell>
     );
   }
@@ -353,6 +366,14 @@ function GovernancePolicyPageInner() {
         </div>
         </Card>
       </PageSection>
+
+      {/*
+        PHASE 12B CLUSTER 9 — workspace governance policy (retention,
+        deletion mode, approval / review / download gates). Its own fetch, its
+        own dirty state and its own Save, because it writes a different store
+        through a different contract (expectedVersion + step-up).
+      */}
+      <WorkspaceGovernancePolicySection />
     </PageShell>
   );
 }

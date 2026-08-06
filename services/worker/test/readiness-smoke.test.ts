@@ -537,7 +537,7 @@ describe("readiness/G — OTS contract preservation", () => {
     expect(src).toMatch(/bindWorkerEvents\(workerInstance,\s*kind\)/);
   });
 
-  it("OTS upgrade processor signature is unchanged (Job<{evidenceId: string}>)", async () => {
+  it("the OTS upgrade processor takes its evidence id from a DECODED payload", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const src = readFileSync(
@@ -546,9 +546,20 @@ describe("readiness/G — OTS contract preservation", () => {
       ),
       "utf8",
     );
+    // PHASE 12 — POINT 5. The signature was `Job<{ evidenceId: string }>` and
+    // the body read `job.data.evidenceId` directly. The payload was already
+    // reference-only — which is why this chain needed no tenancy fix — but
+    // nothing ENFORCED that: a payload carrying a `teamId`, a
+    // `forceRegenerate` or an unknown schema version was accepted in silence.
+    //
+    // The contract this pins is the one that matters: the reference reaches
+    // the processor through the strict decoder, so an unknown field or an
+    // unknown version is a counted refusal before the first database read.
+    expect(src).toMatch(/processOtsUpgrade\s*\(\s*job:\s*Job<unknown>/);
     expect(src).toMatch(
-      /processOtsUpgrade\s*\(\s*job:\s*Job<\{\s*evidenceId:\s*string\s*\}>/,
+      /decodeCanonicalJob\(JOB_NAMES\.UPGRADE_OTS,\s*job/,
     );
+    expect(src).toMatch(/const evidenceId = decoded\.commandId/);
   });
 });
 

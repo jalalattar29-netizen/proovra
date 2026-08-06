@@ -39,7 +39,6 @@ import {
   type CanonicalRole,
   type Permission,
   type RbacDecision,
-  type RbacDecisionOutcome,
   type RbacDecisionSource,
   type RbacMemberSnapshot,
   type RbacPermissionRow,

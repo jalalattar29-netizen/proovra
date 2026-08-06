@@ -57,7 +57,7 @@ function makeTx(state: {
         }
         return null;
       },
-      upsert: async ({ where, update, create, select: _s }: Record<string, never> & { where: { teamId_userId: { teamId: string; userId: string } }; update: Row; create: Row }) => {
+      upsert: async ({ where, update, create }: Record<string, never> & { where: { teamId_userId: { teamId: string; userId: string } }; update: Row; create: Row }) => {
         const key = `${where.teamId_userId.teamId}:${where.teamId_userId.userId}`;
         const existing = state.teamMembers.get(key);
         if (existing) {

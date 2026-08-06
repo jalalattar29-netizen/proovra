@@ -110,11 +110,14 @@ function readTeamIdHeader(req: FastifyRequest): string | null {
  * Resolution order (first match wins):
  *
  *   1. If the request carries an `x-team-id` (or `teamId`
- *      query/body) and the actor has an ACTIVE membership on that
- *      team, return that team with `source: "header"`. The
- *      membership check prevents header tampering.
+ *      query/body), that workspace DECIDES the outcome: an ACTIVE
+ *      membership returns it with `source: "header"`; anything else
+ *      returns `null`. The membership check prevents header tampering,
+ *      and the absence of a fallback prevents the request from being
+ *      silently redirected into a different workspace.
  *
- *   2. If the actor has a personal-team row (`isPersonal=true`),
+ *   2. If NO workspace was named, and the actor has a personal-team row
+ *      (`isPersonal=true`),
  *      return that team with `source: "personal-default"`. This is
  *      the PROOVRA Personal-First invariant.
  *
@@ -135,7 +138,17 @@ export async function resolveActiveOperationalWorkspace(
   actorUserId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<ActiveOperationalWorkspace | null> {
-  // Step 1: header takes precedence (when membership matches).
+  // Step 1: an EXPLICITLY named workspace is decided here, and only here.
+  //
+  // PHASE 12 POINT 4 PASS C5 — no silent Personal fallback.
+  //
+  // This block used to fall through to the personal default when the named
+  // workspace produced no ACTIVE membership (or when the membership read
+  // threw). The request said "operate in workspace X" and the server quietly
+  // operated in the caller's Personal space instead: writes landed in the
+  // wrong tenant and the caller was told it succeeded. A request that names a
+  // workspace the actor cannot act in is a DENIAL — the defaults below apply
+  // only when no workspace was named at all.
   const headerTeamId = readTeamIdHeader(req);
   if (headerTeamId) {
     try {
@@ -147,17 +160,16 @@ export async function resolveActiveOperationalWorkspace(
         },
         select: { teamId: true, team: { select: { isPersonal: true } } },
       });
-      if (membership) {
-        return {
-          teamId: membership.teamId,
-          kind: membership.team?.isPersonal ? "PERSONAL" : "TEAM",
-          source: "header",
-        };
-      }
+      if (!membership) return null;
+      return {
+        teamId: membership.teamId,
+        kind: membership.team?.isPersonal ? "PERSONAL" : "TEAM",
+        source: "header",
+      };
     } catch {
-      // Fall through to defaults — we never fail the request on a
-      // resolver read; the caller's authorize path will issue the
-      // canonical denial.
+      // An unreadable membership is not a licence to pick a different
+      // workspace. Fail closed; the caller issues the canonical denial.
+      return null;
     }
   }
 

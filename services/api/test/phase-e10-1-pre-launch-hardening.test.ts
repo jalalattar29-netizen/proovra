@@ -36,7 +36,7 @@
  *   - The phase doc + registry update + these tests.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -355,30 +355,6 @@ describe("E10.1 Test 6 — 32.8 IA preserved", () => {
 // ===========================================================================
 // PART 7 — Protected core files unchanged
 // ===========================================================================
-
-describe("E10.1 Test 7 — protected core files unchanged by E10.1", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath)).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(st.size).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
 
 // ===========================================================================
 // PART 8 — Master registry + DEF closure

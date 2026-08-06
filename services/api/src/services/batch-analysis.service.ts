@@ -3,6 +3,8 @@
  * Handles analysis of multiple evidence items with progress tracking and aggregation
  */
 
+import { error as logError } from "../utils/logger.js";
+
 export enum BatchStatus {
   PENDING = "pending",
   PROCESSING = "processing",
@@ -11,6 +13,28 @@ export enum BatchStatus {
   CANCELLED = "cancelled",
 }
 
+/**
+ * The bounded shape the legacy batch service reads back out of an item
+ * result.  is stored as an open record, so consumers
+ * narrow through this instead of asserting `any`.
+ */
+export type BatchItemAnalysis = {
+  classification?: { category?: string; confidence?: number };
+  moderation?: { risk_level?: string };
+  tags?: { tags?: string[] };
+};
+
+/** The evidence fields the metadata-only legacy batch projection reads. */
+type BatchEvidenceMetadataSource = {
+  type?: unknown;
+  mimeType?: unknown;
+  status?: unknown;
+  verificationStatus?: unknown;
+  createdAt?: unknown;
+  sizeBytes?: bigint | number | null;
+  storageBucket?: unknown;
+  storageKey?: unknown;
+};
 export interface BatchJobItem {
   evidenceId: string;
   status: "pending" | "processing" | "completed" | "failed";
@@ -97,7 +121,7 @@ class BatchAnalysisService {
   /**
    * Start processing a batch job
    */
-  async processBatch(jobId: string, evidenceGetter?: (id: string) => Promise<any>): Promise<void> {
+  async processBatch(jobId: string, evidenceGetter?: (id: string) => Promise<unknown>): Promise<void> {
     const job = this.jobs[jobId];
     if (!job) throw new Error("Job not found");
 
@@ -126,7 +150,10 @@ class BatchAnalysisService {
 let evidenceMetadata: Record<string, unknown> = {};
 
 if (evidenceGetter) {
-  const evidence = await evidenceGetter(item.evidenceId);
+  const evidence = (await evidenceGetter(item.evidenceId)) as
+    | BatchEvidenceMetadataSource
+    | null
+    | undefined;
 
   evidenceMetadata = {
     id: item.evidenceId,
@@ -177,6 +204,17 @@ item.result = {
       } catch (error) {
         job.status = BatchStatus.FAILED;
         job.completedAt = new Date();
+        // A whole-job failure previously left no trace of WHY: the job row
+        // carries no failure field, so without this the only signal an
+        // operator got was a FAILED status. Bounded diagnostic — error class
+        // only, never the message (it can carry evidence-side detail).
+        logError("batch_analysis.job_failed", {
+          jobId,
+          processedItems: job.processedItems,
+          failedItems: job.failedItems,
+          totalItems: job.totalItems,
+          errorCode: error instanceof Error ? error.name.slice(0, 64) : "unknown_error",
+        });
       } finally {
         this.processingQueues.delete(jobId);
       }
@@ -233,7 +271,7 @@ item.result = {
 
     job.items.forEach((item) => {
       if (item.result) {
-        const result = item.result as any;
+        const result = item.result as BatchItemAnalysis;
 
         // Count classifications
         if (result.classification?.category) {
@@ -290,7 +328,7 @@ item.result = {
 
     job.items.forEach((item) => {
       if (item.result) {
-        const result = item.result as any;
+        const result = item.result as BatchItemAnalysis;
         const tags =
           result.tags?.tags?.join(";") || "";
         const classification =

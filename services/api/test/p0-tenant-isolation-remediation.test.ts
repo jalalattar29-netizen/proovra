@@ -31,7 +31,6 @@ import { join } from "node:path";
 import { evaluateExistingAccountLink } from "../src/services/security/enterprise-account-linking.service.js";
 import {
   handleSamlAssertion,
-  SamlMappingError,
 } from "../src/services/security/saml-user-mapping.service.js";
 import {
   scimCreateUser,

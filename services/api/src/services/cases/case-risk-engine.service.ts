@@ -86,17 +86,9 @@ export async function listCaseEvidenceIds(input: {
   teamId: string | null;
   caseId: string;
 }): Promise<string[]> {
+  // Track 1B closure — the canonical CaseEvidenceLink table is the ONE
+  // relationship source (the legacy Evidence.caseId column was dropped).
   const set = new Set<string>();
-  try {
-    const legacy = await prisma.evidence.findMany({
-      where: { caseId: input.caseId },
-      select: { id: true },
-      take: 500,
-    });
-    for (const r of legacy) set.add(r.id);
-  } catch {
-    /* best-effort */
-  }
   try {
     const links = await prisma.caseEvidenceLink.findMany({
       where: { caseId: input.caseId },
@@ -280,8 +272,9 @@ export async function computeCaseRisk(input: {
     /* best-effort */
   }
   try {
-    activeLegalHolds = await prisma.caseLegalHold.count({
-      where: { caseId: input.caseId, status: "ACTIVE" },
+    activeLegalHolds = await prisma.evidenceLegalHold.count({
+      // P12.3 canonical-only (scope='CASE').
+      where: { scope: "CASE", caseId: input.caseId, status: "ACTIVE" },
     });
   } catch {
     /* best-effort */

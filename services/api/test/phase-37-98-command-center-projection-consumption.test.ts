@@ -15,6 +15,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  JOB_NAMES,
+  QUEUE_NAMES,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -95,22 +100,32 @@ describe("Phase 37.98 — Command Center consumes projection", () => {
 // =============================================================================
 
 describe("Phase 37.98 — refresh pipeline wired in worker", () => {
-  it("queue.ts declares orgHealthRefreshQueue + payload type", () => {
-    expect(WORKER_QUEUE).toMatch(/orgHealthRefreshQueueName\s*=\s*"org-health-refresh"/);
-    expect(WORKER_QUEUE).toMatch(/orgHealthRefreshJobName\s*=\s*"RefreshOrgHealthProjection"/);
+  it("the org-health chain has ONE queue name and ONE job name", () => {
+    // PHASE 12 — POINT 5: these were three source literals in queue.ts. They
+    // are now aliases of registry values, so the assertion moved to the value.
+    const entry = getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION);
+    expect(entry.queueName).toBe(QUEUE_NAMES.ORG_HEALTH_REFRESH);
+    expect(entry.workName).toBe("RefreshOrgHealthProjection");
     expect(WORKER_QUEUE).toMatch(/orgHealthRefreshQueue\s*=\s*new Queue\(/);
-    expect(WORKER_QUEUE).toMatch(
-      /export type OrgHealthRefreshJobPayload[\s\S]{0,80}teamId:\s*string/,
-    );
+  });
+
+  it("the payload carries a REFERENCE, not a tenant assertion", () => {
+    // `OrgHealthRefreshJobPayload = { teamId }` is deleted. The command id IS
+    // the workspace id, and it is a reference that must resolve to a live Team
+    // whose Organization is still ACTIVE before any count runs.
+    expect(WORKER_QUEUE).not.toMatch(/export type OrgHealthRefreshJobPayload/);
+    expect(
+      getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION)
+        .durableAuthority.model,
+    ).toBe("Team");
   });
 
   it("the queue has bounded retry config (attempts + backoff)", () => {
-    expect(WORKER_QUEUE).toMatch(
-      /orgHealthRefreshQueue[\s\S]{0,500}attempts:\s*\d/,
-    );
-    expect(WORKER_QUEUE).toMatch(
-      /orgHealthRefreshQueue[\s\S]{0,500}backoff:\s*\{/,
-    );
+    const entry = getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION);
+    expect(entry.retry.attempts).toBeGreaterThan(0);
+    expect(entry.retry.attempts).toBeLessThanOrEqual(25);
+    expect(entry.retry.backoff).toBe("exponential");
+    expect(entry.retry.backoffDelayMs).toBeGreaterThan(0);
   });
 
   it("subsystem-queue-processors.ts exports processOrgHealthRefreshJob", () => {
@@ -132,11 +147,18 @@ describe("Phase 37.98 — refresh pipeline wired in worker", () => {
     }
   });
 
-  it("processor rejects an empty teamId loudly (no global refresh)", () => {
+  it("processor refuses an unresolvable workspace loudly (no global refresh)", () => {
+    // PHASE 12 — POINT 5 strengthened this. The old guard was `if (!teamId)`,
+    // which only caught an EMPTY string on the wire — a non-empty tampered one
+    // sailed through and refreshed a different workspace's projection. The
+    // workspace is now resolved from a Team row and its Organization must be
+    // ACTIVE, so a deleted, unknown or suspended target is refused before any
+    // count runs.
     const fnIdx = WORKER_PROCESSORS.indexOf("processOrgHealthRefreshJob");
     const fnBody = WORKER_PROCESSORS.slice(fnIdx, fnIdx + 5000);
-    expect(fnBody).toMatch(/if \(!teamId\)/);
-    expect(fnBody).toMatch(/skipped_missing_team_id/);
+    expect(fnBody).toMatch(/resolveWorkspaceJob\(/);
+    expect(fnBody).toMatch(/if \(!ctx\) return;/);
+    expect(WORKER_PROCESSORS).toMatch(/workspace_unresolved_or_inactive/);
   });
 
   it("worker/index.ts imports the processor + registers it", () => {

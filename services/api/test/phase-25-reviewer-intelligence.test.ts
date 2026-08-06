@@ -329,12 +329,17 @@ describe("Phase 25 — search worker rebuild source contract", () => {
     expect(workerSrc).toMatch(/outcome\.kind === "delete"/);
   });
 
-  it("only unwinds OCR + transcript indexing-lag pointers AFTER a successful upsert", () => {
-    expect(workerSrc).toMatch(/upserted && projectedEvidenceId/);
-    // The UPDATE that clears indexed_at_utc is inside the `if (upserted && …)` block.
+  it("only unwinds OCR + transcript indexing-lag pointers AFTER a successful upsert, under a DERIVED tenant", () => {
+    // PHASE 12 POINT 5 — the guard gained a third condition. The lag-pointer
+    // UPDATE is workspace-scoped, and after Point 5 that workspace comes from
+    // the projection the builder produced rather than from the job payload. So
+    // the pointers unwind only when there IS a projection AND a tenant was
+    // derived from it — an unresolved tenant now blocks the write instead of
+    // falling back to whatever the queue claimed.
     expect(workerSrc).toMatch(
-      /if \(upserted && projectedEvidenceId\)[\s\S]*?UPDATE "evidence_ocr_text"[\s\S]*?SET "indexed_at_utc"/,
+      /if \(upserted && projectedEvidenceId && derivedTeamId\)[\s\S]*?UPDATE "evidence_ocr_text"[\s\S]*?SET "indexed_at_utc"/,
     );
+    expect(workerSrc).toMatch(/const teamId = derivedTeamId;/);
   });
 
   it("OCR + transcript reads filter to TEAM scope + non-redacted (governance gate)", () => {

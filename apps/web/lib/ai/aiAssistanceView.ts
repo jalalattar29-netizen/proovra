@@ -12,8 +12,9 @@
  *     the LAUNCHED personal features only. Internal stubs, unlaunched
  *     copilots, provider diagnostics, and enterprise data-class
  *     governance NEVER render for personal users.
- *   - Organization ENTERPRISE Admin/Owner get the governance view
- *     (full policy incl. data-class controls + capability disclosure).
+ *   - Organization members holding the SERVER-projected SETTINGS_MANAGE
+ *     capability get the governance view (full policy incl. data-class
+ *     controls + capability disclosure).
  *   - Ordinary organization members get a concise READ-ONLY policy
  *     summary — no editing.
  *   - Personal FREE (allowance 0) gets an honest "not included" surface
@@ -39,13 +40,26 @@ export type AiAssistanceViewInput = {
    * stale envelope never hides a real surface).
    */
   monthlyAllowance: number | null | undefined;
-  /** Active-org role when the workspace is an ORGANIZATION. */
-  orgRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null;
+  /**
+   * PHASE 12 POINT 4 STEP 1 — SERVER-projected authority to change the
+   * workspace AI policy, read from `envelope.capabilities.SETTINGS_MANAGE`.
+   *
+   * This replaces the former `orgRole === "OWNER" || orgRole === "ADMIN"`
+   * client comparison. `SETTINGS_MANAGE` is granted by
+   * `capability-registry.ts` to exactly the OWNER/ADMIN membership that
+   * `PUT /v1/workspaces/ai-policy` enforces via the
+   * `intelligence.policy.manage` permission, so the editable surface and
+   * the write gate cannot disagree.
+   *
+   * `null` = envelope loading / degraded / capability absent → FAIL CLOSED
+   * (read-only governance summary, never an editable policy form).
+   */
+  canManageWorkspaceAiPolicy: boolean | null;
 };
 
 export function deriveAiSettingsMode(input: AiAssistanceViewInput): AiSettingsMode {
   if (input.workspaceKind === "ORGANIZATION") {
-    return input.orgRole === "OWNER" || input.orgRole === "ADMIN"
+    return input.canManageWorkspaceAiPolicy === true
       ? "org-governance"
       : "org-readonly";
   }

@@ -1,0 +1,1534 @@
+{
+ "generatedAtUtc": "2026-07-27T18:02:46.080Z",
+ "phase": "12",
+ "reason": "stale generated twin eradication",
+ "count": 305,
+ "note": "Remaining .js-suffixed specifiers in services/api tests are NodeNext module specifiers for the canonical .ts sources (repo-wide convention), proven by executing all six referencing suites green; REMEDIATION_REGISTER.md mentions are historical documentation.",
+ "entries": [
+  {
+   "deleted": "apps/web/app/(app)/capture/_lib/file-utils.js",
+   "canonicalSource": "apps/web/app/(app)/capture/_lib/file-utils.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/app/(app)/capture/_lib/session-readiness.js",
+   "canonicalSource": "apps/web/app/(app)/capture/_lib/session-readiness.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/app/(app)/capture/_lib/templates.js",
+   "canonicalSource": "apps/web/app/(app)/capture/_lib/templates.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/app/(app)/capture/_lib/types.js",
+   "canonicalSource": "apps/web/app/(app)/capture/_lib/types.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/api.js",
+   "canonicalSource": "apps/web/lib/api.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/navigation/routeAccessResolver.js",
+   "canonicalSource": "apps/web/lib/navigation/routeAccessResolver.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/navigation/routeRegistry.js",
+   "canonicalSource": "apps/web/lib/navigation/routeRegistry.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/platform-context/PlatformContextProvider.jsx",
+   "canonicalSource": "apps/web/lib/platform-context/PlatformContextProvider.tsx",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/platform-context/state-observability.js",
+   "canonicalSource": "apps/web/lib/platform-context/state-observability.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/platform-context/types.js",
+   "canonicalSource": "apps/web/lib/platform-context/types.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/platform-context/useTerminology.js",
+   "canonicalSource": "apps/web/lib/platform-context/useTerminology.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/uploads/feature-flag.js",
+   "canonicalSource": "apps/web/lib/uploads/feature-flag.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/uploads/persistence.js",
+   "canonicalSource": "apps/web/lib/uploads/persistence.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/uploads/recovery.js",
+   "canonicalSource": "apps/web/lib/uploads/recovery.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/uploads/retry.js",
+   "canonicalSource": "apps/web/lib/uploads/retry.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/uploads/telemetry.js",
+   "canonicalSource": "apps/web/lib/uploads/telemetry.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "apps/web/lib/uploads/types.js",
+   "canonicalSource": "apps/web/lib/uploads/types.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/auth-test-bypass.test.js",
+   "canonicalSource": "services/api/test/auth-test-bypass.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/capture-workspace-billing-scope.test.js",
+   "canonicalSource": "services/api/test/capture-workspace-billing-scope.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/collaboration.test.js",
+   "canonicalSource": "services/api/test/collaboration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/communications.test.js",
+   "canonicalSource": "services/api/test/communications.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/cross-system-governance-integration.test.js",
+   "canonicalSource": "services/api/test/cross-system-governance-integration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/crypto.test.js",
+   "canonicalSource": "services/api/test/crypto.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/exif-extractor.service.test.js",
+   "canonicalSource": "services/api/test/exif-extractor.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/external-intake-orchestration.service.test.js",
+   "canonicalSource": "services/api/test/external-intake-orchestration.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/external-intake-source-summary.service.test.js",
+   "canonicalSource": "services/api/test/external-intake-source-summary.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/fail-closed-governance-enforcement.test.js",
+   "canonicalSource": "services/api/test/fail-closed-governance-enforcement.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/forensic-hardening.test.js",
+   "canonicalSource": "services/api/test/forensic-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/governance-platform.test.js",
+   "canonicalSource": "services/api/test/governance-platform.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/identity-security.test.js",
+   "canonicalSource": "services/api/test/identity-security.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/identity.test.js",
+   "canonicalSource": "services/api/test/identity.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/integration-harness.js",
+   "canonicalSource": "services/api/test/integration-harness.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/integrations-api-keys.service.test.js",
+   "canonicalSource": "services/api/test/integrations-api-keys.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/integrations-governance-bypass.test.js",
+   "canonicalSource": "services/api/test/integrations-governance-bypass.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/integrations-hardening.test.js",
+   "canonicalSource": "services/api/test/integrations-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/integrations-webhooks.service.test.js",
+   "canonicalSource": "services/api/test/integrations-webhooks.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/intelligence.test.js",
+   "canonicalSource": "services/api/test/intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/investigation-suite-audit.test.js",
+   "canonicalSource": "services/api/test/investigation-suite-audit.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/jwt.test.js",
+   "canonicalSource": "services/api/test/jwt.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-10-billing-guards.test.js",
+   "canonicalSource": "services/api/test/phase-10-billing-guards.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-10-paypal-idempotency.test.js",
+   "canonicalSource": "services/api/test/phase-10-paypal-idempotency.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-10-plan-aware-ui.test.js",
+   "canonicalSource": "services/api/test/phase-10-plan-aware-ui.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-10-route-ownership.test.js",
+   "canonicalSource": "services/api/test/phase-10-route-ownership.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-11-visibility-and-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-11-visibility-and-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-12-investigation-productization.test.js",
+   "canonicalSource": "services/api/test/phase-12-investigation-productization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-13-intelligence-chain.test.js",
+   "canonicalSource": "services/api/test/phase-13-intelligence-chain.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-13-intelligence-completion.test.js",
+   "canonicalSource": "services/api/test/phase-13-intelligence-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-14-global-intelligence-search.test.js",
+   "canonicalSource": "services/api/test/phase-14-global-intelligence-search.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-15-semantic-search.test.js",
+   "canonicalSource": "services/api/test/phase-15-semantic-search.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-16-semantic-activation.test.js",
+   "canonicalSource": "services/api/test/phase-16-semantic-activation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-1a-pillar-ia.test.js",
+   "canonicalSource": "services/api/test/phase-1a-pillar-ia.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-1b-closure-runtime.test.js",
+   "canonicalSource": "services/api/test/phase-1b-closure-runtime.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-1b-mobile-capture-trust.test.js",
+   "canonicalSource": "services/api/test/phase-1b-mobile-capture-trust.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-24-b-completion.test.js",
+   "canonicalSource": "services/api/test/phase-24-b-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-24-j-discovery.test.js",
+   "canonicalSource": "services/api/test/phase-24-j-discovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-25-5-assignment-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-25-5-assignment-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-25-6-reviewer-ops-ui.test.js",
+   "canonicalSource": "services/api/test/phase-25-6-reviewer-ops-ui.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-25-7-queue-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-25-7-queue-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-25-reviewer-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-25-reviewer-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-26-authorize.test.js",
+   "canonicalSource": "services/api/test/phase-26-authorize.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-27-28-external-review-grants.test.js",
+   "canonicalSource": "services/api/test/phase-27-28-external-review-grants.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-27-5-external-review-routes.test.js",
+   "canonicalSource": "services/api/test/phase-27-5-external-review-routes.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-2a-closure-reviewer-experience.test.js",
+   "canonicalSource": "services/api/test/phase-2a-closure-reviewer-experience.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-2a-reviewer-workspace.test.js",
+   "canonicalSource": "services/api/test/phase-2a-reviewer-workspace.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-2b-closure-external-portal.test.js",
+   "canonicalSource": "services/api/test/phase-2b-closure-external-portal.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-2b-external-reviewer-portal.test.js",
+   "canonicalSource": "services/api/test/phase-2b-external-reviewer-portal.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-10-capture-adoption.test.js",
+   "canonicalSource": "services/api/test/phase-30-10-capture-adoption.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-11-unified-evidence-model.test.js",
+   "canonicalSource": "services/api/test/phase-30-11-unified-evidence-model.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-12-consumer-integration.test.js",
+   "canonicalSource": "services/api/test/phase-30-12-consumer-integration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-5-upload-session-routes.test.js",
+   "canonicalSource": "services/api/test/phase-30-5-upload-session-routes.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-6-integrations-uploads.test.js",
+   "canonicalSource": "services/api/test/phase-30-6-integrations-uploads.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-7-finalize-gate.test.js",
+   "canonicalSource": "services/api/test/phase-30-7-finalize-gate.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-8-multipart.test.js",
+   "canonicalSource": "services/api/test/phase-30-8-multipart.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-9-client-uploads.test.js",
+   "canonicalSource": "services/api/test/phase-30-9-client-uploads.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-30-upload-sessions.test.js",
+   "canonicalSource": "services/api/test/phase-30-upload-sessions.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-11-report-projection.test.js",
+   "canonicalSource": "services/api/test/phase-31-11-report-projection.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-12-verify-and-dashboard.test.js",
+   "canonicalSource": "services/api/test/phase-31-12-verify-and-dashboard.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-13-derived-assets.test.js",
+   "canonicalSource": "services/api/test/phase-31-13-derived-assets.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-14-derived-assets-bytes.test.js",
+   "canonicalSource": "services/api/test/phase-31-14-derived-assets-bytes.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-15-case-graph-reconciler.test.js",
+   "canonicalSource": "services/api/test/phase-31-15-case-graph-reconciler.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-16-graph-domains-and-explorer.test.js",
+   "canonicalSource": "services/api/test/phase-31-16-graph-domains-and-explorer.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-17-reviewer-domains-and-inspector.test.js",
+   "canonicalSource": "services/api/test/phase-31-17-reviewer-domains-and-inspector.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-18-closure-program.test.js",
+   "canonicalSource": "services/api/test/phase-31-18-closure-program.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-19-producer-mode.test.js",
+   "canonicalSource": "services/api/test/phase-31-19-producer-mode.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-20-producers-and-final-queues.test.js",
+   "canonicalSource": "services/api/test/phase-31-20-producers-and-final-queues.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-21-enterprise-closure.test.js",
+   "canonicalSource": "services/api/test/phase-31-21-enterprise-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-5-32-graph-and-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-31-5-32-graph-and-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-6-32-5-orchestration.test.js",
+   "canonicalSource": "services/api/test/phase-31-6-32-5-orchestration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-7-32-6-timeline-and-ops.test.js",
+   "canonicalSource": "services/api/test/phase-31-7-32-6-timeline-and-ops.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-8-exif-wiring.test.js",
+   "canonicalSource": "services/api/test/phase-31-8-exif-wiring.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-9-ops-actions-ui.test.js",
+   "canonicalSource": "services/api/test/phase-31-9-ops-actions-ui.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-31-media-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-31-media-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-5-stabilization.test.js",
+   "canonicalSource": "services/api/test/phase-32-5-stabilization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-1-package-state-machine.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-1-package-state-machine.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-2-reviewer-ops-naming-drift.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-2-reviewer-ops-naming-drift.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-3-team-billing-naming-drift.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-3-team-billing-naming-drift.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-4-frontend-runtime-ux-hotfix.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-4-frontend-runtime-ux-hotfix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-5-readiness-correctness.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-5-readiness-correctness.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-6-personal-basic-verification-package.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-6-personal-basic-verification-package.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-6-production-runtime-recovery.test.js",
+   "canonicalSource": "services/api/test/phase-32-6-production-runtime-recovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-1-blocker-fix.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-1-blocker-fix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-3-readiness-governance-blockers.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-3-readiness-governance-blockers.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-4-case-legal-holds-503-fix.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-4-case-legal-holds-503-fix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-5-worker-reconcile-false-degraded.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-5-worker-reconcile-false-degraded.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-6-case-legal-holds-optional-subsystem.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-6-case-legal-holds-optional-subsystem.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-final-production-stabilization.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-final-production-stabilization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-7-runtime-canonicalization.test.js",
+   "canonicalSource": "services/api/test/phase-32-7-runtime-canonicalization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-command-center.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-command-center.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-control-plane.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-control-plane.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-enterprise-gap-closure.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-enterprise-gap-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-nav-reliability.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-nav-reliability.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-operational-closure.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-operational-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-pppp-dashboard-closure.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-pppp-dashboard-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-ppppp-structural-closure.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-ppppp-structural-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-pppppp-frontend-consumption.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-pppppp-frontend-consumption.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-shell-completion.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-shell-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-c-workflow-causality.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-c-workflow-causality.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-d-cases-reports.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-d-cases-reports.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-d-frontend-closure-2.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-d-frontend-closure-2.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-d-frontend-closure.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-d-frontend-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-d-frontend-matter-workspace.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-d-frontend-matter-workspace.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-d-matter-workspace.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-d-matter-workspace.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-e-teams-governance-reviewer.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-e-teams-governance-reviewer.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-foundation-cleanup.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-foundation-cleanup.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-foundation-platform-context.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-foundation-platform-context.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-32-8-product-consolidation.test.js",
+   "canonicalSource": "services/api/test/phase-32-8-product-consolidation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-37-95-cross-tenant-runtime-probe.test.js",
+   "canonicalSource": "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-37-95-scale-closure.test.js",
+   "canonicalSource": "services/api/test/phase-37-95-scale-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-37-95-tenant-access-helpers-behavioral.test.js",
+   "canonicalSource": "services/api/test/phase-37-95-tenant-access-helpers-behavioral.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-37-96-integration-harness-guards.test.js",
+   "canonicalSource": "services/api/test/phase-37-96-integration-harness-guards.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-37-97-dashboard-projections.test.js",
+   "canonicalSource": "services/api/test/phase-37-97-dashboard-projections.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-37-98-command-center-projection-consumption.test.js",
+   "canonicalSource": "services/api/test/phase-37-98-command-center-projection-consumption.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-3a-closure-detection-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-3a-closure-detection-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-3a-elite-closure-policy-and-video.test.js",
+   "canonicalSource": "services/api/test/phase-3a-elite-closure-policy-and-video.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-3a-redaction-platform.test.js",
+   "canonicalSource": "services/api/test/phase-3a-redaction-platform.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-3b-enterprise-closure.test.js",
+   "canonicalSource": "services/api/test/phase-3b-enterprise-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-3b-intelligence-platform.test.js",
+   "canonicalSource": "services/api/test/phase-3b-intelligence-platform.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-4a-enterprise-closure.test.js",
+   "canonicalSource": "services/api/test/phase-4a-enterprise-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-4a-final-closure.test.js",
+   "canonicalSource": "services/api/test/phase-4a-final-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-4a-trust-and-governance.test.js",
+   "canonicalSource": "services/api/test/phase-4a-trust-and-governance.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-4b-final-closure.test.js",
+   "canonicalSource": "services/api/test/phase-4b-final-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-4b-product-packaging-and-lifecycle.test.js",
+   "canonicalSource": "services/api/test/phase-4b-product-packaging-and-lifecycle.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-7-team-vs-workspace-anti-confusion.test.js",
+   "canonicalSource": "services/api/test/phase-7-team-vs-workspace-anti-confusion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-8-org-admin-cross-org-isolation.test.js",
+   "canonicalSource": "services/api/test/phase-8-org-admin-cross-org-isolation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-8-org-admin-personal-user-isolation.test.js",
+   "canonicalSource": "services/api/test/phase-8-org-admin-personal-user-isolation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-8-org-admin-tab-surface.test.js",
+   "canonicalSource": "services/api/test/phase-8-org-admin-tab-surface.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-8-vocabulary-and-shell-honesty.test.js",
+   "canonicalSource": "services/api/test/phase-8-vocabulary-and-shell-honesty.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-a0-integrity-hard-gate.test.js",
+   "canonicalSource": "services/api/test/phase-a0-integrity-hard-gate.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-a1-evidence-org-tenancy.test.js",
+   "canonicalSource": "services/api/test/phase-a1-evidence-org-tenancy.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-a2-pdf-artifact-status.test.js",
+   "canonicalSource": "services/api/test/phase-a2-pdf-artifact-status.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-a3-backend-hardening.test.js",
+   "canonicalSource": "services/api/test/phase-a3-backend-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-b-ia-reset.test.js",
+   "canonicalSource": "services/api/test/phase-b-ia-reset.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-b0-workspace-operating-model.test.js",
+   "canonicalSource": "services/api/test/phase-b0-workspace-operating-model.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-c0-reviewer-console.test.js",
+   "canonicalSource": "services/api/test/phase-c0-reviewer-console.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-c1-matter-workspace.test.js",
+   "canonicalSource": "services/api/test/phase-c1-matter-workspace.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-c2-collaboration-surfacing.test.js",
+   "canonicalSource": "services/api/test/phase-c2-collaboration-surfacing.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-c3-intake-polish.test.js",
+   "canonicalSource": "services/api/test/phase-c3-intake-polish.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr0-5-recovery-readiness.test.js",
+   "canonicalSource": "services/api/test/phase-cr0-5-recovery-readiness.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr0-system-freeze-baseline.test.js",
+   "canonicalSource": "services/api/test/phase-cr0-system-freeze-baseline.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr1-5-state-observability.test.js",
+   "canonicalSource": "services/api/test/phase-cr1-5-state-observability.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr1-5b-product-state-reaudit.test.js",
+   "canonicalSource": "services/api/test/phase-cr1-5b-product-state-reaudit.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr1-6-surgical-state-cleanup.test.js",
+   "canonicalSource": "services/api/test/phase-cr1-6-surgical-state-cleanup.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr1-7-master-registry.test.js",
+   "canonicalSource": "services/api/test/phase-cr1-7-master-registry.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr1-legacy-purge.test.js",
+   "canonicalSource": "services/api/test/phase-cr1-legacy-purge.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr4-verify-decomposition.test.js",
+   "canonicalSource": "services/api/test/phase-cr4-verify-decomposition.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-cr5-capture-safety.test.js",
+   "canonicalSource": "services/api/test/phase-cr5-capture-safety.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e10-1-pre-launch-hardening.test.js",
+   "canonicalSource": "services/api/test/phase-e10-1-pre-launch-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e10-2-operational-readiness.test.js",
+   "canonicalSource": "services/api/test/phase-e10-2-operational-readiness.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e10-final-launch-hardening.test.js",
+   "canonicalSource": "services/api/test/phase-e10-final-launch-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e2-controlled-collaboration.test.js",
+   "canonicalSource": "services/api/test/phase-e2-controlled-collaboration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e3-1-automation-execution.test.js",
+   "canonicalSource": "services/api/test/phase-e3-1-automation-execution.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e3-2-webhook-delivery.test.js",
+   "canonicalSource": "services/api/test/phase-e3-2-webhook-delivery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e3-3-async-delivery-runtime.test.js",
+   "canonicalSource": "services/api/test/phase-e3-3-async-delivery-runtime.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e3-automation-foundation.test.js",
+   "canonicalSource": "services/api/test/phase-e3-automation-foundation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e4-analytics.test.js",
+   "canonicalSource": "services/api/test/phase-e4-analytics.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e5-trust-center.test.js",
+   "canonicalSource": "services/api/test/phase-e5-trust-center.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e6-dr-continuity.test.js",
+   "canonicalSource": "services/api/test/phase-e6-dr-continuity.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e8-external-distribution.test.js",
+   "canonicalSource": "services/api/test/phase-e8-external-distribution.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-e9-ai-operational-intelligence.test.js",
+   "canonicalSource": "services/api/test/phase-e9-ai-operational-intelligence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-emergency-recovery-bootstrap.test.js",
+   "canonicalSource": "services/api/test/phase-emergency-recovery-bootstrap.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-enterprise-tenant-model.test.js",
+   "canonicalSource": "services/api/test/phase-enterprise-tenant-model.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-f-governance-ux.test.js",
+   "canonicalSource": "services/api/test/phase-f-governance-ux.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-final-d3-no-window-confirm.test.js",
+   "canonicalSource": "services/api/test/phase-final-d3-no-window-confirm.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-final-d5-pt2-no-legacy-personal-security.test.js",
+   "canonicalSource": "services/api/test/phase-final-d5-pt2-no-legacy-personal-security.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-final-hidden-feature-surfacing.test.js",
+   "canonicalSource": "services/api/test/phase-final-hidden-feature-surfacing.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-final-worker-visibility.test.js",
+   "canonicalSource": "services/api/test/phase-final-worker-visibility.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g0-operational-convergence.test.js",
+   "canonicalSource": "services/api/test/phase-g0-operational-convergence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g1-governance-lifecycle.test.js",
+   "canonicalSource": "services/api/test/phase-g1-governance-lifecycle.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g2-operational-ergonomics.test.js",
+   "canonicalSource": "services/api/test/phase-g2-operational-ergonomics.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g3-1-live-operations-closure.test.js",
+   "canonicalSource": "services/api/test/phase-g3-1-live-operations-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g3-2-final-live-operations-closure.test.js",
+   "canonicalSource": "services/api/test/phase-g3-2-final-live-operations-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g3-stepup-presence-realtime.test.js",
+   "canonicalSource": "services/api/test/phase-g3-stepup-presence-realtime.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g4-regression-safety.test.js",
+   "canonicalSource": "services/api/test/phase-g4-regression-safety.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g4-tenancy-cleanup.test.js",
+   "canonicalSource": "services/api/test/phase-g4-tenancy-cleanup.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g5-honest-mi.test.js",
+   "canonicalSource": "services/api/test/phase-g5-honest-mi.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g5-smoke-contracts.test.js",
+   "canonicalSource": "services/api/test/phase-g5-smoke-contracts.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-g5-vocabulary-contracts.test.js",
+   "canonicalSource": "services/api/test/phase-g5-vocabulary-contracts.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o-active-blocker-closure.test.js",
+   "canonicalSource": "services/api/test/phase-o-active-blocker-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o-final-plus-full-schema-audit.test.js",
+   "canonicalSource": "services/api/test/phase-o-final-plus-full-schema-audit.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o-final-schema-repair.test.js",
+   "canonicalSource": "services/api/test/phase-o-final-schema-repair.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o-live-schema-repair.test.js",
+   "canonicalSource": "services/api/test/phase-o-live-schema-repair.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o-migration-safety-gate.test.js",
+   "canonicalSource": "services/api/test/phase-o-migration-safety-gate.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o-workflow-join-final-repair.test.js",
+   "canonicalSource": "services/api/test/phase-o-workflow-join-final-repair.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o1-3-sentry-otel-coexistence.test.js",
+   "canonicalSource": "services/api/test/phase-o1-3-sentry-otel-coexistence.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o1-6-dashboard-coverage.test.js",
+   "canonicalSource": "services/api/test/phase-o1-6-dashboard-coverage.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-o2-1-presence-redis-backend.test.js",
+   "canonicalSource": "services/api/test/phase-o2-1-presence-redis-backend.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-p1-1-identity-operations-completion.test.js",
+   "canonicalSource": "services/api/test/phase-p1-1-identity-operations-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-p1-identity-operations.test.js",
+   "canonicalSource": "services/api/test/phase-p1-identity-operations.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-p2-0-secrets-manager.test.js",
+   "canonicalSource": "services/api/test/phase-p2-0-secrets-manager.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-p2-0b-observability-wiring.test.js",
+   "canonicalSource": "services/api/test/phase-p2-0b-observability-wiring.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-p2-final-closure.test.js",
+   "canonicalSource": "services/api/test/phase-p2-final-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-p3-1-signer-governance.test.js",
+   "canonicalSource": "services/api/test/phase-p3-1-signer-governance.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r1-5b-workspace-segmentation.test.js",
+   "canonicalSource": "services/api/test/phase-r1-5b-workspace-segmentation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r1-product-state-recovery.test.js",
+   "canonicalSource": "services/api/test/phase-r1-product-state-recovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r10-personal-first-regression.test.js",
+   "canonicalSource": "services/api/test/phase-r10-personal-first-regression.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r10-visual-maturity.test.js",
+   "canonicalSource": "services/api/test/phase-r10-visual-maturity.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r11-browser-qa-accessibility.test.js",
+   "canonicalSource": "services/api/test/phase-r11-browser-qa-accessibility.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r11-domain-stabilization.test.js",
+   "canonicalSource": "services/api/test/phase-r11-domain-stabilization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r12-runtime-alignment.test.js",
+   "canonicalSource": "services/api/test/phase-r12-runtime-alignment.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r13-route-persona-matrix.test.js",
+   "canonicalSource": "services/api/test/phase-r13-route-persona-matrix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r14-team-platform.test.js",
+   "canonicalSource": "services/api/test/phase-r14-team-platform.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r15-team-frontend.test.js",
+   "canonicalSource": "services/api/test/phase-r15-team-frontend.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r16-collaboration-completion.test.js",
+   "canonicalSource": "services/api/test/phase-r16-collaboration-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r2-navigation-ia-recovery.test.js",
+   "canonicalSource": "services/api/test/phase-r2-navigation-ia-recovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r3-dashboard-orchestration.test.js",
+   "canonicalSource": "services/api/test/phase-r3-dashboard-orchestration.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r4-product-language-recovery.test.js",
+   "canonicalSource": "services/api/test/phase-r4-product-language-recovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r5-progressive-disclosure.test.js",
+   "canonicalSource": "services/api/test/phase-r5-progressive-disclosure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r6-operational-hubs.test.js",
+   "canonicalSource": "services/api/test/phase-r6-operational-hubs.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r7-onboarding-setup-recovery.test.js",
+   "canonicalSource": "services/api/test/phase-r7-onboarding-setup-recovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-1-mfa-orchestrator.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-1-mfa-orchestrator.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-2-login-mfa.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-2-login-mfa.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-3-org-mfa-policy-and-durable-challenges.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-3-org-mfa-policy-and-durable-challenges.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-4-mfa-admin-lifecycle.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-4-mfa-admin-lifecycle.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-5-mfa-recovery-admin-ui.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-5-mfa-recovery-admin-ui.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-6-mfa-recovery-ux-completion.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-6-mfa-recovery-ux-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-7-mfa-recovery-operations-polish.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-7-mfa-recovery-operations-polish.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-8-mfa-recovery-operations-ui.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-8-mfa-recovery-operations-ui.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-9-mfa-recovery-finalization.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-9-mfa-recovery-finalization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-mfa-recovery.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-mfa-recovery.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-mfa-totp.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-mfa-totp.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-1-real-mfa.test.js",
+   "canonicalSource": "services/api/test/phase-r8-1-real-mfa.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-2-1-saml-hardening.test.js",
+   "canonicalSource": "services/api/test/phase-r8-2-1-saml-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-2-2-saml-compliance.test.js",
+   "canonicalSource": "services/api/test/phase-r8-2-2-saml-compliance.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-2-saml-sp.test.js",
+   "canonicalSource": "services/api/test/phase-r8-2-saml-sp.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-c-consolidation.test.js",
+   "canonicalSource": "services/api/test/phase-r8-c-consolidation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r8-enterprise-identity-security.test.js",
+   "canonicalSource": "services/api/test/phase-r8-enterprise-identity-security.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r9-duplicate-route-guard.test.js",
+   "canonicalSource": "services/api/test/phase-r9-duplicate-route-guard.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r9-personal-first-rescue.test.js",
+   "canonicalSource": "services/api/test/phase-r9-personal-first-rescue.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-r9-worker-import-boundary.test.js",
+   "canonicalSource": "services/api/test/phase-r9-worker-import-boundary.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-tenant-isolation-scale.test.js",
+   "canonicalSource": "services/api/test/phase-tenant-isolation-scale.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-x-architecture-consolidation.test.js",
+   "canonicalSource": "services/api/test/phase-x-architecture-consolidation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-x1-architecture-closure.test.js",
+   "canonicalSource": "services/api/test/phase-x1-architecture-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-y-observability.test.js",
+   "canonicalSource": "services/api/test/phase-y-observability.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase-z-hardening.test.js",
+   "canonicalSource": "services/api/test/phase-z-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase20-hardening.test.js",
+   "canonicalSource": "services/api/test/phase20-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase21-observability.test.js",
+   "canonicalSource": "services/api/test/phase21-observability.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase22-workflow.test.js",
+   "canonicalSource": "services/api/test/phase22-workflow.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase23-workflow-ui.test.js",
+   "canonicalSource": "services/api/test/phase23-workflow-ui.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase24-search.test.js",
+   "canonicalSource": "services/api/test/phase24-search.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase25-reviewer-ops.test.js",
+   "canonicalSource": "services/api/test/phase25-reviewer-ops.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase25_5-reviewer-ops-hardening.test.js",
+   "canonicalSource": "services/api/test/phase25_5-reviewer-ops-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase26-identity-governance.test.js",
+   "canonicalSource": "services/api/test/phase26-identity-governance.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase26_5-identity-hardening.test.js",
+   "canonicalSource": "services/api/test/phase26_5-identity-hardening.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase26_75-identity-runtime.test.js",
+   "canonicalSource": "services/api/test/phase26_75-identity-runtime.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase27-governance-lifecycle.test.js",
+   "canonicalSource": "services/api/test/phase27-governance-lifecycle.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase27_5-governance-operations.test.js",
+   "canonicalSource": "services/api/test/phase27_5-governance-operations.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/phase9-collaboration-team-billing-parity.test.js",
+   "canonicalSource": "services/api/test/phase9-collaboration-team-billing-parity.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-billing-parity.test.js",
+   "canonicalSource": "services/api/test/production-billing-parity.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-evidence-lifecycle-final-fix.test.js",
+   "canonicalSource": "services/api/test/production-evidence-lifecycle-final-fix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-evidence-lifecycle-real-fix.test.js",
+   "canonicalSource": "services/api/test/production-evidence-lifecycle-real-fix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-governance-additive-repair.test.js",
+   "canonicalSource": "services/api/test/production-governance-additive-repair.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-intake-links-no-env-leak.test.js",
+   "canonicalSource": "services/api/test/production-intake-links-no-env-leak.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-integrations-disabled-panel.test.js",
+   "canonicalSource": "services/api/test/production-integrations-disabled-panel.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-investigation-enterprise-p0-p1.test.js",
+   "canonicalSource": "services/api/test/production-investigation-enterprise-p0-p1.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-lifecycle-domain-consolidation.test.js",
+   "canonicalSource": "services/api/test/production-lifecycle-domain-consolidation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-page-route-gate-platform-admin.test.js",
+   "canonicalSource": "services/api/test/production-page-route-gate-platform-admin.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-phase-2-1-final-drift-closure.test.js",
+   "canonicalSource": "services/api/test/production-phase-2-1-final-drift-closure.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-phase-o-stage-4-central-error-handler.test.js",
+   "canonicalSource": "services/api/test/production-phase-o-stage-4-central-error-handler.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-phase-o-stream-a-route-fixes.test.js",
+   "canonicalSource": "services/api/test/production-phase-o-stream-a-route-fixes.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-phase-o-stream-c-route-fixes.test.js",
+   "canonicalSource": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-phase1-drift-stabilization.test.js",
+   "canonicalSource": "services/api/test/production-phase1-drift-stabilization.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-phase2-drift-remediation.test.js",
+   "canonicalSource": "services/api/test/production-phase2-drift-remediation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-sentry-batch-schema-drift.test.js",
+   "canonicalSource": "services/api/test/production-sentry-batch-schema-drift.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-signing-key-seed-resolver.test.js",
+   "canonicalSource": "services/api/test/production-signing-key-seed-resolver.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-subscription-gate-stale-row.test.js",
+   "canonicalSource": "services/api/test/production-subscription-gate-stale-row.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-trust-center-empty-state.test.js",
+   "canonicalSource": "services/api/test/production-trust-center-empty-state.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/production-trust-center-enterprise-completion.test.js",
+   "canonicalSource": "services/api/test/production-trust-center-enterprise-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/reliability.test.js",
+   "canonicalSource": "services/api/test/reliability.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/review-operations-completion.test.js",
+   "canonicalSource": "services/api/test/review-operations-completion.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/review-operations.test.js",
+   "canonicalSource": "services/api/test/review-operations.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/reviewer-ops-e2e-operational.test.js",
+   "canonicalSource": "services/api/test/reviewer-ops-e2e-operational.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/reviewer-ops-lifecycle-activation.test.js",
+   "canonicalSource": "services/api/test/reviewer-ops-lifecycle-activation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/reviewer-ops-workspace-hotfix.test.js",
+   "canonicalSource": "services/api/test/reviewer-ops-workspace-hotfix.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/runtime-validation-enterprise.test.js",
+   "canonicalSource": "services/api/test/runtime-validation-enterprise.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/security-validation.test.js",
+   "canonicalSource": "services/api/test/security-validation.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/ui-adoption-rollout.test.js",
+   "canonicalSource": "services/api/test/ui-adoption-rollout.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/ui-operational-wiring.test.js",
+   "canonicalSource": "services/api/test/ui-operational-wiring.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/ui-ops-maturity.test.js",
+   "canonicalSource": "services/api/test/ui-ops-maturity.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/ui-ops-polish.test.js",
+   "canonicalSource": "services/api/test/ui-ops-polish.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/webhook-receiver-verification.test.js",
+   "canonicalSource": "services/api/test/webhook-receiver-verification.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/workflow-intake-public-projection.test.js",
+   "canonicalSource": "services/api/test/workflow-intake-public-projection.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/workflow-intake-token.service.test.js",
+   "canonicalSource": "services/api/test/workflow-intake-token.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/workflow-template.service.test.js",
+   "canonicalSource": "services/api/test/workflow-template.service.test.ts",
+   "classification": "GENERATED_TWIN"
+  },
+  {
+   "deleted": "services/api/test/workspace-surface-audit.test.js",
+   "canonicalSource": "services/api/test/workspace-surface-audit.test.ts",
+   "classification": "GENERATED_TWIN"
+  }
+ ]
+}

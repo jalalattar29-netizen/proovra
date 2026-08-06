@@ -20,6 +20,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { FastifyRequest } from "fastify";
+import { asPrismaDouble, type DelegateArgs, type JsonRecord } from "./support/prisma-double.js";
 
 // db default client is never used — every call injects an explicit client.
 vi.mock("../src/db.js", () => ({ prisma: {} }));
@@ -57,10 +59,10 @@ type Seed = {
   }>;
 };
 
-function containsMatch(row: any, or: any[]): boolean {
+function containsMatch(row: JsonRecord, or: JsonRecord[]): boolean {
   for (const clause of or) {
     for (const [field, cond] of Object.entries(clause)) {
-      const needle = (cond as any)?.contains;
+      const needle = (cond as { contains?: unknown } | undefined)?.contains;
       if (typeof needle !== "string") continue;
       const value = row[field];
       if (
@@ -75,16 +77,17 @@ function containsMatch(row: any, or: any[]): boolean {
 }
 
 // A findMany that honours { where: { OR }, take, select } enough for the SUT.
-function makeFindMany(rows: any[]) {
-  return vi.fn(async ({ where, take, select }: any) => {
+function makeFindMany(rows: JsonRecord[]) {
+  return vi.fn(async ({ where, take, select }: DelegateArgs) => {
     let out = rows;
-    if (where?.OR) out = out.filter((r) => containsMatch(r, where.OR));
+    const or = where?.OR as JsonRecord[] | undefined;
+    if (or) out = out.filter((r) => containsMatch(r, or));
     if (typeof take === "number") out = out.slice(0, take);
     // Honour `select` so the double can only ever hand back selected columns —
     // this makes the "no secrets" payload assertion meaningful.
     if (select) {
       out = out.map((r) => {
-        const projected: any = {};
+        const projected: JsonRecord = {};
         for (const key of Object.keys(select)) {
           if (select[key]) projected[key] = r[key] ?? null;
         }
@@ -95,7 +98,7 @@ function makeFindMany(rows: any[]) {
   });
 }
 
-function makeClient(seed: Seed): any {
+function makeClient(seed: Seed) {
   const empty = makeFindMany([]);
   return {
     organization: { findMany: makeFindMany(seed.organizations ?? []) },
@@ -127,7 +130,7 @@ describe("adminGlobalSearch", () => {
     });
     const res = await adminGlobalSearch(
       { query: "acme", types: ["organization"] },
-      client,
+      asPrismaDouble(client),
     );
     const group = res.groups.find((g) => g.type === "organization")!;
     expect(group.results).toHaveLength(1);
@@ -153,7 +156,7 @@ describe("adminGlobalSearch", () => {
     });
     const res = await adminGlobalSearch(
       { query: "acme.test", types: ["user"] },
-      client,
+      asPrismaDouble(client),
     );
     const group = res.groups.find((g) => g.type === "user")!;
     expect(group.results).toHaveLength(1);
@@ -175,7 +178,7 @@ describe("adminGlobalSearch", () => {
     });
     const res = await adminGlobalSearch(
       { query: "legal", types: ["team"] },
-      client,
+      asPrismaDouble(client),
     );
     const group = res.groups.find((g) => g.type === "team")!;
     expect(group.results).toHaveLength(1);
@@ -195,7 +198,7 @@ describe("adminGlobalSearch", () => {
     const client = makeClient({ organizations });
     const res = await adminGlobalSearch(
       { query: "match", types: ["organization"], perTypeLimit: 10 },
-      client,
+      asPrismaDouble(client),
     );
     const group = res.groups.find((g) => g.type === "organization")!;
     expect(group.results).toHaveLength(10);
@@ -203,7 +206,7 @@ describe("adminGlobalSearch", () => {
 
   it("returns honest empty arrays for types with no matches", async () => {
     const client = makeClient({ organizations: [] });
-    const res = await adminGlobalSearch({ query: "nothing" }, client);
+    const res = await adminGlobalSearch({ query: "nothing" }, asPrismaDouble(client));
     // All eight groups present, every one an honest empty array.
     expect(res.groups.map((g) => g.type).sort()).toEqual(
       [...ALL_SEARCH_TYPES].sort(),
@@ -224,7 +227,7 @@ describe("adminGlobalSearch", () => {
       ],
       teams: [{ id: "t", name: "Acme WS", billingPlan: "PRO" }],
     });
-    const res = await adminGlobalSearch({ query: "acme" }, client);
+    const res = await adminGlobalSearch({ query: "acme" }, asPrismaDouble(client));
     const json = JSON.stringify(res).toLowerCase();
     for (const forbidden of [
       "passwordhash",
@@ -255,8 +258,8 @@ describe("admin-search route gate", () => {
     vi.resetModules();
 
     vi.doMock("../src/middleware/auth.js", () => ({
-      requireAuth: vi.fn(async (req: any) => {
-        req.user = { sub: "not-an-admin" };
+      requireAuth: vi.fn(async (req: FastifyRequest) => {
+        req.user = { sub: "not-an-admin", provider: "EMAIL" };
       }),
     }));
     vi.doMock("../src/services/platform-admin.service.js", () => ({
@@ -285,8 +288,8 @@ describe("admin-search route gate", () => {
     vi.resetModules();
 
     vi.doMock("../src/middleware/auth.js", () => ({
-      requireAuth: vi.fn(async (req: any) => {
-        req.user = { sub: "admin" };
+      requireAuth: vi.fn(async (req: FastifyRequest) => {
+        req.user = { sub: "admin", provider: "EMAIL" };
       }),
     }));
     vi.doMock("../src/services/platform-admin.service.js", () => ({

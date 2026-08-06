@@ -194,6 +194,34 @@ describe("Phase 24 — search routes auth posture", () => {
       /app\.delete\([\s\S]*?"\/v1\/search\/saved-views\/:id"/
     );
   });
+
+  // PHASE 12B (Evidence Operations, 2026-07-29) — exactly ONE public
+  // search authority per data domain. The owner-scoped
+  // /v1/search/evidence + /v1/search/cases primitives were deleted after
+  // their filters were absorbed by the unified authority; the audit-log
+  // route stays because search_audit_logs is a DIFFERENT data domain with
+  // a different gate (operator, not actor).
+  it("exposes exactly one public search authority over workspace content", () => {
+    expect(src).not.toMatch(/["']\/v1\/search\/evidence["']/);
+    expect(src).not.toMatch(/["']\/v1\/search\/cases["']/);
+    // The unified authority survives.
+    expect(src).toMatch(/["']\/v1\/search["']/);
+    // The audit-log domain keeps its own (operator-gated) authority.
+    expect(src).toMatch(/["']\/v1\/search\/audit["']/);
+  });
+
+  it("the unified authority carries the absorbed caseId + evidenceTypes filters", () => {
+    // Route forwards caseId; the shared schema accepts it.
+    expect(src).toMatch(/caseId:\s*typeof raw\.caseId === "string"/);
+    const shared = readSource("../../../packages/shared/src/search.ts");
+    expect(shared).toMatch(/caseId:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
+    // executeSearch APPLIES both (evidenceTypes was previously accepted
+    // and silently ignored, so the /search filter chips did nothing).
+    const svc = readSource("../src/services/search/evidence-search.service.ts");
+    expect(svc).toMatch(/where\.caseId = filter\.caseId/);
+    expect(svc).toMatch(/filter\.evidenceTypes/);
+    expect(svc).toMatch(/path:\s*\["type"\]/);
+  });
 });
 
 // -----------------------------------------------------------------------------

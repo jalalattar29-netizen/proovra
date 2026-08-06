@@ -49,6 +49,17 @@ import { getAuthUserId } from "../auth.js";
 import { checkOrgAccess } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+// Macro-Wave A2 — durable invite delivery: outbox row committed in the
+// SAME per-row transaction as the invite, inline first email attempt
+// after commit, worker-driven rotation retries for stranded rows. The
+// bulk path reuses the EXACT same delivery chain as the single-invite
+// path — no second delivery system.
+import {
+  attemptInitialOrgInviteDelivery,
+  recordOrgInviteDeliveryPending,
+  resendOrgInviteDelivery,
+  type OrgInviteDeliveryState,
+} from "../services/organization/org-invite-delivery.service.js";
 
 // ---------------------------------------------------------------------------
 // Constants + shapes
@@ -527,7 +538,7 @@ async function executeBatch(input: {
   actorUserId: string;
   planned: PlannedRow[];
   batchId: string;
-}): Promise<Array<{ line: number | null; email: string; role: OrgRoleValue; outcome: ExecuteOutcome; reason: string | null; inviteId: string | null }>> {
+}): Promise<Array<{ line: number | null; email: string; role: OrgRoleValue; outcome: ExecuteOutcome; reason: string | null; inviteId: string | null; token?: string; delivery?: OrgInviteDeliveryState | null }>> {
   const results: Array<{
     line: number | null;
     email: string;
@@ -535,7 +546,26 @@ async function executeBatch(input: {
     outcome: ExecuteOutcome;
     reason: string | null;
     inviteId: string | null;
+    /** 12B 2B — RAW accept token, present ONLY on INVITED rows (single-invite parity; stored only as hash). */
+    token?: string;
+    /** Macro-Wave A2 — durable delivery state for INVITED rows (safe: never a token/URL). */
+    delivery?: OrgInviteDeliveryState | null;
   }> = [];
+
+  // Macro-Wave A2 — render context fetched ONCE per batch (org display
+  // name + inviter display) for the inline first delivery attempts.
+  const [orgRow, actorRow] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: input.orgId },
+      select: { name: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: input.actorUserId },
+      select: { displayName: true, email: true },
+    }),
+  ]);
+  const organizationName = orgRow?.name ?? "your organization";
+  const inviterDisplay = actorRow?.displayName || actorRow?.email || null;
 
   for (const row of input.planned) {
     if (row.outcome !== "WOULD_INVITE") {
@@ -611,11 +641,38 @@ async function executeBatch(input: {
             bulkBatchId: input.batchId,
           },
         });
-        return { kind: "ok" as const, inviteId: invite.id };
+        // Macro-Wave A2 — durable delivery outbox in the SAME per-row
+        // transaction (ids only; the raw token is NEVER persisted).
+        const { deliveryId } = await recordOrgInviteDeliveryPending(tx, {
+          inviteId: invite.id,
+          organizationId: input.orgId,
+          email: row.email,
+          initiatedByUserId: input.actorUserId,
+        });
+        // PHASE 12B WAVE 2B — single-invite parity: surface the RAW token
+        // exactly once to the AUTHORIZED admin (stored only as hash). Without
+        // this the bulk invite was un-acceptable (token discarded, no delivery).
+        return {
+          kind: "ok" as const,
+          inviteId: invite.id,
+          token,
+          deliveryId,
+          expiresAt: invite.expiresAt,
+        };
       });
 
       if (created.kind === "ok") {
-        results.push({ line: row.line, email: row.email, role: row.role, outcome: "INVITED", reason: null, inviteId: created.inviteId });
+        // Macro-Wave A2 — inline first delivery attempt (never throws; a
+        // failure leaves the row PENDING for the rotation-retry sweep).
+        const delivery = await attemptInitialOrgInviteDelivery({
+          deliveryId: created.deliveryId,
+          rawToken: created.token,
+          organizationName,
+          role: row.role,
+          inviterDisplay,
+          expiresAt: created.expiresAt,
+        });
+        results.push({ line: row.line, email: row.email, role: row.role, outcome: "INVITED", reason: null, inviteId: created.inviteId, token: created.token, delivery });
       } else if (created.kind === "pending") {
         results.push({ line: row.line, email: row.email, role: row.role, outcome: "PENDING_INVITE_EXISTS", reason: "A pending invite already exists.", inviteId: null });
       } else {
@@ -782,7 +839,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     inviteIds = Array.from(new Set(inviteIds)).slice(0, BULK_INVITE_MAX_ROWS);
 
     const now = new Date();
-    const results: Array<{ inviteId: string; outcome: "RESENT" | "NOT_PENDING" | "NOT_FOUND" | "FAILED"; reason: string | null }> = [];
+    const results: Array<{ inviteId: string; outcome: "RESENT" | "NOT_PENDING" | "NOT_FOUND" | "FAILED"; reason: string | null; delivery?: OrgInviteDeliveryState | null }> = [];
     for (const inviteId of inviteIds) {
       try {
         const outcome = await prisma.$transaction(async (tx) => {
@@ -813,9 +870,27 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
               resendCount: updated.resendCount,
             },
           });
-          return { kind: "ok" as const };
+          return { kind: "ok" as const, email: invite.email };
         });
-        if (outcome.kind === "ok") results.push({ inviteId, outcome: "RESENT", reason: null });
+        if (outcome.kind === "ok") {
+          // Macro-Wave A2 — a resend now ACTUALLY re-delivers via the
+          // durable delivery chain (token rotation + email + outcome on
+          // the outbox row). Delivery state is safe to expose; the fresh
+          // accept URL is NOT exposed per-row on the bulk surface (the
+          // email is the delivery mechanism here).
+          const resent = await resendOrgInviteDelivery({
+            inviteId,
+            organizationId: ctx.orgId,
+            email: outcome.email,
+            actorUserId: ctx.userId,
+          });
+          results.push({
+            inviteId,
+            outcome: "RESENT",
+            reason: null,
+            delivery: resent?.state ?? null,
+          });
+        }
         else if (outcome.kind === "not_found") results.push({ inviteId, outcome: "NOT_FOUND", reason: "Invite not found." });
         else results.push({ inviteId, outcome: "NOT_PENDING", reason: "Invite is accepted, revoked, or expired." });
       } catch {

@@ -116,10 +116,10 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // Phase IA-collapse — `workspace.communications` reclassified
       // out of WORKSPACE into SYSTEM/secondary: it is operator-facing
       // messaging delivery state, not a workspace execution surface.
-      // `workspace.collaboration` stays here as a legacy entry — the
-      // page now redirects to /inbox (next.config.js); the registry
-      // entry remains so contract tests pinning id+href still pass.
-      "workspace.collaboration",
+      // Phase 12 Point 4 (Pass E) — `workspace.collaboration` removed.
+      // Its page was deleted (permanently redirected to /inbox), and the
+      // registry entry had been kept alive only so contract tests pinning
+      // id+href stayed green.
       "workspace.intelligence",
       "investigation.hub",
       "investigation.timeline",
@@ -325,6 +325,8 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // Phase 6 cleanup — dashboard.insights retired.
       "dashboard.batch_analysis",
       "platform.provisioning",
+      // PHASE 12B C10 — support access + break-glass (PLATFORM_ADMIN only).
+      "platform.support_access",
 
       "platform.ops_center",
       "platform.observability",

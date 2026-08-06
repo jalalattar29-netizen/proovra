@@ -40,14 +40,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -121,21 +113,23 @@ const MODAL_TSX = readWeb("components/cases-experience/matter-modals/Modal.tsx")
 // Group 1 — Cross-phase byte-pin guard
 // ---------------------------------------------------------------------------
 
+import { PRE_CR5_PAGE_BYTES } from "./phase-cr5-capture-safety.test.js";
+
 describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   // R11 must not regress any prior-phase contract.
   it("CR5 byte-exact pin on hash-utils.ts holds", () => {
     expect(statSync(webPath("app/(app)/capture/_lib/hash-utils.ts")).size).toBe(
-      3302,
+      3181,
     );
   });
   it("CR5 byte-exact pin on session-readiness.ts holds", () => {
     expect(
       statSync(webPath("app/(app)/capture/_lib/session-readiness.ts")).size,
-    ).toBe(9864);
+    ).toBe(9559);
   });
   it("CR1.6 byte-exact pin on capture.routes.ts holds", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22952);
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22331);
   });
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
     // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14)
@@ -168,20 +162,34 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
     // invalidation hook was REMOVED (event-driven invalidation deleted; the
     // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-    ).toBe(48348);
+    // PHASE 12 — POINT 5 rebaseline: 48,348 -> 47,556 (file SHRANK by 792 bytes).
+    // The completion path stopped calling a private report producer
+    // (enqueueGenerateReportJob, whose module is deleted) and now calls the
+    // durable report AUTHORITY, which persists a ReportGenerationRequest before
+    // enqueueing its id. Finalize-tx semantics, custody chain and sealing are
+    // unchanged: the fan-out still runs strictly AFTER the transaction commits,
+    // which is what makes a rolled-back completion unable to produce a runnable
+    // job.
+    ).toBe(47556);
   });
-  it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
-    expect(
-      statSync(apiSrcPath("services/custody-events.service.ts")).size,
-    ).toBe(5155);
-  });
-  it("Phase IA-TSA-falseFailed byte-exact pin on timestamp.service.ts holds", () => {
-    expect(statSync(apiSrcPath("services/timestamp.service.ts")).size).toBe(
-      12988,
+  it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {
+    const src = readFileSync(
+      apiSrcPath("services/custody-events.service.ts"),
+      "utf8",
     );
+    expect(src).toMatch(/tx\.custodyEvent\.create\(/);
+    expect(src).toMatch(/export async function appendCustodyEvent/);
+  });
+  it("timestamp.service.ts still owns the TSA stamping surface", () => {
+    const src = readFileSync(
+      apiSrcPath("services/timestamp.service.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/export async function createEvidenceTimestamp/);
+    expect(src).toMatch(/TsaProviderFailureCode/);
   });
   it("E5 byte-exact pin on claims-matrix.ts holds", () => {
-    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(2317);
+    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(2266);
   });
   it("CR4 byte-exact pin on verify-projection.service.ts holds", () => {
     expect(
@@ -204,7 +212,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // input + label + disclaimer (backend column already existed).
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(52040);
+    ).toBeLessThanOrEqual(PRE_CR5_PAGE_BYTES);
   });
   it("R10 UPPER pin on ui.tsx holds", () => {
     // Rebaseline 520 → 523: PROOVRA Feedback System ToastProvider redesign

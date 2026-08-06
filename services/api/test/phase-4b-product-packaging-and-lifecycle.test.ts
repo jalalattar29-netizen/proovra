@@ -74,17 +74,20 @@ import {
   resolveEffectiveRetention,
   gateRetention,
   listRetentionPolicies,
-  RETENTION_TEMPLATE_DEFAULTS,
 } from "../src/services/lifecycle/retention-engine.service.js";
 
 import {
-  createLegalHold,
-  releaseLegalHold,
   isUnderLegalHold,
   assertNoLegalHoldOrBlock,
-  listLegalHolds,
-  countActiveHolds,
 } from "../src/services/lifecycle/legal-hold.service.js";
+// PHASE 12 POINT 3 — the scope-generic WRITE surface was retired; placement,
+// release and listing are the ONE canonical authority now. The evaluator-
+// backed read helpers above survive and still belong to the lifecycle module.
+import {
+  placeCanonicalLegalHold,
+  releaseCanonicalLegalHold,
+  listCanonicalLegalHolds,
+} from "../src/services/governance/legal-hold.service.js";
 
 import {
   transitionEvidenceTier,
@@ -189,6 +192,13 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       update: async () => ({}),
       groupBy: async () => [],
     },
+    // Track 1B closure — case linkage hydrates from the canonical
+    // CaseEvidenceLink table (the legacy Evidence scalar was dropped).
+    caseEvidenceLink: {
+      findFirst: async () => null,
+      findMany: async () => [],
+      count: async () => 0,
+    },
     legalHold: {
       create: async (args: { data: Record<string, unknown>; select: unknown }) => ({
         id: "hold-1",
@@ -275,8 +285,15 @@ describe("1. Shared closure contracts — bounded enums", () => {
     expect(CHAIN_TRANSFER_STATES).toHaveLength(7);
   });
 
-  it("WEBHOOK_EVENT_KINDS has exactly 16 entries", () => {
-    expect(WEBHOOK_EVENT_KINDS).toHaveLength(16);
+  it("WEBHOOK_EVENT_KINDS has exactly 17 entries", () => {
+    // PHASE 12 POINT 1 (2026-07-31) — 16 → 17. `PACKAGE_DOWNLOAD_AUTHORIZED`
+    // was added so the download vocabulary stops conflating "a link was
+    // issued" with "bytes transferred". The count is asserted alongside the
+    // two download kinds by NAME, so a future silent rename or removal fails
+    // here instead of passing on arithmetic alone.
+    expect(WEBHOOK_EVENT_KINDS).toHaveLength(17);
+    expect(WEBHOOK_EVENT_KINDS).toContain("PACKAGE_DOWNLOAD_AUTHORIZED");
+    expect(WEBHOOK_EVENT_KINDS).toContain("PACKAGE_DOWNLOADED");
   });
 
   it("WEBHOOK_DELIVERY_STATES has exactly 5 entries", () => {
@@ -334,16 +351,28 @@ describe("2. Prisma schema + migration", () => {
     "LifecycleWebhookEndpoint",
     "LifecycleWebhookDelivery",
     "RetentionPolicyConfig",
-    "LegalHold",
+    // PHASE 12 POINT 3 — "LegalHold" was the 12th model here. The
+    // scope-generic `legal_holds` store was absorbed into canonical
+    // `evidence_legal_holds` and DROPped by
+    // 20271108000000_legal_hold_legacy_removal, so the model is gone from
+    // schema.prisma. The historical CREATE TABLE assertion below is NOT
+    // changed — migration 20261230000000 really did create that table and
+    // migration history is immutable.
     "ArchiveTierTransition",
     "DestructionRequest",
     "DestructionCertificate",
   ];
 
-  it("schema.prisma declares all 12 Phase 4B models", () => {
+  it("schema.prisma declares the surviving 11 Phase 4B models", () => {
     for (const model of expectedModels) {
       expect(schema).toMatch(new RegExp(`model ${model}\\s*\\{`));
     }
+    expect(expectedModels).toHaveLength(11);
+  });
+
+  it("the retired scope-generic LegalHold model stays REMOVED from schema.prisma", () => {
+    expect(schema).not.toMatch(/^model LegalHold\s*\{/m);
+    expect(schema).not.toMatch(/@@map\("legal_holds"\)/);
   });
 
   const expectedTables = [
@@ -422,13 +451,14 @@ describe("3. Service module surface — typeof checks", () => {
     expect(typeof listRetentionPolicies).toBe("function");
   });
 
-  it("legal-hold service exports all documented functions", () => {
-    expect(typeof createLegalHold).toBe("function");
-    expect(typeof releaseLegalHold).toBe("function");
+  it("legal-hold placement/release/list is the ONE canonical authority", () => {
+    // Reads that gate destruction stay on the lifecycle module (they delegate
+    // to the canonical evaluator); every WRITE is canonical-only.
     expect(typeof isUnderLegalHold).toBe("function");
     expect(typeof assertNoLegalHoldOrBlock).toBe("function");
-    expect(typeof listLegalHolds).toBe("function");
-    expect(typeof countActiveHolds).toBe("function");
+    expect(typeof placeCanonicalLegalHold).toBe("function");
+    expect(typeof releaseCanonicalLegalHold).toBe("function");
+    expect(typeof listCanonicalLegalHolds).toBe("function");
   });
 
   it("archive-tier service exports all documented functions", () => {
@@ -706,13 +736,21 @@ describe("7. Legal hold blocks delete", () => {
 
   function makePrismaWithActiveHold() {
     return makePrismaStub({
-      legalHold: {
+      // PHASE 12 POINT 3 — isUnderLegalHold delegates to the ONE effective-
+      // hold evaluator, which reads the ONE canonical table and resolves
+      // linked cases from CaseEvidenceLink. The hold is an evidence-direct
+      // canonical row, so an evidence-scoped probe must match it.
+      evidenceLegalHold: {
         create: async () => ({ id: "hold-1" }),
         findFirst: async () => activeLegalHold,
         findMany: async () => [activeLegalHold],
         count: async () => 1,
         update: async () => ({}),
         groupBy: async () => [],
+      },
+      caseEvidenceLink: {
+        findFirst: async () => null,
+        findMany: async () => [],
       },
     });
   }
@@ -1053,26 +1091,6 @@ describe("12. Webhook signing + delivery", () => {
 // ===========================================================================
 
 describe("13. Webhook delivery state machine", () => {
-  function makeDeliveryStub(overrideDelivery: Record<string, unknown>) {
-    return makePrismaStub({
-      lifecycleWebhookDelivery: {
-        findUnique: async () => ({
-          id: "delivery-1",
-          teamId: "team-1",
-          state: "PENDING",
-          attemptCount: 0,
-          eventKind: "EVIDENCE_CREATED",
-          signature: "a".repeat(64),
-          payload: { event: "EVIDENCE_CREATED" },
-          endpoint: { id: "ep-1", url: "https://example.com/webhook", state: "ACTIVE" },
-          ...overrideDelivery,
-        }),
-        update: async (args: { data: Record<string, unknown> }) => args.data,
-        create: async () => ({ id: "delivery-1" }),
-        findFirst: async () => null,
-      },
-    });
-  }
 
   it("200 response → DELIVERED", async () => {
     let updatedState: string | undefined;

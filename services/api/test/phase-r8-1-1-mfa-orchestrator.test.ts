@@ -24,7 +24,7 @@
  *   10. Capture / custody / TSA / report files unchanged.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -355,17 +355,64 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     expect(ROUTES_SRC).toMatch(/consumeRecoveryCode/);
   });
 
-  it("identity-security.routes.ts step-up surface is unchanged (no parallel step-up)", () => {
+  /**
+   * PHASE 12B ACCEPTANCE — this test used to be a byte-size pin ALONE, which
+   * made it a proxy for the invariant rather than a check of it: it fires on any
+   * growth, including growth that strengthens enforcement, and it would NOT fire
+   * if someone added a parallel step-up implementation while deleting an equal
+   * number of bytes elsewhere. The invariant is now asserted directly, and the
+   * size pin is kept only as a secondary drift detector.
+   */
+  it("identity-security.routes.ts has NO parallel step-up authority", () => {
+    // NOTE: the file-level `ROUTES_SRC` is mfa.routes.ts. This test is about a
+    // DIFFERENT file, so it reads its own source explicitly.
+    const IDSEC_SRC = readApi("src/routes/identity-security.routes.ts");
+    // 1. Every gate in this file delegates to the ONE canonical middleware.
+    expect(IDSEC_SRC).toMatch(/requireStepUpForSensitiveAction\(/);
+    // 2. Start/check delegate to the canonical challenge service — the file
+    //    does not re-implement the lifecycle.
+    expect(IDSEC_SRC).toMatch(/startStepUpChallenge\(/);
+    expect(IDSEC_SRC).toMatch(/checkStepUpChallenge\(/);
+    // 3. THE ACTUAL INVARIANT: this file never approves or consumes a
+    //    challenge itself. `consumeApprovedChallenge` is the single-use consume
+    //    authority and belongs to step-up.service.ts; an APPROVED/CANCELLED
+    //    write here would be a second authority over elevation.
+    expect(IDSEC_SRC).not.toMatch(/consumeApprovedChallenge/);
+    expect(IDSEC_SRC).not.toMatch(/StepUpChallengeStatus\.APPROVED/);
+    expect(IDSEC_SRC).not.toMatch(/StepUpChallengeStatus\.CANCELLED/);
+    // The ONLY permitted direct write to the challenge table here is the
+    // operator/cron TTL sweep, which expires PENDING rows and can never grant
+    // elevation. Pin it to exactly that transition so a future edit cannot
+    // widen it into an approval path.
+    const challengeWrites =
+      // `updateMany` FIRST — regex alternation is ordered, so a leading
+      // `update` would match the prefix and mask the real method name.
+      IDSEC_SRC.match(/stepUpChallenge\.(?:updateMany|create|update|upsert|delete)/g) ?? [];
+    expect(challengeWrites).toEqual(["stepUpChallenge.updateMany"]);
+    expect(IDSEC_SRC).toMatch(
+      /status:\s*prismaPkg\.StepUpChallengeStatus\.PENDING[\s\S]{0,220}?status:\s*prismaPkg\.StepUpChallengeStatus\.EXPIRED/,
+    );
+  });
+
+  it("identity-security.routes.ts size has not drifted from its canonical baseline", () => {
     const st = statSync(apiPath("src/routes/identity-security.routes.ts"));
-    // Final Closure Remediation Part D — rebaselined from the historical
-    // R8.1.1 baseline (18952) to the current canonical size (30979).
-    // The growth is post-R8.1.1 bounded step-up + recovery-flow
-    // additions, NOT a parallel step-up surface. The pin still
-    // detects further drift relative to the new canonical size.
-    // Rebaselined 2026-07-16: account step-up enforcement (revoke-others).
-    // Rebaselined 2026-07-17 (Settings remediation): +single own-session
-    // revoke route (step-up session_revoke) added to the canonical file.
-    const expected = 35440;
+    // Historical baselines: 18952 (R8.1.1) → 30979 (Final Closure Part D) →
+    // 35440 (2026-07-16 account step-up on revoke-others; 2026-07-17 single
+    // own-session revoke).
+    // Rebaselined 2026-07-30 (PHASE 12B Identity/Security closure) to 48524.
+    // The +13KB is ENFORCEMENT, not surface area, and the invariant test above
+    // proves no step-up authority was added:
+    //   * devices/trust: the device secret is now server-derived from an
+    //     HTTP-only cookie this route mints (was client-supplied), the subject
+    //     is self-only, and it gained authorizeOrFail + target-bound step-up;
+    //   * risk/user/:id: gained target membership verification + concealed 404
+    //     (previously accepted any user id);
+    //   * reconcile: gained an operator path (authorize + step-up), workspace
+    //     scoping so an operator cannot trigger a platform-wide sweep, and one
+    //     transaction around both sweeps;
+    //   * my-sessions: sessionIdHash removed from the projection;
+    //   * one new read (session-policy-impact) computed server-side.
+    const expected = 48524;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);
@@ -407,26 +454,3 @@ describe("R8.1.1 Part 9 — documentation present", () => {
 // =============================================================================
 // PART 10 — Capture / custody / TSA / report / package unchanged
 // =============================================================================
-
-describe("R8.1.1 Part 10 — canonical capture/custody/TSA/report files unchanged", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±10% of the CR1.5 baseline`, () => {
-      const st = statSync(apiPath(rel));
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(st.size).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});

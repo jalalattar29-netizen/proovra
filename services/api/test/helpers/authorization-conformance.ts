@@ -49,8 +49,6 @@ import {
   type ActorSnapshot,
   type MemberAccessSnapshot,
 } from "../../src/services/identity/access-policy.service.js";
-
-const FUTURE = new Date(Date.now() + 365 * 24 * 3600 * 1000);
 const PAST = new Date(Date.now() - 60_000);
 
 type MemberOverrides = Partial<

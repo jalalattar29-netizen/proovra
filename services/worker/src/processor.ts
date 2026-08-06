@@ -19,7 +19,7 @@ import {
   type ExtractedPreview,
 } from "./preview/extract.js";
 // PHASE 6 §9.7 (2026-07-22) — purge-time legal-hold re-check (4B holds).
-import { hasActiveLifecycleLegalHold } from "./governance/lifecycle-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
 import {
   assertWorkspaceAllowsReportArtifact,
   assertWorkspaceAllowsVerificationPackageArtifact,
@@ -56,9 +56,8 @@ import {
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
   isPrimaryReviewerArtifactRole,
-  parseQueueEnvelope,
   resolveReviewerArtifactRole,
-  resolveEffectiveOtsStatus,
+  JOB_NAMES,
   absoluteInternalUrl,
   internalResourcePath,
   type ReviewerArtifactRole,
@@ -99,7 +98,7 @@ import { buildVerificationPackageIntelligence } from "./verification-package-int
 import {
   enqueueEvidencePurgeJob,
   enqueueOtsUpgradeJob,
-  enqueueReportJob as enqueueReportJobOnQueue,
+  enqueueReportGenerationRequest,
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
@@ -109,16 +108,17 @@ import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 import { rejectEvidenceIntegrity } from "./integrity-rejection.service.js";
-
-type GenerateReportJobData = {
-  evidenceId: string;
-  forceRegenerate?: boolean;
-  regenerateReason?: string | null;
-};
-
-type PurgeDeletedEvidenceJobData = {
-  evidenceId: string;
-};
+// PHASE 12 — POINT 5: the payload carries a request id; the authority is a row.
+import { decodeCanonicalJob } from "./canonical-job.js";
+import {
+  markRequestRetryable,
+  markRequestTerminal,
+  mintRequestForLegacyJob,
+  requestReportGenerationFromWorker,
+  resolveAndClaimReportRequest,
+  type ResolvedReportCommand,
+} from "./report-generation-authority.js";
+import type { ReportGenerationPurpose } from "@proovra/shared-runtime/reports";
 
 type WorkerError = Error & {
   code: string;
@@ -464,17 +464,6 @@ function buildEvidenceDetailUrl(evidenceId: string): string {
     base,
     internalResourcePath({ type: "evidence", id: evidenceId })
   );
-}
-
-function shortHash(
-  value: string | null | undefined,
-  head = 12,
-  tail = 10
-): string | null {
-  const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return null;
-  if (text.length <= head + tail + 3) return text;
-  return `${text.slice(0, head)}…${text.slice(-tail)}`;
 }
 
 function normalizePayloadPrimitive(value: unknown): string | null {
@@ -1004,11 +993,6 @@ function resolveRecordedIntegrityPromotionDecision(params: {
     fileSha256: params.fileSha256,
   });
 
-  const effectiveOtsStatus = resolveEffectiveOtsStatus({
-    status: params.otsStatus,
-    anchoredAtUtc: params.otsAnchoredAtUtc,
-  });
-
   const otsHashMatches =
     params.otsHash && params.fingerprintHash
       ? params.otsHash.toLowerCase() === params.fingerprintHash.toLowerCase()
@@ -1342,7 +1326,6 @@ function buildReportEvidenceContent(params: {
   previewPolicy: ReportPreviewPolicy;
   limitations: ReportLegalLimitations;
 } {
-const multipart = params.parts.length > 1;
 const hasStoredParts = params.parts.length > 0;
   const accessPolicy = params.accessPolicy;
   const canExposeContent = accessPolicy.allowContentView;
@@ -1769,29 +1752,6 @@ function deriveIdentityLevel(params: {
   return prismaPkg.IdentityLevel.BASIC_ACCOUNT;
 }
 
-function deriveCaptureMethod(params: {
-  multipart: boolean;
-  mimeType: string | null;
-  existingCaptureMethod: prismaPkg.CaptureMethod | null;
-}): prismaPkg.CaptureMethod {
-  if (params.multipart) return prismaPkg.CaptureMethod.MULTIPART_PACKAGE;
-
-  if (
-    params.existingCaptureMethod &&
-    params.existingCaptureMethod !== prismaPkg.CaptureMethod.MULTIPART_PACKAGE
-  ) {
-    return params.existingCaptureMethod;
-  }
-
-  const mime = String(params.mimeType ?? "").toLowerCase();
-
-  if (mime === "application/pdf" || mime.startsWith("text/")) {
-    return prismaPkg.CaptureMethod.IMPORTED_DOCUMENT;
-  }
-
-  return prismaPkg.CaptureMethod.UPLOADED_FILE;
-}
-
 function deriveReportCaptureMethod(params: {
   itemCount: number;
   mimeType: string | null;
@@ -1843,7 +1803,8 @@ async function prepareReportArtifacts(
       type: true,
       status: true,
       verificationStatus: true,
-      caseId: true,
+      // PHASE 12B — CaseEvidenceLink authority; primary case = earliest link.
+      caseLinks: { select: { caseId: true }, orderBy: { linkedAtUtc: "asc" }, take: 1 },
       organizationId: true,
       captureMethod: true,
       submittedByEmail: true,
@@ -2122,9 +2083,10 @@ async function prepareReportArtifacts(
     }
   | null = null;
 
-if (evidence.caseId) {
+const primaryCaseId = evidence.caseLinks?.[0]?.caseId ?? null;
+if (primaryCaseId) {
   caseItem = await prisma.case.findUnique({
-    where: { id: evidence.caseId },
+    where: { id: primaryCaseId },
     select: {
       id: true,
       name: true,
@@ -2451,8 +2413,6 @@ if (
   const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
   const evidenceDetailUrl = buildEvidenceDetailUrl(evidence.id);
   const verifyUrl = buildVerifyUrl(evidence.id);
-
-  const refreshReason = options?.refreshReason?.trim() || null;
 
   const workspaceVerified =
     workspaceTeam?.verificationState ===
@@ -2808,7 +2768,7 @@ trustDecision,
 certifications,
 custodyForVerificationPackage,
 packageMetadataContext: {
-    caseId: evidence.caseId ?? null,
+    caseId: primaryCaseId,
     caseName: caseItem?.name ?? null,
     retentionPolicy: null,
     workspaceId: evidence.teamId ?? null,
@@ -2819,21 +2779,152 @@ packageMetadataContext: {
 };
 }
 
-export async function processGenerateReport(job: Job<GenerateReportJobData>) {
+/**
+ * PHASE 12 — POINT 5: the report processor's entry point.
+ *
+ * The queue now carries a `ReportGenerationRequest` id and nothing else. This
+ * function's whole job is to turn that id into a runnable command — or into a
+ * bounded refusal — and then hand the command to the generation body below,
+ * which is unchanged apart from reading the command instead of the payload.
+ *
+ * Four outcomes never reach the generator:
+ *
+ *   * a payload that does not decode (rejected before any DB access);
+ *   * a request already terminal (REPLAY: the stored result is returned, no
+ *     second artifact is produced and no second completion event is emitted);
+ *   * a request whose workspace, organization, policy version or legal-hold
+ *     state no longer permits it (BLOCKED, written terminally before any
+ *     storage write);
+ *   * a request another worker holds a live claim on (bounded no-op).
+ */
+export async function processGenerateReport(job: Job<unknown>) {
+  const requestId = randomUUID();
+
+  const decoded = decodeCanonicalJob(JOB_NAMES.GENERATE_REPORT, job, {
+    requestId,
+  });
+
+  // A pre-Point-5 job still draining out of Redis names an EVIDENCE id, not a
+  // request id. It is minted into a durable request — deliberately without the
+  // `forceRegenerate` its payload asserted — so it runs through exactly the
+  // same authority as everything else.
+  let commandRequestId = decoded.commandId;
+  if (decoded.legacy) {
+    const minted = await mintRequestForLegacyJob({
+      evidenceId: decoded.commandId,
+      jobId: job.id,
+    });
+    if (minted.requestId === null) {
+      logger.warn(
+        { requestId, jobId: job.id ?? null, reason: minted.reason },
+        "GenerateReportJob legacy drain could not mint a durable request",
+      );
+      return;
+    }
+    commandRequestId = minted.requestId;
+  }
+
+  const resolution = await resolveAndClaimReportRequest({
+    requestId: commandRequestId,
+    requestIdForLog: requestId,
+  });
+
+  if (resolution.outcome === "replay") {
+    logger.info(
+      {
+        requestId,
+        jobId: job.id ?? null,
+        reportRequestId: commandRequestId,
+        state: resolution.state,
+        status: "replay_noop",
+      },
+      "GenerateReportJob replayed onto a terminal request; no artifact regenerated",
+    );
+    return;
+  }
+
+  if (resolution.outcome === "noop") {
+    logger.warn(
+      {
+        requestId,
+        jobId: job.id ?? null,
+        reportRequestId: commandRequestId,
+        reason: resolution.reason,
+        status: "refused",
+      },
+      "GenerateReportJob refused before any mutation",
+    );
+    return;
+  }
+
+  const command = resolution.command;
+  try {
+    await runReportGeneration(job, command, requestId);
+  } catch (error) {
+    // Terminal vs retryable is decided by the SAME predicate the queue uses, so
+    // the durable row and the queue cannot disagree about whether the intent is
+    // still alive.
+    if (isRetriableError(error)) {
+      await markRequestRetryable({
+        requestId: command.requestId,
+        terminalReasonCode: toBoundedReasonCode(error),
+      });
+    } else {
+      await markRequestTerminal({
+        requestId: command.requestId,
+        state: "FAILED_TERMINAL",
+        terminalReasonCode: toBoundedReasonCode(error),
+      });
+    }
+    throw error;
+  }
+
+  // The artifact the run actually produced, recorded on the request so a
+  // replay can return it instead of generating a second one.
+  const latest = await prisma.report.findFirst({
+    where: { evidenceId: command.evidenceId },
+    orderBy: { version: "desc" },
+    select: { id: true },
+  });
+  await markRequestTerminal({
+    requestId: command.requestId,
+    state: "SUCCEEDED",
+    terminalReasonCode: "generated",
+    resultReportId: latest?.id ?? null,
+  });
+}
+
+/**
+ * Bounded failure code for the durable row.
+ *
+ * A raw error message can carry a storage key, a signing-key path or a
+ * recipient address, and the request row is readable through the operator
+ * projection. Only the error's own code survives.
+ */
+function toBoundedReasonCode(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string" && code) return code.slice(0, 64);
+  }
+  if (error instanceof Error) return error.name.slice(0, 64);
+  return "unknown_error";
+}
+
+async function runReportGeneration(
+  job: Job<unknown>,
+  command: ResolvedReportCommand,
+  requestId: string,
+) {
   // Phase O1.5C — emit bounded report.generate + render.html span at
   // entry. The inner render.pdf / upload / publish spans are emitted
   // at their actual call sites below. NEVER report contents / PDF
   // bytes / signed URLs in attributes.
-  await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_GENERATE, { "proovra.operation": "report_generate", "proovra.evidence_id": job.data.evidenceId }, () => undefined);
-  await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_HTML, { "proovra.operation": "report_render_html", "proovra.evidence_id": job.data.evidenceId }, () => undefined);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_GENERATE, { "proovra.operation": "report_generate", "proovra.evidence_id": command.evidenceId }, () => undefined);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_HTML, { "proovra.operation": "report_render_html", "proovra.evidence_id": command.evidenceId }, () => undefined);
   const start = Date.now();
-  const evidenceId = job.data.evidenceId;
-  const forceRegenerate = job.data.forceRegenerate === true;
-  const regenerateReason =
-    typeof job.data.regenerateReason === "string"
-      ? job.data.regenerateReason.trim() || null
-      : null;
-  const requestId = randomUUID();
+  const evidenceId = command.evidenceId;
+  const forceRegenerate = command.forceRegenerate;
+  const regenerateReason = command.regenerateReason;
 
   const ctx = withJobContext({
     requestId,
@@ -4110,6 +4201,10 @@ trustDecisionSnapshot:
 
         appendWorkerAuditLog({
           userId: evidence.ownerUserId,
+          // PHASE 12 POINT 3 — V3 binds tenant scope INTO the hash. Taken from
+          // the persisted evidence row, never from ambient context.
+          organizationId: evidence.organizationId ?? null,
+          workspaceId: evidence.teamId ?? null,
           action: "evidence.verification_package_generated",
           category: "evidence",
           severity: "info",
@@ -4217,6 +4312,10 @@ trustDecisionSnapshot:
 
         appendWorkerAuditLog({
           userId: evidence.ownerUserId,
+          // PHASE 12 POINT 3 — V3 binds tenant scope INTO the hash. Taken from
+          // the persisted evidence row, never from ambient context.
+          organizationId: evidence.organizationId ?? null,
+          workspaceId: evidence.teamId ?? null,
           action: "evidence.verification_package_generation_failed",
           category: "evidence",
           severity: "warning",
@@ -4259,6 +4358,10 @@ trustDecisionSnapshot:
 
       appendWorkerAuditLog({
         userId: evidence.ownerUserId,
+        // PHASE 12 POINT 3 — V3 binds tenant scope INTO the hash. Taken from the
+        // persisted evidence row being audited, never from ambient context.
+        organizationId: evidence.organizationId ?? null,
+        workspaceId: evidence.teamId ?? null,
         action: "evidence.report_generated",
         category: "evidence",
         severity: "info",
@@ -4575,20 +4678,25 @@ export async function processPurgeDeletedEvidence(
   job: Job<unknown>
 ) {
   const start = Date.now();
-  // Phase X.1 — decode the canonical queue envelope. Back-compat with
-  // legacy raw `{evidenceId}` payloads (in-flight jobs from before
-  // the envelope was adopted). The parser synthesizes the missing
-  // metadata so downstream code can always assume the contract.
-  const decoded = parseQueueEnvelope<PurgeDeletedEvidenceJobData>(job.data, {
-    expectedKind: "PurgeDeletedEvidenceJob",
+  const requestId = randomUUID();
+
+  // PHASE 12 — POINT 5. This decoded a Phase-X.1 `QueuePayloadEnvelope`
+  // (`{ kind, idempotencyKey, body: { evidenceId }, correlationId, teamId }`)
+  // through a TOLERANT parser that synthesised whatever was missing. Two things
+  // were wrong with that for a DESTRUCTIVE job:
+  //
+  //   * tolerance is the opposite of what a hard-delete needs — a malformed or
+  //     tampered payload was repaired into a runnable command rather than
+  //     refused;
+  //   * the envelope carried a `teamId` the processor could have believed.
+  //
+  // It now goes through the same strict decoder as every other chain: unknown
+  // field, unknown version or missing reference is a counted refusal before the
+  // first database read, and the evidence row is the sole source of tenancy.
+  const decoded = decodeCanonicalJob(JOB_NAMES.PURGE_DELETED_EVIDENCE, job, {
+    requestId,
   });
-  const evidenceId = decoded.body.evidenceId;
-  const requestId = decoded.correlationId || randomUUID();
-  if (decoded.legacy) {
-    // Track legacy-payload drain so operators can see when in-flight
-    // pre-envelope jobs have all completed.
-    // (Logged at INFO; no metrics catalog change needed.)
-  }
+  const evidenceId = decoded.commandId;
 
   const ctx = {
     ...withJobContext({
@@ -4598,7 +4706,7 @@ export async function processPurgeDeletedEvidence(
       attempt: job.attemptsMade + 1,
       status: "purging",
     }),
-    correlationId: decoded.correlationId,
+    correlationId: decoded.traceId || null,
     envelope: decoded.legacy ? ("legacy" as const) : ("canonical" as const),
   };
 
@@ -4611,7 +4719,11 @@ select: {
   id: true,
   ownerUserId: true,
   teamId: true,
-  caseId: true,
+  // PHASE 12 POINT 3 — selected so the purge audit row can bind V3 tenant
+  // scope from the PERSISTED evidence row rather than leaving it NULL.
+  organizationId: true,
+  // PHASE 12B — a hold on ANY linked case blocks the purge (fail closed).
+  caseLinks: { select: { caseId: true } },
   deletedAt: true,
   deleteScheduledForUtc: true,
   archivedAt: true,
@@ -4653,28 +4765,19 @@ select: {
     // time. The destruction paths re-assert holds before deleting; purge
     // previously relied only on lockedAt/object-lock, so an application
     // hold placed after deletion was scheduled could be purged through.
-    // Checks all three hold families (evidence 4A, case 4A, lifecycle
-    // 4B). A held purge is rescheduled daily — releasing the hold lets
-    // the next tick proceed; nothing is orphaned.
-    const directHold = await prisma.evidenceLegalHold.findFirst({
-      where: { evidenceId: evidence.id, status: "ACTIVE" },
-      select: { id: true },
+    //
+    // PHASE 12B CLUSTER 8 — the three hand-rolled per-store lookups are
+    // replaced by THE union evaluator, which reads all three stores and
+    // FAILS CLOSED (a transient database error throws instead of reporting
+    // "no hold"). A held purge is rescheduled daily — releasing the hold
+    // lets the next tick proceed; nothing is orphaned.
+    const purgeLinkedCaseIds = (evidence.caseLinks ?? []).map((l) => l.caseId);
+    const purgeHold = await evaluateEffectiveLegalHold(prisma, {
+      teamId: evidence.teamId ?? null,
+      evidenceId: evidence.id,
+      caseIds: purgeLinkedCaseIds,
     });
-    const caseHold = evidence.caseId
-      ? await prisma.caseLegalHold.findFirst({
-          where: { caseId: evidence.caseId, status: "ACTIVE" },
-          select: { id: true },
-        })
-      : null;
-    const lifecycleHold =
-      !directHold && !caseHold && evidence.teamId
-        ? await hasActiveLifecycleLegalHold(prisma, {
-            evidenceId: evidence.id,
-            teamId: evidence.teamId,
-            caseId: evidence.caseId ?? null,
-          })
-        : false;
-    if (directHold || caseHold || lifecycleHold) {
+    if (purgeHold.held) {
       const recheckAtIso = new Date(
         Date.now() + 24 * 60 * 60 * 1000,
       ).toISOString();
@@ -4682,7 +4785,8 @@ select: {
       logger.info(
         {
           ...ctx,
-          holdKind: directHold ? "evidence" : caseHold ? "case" : "lifecycle",
+          holdKind: purgeHold.reasonCode,
+          holdSources: purgeHold.sources.join(","),
           rescheduledFor: recheckAtIso,
         },
         "PurgeDeletedEvidenceJob rescheduled because evidence is under an active legal hold"
@@ -4818,6 +4922,32 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
     }
 
     await prisma.$transaction(async (tx) => {
+      // PHASE 12 POINT 5 — LOCK the record, do not merely re-read it.
+      //
+      // Everything above this line was read outside the transaction. If a
+      // concurrent purge of the same record is in flight — which BullMQ's
+      // deterministic job id makes unlikely rather than impossible, and which
+      // a manual re-enqueue can produce — the first write below is a custody
+      // event referencing a row the other transaction is about to delete, and
+      // the job dies on a raw foreign-key violation (P2003) and retries, for
+      // work that was already correctly complete.
+      //
+      // A plain re-read does NOT fix that. At READ COMMITTED both
+      // transactions see the row, because neither has committed its delete
+      // yet. `FOR UPDATE` is what actually serialises them: the second
+      // transaction blocks until the first commits, then re-reads and finds
+      // nothing, and returns a bounded no-op.
+      //
+      // This is the last check before an irreversible write, not a substitute
+      // for the queue-level claim.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "evidence"
+         WHERE "id" = ${evidence.id}::uuid
+           AND "deleted_at" IS NOT NULL
+         FOR UPDATE
+      `;
+      if (locked.length === 0) return;
+
       await appendCustodyEventTx(tx, {
         evidenceId: evidence.id,
         eventType: prismaPkg.CustodyEventType.EVIDENCE_PURGED,
@@ -4863,6 +4993,10 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
 
     appendWorkerAuditLog({
       userId: evidence.ownerUserId,
+      // PHASE 12 POINT 3 — V3 binds tenant scope INTO the hash. Taken from the
+      // persisted evidence row being audited, never from ambient context.
+      organizationId: evidence.organizationId ?? null,
+      workspaceId: evidence.teamId ?? null,
       action: "evidence.purged",
       category: "evidence",
       severity: "warning",
@@ -4917,12 +5051,30 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
   }
 }
 
+/**
+ * PHASE 12 — POINT 5: the worker's report producer.
+ *
+ * It no longer forwards `{ evidenceId, forceRegenerate }` to a queue. It
+ * persists a `ReportGenerationRequest` through the ONE writer both services
+ * share, and enqueues that row's id. A caller that wants a regeneration is
+ * recording an authorization decision in the database, not setting a flag on a
+ * message.
+ */
 export async function enqueueReportJob(
   evidenceId: string,
   options?: {
     forceRegenerate?: boolean;
     regenerateReason?: string | null;
+    purpose?: ReportGenerationPurpose;
+    machineId?: string;
   }
-) {
-  return enqueueReportJobOnQueue(evidenceId, options);
+): Promise<{ enqueued: boolean; requestId?: string; reason?: string }> {
+  return requestReportGenerationFromWorker({
+    evidenceId,
+    purpose: options?.purpose ?? "lifecycle_recovery",
+    forceRegenerate: options?.forceRegenerate === true,
+    regenerateReason: options?.regenerateReason ?? null,
+    machineId: options?.machineId ?? "worker",
+    enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
+  });
 }

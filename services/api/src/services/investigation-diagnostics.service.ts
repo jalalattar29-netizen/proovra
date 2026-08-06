@@ -88,8 +88,6 @@ export type InvestigationDiagnosticsQueues = {
   graphTimelineSync: InvestigationDiagnosticsQueueRow;
   graphSearchProjection: InvestigationDiagnosticsQueueRow;
   mediaIntelligence: InvestigationDiagnosticsQueueRow;
-  miOcr: InvestigationDiagnosticsQueueRow;
-  miTranscript: InvestigationDiagnosticsQueueRow;
   miEmbed: InvestigationDiagnosticsQueueRow;
   miSearchIndex: InvestigationDiagnosticsQueueRow;
   searchIndexing: InvestigationDiagnosticsQueueRow;
@@ -159,8 +157,6 @@ export const INVESTIGATION_DIAGNOSTICS_RESPONSE_KEYS = Object.freeze([
   "queues.graphTimelineSync",
   "queues.graphSearchProjection",
   "queues.mediaIntelligence",
-  "queues.miOcr",
-  "queues.miTranscript",
   "queues.miEmbed",
   "queues.miSearchIndex",
   "queues.searchIndexing",
@@ -204,8 +200,6 @@ const QUEUE_NAME_TO_KEY = {
   "graph-timeline-sync": "graphTimelineSync",
   "graph-search-projection": "graphSearchProjection",
   "media-intelligence": "mediaIntelligence",
-  "mi-ocr": "miOcr",
-  "mi-transcript": "miTranscript",
   "mi-embed": "miEmbed",
   "mi-search-index": "miSearchIndex",
   "search-indexing": "searchIndexing",
@@ -608,8 +602,6 @@ async function buildQueueDiagnostics(
     graphTimelineSync: { ...EMPTY_QUEUE_ROW },
     graphSearchProjection: { ...EMPTY_QUEUE_ROW },
     mediaIntelligence: { ...EMPTY_QUEUE_ROW },
-    miOcr: { ...EMPTY_QUEUE_ROW },
-    miTranscript: { ...EMPTY_QUEUE_ROW },
     miEmbed: { ...EMPTY_QUEUE_ROW },
     miSearchIndex: { ...EMPTY_QUEUE_ROW },
     searchIndexing: { ...EMPTY_QUEUE_ROW },

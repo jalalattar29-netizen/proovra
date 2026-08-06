@@ -155,7 +155,7 @@ function SamlMappingContent() {
   useEffect(() => {
     if (!teamId) return;
     apiFetch(
-      `/v1/admin/identity/sso/providers?teamId=${encodeURIComponent(teamId)}`,
+      `/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`,
       { method: "GET" },
     )
       .then((r: { providers: Array<{ id: string; provider: string }> }) => {

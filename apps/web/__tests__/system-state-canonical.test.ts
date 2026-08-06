@@ -10,13 +10,34 @@
 
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { readFileSync, existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
 const exists = (rel: string): boolean => existsSync(resolve(APP_ROOT, rel));
+
+const SKIP_DIRS = new Set(["node_modules", ".next", ".git", "playwright-report", "test-results"]);
+
+/** Drops block and line comments so only executable source is matched. */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
+/** Every .ts/.tsx source file under the web app (build output excluded). */
+function walkSources(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name)) continue;
+      walkSources(full, out);
+    } else if (/\.tsx?$/.test(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // 1. Canonical component exists; the superseded one is physically gone
@@ -28,10 +49,27 @@ test("canonical ProovraSystemState + SystemStateSymbol + ProovraDenialState exis
   assert.ok(exists("components/feedback/ProovraDenialState.tsx"));
 });
 
-test("the superseded ProovraErrorState is physically deleted", () => {
+test("the superseded ProovraErrorState is physically deleted and unreferenced", () => {
   assert.ok(!exists("components/feedback/ProovraErrorState.tsx"), "old centered-card state removed");
-  const barrel = read("components/feedback/index.ts");
-  assert.ok(!barrel.includes("ProovraErrorState"), "no barrel export of the old state");
+  // Phase 12 Point 4 (Pass E) — this used to read `components/feedback/
+  // index.ts` to prove the barrel carried no export of the old state. That
+  // barrel had ZERO importers (every consumer deep-imports) and was deleted
+  // as dead code, which turned this into a source pin on a nonexistent
+  // file. The invariant it protected — nothing anywhere still names the
+  // superseded state — is re-expressed over the whole app tree, which is
+  // strictly stronger than the single-file check it replaces.
+  //
+  // Comments are stripped first: a historical note explaining what
+  // ProovraSystemState replaced is documentation, not a live reference.
+  // What must not exist is an import, an export, or a JSX mount.
+  const offenders = walkSources(APP_ROOT)
+    .filter((abs) => abs !== fileURLToPath(import.meta.url))
+    .filter((abs) => stripComments(readFileSync(abs, "utf8")).includes("ProovraErrorState"));
+  assert.deepEqual(
+    offenders.map((f) => f.slice(APP_ROOT.length + 1).split("\\").join("/")),
+    [],
+    "no source file may reference the superseded ProovraErrorState",
+  );
 });
 
 test("ProovraSystemState is a page-level composition, not a floating 480px card", () => {

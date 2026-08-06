@@ -43,6 +43,9 @@ export const MIGRATED_SECRETS = [
   "STRIPE_SECRET_KEY",
   "PAYPAL_SECRET",
   "RESEND_API_KEY",
+  // PHASE 12 POINT 5 — dedicated provider idempotency secret. Used for nothing
+  // else, rotated on its own schedule, never substituted by another secret.
+  "EMAIL_IDEMPOTENCY_SECRET",
   // Phase P2.0B — second migration wave. These names exist in
   // runtime code today (webhook signature verification, Twilio +
   // PayPal client config, cron secret tokens, internal API key).

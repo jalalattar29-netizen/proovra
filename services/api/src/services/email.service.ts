@@ -1,4 +1,28 @@
-import { Resend } from "resend";
+
+
+// PHASE 12 POINT 5 — the CANONICAL email transport authority.
+//
+// This file used to contain two of the repository's three independent email
+// transport policy engines: a `resendSingleton` reached through
+// `sendCustomEmailViaResend`, and a SECOND provider SDK client constructed
+// inside `getEmailService()`. Neither sent an idempotency key, neither had a
+// timeout, and they classified provider errors differently — one returned a
+// typed result, the other resolved the SDK's `{ data, error }` shape so a
+// provider rejection looked like a success to any caller that did not inspect
+// it. The third engine was a raw `fetch` in the worker's MFA digest sweep.
+//
+// All three now route through `deliverEmail`, which owns authentication, the
+// idempotency key, the timeout, retry classification, acknowledgement
+// projection, bounded error handling and PII-safe diagnostics. What stays here
+// is RENDERING: the branded shell, the copy, and the subject lines.
+import {
+  AMBIGUOUS_ERROR_CODE,
+  deliverEmail,
+  mintEmailIdempotencyKey,
+  registerEmailApiKeyResolver,
+  registerEmailIdempotencySecretResolver,
+  type EmailDeliveryOutcome,
+} from "@proovra/shared-runtime";
 // Phase O1.5E — bounded smtp.email_send span.
 import {
   PROOVRA_SPAN_NAMES,
@@ -26,7 +50,7 @@ export type EmailService = {
   sendPasswordResetEmail: (
     email: string,
     resetUrl: string
-  ) => Promise<unknown>;
+  ) => Promise<EmailDeliveryOutcome>;
 
   // EV2 — enterprise email verification.
   // Sent on email/password registration and on resend. The verifyUrl
@@ -36,7 +60,7 @@ export type EmailService = {
   sendEmailVerificationEmail: (
     email: string,
     verifyUrl: string
-  ) => Promise<unknown>;
+  ) => Promise<EmailDeliveryOutcome>;
 
   // PHASE R8.1.5 — verified-email preflight for lost-factor MFA
   // recovery. The body carries a verification LINK (not the token
@@ -47,7 +71,7 @@ export type EmailService = {
   sendMfaRecoveryVerificationEmail: (
     email: string,
     verificationUrl: string
-  ) => Promise<unknown>;
+  ) => Promise<EmailDeliveryOutcome>;
 
   // PHASE R8.1.6 — pending MFA recovery digest for org admins.
   // Plain text + simple HTML; carries ONLY a count + a deep link to
@@ -67,13 +91,13 @@ export type EmailService = {
     pendingCount: number,
     adminSpaUrl: string,
     snoozeUrl?: string | null,
-  ) => Promise<unknown>;
+  ) => Promise<EmailDeliveryOutcome>;
 
   sendTeamInvitation: (
     email: string,
     orgName: string,
     invitationToken: string
-  ) => Promise<unknown>;
+  ) => Promise<EmailDeliveryOutcome>;
 
   sendBatchComplete: (
     email: string,
@@ -82,7 +106,7 @@ export type EmailService = {
     totalItems: number,
     failedItems: number,
     batchUrl: string
-  ) => Promise<unknown>;
+  ) => Promise<EmailDeliveryOutcome>;
 
   sendDemoRequestNotification: (params: {
     to: string;
@@ -113,7 +137,7 @@ export type EmailService = {
     spamScore?: number | null;
     isSpam?: boolean | null;
     quickLinks?: DemoRequestQuickLinks | null;
-  }) => Promise<unknown>;
+  }) => Promise<EmailDeliveryOutcome>;
 
   sendDemoRequestAutoReply: (params: {
     to: string;
@@ -124,10 +148,19 @@ export type EmailService = {
     methodologyUrl: string;
     pricingUrl: string;
     bookingUrl?: string | null;
-  }) => Promise<unknown>;
+  }) => Promise<EmailDeliveryOutcome>;
 
   sendDemoRequestFollowUp: (params: {
     to: string;
+    /**
+     * The durable `DemoRequest` id.
+     *
+     * POINT 5 — supplied so the provider idempotency key can be derived from
+     * (durable id, step) instead of (recipient, step). The recipient is a
+     * prospect's work email; deriving a key from it, even hashed, puts a
+     * guessable identifier in the provider's request logs.
+     */
+    demoRequestId: string;
     fullName: string;
     step: 1 | 2 | 3;
     sampleReportUrl: string;
@@ -137,7 +170,7 @@ export type EmailService = {
     bookingUrl?: string | null;
     requestDemoUrl: string;
     contactSalesUrl: string;
-  }) => Promise<unknown>;
+  }) => Promise<EmailDeliveryOutcome>;
 
   // Contact Sales — operator notification + visitor auto-reply.
   // Mirrors the demo-request shape so admin notification copy and
@@ -167,7 +200,7 @@ export type EmailService = {
     utmTerm?: string | null;
     utmContent?: string | null;
     priority?: string | null;
-  }) => Promise<unknown>;
+  }) => Promise<EmailDeliveryOutcome>;
 
   sendContactSalesAutoReply: (params: {
     to: string;
@@ -176,7 +209,7 @@ export type EmailService = {
     verificationDemoUrl: string;
     methodologyUrl: string;
     pricingUrl: string;
-  }) => Promise<unknown>;
+  }) => Promise<EmailDeliveryOutcome>;
 };
 
 // Phase P2.0 — RESEND_API_KEY is in the migrated set. Migrated names
@@ -226,11 +259,6 @@ function brandName(): string {
 
 function supportEmail(): string {
   return env("SUPPORT_EMAIL") ?? "support@proovra.com";
-}
-
-function logoUrl(): string | undefined {
-  const u = env("EMAIL_LOGO_URL");
-  return u ? u : undefined;
 }
 
 // Public hero banner. Lives on the marketing site so it is reachable
@@ -567,18 +595,100 @@ function buildFollowUpContent(step: 1 | 2 | 3) {
   };
 }
 
-// Phase 8 — generic Resend send helper, shared by the EmailService
-// singleton AND the Phase 8 notification orchestrator. Keeping a single
-// Resend client across the codebase avoids duplicate connections, dual
-// rate-limit accounting, and divergent retry policies.
-let resendSingleton: Resend | null = null;
+// PHASE P2.0 / POINT 5 — the API resolves RESEND_API_KEY through its secret
+// manager (AWS first, env fallback); the worker reads the environment. Rather
+// than fork the transport over that one difference, this host registers HOW to
+// obtain the key and the canonical transport keeps ownership of what to do
+// with it.
+registerEmailApiKeyResolver(() => env("RESEND_API_KEY"));
 
-function getResendClient(): Resend | null {
-  if (resendSingleton) return resendSingleton;
-  const apiKey = env("RESEND_API_KEY");
-  if (!apiKey) return null;
-  resendSingleton = new Resend(apiKey);
-  return resendSingleton;
+// PHASE 12 POINT 5 — the DEDICATED idempotency secret, resolved through the
+// same secret manager and used for nothing else. It deliberately does not fall
+// back to the communications, identity or JWT secrets: borrowing another
+// subsystem couples two rotation schedules, and the day that subsystem rotates,
+// every in-flight retry key silently changes.
+registerEmailIdempotencySecretResolver(() => env("EMAIL_IDEMPOTENCY_SECRET"));
+
+/**
+ * A deterministic provider idempotency key for a send with no durable row.
+ *
+ * The template methods below are called with arguments, not with a database
+ * id — `sendPasswordResetEmail(email, resetUrl)` has nothing to derive an id
+ * from. The key is therefore derived from the message's own identifying
+ * content: the template and the fields that make this message THIS message
+ * (the reset URL, the invitation token, the request id, the follow-up step).
+ *
+ * The property that matters is stability under retry: re-sending the same
+ * password-reset link, or the same follow-up step to the same prospect, yields
+ * the same key and the provider collapses the duplicate. A genuinely new
+ * message carries a new token, a new id or a new step, and so a new key.
+ *
+ * THIS IS A THIN ALIAS, AND THAT IS THE POINT
+ * ---------------------------------------------------------------------------
+ * All derivation lives in the idempotency authority. This function used to do
+ * it here, reaching for whichever secret happened to be configured — the
+ * communications hash secret, then the identity hash secret, then
+ * `AUTH_JWT_SECRET`, then an unkeyed digest. Every link in that chain was
+ * wrong: `AUTH_JWT_SECRET` signs SESSIONS and has no business deriving a value
+ * transmitted to a vendor; borrowing another subsystem's secret couples two
+ * rotation schedules; and the unkeyed fallback made the key a confirmable
+ * guess, because email addresses come from an enumerable space.
+ *
+ * There is now one dedicated secret, used for nothing else, and production
+ * fails closed without it.
+ *
+ * Callers that have a durable row should NOT use this function. They should
+ * mint once at intent creation, persist the key on the row, and load it on
+ * retry — see `readStoredIdempotencyKey`. This one is for the genuinely
+ * row-less callers: a password reset has no outbox row to hang a key on.
+ */
+export function deterministicEmailKey(
+  templateKey: string,
+  ...parts: ReadonlyArray<string>
+): string {
+  return mintEmailIdempotencyKey(templateKey, ...parts);
+}
+
+/**
+ * The one send path used by every method on the {@link EmailService}
+ * singleton.
+ *
+ * Returns the transport's outcome rather than the SDK's response object.
+ * Callers previously received `Promise<unknown>` and, in practice, ignored it;
+ * those that want to react to a provider refusal can now do so honestly,
+ * because a refusal is no longer indistinguishable from a success.
+ */
+async function transportSend(input: {
+  templateKey: string;
+  keyParts: ReadonlyArray<string>;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<EmailDeliveryOutcome> {
+  // Phase O1.5E — bounded smtp.email_send span. NEVER recipient,
+  // subject, body, or sender in attributes — operation only.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.SMTP_EMAIL_SEND,
+    {
+      "proovra.operation": "smtp_email_send",
+      "proovra.provider": "resend",
+    },
+    () =>
+      deliverEmail({
+        from: fromHeader(),
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        idempotencyKey: deterministicEmailKey(input.templateKey, ...input.keyParts),
+        // Bounded attribution. Never reaches a real provider — it lets a local
+        // recording provider say WHICH message a stored entry is, so a browser
+        // journey can find its invitation instead of inferring it from a
+        // subject line or reading the token out of the database.
+        meta: { templateKind: input.templateKey },
+      }),
+  );
 }
 
 export type SendCustomEmailResult =
@@ -607,6 +717,13 @@ export async function sendCustomEmailViaResend(input: {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Derived from the caller's DURABLE row — a `NotificationDelivery` id, an
+   * invite id, an intake message id. Required: every caller of this function
+   * has such a row, and the one that does not is the one whose retry sends
+   * twice.
+   */
+  idempotencyKey: string;
 }): Promise<SendCustomEmailResult> {
   // Phase O1.5E — bounded smtp.email_send span. NEVER recipient,
   // subject, body, or sender in attributes — operation only.
@@ -626,43 +743,35 @@ async function sendCustomEmailViaResendInner(input: {
   subject: string;
   html: string;
   text: string;
+  idempotencyKey: string;
 }): Promise<SendCustomEmailResult> {
-  const client = getResendClient();
-  if (!client) {
-    return {
-      ok: false,
-      errorCode: "not_configured",
-      errorMessage: "RESEND_API_KEY is not set",
-    };
-  }
-  try {
-    const result = (await client.emails.send({
-      from: input.from,
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-    })) as unknown as {
-      id?: string;
-      data?: { id?: string } | null;
-      error?: { message?: string; name?: string } | null;
-    };
-
-    if (result?.error) {
+  const outcome = await deliverEmail(input);
+  switch (outcome.kind) {
+    case "acknowledged":
+      return { ok: true, providerMessageId: outcome.providerMessageId };
+    case "not_configured":
       return {
         ok: false,
-        errorCode: String(result.error.name ?? "resend_error"),
-        errorMessage: String(result.error.message ?? "unknown_resend_error"),
+        errorCode: "not_configured",
+        errorMessage: "RESEND_API_KEY is not set",
       };
-    }
-    const id = result?.data?.id ?? result?.id ?? null;
-    return { ok: true, providerMessageId: id };
-  } catch (err) {
-    return {
-      ok: false,
-      errorCode: "exception",
-      errorMessage: err instanceof Error ? err.message : "unknown_error",
-    };
+    case "ambiguous":
+      // Flattened onto the ok:false shape because that is what this signature
+      // can express, but flattened HONESTLY: the canonical ambiguous code is
+      // what the caller records, so a delivery row written from this result
+      // says "never confirmed" rather than "failed". The specific cause is
+      // preserved in the message.
+      return {
+        ok: false,
+        errorCode: AMBIGUOUS_ERROR_CODE,
+        errorMessage: outcome.errorCode,
+      };
+    default:
+      return {
+        ok: false,
+        errorCode: outcome.errorCode,
+        errorMessage: outcome.errorCode,
+      };
   }
 }
 
@@ -672,7 +781,6 @@ export function getEmailService(): EmailService {
   if (singleton) return singleton;
 
   const apiKey = env("RESEND_API_KEY");
-  const from = fromHeader();
 
   if (!apiKey) {
     singleton = {
@@ -714,8 +822,12 @@ export function getEmailService(): EmailService {
     return singleton;
   }
 
-  const resend = new Resend(apiKey);
-
+  // No client is constructed here any more. `apiKey` is read ONLY to decide
+  // whether this host has a transport at all — the not-configured singleton
+  // below is a distinct object whose methods throw, and that contract is
+  // unchanged. The key itself is resolved by the canonical transport through
+  // the resolver registered at the top of this module, so there is exactly one
+  // place in the process that authenticates to the provider.
   singleton = {
     isConfigured: () => true,
 
@@ -749,8 +861,12 @@ export function getEmailService(): EmailService {
         `Your password will not change unless this link is used.\n\n` +
         `Support: ${supportEmail()}\n`;
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "password_reset",
+        // The reset URL carries the single-use token, so it identifies THIS
+        // reset. A re-send of the same link deduplicates; a new reset request
+        // mints a new token and therefore a new key.
+        keyParts: [email, resetUrl],
         to: email,
         subject: `Reset your ${app} password`,
         html,
@@ -792,8 +908,9 @@ export function getEmailService(): EmailService {
         `This link expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\n` +
         `Support: ${supportEmail()}\n`;
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "email_verification",
+        keyParts: [email, verifyUrl],
         to: email,
         subject: `Verify your ${app} account`,
         html,
@@ -871,8 +988,9 @@ export function getEmailService(): EmailService {
         `Approving a recovery request revokes the member's existing MFA factors and requires re-enrollment. It does not grant the member an active session.\n` +
         snoozeTextLine +
         `\nSupport: ${supportEmail()}\n`;
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "mfa_recovery_admin_digest_single_team",
+        keyParts: [adminEmail, teamDisplayName, String(safeCount)],
         to: adminEmail,
         subject: `${safeCount} pending MFA recovery request${
           safeCount === 1 ? "" : "s"
@@ -913,8 +1031,9 @@ export function getEmailService(): EmailService {
         `This does not grant a session or replace admin approval.\n\n` +
         `This link expires in 15 minutes. If you did not request MFA recovery, ignore this email and notify your administrator.\n\n` +
         `Support: ${supportEmail()}\n`;
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "mfa_recovery_verification",
+        keyParts: [email, verificationUrl],
         to: email,
         subject: `Verify your ${app} MFA recovery request`,
         html,
@@ -960,8 +1079,11 @@ export function getEmailService(): EmailService {
         `Only accept this invitation if you recognize the organization or sender.\n\n` +
         `Support: ${supportEmail()}\n`;
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "team_invitation",
+        // The invitation token identifies the invite record; re-sending the
+        // same invitation deduplicates, re-issuing it does not.
+        keyParts: [email, invitationToken],
         to: email,
         subject: `You have been invited to a ${app} workspace`,
         html,
@@ -1033,8 +1155,15 @@ export function getEmailService(): EmailService {
           : "") +
         `\nSupport: ${supportEmail()}\n`;
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "batch_complete",
+        keyParts: [
+          email,
+          batchUrl,
+          batchName,
+          String(totalItems),
+          String(failedItems),
+        ],
         to: email,
         subject: `Batch complete: ${batchName}`,
         html,
@@ -1219,8 +1348,9 @@ export function getEmailService(): EmailService {
           : []),
       ].join("\n");
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "demo_request_notification",
+        keyParts: [params.to, params.requestId],
         to: params.to,
         subject: `New demo request — ${params.fullName}`,
         html,
@@ -1286,8 +1416,9 @@ export function getEmailService(): EmailService {
         `Support: ${supportEmail()}`,
       ].join("\n");
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "demo_request_auto_reply",
+        keyParts: [params.to, params.fullName, params.responseWindowText],
         to: params.to,
         subject: `We received your ${brandName()} demo request`,
         html,
@@ -1358,8 +1489,14 @@ export function getEmailService(): EmailService {
         `Support: ${supportEmail()}`,
       ].join("\n");
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "demo_request_follow_up",
+        // Durable request id plus step — NOT the recipient. The follow-up
+        // sweep retries a step it could not confirm, and that retry must reach
+        // the provider as the SAME message; the durable id is what makes the
+        // key stable, and keeping the address out of the preimage is what
+        // keeps it opaque.
+        keyParts: [params.demoRequestId, String(params.step)],
         to: params.to,
         subject: content.subject,
         html,
@@ -1477,8 +1614,9 @@ export function getEmailService(): EmailService {
         `Support: ${supportEmail()}`
       );
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "contact_sales_notification",
+        keyParts: [params.to, params.requestId],
         to: params.to,
         subject,
         html,
@@ -1543,8 +1681,9 @@ export function getEmailService(): EmailService {
         `Support: ${supportEmail()}`,
       ].join("\n");
 
-      return resend.emails.send({
-        from,
+      return transportSend({
+        templateKey: "contact_sales_auto_reply",
+        keyParts: [params.to, params.fullName],
         to: params.to,
         subject,
         html,

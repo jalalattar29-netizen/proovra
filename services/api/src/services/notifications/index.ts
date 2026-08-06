@@ -35,11 +35,19 @@ import {
   notificationRetryDelaySeconds,
   NOTIFICATION_RETRY_MAX_ATTEMPTS,
 } from "@proovra/shared";
+import { createHash, randomUUID } from "node:crypto";
+
 import { Prisma } from "@prisma/client";
 import type {
   PrismaClient,
   NotificationDelivery as DbNotificationDelivery,
 } from "@prisma/client";
+
+import {
+  mintEmailIdempotencyKey,
+  readStoredIdempotencyKey,
+  STORED_IDEMPOTENCY_KEY_FIELD,
+} from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
@@ -77,12 +85,12 @@ import { sendViaResend } from "./resend-provider.js";
 
 const NOTIFICATION_FAILED_EVENT = "notification.failed" as const;
 
+/** Operation discriminator for this family provider idempotency keys. */
+export const NOTIFICATION_IDEMPOTENCY_OPERATION = "notification_delivery";
+
 function hashRecipientForWebhook(recipient: string): string | null {
   if (!recipient) return null;
   try {
-    // Lazy require — keeps the import surface narrow and the hash work
-    // off the hot path until a FAILED transition actually fires.
-    const { createHash } = require("node:crypto") as typeof import("node:crypto");
     return createHash("sha256").update(recipient, "utf8").digest("hex");
   } catch {
     return null;
@@ -244,8 +252,17 @@ export async function sendEmailNotification(
   // try/catch that does not abort the business workflow.
   const rendered = renderTransactionalTemplate(input.eventType, input.template);
 
+  // PHASE 12 POINT 5 — the id is minted here so the provider idempotency
+  // key can be derived from it and stored in the SAME insert. Every retry of
+  // this delivery loads that key rather than re-deriving one.
+  const deliveryId = randomUUID();
+  const deliveryIdempotencyKey = mintEmailIdempotencyKey(
+    NOTIFICATION_IDEMPOTENCY_OPERATION,
+    deliveryId,
+  );
   const delivery = await client.notificationDelivery.create({
     data: {
+      id: deliveryId,
       teamId: input.teamId ?? null,
       eventType: input.eventType,
       channel: "EMAIL",
@@ -266,6 +283,10 @@ export async function sendEmailNotification(
       // The renderer's TemplateContext shape is the privacy boundary;
       // no reviewer note, no token hash, no IP/UA ever lands here.
       templateContextJson: input.template as unknown as Prisma.InputJsonValue,
+      // Ids and the minted provider key ONLY — the metadata contract for this
+      // model forbids tokens, hashes, IPs and workspace internals, and a key
+      // derived through the idempotency authority discloses none of them.
+      metadata: { [STORED_IDEMPOTENCY_KEY_FIELD]: deliveryIdempotencyKey },
       initiatedByUserId: input.initiatedByUserId ?? null,
     },
   });
@@ -280,6 +301,13 @@ export async function sendEmailNotification(
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
+      deliveryId: delivery.id,
+      idempotencyKey:
+        readStoredIdempotencyKey(delivery.metadata) ??
+        mintEmailIdempotencyKey(
+          NOTIFICATION_IDEMPOTENCY_OPERATION,
+          delivery.id,
+        ),
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "unknown_error";
@@ -444,6 +472,13 @@ async function dispatchDelivery(
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
+      deliveryId: delivery.id,
+      idempotencyKey:
+        readStoredIdempotencyKey(delivery.metadata) ??
+        mintEmailIdempotencyKey(
+          NOTIFICATION_IDEMPOTENCY_OPERATION,
+          delivery.id,
+        ),
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "unknown_error";

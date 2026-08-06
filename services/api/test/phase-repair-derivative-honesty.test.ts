@@ -16,8 +16,9 @@
  *      warning is no longer pushed unconditionally.
  *   C. MEDIA_INTELLIGENCE_JOB_KINDS catalog no longer advertises
  *      compute_duplicates / compute_lineage as live queue kinds.
- *   D. mi-ocr / mi-transcript queues are surfaced as "disabled" with
- *      an honest reason copy through getQueueInventory.
+ *   D. the disabled-queue projection stays honest. PHASE 12 POINT 5:
+ *      its former subjects (mi-ocr / mi-transcript) were removed from
+ *      the runtime, so the honest disabled set is now empty.
  */
 
 import { readFileSync } from "node:fs";
@@ -25,11 +26,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
+import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
 
 import {
   PRODUCER_REASON_COPY,
   resolveProducerModeStatuses,
 } from "@proovra/shared-runtime/media-intelligence";
+
+import { DISABLED_QUEUES_FOR_TESTS } from "../src/services/operations/queue-inventory.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -51,14 +56,13 @@ const DIAGNOSTICS_SRC = readSource(
     "services/api/src/services/investigation-diagnostics.service.ts",
   ),
 );
-const QUEUE_SRC = readSource(
+// PHASE 12 — POINT 5: the catalog and its rationale live with the run tracker,
+// which is the ONE place that decides what a media-intelligence run kind may be.
+const RUN_TRACKER_SRC = readSource(
   resolve(
     repoRoot,
-    "services/api/src/queue/media-intelligence-queue.ts",
+    "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
   ),
-);
-const WORKER_QUEUE_SRC = readSource(
-  resolve(repoRoot, "services/worker/src/queue.ts"),
 );
 const QUEUE_INVENTORY_SRC = readSource(
   resolve(
@@ -80,7 +84,7 @@ const GRAPH_BUILDER_SRC = readSource(
 describe("Phase Repair Task A — derivative-detection resolver matches the live producer", () => {
   const stubPrisma = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    $queryRawUnsafe: async (..._args: any[]) => [],
+    $queryRawUnsafe: async () => [],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 
@@ -210,40 +214,57 @@ describe("Phase Repair Task B — investigation-diagnostics duplicateDerivativeC
 // Task C — Reserved no-op kinds removed from queue vocab
 // ===========================================================================
 
+/**
+ * PHASE 12 — POINT 5: there is exactly ONE queue-kind catalog now, so this
+ * suite asserts against the value instead of against two source shapes.
+ *
+ * The api array and the worker union it used to compare are both gone; both
+ * sides re-export `MEDIA_INTELLIGENCE_JOB_KINDS` from the shared registry.
+ * The guarantee is unchanged and is arguably now enforced rather than merely
+ * observed: the dead kinds cannot be in the queue vocabulary because there is
+ * no second place to put them.
+ */
 describe("Phase Repair Task C — compute_duplicates / compute_lineage dropped from queue vocab", () => {
-  it("API-side MEDIA_INTELLIGENCE_JOB_KINDS array no longer contains the dead kinds as live entries", () => {
-    const arrayMatch = QUEUE_SRC.match(
-      /MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[([\s\S]*?)\]\s*as const/,
-    );
-    expect(arrayMatch, "MEDIA_INTELLIGENCE_JOB_KINDS array not found").toBeTruthy();
-    const arrayBody = arrayMatch?.[1] ?? "";
-    // Array body should NOT include the string literal entries.
-    expect(arrayBody).not.toMatch(/^\s*"compute_duplicates",?\s*$/m);
-    expect(arrayBody).not.toMatch(/^\s*"compute_lineage",?\s*$/m);
+  it("the queue vocabulary does not contain the dead kinds", () => {
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).not.toContain("compute_duplicates");
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).not.toContain("compute_lineage");
   });
 
-  it("worker MediaIntelligenceJobKind type union no longer contains the dead kinds", () => {
-    const typeMatch = WORKER_QUEUE_SRC.match(
-      /export type MediaIntelligenceJobKind\s*=([\s\S]*?);/,
-    );
-    expect(typeMatch, "MediaIntelligenceJobKind union not found").toBeTruthy();
-    const unionBody = typeMatch?.[1] ?? "";
-    expect(unionBody).not.toMatch(/\|\s*"compute_duplicates"/);
-    expect(unionBody).not.toMatch(/\|\s*"compute_lineage"/);
+  it("the dead kinds SURVIVE in the run-row catalog (legacy history stays readable)", () => {
+    // This is the half the original test could not express, because it only
+    // looked at queue vocabularies. Historical rows carry these kinds;
+    // narrowing the DB catalog would make them unreadable through any path
+    // that revalidates.
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toContain("compute_duplicates");
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toContain("compute_lineage");
   });
 
-  it("documents why the dead kinds were dropped (comment block survives)", () => {
-    // We keep the explanation so future contributors don't re-add the
-    // kinds without checking the run-tracker DB enum context.
-    expect(QUEUE_SRC).toMatch(/compute_duplicates.*compute_lineage|compute_lineage.*compute_duplicates/s);
+  it("documents why the dead kinds were dropped (explanation survives)", () => {
+    // Kept so a future contributor does not re-add them to the queue without
+    // checking the run-tracker DB enum context. The explanation moved with the
+    // catalog, into the shared registry.
+    expect(RUN_TRACKER_SRC).toMatch(
+      /compute_duplicates.*compute_lineage|compute_lineage.*compute_duplicates/s,
+    );
   });
 });
 
 // ===========================================================================
-// Task D — mi-ocr / mi-transcript surfaced as disabled
+// Task D — the disabled-queue projection
+//
+// PHASE 12 POINT 5 — this block's original subject was `mi-ocr` and
+// `mi-transcript`: two queues whose processors logged
+// `not_configured_completed` and returned success, surfaced to operators as
+// "disabled" so the dishonesty was at least visible. Point 5 removed the
+// queues instead, so the honest projection is now an EMPTY disabled set.
+//
+// The mechanism is still tested — a queue with no live processor must be
+// reported as disabled with a reason rather than sampled from Redis — because
+// that mechanism is what keeps the next such queue visible. What changed is
+// that no queue currently needs it, which is the stronger outcome.
 // ===========================================================================
 
-describe("Phase Repair Task D — mi-ocr / mi-transcript queues are honestly disabled", () => {
+describe("Phase Repair Task D — the disabled-queue projection stays honest", () => {
   it("queue-inventory declares a 'disabled' QueueHealthStatus value", () => {
     expect(QUEUE_INVENTORY_SRC).toMatch(
       /export type QueueHealthStatus\s*=[\s\S]*?\|\s*"disabled"/,
@@ -254,24 +275,18 @@ describe("Phase Repair Task D — mi-ocr / mi-transcript queues are honestly dis
     expect(QUEUE_INVENTORY_SRC).toMatch(/disabledReason:\s*string\s*\|\s*null/);
   });
 
-  it("DISABLED_QUEUES map lists mi-ocr and mi-transcript with operator-grade reasons", () => {
+  it("the DISABLED_QUEUES map exists and is EMPTY — every queue has a live processor", () => {
     expect(QUEUE_INVENTORY_SRC).toMatch(/DISABLED_QUEUES.*=\s*\{/s);
-    expect(QUEUE_INVENTORY_SRC).toMatch(/"mi-ocr"\s*:\s*"[^"]+"/);
-    expect(QUEUE_INVENTORY_SRC).toMatch(/"mi-transcript"\s*:\s*"[^"]+"/);
+    expect(Object.keys(DISABLED_QUEUES_FOR_TESTS)).toEqual([]);
   });
 
-  it("reasons do NOT leak internal release-train language", () => {
-    const mapMatch = QUEUE_INVENTORY_SRC.match(
-      /const DISABLED_QUEUES:[\s\S]*?\n\};/,
-    );
-    expect(mapMatch).toBeTruthy();
-    const mapBody = mapMatch?.[0] ?? "";
-    expect(mapBody).not.toMatch(/Wave\s*\d/i);
-    expect(mapBody).not.toMatch(/Phase\s*\d/i);
-    expect(mapBody).not.toMatch(/TODO|FIXME/);
-    // Operator gets a real explanation of where automatic extraction
-    // actually runs.
-    expect(mapBody).toMatch(/media-intelligence/);
+  it("any future entry must carry an operator-grade reason, not release-train language", () => {
+    for (const [queue, reason] of Object.entries(DISABLED_QUEUES_FOR_TESTS)) {
+      expect(reason.trim().length, queue).toBeGreaterThan(0);
+      expect(reason, queue).not.toMatch(/Wave\s*\d/i);
+      expect(reason, queue).not.toMatch(/Phase\s*\d/i);
+      expect(reason, queue).not.toMatch(/TODO|FIXME/);
+    }
   });
 
   it("getQueueInventory short-circuits disabled queues with the disabled health + reason", () => {

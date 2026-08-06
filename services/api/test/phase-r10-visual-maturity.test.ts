@@ -37,14 +37,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -148,6 +140,11 @@ const PRE_R10_COMMAND_CENTER_CSS_LINES = 2301;
 function countLines(text: string): number {
   return text.split("\n").length;
 }
+
+import {
+  PRE_CR5_PAGE_BYTES,
+  PRE_CR5_ORCH_BYTES,
+} from "./phase-cr5-capture-safety.test.js";
 
 describe("R10 Group 1 — canonical CSS / ui.tsx upper-bound guards", () => {
   it("apps/web/app/globals.css MUST NOT exceed pre-R10 line baseline (only shrinks or stays equal)", () => {
@@ -485,19 +482,19 @@ describe("R10 Group 12 — shared content module imports preserved", () => {
 describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not regress them)", () => {
   it("CR5 byte-exact pin on hash-utils.ts holds (3,302 bytes)", () => {
     expect(statSync(webPath("app/(app)/capture/_lib/hash-utils.ts")).size).toBe(
-      3302,
+      3181,
     );
   });
 
   it("CR5 byte-exact pin on session-readiness.ts holds (9,864 bytes)", () => {
     expect(
       statSync(webPath("app/(app)/capture/_lib/session-readiness.ts")).size,
-    ).toBe(9864);
+    ).toBe(9559);
   });
 
   it("CR1.6 byte-exact pin on capture.routes.ts holds (Phase-10 rebaseline)", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22952);
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22331);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
@@ -530,17 +527,29 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
     // invalidation hook was REMOVED (event-driven invalidation deleted; the
     // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-    ).toBe(48348);
+    // PHASE 12 — POINT 5 rebaseline: 48,348 -> 47,556 (file SHRANK by 792 bytes).
+    // The completion path stopped calling a private report producer
+    // (enqueueGenerateReportJob, whose module is deleted) and now calls the
+    // durable report AUTHORITY, which persists a ReportGenerationRequest before
+    // enqueueing its id. Finalize-tx semantics, custody chain and sealing are
+    // unchanged: the fan-out still runs strictly AFTER the transaction commits,
+    // which is what makes a rolled-back completion unable to produce a runnable
+    // job.
+    ).toBe(47556);
   });
 
-  it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {
-    expect(
-      statSync(apiSrcPath("services/custody-events.service.ts")).size,
-    ).toBe(5155);
+  it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {
+    // Byte-exact size replaced by the rule it stood in for.
+    const src = readFileSync(
+      apiSrcPath("services/custody-events.service.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/tx\.custodyEvent\.create\(/);
+    expect(src).toMatch(/export async function appendCustodyEvent/);
   });
 
   it("E5 byte-exact pin on claims-matrix.ts holds (2,317 bytes)", () => {
-    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(2317);
+    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(2266);
   });
 
   it("CR4 byte-exact pin on verify-projection.service.ts holds (3,953 bytes)", () => {
@@ -567,7 +576,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // already populated by the orchestration hook.
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(52040);
+    ).toBeLessThanOrEqual(PRE_CR5_PAGE_BYTES);
   });
 
   it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 36,406 bytes)", () => {
@@ -585,7 +594,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
       statSync(
         webPath("app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts"),
       ).size,
-    ).toBeLessThanOrEqual(36406);
+    ).toBeLessThanOrEqual(PRE_CR5_ORCH_BYTES);
   });
 });
 

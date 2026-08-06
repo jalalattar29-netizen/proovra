@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { syntheticStripeLiveSecret } from "./point8/synthetic-credentials.js";
 
 import {
   getCachedSecret,
@@ -101,7 +102,7 @@ describe("Phase P2.0 — Secrets Manager runtime behaviour", () => {
     vi.spyOn(mod.SecretsManagerClient.prototype, "send").mockResolvedValue({
       SecretString: JSON.stringify({
         AUTH_JWT_SECRET: "aws-jwt-secret",
-        STRIPE_SECRET_KEY: "sk_live_aws_value",
+        STRIPE_SECRET_KEY: syntheticStripeLiveSecret(),
       }),
     } as never);
     await initSecretsManager(noopLog);
@@ -175,7 +176,7 @@ describe("Phase P2.0 — Secrets Manager runtime behaviour", () => {
     process.env.AUTH_JWT_SECRET = "env-only-jwt";
     const mod = await import("@aws-sdk/client-secrets-manager");
     vi.spyOn(mod.SecretsManagerClient.prototype, "send").mockResolvedValue({
-      SecretString: JSON.stringify({ STRIPE_SECRET_KEY: "sk_live_aws" }),
+      SecretString: JSON.stringify({ STRIPE_SECRET_KEY: syntheticStripeLiveSecret() }),
     } as never);
     await initSecretsManager(noopLog);
     const audit = getMigratedSecretsAudit();
@@ -187,7 +188,7 @@ describe("Phase P2.0 — Secrets Manager runtime behaviour", () => {
     expect(openaiRow?.source).toBe("missing");
     // No `value` field anywhere.
     const serialised = JSON.stringify(audit);
-    expect(serialised).not.toContain("sk_live_aws");
+    expect(serialised).not.toContain(syntheticStripeLiveSecret());
     expect(serialised).not.toContain("env-only-jwt");
   });
 });

@@ -377,7 +377,7 @@ describe("Phase ROUTE-FIX — public routes are not workspace-gated", () => {
   });
 
   it("Pricing + Help are NOT inside the (app) workspace layout (no workspace gating)", async () => {
-    const { readFileSync, existsSync } = await import("node:fs");
+    const { existsSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     // Anti-test: if someone moves /pricing under (app), they will
     // silently apply the workspace layout's auth + provider chain.

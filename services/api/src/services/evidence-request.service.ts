@@ -23,7 +23,6 @@ import type {
   EvidenceRequest as DbEvidenceRequest,
   EvidenceRequestDeliverable as DbDeliverable,
   EvidenceRequestResponse as DbResponse,
-  WorkflowIntakeLink as DbWorkflowIntakeLink,
   WorkflowIntakeSession as DbWorkflowIntakeSession,
 } from "@prisma/client";
 import {

@@ -29,7 +29,6 @@ import { describe, expect, it, beforeEach } from "vitest";
 
 import {
   REDACTION_DETECTION_PROVIDERS,
-  type RedactionDetectionProvider,
 } from "@proovra/shared";
 
 import {
@@ -84,9 +83,6 @@ const BULK_SRC = readSource(
 );
 const HEALTH_SRC = readSource(
   "../../../services/api/src/services/redaction/redaction-provider-health.service.ts",
-);
-const MANIFEST_SRC = readSource(
-  "../../../services/api/src/services/redaction/redaction-detection-manifest.service.ts",
 );
 const ROUTES_SRC = readSource(
   "../../../services/api/src/routes/redaction.routes.ts",
@@ -373,31 +369,6 @@ describe("Phase 3A Closure — provider health", () => {
 });
 
 // =============================================================================
-// 7. Detection manifest
-// =============================================================================
-
-describe("Phase 3A Closure — detection manifest writer", () => {
-  it("schema version is pinned + bounded shape", () => {
-    expect(MANIFEST_SRC).toMatch(
-      /"PROOVRA_REDACTION_DETECTION_MANIFEST_V1"/,
-    );
-    expect(MANIFEST_SRC).toMatch(/perProvider/);
-    expect(MANIFEST_SRC).toMatch(/perKind/);
-    expect(MANIFEST_SRC).toMatch(/perDecision/);
-    expect(MANIFEST_SRC).toMatch(/perConfidence/);
-    expect(MANIFEST_SRC).toMatch(/providerProbes/);
-  });
-
-  it("manifest filters on PUBLISHED versions only", () => {
-    expect(MANIFEST_SRC).toMatch(/state: "PUBLISHED"/);
-  });
-
-  it("manifest is workspace-anchored", () => {
-    expect(MANIFEST_SRC).toMatch(/teamId: input\.teamId/);
-  });
-});
-
-// =============================================================================
 // 8. Routes wired
 // =============================================================================
 
@@ -409,11 +380,6 @@ describe("Phase 3A Closure — HTTP routes", () => {
   });
   it("mounts the provider health endpoint", () => {
     expect(ROUTES_SRC).toMatch(/\/v1\/redaction\/providers\/health/);
-  });
-  it("mounts the detection manifest endpoint", () => {
-    expect(ROUTES_SRC).toMatch(
-      /\/v1\/redaction\/evidence\/:evidenceId\/detection-manifest/,
-    );
   });
   it("mounts the policy GET + PATCH endpoints", () => {
     expect(ROUTES_SRC).toMatch(/\/v1\/redaction\/policy/);

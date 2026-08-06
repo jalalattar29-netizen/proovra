@@ -34,6 +34,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   REVIEWER_OPS_DEFAULT_SLA_POLICY,
@@ -412,10 +414,8 @@ describe("reviewer-operations-engine.service.ts — Phase R wiring source check"
   // We import the source as text for the same reason
   // phase25_5-reviewer-ops-hardening.test.ts does: it pins the wiring
   // independent of execution coverage.
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const src = fs.readFileSync(
-    path.join(
+  const src = readFileSync(
+    join(
       __dirname,
       "..",
       "src",

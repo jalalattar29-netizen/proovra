@@ -1,24 +1,51 @@
 "use client";
 
 /**
- * Phase 26 — Permission Matrix admin page.
+ * PHASE 12B — Permission matrix + temporary elevation.
  *
- * Operator-facing "what can this member do here?" inspector. For each
- * canonical permission, shows the outcome (ALLOW / DENY / STEP_UP /
- * NOT_APPLICABLE) and the SOURCE (role default, capability grant,
- * delegated scope, etc.). Backed by RBAC engine's
- * `buildPermissionSnapshot`.
+ *   GET  /v1/admin/identity/role-matrix        (authoritative projection)
+ *   GET  /v1/admin/identity/permission-matrix  (one member's effective access)
+ *   POST /v1/admin/identity/elevations         (bounded temporary elevation)
+ *
+ * Two questions, one surface:
+ *
+ *   1. "What does each role grant here?" — answered by the ROLE MATRIX, which
+ *      is the server's authoritative role → permission projection. This page
+ *      does not derive, infer or cache role precedence; it renders that matrix.
+ *   2. "What can this specific member do, and why?" — answered by the member
+ *      snapshot, which names the SOURCE of every outcome (role default,
+ *      capability grant, delegated scope, temporary elevation).
+ *
+ * From (2) an administrator can grant a BOUNDED temporary elevation: one
+ * permission, for a limited window, step-up confirmed, audited, and visible as
+ * a temporary-elevation source the next time the snapshot is read. The elevation
+ * count on the snapshot is the honest indicator of standing exceptions.
+ *
+ * The workspace is SERVER-derived on every request; the page passes back only
+ * the workspace the API itself echoed, so it can never point an elevation at
+ * another organization.
  */
 
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { apiFetch } from "../../../../../lib/api";
-import { useTeamId } from "../../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import {
-  errorBoxStyle,
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import {
+  classifyFailure,
+  isStepUpCancel,
+  shortId,
+  type SurfaceFailure,
+} from "../_sections/identity-admin-shared";
+import {
   inputStyle,
   mutedStyle,
+  selectStyle,
   statusBadgeStyle,
   TOKENS,
 } from "../ui-tokens";
@@ -51,37 +78,184 @@ type Snapshot = {
   computedAtUtc: string;
 };
 
+type RoleMatrixRow = {
+  role: string;
+  permissions: ReadonlyArray<{ permission: string; allowed: boolean }>;
+};
+
+const ELEVATION_TTL_OPTIONS = [
+  { value: "900", label: "15 minutes" },
+  { value: "3600", label: "1 hour" },
+  { value: "14400", label: "4 hours" },
+  { value: "28800", label: "8 hours" },
+] as const;
+
 export default function PermissionMatrixPage() {
   const teamId = useTeamId();
+  const { stamp, isStale } = useTenantGuard();
+  const { confirm } = useConfirmAction();
+  const stepUp = useStepUpAction({ teamId });
+
+  // --- Authoritative role matrix -------------------------------------------
+  const [matrix, setMatrix] = useState<ReadonlyArray<RoleMatrixRow> | null>(null);
+  const [matrixTeamId, setMatrixTeamId] = useState<string | null>(null);
+  const [matrixFailure, setMatrixFailure] = useState<SurfaceFailure | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>("");
+
+  // --- Member snapshot ------------------------------------------------------
   const [subjectUserId, setSubjectUserId] = useState<string>("");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [snapshotFailure, setSnapshotFailure] = useState<SurfaceFailure | null>(
+    null,
+  );
   const [filter, setFilter] = useState<string>("");
   const [outcomeFilter, setOutcomeFilter] = useState<Outcome | "">("");
 
-  
-const load = useCallback(async () => {
-    if (!teamId || !subjectUserId) return;
-    setBusy(true);
-    setError(null);
+  // --- Temporary elevation -------------------------------------------------
+  const [elevationPermission, setElevationPermission] = useState<string>("");
+  const [elevationTtl, setElevationTtl] = useState<string>("3600");
+  const [elevationReason, setElevationReason] = useState<string>("");
+  const [elevationBusy, setElevationBusy] = useState(false);
+  const [elevationFailure, setElevationFailure] = useState<SurfaceFailure | null>(
+    null,
+  );
+  const [elevationNotice, setElevationNotice] = useState<string | null>(null);
+
+  // -------------------------------------------------------------------------
+  // Reads
+  // -------------------------------------------------------------------------
+
+  const loadMatrix = useCallback(async () => {
+    const captured = stamp();
+    setMatrixFailure(null);
     try {
+      const res = await apiFetch("/v1/admin/identity/role-matrix", {
+        method: "GET",
+      });
+      if (isStale(captured)) return;
+      setMatrix((res?.matrix ?? []) as ReadonlyArray<RoleMatrixRow>);
+      setMatrixTeamId(
+        typeof res?.teamId === "string" ? (res.teamId as string) : null,
+      );
+    } catch (err) {
+      if (isStale(captured)) return;
+      setMatrix([]);
+      setMatrixTeamId(null);
+      setMatrixFailure(classifyFailure(err, "Unable to load the role matrix."));
+    }
+  }, [stamp, isStale]);
+
+  useEffect(() => {
+    void loadMatrix();
+  }, [loadMatrix]);
+
+  const loadSnapshot = useCallback(async () => {
+    if (!subjectUserId) return;
+    const captured = stamp();
+    setBusy(true);
+    setSnapshotFailure(null);
+    setElevationNotice(null);
+    try {
+      // teamId is still accepted by this (older) inspector route; the value
+      // passed is the one the ROLE-MATRIX response echoed — never one this
+      // page chose.
+      const qs = new URLSearchParams({ subjectUserId });
+      if (matrixTeamId) qs.set("teamId", matrixTeamId);
       const res = await apiFetch(
-        `/v1/admin/identity/permission-matrix?teamId=${encodeURIComponent(
-          teamId,
-        )}&subjectUserId=${encodeURIComponent(subjectUserId)}`,
+        `/v1/admin/identity/permission-matrix?${qs.toString()}`,
         { method: "GET" },
       );
+      if (isStale(captured)) return;
       setSnapshot(res.snapshot as Snapshot);
     } catch (err) {
-      setError(
-        toSafeUserError(err, { message: "Could not load snapshot." }).message,
-      );
+      if (isStale(captured)) return;
       setSnapshot(null);
+      setSnapshotFailure(
+        classifyFailure(err, "Unable to load the member's effective access."),
+      );
     } finally {
-      setBusy(false);
+      if (!isStale(captured)) setBusy(false);
     }
-  }, [teamId, subjectUserId]);
+  }, [subjectUserId, matrixTeamId, stamp, isStale]);
+
+  // -------------------------------------------------------------------------
+  // Temporary elevation
+  // -------------------------------------------------------------------------
+
+  const grantElevation = useCallback(async () => {
+    if (!snapshot || !matrixTeamId) return;
+    const permission = elevationPermission.trim();
+    if (!permission || elevationReason.trim().length === 0) {
+      setElevationFailure({
+        kind: "error",
+        message:
+          "Choose the permission to elevate and record why — the reason is written to the audit entry.",
+      });
+      return;
+    }
+    const ok = await confirm({
+      title: "Grant a temporary elevation?",
+      description:
+        "The member gains this single permission for the chosen window only. It expires on its own, is visible as a temporary-elevation source, and is recorded against your identity.",
+      confirmLabel: "Grant elevation",
+      tone: "danger",
+      testId: "identity-temporary-elevation",
+    });
+    if (!ok) return;
+    const captured = stamp();
+    setElevationBusy(true);
+    setElevationFailure(null);
+    setElevationNotice(null);
+    try {
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch("/v1/admin/identity/elevations", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            // The strict server schema requires teamId; the value sent is the
+            // workspace the API itself resolved, and the server re-derives and
+            // rejects a mismatch rather than trusting it.
+            teamId: matrixTeamId,
+            userId: snapshot.userId,
+            permission,
+            reason: elevationReason.trim(),
+            ttlSeconds: Number(elevationTtl),
+          }),
+        }),
+      );
+      if (isStale(captured)) return;
+      setElevationNotice(
+        "Elevation granted. Reload the snapshot below to see it as a temporary-elevation source.",
+      );
+      setElevationReason("");
+      // Re-read the authoritative snapshot instead of patching it locally.
+      await loadSnapshot();
+    } catch (err) {
+      if (isStale(captured)) return;
+      if (isStepUpCancel(err)) return;
+      setElevationFailure(
+        classifyFailure(err, "Could not grant the temporary elevation."),
+      );
+    } finally {
+      if (!isStale(captured)) setElevationBusy(false);
+    }
+  }, [
+    snapshot,
+    matrixTeamId,
+    elevationPermission,
+    elevationReason,
+    elevationTtl,
+    confirm,
+    stepUp,
+    loadSnapshot,
+    stamp,
+    isStale,
+  ]);
+
+  // -------------------------------------------------------------------------
+  // Derived views
+  // -------------------------------------------------------------------------
 
   const filtered = useMemo(() => {
     if (!snapshot) return [];
@@ -93,13 +267,32 @@ const load = useCallback(async () => {
     });
   }, [snapshot, filter, outcomeFilter]);
 
+  const matrixRows = useMemo(() => {
+    const rows = matrix ?? [];
+    const needle = filter.trim().toLowerCase();
+    const selected = roleFilter
+      ? rows.filter((r) => r.role === roleFilter)
+      : rows;
+    return selected.map((r) => ({
+      role: r.role,
+      allowed: r.permissions.filter(
+        (p) => p.allowed && (!needle || p.permission.toLowerCase().includes(needle)),
+      ),
+      total: r.permissions.length,
+    }));
+  }, [matrix, roleFilter, filter]);
+
   if (!teamId) {
     return (
-      <PageShell header={<PageHeader eyebrow="Identity operations" title="Permission Matrix" />}>
+      <PageShell
+        header={
+          <PageHeader eyebrow="Identity operations" title="Permission matrix" />
+        }
+      >
         <EmptyState
           framed
           title="No workspace selected"
-          purpose="Switch to a workspace to inspect a member's effective permissions."
+          purpose="Switch to a workspace to inspect what its roles grant and what a specific member can do."
         />
       </PageShell>
     );
@@ -140,22 +333,165 @@ const load = useCallback(async () => {
       header: "Reason",
       render: (r) => <span style={mutedStyle}>{r.reason}</span>,
     },
+    {
+      key: "elevate",
+      header: "",
+      render: (r) =>
+        snapshot && r.outcome !== "ALLOW" ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            data-identity-elevation-pick={r.permission}
+            onClick={() => setElevationPermission(r.permission)}
+          >
+            Elevate…
+          </Button>
+        ) : null,
+    },
   ];
 
   return (
     <PageShell
+      data-permission-matrix-page
       header={
         <PageHeader
           eyebrow="Identity operations"
-          title="Permission Matrix"
-          subtitle="For each canonical permission, shows the outcome plus the source (role default, capability grant, delegated scope, temporary elevation, or workspace policy)."
+          title="Permission matrix"
+          subtitle="The authoritative role → permission projection, plus one member's effective access with the source of every outcome. Nothing on this page is computed in the browser."
+          contextStrip={
+            <Link href="/admin/identity" style={{ fontSize: 12 }}>
+              ← Back to identity administration
+            </Link>
+          }
+          secondaryActions={
+            <Button
+              variant="secondary"
+              data-permission-matrix-refresh
+              onClick={() => void loadMatrix()}
+            >
+              Refresh matrix
+            </Button>
+          }
         />
       }
     >
-      <PageSection title="Inspect a member">
+      {/* ------------------------------------------------------------------ */}
+      {/* 1 — the authoritative role matrix.                                  */}
+      {/* ------------------------------------------------------------------ */}
+      <PageSection
+        title="What each role grants"
+        description="The server's authoritative projection of the canonical roles. If a role is missing a permission here, no amount of UI state changes that — grant a capability or a bounded elevation instead."
+      >
+        {matrixFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-role-matrix-failure={matrixFailure.kind}
+          >
+            <strong>
+              {matrixFailure.kind === "denied"
+                ? "Not available to you"
+                : "Could not load"}
+            </strong>
+            <div style={{ marginTop: 4 }}>{matrixFailure.message}</div>
+          </Card>
+        ) : matrix === null ? (
+          <p style={mutedStyle} data-role-matrix-loading>
+            Loading the role matrix…
+          </p>
+        ) : matrix.length === 0 ? (
+          <EmptyState
+            framed
+            title="Role matrix unavailable"
+            purpose="The server returned no roles for this workspace. Refresh, or check that your session is still in the workspace you expect."
+          />
+        ) : (
+          <>
+            <FilterBar>
+              <FilterBar.Search
+                value={filter}
+                onChange={setFilter}
+                label="Filter by permission name"
+                placeholder="Filter by permission name…"
+              />
+              <FilterBar.Select
+                label="Role"
+                showLabel
+                value={roleFilter}
+                onChange={setRoleFilter}
+                options={[
+                  { value: "", label: "All roles" },
+                  ...matrix.map((r) => ({ value: r.role, label: r.role })),
+                ]}
+              />
+            </FilterBar>
+            <div
+              data-role-matrix
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 12,
+                marginTop: 12,
+              }}
+            >
+              {matrixRows.map((r) => (
+                <Card
+                  key={r.role}
+                  variant="admin"
+                  padding="compact"
+                  title={r.role}
+                  subtitle={`${r.allowed.length} of ${r.total} permissions`}
+                  data-role-matrix-role={r.role}
+                >
+                  {r.allowed.length === 0 ? (
+                    <p style={mutedStyle}>
+                      No permissions match the current filter for this role.
+                    </p>
+                  ) : (
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 16,
+                        maxHeight: 180,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {r.allowed.map((p) => (
+                        <li
+                          key={p.permission}
+                          style={{
+                            fontFamily:
+                              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                            fontSize: 11,
+                            color: TOKENS.inkMuted,
+                          }}
+                        >
+                          {p.permission}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
+      </PageSection>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 2 — one member's effective access.                                  */}
+      {/* ------------------------------------------------------------------ */}
+      <PageSection
+        title="Inspect a member"
+        description="Paste a member's user id (the member list on the identity administration console shows them) to see every permission outcome and where it comes from."
+      >
         <Card variant="admin" padding="comfortable">
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+          >
             <input
+              data-permission-matrix-subject
               style={{ ...inputStyle, maxWidth: 360 }}
               placeholder="Member user id (UUID)"
               value={subjectUserId}
@@ -163,7 +499,8 @@ const load = useCallback(async () => {
             />
             <Button
               variant="enterprise"
-              onClick={load}
+              data-permission-matrix-inspect
+              onClick={() => void loadSnapshot()}
               loading={busy}
               disabled={busy || !subjectUserId}
             >
@@ -171,14 +508,31 @@ const load = useCallback(async () => {
             </Button>
           </div>
         </Card>
-      </PageSection>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+        {snapshotFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-permission-matrix-failure={snapshotFailure.kind}
+            style={{ marginTop: 12 }}
+          >
+            <strong>
+              {snapshotFailure.kind === "denied"
+                ? "Not available to you"
+                : snapshotFailure.kind === "blocked"
+                  ? "Refused"
+                  : "Could not load"}
+            </strong>
+            <div style={{ marginTop: 4 }}>{snapshotFailure.message}</div>
+          </Card>
+        ) : null}
+      </PageSection>
 
       {snapshot ? (
         <>
           <PageSection>
-            <Card variant="summary" padding="comfortable">
+            <Card variant="summary" padding="comfortable" data-permission-snapshot>
               <div
                 style={{
                   display: "flex",
@@ -187,7 +541,7 @@ const load = useCallback(async () => {
                   flexWrap: "wrap",
                 }}
               >
-                <KV k="Member" v={snapshot.userId} mono />
+                <KV k="Member" v={shortId(snapshot.userId)} mono />
                 <KV k="Canonical role" v={snapshot.canonicalRole} />
                 <KV k="Status" v={snapshot.status} />
                 <KV
@@ -199,10 +553,87 @@ const load = useCallback(async () => {
                   v={String(snapshot.delegatedScopeCount)}
                 />
                 <KV
-                  k="Temp elevations"
+                  k="Temporary elevations"
                   v={String(snapshot.temporaryElevationCount)}
                 />
               </div>
+            </Card>
+          </PageSection>
+
+          {/* -------------------------------------------------------------- */}
+          {/* 3 — bounded temporary elevation.                                */}
+          {/* -------------------------------------------------------------- */}
+          <PageSection
+            title="Temporary elevation"
+            description="One permission, one bounded window. It expires by itself — there is no standing exception, and the grant is step-up confirmed and audited."
+          >
+            <Card variant="admin" padding="comfortable" data-elevation-form>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  data-elevation-permission
+                  style={{ ...inputStyle, maxWidth: 280 }}
+                  placeholder="Permission (use Elevate… in the table)"
+                  value={elevationPermission}
+                  onChange={(e) => setElevationPermission(e.target.value.trim())}
+                />
+                <select
+                  aria-label="Elevation window"
+                  data-elevation-ttl
+                  style={selectStyle}
+                  value={elevationTtl}
+                  onChange={(e) => setElevationTtl(e.target.value)}
+                >
+                  {ELEVATION_TTL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  data-elevation-reason
+                  style={{ ...inputStyle, maxWidth: 320 }}
+                  placeholder="Reason (required, audited)"
+                  maxLength={400}
+                  value={elevationReason}
+                  onChange={(e) => setElevationReason(e.target.value)}
+                />
+                <Button
+                  variant="enterprise"
+                  data-elevation-submit
+                  loading={elevationBusy}
+                  disabled={
+                    elevationBusy ||
+                    !elevationPermission.trim() ||
+                    !elevationReason.trim()
+                  }
+                  onClick={() => void grantElevation()}
+                >
+                  Grant elevation
+                </Button>
+              </div>
+              {elevationFailure ? (
+                <div
+                  data-elevation-failure={elevationFailure.kind}
+                  style={{ ...mutedStyle, marginTop: 8, color: "#991b1b" }}
+                >
+                  {elevationFailure.message}
+                </div>
+              ) : null}
+              {elevationNotice ? (
+                <div
+                  data-elevation-notice
+                  style={{ ...mutedStyle, marginTop: 8, color: "#065f46" }}
+                >
+                  {elevationNotice}
+                </div>
+              ) : null}
             </Card>
           </PageSection>
 
@@ -261,6 +692,8 @@ const load = useCallback(async () => {
           </PageSection>
         </>
       ) : null}
+
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

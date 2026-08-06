@@ -146,6 +146,132 @@ function projectEdgeForPublic(edge: GraphEdge): PublicEdge {
 }
 
 // =============================================================================
+// PHASE 12 — VERTICAL B. Manual-relationship provenance + duplicate-edge
+// idempotency.
+//
+// `manual_relationships` has no Prisma model (it is raw-SQL owned by the
+// shared-runtime graph builder), so provenance is read here with the same
+// bounded raw queries the builder uses. Every read is team-anchored.
+// =============================================================================
+
+type ManualRelationshipProvenance = {
+  manualRelationshipId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  edgeType: string;
+  createdByUserId: string;
+  safeNote: string | null;
+  status: string;
+  createdAtUtc: string;
+  /** True when the stored row runs target→source relative to the request. */
+  reversed: boolean;
+};
+
+type ManualRelationshipRow = {
+  id: string;
+  source_node_id: string;
+  target_node_id: string;
+  edge_type: string;
+  created_by_user_id: string;
+  safe_note: string | null;
+  status: string;
+  created_at_utc: Date;
+};
+
+/**
+ * Finds an ACTIVE manual relationship between two nodes for a bounded
+ * edge type, in EITHER direction.
+ *
+ * Both supported manual edge types (`REFERENCES_SAME_INCIDENT`,
+ * `MANUALLY_LINKED_TO`) are semantically symmetric to an operator, so
+ * re-asserting the link with the endpoints swapped is a duplicate, not a
+ * new fact. Returning the existing row makes create idempotent.
+ */
+async function findActiveManualRelationship(input: {
+  teamId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  edgeType: string;
+}): Promise<ManualRelationshipProvenance | null> {
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT "id", "source_node_id", "target_node_id", "edge_type",
+              "created_by_user_id", "safe_note", "status", "created_at_utc"
+         FROM "manual_relationships"
+        WHERE "team_id" = $1
+          AND "status" = 'ACTIVE'
+          AND "edge_type" = $4
+          AND (("source_node_id" = $2 AND "target_node_id" = $3)
+            OR ("source_node_id" = $3 AND "target_node_id" = $2))
+        ORDER BY "created_at_utc" DESC
+        LIMIT 1`,
+      input.teamId,
+      input.sourceNodeId,
+      input.targetNodeId,
+      input.edgeType,
+    )) as ManualRelationshipRow[];
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      manualRelationshipId: row.id,
+      sourceNodeId: row.source_node_id,
+      targetNodeId: row.target_node_id,
+      edgeType: row.edge_type,
+      createdByUserId: row.created_by_user_id,
+      safeNote: row.safe_note,
+      status: row.status,
+      createdAtUtc: new Date(row.created_at_utc).toISOString(),
+      reversed: row.source_node_id !== input.sourceNodeId,
+    };
+  } catch {
+    // A provenance-lookup failure must never be reported as "no
+    // duplicate exists" AND never block the operator. The caller
+    // treats null as "unknown"; the underlying edge upsert is itself
+    // ON CONFLICT-idempotent, so the graph stays correct either way.
+    return null;
+  }
+}
+
+/**
+ * Loads manual provenance for a set of edge endpoints so read
+ * projections can answer "who asserted this link, when, and why".
+ */
+async function loadManualProvenanceForNodes(input: {
+  teamId: string;
+  nodeIds: ReadonlyArray<string>;
+}): Promise<ManualRelationshipProvenance[]> {
+  if (input.nodeIds.length === 0) return [];
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT "id", "source_node_id", "target_node_id", "edge_type",
+              "created_by_user_id", "safe_note", "status", "created_at_utc"
+         FROM "manual_relationships"
+        WHERE "team_id" = $1
+          AND "status" = 'ACTIVE'
+          AND ("source_node_id" = ANY($2::uuid[])
+            OR "target_node_id" = ANY($2::uuid[]))
+        ORDER BY "created_at_utc" DESC
+        LIMIT 200`,
+      input.teamId,
+      [...input.nodeIds],
+    )) as ManualRelationshipRow[];
+    return rows.map((row) => ({
+      manualRelationshipId: row.id,
+      sourceNodeId: row.source_node_id,
+      targetNodeId: row.target_node_id,
+      edgeType: row.edge_type,
+      createdByUserId: row.created_by_user_id,
+      safeNote: row.safe_note,
+      status: row.status,
+      createdAtUtc: new Date(row.created_at_utc).toISOString(),
+      reversed: false,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// =============================================================================
 // Routes
 // =============================================================================
 
@@ -170,10 +296,36 @@ export async function graphRoutes(app: FastifyInstance) {
         evidenceId,
         depth: q.depth,
       });
+      // PHASE 12 — VERTICAL B. Operator-asserted edges carry provenance
+      // so a reviewer can see WHO linked two records, WHEN, and the note
+      // they left — the difference between a derived signal and a human
+      // claim. Derived edges (SAME_HASH_AS, HAS_OCR, …) have none and
+      // correctly project `provenance: null`.
+      const provenance = await loadManualProvenanceForNodes({
+        teamId: q.teamId,
+        nodeIds: subgraph.nodes.map((n) => n.id),
+      });
+      const provenanceByPair = new Map<string, ManualRelationshipProvenance>();
+      for (const p of provenance) {
+        provenanceByPair.set(
+          `${p.sourceNodeId}|${p.targetNodeId}|${p.edgeType}`,
+          p,
+        );
+        provenanceByPair.set(
+          `${p.targetNodeId}|${p.sourceNodeId}|${p.edgeType}`,
+          { ...p, reversed: true },
+        );
+      }
       return reply.code(200).send({
         evidenceId,
         nodes: subgraph.nodes.map(projectNodeForPublic),
-        edges: subgraph.edges.map(projectEdgeForPublic),
+        edges: subgraph.edges.map((e) => ({
+          ...projectEdgeForPublic(e),
+          provenance:
+            provenanceByPair.get(
+              `${e.sourceNodeId}|${e.targetNodeId}|${e.edgeType}`,
+            ) ?? null,
+        })),
         truncated: subgraph.truncated,
       });
     },
@@ -198,6 +350,28 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // PHASE 12 — VERTICAL B. Duplicate-edge idempotency.
+      //
+      // The underlying edge upsert is already ON CONFLICT-idempotent,
+      // but the `manual_relationships` audit row was not: re-asserting
+      // the same link (or the same link with the endpoints swapped —
+      // both manual edge types are symmetric to an operator) minted a
+      // second provenance row every time. We now return the EXISTING
+      // assertion instead, so the curation surface can safely retry.
+      const existing = await findActiveManualRelationship({
+        teamId: body.teamId,
+        sourceNodeId: body.sourceNodeId,
+        targetNodeId: body.targetNodeId,
+        edgeType: body.edgeType,
+      });
+      if (existing) {
+        return reply.code(200).send({
+          manualRelationshipId: existing.manualRelationshipId,
+          edgeId: null,
+          idempotent: true,
+          provenance: existing,
+        });
+      }
       const result = await createManualRelationship({
         teamId: body.teamId,
         actorUserId: actor.actorUserId,
@@ -257,9 +431,20 @@ export async function graphRoutes(app: FastifyInstance) {
       } catch {
         /* best-effort custody; never block the operator action */
       }
+      // PHASE 12 — VERTICAL B. Return the provenance the operator just
+      // created so the curation surface renders the human claim without
+      // a second round trip.
+      const created = await findActiveManualRelationship({
+        teamId: body.teamId,
+        sourceNodeId: body.sourceNodeId,
+        targetNodeId: body.targetNodeId,
+        edgeType: body.edgeType,
+      });
       return reply.code(201).send({
         manualRelationshipId: result.manualRelationshipId,
         edgeId: result.edgeId,
+        idempotent: false,
+        provenance: created,
       });
     },
   );

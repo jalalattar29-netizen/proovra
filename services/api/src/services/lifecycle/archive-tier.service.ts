@@ -29,6 +29,7 @@
  * pattern used in destruction-governance.service.ts for the same reason.
  */
 
+import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
   ARCHIVE_TIERS,
@@ -215,7 +216,15 @@ export class ArchiveTierError extends Error {
     public readonly code:
       | "invalid_tier"
       | "evidence_not_in_workspace"
-      | "evidence_has_no_storage_key",
+      | "evidence_has_no_storage_key"
+      /**
+       * PHASE 12 POINT 5 — another transition for this evidence is already
+       * in flight. Raised when the partial unique index
+       * `archive_tier_transitions_active_evidence_uniq` refuses a second
+       * non-terminal row, which is what stops the auto-transition sweep from
+       * copying and billing the same object twice.
+       */
+      | "transition_already_in_flight",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -260,22 +269,42 @@ export async function transitionEvidenceTier(
   const storageClassAfter = TIER_TO_S3_STORAGE_CLASS[input.toTier];
 
   // -- 1. Write transition row BEFORE S3 call --
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (prisma.archiveTierTransition.create as any)({
-    data: {
-      teamId: input.teamId,
-      evidenceId: input.evidenceId,
-      fromTier,
-      toTier: input.toTier,
-      reason: input.reason?.slice(0, 400) ?? null,
-      costEstimateUsdMicros: BigInt(costEstimateUsdMicros),
-      initiatedByUserId: input.initiatedByUserId ?? null,
-      state: "PENDING",
-      storageClassBefore,
-      storageClassAfter,
-    },
-    select: { id: true },
-  }) as { id: string };
+  //
+  // PHASE 12 POINT 5 — this INSERT is also the CLAIM. The partial unique
+  // index `archive_tier_transitions_active_evidence_uniq` permits exactly one
+  // non-terminal transition per evidence, so a second caller — the hourly
+  // auto-transition sweep overlapping itself, or a sweep racing an operator's
+  // manual request — is refused by the database instead of starting a second
+  // storage copy of the same object.
+  let row: { id: string };
+  try {
+    row = await prisma.archiveTierTransition.create({
+      data: {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        fromTier,
+        toTier: input.toTier,
+        reason: input.reason?.slice(0, 400) ?? null,
+        costEstimateUsdMicros: BigInt(costEstimateUsdMicros),
+        initiatedByUserId: input.initiatedByUserId ?? null,
+        state: "PENDING",
+        storageClassBefore,
+        storageClassAfter,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      throw new ArchiveTierError("transition_already_in_flight", {
+        evidenceId: input.evidenceId,
+        toTier: input.toTier,
+      });
+    }
+    throw err;
+  }
 
   // -- 2. Emit ARCHIVE_TRANSITION_REQUESTED (fire-and-forget) --
   void emitLifecycleEvent({

@@ -549,8 +549,7 @@ export async function executeDestruction(
         where: { id: input.requestId },
         data: { state: "FAILED" },
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      void emitDestructionLifecycle(prisma, "DESTRUCTION_FAILED" as any, {
+      void emitDestructionLifecycle(prisma, "DESTRUCTION_FAILED", {
         teamId: input.teamId,
         requestId: input.requestId,
         actorUserId: input.executorUserId,
@@ -560,10 +559,15 @@ export async function executeDestruction(
     }
 
     // Mark evidence rows as destroyed (tombstone — row preserved for audit).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    //
+    // This wrote `status: "DESTROYED"` behind an `as any`. DESTROYED is a
+    // member of EvidenceLifecycleState, NOT of EvidenceStatus, so the write
+    // was rejected by the Postgres enum at runtime and the tombstone was
+    // never recorded — the cast was the only reason the compiler allowed it.
+    // `lifecycleState` is the canonical Phase-27 state-machine pointer.
     await prisma.evidence.updateMany({
       where: { id: { in: evidenceIds } },
-      data: { status: "DESTROYED" as any },
+      data: { lifecycleState: "DESTROYED" },
     });
   } catch (err) {
     // Re-throw partial-failure errors as-is; wrap unexpected errors.
@@ -573,8 +577,7 @@ export async function executeDestruction(
       where: { id: input.requestId },
       data: { state: "FAILED" },
     }).catch(() => null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    void emitDestructionLifecycle(prisma, "DESTRUCTION_FAILED" as any, {
+    void emitDestructionLifecycle(prisma, "DESTRUCTION_FAILED", {
       teamId: input.teamId,
       requestId: input.requestId,
       actorUserId: input.executorUserId,

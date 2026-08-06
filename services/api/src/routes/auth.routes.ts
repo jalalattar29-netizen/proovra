@@ -40,7 +40,6 @@ import { getAuthUserId } from "../auth.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import {
-  readMfaStatus,
   verifyActiveTotp,
   consumeRecoveryCode,
   createMfaPendingChallenge,
@@ -53,10 +52,6 @@ import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-lim
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
 // layers of defense and the operational rules.
-import {
-  shouldBypassAuthRateLimit,
-  buildBypassLogPayload,
-} from "../services/auth-test-bypass.js";
 // Phase 2.5 — record the AuthenticatedSession row for non-SAML/SSO
 // login paths so the user-facing `/v1/users/me/sessions` list is not
 // empty for email-password users (Phase 2.4 finding).
@@ -1553,13 +1548,13 @@ export async function authRoutes(app: FastifyInstance) {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
-        firstName: (user as any).firstName,
-        lastName: (user as any).lastName,
-        avatarUrl: (user as any).avatarUrl,
-        locale: (user as any).locale,
-        timezone: (user as any).timezone,
-        country: (user as any).country,
-        bio: (user as any).bio,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatarUrl: user.avatarUrl,
+        locale: user.locale,
+        timezone: user.timezone,
+        country: user.country,
+        bio: user.bio,
         provider: user.provider,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -1588,7 +1583,7 @@ export async function authRoutes(app: FastifyInstance) {
   //     the user back to /login on a Prisma blip than to spuriously
   //     claim a session exists).
   // ---------------------------------------------------------------------------
-  app.get("/v1/auth/session-light", async (req, _reply) => {
+  app.get("/v1/auth/session-light", async (req) => {
     try {
       const authHeader = req.headers.authorization ?? "";
       const bearer = authHeader.startsWith("Bearer ")

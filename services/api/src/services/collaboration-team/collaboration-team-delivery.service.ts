@@ -24,6 +24,7 @@
 import { renderCollaborationTeamInvitationSmsBody } from "@proovra/shared";
 
 import {
+  deterministicEmailKey,
   getEmailFromHeader,
   sendCustomEmailViaResend,
   renderEmailShell,
@@ -101,6 +102,17 @@ export async function sendCollaborationTeamInviteEmail(
     subject,
     html,
     text,
+    // The durable invite id ALONE. A re-issued invitation is a new invite row
+    // and therefore a new key; a retry of this one is the same message and
+    // deduplicates at the provider.
+    //
+    // The accept URL is deliberately NOT in the preimage: it carries a live
+    // invitation token, and the key it derives travels in an HTTP header into
+    // the provider's request logs.
+    idempotencyKey: deterministicEmailKey(
+      "collaboration_team_invite",
+      ctx.invite.id,
+    ),
   });
   if (result.ok) {
     await recordInviteDeliveryResult({

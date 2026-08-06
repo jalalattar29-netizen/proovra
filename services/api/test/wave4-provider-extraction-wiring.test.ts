@@ -31,6 +31,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
+import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -64,7 +66,6 @@ function readSharedRuntimeDist(rel: string): string {
   );
 }
 
-const WORKER_QUEUE = readWorker("src/queue.ts");
 const API_QUEUE = readApi("src/queue/media-intelligence-queue.ts");
 const FANOUT = readApi("src/services/evidence-finalization-fanout.service.ts");
 const WORKER_PROCESSOR = readWorker("src/media-intelligence.processor.ts");
@@ -78,27 +79,48 @@ const PRODUCER_MODE_DIST = readSharedRuntimeDist(
 // ---------------------------------------------------------------------------
 // 1. Job-kind catalog mirror — both sides MUST agree
 // ---------------------------------------------------------------------------
+/**
+ * PHASE 12 — POINT 5 made "both sides MUST agree" structurally impossible to
+ * violate, so these assertions moved from mirroring to identity.
+ *
+ * There is no longer an api-side array and a worker-side union to compare:
+ * both re-export `MEDIA_INTELLIGENCE_JOB_KINDS` from the shared registry. The
+ * mirror this suite policed had in fact ALREADY diverged three ways — the api
+ * producer, the worker's processor branch set, and the run tracker each carried
+ * a different list, and the tracker's was narrow enough that
+ * `extract_ocr_azure` and `extract_transcript_deepgram` could not have a run row
+ * created for them at all.
+ */
 describe("Wave 4 — Job-kind catalog mirror (worker + API)", () => {
-  it("API MEDIA_INTELLIGENCE_JOB_KINDS contains extract_ocr_azure", () => {
-    expect(API_QUEUE).toMatch(/MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[[\s\S]*?"extract_ocr_azure"/);
+  it("the catalog contains extract_ocr_azure", () => {
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain("extract_ocr_azure");
   });
 
-  it("API MEDIA_INTELLIGENCE_JOB_KINDS contains extract_transcript_deepgram", () => {
+  it("the catalog contains extract_transcript_deepgram", () => {
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain(
+      "extract_transcript_deepgram",
+    );
+  });
+
+  it("both sides read the SAME catalog — there is no second list to mirror", () => {
     expect(API_QUEUE).toMatch(
-      /MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[[\s\S]*?"extract_transcript_deepgram"/,
+      /MEDIA_INTELLIGENCE_JOB_KINDS as SHARED_MI_KINDS/,
     );
+    expect(API_QUEUE).not.toMatch(
+      /MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[\s*\n\s*"/,
+    );
+    // The worker types its run kind from the shared union rather than
+    // declaring a parallel one.
+    expect(WORKER_PROCESSOR).toMatch(/type MediaIntelligenceJobKind/);
+    expect(WORKER_PROCESSOR).toMatch(/from "@proovra\/shared"/);
   });
 
-  it("Worker MediaIntelligenceJobPayload union contains extract_ocr_azure", () => {
-    expect(WORKER_QUEUE).toMatch(
-      /MediaIntelligenceJobKind\s*=[\s\S]*?\|\s*"extract_ocr_azure"/,
-    );
-  });
-
-  it("Worker MediaIntelligenceJobPayload union contains extract_transcript_deepgram", () => {
-    expect(WORKER_QUEUE).toMatch(
-      /MediaIntelligenceJobKind\s*=[\s\S]*?\|\s*"extract_transcript_deepgram"/,
-    );
+  it("both provider kinds are recordable as run rows (not just enqueueable)", () => {
+    // The defect this pins: a kind that can be enqueued but cannot be persisted
+    // produces a job with no durable row, which no reconciler can recover.
+    for (const kind of ["extract_ocr_azure", "extract_transcript_deepgram"]) {
+      expect(MEDIA_INTELLIGENCE_RUN_KINDS, kind).toContain(kind);
+    }
   });
 });
 

@@ -69,10 +69,10 @@ export async function buildLifecycleManifestEntry(input: {
   const totalPolicies = await prisma.retentionPolicyConfig
     .count({ where: { teamId } })
     .catch(() => 0);
-  const totalLegalHolds = await prisma.legalHold
+  const totalLegalHolds = await prisma.evidenceLegalHold
     .count({
       where: evidenceId
-        ? { teamId, scopeTargetId: evidenceId }
+        ? { teamId, scope: "EVIDENCE", evidenceId }
         : { teamId },
     })
     .catch(() => 0);
@@ -147,17 +147,17 @@ export async function buildLegalHoldManifestEntry(input: {
   const prisma = input.prisma ?? defaultPrisma;
   const { teamId, evidenceId } = input;
 
-  const row = await prisma.legalHold
+  const row = await prisma.evidenceLegalHold
     .findFirst({
       where: evidenceId
-        ? { teamId, scopeTargetId: evidenceId }
-        : { teamId, state: "ACTIVE" },
+        ? { teamId, scope: "EVIDENCE", evidenceId }
+        : { teamId, status: "ACTIVE" },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
-        kind: true,
-        state: true,
-        scopeTargetId: true,
+        scope: true,
+        status: true,
+        evidenceId: true,
         createdAt: true,
         releasedAtUtc: true,
       },
@@ -168,9 +168,9 @@ export async function buildLegalHoldManifestEntry(input: {
     schemaVersion: "PROOVRA_LEGAL_HOLD_MANIFEST_V1",
     generatedAtUtc: nowUtc(),
     holdId: row?.id ?? "",
-    kind: (row?.kind ?? "EVIDENCE") as LegalHoldKind,
-    state: (row?.state ?? "ACTIVE") as LegalHoldState,
-    scopeTargetId: row?.scopeTargetId ?? null,
+    kind: (row?.scope ?? "EVIDENCE") as unknown as LegalHoldKind,
+    state: (row?.status ?? "ACTIVE") as unknown as LegalHoldState,
+    scopeTargetId: row?.evidenceId ?? null,
     createdAt: row?.createdAt?.toISOString() ?? nowUtc(),
     releasedAtUtc: row?.releasedAtUtc?.toISOString() ?? null,
   };

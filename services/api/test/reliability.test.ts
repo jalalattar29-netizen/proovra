@@ -15,7 +15,30 @@
  * No DB required — purely service / helper / source-text tests.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  DLQ_SINKS,
+  JOB_NAMES,
+  QUEUE_NAMES,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
+
+const SHARED_ENQUEUE_SRC = readFileSync(
+  fileURLToPath(
+    new URL(
+      "../../../packages/shared/src/queue-integrity/enqueue.ts",
+      import.meta.url,
+    ),
+  ),
+  "utf8",
+);
+const WORKER_QUEUE_SRC = readFileSync(
+  fileURLToPath(new URL("../../worker/src/queue.ts", import.meta.url)),
+  "utf8",
+);
 
 import {
   checkUploadSize,
@@ -126,26 +149,44 @@ describe("queue policies", () => {
     ]);
   });
 
-  it("documented retry counts match the worker source", async () => {
-    const { readFile } = await import("node:fs/promises");
-    const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
-      fileURLToPath(
-        new URL("../../worker/src/queue.ts", import.meta.url),
-      ),
-      "utf8",
-    );
-    // Pattern: the worker file must still contain the attempts numbers
-    // we describe in the policy doc. If queue settings change in
-    // worker/queue.ts, this test fails and the policy doc must be
-    // updated to match.
-    expect(src).toMatch(/attempts:\s*5/);
-    expect(src).toMatch(/attempts:\s*20/);
-    // DLQ presence:
-    expect(src).toMatch(/reportDlqQueue/);
-    expect(REPORT_QUEUE_POLICY.deadLetterQueue).toBe("report-dlq");
+  it("documented retry counts match the ONE retry authority", async () => {
+    // PHASE 12 — POINT 5 made this a comparison between two VALUES rather than
+    // between a doc and a grep.
+    //
+    // It used to scan `worker/src/queue.ts` for `attempts: 5` and
+    // `attempts: 20` appearing anywhere in the file. That was weak in both
+    // directions: the numbers appeared in fifteen hand-written queue configs,
+    // so the assertion passed if ANY queue used them, and it could not see the
+    // real problem — the report queue's default said 5 while its producer
+    // passed 3 for a regeneration, so a reconciler re-enqueue ran under a
+    // different budget than the request path for the same work.
+    //
+    // Retry policy now has one definition per family in the registry, and the
+    // operator-facing policy doc is checked against it directly.
+    const reportEntry = getWorkEntryOrThrow(JOB_NAMES.GENERATE_REPORT);
+    const otsEntry = getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS);
+
+    expect(REPORT_QUEUE_POLICY.attempts).toBe(reportEntry.retry.attempts);
+    expect(OTS_UPGRADE_QUEUE_POLICY.attempts).toBe(otsEntry.retry.attempts);
+    // The documented numbers themselves, so a registry edit that changes the
+    // operator contract has to change this line too.
     expect(REPORT_QUEUE_POLICY.attempts).toBe(5);
     expect(OTS_UPGRADE_QUEUE_POLICY.attempts).toBe(20);
+
+    // DLQ presence — the sink is a registered queue, not a source token.
+    expect(REPORT_QUEUE_POLICY.deadLetterQueue).toBe(QUEUE_NAMES.REPORT_DLQ);
+    expect(DLQ_SINKS.map((s) => s.queueName)).toContain(QUEUE_NAMES.REPORT_DLQ);
+    expect(
+      DLQ_SINKS.find((s) => s.queueName === QUEUE_NAMES.REPORT_DLQ)?.sourceQueue,
+    ).toBe(QUEUE_NAMES.REPORT);
+  });
+
+  it("no producer can override the documented attempt budget at the call site", () => {
+    // The specific drift this closes: `attempts: options?.forceRegenerate ? 3 : 5`
+    // used to live at the report enqueue site, so the budget depended on which
+    // caller you were. Every enqueue now reads `entry.retry.attempts`.
+    expect(SHARED_ENQUEUE_SRC).toMatch(/attempts: entry\.retry\.attempts/);
+    expect(WORKER_QUEUE_SRC).not.toMatch(/attempts: options\?\./);
   });
 });
 

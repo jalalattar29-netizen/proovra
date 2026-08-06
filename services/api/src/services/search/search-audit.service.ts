@@ -67,7 +67,6 @@ export type SearchAuditRow = {
 };
 
 const SURFACE_MAX_LEN = 24;
-const QUERY_HASH_LEN = 64;
 const QUERY_PREFIX_HASH_LEN = 16;
 
 function hashSha256Hex(value: string): string {

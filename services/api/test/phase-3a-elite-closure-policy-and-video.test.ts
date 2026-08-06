@@ -325,10 +325,8 @@ describe("Phase 3A Elite — Prisma-backed policy store", () => {
       "export async function createPolicyVersion",
       "export async function transitionPolicyVersion",
       "export async function assignPolicyVersion",
-      "export async function revokePolicyAssignment",
       "export async function listPolicies",
       "export async function listPolicyVersions",
-      "export async function listAssignmentsForScope",
       "export async function listAuditForPolicy",
       "export async function resolveEffectivePolicy",
       "export async function appendPolicyAudit",
@@ -382,10 +380,7 @@ describe("Phase 3A Elite — policy HTTP routes", () => {
       "/v1/redaction/policies/:id/versions",
       "/v1/redaction/policy-versions/:id/transition",
       "/v1/redaction/policies/:id/assignments",
-      "/v1/redaction/policy-assignments/:id",
       "/v1/redaction/policies/:id/audit",
-      "/v1/redaction/policy/effective",
-      "/v1/redaction/policy/assignments",
     ]) {
       expect(ROUTES).toMatch(
         new RegExp(path.replace(/\//g, "\\/")),
@@ -398,7 +393,7 @@ describe("Phase 3A Elite — policy HTTP routes", () => {
       /\/v1\/redaction\/policies"[\s\S]+?gate\(reply, ctx, "redaction\.administer"\)/,
     );
     expect(ROUTES).toMatch(
-      /\/v1\/redaction\/policy\/effective[\s\S]+?gate\(reply, ctx, "redaction\.view"\)/,
+      /\/v1\/redaction\/policies\/:id\/audit[\s\S]+?gate\(reply, ctx, "redaction\.view"\)/,
     );
   });
 });
@@ -555,8 +550,18 @@ describe("Phase 3A Elite — Video Review Workspace UI", () => {
 
 describe("Phase 3A Elite — cross-surface integrations", () => {
   it("verify-page badge surfaces bounded video provenance (counts only)", () => {
+    // PHASE 12 POINT 1 (2026-07-31) — the badge projection was extracted from
+    // the route module into its own service. The invariant is unchanged: the
+    // public verify badge carries COUNTS plus the explicit
+    // provenance-only limitation, and never asserts what a redaction proves.
+    // It is now asserted at the projection's canonical home, with the route
+    // module still documenting the shape it serves.
+    const PROJECTION = readSource(
+      "../../../services/api/src/services/redaction/verify-redaction-projection.service.ts",
+    );
+    expect(PROJECTION).toMatch(/videoProvenance/);
+    expect(PROJECTION).toMatch(/REDACTION_TRACKING_IS_PROVENANCE_ONLY/);
     expect(ROUTES).toMatch(/videoProvenance/);
-    expect(ROUTES).toMatch(/REDACTION_TRACKING_IS_PROVENANCE_ONLY/);
   });
 
   it("report builder ships a video-intelligence section", () => {

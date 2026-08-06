@@ -172,7 +172,7 @@ function signedEvidenceRow(over: Record<string, unknown> = {}) {
   return {
     id: EVIDENCE_ID, teamId: TEAM_1, deletedAt: null, title: "Warehouse photo",
     type: "PHOTO", mimeType: "image/jpeg", status: "SIGNED",
-    verificationStatus: "VERIFIED", captureMethod: "IN_APP", caseId: null,
+    verificationStatus: "VERIFIED", captureMethod: "IN_APP", caseLinks: [],
     createdAt: new Date("2026-07-01T00:00:00Z"),
     latestReportVersion: 2, verificationPackageVersion: 1,
     tsaStatus: "CONFIRMED", otsStatus: "PENDING",

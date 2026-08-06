@@ -80,7 +80,7 @@ describe("REAL FIX 2 — dashboard route never returns wholesale 403", () => {
     const slice = ROUTES.slice(startIdx, startIdx + 5000);
     expect(slice).toMatch(/let\s+entitlementMissing\s*=\s*false/);
     expect(slice).toMatch(/entitlementMissing\s*=\s*!feOk\.ok/);
-    expect(slice).toMatch(/entitlementMissing\?\:\s*boolean/);
+    expect(slice).toMatch(/entitlementMissing\?:\s*boolean/);
     // The flag is sent inside the dashboard envelope.
     expect(slice).toMatch(/entitlementMissing\s*=\s*entitlementMissing/);
   });
@@ -118,7 +118,7 @@ describe("REAL FIX 3 — dashboard frontend never shows the bad red error", () =
   });
 
   it("(11) the LifecycleDashboard type includes entitlementMissing", () => {
-    expect(DASHBOARD).toMatch(/entitlementMissing\?\:\s*boolean/);
+    expect(DASHBOARD).toMatch(/entitlementMissing\?:\s*boolean/);
   });
 });
 

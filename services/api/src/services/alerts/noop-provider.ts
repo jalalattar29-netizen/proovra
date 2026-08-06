@@ -1,6 +1,5 @@
 import type {
   AlertDispatchResult,
-  AlertInput,
   AlertProvider,
 } from "./provider.js";
 
@@ -9,7 +8,7 @@ export class NoopAlertProvider implements AlertProvider {
   isReady(): boolean {
     return false;
   }
-  async dispatch(_input: AlertInput): Promise<AlertDispatchResult> {
+  async dispatch(): Promise<AlertDispatchResult> {
     return { ok: false, provider: "noop", reason: "no_alert_provider_configured" };
   }
 }

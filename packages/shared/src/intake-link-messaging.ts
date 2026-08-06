@@ -118,8 +118,8 @@ export function sanitizeIntakeMessagePreview(
   out = out.replace(STANDALONE_TOKEN_REGEX, (match) => {
     // Skip our own placeholders so we stay idempotent.
     if (
-      match === SANITIZED_INTAKE_TOKEN_PLACEHOLDER.replace(/[\[\]]/g, "") ||
-      match === SANITIZED_TOKEN_ONLY_PLACEHOLDER.replace(/[\[\]]/g, "")
+      match === SANITIZED_INTAKE_TOKEN_PLACEHOLDER.replace(/[[\]]/g, "") ||
+      match === SANITIZED_TOKEN_ONLY_PLACEHOLDER.replace(/[[\]]/g, "")
     ) {
       return match;
     }
@@ -271,8 +271,30 @@ const PHONE_LIKE_REGEX = /(?:\+?\d[\d\s\-().]{6,})/;
 // could let an attacker craft a name that LOOKS like the brand but
 // renders something different. All literals are unicode-escaped so the
 // TS parser does not stumble on the actual control characters.
-const CONTROL_OR_BIDI_REGEX =
-  /[ --​-‏‪-‮⁠﻿]/;
+/**
+ * Control, C1, zero-width, bidi-override and BOM code points — anything that
+ * could let an attacker craft a name that LOOKS like the brand but renders
+ * differently. Declared as explicit inclusive ranges instead of a regex
+ * character class, so the set is readable and needs no lint suppression.
+ */
+const CONTROL_OR_BIDI_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x0000, 0x001f], // C0 controls
+  [0x007f, 0x009f], // DEL + C1 controls
+  [0x200b, 0x200f], // zero-width space .. right-to-left mark
+  [0x202a, 0x202e], // bidi embedding / override
+  [0x2060, 0x2060], // word joiner
+  [0xfeff, 0xfeff], // zero-width no-break space (BOM)
+];
+
+function hasControlOrBidiCharacter(value: string): boolean {
+  for (const ch of value) {
+    const code = ch.charCodeAt(0);
+    for (const [lo, hi] of CONTROL_OR_BIDI_RANGES) {
+      if (code >= lo && code <= hi) return true;
+    }
+  }
+  return false;
+}
 
 export type CustomSenderValidation =
   | { ok: true; value: string }
@@ -301,7 +323,7 @@ export function validateCustomSenderDisplayName(
   const trimmed = raw.trim();
   if (trimmed.length === 0) return { ok: false, reason: "empty" };
   if (trimmed.length > 80) return { ok: false, reason: "too_long" };
-  if (CONTROL_OR_BIDI_REGEX.test(trimmed)) {
+  if (hasControlOrBidiCharacter(trimmed)) {
     return { ok: false, reason: "contains_control_chars" };
   }
   // Check email BEFORE URL — the URL regex matches bare domain

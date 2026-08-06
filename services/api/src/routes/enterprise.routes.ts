@@ -5,6 +5,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../middleware/auth.js";
+import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
@@ -347,7 +348,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
     reply: FastifyReply,
     legacyAction: string,
   ) {
-    const userId = (req as any).user?.sub ?? null;
+    const userId = req.user?.sub ?? null;
     auditEnterpriseAction(req, {
       userId,
       action: "enterprise.api_key_legacy_endpoint_called",
@@ -380,8 +381,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   }>(
     "/v1/batch-analysis",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
       const { evidenceIds, name, description } = req.body;
 
       if (!evidenceIds || !Array.isArray(evidenceIds) || evidenceIds.length === 0) {
@@ -474,8 +475,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
       const { id } = req.params;
 
       try {
@@ -545,8 +546,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.get(
     "/v1/batch-analysis",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
 
       try {
         const jobs = batchAnalysisService.listJobs(userId);
@@ -574,7 +575,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             ),
           })),
         };
-      } catch (_error) {
+      } catch (error) {
         auditEnterpriseAction(req, {
           userId,
           action: "enterprise.batch_list",
@@ -583,7 +584,9 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           resourceType: "batch_job",
         });
 
-        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to list batch jobs");
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to list batch jobs", {
+          reason: error instanceof Error ? error.name.slice(0, 64) : "unknown_error",
+        });
       }
     }
   );
@@ -591,8 +594,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/process",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
       const { id } = req.params;
 
       try {
@@ -691,8 +694,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/results",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
       const { id } = req.params;
 
       try {
@@ -757,8 +760,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/cancel",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
       const { id } = req.params;
 
       try {
@@ -816,8 +819,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/export",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any, res: any) => {
-      const userId = req.user!.sub;
+    async (req, res) => {
+      const userId = getAuthUserId(req);
       const { id } = req.params;
 
       try {
@@ -872,8 +875,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.get(
     "/v1/quotas",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
 
       try {
         const data = await getRealQuotas(userId);
@@ -897,7 +900,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to load quotas"
+          "Failed to load quotas",
+          { reason: error instanceof Error ? error.name.slice(0, 64) : "unknown_error" }
         );
       }
     }
@@ -906,8 +910,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   app.get(
     "/v1/usage-stats",
     { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
+    async (req) => {
+      const userId = getAuthUserId(req);
 
       try {
         const data = await getRealUsageStats(userId);
@@ -931,7 +935,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to load usage statistics"
+          "Failed to load usage statistics",
+          { reason: error instanceof Error ? error.name.slice(0, 64) : "unknown_error" }
         );
       }
     }

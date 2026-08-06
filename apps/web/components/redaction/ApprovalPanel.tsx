@@ -12,17 +12,26 @@
  *   IN_REVIEW → DRAFT         (approver verdict REQUEST_CHANGES)
  *   APPROVED → PUBLISHED      (operator publishes; requires READY derivative)
  *
+ * Macro-Wave A1 — the panel also carries the redacted-copy (derivative)
+ * journey: request/retry, honest QUEUED/RENDERING/FAILED/READY states,
+ * and READY-only preview + download via the short-lived signed-URL
+ * endpoint (never a raw storage key).
+ *
  * Hard rules:
  *   * The same panel renders the approval history below the
  *     action buttons. Every approval row is preserved — they're
  *     append-only.
  *   * Buttons disable themselves based on the current state so the
- *     UI never solicits an action the server will refuse.
+ *     UI never solicits an action the server will refuse — including
+ *     never offering a redacted copy for VIDEO/AUDIO (server denies
+ *     with UNSUPPORTED_REDACTION_MEDIA; the UI must not solicit it).
  */
 
 import { useCallback, useState } from "react";
 
+import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 type ApprovalRow = {
   id: string;
@@ -37,26 +46,92 @@ type VersionLike = {
   versionOrdinal: number;
   state: string;
   approvals: ReadonlyArray<ApprovalRow>;
-  derivative: { state: string } | null;
+  derivative: {
+    id: string;
+    state: string;
+    failureReason?: string | null;
+  } | null;
 };
+
+/** Artifact kinds whose derivative render actually ships end-to-end. */
+const DERIVATIVE_SUPPORTED_KINDS: ReadonlyArray<string> = ["IMAGE", "PDF"];
 
 export function ApprovalPanel({
   version,
+  artifactKind,
   onTransition,
 }: {
   version: VersionLike;
+  artifactKind: "IMAGE" | "PDF" | "VIDEO" | "AUDIO";
   onTransition: (
     versionId: string,
-    action: "submit" | "approve" | "publish",
+    action: "submit" | "approve" | "publish" | "derivative",
     verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
     rationale?: string,
   ) => Promise<void>;
 }) {
   const [rationale, setRationale] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [derivativeError, setDerivativeError] = useState<string | null>(null);
   const canSubmit = version.state === "DRAFT";
   const canApprove = version.state === "IN_REVIEW";
   const canPublish =
     version.state === "APPROVED" && version.derivative?.state === "READY";
+
+  const derivative = version.derivative;
+  const derivativeSupported = DERIVATIVE_SUPPORTED_KINDS.includes(artifactKind);
+  const derivativeInFlight =
+    derivative?.state === "QUEUED" || derivative?.state === "RENDERING";
+  // The server accepts a derivative request only for APPROVED/PUBLISHED
+  // versions, and only for shipping media kinds.
+  const canRequestDerivative =
+    derivativeSupported &&
+    (version.state === "APPROVED" || version.state === "PUBLISHED") &&
+    (!derivative || derivative.state === "FAILED");
+
+  const fetchDownloadUrl = useCallback(async (): Promise<string | null> => {
+    if (!derivative || derivative.state !== "READY") return null;
+    setDerivativeError(null);
+    try {
+      const res = await apiFetch(
+        `/v1/redaction/derivatives/${derivative.id}/download-url`,
+        { method: "GET" },
+      );
+      const url = res?.downloadUrl as string | undefined;
+      if (!url) throw new Error("missing downloadUrl");
+      return url;
+    } catch (err) {
+      setDerivativeError(
+        toSafeUserError(err, {
+          message: "We couldn't prepare the redacted copy download.",
+        }).message,
+      );
+      return null;
+    }
+  }, [derivative]);
+
+  const onClickRequestDerivative = useCallback(async () => {
+    setDerivativeError(null);
+    setPreviewUrl(null);
+    await onTransition(version.id, "derivative");
+  }, [onTransition, version.id]);
+
+  const onClickDownload = useCallback(async () => {
+    const url = await fetchDownloadUrl();
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }, [fetchDownloadUrl]);
+
+  const onClickPreview = useCallback(async () => {
+    const url = await fetchDownloadUrl();
+    if (!url) return;
+    if (artifactKind === "IMAGE") {
+      // Inline bounded image preview from the same short-lived URL.
+      setPreviewUrl(url);
+    } else {
+      // PDF preview = open the signed URL in a new tab (no in-app viewer).
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, [artifactKind, fetchDownloadUrl]);
 
   const onClickSubmit = useCallback(async () => {
     await onTransition(version.id, "submit", undefined, rationale || undefined);
@@ -197,6 +272,140 @@ export function ApprovalPanel({
           Publish
         </button>
       </div>
+
+      <section
+        data-redaction-derivative-panel
+        data-redaction-derivative-state={derivative?.state ?? "NONE"}
+        style={{
+          marginTop: 10,
+          padding: 8,
+          border: "1px solid #e2e8f0",
+          borderRadius: 8,
+        }}
+      >
+        <strong style={{ fontSize: 12 }}>Redacted copy</strong>
+
+        {!derivativeSupported ? (
+          // VIDEO/AUDIO — the server refuses with UNSUPPORTED_REDACTION_MEDIA,
+          // so the UI never offers the affordance.
+          <p
+            data-redaction-derivative-unsupported
+            style={{ color: "#475569", fontSize: 11, margin: "4px 0 0" }}
+          >
+            Redacted-copy rendering isn&apos;t available for{" "}
+            <code>{artifactKind}</code> yet.
+          </p>
+        ) : (
+          <>
+            <p style={{ color: "#475569", fontSize: 11, margin: "4px 0 6px" }}>
+              {derivative == null
+                ? "No redacted copy has been requested for this version."
+                : derivativeInFlight
+                ? "Rendering… this usually takes under a minute."
+                : derivative.state === "READY"
+                ? "The redacted copy is ready."
+                : derivative.state === "FAILED"
+                ? "Rendering failed."
+                : derivative.state === "QUARANTINED"
+                ? "This redacted copy was quarantined by an administrator."
+                : `Redacted copy state: ${derivative.state}.`}
+            </p>
+
+            {derivative?.state === "FAILED" && derivative.failureReason ? (
+              <p
+                data-redaction-derivative-failure-reason
+                style={{ color: "#7f1d1d", fontSize: 11, margin: "0 0 6px" }}
+              >
+                Reason: <code>{derivative.failureReason.slice(0, 120)}</code>
+              </p>
+            ) : null}
+
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                data-redaction-derivative-request
+                onClick={onClickRequestDerivative}
+                disabled={!canRequestDerivative}
+                style={{
+                  ...subtleButton,
+                  cursor: canRequestDerivative ? "pointer" : "not-allowed",
+                  color: canRequestDerivative ? "#0f172a" : "#94a3b8",
+                }}
+                title={
+                  !canRequestDerivative &&
+                  version.state !== "APPROVED" &&
+                  version.state !== "PUBLISHED"
+                    ? "The version must be approved before a redacted copy can be rendered"
+                    : undefined
+                }
+              >
+                {derivative?.state === "FAILED"
+                  ? "Retry redacted copy"
+                  : derivativeInFlight
+                  ? "Rendering…"
+                  : "Request redacted copy"}
+              </button>
+
+              {derivative?.state === "READY" ? (
+                <>
+                  <button
+                    type="button"
+                    data-redaction-derivative-preview
+                    onClick={onClickPreview}
+                    style={subtleButton}
+                  >
+                    {artifactKind === "IMAGE" ? "Preview" : "Open preview"}
+                  </button>
+                  <button
+                    type="button"
+                    data-redaction-derivative-download
+                    onClick={onClickDownload}
+                    style={{
+                      ...primaryButton,
+                      background: "#0f172a",
+                    }}
+                  >
+                    Download redacted copy
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            {derivativeError ? (
+              <p
+                data-redaction-derivative-error
+                style={{ color: "#7f1d1d", fontSize: 11, margin: "6px 0 0" }}
+              >
+                {derivativeError}
+              </p>
+            ) : null}
+
+            {previewUrl && artifactKind === "IMAGE" ? (
+              // A plain <img> is deliberate here: `previewUrl` is a short-lived
+              // signed URL for a redacted derivative, which next/image would
+              // proxy and cache. Every other image in this app is a plain <img>
+              // for the same reason, and apps/web/.eslintrc.cjs does not
+              // register the @next/next plugin — so the disable directive that
+              // used to sit on this line referenced a rule that does not exist
+              // and failed the build with "Definition for rule ... was not
+              // found". Removed rather than suppressed.
+              <img
+                data-redaction-derivative-preview-image
+                src={previewUrl}
+                alt="Redacted copy preview"
+                style={{
+                  display: "block",
+                  marginTop: 8,
+                  maxWidth: "100%",
+                  maxHeight: 360,
+                  borderRadius: 6,
+                  border: "1px solid #e2e8f0",
+                }}
+              />
+            ) : null}
+          </>
+        )}
+      </section>
 
       <section
         data-redaction-approval-history

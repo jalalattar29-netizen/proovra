@@ -22,7 +22,7 @@
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -230,22 +230,33 @@ export function ReportsIndex() {
     [workspaceId],
   );
 
+  // Provider-state scalars, narrowed before the effect so the dependency
+  // array is statically checkable.
+  const ctxStateName = ctxState.name;
+  const ctxErrorCode = ctxState.name === "FAILED" ? ctxState.errorCode : null;
+  const ctxMessage = ctxState.name === "FAILED" ? ctxState.message : null;
+  // The CURRENT query, read (not subscribed to) by the workspace-switch reload.
+  // Filter and search changes are owned by the debounced effect below; firing
+  // them from here as well would issue the same request twice.
+  const queryRef = useRef({ filter, search, reload });
+  queryRef.current = { filter, search, reload };
+
   useEffect(() => {
-    if (ctxState.name === "IDLE" || ctxState.name === "LOADING_CONTEXT") {
+    if (ctxStateName === "IDLE" || ctxStateName === "LOADING_CONTEXT") {
       setState({ status: "loading" });
       return;
     }
-    if (ctxState.name === "FAILED") {
+    if (ctxStateName === "FAILED") {
       const isAuth =
-        ctxState.errorCode === "AUTH_REQUIRED" ||
-        ctxState.errorCode === "PERMISSION_DENIED";
+        ctxErrorCode === "AUTH_REQUIRED" ||
+        ctxErrorCode === "PERMISSION_DENIED";
       setState({
         status: isAuth ? "auth_error" : "unavailable",
         code:
-          ctxState.errorCode === "PERMISSION_DENIED"
+          ctxErrorCode === "PERMISSION_DENIED"
             ? "permission_denied"
             : "auth_required",
-        message: ctxState.message,
+        message: ctxMessage,
       } as LoadState);
       return;
     }
@@ -253,9 +264,10 @@ export function ReportsIndex() {
       setState({ status: "no_workspace" });
       return;
     }
-    void reload(filter, search);
-    // Reload when the workspace switches.
-  }, [ctxState.name, workspaceId]);
+    const q = queryRef.current;
+    void q.reload(q.filter, q.search);
+    // Reload when the workspace switches (or provider state resolves).
+  }, [ctxStateName, ctxErrorCode, ctxMessage, workspaceId]);
 
   // Trigger a server re-query when the filter changes (server already
   // honors the `lifecycle` param). Search is debounced client-side.

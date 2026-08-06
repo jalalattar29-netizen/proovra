@@ -1,4 +1,5 @@
 "use client";
+import { formatUserDateTime } from "../../lib/date";
 
 /**
  * Phase QC (UI) — Reviewer Operations QC Sampling panel.
@@ -166,7 +167,7 @@ export function QcSamplingPanel() {
                     <strong>{FEATURE_LABEL[s.feature] ?? s.feature}</strong>
                     <span className="app-chip">{s.status}</span>
                     <span className={`app-chip ${chip.cls}`}>{chip.label}</span>
-                    <span style={{ fontSize: 12, opacity: 0.6 }}>{new Date(s.generatedAt).toLocaleString()}</span>
+                    <span style={{ fontSize: 12, opacity: 0.6 }}>{formatUserDateTime(s.generatedAt)}</span>
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
                     {s.interactionCount} human interaction(s) · {s.editedCount} edited · {s.rejectedCount} rejected

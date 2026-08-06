@@ -63,9 +63,6 @@ const ROUTES_REDACTION = readSource(
 const SVC_PROJECT = readSource(
   "../../../services/api/src/services/redaction/redaction-project.service.ts",
 );
-const SVC_DERIVATIVE = readSource(
-  "../../../services/api/src/services/redaction/redaction-derivative.service.ts",
-);
 
 const PURPOSE = "REDACTION_PUBLISH";
 
@@ -181,7 +178,9 @@ describe("Phase 3A — view / author / submit / approve / derivative-request NOT
   it("derivative RENDER-REQUEST route does NOT require step-up", () => {
     const block = ROUTES_REDACTION.slice(
       ROUTES_REDACTION.indexOf('"/v1/redaction/versions/:id/derivative"'),
-      ROUTES_REDACTION.indexOf('"/v1/redaction/derivatives/:id/mark-ready"'),
+      ROUTES_REDACTION.indexOf(
+        "// Sentinel — also expose the derivative for a given version directly.",
+      ),
     );
     expect(block).not.toMatch(/requireStepUpForSensitiveAction\(/);
   });
@@ -264,13 +263,6 @@ describe("Phase 3A — publish audit records the step-up outcome", () => {
 // =============================================================================
 
 describe("Phase 3A — original evidence safety (publish never touches the original)", () => {
-  it("derivative service refuses to overwrite the original evidence storage key", () => {
-    // The platform NEVER overwrites the original artifact: a derivative
-    // whose storage key collides with the evidence storage key is rejected.
-    expect(SVC_DERIVATIVE).toMatch(/storageKey\s*===\s*input\.storageKey/);
-    expect(SVC_DERIVATIVE).toMatch(/POLICY_REJECTED/);
-  });
-
   it("the PUBLISHED transition only touches redaction_version / redaction_project — never the Evidence row", () => {
     // Isolate the transition body and confirm it mutates only redaction
     // tables. There is no prisma.evidence.update / .delete anywhere in the

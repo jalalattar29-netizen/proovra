@@ -52,7 +52,6 @@ function makeItem(overrides: Partial<SessionItem>): SessionItem {
   } as SessionItem;
 }
 
-const PROFILE = "VERIFICATION_DOCUMENTATION" as const;
 
 test("readiness: dropdown-mapped primary item (role human-readable, slug in checklistStepId) satisfies has_primary", () => {
   const readiness = computeCaptureReadiness({

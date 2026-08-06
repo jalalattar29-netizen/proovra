@@ -58,10 +58,9 @@ describe("Phase IA-self-serve-completion — /home wiring", () => {
     );
   });
 
-  it("imports useSurfaceUserContext from the shared hook module", () => {
-    expect(HOME).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
-    );
+  it("consumes the SERVER envelope for the surface decision (no client tier hook)", () => {
+    // PHASE 12B Track 1A — the decision inputs are envelope booleans.
+    expect(HOME).toMatch(/usePlatformContext|useServerProjectionGates|isEnterpriseWorkspace/);
   });
 
   it("delegates the surface decision to the canonical resolveHomeSurface helper", () => {
@@ -74,10 +73,10 @@ describe("Phase IA-self-serve-completion — /home wiring", () => {
   });
 
   it("resolveHomeSurface isolates CommandCenter behind an explicit enterprise condition", () => {
-    const RESOLVER = readWeb("lib/surface/resolveHomeSurface.ts");
+    const RESOLVER = readWeb("components/home-experience/resolveHomeSurface.ts");
     expect(RESOLVER).toMatch(/isPlatformAdmin === true/);
     expect(RESOLVER).toMatch(/isEnterpriseWorkspace === true/);
-    expect(RESOLVER).toMatch(/plan === "ENTERPRISE"/);
+    expect(RESOLVER).not.toMatch(/input\.plan\b(?!Resolved)|args\.plan\b/); // PHASE 12B — no raw-plan reads (planResolved boolean OK)
     expect(RESOLVER).toMatch(/if \(isEnterprise\) return "command-center"/);
     // Plan null → loading, NOT command-center (the fixed fallback).
     expect(RESOLVER).toMatch(/return "loading"/);
@@ -165,16 +164,16 @@ describe("Phase IA-self-serve-completion — Settings tree gates /security-cente
 
   it("imports canAccessSurface + useSurfaceUserContext", () => {
     expect(SETTINGS).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
+      /useEnterpriseSurfaceAccess/,
     );
     expect(SETTINGS).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+      /useEnterpriseSurfaceAccess|usePlatformContext/,
     );
   });
 
   it("computes canSeeWorkspaceSecurity from canAccessSurface('/security-center')", () => {
     expect(SETTINGS).toMatch(
-      /const canSeeWorkspaceSecurity\s*=\s*canAccessSurface\([\s\S]{0,200}surfaceUserCtx[\s\S]{0,200}"\/security-center"/,
+      /const canSeeWorkspaceSecurity\s*=\s*useEnterpriseSurfaceAccess\(\);/,
     );
   });
 
@@ -204,10 +203,10 @@ describe("Phase IA-self-serve-completion — unified /settings gates the /securi
 
   it("imports canAccessSurface + useSurfaceUserContext", () => {
     expect(SEC).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
+      /useEnterpriseSurfaceAccess/,
     );
     expect(SEC).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+      /useEnterpriseSurfaceAccess|usePlatformContext/,
     );
   });
 
@@ -307,17 +306,20 @@ describe("Phase IA-self-serve-completion — Search page gates /integrations", (
 
   it("imports canAccessSurface + useSurfaceUserContext", () => {
     expect(SEARCH).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
+      /useEnterpriseSurfaceAccess/,
     );
     expect(SEARCH).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+      /useEnterpriseSurfaceAccess|usePlatformContext/,
     );
   });
 
-  it("computes canSeeIntegrations from canAccessSurface('/integrations')", () => {
-    expect(SEARCH).toMatch(
-      /const canSeeIntegrations\s*=\s*canAccessSurface\([\s\S]{0,200}surfaceUserCtx[\s\S]{0,200}"\/integrations"/,
-    );
+  it("exposes NO ungated /integrations deep link (12B: the gated link + client gate were both removed)", () => {
+    // PHASE 12B Track 1A — the legacy NoResultsHelp /integrations link is gone
+    // entirely; with no link there is no client gate to compute. The invariant
+    // (search never links a hidden enterprise surface for self-serve users)
+    // holds by ABSENCE.
+    expect(SEARCH).not.toMatch(/href="\/integrations"/);
+    expect(SEARCH).not.toMatch(/canSeeIntegrations/);
   });
 
   it("Phase SEARCH-REMEDIATION-3 — `NoResultsHelp` is gone (the truthful empty-state branches replaced it)", () => {

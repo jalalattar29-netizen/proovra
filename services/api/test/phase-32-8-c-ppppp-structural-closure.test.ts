@@ -314,15 +314,11 @@ describe("Phase 32.8C+++++ — worker-telemetry.service.ts", () => {
 // =============================================================================
 
 describe("Phase 32.8C+++++ — case-evidence-link.service.ts", () => {
-  it("lazy backfill from Evidence.caseId is idempotent (findUnique then create)", () => {
-    expect(CASE_LINK).toMatch(/prisma\.caseEvidenceLink\.findUnique/);
-    expect(CASE_LINK).toMatch(/role:\s*"PRIMARY"/);
-    expect(CASE_LINK).toMatch(/source:\s*"SYSTEM"/);
-  });
-
-  it("backfill is bounded (≤ 1000) and never throws", () => {
-    expect(CASE_LINK).toMatch(/Math\.min\(Math\.max\(input\.limit \?\? 200,\s*1\),\s*1000\)/);
-    expect(CASE_LINK).toMatch(/Outer read failure — return partial counts/);
+  it("lazy backfill is RETIRED (Track 1B closure — the legacy column is gone; the link table is the only truth)", () => {
+    expect(CASE_LINK).not.toMatch(/backfillCaseEvidenceLinks/);
+    expect(CASE_LINK).not.toMatch(/\bcaseId\s*:\s*\{\s*not:\s*null/);
+    // Readers stay failure-tolerant.
+    expect(CASE_LINK).toMatch(/Reader failures NEVER block/);
   });
 
   it("cross-case readers detect evidence linked to multiple cases", () => {

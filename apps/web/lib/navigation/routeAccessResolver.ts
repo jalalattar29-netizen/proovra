@@ -19,7 +19,11 @@
  */
 
 import type { CapabilityKey } from "../platform-context/types";
-import type { RouteDefinition } from "./routeRegistry";
+import {
+  routeRequiresEnterpriseWorkspace,
+  type PlanFeatureGateKey,
+  type RouteDefinition,
+} from "./routeRegistry";
 
 export const ACCESS_STATES = [
   "ALLOWED",
@@ -66,6 +70,22 @@ export type RouteAccessInput = {
    */
   workspace?: { id: string | null; status?: string | null } | null;
   personalSpace?: { id: string | null; status?: string | null } | null;
+  /**
+   * Track 1A (surface-tier removal) — SERVER-computed
+   * `envelope.flags.isEnterpriseWorkspace` for the ACTIVE workspace
+   * (backend: ENTERPRISE_PLAN_KEYS = {"ENTERPRISE"}). Consulted for
+   * routes in `ENTERPRISE_ONLY_ROUTE_IDS`. Fail-closed: absent/false
+   * denies (platform admins bypass). Never derived client-side from a
+   * plan string.
+   */
+  isEnterpriseWorkspace?: boolean;
+  /**
+   * Track 1A — SERVER-computed `envelope.planFeatures` commercial
+   * entitlements (backend PLAN_CAPABILITIES projection). Consulted for
+   * routes declaring `requiredPlanFeature`. Fail-closed while
+   * loading/degraded (`null`/absent denies; platform admins bypass).
+   */
+  planFeatures?: Partial<Record<PlanFeatureGateKey, boolean | null>> | null;
 };
 
 /**
@@ -209,6 +229,46 @@ export function resolveRouteAccess(
     }
   }
   // requiredActiveSpace === "NONE" → no workspace check.
+
+  // -------------------------------------------------------------------------
+  // 2b. Track 1A (surface-tier removal) — server-projected commercial /
+  //     enterprise gates. Both read ONLY backend-computed booleans
+  //     (`flags.isEnterpriseWorkspace`, `planFeatures.*`) — never a plan
+  //     string. Platform admins bypass (they already passed the elevation
+  //     branch above for PLATFORM_ADMIN routes; for ordinary routes the
+  //     bypass mirrors the historical admin-passes-every-tier behavior).
+  // -------------------------------------------------------------------------
+  if (!isPlatformAdmin && routeRequiresEnterpriseWorkspace(route)) {
+    if (input.isEnterpriseWorkspace !== true) {
+      return {
+        canLoad: false,
+        // Hidden from nav entirely — matches the historical behavior where
+        // enterprise operator surfaces never appeared for self-serve users.
+        canSeeNav: false,
+        accessState: "NEEDS_UPGRADE",
+        reason:
+          "This surface is part of the Enterprise workspace experience. It activates when your active workspace is on an Enterprise agreement.",
+        primaryAction: { label: "View plans", href: "/billing" },
+        secondaryAction: { label: "Back to home", href: "/home" },
+      };
+    }
+  }
+  if (!isPlatformAdmin && route.requiredPlanFeature) {
+    const featureValue = input.planFeatures?.[route.requiredPlanFeature];
+    if (featureValue !== true) {
+      return {
+        canLoad: false,
+        // Hidden while the entitlement is absent OR unknown (loading /
+        // degraded envelope) — fail-closed, like the tier layer it replaces.
+        canSeeNav: false,
+        accessState: "NEEDS_UPGRADE",
+        reason:
+          "This feature isn't included in the current plan. Upgrade to unlock it.",
+        primaryAction: { label: "View plans", href: "/billing" },
+        secondaryAction: { label: "Back to home", href: "/home" },
+      };
+    }
+  }
 
   // -------------------------------------------------------------------------
   // 3. Capability requirement.

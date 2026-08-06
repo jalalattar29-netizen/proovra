@@ -144,8 +144,7 @@ describe("Phase R9 — duplicate route registration guard", () => {
     for (const file of files) {
       const src = stripComments(readFileSync(file, "utf8"));
       re.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(src)) !== null) {
+      while (re.exec(src) !== null) {
         hits.push(file);
       }
     }

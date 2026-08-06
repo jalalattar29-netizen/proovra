@@ -399,7 +399,7 @@ export function validateSamlResponse(
   const parser = new DOMParser({
     // @xmldom/xmldom v0.9.x uses a single ErrorHandlerFunction
     // (level, msg, context) => void — not an object with separate methods.
-    errorHandler: (level, msg, _context) => {
+    errorHandler: (level, msg) => {
       if (level === "fatalError") {
         parseError = msg;
       }

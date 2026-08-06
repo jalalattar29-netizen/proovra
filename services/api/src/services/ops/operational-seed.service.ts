@@ -43,7 +43,6 @@ import { bump } from "./metrics.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { ensureReviewWorkflow } from "../review-operations/review-operations.service.js";
 import {
-  createEscalation,
   acknowledgeEscalation,
   resolveEscalation,
 } from "../reviewer-ops/escalation-engine.service.js";

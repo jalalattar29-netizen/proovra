@@ -206,7 +206,6 @@ describe("Lifecycle consolidation — no new lifecycle routes", () => {
     "/v1/lifecycle/destruction/requests/:id/execute",
     "/v1/lifecycle/destruction/requests/:id/certificate",
     "/v1/lifecycle/destruction/requests/:id/certificate.json",
-    "/v1/lifecycle/destruction/requests/:id/certificate.pdf",
     "/v1/lifecycle/dashboard",
     "/v1/lifecycle/verification-package/preview",
     "/v1/lifecycle/violations",
@@ -327,5 +326,33 @@ describe("Lifecycle consolidation — GUARD: lifecycle-domain-responsibilities d
     const text = readDoc("docs/architecture/lifecycle-domain-responsibilities.md");
     expect(text.length).toBeGreaterThan(4000);
     expect(text).toMatch(/##/); // at least one markdown section
+  });
+});
+
+// =============================================================================
+// PHASE 12 POINT 4 — FUTURE_NOT_SHIPPING stays unregistered
+// =============================================================================
+//
+// `GET /v1/lifecycle/destruction/requests/:id/certificate.pdf` was REGISTERED
+// in production and answered 501 PDF_NOT_IMPLEMENTED. Nothing produced a PDF —
+// `certificatePdfUri` is never assigned anywhere in the API or the worker, the
+// service carries only a comment saying the step is skipped — and no web or
+// mobile surface referenced it. A registered route that can never succeed
+// advertises a capability the product does not have, so it was removed rather
+// than left as a tombstone.
+//
+// The capability is classified FUTURE_NOT_SHIPPING in
+// docs/architecture/compatibility-adapter-registry.json. If a real PDF
+// implementation and a consumer ever land, register the route THEN — with
+// tenant, capability and behavioral proof, not as a 501 placeholder.
+
+describe("Phase 12 Point 4 — the PDF certificate route stays UNREGISTERED", () => {
+  it("no route registers the certificate.pdf path", () => {
+    expect(LIFECYCLE_ROUTES).not.toContain("certificate.pdf");
+  });
+
+  it("no 501 tombstone remains in the lifecycle route module", () => {
+    expect(LIFECYCLE_ROUTES).not.toContain("PDF_NOT_IMPLEMENTED");
+    expect(LIFECYCLE_ROUTES).not.toMatch(/reply\.code\(501\)/);
   });
 });

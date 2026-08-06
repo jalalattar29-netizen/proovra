@@ -183,7 +183,10 @@ test("Backend /v1/cases/:id/available-evidence where-clause does NOT restrict by
   // Sanity: the lifecycle filters are still present.
   assert.match(whereBody, /deletedAt: null/);
   assert.match(whereBody, /archivedAt: null/);
-  assert.match(whereBody, /caseId: null/);
+  // PHASE 12B Case-Evidence convergence: the Evidence.caseId scalar was
+  // REMOVED and CaseEvidenceLink is the sole association authority, so
+  // "not yet attached to any case" is now `caseLinks: { none: {} }`.
+  assert.match(whereBody, /caseLinks:\s*\{\s*none:/);
 });
 
 // ===========================================================================

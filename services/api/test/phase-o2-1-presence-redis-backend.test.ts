@@ -93,7 +93,7 @@ class MockRedis {
     return this.store.get(key)?.size ?? 0;
   }
 
-  async expire(_key: string, _ttlSec: number): Promise<number> {
+  async expire(): Promise<number> {
     this.maybeThrow();
     return 1;
   }

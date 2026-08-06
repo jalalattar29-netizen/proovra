@@ -595,7 +595,7 @@ describe("TSA failure — first-class timestamping attention", () => {
       {
         id: "77777777-7777-4777-8777-777777777777",
         teamId: H.teamId,
-        caseId: null,
+        caseLinks: [],
         title: "Contract scan",
         originalFileName: "contract.pdf",
         tsaFailureReason: "TSA endpoint rejected the request",
@@ -626,7 +626,7 @@ describe("TSA failure — first-class timestamping attention", () => {
       {
         id: "77777777-7777-4777-8777-777777777777",
         teamId: H.teamId,
-        caseId: null,
+        caseLinks: [],
         title: "Contract scan",
         originalFileName: null,
         tsaFailureReason: "retry exhausted",
@@ -682,7 +682,7 @@ describe("tsa_failure + case_assignment — full state-mutation parity", () => {
       {
         id: "77777777-7777-4777-8777-777777777777",
         teamId: H.teamId,
-        caseId: null,
+        caseLinks: [],
         title: "Contract scan",
         originalFileName: "contract.pdf",
         tsaFailureReason: "TSA endpoint rejected the request",
@@ -985,7 +985,7 @@ describe("IN_APP preference honesty — suppression is real, email-independent",
       {
         id: "77777777-7777-4777-8777-777777777777",
         teamId: H.teamId,
-        caseId: null,
+        caseLinks: [],
         title: "Contract scan",
         originalFileName: "contract.pdf",
         tsaFailureReason: "TSA endpoint rejected the request",
@@ -1013,7 +1013,7 @@ describe("Hybrid summary — scopeSummary is filter-independent", () => {
       {
         id: "77777777-7777-4777-8777-777777777777",
         teamId: H.teamId,
-        caseId: null,
+        caseLinks: [],
         title: "Contract scan",
         originalFileName: "contract.pdf",
         tsaFailureReason: "TSA endpoint rejected the request",

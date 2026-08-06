@@ -73,8 +73,16 @@ describe("§3 — managed-identity write authority = 1", () => {
     // defined in the ONE authority; other files only CALL them.
     expect(IDMODE).toMatch(/export async function setManagedIdentity/);
     expect(IDMODE).toMatch(/export async function releaseManagedIdentity/);
-    // scim.service imports (calls) the authority — it does not re-implement it.
-    expect(SCIM).toMatch(/import \{ setManagedIdentity \} from/);
+    // scim.service DELEGATES to the authority — it does not re-implement it.
+    //
+    // PHASE 10 §1.1 folded the direct `setManagedIdentity` call into the ONE
+    // atomic intent `provisionManagedMembership`, which composes it inside the
+    // same $transaction as membership + seat enforcement. So SCIM no longer
+    // imports the writer by name. The invariant was never "SCIM imports this
+    // symbol" — it is "SCIM does not write managed ownership itself", which is
+    // what the delegation check plus the negative below assert.
+    expect(SCIM).toMatch(/provisionManagedMembership\(/);
     expect(SCIM).not.toMatch(/identityMode:\s*"MANAGED_ENTERPRISE"[\s\S]{0,60}user\.update/);
+    expect(SCIM).not.toMatch(/managedByOrganizationId:\s*[\s\S]{0,40}user\.update/);
   });
 });

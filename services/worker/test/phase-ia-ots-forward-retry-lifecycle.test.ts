@@ -44,7 +44,6 @@ function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
 
-const QUEUE_SRC = readSource("../src/queue.ts");
 const UPGRADE_SRC = readSource("../src/ots-upgrade.processor.ts");
 
 // ============================================================================
@@ -82,12 +81,19 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
     expect(block).toMatch(/enqueueOtsUpgradeJob\(evidenceId,\s*\{/);
     // The enqueue MUST set a delayMs (no immediate retry storm).
     expect(block).toMatch(/delayMs:\s*60\s*\*\s*60\s*\*\s*1000/);
-    // AND it MUST pass excludeJobId so the queue's dedup logic
-    // distinguishes the currently-running job from external dupes.
-    expect(block).toMatch(/excludeJobId:\s*job\.id/);
-    // AND it MUST use the stable follow-up id so the queue can
-    // self-discriminate via the fix below.
-    expect(block).toMatch(/jobId:\s*buildFollowUpJobId\(evidenceId\)/);
+    // AND it MUST tell the enqueue authority that the live job under the
+    // target id is the CALLER.
+    //
+    // PHASE 12 — POINT 5 renamed this mechanism without weakening it. There
+    // used to be two ids (`ots-upgrade-<id>` and
+    // `ots-upgrade-followup-<id>`) and an `excludeJobId` the producer
+    // interpreted itself; there is now ONE id and a `selfJobId` the SHARED
+    // enqueue authority interprets. The guarantee is identical and is the
+    // reason both exist: without it this call finds its own active job,
+    // collapses onto it, schedules nothing, and the evidence stays
+    // OTS-PENDING forever with an empty queue — the exact production
+    // incident this file was written for.
+    expect(block).toMatch(/selfJobId:\s*job\.id/);
   });
 
   it("the FULLY_ANCHORED branch is the ONLY terminal-success branch (no spurious follow-up)", () => {
@@ -124,100 +130,44 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
 });
 
 // ============================================================================
-// THE FIX — enqueueOtsUpgradeJob respects excludeJobId for self-reference
+// THE FIX — the self-reschedule escape hatch, and its bounds
 // ============================================================================
+//
+// PHASE 12 — POINT 5 MOVED this mechanism out of `queue.ts` and into the shared
+// `enqueueCanonicalJob`, so the source-regex assertions that used to live here
+// (`isSelfReference` + `options?.excludeJobId`, a `Date.now()` job-id suffix,
+// `findRunnableOtsUpgradeJobForEvidence`, `attempts: 20` written out as a
+// literal) all pinned symbols that no longer exist. Every one of them has been
+// replaced by a BEHAVIORAL assertion in
+// `services/api/test/phase-12-point5-queue-integrity-gate.test.ts`, which runs
+// the real enqueue policy against a fake queue and proves:
+//
+//   * a job re-scheduling ITSELF is not collapsed into a no-op — it schedules
+//     under a distinct id, and the caller's own running job is NOT removed;
+//   * a PARALLEL producer for the same evidence still collapses, so the escape
+//     hatch cannot become a way to schedule unbounded duplicates;
+//   * the retry policy comes from the registry, so `attempts` cannot drift
+//     between the request path and the reconciler.
+//
+// What remains here is the part that is genuinely about THIS processor: that
+// the ladder is bounded by a durable global budget rather than by the queue's
+// retry count, which is what stops a permanently broken proof from retrying
+// forever.
 
-describe("Phase IA-OTS-forward-retry — enqueueOtsUpgradeJob self-reschedule fix", () => {
-  it("the direct-jobId branch checks isSelfReference using excludeJobId", () => {
-    // The pre-fix code did `if (existing) { if (isRunnableQueueState) return; ... }`
-    // — short-circuiting before ever looking at excludeJobId. The fix
-    // introduces an `isSelfReference` predicate that fires FIRST.
-    expect(QUEUE_SRC).toMatch(
-      /const isSelfReference\s*=[\s\S]{0,200}options\?\.excludeJobId\s*!=\s*null[\s\S]{0,200}String\(existing\.id\)\s*===\s*String\(options\.excludeJobId\)/,
-    );
+describe("Phase IA-OTS-forward-retry — the ladder is bounded durably", () => {
+  it("the global budget is anchored on evidence.createdAt, not on the upgrade clock", () => {
+    // `otsAnchoredAtUtc` is null for a proof that never anchored and
+    // `upgradedAt` is the CURRENT run's clock, so neither can bound a ladder.
+    // Only the evidence row's own creation time can.
+    expect(UPGRADE_SRC).toMatch(/createdAt: true/);
+    expect(UPGRADE_SRC).toMatch(/isOtsGlobalBudgetExhausted\(/);
   });
 
-  it("self-reference path discriminates the jobId with a timestamp suffix", () => {
-    // When the existing job IS the currently-running one, we cannot
-    // enqueue under the same id (BullMQ rejects). The fix appends a
-    // discriminator so the new follow-up has a distinct id.
-    expect(QUEUE_SRC).toMatch(
-      /if \(isSelfReference\)\s*\{[\s\S]{0,1200}jobId\s*=\s*`\$\{jobId\}-\$\{Date\.now\(\)\}`/,
-    );
-  });
-
-  it("non-self-reference path still returns job_<state> when existing is runnable", () => {
-    expect(QUEUE_SRC).toMatch(
-      /else\s*\{[\s\S]{0,200}isRunnableQueueState\(state\)[\s\S]{0,200}return\s*\{\s*enqueued:\s*false,\s*reason:\s*`job_\$\{state\}`/,
-    );
-  });
-
-  it("non-self-reference path removes completed/failed existing jobs before re-enqueue", () => {
-    expect(QUEUE_SRC).toMatch(
-      /else\s*\{[\s\S]{0,500}existing\.remove\(\)/,
-    );
-  });
-
-  it("findRunnableOtsUpgradeJobForEvidence is STILL called for cross-job dedup", () => {
-    // The downstream scan that catches parallel enqueues from other
-    // sources (admin retry, repair script) MUST still run.
-    expect(QUEUE_SRC).toMatch(
-      /findRunnableOtsUpgradeJobForEvidence\(\s*evidenceId,\s*options\?\.excludeJobId\s*\)/,
-    );
-  });
-
-  it("findRunnableOtsUpgradeJobForEvidence honors excludeJobId so it does NOT block self-reschedule", () => {
-    // The scan helper compares each runnable job's id against
-    // excludeJobId. Pin that contract.
-    expect(QUEUE_SRC).toMatch(
-      /findRunnableOtsUpgradeJobForEvidence\([\s\S]{0,400}if \(String\(job\.id\)\s*===\s*String\(excludeJobId\s*\?\?\s*""\)\)\s*return false/,
-    );
-  });
-
-  it("the new job options preserve the existing retry policy (attempts: 20, removeOnComplete: 100)", () => {
-    // The enqueue options must remain identical so the per-evidence
-    // retry budget and queue-history cap are unchanged.
-    expect(QUEUE_SRC).toMatch(/attempts:\s*20/);
-    expect(QUEUE_SRC).toMatch(/removeOnComplete:\s*100/);
-    expect(QUEUE_SRC).toMatch(/backoff:\s*\{\s*type:\s*"exponential"/);
-  });
-});
-
-// ============================================================================
-// The pre-fix bug shape — pin its ABSENCE so a future revert is caught
-// ============================================================================
-
-describe("Phase IA-OTS-forward-retry — pre-fix bug shape is GONE", () => {
-  it("the unconditional 'return job_<state> if isRunnable' path no longer fires before excludeJobId is consulted", () => {
-    // Pre-fix shape (REGRESSION GUARD):
-    //
-    //   if (existing) {
-    //     const state = await existing.getState();
-    //     if (isRunnableQueueState(state)) {
-    //       return { enqueued: false, reason: `job_${state}` };
-    //     }
-    //     ...
-    //   }
-    //
-    // That ordering let the function return BEFORE consulting
-    // excludeJobId. The fix moved the isRunnable check INSIDE an
-    // `else` branch that's only reached when isSelfReference is false.
-    //
-    // Pin: in the enqueueOtsUpgradeJob function, the FIRST occurrence
-    // of `isRunnableQueueState(state)` (where state is the existing
-    // job's state) MUST be inside the `else` branch — i.e., it MUST
-    // be preceded by an `} else {` opener within the same function.
-    const fnIdx = QUEUE_SRC.indexOf("export async function enqueueOtsUpgradeJob");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const fnSlice = QUEUE_SRC.slice(fnIdx, fnIdx + 4000);
-    const isRunnableMatchIdx = fnSlice.indexOf("isRunnableQueueState(state)");
-    expect(isRunnableMatchIdx).toBeGreaterThan(-1);
-    // Walk backward from the match looking for the nearest `else` or
-    // `if`. The nearest preceding opener must be `else`.
-    const upstream = fnSlice.slice(0, isRunnableMatchIdx);
-    const lastElse = upstream.lastIndexOf("} else {");
-    const lastIf = upstream.lastIndexOf("if (existing) {");
-    expect(lastElse).toBeGreaterThan(-1);
-    expect(lastElse).toBeGreaterThan(lastIf);
+  it("the queue's attempt ceiling is NOT the ladder's ceiling", () => {
+    // Recorded because it is the non-obvious fact behind the whole design: the
+    // happy-path PENDING return does not throw, so it never consumes a BullMQ
+    // attempt. A reader who assumes `attempts` bounds the ladder will conclude
+    // the budget check is redundant and delete it.
+    expect(UPGRADE_SRC).toMatch(/OTS_GLOBAL_BUDGET_EXHAUSTED/);
   });
 });

@@ -416,6 +416,14 @@ export async function revokePolicyAssignment(input: {
   teamId: string;
   assignmentId: string;
   actorUserId: string;
+  /**
+   * PHASE 12B — optimistic-concurrency token. The operator console sends
+   * the policy VERSION id it rendered next to the revoke control. When it
+   * no longer matches the live row, the assignment changed underneath the
+   * operator (superseded / re-pointed) and the revoke is refused with a
+   * bounded denial instead of silently revoking a different decision.
+   */
+  expectedPolicyVersionId?: string | null;
 }): Promise<{ ok: true } | { ok: false; denial: RedactionDenialReason }> {
   const prisma = input.prisma ?? defaultPrisma;
   const assignment = await prisma.redactionPolicyAssignment.findFirst({
@@ -427,10 +435,28 @@ export async function revokePolicyAssignment(input: {
     select: { id: true, policyId: true, policyVersionId: true },
   });
   if (!assignment) return { ok: false, denial: "PROJECT_NOT_FOUND" };
-  await prisma.redactionPolicyAssignment.update({
-    where: { id: input.assignmentId },
+  if (
+    input.expectedPolicyVersionId &&
+    input.expectedPolicyVersionId !== assignment.policyVersionId
+  ) {
+    return { ok: false, denial: "INVALID_TRANSITION" };
+  }
+  // Guarded write — `revokedAtUtc: null` in the WHERE makes a concurrent
+  // double-revoke a no-op rather than a second audit row.
+  const revoked = await prisma.redactionPolicyAssignment.updateMany({
+    where: {
+      id: input.assignmentId,
+      teamId: input.teamId,
+      revokedAtUtc: null,
+      ...(input.expectedPolicyVersionId
+        ? { policyVersionId: input.expectedPolicyVersionId }
+        : {}),
+    },
     data: { revokedAtUtc: new Date() },
   });
+  if (revoked.count === 0) {
+    return { ok: false, denial: "INVALID_TRANSITION" };
+  }
   await appendPolicyAudit({
     prisma,
     teamId: input.teamId,

@@ -1,50 +1,41 @@
 /**
- * API-side enqueue helper for the worker's `graph-reconcile` BullMQ
- * queue.
+ * PHASE 12 — POINT 5: workspace graph-reconcile producer.
  *
- * Why this file exists:
- *   The previous wiring inlined a BullMQ producer directly inside
- *   `services/api/src/services/evidence-complete.service.ts` (a comment
- *   block, lazy singleton, and per-call options) — a left-over from
- *   an earlier slice that replaced an in-process IIFE which used to
- *   call `reconcileTeamGraph()` synchronously in the API. That
- *   in-process call bypassed the worker, and so the worker-side
- *   `indexExistingOcrAndTranscript` step (see
- *   `services/worker/src/queue/subsystem-queue-processors.ts:225-257`)
- *   never executed — leaving OCR / transcript text out of the search
- *   index and graph projection.
+ * Why this file exists at all: the reconcile used to run IN-PROCESS in the api
+ * during evidence completion, which bypassed the worker entirely — and so the
+ * worker-side `indexExistingOcrAndTranscript` step never executed, leaving OCR
+ * and transcript text out of the search index and the graph projection. Moving
+ * it onto the queue fixed that.
  *
- *   Moving the producer onto its own queue helper has two effects:
- *     1) Keeps `evidence-complete.service.ts` under its byte-pin cap
- *        (the test harness pins that file's size to prevent slow
- *        accumulation of cross-concern code in the completion path).
- *     2) Matches the per-queue helper pattern already used by
- *        `search-queue.ts`, `media-intelligence-queue.ts`,
- *        `mi-embed-queue.ts`, `derived-assets-queue.ts`, and
- *        `report-queue.ts`. The API process is in a different package
- *        than the worker and must not import worker code; each side
- *        owns its own BullMQ Queue handle, both targeting the same
- *        Redis stream + job-id namespace so duplicate enqueues
- *        collapse cleanly.
+ * What Point 5 changes here is the JOB IDENTITY.
  *
- * Hard contracts (mirror search-queue.ts + worker/src/queue.ts):
- *   - queue name:      "graph-reconcile"
- *   - job name:        "ReconcileTeamGraph"
- *   - deterministic jobId:
- *       `graph-reconcile:${teamId}:${reason}:${evidenceId ?? "workspace"}`
- *     BullMQ collapses concurrent enqueues with the same id into a
- *     single queued job per (team, reason, evidence) tuple.
- *   - never throws — Redis outage or missing `REDIS_URL` returns a
- *     `{ queued: false, ... }` result so the caller (always invoked
- *     with `.catch(() => null)` in the completion path) never breaks
- *     evidence finalisation.
+ * The old deterministic id was
+ *
+ *     graph-reconcile:<teamId>:<reason>:<evidenceId ?? "workspace">
+ *
+ * which reads as a dedupe key but is not one. The job it schedules is a FULL
+ * per-workspace reconcile: it does not read `reason` and it does not read
+ * `evidenceId`. So completing three evidence records in a workspace produced
+ * three ids, three jobs and three identical full rebuilds — and a manual
+ * refresh during that window produced a fourth. The id was discriminating on
+ * fields the work does not depend on.
+ *
+ * The canonical id is `graph-reconcile-<workspaceId>`: one live reconcile per
+ * workspace, which is what "one job per durable authority row" means. `reason`
+ * survives as bounded trace metadata; `evidenceId`, `requestedByUserId` and
+ * `requestId` are dropped, because the job never read them.
+ *
+ * Never throws — a Redis outage returns `{ queued: false, ... }` so the
+ * completion path is not broken by a projection refresh.
  */
 
-import { Queue } from "bullmq";
-import IORedis from "ioredis";
+import {
+  JOB_NAMES,
+  buildCanonicalJobId,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
 
-const graphReconcileQueueName = "graph-reconcile";
-const graphReconcileJobName = "ReconcileTeamGraph";
+import { enqueueCanonicalWork } from "./canonical-queue-client.js";
 
 export interface GraphReconcileJobPayload {
   teamId: string;
@@ -53,6 +44,10 @@ export interface GraphReconcileJobPayload {
     | "manual_refresh"
     | "scheduled_reconcile"
     | "admin_repair";
+  /**
+   * Retained on the INPUT for the caller's own logging. None of these three
+   * reach the queue: the reconcile is per-workspace and never read them.
+   */
   evidenceId?: string;
   requestedByUserId?: string;
   requestId?: string;
@@ -64,105 +59,36 @@ export interface GraphReconcileEnqueueResult {
   reason: string;
 }
 
-let lazyQueue: Queue | null = null;
-let queueConstructFailed = false;
-
-function getQueue(): Queue | null {
-  if (queueConstructFailed) return null;
-  if (lazyQueue) return lazyQueue;
-  const url = process.env.REDIS_URL?.trim();
-  if (!url) {
-    queueConstructFailed = true;
-    return null;
-  }
-  try {
-    const connection = new IORedis(url, { maxRetriesPerRequest: null });
-    lazyQueue = new Queue(graphReconcileQueueName, {
-      // BullMQ + ioredis typings drift between versions; the same
-      // cast is used in search-queue.ts and media-intelligence-queue.ts.
-      connection: connection as never,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30_000 },
-        removeOnComplete: 50,
-        removeOnFail: false,
-      },
-    });
-    return lazyQueue;
-  } catch {
-    queueConstructFailed = true;
-    return null;
-  }
-}
-
-function buildJobId(payload: GraphReconcileJobPayload): string {
-  const evidenceKey = payload.evidenceId ?? "workspace";
-  return `graph-reconcile:${payload.teamId}:${payload.reason}:${evidenceKey}`;
-}
-
-function boundedFailure(jobId: string, reason: string): GraphReconcileEnqueueResult {
-  return { queued: false, jobId, reason };
-}
+const ENTRY = getWorkEntryOrThrow(JOB_NAMES.RECONCILE_TEAM_GRAPH);
 
 /**
- * Best-effort async enqueue of a team-graph reconcile. The caller MUST
- * treat this as fire-and-forget — the worker is the source of truth
- * for actually running `reconcileTeamGraph()` and its OCR/transcript
- * indexer step.
+ * Best-effort async enqueue of a workspace-graph reconcile. Fire-and-forget:
+ * the worker is the source of truth for actually running `reconcileTeamGraph()`
+ * and its OCR/transcript indexer step.
  */
 export async function enqueueGraphReconcileJob(
   payload: GraphReconcileJobPayload,
 ): Promise<GraphReconcileEnqueueResult> {
-  const jobId = buildJobId(payload);
-  const queue = getQueue();
-  if (!queue) {
-    return boundedFailure(jobId, "redis_unavailable");
+  // Derivable without touching Redis, so a caller's failure log can still name
+  // the job that was not scheduled.
+  const jobId = buildCanonicalJobId(
+    { jobIdPrefix: ENTRY.jobIdPrefix! },
+    payload.teamId,
+  );
+
+  const outcome = await enqueueCanonicalWork({
+    workName: JOB_NAMES.RECONCILE_TEAM_GRAPH,
+    commandId: payload.teamId,
+    traceId: payload.reason,
+  });
+
+  if (!outcome.enqueued) {
+    return { queued: false, jobId, reason: outcome.reason };
   }
-  try {
-    const existing = await queue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        // Idempotent collapse — the existing queued job will satisfy
-        // this intent. Not a failure.
-        return { queued: false, jobId, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        // ignore race — another producer may have removed it
-      }
-    }
-    await queue.add(
-      graphReconcileJobName,
-      {
-        teamId: payload.teamId,
-        reason: payload.reason,
-        evidenceId: payload.evidenceId ?? null,
-        requestedByUserId: payload.requestedByUserId ?? null,
-        requestId: payload.requestId ?? null,
-      },
-      {
-        jobId,
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30_000 },
-        removeOnComplete: 50,
-        removeOnFail: false,
-      },
-    );
-    return { queued: true, jobId, reason: "enqueued" };
-  } catch (err) {
-    const bounded =
-      err instanceof Error ? err.message.slice(0, 120) : "unknown";
-    // Bounded code "graph_reconcile_enqueue_failed" — see brief.
-    // Not emitted via safeEmitSecurityEvent because that union does
-    // not yet include this code; the periodic reconcile cron remains
-    // the canonical catch-up path.
-    return boundedFailure(jobId, `enqueue_failed: ${bounded}`);
-  }
+  // A collapsed enqueue reports `queued: false` with a bounded reason,
+  // preserving the shape callers already branch on: the intent is satisfied by
+  // the live job, and that is not a new schedule.
+  return outcome.collapsed
+    ? { queued: false, jobId: outcome.jobId, reason: "job_already_live" }
+    : { queued: true, jobId: outcome.jobId, reason: "enqueued" };
 }

@@ -237,6 +237,27 @@ describe("Phase G5.1 — Honest-MI UI honesty contract", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("the MediaIntelligencePanel is actually mounted on evidence detail", () => {
+    // Phase 12 Point 4 — `honest-mi-decision.md` records this panel as
+    // the evidence-detail operator surface, but it had drifted to zero
+    // importers (documented-as-shipped, unreachable in product). This
+    // guard makes the claim falsifiable: the panel must have a real
+    // mount, and it must be handed a server-projected workspace id
+    // rather than a client-derived one.
+    const tab = readFileSync(
+      resolve(
+        WEB_ROOT,
+        "app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+      ),
+      "utf8",
+    );
+    expect(tab).toMatch(
+      /import\s+MediaIntelligencePanel\s+from\s+"[^"]*components\/media-intelligence\/MediaIntelligencePanel"/,
+    );
+    expect(tab).toMatch(/<MediaIntelligencePanel[\s\S]{0,200}teamId=/);
+    expect(tab).toMatch(/workspace\.reviewWorkflow\?\.teamId/);
+  });
+
   it("honest-mi-decision.md is present and pins the B-prime decision", () => {
     const doc = readFileSync(
       fileURLToPath(

@@ -86,6 +86,21 @@ describe("A1 remainder — embeddings + subprocessor status", () => {
 
 describe("A1 remainder — disclosure never presents a stub as live", () => {
   it("MI entity/summary = STUB, copilots DERIVED (policy-off default), local = AVAILABLE", async () => {
+    // POINT 7 CORRECTIVE PASS — the premise, set HERE.
+    //
+    // `DISABLED_BY_WORKSPACE_POLICY` is only distinguishable from
+    // `DISABLED_BY_PLATFORM_CONFIGURATION` when the PLATFORM is configured, and
+    // this suite used to get that from the machine's real `OPENAI_API_KEY`
+    // arriving through `dotenv` — a test passing because a production
+    // credential happened to be in scope. It cannot come from the global test
+    // environment either: OCR and transcript extraction fall back to OpenAI,
+    // so a global fake breaks the Point-5 unconfigured-provider suite. A
+    // per-suite premise belongs in the suite.
+    const previousKey = process.env.OPENAI_API_KEY;
+    const previousEnabled = process.env.OPENAI_AI_ENABLED;
+    process.env.OPENAI_API_KEY = "sk-point7-suite-local-fake";
+    process.env.OPENAI_AI_ENABLED = "true";
+    try {
     const caps = await resolveAiCapabilityDisclosure(null);
     const byName = (n: string) => caps.find((c) => c.capability.includes(n));
 
@@ -108,5 +123,11 @@ describe("A1 remainder — disclosure never presents a stub as live", () => {
     for (const c of caps) expect(VALID.has(c.operationalStatus)).toBe(true);
     // No raw-content capability defaults ON.
     for (const c of caps) if (c.rawContent) expect(c.defaultState).toBe("OFF");
+    } finally {
+      if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = previousKey;
+      if (previousEnabled === undefined) delete process.env.OPENAI_AI_ENABLED;
+      else process.env.OPENAI_AI_ENABLED = previousEnabled;
+    }
   });
 });

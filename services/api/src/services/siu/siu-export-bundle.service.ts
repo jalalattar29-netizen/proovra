@@ -125,7 +125,10 @@ async function buildSiuExportBundleInner(
 
   // Gather case evidence + artifact storage references.
   const evidence = await prisma.evidence.findMany({
-    where: { caseId: input.caseId, teamId: input.teamId },
+    where: {
+      caseLinks: { some: { caseId: input.caseId } },
+      teamId: input.teamId,
+    },
     select: {
       id: true,
       title: true,
@@ -300,7 +303,7 @@ async function buildSiuExportBundleInner(
         });
         const path = `reports/${ev.id}/report.pdf`;
         archive.append(stream as unknown as Readable, { name: path });
-        let bytes = 0;
+        const bytes = 0;
         // archiver counts size when stream finishes; for telemetry we
         // include the bounded version + signature status.
         files.push({ path, bytes });

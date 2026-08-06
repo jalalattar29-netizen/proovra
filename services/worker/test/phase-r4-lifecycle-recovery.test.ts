@@ -19,8 +19,20 @@ const resolveEffectivePlanForEvidence = vi.fn();
 vi.mock("../src/db.js", () => ({
   prisma: { evidence: { findMany: (...args: unknown[]) => findMany(...args) } },
 }));
+// PHASE 12 — POINT 5. The recovery persists a durable
+// `ReportGenerationRequest` through the shared authority and then enqueues that
+// row's id, so the two collaborators are mocked separately: the authority
+// stands in for "intent was recorded and scheduled", and the queue module stays
+// mocked because importing it opens a real Redis connection.
 vi.mock("../src/queue.js", () => ({
-  enqueueReportJob: (...args: unknown[]) => enqueueReportJob(...args),
+  enqueueReportGenerationRequest: vi.fn(async () => ({
+    enqueued: true,
+    jobId: "report-req",
+  })),
+}));
+vi.mock("../src/report-generation-authority.js", () => ({
+  requestReportGenerationFromWorker: (...args: unknown[]) =>
+    enqueueReportJob(...args),
 }));
 vi.mock("../src/workspace-billing.js", () => ({
   resolveEffectivePlanForEvidence: (...args: unknown[]) =>
@@ -76,8 +88,21 @@ describe("Phase R4 — lifecycle recovery reconciler", () => {
 
     const res = await runLifecycleRecovery({ trigger: "test" });
 
-    expect(enqueueReportJob).toHaveBeenCalledWith("ev-1");
-    expect(enqueueReportJob).toHaveBeenCalledWith("ev-2");
+    // PHASE 12 — POINT 5. The recovery no longer says "enqueue a report for
+    // this evidence id"; it says "record a lifecycle_recovery request, from
+    // this machine principal, for this evidence" — and the enqueue is what the
+    // authority does with that record. The purpose and the principal are
+    // asserted because they are what makes the resulting request auditable.
+    expect(enqueueReportJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evidenceId: "ev-1",
+        purpose: "lifecycle_recovery",
+        machineId: "worker.lifecycle-recovery",
+      }),
+    );
+    expect(enqueueReportJob).toHaveBeenCalledWith(
+      expect.objectContaining({ evidenceId: "ev-2" }),
+    );
     expect(res.reenqueued).toBe(2);
     expect(res.scanned).toBe(2);
     expect(res.skippedIneligiblePlan).toBe(0);

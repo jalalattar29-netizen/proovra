@@ -26,12 +26,10 @@ import {
   graphTimelineSyncQueue,
   mediaIntelligenceQueue,
   miSearchIndexQueue,
-  ocrQueue,
   otsUpgradeQueue,
   reportDlqQueue,
   reportQueue,
   searchIndexingQueue,
-  transcriptQueue,
 } from "./queue.js";
 
 type QueueDomain =
@@ -59,8 +57,6 @@ function buildSampledQueues(): SampledQueue[] {
     { queue: mediaIntelligenceQueue, name: "media.intelligence", domain: "WORKER" },
     { queue: derivedAssetsQueue, name: "derived.assets", domain: "WORKER" },
     { queue: exifQueue, name: "exif", domain: "WORKER" },
-    { queue: ocrQueue, name: "ocr", domain: "WORKER" },
-    { queue: transcriptQueue, name: "transcript", domain: "WORKER" },
     { queue: miSearchIndexQueue, name: "mi.search.index", domain: "WORKER" },
     { queue: graphReconcileQueue, name: "graph.reconcile", domain: "WORKER" },
     { queue: graphDomainSyncQueue, name: "graph.domain.sync", domain: "WORKER" },

@@ -133,7 +133,6 @@ export async function runClassifierForWorkspace(input: {
   const windowStart = new Date(
     Date.now() - CLASSIFIER_WINDOW_HOURS * 60 * 60 * 1000,
   );
-  const windowEnd = new Date();
   try {
     const events = await prisma.securityEvent.findMany({
       where: {

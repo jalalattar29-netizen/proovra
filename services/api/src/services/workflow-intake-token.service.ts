@@ -78,6 +78,16 @@ function hmacToHexImpl(secret: Buffer, value: string): string {
  * not configured".
  */
 export function hmacForIntake(value: string): string | null {
+  // PHASE 12 — POINT 7 (2026-08-05): the FEATURE gate, not just the secret.
+  //
+  // This used to return a live HMAC whenever a secret happened to be bound,
+  // regardless of `WORKFLOW_INTAKE_LINKS_ENABLED`. The suite that reads
+  // "returns null when feature is disabled" passed only because a machine with
+  // the flag off also had no secret — turning the feature off while leaving
+  // its secret bound, which is what a real rollback looks like, left this
+  // minting values. Deployments with the flag ON are unaffected: both gates
+  // require the same secret.
+  if (!isWorkflowIntakeFeatureEnabled()) return null;
   const secret = readSecret();
   if (!secret) return null;
   return hmacToHexImpl(secret, value);
@@ -90,6 +100,9 @@ export type IssuedIntakeToken = {
 };
 
 export function issueIntakeToken(): IssuedIntakeToken | null {
+  // See `hmacForIntake` — a disabled feature issues nothing, even with a
+  // secret still bound.
+  if (!isWorkflowIntakeFeatureEnabled()) return null;
   const secret = readSecret();
   if (!secret) return null;
   const random = randomBytes(WORKFLOW_INTAKE_TOKEN_RANDOM_BYTES);

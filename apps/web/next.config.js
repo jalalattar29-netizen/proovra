@@ -1,3 +1,6 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -401,6 +404,37 @@ const nextConfig = {
         permanent: true,
       },
     ];
+  },
+
+  /**
+   * PHASE 12 — POINT 7 (final pass): the font strategy is chosen HERE, at
+   * resolve time, so the choice is made before the `next/font/google` loader
+   * can run.
+   *
+   * `next/font/google` downloads its families at BUILD time. That is a real
+   * network dependency of the build, and under the Point-7 outbound guard the
+   * twelve resulting requests were refused and the build failed — correctly,
+   * since `next/font` will not silently ship a family it could not fetch.
+   *
+   * `FONT_STRATEGY=system` swaps the module that owns the fonts for its
+   * hermetic sibling, which sets the same three CSS variables from the
+   * design's own fallback stack. Nothing downstream changes: `app/fonts.ts`
+   * still exports the same names, `layout.tsx` still applies the same
+   * variables, and there is still exactly one presentation authority.
+   *
+   * Unset — the deployed default — nothing here applies and typography is
+   * byte-for-byte what it was.
+   */
+  webpack(config) {
+    if ((process.env.FONT_STRATEGY ?? "").trim().toLowerCase() === "system") {
+      config.resolve = config.resolve ?? {};
+      config.resolve.alias = {
+        ...(config.resolve.alias ?? {}),
+        [resolve(dirname(fileURLToPath(import.meta.url)), "app/fonts.google.ts")]:
+          resolve(dirname(fileURLToPath(import.meta.url)), "app/fonts.system.ts"),
+      };
+    }
+    return config;
   },
 };
 

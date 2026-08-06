@@ -54,6 +54,11 @@ function stub(team: { isPersonal: boolean } | null, userRow: Record<string, unkn
     team: { findUnique: async () => team },
     user: { findUnique: async () => userRow },
     ssoConnection: { findUnique: async () => null },
+    // PHASE 12 POINT 7 — see identity-mode.service: the personal-space
+    // decision also reads the Organization's `noPersonalSpace` policy. No
+    // Organization forbids it in this suite, which isolates the identity-mode
+    // rule these cases are about.
+    organizationSecurityPolicy: { findMany: async () => [] },
   } as never;
 }
 

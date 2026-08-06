@@ -20,6 +20,30 @@ const exists = (rel: string): boolean => existsSync(resolve(APP_ROOT, rel));
 const SECURITY = "app/(app)/admin/security/page.tsx";
 const BILLING = "app/(app)/admin/billing/page.tsx";
 
+/**
+ * PHASE 12B (2026-07-30) — the security console became the full Security
+ * Center and was decomposed into an orchestrator + `_sections/*` (the
+ * established repo pattern past ~700 lines). These UX contracts describe the
+ * SURFACE, not one file, so the security console is read as the page plus its
+ * sections. The billing console is untouched and still read as a single file.
+ */
+const SECURITY_SECTIONS = [
+  "app/(app)/admin/security/_sections/section-state.tsx",
+  "app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
+  "app/(app)/admin/security/_sections/MfaPolicySection.tsx",
+  "app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
+  "app/(app)/admin/security/_sections/MfaEventsSection.tsx",
+  "app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
+  "app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx",
+  "app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx",
+];
+
+/** The whole console surface: the orchestrator plus every section it mounts. */
+const readSurface = (rel: string): string =>
+  rel === SECURITY
+    ? [read(SECURITY), ...SECURITY_SECTIONS.map(read)].join("\n")
+    : read(rel);
+
 test("both new admin console pages exist", () => {
   assert.ok(exists(SECURITY), "security console page must exist");
   assert.ok(exists(BILLING), "billing console page must exist");
@@ -41,12 +65,12 @@ test("both consoles render through the shared PageShell (no marketing hero)", ()
 
 test("both consoles route errors through toSafeUserError (sanctioned path)", () => {
   for (const rel of [SECURITY, BILLING]) {
-    assert.match(read(rel), /toSafeUserError/, `${rel} must use toSafeUserError`);
+    assert.match(readSurface(rel), /toSafeUserError/, `${rel} must use toSafeUserError`);
   }
 });
 
 test("security console renders honest empty + 'Not measured' states", () => {
-  const src = read(SECURITY);
+  const src = readSurface(SECURITY);
   assert.match(src, /EmptyState/, "must render EmptyState");
   assert.match(src, /No security events/i, "honest empty state for events");
   assert.match(src, /No incidents recorded/i, "honest empty state for incidents");
@@ -54,7 +78,7 @@ test("security console renders honest empty + 'Not measured' states", () => {
 });
 
 test("security console exposes the type + severity FilterBar", () => {
-  const src = read(SECURITY);
+  const src = readSurface(SECURITY);
   assert.match(src, /FilterBar/, "must render FilterBar");
   assert.match(src, /eventType/, "must filter by event type");
   assert.match(src, /severity/i, "must filter by severity");
@@ -70,7 +94,7 @@ test("billing console renders honest 'Not measured' MRR/ARR + not-connected webh
 
 test("neither console surfaces secrets, raw IPs, or card tokens in the client", () => {
   for (const rel of [SECURITY, BILLING]) {
-    const src = read(rel);
+    const src = readSurface(rel);
     // Guard against actual data-leak field access, not descriptive prose.
     assert.doesNotMatch(src, /r\.ipAddress\b|\.ipAddress\b/, `${rel} must not read a raw IP field`);
     assert.doesNotMatch(src, /\.token\b|accessToken|apiKey|\.secret\b|cardNumber/i, `${rel} must not read token/secret/card fields`);

@@ -43,11 +43,6 @@ import {
 } from "../../lib/useGlobalRuntimeState";
 import { usePlatformContext } from "../../lib/platform-context";
 import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
-// Phase IA-surface-tier — surface visibility filter. The sidebar
-// renders ONLY routes the user's plan/role unlocks. ENTERPRISE/
-// INTERNAL surfaces disappear from the personal user's nav.
-import { canAccessSurface } from "../../lib/surface/access";
-import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import {
   resolveRouteAccess,
   type RouteAccessResult,
@@ -551,25 +546,20 @@ export function AppSidebarV2() {
     (i) => i.category && i.category.toLowerCase().includes("governance"),
   ).length;
 
-  // Phase IA-surface-tier — pre-filter the registry by the user's
-  // surface tier before running the legacy access resolver. This is the
-  // ONE central enforcement point for sidebar visibility:
-  // ENTERPRISE/INTERNAL surfaces never even enter the access resolver
-  // pipeline for a non-eligible user, so they cannot appear in the
-  // sidebar / disclosure / fallback tiers.
-  const surfaceUserCtx = useSurfaceUserContext();
-  const tierFilteredRegistry = ROUTE_REGISTRY.filter((route) =>
-    canAccessSurface(surfaceUserCtx, route.href),
-  );
-
-  // Resolve canonical access per registered route.
-  const resolved = tierFilteredRegistry.map((route: RouteDefinition) => {
+  // Track 1A (surface-tier removal) — the sidebar consumes ONE resolver:
+  // `resolveRouteAccess` over the full canonical registry. Enterprise and
+  // commercial gating flow through the SERVER-projected
+  // `flags.isEnterpriseWorkspace` + `planFeatures.*` booleans passed
+  // below — no client-side plan/tier synthesis.
+  const resolved = ROUTE_REGISTRY.map((route: RouteDefinition) => {
     const access = resolveRouteAccess({
       route,
       activeSpaceType,
       isPlatformAdmin,
       capabilities,
       accountPlan,
+      isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
+      planFeatures: envelope?.planFeatures ?? null,
       // PERSONAL-FIRST RESCUE — pass envelope fragments so the gate
       // can fall back to `workspace.id` / `personalSpace.id` when
       // `activeSpace.type` is missing from the backend projection.

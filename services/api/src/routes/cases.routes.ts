@@ -20,6 +20,14 @@ import {
   changeCaseStatus,
   CaseError,
 } from "../services/cases/case-lifecycle.service.js";
+// Track 1B — CANONICAL case ↔ evidence relationship authority. All
+// attach/detach mutations flow through this ONE service; the link
+// table is the only relationship truth (legacy mirror column dropped).
+import {
+  attachEvidenceToCase,
+  detachEvidenceFromCase,
+  detachAllEvidenceFromCase,
+} from "../services/cases/case-evidence-link.service.js";
 // Phase O-blockers / A-1 + A-2 — destructive-case mutation gate and
 // cross-team evidence attach gate. Single source of truth in the
 // case-permission matrix.
@@ -28,6 +36,11 @@ import {
   evaluateCrossTeamAttach,
 } from "../services/cases/case-permission.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
+// PHASE 12 POINT 7 — the canonical commercial chokepoint + the cases plan gate.
+import {
+  assertWorkspaceAllowsCases,
+  resolveEnforcementScopeForRequester,
+} from "../services/billing-enforcement.service.js";
 
 // Phase 4B Final Closure I5 — legal-hold gate for case deletion.
 // Queries CASE + WORKSPACE + ORGANIZATION holds scoped to the teamId.
@@ -38,14 +51,18 @@ async function checkCaseLegalHold(
   teamId: string,
 ): Promise<{ ok: boolean; holdIds: string[] }> {
   try {
-    const activeHolds = await prisma.legalHold.findMany({
+    // P12.3 canonical-only. A canonical WORKSPACE row has no target columns,
+    // so it matches on scope alone (the query is teamId-anchored). Historical
+    // rows are matched explicitly: an unresolvable ACTIVE hold must still
+    // block — fail closed.
+    const activeHolds = await prisma.evidenceLegalHold.findMany({
       where: {
         teamId,
-        state: "ACTIVE",
+        status: "ACTIVE",
         OR: [
-          { kind: "CASE", scopeTargetId: caseId },
-          { kind: "WORKSPACE", scopeTargetId: teamId },
-          { kind: "ORGANIZATION" },
+          { scope: "CASE", caseId },
+          { scope: "WORKSPACE" },
+          { historical: true },
         ],
       },
       select: { id: true },
@@ -179,7 +196,7 @@ export async function casesRoutes(app: FastifyInstance) {
     if (body.teamId) {
       const member = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: body.teamId, userId: ownerUserId } },
-        select: { status: true },
+        select: { status: true, role: true },
       });
 
       // P0 remediation (2026-07-21) — only ACTIVE membership may create
@@ -194,6 +211,25 @@ export async function casesRoutes(app: FastifyInstance) {
         });
         return reply.code(403).send({ message: "Forbidden" });
       }
+
+      // PHASE 12 — POINT 7 (2026-08-05). ACTIVE membership was the ONLY
+      // check, so a VIEWER — the read-only role, which the canonical
+      // capability registry deliberately withholds `CASES_MANAGE` from, and
+      // whose UI renders no create affordance at all — could create a Case by
+      // issuing the request directly. Membership status answers "may this
+      // person be here"; it has never answered "may this person write".
+      if (member.role === "VIEWER") {
+        auditCaseAction(req, {
+          userId: ownerUserId,
+          action: "cases.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "insufficient_role", teamId: body.teamId },
+        });
+        return reply
+          .code(403)
+          .send({ message: "Forbidden", code: "CASES_MANAGE_REQUIRED" });
+      }
     }
 
     // Phase HOME-DATA-OWNERSHIP — cases follow the same ownership rule
@@ -204,6 +240,35 @@ export async function casesRoutes(app: FastifyInstance) {
     const effectiveCaseTeamId =
       body.teamId ??
       (await ensurePersonalWorkspace({ userId: ownerUserId })).teamId;
+
+    // PHASE 12 — POINT 7. The COMMERCIAL gate, resolved on the workspace the
+    // case will actually belong to (not on the requester's account), through
+    // the canonical enforcement chokepoint. `casesIncluded` was projected to
+    // the client and consulted by operational eligibility while the write path
+    // ignored it entirely.
+    try {
+      const scope = await resolveEnforcementScopeForRequester({
+        ownerUserId,
+        teamId: effectiveCaseTeamId,
+      });
+      await assertWorkspaceAllowsCases(scope);
+    } catch (err) {
+      const e = err as { statusCode?: number; code?: string; message?: string };
+      auditCaseAction(req, {
+        userId: ownerUserId,
+        action: "cases.create",
+        outcome: "blocked",
+        severity: "warning",
+        metadata: {
+          reason: e.code ?? "cases_not_included",
+          teamId: effectiveCaseTeamId,
+        },
+      });
+      return reply.code(e.statusCode ?? 409).send({
+        message: e.message ?? "Cases are not included in the current plan",
+        code: e.code ?? "CASES_NOT_INCLUDED",
+      });
+    }
 
     const created = await prisma.case.create({
       data: {
@@ -324,11 +389,6 @@ export async function casesRoutes(app: FastifyInstance) {
       //        path tightens it deliberately), OR
       //      - already attached to a case the user can access.
       //    If no row → 404 (anti-enumeration).
-      //
-      //    Evidence has NO Prisma navigation field to Case (the
-      //    schema only carries the FK column `caseId`), so we use
-      //    the pre-computed `accessibleCaseIds` list instead of a
-      //    relation traversal.
       const evidence = await prisma.evidence.findFirst({
         where: {
           id: eligibleForEvidenceId,
@@ -338,7 +398,7 @@ export async function casesRoutes(app: FastifyInstance) {
               ? [{ teamId: { in: activeMemberTeamIds } }]
               : []),
             ...(accessibleCaseIds.length > 0
-              ? [{ caseId: { in: accessibleCaseIds } }]
+              ? [{ caseLinks: { some: { caseId: { in: accessibleCaseIds } } } }]
               : []),
           ],
         },
@@ -590,10 +650,14 @@ export async function casesRoutes(app: FastifyInstance) {
         severity: "warning",
         resourceId: id,
         teamId: item.teamId,
-        metadata: { reason: "forbidden" },
+        metadata: { reason: "not_found_concealed" },
       });
 
-      return reply.code(403).send({ message: "Forbidden" });
+      // PHASE 12 (anti-enumeration closure) — an unauthorized read is
+      // INDISTINGUISHABLE from a missing record (same 404 + body as the
+      // not-found branch). The prior 403 leaked case existence to any
+      // authenticated outsider (caught live by the phase-37-95 probe).
+      return reply.code(404).send({ message: "Case not found" });
     }
   );
 
@@ -736,7 +800,7 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       const evidence = await prisma.evidence.findMany({
-        where: { caseId: id, deletedAt: null },
+        where: { caseLinks: { some: { caseId: id } }, deletedAt: null },
         include: { reports: { orderBy: { version: "desc" }, take: 1 } },
       });
 
@@ -888,7 +952,6 @@ export async function casesRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
-      const body = RenameCaseBody.parse(req.body);
       const userId = getAuthUserId(req);
 
       const item = await prisma.case.findUnique({ where: { id } });
@@ -907,12 +970,19 @@ export async function casesRoutes(app: FastifyInstance) {
       // Phase O-blockers / A-1 — destructive case mutation requires
       // workspace OWNER or ADMIN. Personal-case owner is allowed via
       // the synthetic OWNER role from the access resolver.
+      //
+      // PHASE 12 (anti-enumeration closure) — the gate runs BEFORE body
+      // validation so a cross-tenant caller can never distinguish this
+      // record's existence via a 400/403 (previously an invalid body 400'd
+      // and an outsider 403'd before/after Zod — both leaked existence;
+      // caught live by the phase-37-95 runtime probe).
       const renameGate = await resolveCaseDestructiveGate({
         caseRow: item,
         userId,
         mutation: "MANAGE_SETTINGS",
       });
       if (!renameGate.allowed) {
+        const outsider = renameGate.accessRole === "NONE";
         auditCaseAction(req, {
           userId,
           action: "cases.rename",
@@ -921,18 +991,24 @@ export async function casesRoutes(app: FastifyInstance) {
           resourceId: id,
           teamId: item.teamId,
           metadata: {
-            reason: "forbidden",
+            reason: outsider ? "not_found_concealed" : "forbidden",
             denyReason: renameGate.reason,
             denyCode: "CASE_RENAME_DENIED",
             accessRole: renameGate.accessRole,
           },
         });
+        // No relationship at all → indistinguishable from a missing record.
+        if (outsider) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
         return reply.code(403).send({
           message: "Forbidden",
           code: "CASE_RENAME_DENIED",
           detail: renameGate.reason,
         });
       }
+
+      const body = RenameCaseBody.parse(req.body);
 
       const updated = await prisma.case.update({
         where: { id },
@@ -1041,9 +1117,16 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      await prisma.evidence.updateMany({
-        where: { caseId: id },
-        data: { caseId: null },
+      // Track 1B — case deletion detaches relationships through the
+      // CANONICAL case-evidence authority: removes every
+      // CaseEvidenceLink row atomically (the link table is the only
+      // relationship truth).
+      await detachAllEvidenceFromCase({
+        caseId: id,
+        actorUserId: userId,
+        reason: "case_deleted",
+        ipAddress: req.ip,
+        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
       });
 
       await prisma.caseAccess.deleteMany({ where: { caseId: id } });
@@ -1193,21 +1276,47 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Cannot add deleted evidence" });
       }
 
-      const updated = await prisma.evidence.update({
+      // Track 1B — attach flows through the CANONICAL case-evidence
+      // authority: CaseEvidenceLink row + tenant-audit in ONE
+      // transaction. Idempotent —
+      // re-attaching an already-linked record is a no-op success.
+      // (The old direct write also stamped teamId, which the strict
+      // cross-team equality gate above had already made a no-op.)
+      await attachEvidenceToCase({
+        caseId: id,
+        evidenceId: body.evidenceId,
+        actorUserId: userId,
+        role: "PRIMARY",
+        source: "USER",
+        ipAddress: req.ip,
+        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+      });
+
+      const updatedRow = await prisma.evidence.findUniqueOrThrow({
         where: { id: body.evidenceId },
-        data: {
-          caseId: id,
-          teamId: caseItem.teamId ?? null,
-        },
         select: {
           id: true,
           type: true,
           status: true,
           createdAt: true,
-          caseId: true,
           teamId: true,
+          caseLinks: {
+            orderBy: { linkedAtUtc: "asc" },
+            select: { caseId: true },
+            take: 1,
+          },
         },
       });
+      // Response contract keeps the derived `caseId` field (clients
+      // still receive it); the value now comes from the canonical link.
+      const updated = {
+        id: updatedRow.id,
+        type: updatedRow.type,
+        status: updatedRow.status,
+        createdAt: updatedRow.createdAt,
+        caseId: updatedRow.caseLinks[0]?.caseId ?? null,
+        teamId: updatedRow.teamId,
+      };
 
       auditCaseAction(req, {
         userId,
@@ -1295,7 +1404,24 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Evidence not found" });
       }
 
-      if (evidence.caseId !== id) {
+      // Track 1B — detach flows through the CANONICAL case-evidence
+      // authority: CaseEvidenceLink removal + legacy Evidence.caseId
+      // re-sync + tenant-audit in ONE transaction. Idempotent — when
+      // NOTHING binds the pair (no link row, caseId points elsewhere)
+      // the service performs ZERO mutation and reports detached:false,
+      // which this route surfaces as the historical 400.
+      const detachResult = await detachEvidenceFromCase({
+        caseId: id,
+        evidenceId,
+        actorUserId: userId,
+        // Historical route semantics: leaving the (only) case also
+        // resets the evidence's workspace binding.
+        clearEvidenceTeamIdWhenUnlinked: true,
+        ipAddress: req.ip,
+        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+      });
+
+      if (!detachResult.detached) {
         auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
@@ -1308,21 +1434,30 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Evidence is not in this case" });
       }
 
-      const updated = await prisma.evidence.update({
+      const updatedRow = await prisma.evidence.findUniqueOrThrow({
         where: { id: evidenceId },
-        data: {
-          caseId: null,
-          teamId: null,
-        },
         select: {
           id: true,
           type: true,
           status: true,
           createdAt: true,
-          caseId: true,
           teamId: true,
+          caseLinks: {
+            orderBy: { linkedAtUtc: "asc" },
+            select: { caseId: true },
+            take: 1,
+          },
         },
       });
+      // Response contract keeps the derived `caseId` field.
+      const updated = {
+        id: updatedRow.id,
+        type: updatedRow.type,
+        status: updatedRow.status,
+        createdAt: updatedRow.createdAt,
+        caseId: updatedRow.caseLinks[0]?.caseId ?? null,
+        teamId: updatedRow.teamId,
+      };
 
       auditCaseAction(req, {
         userId,
@@ -1389,7 +1524,7 @@ export async function casesRoutes(app: FastifyInstance) {
           ownerUserId,
           deletedAt: null,
           archivedAt: null,
-          caseId: null,
+          caseLinks: { none: {} },
         },
         orderBy: { createdAt: "desc" },
         select: {
@@ -1712,6 +1847,82 @@ export async function casesRoutes(app: FastifyInstance) {
   );
 
   // ===========================================================================
+  // Phase 2.5B — Dual case↔evidence link reconciler.
+  //
+  // The schema has two ways to associate evidence with a case:
+  //   1. `Evidence.caseId` (legacy column, kept for backwards compat).
+  //   2. `CaseEvidenceLink` (canonical join table with role / source /
+  //      reason / linkedByUserId).
+  //
+  // The Phase 2.4 inspection flagged that these can diverge silently.
+  // This endpoint is a READ-ONLY diagnostic that surfaces the
+  // divergence for a single case. It is NOT a remediation endpoint —
+  // remediation paths (`removeLegacyEvidenceCaseId`, manual link
+  // creation) already exist.
+  //
+  // Access: same as case READ (ownerUserId, access row, or team
+  // member). Returns 403 if the caller cannot see the case.
+  // ===========================================================================
+  app.get<{ Params: { id: string } }>(
+    "/v1/cases/:id/link-reconciliation",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const caseId = z.string().uuid().parse(req.params.id);
+
+      // Permission check: the case must be visible to the caller.
+      const memberTeams = await prisma.teamMember.findMany({
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        where: { userId, status: "ACTIVE" },
+        select: { teamId: true },
+      });
+      const memberTeamIds = memberTeams.map((t) => t.teamId);
+      const accessOr: Array<Record<string, unknown>> = [
+        { ownerUserId: userId },
+        { access: { some: { userId } } },
+      ];
+      if (memberTeamIds.length > 0) {
+        accessOr.push({
+          teamId: { in: memberTeamIds },
+          access: { none: {} },
+        });
+      }
+      const caseRow = await prisma.case.findFirst({
+        where: { id: caseId, OR: accessOr },
+        select: { id: true, teamId: true },
+      });
+      if (!caseRow) {
+        return reply.code(404).send({
+          code: "CASE_NOT_FOUND",
+          message: "Case not found or not accessible.",
+        });
+      }
+
+      // Track 1B closure — the legacy `Evidence.caseId` column was
+      // dropped; CaseEvidenceLink is the ONE relationship source, so
+      // divergence is no longer representable. The endpoint keeps its
+      // response contract (clients still receive the same fields) and
+      // always reports the store as in-sync.
+      const canonicalLinks = await prisma.caseEvidenceLink.findMany({
+        where: { caseId },
+        select: { evidenceId: true, role: true },
+      });
+
+      return reply.code(200).send({
+        caseId,
+        summary: {
+          legacyAttachments: canonicalLinks.length,
+          canonicalLinks: canonicalLinks.length,
+          legacyOnlyCount: 0,
+          canonicalOnlyCount: 0,
+          inSync: true,
+        },
+        legacyOnly: [],
+        canonicalOnly: [],
+      });
+    },
+  );
+
   // Phase 2.5B — Bulk case operations.
   //
   // Hard rules:
@@ -1879,112 +2090,4 @@ export async function casesRoutes(app: FastifyInstance) {
     },
   );
 
-  // ===========================================================================
-  // Phase 2.5B — Dual case↔evidence link reconciler.
-  //
-  // The schema has two ways to associate evidence with a case:
-  //   1. `Evidence.caseId` (legacy column, kept for backwards compat).
-  //   2. `CaseEvidenceLink` (canonical join table with role / source /
-  //      reason / linkedByUserId).
-  //
-  // The Phase 2.4 inspection flagged that these can diverge silently.
-  // This endpoint is a READ-ONLY diagnostic that surfaces the
-  // divergence for a single case. It is NOT a remediation endpoint —
-  // remediation paths (`removeLegacyEvidenceCaseId`, manual link
-  // creation) already exist.
-  //
-  // Access: same as case READ (ownerUserId, access row, or team
-  // member). Returns 403 if the caller cannot see the case.
-  // ===========================================================================
-  app.get<{ Params: { id: string } }>(
-    "/v1/cases/:id/link-reconciliation",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const caseId = z.string().uuid().parse(req.params.id);
-
-      // Permission check: the case must be visible to the caller.
-      const memberTeams = await prisma.teamMember.findMany({
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        where: { userId, status: "ACTIVE" },
-        select: { teamId: true },
-      });
-      const memberTeamIds = memberTeams.map((t) => t.teamId);
-      const accessOr: Array<Record<string, unknown>> = [
-        { ownerUserId: userId },
-        { access: { some: { userId } } },
-      ];
-      if (memberTeamIds.length > 0) {
-        accessOr.push({
-          teamId: { in: memberTeamIds },
-          access: { none: {} },
-        });
-      }
-      const caseRow = await prisma.case.findFirst({
-        where: { id: caseId, OR: accessOr },
-        select: { id: true, teamId: true },
-      });
-      if (!caseRow) {
-        return reply.code(404).send({
-          code: "CASE_NOT_FOUND",
-          message: "Case not found or not accessible.",
-        });
-      }
-
-      const [legacyAttached, canonicalLinks] = await Promise.all([
-        // Evidence rows with Evidence.caseId === this caseId.
-        prisma.evidence.findMany({
-          where: { caseId },
-          select: { id: true, displayFileName: true, title: true },
-        }),
-        // Canonical CaseEvidenceLink rows for this case.
-        prisma.caseEvidenceLink.findMany({
-          where: { caseId },
-          select: { evidenceId: true, role: true },
-        }),
-      ]);
-
-      const canonicalEvidenceIds = new Set(
-        canonicalLinks.map((l) => l.evidenceId),
-      );
-
-      // Inconsistency #1: evidence attached via legacy caseId but
-      // missing from the canonical join table.
-      const legacyOnly = legacyAttached
-        .filter((e) => !canonicalEvidenceIds.has(e.id))
-        .map((e) => ({
-          evidenceId: e.id,
-          displayName: e.title ?? e.displayFileName ?? null,
-          attachmentKind: "legacy_case_id_only" as const,
-        }));
-
-      // Inconsistency #2: canonical link rows for evidence whose
-      // Evidence.caseId !== this case (or is null). This is the
-      // "soft-linked" case — canonical join exists, but the legacy
-      // column wasn't migrated. Not an error, but useful for
-      // operators to know.
-      const legacyAttachedIds = new Set(legacyAttached.map((e) => e.id));
-      const canonicalOnly = canonicalLinks
-        .filter((l) => !legacyAttachedIds.has(l.evidenceId))
-        .map((l) => ({
-          evidenceId: l.evidenceId,
-          role: l.role,
-          attachmentKind: "canonical_link_only" as const,
-        }));
-
-      return reply.code(200).send({
-        caseId,
-        summary: {
-          legacyAttachments: legacyAttached.length,
-          canonicalLinks: canonicalLinks.length,
-          legacyOnlyCount: legacyOnly.length,
-          canonicalOnlyCount: canonicalOnly.length,
-          inSync:
-            legacyOnly.length === 0 && canonicalOnly.length === 0,
-        },
-        legacyOnly,
-        canonicalOnly,
-      });
-    },
-  );
 }

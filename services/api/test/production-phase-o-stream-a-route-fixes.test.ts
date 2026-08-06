@@ -91,18 +91,19 @@ describe("Phase O Stream A — Sentry NODE-1G /v1/reviewer-ops/queue", () => {
 });
 
 describe("Phase O Stream A — Sentry NODE-11 /v1/reviewer-ops/console", () => {
-  it("declares the prismaClient parameter as optional", () => {
-    // Signature must tolerate undefined explicitly so a Fastify
-    // wrapper or a test shim that passes `undefined` does not bind
-    // every Prisma delegate call to undefined.
+  it("takes the injected prismaClient through Fastify's opts, not a bare positional arg", () => {
+    // Fastify calls plugins as (app, opts). A bare second positional
+    // parameter is bound to Fastify's options object on every real
+    // registration, which silently makes `client` a plain `{}`.
     expect(REVIEWER_CONSOLE_ROUTES).toMatch(
-      /prismaClient\?: PrismaClient,/,
+      /opts:\s*FastifyPluginOptions\s*&\s*\{\s*prismaClient\?:\s*PrismaClient\s*\}/,
     );
+    expect(REVIEWER_CONSOLE_ROUTES).not.toMatch(/prismaClient\?: PrismaClient,/);
   });
 
   it("re-anchors every service call to a local `client` constant", () => {
     expect(REVIEWER_CONSOLE_ROUTES).toMatch(
-      /const client: PrismaClient = prismaClient \?\? prisma;/,
+      /const client: PrismaClient = opts\.prismaClient \?\? prisma;/,
     );
     // No remaining bare `prismaClient,` references inside the handler.
     expect(REVIEWER_CONSOLE_ROUTES).not.toMatch(/^\s+prismaClient,$/m);

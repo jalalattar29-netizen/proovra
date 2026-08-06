@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { colors, spacing, typography } from "@proovra/ui";
+import { spacing, typography } from "@proovra/ui";
 import { BottomNav, Card, ListRow, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";

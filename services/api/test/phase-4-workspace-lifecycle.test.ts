@@ -20,8 +20,6 @@ import { dirname, join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type Call = { model: string; method: string; args: unknown[] };
-
 const H = vi.hoisted(() => ({
   calls: [] as { model: string; method: string; args: unknown[] }[],
   team: null as Record<string, unknown> | null,

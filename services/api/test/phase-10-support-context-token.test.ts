@@ -86,7 +86,15 @@ describe("signSupportContextToken / verifySupportContextToken", () => {
     );
     const token = signSupportContextToken({ grantId: GRANT, supportUserId: ACTOR, sessionIdHash: SESSION_HASH });
     const [payloadB64, sigB64] = token.split(".");
-    const tampered = `${payloadB64}.${sigB64.slice(0, -1)}${sigB64.endsWith("A") ? "B" : "A"}`;
+    // Flip a bit in the signature BYTES, not in the last base64url character.
+    // The trailing character of a base64url string carries padding bits, so
+    // substituting it can re-encode to the SAME bytes and leave the signature
+    // intact — which made this assertion depend on the last byte of whatever
+    // HMAC was produced. Mutating the decoded bytes is deterministic.
+    const sigBytes = Buffer.from(sigB64, "base64url");
+    sigBytes[0] ^= 0x01;
+    const tampered = `${payloadB64}.${sigBytes.toString("base64url")}`;
+    expect(tampered).not.toBe(token);
     expect(verifySupportContextToken(tampered).valid).toBe(false);
   });
 

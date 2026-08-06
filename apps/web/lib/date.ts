@@ -42,3 +42,10 @@ export function formatUserTime(value?: string | Date | null): string {
   const parts = formatTimestampParts(value, resolveViewerTimeZone());
   return parts ? `${parts.time} ${parts.timeZone}` : NOT_AVAILABLE;
 }
+
+/** UTC date only: "03 Jul 2026" — for UTC-boundary labels (usage resets). */
+export function formatUtcDate(value?: string | Date | null): string {
+  if (value === null || value === undefined || value === "") return NOT_AVAILABLE;
+  const parts = formatTimestampParts(value, "UTC");
+  return parts ? parts.date : NOT_AVAILABLE;
+}

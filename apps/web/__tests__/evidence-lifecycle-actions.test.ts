@@ -227,11 +227,11 @@ test("Toast copy matches spec: 'Evidence record locked./unlocked./archived./rest
 // Manage Relationships gate is wired through to the section + EvidenceReviewTab
 // ===========================================================================
 
-test("page.tsx computes canSeeInvestigation via canAccessSurface(ctx, '/investigation') and passes it through ctx", () => {
-  assert.match(
-    DETAIL_PAGE,
-    /const canSeeInvestigation = canAccessSurface\(surfaceUserCtx, "\/investigation"\);/,
-  );
+test("page.tsx computes canSeeInvestigation via the server-projection gate and passes it through ctx", () => {
+  // PHASE 12B Track 1A — SERVER-projected enterprise gate hook, never a
+  // client tier/plan computation.
+  assert.match(DETAIL_PAGE, /useEnterpriseSurfaceAccess\(\)/);
+  assert.match(DETAIL_PAGE, /const canSeeInvestigation = enterpriseSurfaces;/);
   assert.match(DETAIL_PAGE, /canSeeInvestigation,/);
 });
 

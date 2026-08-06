@@ -26,6 +26,15 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  GRAPH_SYNC_DOMAINS,
+  JOB_NAMES,
+  QUEUE_NAMES,
+  buildCanonicalJobId,
+  buildGraphDomainCommandId,
+  getWorkEntryOrThrow,
+  parseGraphDomainCommandId,
+} from "@proovra/shared";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -313,8 +322,11 @@ describe("Phase 31.20 — graph-reconcile invokes OCR/transcript indexer", () =>
     expect(SUBSYSTEM_PROCESSORS_SRC).toMatch(
       /import\(\s*"@proovra\/shared-runtime\/media-intelligence"/,
     );
+    // PHASE 12 — POINT 5: the workspace passed to the indexer is resolved from
+    // a Team row (whose Organization must still be ACTIVE) before the
+    // reconciler runs at all. It is no longer read off `job.data`.
     expect(SUBSYSTEM_PROCESSORS_SRC).toMatch(
-      /const indexerResult = await indexExistingOcrAndTranscript\(\s*\{\s*teamId: job\.data\.teamId/,
+      /const indexerResult = await indexExistingOcrAndTranscript\(\s*\{\s*teamId: ctx\.workspaceId/,
     );
   });
 
@@ -342,45 +354,95 @@ describe("Phase 31.20 — graph-reconcile invokes OCR/transcript indexer", () =>
 const QUEUE_SRC = readSource("../../worker/src/queue.ts");
 const INDEX_SRC = readSource("../../worker/src/index.ts");
 
+/**
+ * PHASE 12 — POINT 5 moved queue identity, job-id derivation and the enqueue
+ * ladder out of `queue.ts` and into the shared registry + `enqueueCanonicalJob`.
+ * The three private `buildGraph*JobId` helpers and `genericIdempotentEnqueue`
+ * are deleted, so these assertions now read the values that replaced them.
+ */
 describe("Phase 31.20 — final 3 isolated queues", () => {
-  it("queue.ts declares graph-domain-sync / graph-timeline-sync / graph-search-projection", () => {
-    expect(QUEUE_SRC).toMatch(/graphDomainSyncQueueName = "graph-domain-sync"/);
-    expect(QUEUE_SRC).toMatch(
-      /graphTimelineSyncQueueName = "graph-timeline-sync"/,
-    );
-    expect(QUEUE_SRC).toMatch(
-      /graphSearchProjectionQueueName = "graph-search-projection"/,
-    );
+  const FINAL_THREE = [
+    {
+      work: JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN,
+      queue: QUEUE_NAMES.GRAPH_DOMAIN_SYNC,
+      prefix: "graph-domain-sync",
+    },
+    {
+      work: JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
+      queue: QUEUE_NAMES.GRAPH_TIMELINE_SYNC,
+      prefix: "graph-timeline-sync",
+    },
+    {
+      work: JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
+      queue: QUEUE_NAMES.GRAPH_SEARCH_PROJECTION,
+      prefix: "graph-search-projection",
+    },
+  ] as const;
+
+  it("all three queues are registered with distinct names", () => {
+    for (const c of FINAL_THREE) {
+      expect(getWorkEntryOrThrow(c.work).queueName, c.work).toBe(c.queue);
+    }
+    expect(new Set(FINAL_THREE.map((c) => c.queue)).size).toBe(3);
   });
 
-  it("each new queue has a deterministic idempotent job-id builder", () => {
-    expect(QUEUE_SRC).toMatch(
-      /function buildGraphDomainSyncJobId\(\s*teamId: string,\s*domain: string \| null \| undefined,?\s*\): string/,
-    );
-    expect(QUEUE_SRC).toMatch(
-      /function buildGraphTimelineSyncJobId\(teamId: string\): string \{\s*return `graph-timeline-sync-\$\{teamId\}`/,
-    );
-    expect(QUEUE_SRC).toMatch(
-      /function buildGraphSearchProjectionJobId\(teamId: string\): string \{\s*return `graph-search-projection-\$\{teamId\}`/,
-    );
+  it("each queue has a deterministic idempotent job id", () => {
+    for (const c of FINAL_THREE) {
+      const entry = getWorkEntryOrThrow(c.work);
+      expect(entry.jobIdPrefix, c.work).toBe(c.prefix);
+      const prefixed = { jobIdPrefix: entry.jobIdPrefix! };
+      expect(buildCanonicalJobId(prefixed, "ws-1")).toBe(
+        buildCanonicalJobId(prefixed, "ws-1"),
+      );
+      expect(buildCanonicalJobId(prefixed, "ws-1")).toBe(`${c.prefix}-ws-1`);
+    }
   });
 
-  it("each enqueue helper routes through genericIdempotentEnqueue", () => {
-    expect(QUEUE_SRC).toMatch(
-      /export async function enqueueGraphDomainSyncJob[\s\S]*?genericIdempotentEnqueue\(/,
-    );
-    expect(QUEUE_SRC).toMatch(
-      /export async function enqueueGraphTimelineSyncJob[\s\S]*?genericIdempotentEnqueue\(/,
-    );
-    expect(QUEUE_SRC).toMatch(
-      /export async function enqueueGraphSearchProjectionJob[\s\S]*?genericIdempotentEnqueue\(/,
-    );
+  it("each enqueue helper routes through the ONE shared enqueue authority", () => {
+    // `genericIdempotentEnqueue` was the worker's private copy of the
+    // collapse-or-replace ladder; the api carried its own, and the two had
+    // already drifted on whether a collapsed enqueue reports success.
+    expect(QUEUE_SRC).not.toMatch(/genericIdempotentEnqueue/);
+    for (const name of [
+      "enqueueGraphDomainSyncJob",
+      "enqueueGraphTimelineSyncJob",
+      "enqueueGraphSearchProjectionJob",
+    ]) {
+      const idx = QUEUE_SRC.indexOf(`export async function ${name}`);
+      expect(idx, name).toBeGreaterThan(-1);
+      expect(QUEUE_SRC.slice(idx, idx + 900), name).toMatch(/enqueueWork\(/);
+    }
+    expect(QUEUE_SRC).toMatch(/enqueueCanonicalJob\(/);
   });
 
-  it("graph-domain-sync payload allows bounded domain filter (catalog enum only)", () => {
-    expect(QUEUE_SRC).toMatch(
-      /domain\?:\s*\|\s*"CASE"\s*\|\s*"REPORT"\s*\|\s*"VERIFICATION_PACKAGE"\s*\|\s*"EXPORT"\s*\|\s*"REVIEW_TASK"\s*\|\s*"ESCALATION"\s*\|\s*"INCIDENT"\s*\|\s*"EXTERNAL_REVIEW"\s*\|\s*null/,
-    );
+  it("graph-domain-sync's domain filter is a CLOSED catalog, validated pre-DB", () => {
+    // It used to be an optional payload field, which meant an unknown value
+    // produced a job the processor silently completed as a no-op — a request
+    // that looked accepted and did nothing. It is now half of the command id
+    // and is validated by the parser before any database access.
+    expect(GRAPH_SYNC_DOMAINS).toEqual([
+      "all",
+      "CASE",
+      "REPORT",
+      "VERIFICATION_PACKAGE",
+      "EXPORT",
+      "REVIEW_TASK",
+      "ESCALATION",
+      "INCIDENT",
+      "EXTERNAL_REVIEW",
+    ]);
+    expect(buildGraphDomainCommandId("EXPORT", "ws-1")).toBe("EXPORT:ws-1");
+    expect(parseGraphDomainCommandId("EXPORT:ws-1")).toEqual({
+      domain: "EXPORT",
+      workspaceId: "ws-1",
+    });
+    // `all` is a real member rather than a null: an absent filter and an
+    // unknown filter must not be the same value.
+    expect(buildGraphDomainCommandId(null, "ws-1")).toBe("all:ws-1");
+    expect(() =>
+      buildGraphDomainCommandId("NOT_A_DOMAIN" as never, "ws-1"),
+    ).toThrow();
+    expect(() => parseGraphDomainCommandId("NOT_A_DOMAIN:ws-1")).toThrow();
   });
 
   it("index.ts registers each new worker via safeRegisterWorker", () => {

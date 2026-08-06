@@ -134,23 +134,12 @@ test("During an in-flight reload an 'Updating…' indicator is rendered (proves 
 // Capability gating helper
 // ===========================================================================
 
-test("Cases page imports + computes `canSeeAdvancedCaseOps` via canAccessSurface('/investigation')", () => {
+test("Cases page computes canSeeAdvancedCaseOps via the server-projection gate", () => {
+  // PHASE 12B Track 1A — SERVER-projected enterprise hook, never client tier/plan.
+  assert.match(CASES_PAGE, /useEnterpriseSurfaceAccess/);
   assert.match(
     CASES_PAGE,
-    /import \{ canAccessSurface \} from "\.\.\/\.\.\/lib\/surface\/access";/,
-  );
-  assert.match(
-    CASES_PAGE,
-    /import \{ useSurfaceUserContext \} from "\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext";/,
-  );
-  assert.match(
-    CASES_PAGE,
-    /const canSeeAdvancedCaseOps = canAccessSurface\(\s*\n?\s*surfaceUserCtx,\s*\n?\s*"\/investigation",\s*\n?\s*\);/,
-  );
-  // Anti-regression: no hardcoded plan name strings driving the gate.
-  assert.doesNotMatch(
-    CASES_PAGE,
-    /=== "ENTERPRISE"|=== "FREE"|=== "PROFESSIONAL"/,
+    /const canSeeAdvancedCaseOps = useEnterpriseSurfaceAccess\(\);/,
   );
 });
 

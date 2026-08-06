@@ -38,6 +38,11 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import {
+  JOB_NAMES,
+  QUEUE_NAMES,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
 // Roots
@@ -82,7 +87,6 @@ const WORKER_MI_EMBED_PROCESSOR_SRC = resolve(
   WORKER_ROOT,
   "src/mi-embed.processor.ts",
 );
-const WORKER_QUEUE_SRC = resolve(WORKER_ROOT, "src/queue.ts");
 const API_ROUTES_DIR = resolve(API_ROOT, "src/routes");
 const SEARCH_PAGE_SRC = resolve(WEB_ROOT, "app/(app)/search/page.tsx");
 const MIGRATIONS_DIR = resolve(API_ROOT, "prisma/migrations");
@@ -293,10 +297,19 @@ describe("Phase 16 — Backfill service + live indexing", () => {
     const processor = readUtf8(WORKER_MI_EMBED_PROCESSOR_SRC);
     // The processor exports a handler that BullMQ invokes per job.
     expect(processor).toMatch(/export\s+async\s+function\s+processMiEmbedJob/);
-    // The worker-side queue declaration includes the bounded job name.
-    const queue = readUtf8(WORKER_QUEUE_SRC);
-    expect(queue).toMatch(/miEmbedJobName\s*=\s*["']EmbedSemanticChunks["']/);
-    expect(queue).toMatch(/miEmbedQueueName\s*=\s*["']mi-embed["']/);
+    // PHASE 12 — POINT 5: the queue and job names are registry values, not
+    // literals declared in the worker's queue module, so the assertion reads
+    // the value.
+    const entry = getWorkEntryOrThrow(JOB_NAMES.EMBED_SEMANTIC_CHUNKS);
+    expect(entry.workName).toBe("EmbedSemanticChunks");
+    expect(entry.queueName).toBe(QUEUE_NAMES.MI_EMBED);
+    // And the processor derives its workspace from the ANCHOR CHUNK row rather
+    // than from the payload. The old payload carried `{ teamId, chunkIds[] }`
+    // and the processor believed both — `teamId` scoped the AI-policy lookup,
+    // the per-workspace SPEND gate, the chunk read and the vector write.
+    expect(entry.durableAuthority.model).toBe("EvidenceSemanticChunk");
+    expect(processor).toMatch(/decodeCanonicalJob\(JOB_NAMES\.EMBED_SEMANTIC_CHUNKS/);
+    expect(processor).not.toMatch(/job\.data\.teamId/);
   });
 });
 

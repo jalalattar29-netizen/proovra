@@ -269,7 +269,107 @@ export async function recordPackageDelivery(
 }
 
 // ---------------------------------------------------------------------------
+// listPackageDeliveries
+//
+// PHASE 12B — DURABLE delivery history. The Exchange surface previously held
+// deliveries only in session state, so a reload lost the record of who a
+// package was released to. This is the canonical read.
+//
+// Safety contract:
+//   * The PACKAGE is resolved from persistence and its teamId is what scopes
+//     the query — the caller's claimed tenant never widens the result set.
+//   * The projection carries NO bucket, key, signed URL or provider secret.
+//   * `downloadedAtUtc` is emitted only when a transfer was actually
+//     confirmed; authorisation is reported separately and honestly.
+//   * A package in another workspace is indistinguishable from a missing one
+//     (no existence leak).
+// ---------------------------------------------------------------------------
+
+export type PackageDeliveryProjection = {
+  id: string;
+  channel: string;
+  recipientEmail: string | null;
+  recipientOrgSlug: string | null;
+  deliveredAtUtc: string | null;
+  /** Authorisation / link issuance — NOT proof of transfer. */
+  downloadAuthorizedAtUtc: string | null;
+  /** Confirmed transfer completion only; null while unproven. */
+  downloadedAtUtc: string | null;
+  verifiedAtUtc: string | null;
+};
+
+const DELIVERY_PAGE_MAX = 100;
+
+export async function listPackageDeliveries(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  packageId: string;
+  /** Opaque cursor = last delivery id from the previous page. */
+  cursor?: string | null;
+  limit?: number;
+}): Promise<
+  | { ok: true; deliveries: PackageDeliveryProjection[]; nextCursor: string | null }
+  | { ok: false }
+> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const take = Math.min(Math.max(input.limit ?? 25, 1), DELIVERY_PAGE_MAX);
+
+  // Authoritative package → workspace resolution from persistence.
+  const pkg = await prisma.evidenceExchangePackage.findFirst({
+    where: { id: input.packageId, teamId: input.teamId },
+    select: { id: true, teamId: true },
+  });
+  if (!pkg) return { ok: false };
+
+  // Stable deterministic ordering: newest first, id as the tiebreak so the
+  // cursor can never skip or repeat a row when timestamps collide.
+  const rows = await prisma.evidenceExchangePackageDelivery.findMany({
+    where: { packageId: pkg.id, teamId: pkg.teamId },
+    orderBy: [{ deliveredAt: "desc" }, { id: "desc" }],
+    take: take + 1,
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+    select: {
+      id: true,
+      channel: true,
+      recipientEmail: true,
+      recipientOrgSlug: true,
+      deliveredAtUtc: true,
+      downloadAuthorizedAtUtc: true,
+      downloadedAtUtc: true,
+      verifiedAtUtc: true,
+    },
+  });
+
+  const page = rows.slice(0, take);
+  return {
+    ok: true,
+    deliveries: page.map((r) => ({
+      id: r.id,
+      channel: r.channel,
+      recipientEmail: r.recipientEmail,
+      recipientOrgSlug: r.recipientOrgSlug,
+      deliveredAtUtc: r.deliveredAtUtc?.toISOString() ?? null,
+      downloadAuthorizedAtUtc: r.downloadAuthorizedAtUtc?.toISOString() ?? null,
+      downloadedAtUtc: r.downloadedAtUtc?.toISOString() ?? null,
+      verifiedAtUtc: r.verifiedAtUtc?.toISOString() ?? null,
+    })),
+    nextCursor: rows.length > take ? (page[page.length - 1]?.id ?? null) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // recordPackageDownload
+//
+// PHASE 12B — truthful audit semantics. This path runs when the server
+// AUTHORISES a delivery download and (separately) a short-lived link is
+// minted. It has NO transfer-completion signal: the bytes move from storage
+// to the recipient without passing through here, and the link may never be
+// used. It therefore emits PACKAGE_DOWNLOAD_AUTHORIZED, not
+// PACKAGE_DOWNLOADED. PACKAGE_DOWNLOADED is reserved for a real completion
+// signal (server streaming/proxy completion or a verified storage-access
+// event); emitting it here would assert a transfer that may not have
+// happened. `downloadedAtUtc` is preserved as the FIRST-authorisation
+// timestamp (unchanged column semantics, still first-write-wins).
 // ---------------------------------------------------------------------------
 
 export type RecordPackageDownloadInput = {
@@ -285,21 +385,24 @@ export async function recordPackageDownload(
   const prisma = input.prisma ?? defaultPrisma;
   const delivery = await prisma.evidenceExchangePackageDelivery.findFirst({
     where: { id: input.deliveryId, teamId: input.teamId },
-    select: { id: true, packageId: true, downloadedAtUtc: true },
+    select: { id: true, packageId: true, downloadAuthorizedAtUtc: true },
   });
   if (!delivery) return { ok: false };
-  if (!delivery.downloadedAtUtc) {
+  // Record the AUTHORISATION (first one wins). `downloadedAtUtc` is
+  // deliberately NOT written here: this path has no transfer-completion
+  // signal, and setting it would assert a download that may never occur.
+  if (!delivery.downloadAuthorizedAtUtc) {
     await prisma.evidenceExchangePackageDelivery.update({
       where: { id: delivery.id },
       data: {
-        downloadedAtUtc: new Date(),
+        downloadAuthorizedAtUtc: new Date(),
         ipAddressHash:
           input.ipAddressHash?.slice(0, 64) ?? undefined,
       },
     });
   }
   void tryEmitWebhookEvent(
-    "PACKAGE_DOWNLOADED",
+    "PACKAGE_DOWNLOAD_AUTHORIZED",
     {
       packageId: delivery.packageId,
       deliveryId: delivery.id,

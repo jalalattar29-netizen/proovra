@@ -1,4 +1,5 @@
 "use client";
+import { formatUserDateTime } from "../../lib/date";
 
 /**
  * Phase A1 (UI) — Runtime AI capability disclosure table.
@@ -130,7 +131,7 @@ export function AiCapabilityStatusTable() {
       ) : null}
       {caps && caps.length > 0 ? (
         <p style={{ fontSize: 11, opacity: 0.6, marginTop: 8 }}>
-          Last verified {new Date(caps[0]!.lastVerifiedAtUtc).toLocaleString()} · statuses refresh on load.
+          Last verified {formatUserDateTime(caps[0]!.lastVerifiedAtUtc)} · statuses refresh on load.
         </p>
       ) : null}
     </section>

@@ -143,7 +143,7 @@ export function sanitiseDiscussionBody(input: string): string {
 // strings here are advisory until reconciled.
 // -----------------------------------------------------------------------------
 
-const MENTION_RE = /(^|[\s(\[{])@([a-zA-Z0-9._-]{2,64})(?=$|[\s.,:;!?)\]}\n])/g;
+const MENTION_RE = /(^|[\s([{])@([a-zA-Z0-9._-]{2,64})(?=$|[\s.,:;!?)\]}\n])/g;
 
 export function parseMentionTokens(body: string): string[] {
   const out = new Set<string>();

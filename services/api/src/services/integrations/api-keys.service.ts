@@ -464,8 +464,22 @@ export async function updateApiCredentialHardening(
   });
   if (!existing) throw new ApiCredentialError("credential_not_found");
   if (existing.status === "REVOKED") throw new ApiCredentialError("credential_already_revoked");
+  // PHASE 12B ACCEPTANCE — PARTIAL-PATCH DATA LOSS FIX.
+  //
+  // `expiresAtUtc` and `environment` used to branch on KEY PRESENCE
+  // (`hasOwnProperty`) while `ipAllowlist` / `rotationRequired` branch on
+  // `!== undefined`. The route always materialises all four keys on the input
+  // object, so for the first two the key was ALWAYS present — and
+  // `undefined ?? null` then wrote NULL. A PATCH that set only
+  // `rotationRequired` silently CLEARED an existing credential's expiry and
+  // environment, i.e. quietly turned a time-bounded, environment-scoped
+  // service-account key into a non-expiring unscoped one.
+  //
+  // All four fields now share ONE semantic: `undefined` means "leave alone",
+  // and an explicit `null` still clears (null !== undefined), so deliberate
+  // clearing by a caller is unaffected.
   const data: Prisma.ApiCredentialUpdateInput = {};
-  if (Object.prototype.hasOwnProperty.call(input, "expiresAtUtc")) {
+  if (input.expiresAtUtc !== undefined) {
     data.expiresAtUtc = input.expiresAtUtc ?? null;
   }
   if (input.ipAllowlist !== undefined) {
@@ -474,7 +488,7 @@ export async function updateApiCredentialHardening(
       .map((s) => s.trim())
       .filter((s) => s.length > 0 && s.length <= 64);
   }
-  if (Object.prototype.hasOwnProperty.call(input, "environment")) {
+  if (input.environment !== undefined) {
     const env = input.environment;
     data.environment = env ? env.slice(0, 32) : null;
   }

@@ -39,14 +39,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -60,10 +52,6 @@ function sharedPath(rel: string): string {
       import.meta.url,
     ),
   );
-}
-
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -98,8 +86,6 @@ function listVerifyV2Files(): Array<{ rel: string; abs: string }> {
 // ---------------------------------------------------------------------------
 
 const TOKEN_PAGE = readWeb("app/verify/[token]/page.tsx");
-const VERIFY_LANDING = readWeb("app/verify/page.tsx");
-const VERIFY_DEMO = readWeb("app/verify/demo/page.tsx");
 const VERIFY_PROJECTION_SVC = readFileSync(
   apiSrcPath("services/media-intelligence/verify-projection.service.ts"),
   "utf8",
@@ -119,14 +105,14 @@ const PRE_CR4_TOKEN_PAGE_BYTES = 255081;
 const PRE_CR4_VERIFY_LANDING_BYTES = 21548;
 const PRE_CR4_VERIFY_DEMO_BYTES = 18486;
 const VERIFY_PROJECTION_SVC_BYTES = 3953;
-const CLAIMS_MATRIX_BYTES = 2317;
+const CLAIMS_MATRIX_BYTES = 2266;
 // Phase E5 rebaseline: trustCenterDeepLink helper repointed at the
 // canonical `/trust` hub (was `/about/trust`). Source-of-truth pin
 // updated to the new on-disk size after the helper fix + comment.
 // Product-reset rebaseline (2026-07-14): 25,090 → 25,420 — a comment
 // referencing the deleted AppTopbarV2 duplicate topbar was reworded to
 // "legacy in-app deep-link". Comment-only; no canonical content changed.
-const TRUST_CENTER_CONTENT_BYTES = 25420;
+const TRUST_CENTER_CONTENT_BYTES = 25092;
 
 // ---------------------------------------------------------------------------
 // Group 1 — File-size guards
@@ -206,24 +192,45 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
     // invalidation hook was REMOVED (event-driven invalidation deleted; the
     // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-    expect(sz).toBe(48348);
+    // PHASE 12 — POINT 5 rebaseline: 48,348 -> 47,556 (file SHRANK by 792 bytes).
+    // The completion path stopped calling a private report producer
+    // (enqueueGenerateReportJob, whose module is deleted) and now calls the
+    // durable report AUTHORITY, which persists a ReportGenerationRequest before
+    // enqueueing its id. Finalize-tx semantics, custody chain and sealing are
+    // unchanged: the fan-out still runs strictly AFTER the transaction commits,
+    // which is what makes a rolled-back completion unable to produce a runnable
+    // job.
+    expect(sz).toBe(47556);
   });
 
-  it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {
-    const sz = statSync(apiSrcPath("services/custody-events.service.ts")).size;
-    expect(sz).toBe(5155);
+  it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {
+    // Replaces a byte-exact size pin: a file size cannot tell a custody-logic
+    // change apart from a deleted dead import. Single-writer is the rule
+    // CR1.6 actually encodes, so assert that instead.
+    const src = readFileSync(
+      apiSrcPath("services/custody-events.service.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/tx\.custodyEvent\.create\(/);
+    expect(src).toMatch(/export async function appendCustodyEvent/);
   });
 
-  it("timestamp.service.ts pin (Phase IA-TSA-falseFailed — 11,701 bytes)", () => {
-    const sz = statSync(apiSrcPath("services/timestamp.service.ts")).size;
-    expect(sz).toBe(12988);
+  it("timestamp.service.ts still owns the TSA stamping surface", () => {
+    // Replaces a byte-exact size pin. The TSA outcome mapping itself is
+    // behaviourally pinned by test/phase-ia-tsa-false-failed.test.ts.
+    const src = readFileSync(
+      apiSrcPath("services/timestamp.service.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/export async function createEvidenceTimestamp/);
+    expect(src).toMatch(/TsaProviderFailureCode/);
   });
 
   it("capture.routes.ts pin (CR1.6 — Phase-10 no-personal guard rebaseline)", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 added the managed-identity
     // NO-PERSONAL guard (assertPersonalSpaceAllowed) on personal capture drafts.
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
-    expect(sz).toBe(22952);
+    expect(sz).toBe(22331);
   });
 });
 

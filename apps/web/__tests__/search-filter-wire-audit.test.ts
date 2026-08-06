@@ -194,3 +194,48 @@ test("Per-type empty-state hint uses friendly DOCUMENT_TYPE_LABEL for both selec
   // empty-state copy.
   assert.match(body, /DOCUMENT_TYPE_LABEL\[t\]/);
 });
+
+// ============================================================================
+// PHASE 12B (Evidence Operations, 2026-07-29) — search console scope tabs.
+//
+// The Discovery audit log (GET /v1/search/audit) is the sole public
+// authority over the search-activity data domain; before this phase it
+// had no product consumer. It is surfaced as a SCOPE TAB on this console
+// rather than folded into the content query, because it is a different
+// data domain with a different authorization gate (search-OPERATOR, not
+// search-actor).
+// ============================================================================
+
+test("search console exposes a Records / Search activity scope tab strip", () => {
+  const src = read(PAGE);
+  assert.match(src, /data-search-scope-tabs/);
+  assert.match(src, /data-search-scope-tab="records"/);
+  assert.match(src, /data-search-scope-tab="activity"/);
+  // The activity scope renders the audit panel with the SERVER-projected
+  // workspace id — never a client-inferred one.
+  assert.match(src, /<SearchAuditLogPanel teamId=\{teamId\} \/>/);
+});
+
+test("the search-activity panel consumes GET /v1/search/audit via apiFetch with the required states", () => {
+  const panel = read(
+    resolve(REPO_ROOT, "apps/web/components/search/SearchAuditLogPanel.tsx"),
+  );
+  // Canonical client only — never a raw fetch.
+  assert.match(panel, /apiFetch\(`\/v1\/search\/audit\?/);
+  assert.ok(!/\bfetch\(/.test(panel.replace(/apiFetch\(/g, "")));
+  // Loading / empty / denial / error are all rendered.
+  assert.match(panel, /data-search-audit-loading/);
+  assert.match(panel, /data-search-audit-empty/);
+  assert.match(panel, /data-search-audit-denied/);
+  assert.match(panel, /data-search-audit-error/);
+  // Stale-context rejection + safe error copy.
+  assert.match(panel, /useTenantGuard/);
+  assert.match(panel, /isStale\(captured\)/);
+  assert.match(panel, /toSafeUserError/);
+});
+
+test("the search page no longer calls the deleted owner-scoped search primitives", () => {
+  const src = read(PAGE);
+  assert.ok(!src.includes("/v1/search/evidence"));
+  assert.ok(!src.includes("/v1/search/cases"));
+});

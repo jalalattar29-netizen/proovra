@@ -49,6 +49,11 @@ function stub(row: Row, connOrgId: string | null = "org-A") {
         findUnique: async () =>
           connOrgId ? { status: "ACTIVE", team: { organizationId: connOrgId } } : null,
       },
+      // PHASE 12 POINT 7 — the personal-space decision now also reads the
+      // Organization's `noPersonalSpace` policy. This stub answers "no
+      // Organization the user belongs to forbids it", which is what every
+      // assertion in THIS suite (an identity-ownership suite) assumes.
+      organizationSecurityPolicy: { findMany: async () => [] },
     } as never,
     read: () => state,
   };

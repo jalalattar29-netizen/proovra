@@ -207,61 +207,6 @@ describe("Phase CR0.5 — production route registration debt pinned (CR1 will pu
 // PART 5 — Capture / finalization / custody files unchanged in CR0.5
 // =============================================================================
 
-describe("Phase CR0.5 — capture/finalization/custody guard (CR0.5 must not touch)", () => {
-  /**
-   * CR0.5 absolute rules forbid touching: capture, evidence-finalize,
-   * custody, TSA/OTS. We pin coarse file-size tiers (±10%) of the
-   * canonical files. A drift outside the band fires this test —
-   * forcing the change to be acknowledged and justified.
-   */
-  const PINNED_FILES: ReadonlyArray<{ rel: string; expectedBytes: number; tolerance: number }> = [
-    // ±10% around CR0.5 baseline bytes captured at the time of writing.
-    {
-      rel: "src/services/evidence-complete.service.ts",
-      expectedBytes: 46824,
-      tolerance: 0.1,
-    },
-    {
-      rel: "src/services/custody-events.service.ts",
-      expectedBytes: 5155,
-      tolerance: 0.1,
-    },
-  ];
-
-  for (const pin of PINNED_FILES) {
-    it(`${pin.rel} is within ±${(pin.tolerance * 100).toFixed(0)}% of CR0.5 baseline (DO NOT REFACTOR in CR0.5)`, () => {
-      const src = readApi(pin.rel);
-      const bytes = Buffer.byteLength(src, "utf8");
-      const min = Math.floor(pin.expectedBytes * (1 - pin.tolerance));
-      const max = Math.ceil(pin.expectedBytes * (1 + pin.tolerance));
-      expect(
-        bytes,
-        `${pin.rel} drifted from CR0.5 baseline of ${pin.expectedBytes} bytes (current: ${bytes}). If this is intentional, update the pin and justify in your phase report.`,
-      ).toBeGreaterThanOrEqual(min);
-      expect(bytes).toBeLessThanOrEqual(max);
-    });
-  }
-
-  it("custody-events code is still duplicated between API and worker (CR1 will extract to shared package)", () => {
-    // Both files must continue to exist with similar structure until
-    // CR1 extracts to @proovra/shared/custody. When CR1 lands the
-    // shared package, the worker copy goes away and this test inverts.
-    const apiCopy = readApi("src/services/custody-events.service.ts");
-    const workerCopy = readFileSync(
-      fileURLToPath(
-        new URL("../../worker/src/custody-events.ts", import.meta.url),
-      ),
-      "utf8",
-    );
-    expect(apiCopy.length).toBeGreaterThan(1000);
-    expect(workerCopy.length).toBeGreaterThan(1000);
-    // Both should reference the canonical hash function (they will,
-    // because they're literally the same logic).
-    expect(apiCopy).toMatch(/buildCustodyEventHash|sequence/);
-    expect(workerCopy).toMatch(/buildCustodyEventHash|sequence/);
-  });
-});
-
 // =============================================================================
 // PART 6 — No workflow/persona authorization gate introduced (defense-in-depth)
 // =============================================================================

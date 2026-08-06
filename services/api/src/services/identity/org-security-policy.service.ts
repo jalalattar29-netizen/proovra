@@ -19,11 +19,10 @@
 
 import type { PrismaClient } from "@prisma/client";
 
-import { type OrgSecurityPolicy, ORG_SECURITY_POLICY_DEFAULTS } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { DomainError } from "../../errors.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 // PHASE 10 §10.1 — this service is the SOLE org security-policy authority; it
 // COMPOSES the internal pure evaluator (no second public service).
 import {
@@ -44,66 +43,7 @@ import {
 import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
 
-export type LoadedOrgSecurityPolicy = OrgSecurityPolicy & {
-  teamId: string;
-  updatedAt: Date | null;
-  updatedByUserId: string | null;
-};
 
-export async function getOrgSecurityPolicy(
-  teamId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<LoadedOrgSecurityPolicy> {
-  // §policy-convergence — the policy is ORGANIZATION-scoped. Resolve the parent
-  // Organization, then read the ONE org policy by organizationId (zero-decision
-  // teamId projection). A workspace with no parent org → defaults.
-  const team = await client.team.findUnique({
-    where: { id: teamId },
-    select: { organizationId: true },
-  });
-  const row = team?.organizationId
-    ? await client.organizationSecurityPolicy.findUnique({
-        where: { organizationId: team.organizationId },
-      })
-    : null;
-  if (!row) {
-    return {
-      ...ORG_SECURITY_POLICY_DEFAULTS,
-      teamId,
-      updatedAt: null,
-      updatedByUserId: null,
-    };
-  }
-  return {
-    mfaRequiredFlag: row.mfaRequiredFlag,
-    allowedEmailDomains: row.allowedEmailDomains,
-    restrictedIpRanges: row.restrictedIpRanges,
-    reviewerSessionTimeoutSeconds: row.reviewerSessionTimeoutSeconds,
-    contributorSessionTimeoutSeconds: row.contributorSessionTimeoutSeconds,
-    ssoReadyFlag: row.ssoReadyFlag,
-    scimReadyFlag: row.scimReadyFlag,
-    notes: row.notes,
-    teamId, // the requested workspace (projection input) — one org policy shared
-    updatedAt: row.updatedAt,
-    updatedByUserId: row.updatedByUserId,
-  };
-}
-
-export type UpdateOrgSecurityPolicyInput = {
-  teamId: string;
-  actorUserId: string;
-  // All optional — only provided keys are updated.
-  mfaRequiredFlag?: boolean;
-  allowedEmailDomains?: ReadonlyArray<string>;
-  restrictedIpRanges?: ReadonlyArray<string>;
-  reviewerSessionTimeoutSeconds?: number | null;
-  contributorSessionTimeoutSeconds?: number | null;
-  ssoReadyFlag?: boolean;
-  scimReadyFlag?: boolean;
-  notes?: string | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-};
 
 function normaliseDomains(
   raw: ReadonlyArray<string>,
@@ -137,128 +77,11 @@ function clampTimeoutSeconds(value: number | null | undefined): number | null {
   return Math.min(86_400, Math.floor(value));
 }
 
-export async function upsertOrgSecurityPolicy(
-  input: UpdateOrgSecurityPolicyInput,
-  client: PrismaClient = defaultPrisma,
-): Promise<LoadedOrgSecurityPolicy> {
-  const current = await getOrgSecurityPolicy(input.teamId, client);
-  const merged: OrgSecurityPolicy = {
-    mfaRequiredFlag:
-      input.mfaRequiredFlag !== undefined
-        ? input.mfaRequiredFlag
-        : current.mfaRequiredFlag,
-    allowedEmailDomains:
-      input.allowedEmailDomains !== undefined
-        ? normaliseDomains(input.allowedEmailDomains)
-        : current.allowedEmailDomains,
-    restrictedIpRanges:
-      input.restrictedIpRanges !== undefined
-        ? normaliseCidrs(input.restrictedIpRanges)
-        : current.restrictedIpRanges,
-    reviewerSessionTimeoutSeconds:
-      input.reviewerSessionTimeoutSeconds !== undefined
-        ? clampTimeoutSeconds(input.reviewerSessionTimeoutSeconds)
-        : current.reviewerSessionTimeoutSeconds,
-    contributorSessionTimeoutSeconds:
-      input.contributorSessionTimeoutSeconds !== undefined
-        ? clampTimeoutSeconds(input.contributorSessionTimeoutSeconds)
-        : current.contributorSessionTimeoutSeconds,
-    ssoReadyFlag:
-      input.ssoReadyFlag !== undefined
-        ? input.ssoReadyFlag
-        : current.ssoReadyFlag,
-    scimReadyFlag:
-      input.scimReadyFlag !== undefined
-        ? input.scimReadyFlag
-        : current.scimReadyFlag,
-    notes:
-      input.notes !== undefined
-        ? (input.notes ?? null)?.slice(0, 2000) ?? null
-        : current.notes,
-  };
-
-  // §policy-lifecycle — the ONE org policy is keyed by organizationId. Writers
-  // UPSERT BY organizationId (never teamId, which is now nullable metadata). A
-  // workspace with no parent Organization cannot own an org security policy.
-  const team = await client.team.findUnique({
-    where: { id: input.teamId },
-    select: { organizationId: true },
-  });
-  const organizationId = team?.organizationId ?? null;
-  if (!organizationId) {
-    const err = new Error(
-      "Security policy is a Customer-Organization policy; this workspace has no parent Organization.",
-    ) as Error & { statusCode?: number; code?: string };
-    err.statusCode = 400;
-    err.code = "ORG_SECURITY_POLICY_NOT_APPLICABLE";
-    throw err;
-  }
-  const row = await client.organizationSecurityPolicy.upsert({
-    where: { organizationId },
-    create: {
-      organizationId,
-      teamId: input.teamId, // compat metadata, set ONCE on create
-      ...merged,
-      updatedByUserId: input.actorUserId,
-    },
-    update: {
-      // teamId is NOT mutated during ordinary patching (compat metadata only).
-      ...merged,
-      updatedByUserId: input.actorUserId,
-    },
-  });
-
-  safeEmitSecurityEvent(
-    {
-      teamId: input.teamId,
-      eventType: "org_security_policy_updated",
-      severity: "INFO",
-      details: {
-        actorUserId: input.actorUserId,
-        // Audit ONLY the keys the caller passed in — don't echo back
-        // the whole policy snapshot (avoids accidental drift signals).
-        changes: Object.fromEntries(
-          Object.entries(input).filter(
-            ([k, v]) =>
-              k !== "teamId" &&
-              k !== "actorUserId" &&
-              k !== "ipAddress" &&
-              k !== "userAgent" &&
-              v !== undefined,
-          ),
-        ),
-      },
-    },
-    client,
-  );
-  await emitTenantAudit({
-    action: "identity.org_policy.update",
-    outcome: "success",
-    sourceApp: "API",
-    actorUserId: input.actorUserId,
-    workspaceId: input.teamId,
-    resourceType: "organization_security_policy",
-    resourceId: input.teamId,
-    metadata: {
-      mfaRequiredFlag: merged.mfaRequiredFlag,
-      ssoReadyFlag: merged.ssoReadyFlag,
-      scimReadyFlag: merged.scimReadyFlag,
-      reviewerSessionTimeoutSeconds: merged.reviewerSessionTimeoutSeconds,
-      contributorSessionTimeoutSeconds: merged.contributorSessionTimeoutSeconds,
-      allowedEmailDomainsCount: merged.allowedEmailDomains.length,
-      restrictedIpRangesCount: merged.restrictedIpRanges.length,
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
-    },
-  }, client);
-
-  return {
-    ...merged,
-    teamId: input.teamId,
-    updatedAt: row.updatedAt,
-    updatedByUserId: row.updatedByUserId,
-  };
-}
+// PHASE 12B WAVE 1.2 (2026-07-28) — the legacy teamId-keyed writer
+// `upsertOrgSecurityPolicy` (unversioned, no step-up, no optimistic
+// concurrency) was DELETED with its GET/PUT /v1/identity/policy route pair.
+// Its fields are folded into the canonical `applySecurityPolicyPatch` below
+// (org-keyed, versioned, step-up-gated). One writer authority remains.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PHASE 10 §10.1 — the versioned advanced-policy surface. These are the ONLY
@@ -274,15 +97,49 @@ export async function upsertOrgSecurityPolicy(
  * high-security, no-personal, step-up…). SYSTEM organizations and Personal/OWNED
  * workspaces have NO policy row → default (unrestricted) posture.
  */
-/** Thrown when a CUSTOMER Organization has no provisioned security policy. */
-export type PolicyNotProvisionedError = Error & { statusCode: number; code: string };
+/**
+ * Thrown when a CUSTOMER Organization has no provisioned security policy.
+ *
+ * PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05). This is now a typed
+ * `DomainError`, for two reasons the first Point-7 run demonstrated.
+ *
+ * It escaped `POST /v1/platform/context/switch-workspace` as an UNHANDLED
+ * exception — thrown inside `establishOrganizationSessionContext`'s
+ * transaction, recognised by nothing on the way out — so it became an
+ * error-level Sentry issue and a 500. Fail-closed was correct; being
+ * unhandled was not.
+ *
+ * And its message carried the Organization UUID. That message went to the
+ * client. A tenant identifier belongs in the operator's log, never in a
+ * response to someone who has just been refused access to that tenant — so
+ * the developer message keeps the id (it is what makes the log actionable)
+ * and `publicMessage` does not.
+ *
+ * STATUS: 503 is RETAINED, and it is one of the two readings the contract
+ * allows. From the caller's position this is a required security dependency
+ * that is not yet available: a CUSTOMER Organization must have a policy, the
+ * admin editor provisions v1 explicitly, and until an operator does that no
+ * ordinary request can proceed. It is not 4xx, because the client did nothing
+ * wrong and cannot fix it; it is not 500, because nothing crashed and the
+ * system is behaving exactly as designed. `OPERATIONAL_WARNING` reportability
+ * carries that distinction into the capture decision: an operator still sees
+ * it in the bounded warn stream, without it paging as a server fault.
+ */
+export type PolicyNotProvisionedError = DomainError;
 export function policyNotProvisioned(organizationId: string): PolicyNotProvisionedError {
-  const err = new Error(
+  return new DomainError(
     `Organization ${organizationId} has no provisioned security policy.`,
-  ) as PolicyNotProvisionedError;
-  err.statusCode = 503;
-  err.code = "POLICY_NOT_PROVISIONED";
-  return err;
+    {
+      httpStatus: 503,
+      publicCode: "POLICY_NOT_PROVISIONED",
+      publicMessage:
+        "This organization's security configuration is not available. An organization administrator must complete its security setup.",
+      reportability: "OPERATIONAL_WARNING",
+      severity: "warning",
+      // The id belongs in the operator's record, not in the response body.
+      metadata: { organizationId },
+    },
+  );
 }
 
 /**
@@ -363,37 +220,107 @@ export async function resolveOrganizationPolicy(
 }
 
 /**
+ * PHASE 12 CORRECTION 1 — the AUTHORITATIVE org-admin READ, keyed by
+ * organizationId (NOT a teamId adapter). Discriminates applicability by the org's
+ * kind: a CUSTOMER org owns the ONE policy (same for every workspace); SYSTEM /
+ * non-CUSTOMER orgs are NOT_APPLICABLE. For a CUSTOMER org with no provisioned
+ * row yet, returns the coerced default posture so the admin editor can render +
+ * create the first version via PATCH — ENFORCEMENT still fails closed via the
+ * throwing `resolveOrgSecurityPolicy`.
+ */
+export async function resolveOrgPolicyByOrgId(
+  organizationId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<OrganizationPolicyResolution> {
+  const org = await client.organization.findUnique({
+    where: { id: organizationId },
+    select: { kind: true },
+  });
+  if (!org || org.kind !== "CUSTOMER") {
+    return { applicability: "NOT_APPLICABLE", reason: "SYSTEM" };
+  }
+  const row = await client.organizationSecurityPolicy.findUnique({
+    where: { organizationId },
+  });
+  // PHASE 12B acceptance — a CUSTOMER Organization with NO provisioned policy
+  // FAILS CLOSED (POLICY_NOT_PROVISIONED / 503) even on the admin read. The
+  // editor provisions v1 explicitly via PATCH; no synthesized permissive
+  // defaults are ever projected for a Customer Organization.
+  if (!row) throw policyNotProvisioned(organizationId);
+  const policy = coerceSecurityPolicy("", organizationId, row as Record<string, unknown> | null);
+  return { applicability: "ORGANIZATION", organizationId, policy };
+}
+
+/**
  * §10.1 — canonical versioned policy update: bumps `policyVersion` (→ session
  * re-evaluation), writes transactionally, audits. The route enforces
  * authorization + step-up before calling this write chokepoint. Returns the
  * new resolved posture.
  */
+/**
+ * PHASE 12 CORRECTION 1 (2026-07-28) — resolve the org's canonical team id, used
+ * ONLY as an audit-workspace binding + a step-up challenge anchor. It is NEVER a
+ * policy decision key: the DECISION is always the input `organizationId`.
+ */
+export async function orgCanonicalTeamId(
+  organizationId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<string | null> {
+  const t = await client.team.findFirst({
+    where: { organizationId },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return t?.id ?? null;
+}
+
+function orgPolicyNotApplicable(): Error & { statusCode?: number; code?: string } {
+  const err = new Error(
+    "Security policy is a Customer-Organization policy; this organization cannot own one.",
+  ) as Error & { statusCode?: number; code?: string };
+  err.statusCode = 404; // anti-enumeration: same shape as not-found
+  err.code = "ORG_SECURITY_POLICY_NOT_APPLICABLE";
+  return err;
+}
+
+/**
+ * PHASE 12B WAVE 1.2 — the folded legacy field set (formerly the
+ * `upsertOrgSecurityPolicy` / PUT /v1/identity/policy surface). These are
+ * admin-config columns on the ONE organization_security_policy row; they now
+ * flow ONLY through this versioned, step-up-gated writer.
+ */
+export type ExtendedSecurityPolicyPatch = SecurityPolicyPatch & {
+  mfaRequiredFlag?: boolean;
+  allowedEmailDomains?: string[];
+  restrictedIpRanges?: string[];
+  reviewerSessionTimeoutSeconds?: number | null;
+  contributorSessionTimeoutSeconds?: number | null;
+  ssoReadyFlag?: boolean;
+  scimReadyFlag?: boolean;
+  notes?: string | null;
+};
+
 export async function applySecurityPolicyPatch(
   input: {
-    teamId: string;
+    // PHASE 12 CORRECTION 1 — the AUTHORITATIVE key is organizationId. No teamId /
+    // workspace derivation; the same policy is shared by every workspace in the org.
+    organizationId: string;
     actorUserId: string;
-    patch: SecurityPolicyPatch;
+    patch: ExtendedSecurityPolicyPatch;
+    /** Optimistic concurrency — if provided, must equal the current policyVersion. */
+    expectedPolicyVersion?: number | null;
     ipAddress?: string | null;
     userAgent?: string | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<ResolvedSecurityPolicy> {
-  // §policy-convergence — writes target the ONE Customer-Organization policy.
-  // Resolve the parent Organization; SYSTEM orgs and Personal/OWNED workspaces
-  // (no CUSTOMER parent) may NOT own a security policy.
-  const team = await client.team.findUnique({
-    where: { id: input.teamId },
-    select: { organizationId: true, organization: { select: { kind: true } } },
+  const { organizationId } = input;
+  // The policy exists ONLY for CUSTOMER organizations. SYSTEM orgs cannot own one.
+  const org = await client.organization.findUnique({
+    where: { id: organizationId },
+    select: { kind: true },
   });
-  const organizationId = team?.organizationId ?? null;
-  if (!organizationId || team?.organization?.kind !== "CUSTOMER") {
-    const err = new Error(
-      "Security policy is a Customer-Organization policy; this workspace has no such parent.",
-    ) as Error & { statusCode?: number; code?: string };
-    err.statusCode = 400;
-    err.code = "ORG_SECURITY_POLICY_NOT_APPLICABLE";
-    throw err;
-  }
+  if (!org || org.kind !== "CUSTOMER") throw orgPolicyNotApplicable();
   // Read the raw existing row directly (NOT resolveOrgSecurityPolicy, which
   // fail-closes on a missing CUSTOMER policy — the FIRST patch legitimately has
   // none). Version starts at 1 on create.
@@ -401,14 +328,40 @@ export async function applySecurityPolicyPatch(
     where: { organizationId },
     select: { policyVersion: true },
   });
-  const nextVersion = (existing?.policyVersion ?? 0) + 1;
+  const currentVersion = existing?.policyVersion ?? 0;
+  // Optimistic concurrency — stale expected version → 409, ZERO mutation.
+  if (input.expectedPolicyVersion != null && input.expectedPolicyVersion !== currentVersion) {
+    const err = new Error(
+      "Security policy was modified concurrently; reload and retry.",
+    ) as Error & { statusCode?: number; code?: string; details?: unknown };
+    err.statusCode = 409;
+    err.code = "POLICY_VERSION_CONFLICT";
+    err.details = { expected: input.expectedPolicyVersion, current: currentVersion };
+    throw err;
+  }
+  const nextVersion = currentVersion + 1;
+  // PHASE 12B WAVE 1.2 — normalise the folded legacy fields (same rules the
+  // deleted upsertOrgSecurityPolicy applied) so unvalidated raw values never
+  // reach the row: lowercased deduped domains, deduped CIDRs, clamped timeouts.
+  if (input.patch.allowedEmailDomains !== undefined) {
+    input.patch.allowedEmailDomains = normaliseDomains(input.patch.allowedEmailDomains);
+  }
+  if (input.patch.restrictedIpRanges !== undefined) {
+    input.patch.restrictedIpRanges = normaliseCidrs(input.patch.restrictedIpRanges);
+  }
+  if (input.patch.reviewerSessionTimeoutSeconds !== undefined) {
+    input.patch.reviewerSessionTimeoutSeconds = clampTimeoutSeconds(input.patch.reviewerSessionTimeoutSeconds);
+  }
+  if (input.patch.contributorSessionTimeoutSeconds !== undefined) {
+    input.patch.contributorSessionTimeoutSeconds = clampTimeoutSeconds(input.patch.contributorSessionTimeoutSeconds);
+  }
   // §policy-lifecycle — UPSERT BY organizationId (authoritative). teamId is
-  // compat metadata: set ONCE on create, never mutated during patching.
+  // nullable compat metadata only; org-keyed writes never derive it.
   await client.organizationSecurityPolicy.upsert({
     where: { organizationId },
     create: {
       organizationId,
-      teamId: input.teamId,
+      teamId: null,
       updatedByUserId: input.actorUserId,
       policyVersion: nextVersion,
       ...input.patch,
@@ -419,23 +372,23 @@ export async function applySecurityPolicyPatch(
       ...input.patch,
     },
   });
+  const auditTeamId = await orgCanonicalTeamId(organizationId, client);
   await emitTenantAudit({
     action: "identity.security_policy.update",
     outcome: "success",
     sourceApp: "API",
     actorUserId: input.actorUserId,
-    workspaceId: input.teamId,
+    workspaceId: auditTeamId,
     policyVersion: nextVersion,
     resourceType: "organization_security_policy",
-    resourceId: input.teamId,
+    resourceId: organizationId,
     metadata: {
+      organizationId,
       patch: input.patch as Record<string, unknown>,
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
     },
   }, client);
-  // Return the resolved posture from the written state (no extra read): prior
-  // resolved policy + this patch + the bumped version.
   const prior =
     existing !== null
       ? await resolveOrgSecurityPolicy(organizationId, client)
@@ -602,23 +555,20 @@ export async function evaluateOrgContextForSession(
  * tx client so activation validates + writes in one transaction.
  */
 export async function assembleHighSecurityReadiness(
-  teamId: string,
+  // PHASE 12 CORRECTION 1 — org-keyed. Readiness is ORGANIZATION-wide (SSO across
+  // ANY workspace in the org), not a single workspace's signal.
+  organizationId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<HighSecurityPrerequisites> {
-  const team = await client.team.findUnique({
-    where: { id: teamId },
-    select: { organizationId: true },
-  });
-  const organizationId = team?.organizationId ?? null;
-
   const [activeSso, verifiedDomainCount, emergencyReadyCount, contract] = await Promise.all([
-    client.ssoConnection.findFirst({ where: { teamId, status: "ACTIVE" }, select: { id: true } }),
-    organizationId
-      ? client.organizationDomain.count({ where: { organizationId, verifiedAt: { not: null } } })
-      : Promise.resolve(0),
+    client.ssoConnection.findFirst({
+      where: { team: { organizationId }, status: "ACTIVE" },
+      select: { id: true },
+    }),
+    client.organizationDomain.count({ where: { organizationId, verifiedAt: { not: null } } }),
     // Break-glass readiness = at least one configured emergency grant exists.
-    client.emergencyAccessGrant.count({ where: { organizationId: organizationId ?? "" } }),
-    organizationId ? resolveEnterpriseContract(organizationId, client) : Promise.resolve(null),
+    client.emergencyAccessGrant.count({ where: { organizationId } }),
+    resolveEnterpriseContract(organizationId, client),
   ]);
 
   // Unresolved personal custody: MANAGED users owning personal (teamId-null)
@@ -658,10 +608,10 @@ export async function assembleHighSecurityReadiness(
  * evaluator so routes never import the internal evaluator directly.
  */
 export async function checkHighSecurityReadiness(
-  teamId: string,
+  organizationId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<{ readiness: { ok: true } | { ok: false; missing: string[] }; prerequisites: HighSecurityPrerequisites }> {
-  const prerequisites = await assembleHighSecurityReadiness(teamId, client);
+  const prerequisites = await assembleHighSecurityReadiness(organizationId, client);
   return { readiness: evaluateHighSecurityActivation(prerequisites), prerequisites };
 }
 
@@ -675,7 +625,8 @@ export async function checkHighSecurityReadiness(
  */
 export async function activateHighSecurityMode(
   input: {
-    teamId: string;
+    // PHASE 12 CORRECTION 1 — org-keyed. Readiness + revocation are ORGANIZATION-wide.
+    organizationId: string;
     actorUserId: string;
     ipAddress?: string | null;
     userAgent?: string | null;
@@ -686,25 +637,28 @@ export async function activateHighSecurityMode(
   | { ok: false; missing: string[] }
 > {
   return client.$transaction(async (tx) => {
-    const pre = await assembleHighSecurityReadiness(input.teamId, tx as PrismaClient);
+    const pre = await assembleHighSecurityReadiness(input.organizationId, tx as PrismaClient);
     const verdict = evaluateHighSecurityActivation(pre);
     if (!verdict.ok) {
       // Zero partial mutation, zero revocation — surface the exact reason.
       return { ok: false, missing: verdict.missing };
     }
     const policy = await applySecurityPolicyPatch(
-      { teamId: input.teamId, actorUserId: input.actorUserId, patch: highSecurityPosture(), ipAddress: input.ipAddress, userAgent: input.userAgent },
+      { organizationId: input.organizationId, actorUserId: input.actorUserId, patch: highSecurityPosture(), ipAddress: input.ipAddress, userAgent: input.userAgent },
       tx as PrismaClient,
     );
-    // Revoke ONLY this org's workspace-member sessions (re-auth under the
-    // stricter policy). Other orgs / personal sessions are untouched.
-    const members = await (tx as PrismaClient).teamMember.findMany({
-      where: { teamId: input.teamId, status: "ACTIVE" },
+    // Revoke EVERY org member's sessions across ALL workspaces in the org (re-auth
+    // under the stricter policy). Sessions are global — dedupe by userId so the
+    // affected count is distinct users, not membership rows.
+    const memberships = await (tx as PrismaClient).teamMember.findMany({
+      where: { team: { organizationId: input.organizationId }, status: "ACTIVE" },
       select: { userId: true },
     });
-    for (const m of members) {
+    const uniqueUserIds = [...new Set(memberships.map((m) => m.userId))];
+    const auditTeamId = await orgCanonicalTeamId(input.organizationId, tx as PrismaClient);
+    for (const userId of uniqueUserIds) {
       await revokeAllSessionsForUser(
-        { teamId: input.teamId, userId: m.userId, reason: "POLICY_CHANGE", actorUserId: input.actorUserId },
+        { teamId: auditTeamId ?? "", userId, reason: "POLICY_CHANGE", actorUserId: input.actorUserId },
         tx as PrismaClient,
       );
     }
@@ -713,12 +667,12 @@ export async function activateHighSecurityMode(
       outcome: "success",
       sourceApp: "API",
       actorUserId: input.actorUserId,
-      workspaceId: input.teamId,
+      workspaceId: auditTeamId,
       policyVersion: policy.policyVersion,
       resourceType: "organization_security_policy",
-      resourceId: input.teamId,
-      metadata: { affectedSessionUserCount: members.length },
+      resourceId: input.organizationId,
+      metadata: { organizationId: input.organizationId, affectedSessionUserCount: uniqueUserIds.length },
     }, tx as PrismaClient);
-    return { ok: true, policy, affectedSessionUserCount: members.length };
+    return { ok: true, policy, affectedSessionUserCount: uniqueUserIds.length };
   });
 }

@@ -381,8 +381,9 @@ export async function getGovernanceAnalytics(
       degraded,
     ),
     safe(
-      prisma.caseLegalHold.count({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+      prisma.evidenceLegalHold.count({
+        // P12.3 canonical-only (scope='CASE').
+        where: { scope: "CASE", teamId: input.teamId, status: "ACTIVE" },
       }),
       "CaseLegalHold",
       degraded,

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   EXECUTIVE_METRICS_RANGES,
+  type ExecutiveMetricsProjection,
   type ExecutiveMetricsRange,
   type ExecutiveTrendsProjection,
   type TrendDirection,
@@ -39,18 +40,30 @@ export default function ExecutiveDashboardPage() {
 
 function ExecutiveDashboardShell() {
   const [trends, setTrends] = useState<ExecutiveTrendsProjection | null>(null);
+  // PHASE 12 — VERTICAL B. The point-in-time snapshot (`/v1/executive/
+  // metrics`) alongside the trend view. Trends answer "which way is it
+  // moving"; the snapshot answers "where does it stand right now",
+  // including the standing limitations the platform publishes with it.
+  const [snapshot, setSnapshot] = useState<ExecutiveMetricsProjection | null>(
+    null,
+  );
   const [range, setRange] = useState<ExecutiveMetricsRange>("7d");
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setBusy(true);
     try {
-      const res = await apiFetch(`/v1/executive/trends?range=${range}`, {
-        method: "GET",
-      });
-      setTrends((res?.trends ?? null) as ExecutiveTrendsProjection | null);
+      const [trendRes, metricRes] = await Promise.all([
+        apiFetch(`/v1/executive/trends?range=${range}`, { method: "GET" }),
+        apiFetch(`/v1/executive/metrics`, { method: "GET" }).catch(() => null),
+      ]);
+      setTrends((trendRes?.trends ?? null) as ExecutiveTrendsProjection | null);
+      setSnapshot(
+        (metricRes?.metrics ?? null) as ExecutiveMetricsProjection | null,
+      );
     } catch {
       setTrends(null);
+      setSnapshot(null);
     } finally {
       setBusy(false);
     }
@@ -128,6 +141,67 @@ function ExecutiveDashboardShell() {
           {busy ? "Loading…" : "Refresh"}
         </button>
       </div>
+
+      {/* PHASE 12 — VERTICAL B. Current-state snapshot. Metrics the
+          platform cannot compute honestly render as "Not measured" —
+          never as a zero or a placeholder percentage. */}
+      {snapshot ? (
+        <section data-executive-snapshot style={snapshotSection}>
+          <h2 style={{ fontSize: 14, margin: "0 0 2px" }}>Current snapshot</h2>
+          <p style={{ color: "#475569", fontSize: 11, margin: "0 0 10px" }}>
+            Generated {formatUserDateTime(snapshot.generatedAtUtc)} · aggregate
+            only, never PII.
+          </p>
+          <div style={snapshotGrid}>
+            <SnapshotTile
+              label="Total evidence"
+              value={snapshot.evidence.totalEvidence}
+            />
+            <SnapshotTile
+              label="Storage (bytes)"
+              value={snapshot.evidence.storageBytes}
+            />
+            <SnapshotTile
+              label="Verifications · 7d"
+              value={snapshot.verification.verificationsLast7d}
+            />
+            <SnapshotTile
+              label="Public verify views · 7d"
+              value={snapshot.verification.publicVerifyViewsLast7d}
+            />
+            <SnapshotTile
+              label="Verification success %"
+              value={snapshot.verification.successRatePct}
+              suffix="%"
+            />
+            <SnapshotTile
+              label="Provider calls · 7d"
+              value={snapshot.ai.providerCallsLast7d}
+            />
+            <SnapshotTile
+              label="Corrections · 7d"
+              value={snapshot.ai.correctionsLast7d}
+            />
+            <SnapshotTile
+              label="Job failure rate %"
+              value={snapshot.sla.jobFailureRatePct}
+              suffix="%"
+            />
+            <SnapshotTile
+              label="Provider availability %"
+              value={snapshot.sla.providerAvailabilityPct}
+              suffix="%"
+            />
+          </div>
+          {snapshot.limitations.length > 0 ? (
+            <ul style={limitationList} data-executive-snapshot-limitations>
+              {snapshot.limitations.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
 
       {!trends ? (
         <p style={{ color: "#475569" }}>Loading executive trends…</p>
@@ -456,4 +530,61 @@ const primaryButton = {
   fontSize: 12,
   borderRadius: 8,
   cursor: "pointer",
+} as const;
+
+// ---------------------------------------------------------------------------
+// PHASE 12 — VERTICAL B. Current-snapshot tiles.
+// ---------------------------------------------------------------------------
+
+/**
+ * A metric the platform cannot compute honestly arrives as `null` and
+ * renders as "Not measured". It never degrades into a 0 or a 100 — a
+ * fabricated figure on an executive dashboard is worse than a gap.
+ */
+function SnapshotTile({
+  label,
+  value,
+  suffix,
+}: {
+  label: string;
+  value: number | null;
+  suffix?: string;
+}) {
+  const measured = value !== null && value !== undefined;
+  return (
+    <div
+      style={snapshotTile}
+      data-executive-snapshot-tile={label}
+      data-executive-snapshot-measured={measured ? "true" : "false"}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700 }}>
+        {measured ? `${value.toLocaleString()}${suffix ?? ""}` : "Not measured"}
+      </div>
+      <div style={{ fontSize: 11, color: "#475569" }}>{label}</div>
+    </div>
+  );
+}
+
+const snapshotSection = {
+  background: "#fff",
+  border: "1px solid rgba(15, 23, 42, 0.08)",
+  borderRadius: 10,
+  padding: 12,
+  marginBottom: 14,
+} as const;
+const snapshotGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: 10,
+} as const;
+const snapshotTile = {
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: 10,
+} as const;
+const limitationList = {
+  margin: "10px 0 0",
+  paddingLeft: 18,
+  color: "#94a3b8",
+  fontSize: 10,
 } as const;

@@ -87,19 +87,18 @@ export async function getPersonalWorkspaceScope(
     teamId: null,
   });
 
-  // Phase WORKER-PLAN-PARITY-FIX — mirror the API's PERSONAL-scope
-  // PRO upgrade. The API resolver (services/api/src/services/
-  // workspace-billing.service.ts:107-110) checks whether the owner's
-  // entitlement plan supports a personal workspace; if it doesn't
-  // (e.g. raw TEAM entitlement where `allowsPersonalWorkspace=false`),
-  // the personal scope is resolved at PRO grade. Without this match
-  // the worker would deny reports for owners whose API call already
-  // queued them, producing the REPORT_NOT_INCLUDED_IN_PLAN mismatch
-  // that left evidence stuck at SIGNED.
-  const rawPlan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
-  const personalPlan = getPlanCapabilities(rawPlan).allowsPersonalWorkspace
-    ? rawPlan
-    : prismaPkg.PlanType.PRO;
+  // PHASE 12 — POINT 7 (2026-08-05). This used to mirror the API's
+  // PERSONAL-scope "PRO upgrade": a TEAM-plan owner's personal space resolved
+  // at PRO in BOTH processes, kept in sync by a comment pointing at a line
+  // number. Parity was the right instinct and the wrong mechanism — it was two
+  // copies of a commercial decision, and the decision itself invented a plan
+  // the account does not hold. The API no longer substitutes, so neither does
+  // the worker: the owner's entitlement plan IS the personal scope's plan,
+  // which keeps API and worker agreeing on `REPORT_NOT_INCLUDED_IN_PLAN`
+  // because they now read the same fact rather than reproduce the same
+  // workaround. (TEAM includes reports, so the mismatch this guarded against
+  // cannot reappear.)
+  const personalPlan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
 
   return {
     workspaceType: "PERSONAL",

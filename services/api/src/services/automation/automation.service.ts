@@ -22,6 +22,7 @@
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { blankControlCharacters } from "../../lib/text-sanitize.js";
 
 // ---------------------------------------------------------------------------
 // Allowlists (mirrored exactly in the DB CHECK constraints; the migration
@@ -324,7 +325,7 @@ export function computeIdempotencyKey(input: {
 export function sanitiseReason(input: unknown): string {
   if (typeof input !== "string") return "";
   // Strip control chars (keep printable + whitespace).
-  const cleaned = input.replace(/[ --]/g, " ");
+  const cleaned = blankControlCharacters(input, { c1: true });
   if (cleaned.length <= 380) return cleaned;
   return `${cleaned.slice(0, 380)}…`;
 }

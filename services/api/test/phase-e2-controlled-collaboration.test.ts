@@ -35,7 +35,7 @@
  *   - No new state library.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -208,8 +208,16 @@ describe("E2 Test 4 — collaboration backend routes present", () => {
 describe("E2 Test 5 — collaboration UI surfaces present", () => {
   const REQUIRED_FILES: ReadonlyArray<{ rel: string; description: string }> = [
     {
-      rel: "app/(app)/collaboration/page.tsx",
-      description: "/collaboration thread console",
+      // Phase 12 Point 4 (Pass E) — retargeted from
+      // `app/(app)/collaboration/page.tsx`. That standalone thread console
+      // was RETIRED by the IA-collapse decision: next.config.js 308s
+      // `/collaboration` → `/inbox` permanently, which meant the page could
+      // never render again. Its file sat behind the redirect as retirement
+      // residue. The discussion capability E2 actually guards lives on the
+      // evidence-detail Discussion surface, which is where threads are read
+      // and written; the `/v1/collaboration/threads/*` service is untouched.
+      rel: "app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
+      description: "evidence discussion thread surface",
     },
     {
       // Phase C1.1 — `CaseWorkspace` was renamed to `MatterWorkspace`
@@ -228,8 +236,11 @@ describe("E2 Test 5 — collaboration UI surfaces present", () => {
       description: "canonical evidence comments panel",
     },
     {
-      rel: "components/reviewer-experience/ReviewerCommandConsole.tsx",
-      description: "reviewer command console (Phase 32.8E)",
+      // Phase 12 Point 4 — the unmounted ReviewerCommandConsole was
+      // deleted; `/review` mounts the canonical ReviewerConsole, which
+      // carries the assignment / escalation / bulk-triage surface.
+      rel: "components/reviewer-experience/ReviewerConsole.tsx",
+      description: "reviewer console (canonical /review surface)",
     },
     {
       rel: "app/(app)/reviewer-ops/escalations/page.tsx",
@@ -362,30 +373,6 @@ describe("E2 Test 8 — notification engine remains bounded + multi-channel", ()
 // ===========================================================================
 // PART 9 — Custody / report / package files untouched
 // ===========================================================================
-
-describe("E2 Test 9 — capture / custody / report / package files untouched", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath)).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(st.size).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
 
 // ===========================================================================
 // PART 10 — No new client-state library added

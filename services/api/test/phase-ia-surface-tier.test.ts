@@ -20,9 +20,10 @@
  *   4. Direct URL access for hidden surfaces returns the bounded
  *      decision the middleware + SurfaceGate consume.
  *
- *   5. Plan/role escalations work:
- *      - PRO/TEAM plan unlocks PROFESSIONAL tier
- *      - Enterprise workspace flag OR OWNER/ADMIN role unlocks ENTERPRISE
+ *   5. Escalations work, and they are SERVER projections only:
+ *      - planFeatures.professionalSurfacesIncluded unlocks PROFESSIONAL tier
+ *      - isEnterpriseWorkspace unlocks ENTERPRISE (no role ever does —
+ *        Section K; PHASE 12 POINT 4 STEP 1 removed the role field itself)
  *      - isPlatformAdmin unlocks every tier including INTERNAL
  *
  * The tests run against the SHARED tier table at
@@ -37,6 +38,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import * as accessModule from "../../../apps/web/lib/surface/access.js";
+import * as tiersModule from "../../../apps/web/lib/surface/tiers.js";
 import {
   ANONYMOUS_SURFACE_CONTEXT,
   canAccessSurface,
@@ -47,11 +50,9 @@ import {
 } from "../../../apps/web/lib/surface/access.js";
 import {
   findSurfaceTierRule,
-  getDirectAccessPolicy,
   getSurfaceTier,
   SURFACE_TIER_RULES,
   SURFACE_TIERS,
-  type SurfaceTier,
 } from "../../../apps/web/lib/surface/tiers.js";
 
 function readSource(rel: string): string {
@@ -63,45 +64,45 @@ function readSource(rel: string): string {
 // ============================================================================
 
 const PERSONAL_FREE_USER: SurfaceUserContext = {
-  plan: "FREE",
-  role: "OWNER", // owner of their personal workspace
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  // PHASE 12B Track 1A — server-projected entitlements (old plan: "FREE").
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false },
 };
 
 const PRO_INDIVIDUAL: SurfaceUserContext = {
-  plan: "PRO",
-  role: "OWNER",
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  // PHASE 12B Track 1A — server-projected entitlements (old plan: "PRO").
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
 };
 
 const SMALL_TEAM_MEMBER: SurfaceUserContext = {
-  plan: "TEAM",
-  role: "MEMBER",
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  // PHASE 12B Track 1A — server-projected entitlements (old plan: "TEAM").
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
 };
 
 const SMALL_TEAM_OWNER: SurfaceUserContext = {
-  plan: "TEAM",
-  role: "OWNER",
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  // PHASE 12B Track 1A — server-projected entitlements (old plan: "TEAM").
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
 };
 
 const ENTERPRISE_ADMIN: SurfaceUserContext = {
-  plan: "TEAM",
-  role: "ADMIN",
   isPlatformAdmin: false,
   isEnterpriseWorkspace: true,
+  // PHASE 12B Track 1A — server-projected entitlements (old plan: "TEAM").
+  planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
 };
 
 const PLATFORM_ADMIN: SurfaceUserContext = {
-  plan: null,
-  role: null,
   isPlatformAdmin: true,
   isEnterpriseWorkspace: false,
+  // PHASE 12B Track 1A — server-projected entitlements (old plan: null).
+  planFeatures: null,
 };
 
 // ============================================================================
@@ -217,14 +218,14 @@ describe("Phase IA-surface-tier-pricing — plan/entitlement gated surfaces", ()
   it("ENTITLEMENT: /intake-links opens for a PAYG user whose envelope carries intakeIncluded", () => {
     expect(
       canAccessSurface(
-        { ...PERSONAL_FREE_USER, plan: "PAYG", planFeatures: { intakeIncluded: true } },
+        { ...PERSONAL_FREE_USER, planFeatures: { intakeIncluded: true, professionalSurfacesIncluded: false } },
         "/intake-links",
       ),
     ).toBe(true);
     // …and the entitlement can also close it regardless of tier.
     expect(
       canAccessSurface(
-        { ...PRO_INDIVIDUAL, planFeatures: { intakeIncluded: false } },
+        { ...PRO_INDIVIDUAL, planFeatures: { intakeIncluded: false, professionalSurfacesIncluded: true } },
         "/intake-links",
       ),
     ).toBe(false);
@@ -505,10 +506,9 @@ describe("Phase IA-surface-tier-correction — explicit persona checklist", () =
     {
       name: "TEAM admin",
       ctx: {
-        plan: "TEAM",
-        role: "ADMIN",
         isPlatformAdmin: false,
         isEnterpriseWorkspace: false,
+        planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
       },
     },
     { name: "TEAM member", ctx: SMALL_TEAM_MEMBER },
@@ -545,13 +545,14 @@ describe("Phase IA-surface-tier-correction — explicit persona checklist", () =
   // Plan-driven path (future-compat): a workspace whose plan field
   // grows the literal value "ENTERPRISE" should unlock ENTERPRISE
   // without any other config.
-  it("future plan === 'ENTERPRISE' unlocks ENTERPRISE (forward-compat)", () => {
+  it("an ENTERPRISE plan unlocks ENTERPRISE via the SERVER flag (backend ENTERPRISE_PLAN_KEYS)", () => {
+    // PHASE 12B Track 1A — the SERVER derives isEnterpriseWorkspace from the
+    // ENTERPRISE plan (platform-context.service ENTERPRISE_PLAN_KEYS); the
+    // client never compares plan names.
     const ctx: SurfaceUserContext = {
-      // Cast through unknown because the current enum lacks the value.
-      plan: "ENTERPRISE" as unknown as SurfaceUserContext["plan"],
-      role: "OWNER",
       isPlatformAdmin: false,
-      isEnterpriseWorkspace: false,
+      isEnterpriseWorkspace: true,
+      planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true },
     };
     expect(canAccessSurface(ctx, "/governance")).toBe(true);
     expect(canAccessSurface(ctx, "/intelligence")).toBe(true);
@@ -583,57 +584,145 @@ describe("Phase IA-surface-tier-correction — explicit persona checklist", () =
 });
 
 // ============================================================================
-// Section K — pin the rolesUnlockingEnterprise narrowing
+// Section K — no ROLE unlocks ENTERPRISE; only server flags do
 // ============================================================================
 
-describe("Phase IA-surface-tier-correction — rolesUnlockingEnterprise narrowed", () => {
-  const TIERS_SRC = readFileSync(
-    fileURLToPath(
-      new URL("../../../apps/web/lib/surface/tiers.ts", import.meta.url),
-    ),
-    "utf8",
-  );
+describe("PHASE 12 POINT 4 STEP 1 — the surface context carries no role at all", () => {
+  // `rolesUnlockingEnterprise` was the last role-shaped tier authority in the
+  // frontend. After the Phase IA-surface-tier-correction narrowing it ignored
+  // its `role` argument and returned `isPlatformAdmin`, had no production
+  // caller (access.ts referenced it only with `void` to keep the import
+  // lint-clean), and was kept alive purely by three source-regex assertions
+  // here. Both the helper and the `SurfaceUserContext.role` field it fed are
+  // deleted; these are the behavioural replacements.
 
-  it("the helper no longer returns true for OWNER / ADMIN role alone", () => {
-    // Pre-fix shape (REGRESSION GUARD):
-    //   if (role === "OWNER" || role === "ADMIN") return true;
-    // The fix MUST remove that branch — platform admin is the only
-    // role-based unlock.
-    expect(TIERS_SRC).not.toMatch(
-      /if \(role === "OWNER" \|\| role === "ADMIN"\) return true/,
+  it("no ENTERPRISE surface opens without isEnterpriseWorkspace or platform admin", () => {
+    // Every rule in the table that is ENTERPRISE-tier, checked against a
+    // context that has NO enterprise flag and NO platform-admin flag but the
+    // most generous entitlements a self-serve plan can carry.
+    const bestNonEnterprise: SurfaceUserContext = {
+      isPlatformAdmin: false,
+      isEnterpriseWorkspace: false,
+      planFeatures: {
+        intakeIncluded: true,
+        professionalSurfacesIncluded: true,
+      },
+    };
+    const enterpriseRules = SURFACE_TIER_RULES.filter(
+      (r) => r.tier === "ENTERPRISE",
     );
+    expect(enterpriseRules.length).toBeGreaterThan(0);
+    for (const rule of enterpriseRules) {
+      // An entitlement override may legitimately open a rule to a paid
+      // self-serve plan; the tier itself must never open on its own.
+      if (rule.entitlementOverride) continue;
+      expect(
+        canAccessSurface(bestNonEnterprise, rule.pathPrefix),
+        `${rule.pathPrefix} must stay closed without an enterprise workspace`,
+      ).toBe(false);
+      expect(
+        getDirectAccessDecision(bestNonEnterprise, rule.pathPrefix).kind,
+        `${rule.pathPrefix} must not resolve to allow on direct URL`,
+      ).not.toBe("allow");
+    }
   });
 
-  it("the helper still grants access to platform admin", () => {
-    expect(TIERS_SRC).toMatch(
-      /if \(isPlatformAdmin\) return true/,
-    );
+  it("the SAME context DOES open ENTERPRISE once the server sets the flag", () => {
+    // Proves the previous test fails for the right reason: the only thing
+    // that changed is a server-projected boolean.
+    const enterprise: SurfaceUserContext = {
+      isPlatformAdmin: false,
+      isEnterpriseWorkspace: true,
+      planFeatures: {
+        intakeIncluded: true,
+        professionalSurfacesIncluded: true,
+      },
+    };
+    for (const rule of SURFACE_TIER_RULES.filter(
+      (r) => r.tier === "ENTERPRISE" && !r.entitlementOverride,
+    )) {
+      expect(
+        canAccessSurface(enterprise, rule.pathPrefix),
+        `${rule.pathPrefix} must open for an enterprise workspace`,
+      ).toBe(true);
+    }
   });
 
-  it("access.ts ENTERPRISE branch checks plan === 'ENTERPRISE' (forward-compat)", () => {
-    const ACCESS_SRC = readFileSync(
-      fileURLToPath(
-        new URL("../../../apps/web/lib/surface/access.ts", import.meta.url),
-      ),
-      "utf8",
+  it("platform admin still passes every tier", () => {
+    for (const rule of SURFACE_TIER_RULES) {
+      expect(
+        canAccessSurface(PLATFORM_ADMIN, rule.pathPrefix),
+        `${rule.pathPrefix} must open for a platform admin`,
+      ).toBe(true);
+    }
+  });
+
+  it("a role cannot even be expressed in the surface context", () => {
+    // Stays-removed guard, asserted on the PRODUCTION constant rather than on
+    // source text: no `role` key exists to be compared against, so no
+    // role-shaped tier authority can reappear without changing the contract.
+    expect(Object.keys(ANONYMOUS_SURFACE_CONTEXT).sort()).toEqual([
+      "isEnterpriseWorkspace",
+      "isPlatformAdmin",
+      "planFeatures",
+    ]);
+    expect("role" in ANONYMOUS_SURFACE_CONTEXT).toBe(false);
+  });
+
+  it("the surface module exports no role-based unlock helper", () => {
+    expect(
+      (tiersModule as Record<string, unknown>).rolesUnlockingEnterprise,
+    ).toBeUndefined();
+    expect(
+      (accessModule as Record<string, unknown>).rolesUnlockingEnterprise,
+    ).toBeUndefined();
+  });
+
+  it("the ENTERPRISE decision reads server flags only — no plan-name branch", () => {
+    // Behavioural form of the old source pin: with the enterprise flag off,
+    // NOTHING about the entitlement booleans can open an ENTERPRISE rule, and
+    // with it on, the entitlement booleans are irrelevant.
+    const enterpriseRule = SURFACE_TIER_RULES.find(
+      (r) => r.tier === "ENTERPRISE" && !r.entitlementOverride,
     );
-    expect(ACCESS_SRC).toMatch(/\(ctx\.plan\s*as\s*string\s*\|\s*null\)\s*===\s*"ENTERPRISE"/);
-    // The TEAM owner/admin branch MUST be gone.
-    expect(ACCESS_SRC).not.toMatch(
-      /ctx\.plan === "TEAM"\s*&&\s*\(ctx\.role === "OWNER"\s*\|\|\s*ctx\.role === "ADMIN"\)/,
-    );
+    expect(enterpriseRule).toBeTruthy();
+    const path = enterpriseRule!.pathPrefix;
+    for (const professionalSurfacesIncluded of [true, false, null]) {
+      for (const intakeIncluded of [true, false, null]) {
+        expect(
+          canAccessSurface(
+            {
+              isPlatformAdmin: false,
+              isEnterpriseWorkspace: false,
+              planFeatures: { intakeIncluded, professionalSurfacesIncluded },
+            },
+            path,
+          ),
+        ).toBe(false);
+        expect(
+          canAccessSurface(
+            {
+              isPlatformAdmin: false,
+              isEnterpriseWorkspace: true,
+              planFeatures: { intakeIncluded, professionalSurfacesIncluded },
+            },
+            path,
+          ),
+        ).toBe(true);
+      }
+    }
   });
 });
+
 
 // ============================================================================
 // Section L — Phase IA-surface-tier-pricing — Organizations ENTERPRISE_ONLY
 // ============================================================================
 
 const PAYG_USER: SurfaceUserContext = {
-  plan: "PAYG",
-  role: "OWNER",
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  planFeatures: { intakeIncluded: true, professionalSurfacesIncluded: false },
 };
 
 describe("Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY", () => {

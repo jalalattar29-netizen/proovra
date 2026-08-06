@@ -40,8 +40,7 @@ import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { deriveSettingsUiContext } from "../../../lib/settings/settingsUiContext";
 import { useAccountSecuritySummary } from "../../../lib/security/useAccountSecuritySummary";
-import { canAccessSurface } from "../../../lib/surface/access";
-import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
+import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
 import { PersonalSecuritySections } from "../security-center/components/PersonalSecuritySections";
 import {
   SETTINGS_SECTIONS,
@@ -54,6 +53,7 @@ import { NotificationsSection } from "./_sections/NotificationsSection";
 import { AiSection } from "./_sections/AiSection";
 import { PrivacySection } from "./_sections/PrivacySection";
 import { BillingSection } from "./_sections/BillingSection";
+import { RolesSection } from "./_sections/RolesSection";
 
 // Phase 38.9 — canonical PageRouteGate. `account.settings` is an
 // ACCOUNT-domain route (NONE active-space) so it loads for every
@@ -89,11 +89,10 @@ function scrollToSection(id: SettingsSectionId) {
 function SettingsWorkspace() {
   const { user } = useAuth();
   const { envelope } = usePlatformContext();
-  const surfaceUserCtx = useSurfaceUserContext();
-  const canSeeWorkspaceSecurity = canAccessSurface(
-    surfaceUserCtx,
-    "/security-center",
-  );
+  // Track 1A (surface-tier removal) — the workspace Identity & Security
+  // operator console belongs to the Enterprise workspace experience;
+  // gate on the SERVER-projected enterprise/admin booleans only.
+  const canSeeWorkspaceSecurity = useEnterpriseSurfaceAccess();
 
   const ui = deriveSettingsUiContext({
     activeSpace: envelope?.activeSpace
@@ -105,6 +104,18 @@ function SettingsWorkspace() {
       : null,
     workspacePlan: envelope?.personalSpace?.plan ?? null,
     accountPlan: envelope?.account?.accountPlan ?? null,
+    // PHASE 12 POINT 4 STEP 1 — SERVER capability projections for the ACTIVE
+    // workspace. `null` while the envelope is loading/degraded so the
+    // resolver fails closed instead of guessing from a role name.
+    canManageBilling:
+      typeof envelope?.capabilities?.BILLING_MANAGE === "boolean"
+        ? envelope.capabilities.BILLING_MANAGE
+        : null,
+    canManageWorkspaceSettings:
+      typeof envelope?.capabilities?.SETTINGS_MANAGE === "boolean"
+        ? envelope.capabilities.SETTINGS_MANAGE
+        : null,
+    isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
     organizations: envelope?.organizations ?? [],
     planFeatures: envelope?.planFeatures ?? null,
   });
@@ -314,6 +325,16 @@ function SettingsWorkspace() {
             description="The billing reality for your active context. Manage plans, payments, and add-ons on the Billing page."
           >
             <BillingSection ui={ui} />
+          </SettingsSection>
+
+          {/* PHASE 12 VERTICAL A (2026-07-30) — role/capability reference
+              rendered from the API's OWN catalog, never a bundled copy. */}
+          <SettingsSection
+            id="roles"
+            title="Roles & permissions"
+            description="What each role can do in this workspace, answered by the API itself. Read-only — roles are changed by a workspace administrator."
+          >
+            <RolesSection />
           </SettingsSection>
 
           {/* Related administration — contextual LINKS only, gated exactly

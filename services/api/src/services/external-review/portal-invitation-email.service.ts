@@ -31,6 +31,8 @@ import {
   type InvitationDeliveryStatus,
 } from "@proovra/shared";
 
+import { mintEmailIdempotencyKey } from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   getEmailBrandName,
@@ -175,6 +177,15 @@ export async function sendInvitationEmail(
     subject,
     html,
     text,
+    // The delivery row is created above, before the provider call, so a crash
+    // is observable — and its immutable id is the intent this key names. A
+    // resend increments `attempt` and mints a NEW delivery row, so the key is
+    // per-intent by construction: a retry of THIS attempt reuses it, while a
+    // deliberate resend is a different intent and a different key.
+    idempotencyKey: mintEmailIdempotencyKey(
+      "external_review_invitation",
+      delivery.id,
+    ),
   });
 
   if (res.ok) {

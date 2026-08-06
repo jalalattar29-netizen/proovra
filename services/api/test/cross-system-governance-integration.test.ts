@@ -182,8 +182,13 @@ describe("Phase 28-D — governance-snapshot.service wiring", () => {
   });
 
   it("counts direct hold and case hold separately", () => {
+    // PHASE 12 POINT 3 — both counters read the ONE canonical table. They stay
+    // SEPARATE (that is the invariant): the case-hold count is scope-filtered,
+    // the direct-hold count is not, so a case hold is never silently folded
+    // into the per-record total.
     expect(src).toMatch(/evidenceLegalHold\.count/);
-    expect(src).toMatch(/caseLegalHold\.count/);
+    expect(src).toMatch(/scope: "CASE"/);
+    expect(src).not.toMatch(/caseLegalHold\.count/);
   });
 
   it("derives immutable drift from OperationalIncident.runbookSlug === 'immutable-drift'", () => {

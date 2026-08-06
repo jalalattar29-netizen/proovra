@@ -6,9 +6,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
-  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
-  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
-  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 import * as prismaPkg from "@prisma/client";
 import {

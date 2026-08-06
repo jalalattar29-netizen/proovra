@@ -1,0 +1,18 @@
+/* PHASE 12 — POINT 7 (final pass): the HERMETIC font strategy's bindings.
+ *
+ * Applied to <html> in place of the self-hosted faces when the build was made
+ * with FONT_STRATEGY=system (see `app/fonts.system.ts` and the resolver alias
+ * in `next.config.js`). The values are the same fallback stack `globals.css`
+ * already declares after `--font-jakarta`, so a page rendered this way looks
+ * like one whose webfont has not loaded — deliberately, rather than by
+ * accident.
+ *
+ * Its own file so the canonical `globals.css` line budget, which the R10
+ * guard holds to "only shrinks or stays equal", is not spent on a strategy
+ * that most builds do not use.
+ */
+.font-strategy-system {
+  --font-jakarta: "Aptos", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --font-header: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-arabic: "Segoe UI", "Noto Naskh Arabic", system-ui, sans-serif;
+}

@@ -3,7 +3,7 @@
  *
  * Boots the real Fastify app + connects to a real (test) Postgres + seeds
  * two organizations + a personal user. The runtime probe in
- * `phase-37-95-cross-tenant-runtime-probe.test.ts` calls into this
+ * `phase-37-95-cross-tenant-runtime-probe.integration.test.ts` calls into this
  * module from its `beforeAll` once enabled.
  *
  * ===========================================================================
@@ -154,6 +154,107 @@ export function assertLiveIntegrationEnv(): { testDatabaseUrl: string } {
 }
 
 // =============================================================================
+// Disposable database acquisition — ONE authority
+// =============================================================================
+
+export type IntegrationDatabase = {
+  /** Connection URL of a migrated, disposable PostgreSQL. */
+  url: string;
+  /** How the URL was obtained — reported so a run is never ambiguous. */
+  source: "TEST_DATABASE_URL" | "testcontainers";
+  /** Idempotent. Stops the container when this call started one. */
+  release: () => Promise<void>;
+};
+
+/**
+ * Resolve a disposable PostgreSQL for an integration suite.
+ *
+ * Two modes, matching the two the repository already provides:
+ *   - `TEST_DATABASE_URL` supplied (the CI convention: the `postgres:16-alpine`
+ *     service container in `.github/workflows/schema-reproducibility.yml`);
+ *   - otherwise an ephemeral `@testcontainers/postgresql` instance, migrated
+ *     with the canonical `prisma migrate deploy`.
+ *
+ * Extracted in PHASE 12 POINT 4 so the DB-only suites (concurrency probes)
+ * and the full app harness share ONE acquisition path instead of each reading
+ * `process.env.TEST_DATABASE_URL` directly — a direct read silently produced
+ * `undefined` in testcontainers mode.
+ *
+ * The safety guards are unchanged: `DATABASE_URL` is never read, and a
+ * supplied URL must name a database containing "test" unless
+ * `RUN_LIVE_INTEGRATION_DB_OK=1`.
+ */
+export async function acquireIntegrationDatabase(): Promise<IntegrationDatabase> {
+  const { testDatabaseUrl } = assertLiveIntegrationEnv();
+  if (testDatabaseUrl) {
+    return {
+      url: testDatabaseUrl,
+      source: "TEST_DATABASE_URL",
+      release: async () => undefined,
+    };
+  }
+  if (!isAutoPostgresEnabled()) {
+    throw new Error(
+      "acquireIntegrationDatabase: no TEST_DATABASE_URL resolved and " +
+        "testcontainers mode is disabled. Either set TEST_DATABASE_URL or " +
+        "remove RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1.",
+    );
+  }
+
+  const { PostgreSqlContainer } = await import("@testcontainers/postgresql");
+  // PHASE 12 — POINT 7 (2026-08-05): PostgreSQL 16 WITH pgvector.
+  //
+  // `postgres:16-alpine` has no `vector` extension, so the migration that adds
+  // `evidence_semantic_chunks.embedding_vector` cannot create the column, and
+  // `family-intelligence-operations.integration.test.ts` refuses to run rather
+  // than report a proof it cannot have earned. That refusal is correct — but it
+  // meant the intelligence-operations family could never be proven in
+  // testcontainers mode, and the run said "1 suite failed" instead of "this
+  // image cannot host the schema".
+  //
+  // `pgvector/pgvector:pg16` IS PostgreSQL 16; it only adds the extension the
+  // schema already depends on, and it is the same image the disposable
+  // rehearsal database uses.
+  const container = await new PostgreSqlContainer("pgvector/pgvector:pg16")
+    .withDatabase("proovra_integration_test")
+    .withUsername("proovra_test")
+    .withPassword("proovra_test_password")
+    .start();
+
+  let stopped = false;
+  const release = async (): Promise<void> => {
+    if (stopped) return;
+    stopped = true;
+    await container.stop().catch(() => undefined);
+  };
+
+  const url = container.getConnectionUri();
+  // Apply migrations against the ephemeral DB. `prisma migrate deploy` is the
+  // canonical, non-destructive path; it is safe because the container is new.
+  const migrateResult = spawnSync("pnpm", ["exec", "prisma", "migrate", "deploy"], {
+    cwd: path.resolve(
+      path.dirname(new URL(import.meta.url).pathname.replace(/^\//, "")),
+      "..",
+    ),
+    env: { ...process.env, DATABASE_URL: url },
+    stdio: "pipe",
+    encoding: "utf8",
+    shell: true,
+  });
+  if (migrateResult.status !== 0) {
+    // Release BEFORE throwing — a failed migration must not leak a container.
+    await release();
+    throw new Error(
+      `prisma migrate deploy failed against the testcontainer Postgres.\n` +
+        `stdout:\n${migrateResult.stdout}\n` +
+        `stderr:\n${migrateResult.stderr}`,
+    );
+  }
+
+  return { url, source: "testcontainers", release };
+}
+
+// =============================================================================
 // Boot
 // =============================================================================
 
@@ -166,83 +267,44 @@ export function assertLiveIntegrationEnv(): { testDatabaseUrl: string } {
  * a network port) + seeded fixtures + a cleanup function.
  */
 export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
-  let { testDatabaseUrl } = assertLiveIntegrationEnv();
-
-  // Phase 37.99 — testcontainers mode. When the caller did not supply
-  // TEST_DATABASE_URL and testcontainers mode is enabled, launch an
-  // ephemeral Postgres container and use its URL. We also `prisma
-  // migrate deploy` against it because the container starts empty.
-  type ContainerHandle = {
-    stop: () => Promise<void>;
-  } | null;
-  let pgContainer: ContainerHandle = null;
-  if (!testDatabaseUrl && isAutoPostgresEnabled()) {
-    const { PostgreSqlContainer } = await import(
-      "@testcontainers/postgresql"
-    );
-    const container = await new PostgreSqlContainer("postgres:16-alpine")
-      .withDatabase("proovra_integration_test")
-      .withUsername("proovra_test")
-      .withPassword("proovra_test_password")
-      .start();
-    testDatabaseUrl = container.getConnectionUri();
-    pgContainer = {
-      stop: async () => {
-        await container.stop();
-      },
-    };
-
-    // Apply migrations against the ephemeral DB. `prisma migrate deploy`
-    // is the canonical, non-destructive path; it's safe because the
-    // container is brand-new.
-    const migrateResult = spawnSync(
-      "pnpm",
-      ["exec", "prisma", "migrate", "deploy"],
-      {
-        cwd: path.resolve(
-          path.dirname(new URL(import.meta.url).pathname.replace(/^\//, "")),
-          "..",
-        ),
-        env: { ...process.env, DATABASE_URL: testDatabaseUrl },
-        stdio: "pipe",
-        encoding: "utf8",
-        shell: true,
-      },
-    );
-    if (migrateResult.status !== 0) {
-      await pgContainer?.stop();
-      throw new Error(
-        `prisma migrate deploy failed against the testcontainer Postgres.\n` +
-          `stdout:\n${migrateResult.stdout}\n` +
-          `stderr:\n${migrateResult.stderr}`,
-      );
-    }
-  }
-
-  if (!testDatabaseUrl) {
-    throw new Error(
-      "bootIntegrationHarness: no TEST_DATABASE_URL resolved and " +
-        "testcontainers mode is disabled. Either set TEST_DATABASE_URL or " +
-        "remove RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1.",
-    );
-  }
+  const database = await acquireIntegrationDatabase();
 
   // Override DATABASE_URL for the lifetime of this process so Prisma
   // points at the test DB. Save the original so cleanup can restore it.
   const originalDatabaseUrl = process.env.DATABASE_URL;
-  process.env.DATABASE_URL = testDatabaseUrl;
+  process.env.DATABASE_URL = database.url;
 
   // Late-bind imports so we don't accidentally read DATABASE_URL at
   // module load time before we've overridden it.
   const { buildServer } = await import("../src/server.js");
   const { prisma } = await import("../src/db.js");
 
-  const app = await buildServer();
-  await app.ready();
+  let app: FastifyInstance;
+  try {
+    app = await buildServer();
+    await app.ready();
+  } catch (err) {
+    // Boot failed — restore the environment and release the container rather
+    // than leaking both for the rest of the run.
+    if (originalDatabaseUrl !== undefined) process.env.DATABASE_URL = originalDatabaseUrl;
+    else delete process.env.DATABASE_URL;
+    await database.release();
+    throw err;
+  }
 
-  const fixtures = await seedFixtures(
-    prisma as unknown as import("@prisma/client").PrismaClient,
-  );
+  let fixtures: SeededFixtures;
+  try {
+    fixtures = await seedFixtures(
+      prisma as unknown as import("@prisma/client").PrismaClient,
+    );
+  } catch (err) {
+    // Seeding failed — close the server too, then release.
+    await app.close().catch(() => undefined);
+    if (originalDatabaseUrl !== undefined) process.env.DATABASE_URL = originalDatabaseUrl;
+    else delete process.env.DATABASE_URL;
+    await database.release();
+    throw err;
+  }
 
   return {
     app,
@@ -254,15 +316,13 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
           fixtures,
         );
       } finally {
-        await app.close();
+        await app.close().catch(() => undefined);
         if (originalDatabaseUrl !== undefined) {
           process.env.DATABASE_URL = originalDatabaseUrl;
         } else {
           delete process.env.DATABASE_URL;
         }
-        if (pgContainer) {
-          await pgContainer.stop().catch(() => undefined);
-        }
+        await database.release();
       }
     },
   };
@@ -339,6 +399,19 @@ async function seedFixtures(
         providerUserId: input.email,
       },
       select: { id: true, email: true },
+    });
+    // PHASE 12 — seed VALID new-architecture state: every harness user has
+    // accepted the CURRENT required legal policies (routes behind
+    // requireAuthAndLegal otherwise 428 before tenancy resolution, masking
+    // the behavior under test with fixture-only legacy state).
+    const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");
+    await prisma.userLegalAcceptance.createMany({
+      data: Object.entries(REQUIRED_LEGAL_VERSIONS).map(([policyKey, policyVersion]) => ({
+        userId: user.id,
+        policyKey,
+        policyVersion: policyVersion as string,
+        source: "integration-harness",
+      })),
     });
     return { id: user.id, email: user.email ?? input.email };
   }
@@ -468,12 +541,21 @@ async function seedFixtures(
     ownerUserId: string,
     title: string,
   ): Promise<{ id: string }> {
+    // PHASE 12 — new-architecture tenancy shape: evidence organization
+    // attribution DERIVES from the persisted Workspace (Phase A1's
+    // evidence_team_implies_org_chk forbids team-bound evidence without an
+    // Organization). Legacy team-only seeding is an impossible combination.
+    const team = await prisma.team.findUniqueOrThrow({
+      where: { id: teamId },
+      select: { organizationId: true },
+    });
     return prisma.evidence.create({
       data: {
         title,
         type: "PHOTO",
         status: "CREATED",
         teamId,
+        organizationId: team.organizationId,
         ownerUserId,
       },
       select: { id: true },

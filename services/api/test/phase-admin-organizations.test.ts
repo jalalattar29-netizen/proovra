@@ -23,6 +23,33 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { FastifyRequest } from "fastify";
+import { asPrismaDouble } from "./support/prisma-double.js";
+
+/**
+ * The exact `where` fields the doubles below read. Declared rather than
+ * inferred so a production query that starts filtering on something new fails
+ * to type-check here instead of silently matching nothing.
+ */
+type DoubleWhere = {
+  id?: string;
+  organizationId?: string;
+  status?: string | { notIn?: string[] };
+  role?: string | { in?: string[] };
+  teamId?: { in?: string[] };
+  verifiedAt?: { not?: unknown };
+  OR?: Array<{
+    name?: { contains?: string };
+    memberships?: { some?: { user?: { email?: { contains?: string } } } };
+  }>;
+};
+type WhereArgs = { where?: DoubleWhere };
+const asStatus = (v: DoubleWhere["status"]): string | null =>
+  typeof v === "string" ? v : null;
+const notIn = (v: DoubleWhere["status"]): string[] =>
+  typeof v === "object" && v ? (v.notIn ?? []) : [];
+const roleIn = (v: DoubleWhere["role"]): string[] =>
+  typeof v === "object" && v ? (v.in ?? []) : [];
 
 // ---------------------------------------------------------------------------
 // Mocks — bound BEFORE the SUT imports.
@@ -113,20 +140,20 @@ function makeClient(seed: {
   const scim = seed.scimTokens ?? [];
   const events = seed.auditEvents ?? [];
 
-  const matchTeamIds = (where: any): string[] =>
-    where?.teamId?.in ?? [];
+  const matchTeamIds = (where?: DoubleWhere): string[] => where?.teamId?.in ?? [];
 
-  const client: any = {
+  const client = {
     organization: {
-      findMany: vi.fn(async ({ where }: any) => {
+      findMany: vi.fn(async ({ where }: WhereArgs) => {
         let rows = [...orgs];
-        if (where?.status) rows = rows.filter((o) => (o.status ?? "ACTIVE") === where.status);
+        const wantStatus = asStatus(where?.status);
+        if (wantStatus) rows = rows.filter((o) => (o.status ?? "ACTIVE") === wantStatus);
         if (where?.OR) {
           // name contains OR owner-email contains
           const nameNeedle =
-            where.OR.find((c: any) => c.name)?.name?.contains?.toLowerCase() ?? null;
+            where.OR.find((c) => c.name)?.name?.contains?.toLowerCase() ?? null;
           const emailNeedle =
-            where.OR.find((c: any) => c.memberships)?.memberships?.some?.user?.email
+            where.OR.find((c) => c.memberships)?.memberships?.some?.user?.email
               ?.contains?.toLowerCase() ?? null;
           rows = rows.filter((o) => {
             const byName = nameNeedle
@@ -150,8 +177,8 @@ function makeClient(seed: {
           createdAt: o.createdAt ?? new Date("2026-01-01T00:00:00Z"),
         }));
       }),
-      findUnique: vi.fn(async ({ where }: any) => {
-        const o = orgs.find((x) => x.id === where.id);
+      findUnique: vi.fn(async ({ where }: WhereArgs) => {
+        const o = orgs.find((x) => x.id === where?.id);
         if (!o) return null;
         return {
           id: o.id,
@@ -164,9 +191,9 @@ function makeClient(seed: {
       }),
     },
     team: {
-      findMany: vi.fn(async ({ where }: any) => {
+      findMany: vi.fn(async ({ where }: WhereArgs) => {
         return teams
-          .filter((t) => t.organizationId === where.organizationId && !t.isPersonal)
+          .filter((t) => t.organizationId === where?.organizationId && !t.isPersonal)
           .map((t) => ({
             id: t.id,
             name: t.name,
@@ -178,18 +205,18 @@ function makeClient(seed: {
       }),
     },
     organizationMembership: {
-      findFirst: vi.fn(async ({ where }: any) => {
+      findFirst: vi.fn(async ({ where }: WhereArgs) => {
         const m = memberships.find(
-          (x) => x.organizationId === where.organizationId && x.role === where.role,
+          (x) => x.organizationId === where?.organizationId && x.role === asStatus(where?.role as DoubleWhere["status"]),
         );
         return m ? { user: { email: m.email ?? null } } : null;
       }),
-      findMany: vi.fn(async ({ where }: any) => {
-        const roles: string[] = where.role?.in ?? [];
+      findMany: vi.fn(async ({ where }: WhereArgs) => {
+        const roles: string[] = roleIn(where?.role);
         return memberships
           .filter(
             (m) =>
-              m.organizationId === where.organizationId &&
+              m.organizationId === where?.organizationId &&
               (roles.length === 0 || roles.includes(m.role)),
           )
           .map((m) => ({
@@ -201,36 +228,36 @@ function makeClient(seed: {
       }),
     },
     organizationDomain: {
-      count: vi.fn(async ({ where }: any) => {
+      count: vi.fn(async ({ where }: WhereArgs) => {
         return domains.filter(
           (d) =>
-            d.organizationId === where.organizationId &&
-            (where.verifiedAt?.not !== undefined ? Boolean(d.verifiedAt) : true),
+            d.organizationId === where?.organizationId &&
+            (where?.verifiedAt?.not !== undefined ? Boolean(d.verifiedAt) : true),
         ).length;
       }),
-      findMany: vi.fn(async ({ where }: any) =>
+      findMany: vi.fn(async ({ where }: WhereArgs) =>
         domains
-          .filter((d) => d.organizationId === where.organizationId)
+          .filter((d) => d.organizationId === where?.organizationId)
           .map((d) => ({ domain: d.domain, verifiedAt: d.verifiedAt ?? null })),
       ),
     },
     ssoConnection: {
-      count: vi.fn(async ({ where }: any) => {
+      count: vi.fn(async ({ where }: WhereArgs) => {
         const ids = matchTeamIds(where);
-        const notIn: string[] = where.status?.notIn ?? [];
+        const excluded: string[] = notIn(where?.status);
         return sso.filter(
-          (s) => ids.includes(s.teamId) && !notIn.includes(s.status),
+          (s) => ids.includes(s.teamId) && !excluded.includes(s.status),
         ).length;
       }),
     },
     scimProvisioningToken: {
-      count: vi.fn(async ({ where }: any) => {
+      count: vi.fn(async ({ where }: WhereArgs) => {
         const ids = matchTeamIds(where);
         return scim.filter(
-          (s) => ids.includes(s.teamId) && s.status === where.status,
+          (s) => ids.includes(s.teamId) && s.status === asStatus(where?.status),
         ).length;
       }),
-      findFirst: vi.fn(async ({ where }: any) => {
+      findFirst: vi.fn(async ({ where }: WhereArgs) => {
         const ids = matchTeamIds(where);
         const rows = scim
           .filter((s) => ids.includes(s.teamId) && s.lastUsedAtUtc)
@@ -242,9 +269,9 @@ function makeClient(seed: {
       }),
     },
     organizationAuditEvent: {
-      findFirst: vi.fn(async ({ where }: any) => {
+      findFirst: vi.fn(async ({ where }: WhereArgs) => {
         const rows = events
-          .filter((e) => e.organizationId === where.organizationId)
+          .filter((e) => e.organizationId === where?.organizationId)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
         return rows[0] ? { createdAt: rows[0].createdAt } : null;
       }),
@@ -301,7 +328,7 @@ describe("listAdminOrganizations", () => {
       scimTokens: [{ teamId: "t1", status: "ACTIVE" }],
     });
 
-    const res = await listAdminOrganizations({ page: 1, limit: 20 }, client);
+    const res = await listAdminOrganizations({ page: 1, limit: 20 }, asPrismaDouble(client));
     expect(res.total).toBe(1);
     const item = res.items[0]!;
     expect(item.plan).toBe("ENTERPRISE");
@@ -322,7 +349,7 @@ describe("listAdminOrganizations", () => {
       teams: [],
       memberships: [],
     });
-    const res = await listAdminOrganizations({ page: 1, limit: 20 }, client);
+    const res = await listAdminOrganizations({ page: 1, limit: 20 }, asPrismaDouble(client));
     const item = res.items[0]!;
     expect(item.onboardingStatus).toBe("BLOCKED");
     expect(item.plan).toBeNull();
@@ -337,11 +364,11 @@ describe("listAdminOrganizations", () => {
       name: `Org ${i}`,
     }));
     const client = makeClient({ orgs });
-    const p1 = await listAdminOrganizations({ page: 1, limit: 2 }, client);
+    const p1 = await listAdminOrganizations({ page: 1, limit: 2 }, asPrismaDouble(client));
     expect(p1.items).toHaveLength(2);
     expect(p1.total).toBe(5);
     expect(p1.totalPages).toBe(3);
-    const p3 = await listAdminOrganizations({ page: 3, limit: 2 }, client);
+    const p3 = await listAdminOrganizations({ page: 3, limit: 2 }, asPrismaDouble(client));
     expect(p3.items).toHaveLength(1);
   });
 
@@ -354,7 +381,7 @@ describe("listAdminOrganizations", () => {
     });
     const res = await listAdminOrganizations(
       { page: 1, limit: 20, search: "acm" },
-      client,
+      asPrismaDouble(client),
     );
     expect(res.items.map((i) => i.name)).toEqual(["Acme"]);
   });
@@ -371,7 +398,7 @@ describe("listAdminOrganizations", () => {
     });
     const res = await listAdminOrganizations(
       { page: 1, limit: 20, search: "beta.test" },
-      client,
+      asPrismaDouble(client),
     );
     expect(res.items.map((i) => i.name)).toEqual(["Beta"]);
   });
@@ -390,7 +417,7 @@ describe("listAdminOrganizations", () => {
     });
     const res = await listAdminOrganizations(
       { page: 1, limit: 20, health: "BLOCKED" },
-      client,
+      asPrismaDouble(client),
     );
     expect(res.items.map((i) => i.name)).toEqual(["Blocked"]);
   });
@@ -404,7 +431,7 @@ describe("getAdminOrganizationDetail", () => {
   it("throws OrgNotFoundError for a missing org", async () => {
     const client = makeClient({ orgs: [] });
     await expect(
-      getAdminOrganizationDetail("missing", client),
+      getAdminOrganizationDetail("missing", asPrismaDouble(client)),
     ).rejects.toBeInstanceOf(OrgNotFoundError);
   });
 
@@ -431,7 +458,7 @@ describe("getAdminOrganizationDetail", () => {
       ],
     });
 
-    const d = await getAdminOrganizationDetail("org-a", client);
+    const d = await getAdminOrganizationDetail("org-a", asPrismaDouble(client));
     expect(d.overview.plan).toBe("ENTERPRISE");
     expect(d.overview.owner?.email).toBe("owner@acme.test");
     expect(d.overview.admins).toHaveLength(1);
@@ -455,7 +482,7 @@ describe("getAdminOrganizationDetail", () => {
       ssoConnections: [{ teamId: "t1", status: "ACTIVE" }],
       scimTokens: [{ teamId: "t1", status: "ACTIVE", lastUsedAtUtc: new Date() }],
     });
-    const d = await getAdminOrganizationDetail("org-a", client);
+    const d = await getAdminOrganizationDetail("org-a", asPrismaDouble(client));
     const json = JSON.stringify(d).toLowerCase();
     for (const forbidden of [
       "samlcertificate",
@@ -480,8 +507,8 @@ describe("admin-organizations route gate", () => {
     vi.resetModules();
 
     vi.doMock("../src/middleware/auth.js", () => ({
-      requireAuth: vi.fn(async (req: any) => {
-        req.user = { sub: "not-an-admin" };
+      requireAuth: vi.fn(async (req: FastifyRequest) => {
+        req.user = { sub: "not-an-admin", provider: "EMAIL" };
       }),
     }));
     vi.doMock("../src/services/platform-admin.service.js", () => ({

@@ -4,20 +4,21 @@
  * GET /v1/audit/tenant → authorizeOrFail + queryTenantAudit (scope-pinned).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
+import type { JsonRecord } from "./support/prisma-double.js";
 
 const H = vi.hoisted(() => ({
   actorUserId: "u1",
   deepLink: null as unknown,
-  audits: [] as any[],
+  audits: [] as JsonRecord[],
   authAllowed: true,
-  queryArg: null as any,
+  queryArg: null as JsonRecord | null,
 }));
 
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
 vi.mock("../src/middleware/authorize.js", () => ({
-  authorizeOrFail: async (_r: unknown, reply: any) => {
+  authorizeOrFail: async (_r: unknown, reply: FastifyReply) => {
     if (!H.authAllowed) { reply.code(403).send({ error: { code: "permission_denied" } }); return null; }
     return { actorUserId: H.actorUserId, teamId: "proven-team" };
   },
@@ -26,8 +27,8 @@ vi.mock("../src/services/identity/deep-link-resolution.service.js", () => ({
   resolveDeepLink: async () => H.deepLink,
 }));
 vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
-  emitTenantAudit: async (e: any) => { H.audits.push(e); },
-  queryTenantAudit: async (arg: any) => { H.queryArg = arg; return { items: [{ eventId: "e1" }], nextCursorId: null }; },
+  emitTenantAudit: async (e: JsonRecord) => { H.audits.push(e); },
+  queryTenantAudit: async (arg: JsonRecord) => { H.queryArg = arg; return { items: [{ eventId: "e1" }], nextCursorId: null }; },
 }));
 
 import { phase11TenantRoutes } from "../src/routes/phase11-tenant.routes.js";
@@ -65,7 +66,7 @@ describe("§4 GET /v1/audit/tenant — authorized, scope-pinned query/export", (
   it("authorized → queries the PROVEN workspace scope (never a client-declared tenant)", async () => {
     const res = await app.inject({ method: "GET", url: `/v1/audit/tenant?teamId=${RID}` });
     expect(res.statusCode).toBe(200);
-    expect(H.queryArg.scope).toEqual({ kind: "WORKSPACE", workspaceId: "proven-team" });
+    expect(H.queryArg?.scope).toEqual({ kind: "WORKSPACE", workspaceId: "proven-team" });
     expect(JSON.parse(res.body).items).toHaveLength(1);
   });
 
@@ -79,6 +80,6 @@ describe("§4 GET /v1/audit/tenant — authorized, scope-pinned query/export", (
   it("export shares the exact same authorization + query path", async () => {
     const res = await app.inject({ method: "GET", url: `/v1/audit/tenant?teamId=${RID}&export=true` });
     expect(res.statusCode).toBe(200);
-    expect(H.queryArg.scope).toEqual({ kind: "WORKSPACE", workspaceId: "proven-team" });
+    expect(H.queryArg?.scope).toEqual({ kind: "WORKSPACE", workspaceId: "proven-team" });
   });
 });

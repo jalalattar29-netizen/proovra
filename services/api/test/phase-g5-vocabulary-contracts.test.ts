@@ -43,18 +43,39 @@ const WEB_ROOT = fileURLToPath(
   new URL("../../../apps/web", import.meta.url),
 );
 
+/**
+ * The SHIPPED web corpus.
+ *
+ * PHASE 12 POINT 1 (2026-07-31) — test sources are excluded. Every contract in
+ * this file is about copy an OPERATOR can read; a vitest `it("…")` title, a
+ * fixture string or a render-harness assertion is never rendered to anyone.
+ * Scanning them produced failures for wording that is not user-facing at all
+ * (a render test naming the workspace/tenant-generation seam it exercises),
+ * which is a scoping defect in the scanner rather than a vocabulary breach.
+ *
+ * This can only ever REMOVE non-shipped files from the corpus — no shipped
+ * surface stops being checked.
+ */
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const name of readdirSync(dir)) {
     const full = resolve(dir, name);
     const st = statSync(full);
     if (st.isDirectory()) {
-      if (name === "node_modules" || name === ".next" || name === "dist") {
+      if (
+        name === "node_modules" ||
+        name === ".next" ||
+        name === "dist" ||
+        name === "__tests__" ||
+        name === "__mocks__" ||
+        name === "e2e"
+      ) {
         continue;
       }
       out.push(...walk(full));
       continue;
     }
+    if (/\.(test|spec|render)\.(tsx|jsx)$/.test(name)) continue;
     if (name.endsWith(".tsx") || name.endsWith(".jsx")) {
       out.push(full);
     }
@@ -259,10 +280,11 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "components/home-experience/HomeSections.tsx",
   "components/home-experience/home-view-model.ts",
   "components/home-experience/useHomeData.ts",
-  // Reviewer Command Console + Governance Control Plane — older
-  // surfaces that still describe the workspace as a "Team workspace".
+  // Command Center + Governance Control Plane — older surfaces that
+  // still describe the workspace as a "Team workspace". (The third
+  // entry, ReviewerCommandConsole, was deleted in Phase 12 Point 4;
+  // this list may only shrink.)
   "components/command-center/CommandCenter.tsx",
-  "components/reviewer-experience/ReviewerCommandConsole.tsx",
   "components/governance-experience/GovernanceControlPlane.tsx",
   // Landing / marketing nav.
   "components/header.tsx",

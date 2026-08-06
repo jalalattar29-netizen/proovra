@@ -92,26 +92,26 @@ export async function projectLifecycleDashboard(
   // Legal holds
   // ---------------------------------------------------------------
   const legalHolds = await (async () => {
-    const totalActive = await prisma.legalHold
-      .count({ where: { teamId, state: "ACTIVE" } })
+    const totalActive = await prisma.evidenceLegalHold
+      .count({ where: { teamId, status: "ACTIVE" } })
       .catch(() => 0);
-    const totalReleased = await prisma.legalHold
-      .count({ where: { teamId, state: "RELEASED" } })
+    const totalReleased = await prisma.evidenceLegalHold
+      .count({ where: { teamId, status: "RELEASED" } })
       .catch(() => 0);
-    const totalExpired = await prisma.legalHold
-      .count({ where: { teamId, state: "EXPIRED" } })
+    const totalExpired = await prisma.evidenceLegalHold
+      .count({ where: { teamId, status: "EXPIRED" } })
       .catch(() => 0);
 
-    const kindGroups = await prisma.legalHold
+    const kindGroups = await prisma.evidenceLegalHold
       .groupBy({
-        by: ["kind"],
-        where: { teamId, state: "ACTIVE" },
+        by: ["scope"],
+        where: { teamId, status: "ACTIVE" },
         _count: { _all: true },
       })
-      .catch(() => [] as Array<{ kind: string; _count: { _all: number } }>);
+      .catch(() => [] as Array<{ scope: string; _count: { _all: number } }>);
     const byKind: Record<string, number> = {};
     for (const g of kindGroups) {
-      byKind[g.kind] = g._count._all;
+      byKind[String(g.scope)] = g._count._all;
     }
     return { totalActive, totalReleased, totalExpired, byKind };
   })().catch(() => ({
@@ -225,20 +225,20 @@ export async function projectLifecycleDashboard(
   // surface the legal-hold horizon here.
   // ---------------------------------------------------------------
   const upcomingExpirations = await (async () => {
-    const within30Days = await prisma.legalHold
+    const within30Days = await prisma.evidenceLegalHold
       .count({
         where: {
           teamId,
-          state: "ACTIVE",
+          status: "ACTIVE",
           expiresAtUtc: { gte: now, lte: in30 },
         },
       })
       .catch(() => 0);
-    const within90Days = await prisma.legalHold
+    const within90Days = await prisma.evidenceLegalHold
       .count({
         where: {
           teamId,
-          state: "ACTIVE",
+          status: "ACTIVE",
           expiresAtUtc: { gte: now, lte: in90 },
         },
       })

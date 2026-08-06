@@ -61,7 +61,8 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       where: { id: evidenceId },
       select: {
         id: true, teamId: true, deletedAt: true, title: true, type: true, mimeType: true,
-        status: true, verificationStatus: true, captureMethod: true, caseId: true, createdAt: true,
+        status: true, verificationStatus: true, captureMethod: true, createdAt: true,
+        caseLinks: { select: { caseId: true }, take: 1 },
         latestReportVersion: true, verificationPackageVersion: true,
         tsaStatus: true, otsStatus: true,
         _count: { select: { custodyEvents: true } },
@@ -126,7 +127,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       {
         title: ev.title, type: ev.type, mimeType: ev.mimeType, status: ev.status,
         verificationStatus: ev.verificationStatus, captureMethod: ev.captureMethod,
-        caseLinked: Boolean(ev.caseId), createdAtUtc: ev.createdAt?.toISOString?.() ?? null,
+        caseLinked: ev.caseLinks.length > 0, createdAtUtc: ev.createdAt?.toISOString?.() ?? null,
         reportVersion: ev.latestReportVersion ?? 0, packageVersion: ev.verificationPackageVersion ?? 0,
         tsaStatus: ev.tsaStatus ?? "NOT_REQUESTED", otsStatus: ev.otsStatus ?? "NOT_REQUESTED",
         custodyEventCount: ev._count.custodyEvents,

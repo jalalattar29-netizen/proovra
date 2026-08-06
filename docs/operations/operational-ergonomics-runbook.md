@@ -11,7 +11,7 @@
 | Deferred item | Before G2 | After G2 |
 |---|---|---|
 | **G1.1** GovernanceSummary mounts | Component shipped in G1; not mounted on Matter Workspace | Mounted on Matter Workspace Overview tab (matter variant) |
-| **G1.1** ExportEligibilityPreflight wiring | Component shipped in G1; no shared wrapper | New `GovernedExportAction` wrapper composes the pre-flight with a render-prop action button |
+| **G1.1** Export eligibility wiring | Component shipped in G1; no shared wrapper | The `GovernedExportAction` wrapper composes the pre-flight with a render-prop action button (the standalone G1 component was deleted in Phase 12 Point 4) |
 | **C1.3** Matter filter/sort | All tabs rendered all rows | Per-tab filter input (`/` to focus, `Esc` to clear) — applied on Evidence + Timeline tabs; other tabs accept the prop |
 | **C1.5** Matter keyboard shortcuts | Tab clicks only | `g + letter` tab jumps (g+e Evidence, g+t Timeline, g+a Audit, g+x Export, etc.); `/` focus filter; `Esc` clears |
 | **C2.5** Discussion advanced filters/search | Thread list only | Filter row with bounded preset chips (all / unresolved / escalated / resolved) + title search |
@@ -45,7 +45,7 @@ Evidence detail page already mounts `LifecycleIndicators` (Phase F) which surfac
 
 `apps/web/components/governance/GovernedExportAction.tsx` is the new shared wrapper that composes:
 
-- Phase G1 `ExportEligibilityPreflight` query.
+- Phase G1 export-eligibility query (now owned by `GovernedExportAction`).
 - A render-prop action button.
 - `actionLabel` prop preserving A2 vocabulary (Report PDF vs Verification Package ZIP are NEVER collapsed).
 

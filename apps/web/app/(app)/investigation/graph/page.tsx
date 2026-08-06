@@ -28,6 +28,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 import { formatUserDateTime } from "../../../../lib/date";
+import { GraphCurationPanel } from "./_sections/GraphCurationPanel";
 type GraphSeedKind = "CASE" | "INCIDENT" | "REPORT" | "EVIDENCE";
 
 type GraphSeed = {
@@ -250,6 +251,17 @@ useEffect(() => {
           </Link>
         </div>
       </header>
+
+      {/* PHASE 12 — VERTICAL B. Graph curation lives on the explorer,
+          next to the seeds it operates on, rather than as a separate
+          product. Diagnostics, search, evidence neighbourhood, and
+          operator-asserted relationships (with provenance + duplicate
+          idempotency) are all here. */}
+      <GraphCurationPanel
+        teamId={teamId}
+        canCurate={canMutate}
+        canViewDiagnostics={canDiagnostics}
+      />
 
       <section style={controlsRowStyle}>
         <label style={controlsLabelStyle}>Seed kind</label>

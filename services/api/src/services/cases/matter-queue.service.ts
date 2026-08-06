@@ -116,10 +116,11 @@ async function buildSearchOrClause(
   }
 
   // (6) LINKED EVIDENCE — a case matches if it links an evidence record
-  // whose id equals or starts with the term. Evidence links live in the
-  // canonical `case_evidence_links` join AND the legacy `evidence.case_id`
-  // column; both `id`/`case_id` are `@db.Uuid`, so we cast to text. Both
-  // subqueries are team-scoped. Only run for uuid-shaped terms.
+  // whose id equals or starts with the term. Track 1B closure — the
+  // canonical `case_evidence_links` join is the ONLY relationship source
+  // (the legacy `evidence.case_id` column was dropped); `case_id` is
+  // `@db.Uuid`, so we cast to text. Team-scoped; only run for
+  // uuid-shaped terms.
   if (FULL_UUID_RE.test(term) || UUID_PREFIX_RE.test(term)) {
     try {
       const evPattern = `${term.toLowerCase()}%`;
@@ -129,12 +130,6 @@ async function buildSearchOrClause(
             FROM "case_evidence_links"
            WHERE "team_id" = ${teamId}::uuid
              AND "evidence_id"::text LIKE ${evPattern}
-          UNION
-          SELECT DISTINCT c."id"::text AS case_id
-            FROM "cases" c
-            JOIN "evidence" e ON e."case_id" = c."id"
-           WHERE c."team_id" = ${teamId}::uuid
-             AND e."id"::text LIKE ${evPattern}
           LIMIT 200
         `,
       );
@@ -369,8 +364,9 @@ export async function buildMatterQueue(input: {
             },
           },
         }),
-        prisma.caseLegalHold.count({
-          where: { caseId: c.id, status: "ACTIVE" },
+        prisma.evidenceLegalHold.count({
+          // P12.3 canonical-only (scope='CASE').
+          where: { scope: "CASE", caseId: c.id, status: "ACTIVE" },
         }),
         evidenceIds.length === 0
           ? Promise.resolve(0)
@@ -447,16 +443,8 @@ export async function buildMatterQueue(input: {
         continue;
       if (input.filter.riskLevel && item.riskLevel !== input.filter.riskLevel)
         continue;
-      if (
-        input.filter.assignedToUserId &&
-        // We applied this filter via the caseAssignment join below.
-        false
-      ) {
-        // The assignment filter is handled in a separate query path; we
-        // approximate it here by checking the activeAssignmentCount > 0
-        // combined with an explicit per-row check.
-        continue;
-      }
+      // NOTE: `input.filter.assignedToUserId` is applied after this loop via
+      // a secondary caseAssignment join — see below.
 
       items.push(item);
     } catch {

@@ -189,8 +189,7 @@ describe("Pin 8 — legal-hold admin surface is enterprise-only", () => {
 
   function ctx(over: Partial<SurfaceUserContext>): SurfaceUserContext {
     return {
-      plan: null,
-      role: null,
+      planFeatures: null,
       isPlatformAdmin: false,
       isEnterpriseWorkspace: false,
       ...over,
@@ -199,21 +198,21 @@ describe("Pin 8 — legal-hold admin surface is enterprise-only", () => {
 
   it("personal (free) users cannot access it", () => {
     assert.equal(
-      canAccessSurface(ctx({ plan: "FREE", role: "OWNER" }), HOLD_PATH),
+      canAccessSurface(ctx({ planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false } }), HOLD_PATH),
       false,
     );
   });
 
   it("pro users cannot access it", () => {
     assert.equal(
-      canAccessSurface(ctx({ plan: "PRO", role: "OWNER" }), HOLD_PATH),
+      canAccessSurface(ctx({ planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true } }), HOLD_PATH),
       false,
     );
   });
 
   it("team-plan admins cannot access it (role alone never unlocks)", () => {
     assert.equal(
-      canAccessSurface(ctx({ plan: "TEAM", role: "ADMIN" }), HOLD_PATH),
+      canAccessSurface(ctx({ planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true } }), HOLD_PATH),
       false,
     );
   });

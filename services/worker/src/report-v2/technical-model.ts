@@ -21,7 +21,6 @@ import {
   mapCaptureMethodLabel,
   mapIdentityLevelLabel,
   mapAnchorModePublicLabel,
-  mapOtsStatusPublicLabel,
   mapOtsStatusPublicLabelWithTxid,
   mapPublicAnchoringLabelFromOts,
   mapTimestampStatusPublicLabel,
@@ -154,11 +153,17 @@ export function buildTechnicalIdentityRows(
   // workspace's) email as "Submitted By Email"; it shows a role label instead.
   // Web/mobile capture is UNCHANGED (isIntake defaults to false).
   isIntake = false,
-  contributorIdentity: string | null = null,
   // Capture-environment uploadSource (e.g. WEB_APP). Used ONLY to give Web
   // Capture / Browser Upload the same acquisition label the Executive Summary
   // shows ("PROOVRA Web Upload") instead of the structure enum
   // ("Multipart package"). Mobile / API / unknown are untouched.
+  //
+  // NOTE: a `contributorIdentity` parameter used to sit before this one and was
+  // never read — deliberately, because it is REQUESTER-derived and must not be
+  // presented as the contributor's. Carrying it as a dead parameter implied the
+  // opposite: that this builder had a verified contributor identity available
+  // and merely chose not to show it. It was removed; the reasoning now lives at
+  // the one place the decision is made, beside the Contributor Identity row.
   uploadSource: string | null = null
 ): KeyValueRow[] {
   const lastAccessedRows: KeyValueRow[] = [
@@ -190,8 +195,8 @@ export function buildTechnicalIdentityRows(
       // the REQUESTER's snapshot, not the contributor). This keeps the
       // Technical Appendix consistent with the Chain of Custody, which states
       // "the remote contributor's identity is not independently verified".
-      // `contributorIdentity` (requester-derived) is intentionally NOT used
-      // here; the requester's level is shown separately as "Requester Identity".
+      // The requester-derived identity level is intentionally NOT shown here;
+      // it is surfaced separately as "Requester Identity".
       { label: "Contributor Identity", value: INTAKE_CONTRIBUTOR_IDENTITY_LABEL },
       {
         label: "Link Creator User Ref",
@@ -255,9 +260,6 @@ export function buildTimestampRows(
   evidence: ReportEvidence | CanonicalTimestampStateMaterial,
   contentSummary?: ReportEvidenceContentSummary
 ): KeyValueRow[] {
-  const isMultipart =
-    contentSummary?.structure === "multipart" ||
-    Number(contentSummary?.itemCount ?? 0) > 1;
 
   const timestampDigestLabel = getTimestampDigestValueLabel({
     structure: contentSummary?.structure ?? null,

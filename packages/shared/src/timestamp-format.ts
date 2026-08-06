@@ -192,3 +192,43 @@ export function resolveViewerTimeZone(): string {
     return "UTC";
   }
 }
+
+// ── Non-display timezone utilities (PHASE 12 convergence) ────────────────────
+//
+// Timezone VALIDATION and wall-clock EXTRACTION are tz computation, not
+// timestamp display — but they still belong in the ONE shared timestamp
+// layer so no product file touches Intl.DateTimeFormat directly.
+
+/** IANA timezone validation via the runtime's own tz database. */
+export function isValidIanaTimezone(tz: string): boolean {
+  if (typeof tz !== "string" || tz.length === 0 || tz.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The wall-clock hour/minute of `now` in `timezone` (falls back to UTC when
+ * the zone is null/invalid). Used for quiet-hours style schedule checks.
+ */
+export function getWallClockHourMinute(
+  now: Date,
+  timezone: string | null | undefined,
+): { hour: number; minute: number } {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone ?? "UTC",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now);
+    const get = (type: string) =>
+      Number(parts.find((p) => p.type === type)?.value ?? "0");
+    return { hour: get("hour"), minute: get("minute") };
+  } catch {
+    return { hour: now.getUTCHours(), minute: now.getUTCMinutes() };
+  }
+}

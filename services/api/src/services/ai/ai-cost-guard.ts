@@ -14,9 +14,6 @@
  */
 import { AiTask } from "./ai-types.js";
 
-const DAY_KEY_FORMAT = "YYYY-MM-DD";
-const MONTH_KEY_FORMAT = "YYYY-MM";
-
 function getCurrentDayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }

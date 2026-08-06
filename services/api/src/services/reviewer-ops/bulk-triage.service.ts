@@ -32,7 +32,6 @@ import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   ReviewerOpsError,
-  approveReview,
   assignReviewerToWorkflow,
   pauseReview,
   rejectReview,

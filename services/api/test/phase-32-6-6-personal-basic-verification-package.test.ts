@@ -66,18 +66,6 @@ const FORBIDDEN_VOCAB = [
   "confirms",
 ] as const;
 
-function assertNoForbiddenVocabInRange(label: string, source: string, start: number, end: number) {
-  const slice = source.slice(start, end).toLowerCase();
-  for (const word of FORBIDDEN_VOCAB) {
-    const re = new RegExp(`\\b${word}\\b`);
-    if (re.test(slice)) {
-      throw new Error(
-        `Phase 32.6.6 vocabulary violation in ${label}: forbidden token "${word}" appears in operator-facing source.`,
-      );
-    }
-  }
-}
-
 // =============================================================================
 // Part 1 — Worker createVerificationPackage personal-basic branch
 // =============================================================================

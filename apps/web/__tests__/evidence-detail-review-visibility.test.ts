@@ -50,9 +50,12 @@ test("Fix 1 — loadWorkspace accepts a `bumpBaseline` opt for self-initiated re
   // once at first mount and never moves; with it, the baseline
   // jumps to the post-fetch updatedAt so the user's own write
   // doesn't trip CollisionWarning.
+  // Phase 12 Point 4 (Pass H) wrapped this loader in `useCallback` so it can
+  // be an honest effect dependency. The requirement is the OPT, not whether
+  // the function is a bare async or a memoised one.
   assert.match(
     PAGE,
-    /loadWorkspace\s*=\s*async\s*\(\s*opts\?:\s*\{\s*bumpBaseline\?:\s*boolean\s*\}\s*\)/,
+    /loadWorkspace\s*=\s*(?:useCallback\(\s*)?async\s*\(\s*opts\?:\s*\{\s*bumpBaseline\?:\s*boolean\s*\}\s*\)/,
   );
   assert.match(
     PAGE,

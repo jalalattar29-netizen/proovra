@@ -11,6 +11,9 @@
 
 export { registerPrisma, getRegisteredPrisma } from "./prisma-registry.js";
 
+export * from "./signing/index.js";
+
 export * from "./media-intelligence/index.js";
 export * from "./graph/index.js";
 export * from "./ops/index.js";
+export * from "./notifications/index.js";

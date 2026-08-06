@@ -24,7 +24,6 @@ async function _emitPackagePipelineSpans(evidenceId: string) {
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
-  TRUST_DECISION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
   deriveAnchorSemantics,
   deriveCanonicalWorkspaceScope,
@@ -45,6 +44,7 @@ import {
 } from "@proovra/shared-evidence-presentation";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
+import { assertNotCommittedFixture } from "@proovra/shared-runtime";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 type VerificationEvidenceFile = {
@@ -291,12 +291,39 @@ function splitCustodyEvents(
   return { forensic, access };
 }
 
+/** Characters no filesystem path segment may carry. */
+const RESERVED_FILENAME_CHARS: ReadonlySet<string> = new Set([
+  "<",
+  ">",
+  ":",
+  '"',
+  "/",
+  "\\",
+  "|",
+  "?",
+  "*",
+]);
+
+/**
+ * Replace reserved filename characters and C0 controls (0x00-0x1F) with "-".
+ * Written as an explicit code-point check rather than a regex character class
+ * containing the control range, so the sanitizer needs no lint suppression.
+ * Identical character set, identical output.
+ */
+function replaceUnsafeFilenameCharacters(value: string): string {
+  let out = "";
+  for (const ch of value) {
+    out +=
+      RESERVED_FILENAME_CHARS.has(ch) || ch.charCodeAt(0) <= 0x1f ? "-" : ch;
+  }
+  return out;
+}
+
 function normalizeFileName(name: string, fallback: string): string {
   const trimmed = typeof name === "string" ? name.trim() : "";
   if (!trimmed) return fallback;
 
-  const normalized = trimmed
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+  const normalized = replaceUnsafeFilenameCharacters(trimmed)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 180);
@@ -681,6 +708,12 @@ function readPackageSigningPrivateKeyPem(): string {
   const resolvedPath = path.isAbsolute(privateKeyPath)
     ? privateKeyPath
     : path.resolve(process.cwd(), privateKeyPath);
+
+  // A verification package is the artifact a third party checks. Signing one
+  // with the repository's committed fixture would produce something that looks
+  // exactly like evidence and proves nothing, so the refusal sits here, on the
+  // path that actually reads the key.
+  assertNotCommittedFixture({ privateKeyPath: resolvedPath });
 
   return readFileSync(resolvedPath, "utf8");
 }
@@ -1581,7 +1614,6 @@ function buildReadme(params: {
   const multipart = params.evidenceFiles.length > 1;
   const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
   const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
-  const otsStatus = String(params.otsStatus ?? "").toUpperCase();
 
   const timestampReadmeLine = params.hasTimestampToken
     ? `timestamp.tsr
@@ -1958,7 +1990,6 @@ Anchoring may also be pending, unavailable, or completed after initial report ge
 This declaration describes the process and artifact boundaries. It does not independently determine legal admissibility, authenticity disputes, authorship, or factual truth.
 `;
 }
-
 
 /**
  * Worker error thrown when the canonical package-eligibility gate

@@ -26,6 +26,18 @@ export type ResendSendInput = {
   subject: string;
   html: string;
   text: string;
+  /**
+   * The `NotificationDelivery` row this send belongs to.
+   *
+   * PHASE 12 POINT 5 — the orchestrator retries from a stored template
+   * context, so every attempt on a delivery renders the identical message.
+   * Deriving the provider idempotency key from the delivery id means those
+   * retries reach the provider as one message rather than as N, which is what
+   * makes a retry after a timeout safe.
+   */
+  deliveryId: string;
+  /** LOADED from that row, never re-derived. */
+  idempotencyKey: string;
 };
 
 export type ResendSendResult =
@@ -42,6 +54,7 @@ export async function sendViaResend(
       subject: input.subject,
       html: input.html,
       text: input.text,
+      idempotencyKey: input.idempotencyKey,
     });
     if (!res.ok) {
       return {

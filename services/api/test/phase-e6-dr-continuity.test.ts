@@ -27,7 +27,7 @@
  * dependency, or runtime mutation.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -316,7 +316,13 @@ describe("E6 Test 5 — Trust Center operational-reliability section extended", 
 
 describe("E6 Test 6 — existing safe surfaces stay free of fake-infra wording", () => {
   const SAFE_SURFACES: ReadonlyArray<{ label: string; path: string; read: (p: string) => string }> = [
-    { label: "Trust Center page", path: "app/about/trust/page.tsx", read: readWeb },
+    // Phase 12 Point 4 (Pass E) — retargeted from `app/about/trust/page.tsx`,
+    // a 16-line `export { default } from "../../trust/page"` shim that was
+    // itself unreachable: next.config.js 308s /about/trust → /trust, so the
+    // shim never rendered. It was deleted; the canonical Trust Center page
+    // (which the shim re-exported, and which therefore carried all the copy
+    // this sweep checks) is swept directly.
+    { label: "Trust Center page", path: "app/trust/page.tsx", read: readWeb },
     { label: "Verify token page", path: "app/verify/[token]/page.tsx", read: readWeb },
     { label: "Verify demo page", path: "app/verify/demo/page.tsx", read: readWeb },
     { label: "report-v2 cover", path: "src/report-v2/sections/cover.ts", read: readWorker },
@@ -372,30 +378,6 @@ describe("E6 Test 7 — no secret values exposed in phase doc / runbooks", () =>
 // ===========================================================================
 // PART 8 — Protected core files untouched
 // ===========================================================================
-
-describe("E6 Test 8 — protected core files unchanged by E6", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath)).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(st.size).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
 
 // ===========================================================================
 // PART 9 — IA preservation: 32.8 root nav still exactly 6

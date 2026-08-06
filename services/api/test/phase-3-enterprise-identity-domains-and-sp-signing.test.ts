@@ -24,21 +24,11 @@ import {
   createVerify,
 } from "node:crypto";
 import { describe, expect, it } from "vitest";
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 
 // ---------------------------------------------------------------------------

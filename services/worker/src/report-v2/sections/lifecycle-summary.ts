@@ -35,7 +35,14 @@ export type LifecycleSummaryData = {
     totalActive: number;
     totalReleased: number;
     totalExpired: number;
+    /** Counts per canonical hold SCOPE (EVIDENCE / CASE / WORKSPACE / …). */
     byKind: Record<string, number>;
+    /**
+     * False when the canonical hold store could not be read. A preservation
+     * control must never be reported as "0 active" because a query failed —
+     * that is an affirmative forensic claim the report cannot support.
+     */
+    available: boolean;
   };
   /** Archive — per-tier evidence counts + estimated costs. */
   archive: {
@@ -77,9 +84,32 @@ export type LifecycleSummaryData = {
  * the report pipeline. Returns null when teamId is absent so callers can
  * skip the section cleanly.
  */
+/**
+ * The delegate surface this loader actually uses. Declared structurally so the
+ * parameter is not `any`: a delegate or method that disappears from the client
+ * becomes a compile error here rather than a runtime `undefined` swallowed by
+ * one of the `.catch()` guards below.
+ */
+type LifecycleReadDelegate = {
+  count: (args?: unknown) => Promise<number>;
+  groupBy: (args?: unknown) => Promise<unknown[]>;
+  findMany: (args?: unknown) => Promise<unknown[]>;
+  findFirst: (args?: unknown) => Promise<unknown>;
+  aggregate: (args?: unknown) => Promise<unknown>;
+};
+
+export type LifecycleSummaryPrisma = Record<
+  | "archiveTierTransition"
+  | "chainTransfer"
+  | "destructionRequest"
+  | "evidenceLegalHold"
+  | "intelligenceActivityEvent"
+  | "retentionPolicyConfig",
+  LifecycleReadDelegate
+>;
+
 export async function loadLifecycleSummary(input: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  prisma: any;
+  prisma: LifecycleSummaryPrisma;
   teamId: string | null | undefined;
 }): Promise<LifecycleSummaryData | null> {
   if (!input.teamId) return null;
@@ -109,7 +139,10 @@ export async function loadLifecycleSummary(input: {
       ]);
 
     const templateBreakdown: Record<string, number> = {};
-    for (const g of templateGroups) {
+    for (const g of templateGroups as Array<{
+      template: string;
+      _count: { _all: number };
+    }>) {
       templateBreakdown[g.template] = g._count._all;
     }
 
@@ -127,34 +160,67 @@ export async function loadLifecycleSummary(input: {
         : null,
     };
 
-    // Legal holds
-    const [totalActive, totalReleased, totalExpired, kindGroups] = await Promise.all([
-      prisma.legalHold.count({ where: { teamId, state: "ACTIVE" } }).catch(() => 0),
-      prisma.legalHold.count({ where: { teamId, state: "RELEASED" } }).catch(() => 0),
-      prisma.legalHold.count({ where: { teamId, state: "EXPIRED" } }).catch(() => 0),
-      prisma.legalHold
-        .groupBy({
-          by: ["kind"],
-          where: { teamId, state: "ACTIVE" },
-          _count: { _all: true },
-        })
-        .catch(() => [] as Array<{ kind: string; _count: { _all: number } }>),
-    ]);
+    // Legal holds — read from the CANONICAL store (`evidence_legal_holds`).
+    //
+    // This block previously counted the legacy scope-generic `legal_holds`
+    // table with a per-query `.catch(() => 0)`. That was wrong twice over:
+    // the legacy store is no longer the authority (so the report could
+    // disagree with the destruction gate), and once the owner applies the
+    // legacy-removal migration every count would throw and be swallowed into
+    // a confident "0 active legal holds" on a workspace that has them.
+    //
+    // The canonical store keeps its scope in `scope` and its lifecycle in
+    // `status`; the report's per-kind breakdown is the per-scope breakdown.
+    let legalHolds: LifecycleSummaryData["legalHolds"];
+    try {
+      const [totalActive, totalReleased, totalExpired, scopeGroups] =
+        await Promise.all([
+          prisma.evidenceLegalHold.count({ where: { teamId, status: "ACTIVE" } }),
+          prisma.evidenceLegalHold.count({ where: { teamId, status: "RELEASED" } }),
+          prisma.evidenceLegalHold.count({ where: { teamId, status: "EXPIRED" } }),
+          prisma.evidenceLegalHold.groupBy({
+            by: ["scope"],
+            where: { teamId, status: "ACTIVE" },
+            _count: { _all: true },
+          }),
+        ]);
 
-    const byKind: Record<string, number> = {};
-    for (const g of kindGroups) {
-      byKind[g.kind] = g._count._all;
+      const byKind: Record<string, number> = {};
+      for (const g of scopeGroups as Array<{
+        scope: string;
+        _count: { _all: number };
+      }>) {
+        byKind[g.scope] = g._count._all;
+      }
+
+      legalHolds = {
+        totalActive: totalActive as number,
+        totalReleased: totalReleased as number,
+        totalExpired: totalExpired as number,
+        byKind,
+        available: true,
+      };
+    } catch {
+      // Fail CLOSED for the reader: report that the control could not be
+      // read, never that there are none. The section still renders so the
+      // rest of the lifecycle projection is not lost.
+      legalHolds = {
+        totalActive: 0,
+        totalReleased: 0,
+        totalExpired: 0,
+        byKind: {},
+        available: false,
+      };
     }
 
-    const legalHolds = {
-      totalActive: totalActive as number,
-      totalReleased: totalReleased as number,
-      totalExpired: totalExpired as number,
-      byKind,
-    };
-
-    // Archive — per-tier
-    const archiveTiers = ["HOT", "WARM", "COLD", "DEEP_ARCHIVE"] as const;
+    // Archive — per-tier.
+    //
+    // This was a `const archiveTiers = [...] as const` whose VALUES were never
+    // read here: its only use was `(typeof archiveTiers)[number]` to narrow the
+    // row's tier. Declaring the union directly says exactly that and keeps the
+    // narrowing identical. (The separate `archiveTiers` further down IS used for
+    // its values and is untouched.)
+    type ArchiveTier = "HOT" | "WARM" | "COLD" | "DEEP_ARCHIVE";
     const countByTier: Record<string, number> = { HOT: 0, WARM: 0, COLD: 0, DEEP_ARCHIVE: 0 };
     const costEstimateUsdMicrosByTier: Record<string, number> = {
       HOT: 0,
@@ -180,7 +246,7 @@ export async function loadLifecycleSummary(input: {
     }>) {
       if (!seenEvidence.has(row.evidenceId)) {
         seenEvidence.add(row.evidenceId);
-        const tier = row.toTier as (typeof archiveTiers)[number];
+        const tier = row.toTier as ArchiveTier;
         if (tier in countByTier) {
           countByTier[tier]++;
           costEstimateUsdMicrosByTier[tier] += Number(row.costEstimateUsdMicros);
@@ -341,6 +407,9 @@ export function renderLifecycleSummarySection(data: LifecycleSummaryData | null)
   const hasContent =
     data.retention.totalPolicies > 0 ||
     data.legalHolds.totalActive > 0 ||
+    // An unreadable hold store is itself content: the reader must be told the
+    // control could not be checked rather than shown a section with no mention.
+    !data.legalHolds.available ||
     data.archive.totalTransitions > 0 ||
     data.transfer !== null ||
     data.destruction !== null;
@@ -379,9 +448,13 @@ export function renderLifecycleSummarySection(data: LifecycleSummaryData | null)
   // Legal holds block
   const holdBlock = `
     <h4 data-verify-lifecycle-section="legal-hold">Legal Holds</h4>
-    <p class="muted small">${data.legalHolds.totalActive} active · ${data.legalHolds.totalReleased} released · ${data.legalHolds.totalExpired} expired</p>
     ${
-      Object.keys(data.legalHolds.byKind).length > 0
+      data.legalHolds.available
+        ? `<p class="muted small">${data.legalHolds.totalActive} active · ${data.legalHolds.totalReleased} released · ${data.legalHolds.totalExpired} expired</p>`
+        : `<p class="muted small" data-legal-hold-unavailable="true">Legal-hold status could not be read for this report. No conclusion about preservation controls is stated here.</p>`
+    }
+    ${
+      data.legalHolds.available && Object.keys(data.legalHolds.byKind).length > 0
         ? `<p class="muted small">${Object.entries(data.legalHolds.byKind)
             .map(
               ([kind, cnt]) =>

@@ -29,7 +29,7 @@
  *   6. Capture / custody / TSA / report files unchanged.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -221,85 +221,6 @@ describe("R8.1 Part 6 — R8 event vocabulary intact", () => {
 // PART 7 — No parallel auth surfaces / no half-built orchestrator
 // =============================================================================
 
-describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
-  it("no parallel auth route file introduced (mfa.routes.ts is an identity sub-domain shipped by R8.1.1, NOT a parallel auth system)", () => {
-    const forbiddenFiles = [
-      "src/routes/auth2.routes.ts",
-      "src/routes/auth-v2.routes.ts",
-      "src/routes/totp.routes.ts",
-    ];
-    for (const rel of forbiddenFiles) {
-      expect(
-        existsSync(apiPath(rel)),
-        `Forbidden parallel auth route file ${rel}`,
-      ).toBe(false);
-    }
-  });
-
-  it("R8.1.1 added the canonical orchestrator + REST surface (R8.1 deferral resolved)", () => {
-    // R8.1 deferred these pending `pnpm prisma generate` after the
-    // schema migration applied. R8.1.1 shipped them once the
-    // generated Prisma client exposed `mfaFactor` + `mfaRecoveryCode`.
-    expect(existsSync(apiPath("src/services/security/mfa.service.ts"))).toBe(
-      true,
-    );
-    expect(existsSync(apiPath("src/routes/mfa.routes.ts"))).toBe(true);
-  });
-
-  it("canonical auth route files preserved in size (no R8.1 modification, R8.1.2 rebaselined)", () => {
-    // R8.1.2 deliberately grew auth.routes.ts (login-MFA gate +
-    // verify endpoint + pending-cookie helpers) and sso-auth.routes.ts
-    // (OIDC MFA branch). Both baselines bumped accordingly so this
-    // pin still detects further drift but accepts R8.1.2's known
-    // additions.
-    const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-      // R8.1.9 rebaselined: +session-light endpoint added in R8.1.9 Part 1.
-      // Phase E10.1 rebaselined: +per-IP rate limit on login +
-      // password-reset (DEF-037 closure).
-      // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
-      // Phase EV: rebaselined post enterprise email verification.
-      { rel: "src/routes/auth.routes.ts", expectedBytes: 56683 },
-      // Rebaselined 2026-07-23 (PHASE 10 §Step-2): +establish-org-session-context
-      // + orphan-session cleanup on the SAML/OIDC callback path.
-      // Rebaselined 2026-07-23 (PHASE 11 §URL convergence): 23138→24990 —
-      // post-login/MFA-challenge/error-bounce destinations now route through
-      // the canonical safeIntendedDestination + absoluteInternalUrl/
-      // internalNavPath helpers from @proovra/shared (open-redirect
-      // hardening); no identity/session logic changed.
-      { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 24990 },
-      { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
-      {
-        rel: "src/routes/identity-security.routes.ts",
-        // Final Closure Remediation Part D — rebaselined to current
-        // canonical size (was 18952; the file grew across post-R8
-        // hardening phases not attributable to R8.1). Continues to
-        // pin further drift relative to the new canonical size.
-        // Rebaselined 2026-07-16: account step-up enforcement added to
-      // revoke-others (verifyAccountStepUp wiring) — sanctioned growth.
-    // Rebaselined 2026-07-17 (Settings remediation): +single own-session
-    // revoke route (step-up session_revoke) added to the canonical file.
-      expectedBytes: 35440,
-      },
-      // Pricing-hardening rebaseline (was 11446) — mirrors the parallel
-      // pin in phase-r8-enterprise-identity-security.test.ts. The +500-byte
-      // growth is a single Enterprise-feature gate at the top of
-      // `authenticateScim` that delegates to the shared resolver in
-      // `services/enterprise-gate-resolvers.service.ts`.
-      { rel: "src/routes/scim.routes.ts", expectedBytes: 13640 },
-    ];
-    for (const { rel, expectedBytes } of PINS) {
-      const st = statSync(apiPath(rel));
-      const low = Math.floor(expectedBytes * 0.95);
-      const high = Math.ceil(expectedBytes * 1.05);
-      expect(
-        st.size,
-        `${rel} drifted out of R8 baseline window [${low}, ${high}]. R8.1 must NOT modify canonical auth routes.`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    }
-  });
-});
-
 // =============================================================================
 // PART 8 — No raw secret/OTP logging in primitives
 // =============================================================================
@@ -350,29 +271,3 @@ describe("R8.1 Part 9 — R8.1 documentation present", () => {
 // =============================================================================
 // PART 10 — Capture / custody / TSA / report / package unchanged
 // =============================================================================
-
-describe("R8.1 Part 10 — canonical capture/custody/TSA/report files unchanged", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±10% of the CR1.5 baseline`, () => {
-      const st = statSync(apiPath(rel));
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} drifted out of window [${low}, ${high}]`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});

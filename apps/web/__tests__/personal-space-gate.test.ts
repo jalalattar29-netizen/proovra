@@ -100,7 +100,7 @@ test("firstAvailableNonPersonalWorkspaceId: null when there is no alternative â€
 
 function envelope(overrides: Partial<PersonalSpaceGateEnvelopeInput>): PersonalSpaceGateEnvelopeInput {
   return {
-    activeSpace: { type: "PERSONAL", id: "p-1", displayName: "Personal Space", roleLabel: "Owner" },
+    activeSpace: { type: "PERSONAL", id: "p-1", displayName: "Personal Space", roleLabel: "Owner", plan: "FREE" },
     personalSpaceAllowed: false,
     contextOptions: null,
     ...overrides,
@@ -121,7 +121,7 @@ test("resolvePersonalSpaceGate: disallowed but active context is already non-Per
   const result = resolvePersonalSpaceGate(
     envelope({
       personalSpaceAllowed: false,
-      activeSpace: { type: "ORGANIZATION", id: "org-ws-1", displayName: "Acme", roleLabel: "MEMBER" },
+      activeSpace: { type: "ORGANIZATION", id: "org-ws-1", displayName: "Acme", roleLabel: "MEMBER", plan: "TEAM" },
     }),
   );
   assert.deepEqual(result, { action: "none" });

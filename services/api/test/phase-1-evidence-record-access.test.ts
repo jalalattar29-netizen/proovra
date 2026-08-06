@@ -201,8 +201,11 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     expect(count("evidence.archive")).toBe(2);
     // bulk trash/restore = 1
     expect(count("evidence.delete")).toBe(1);
-    // regenerate + cert request + cert revoke = 3
-    expect(count("evidence.generate_report")).toBe(3);
+    // regenerate + cert request + cert attest + cert revoke = 4
+    // (the attest route was wired in Phase 12 Point 4 Pass H — the service,
+    // request schema and CERTIFICATION_ATTESTED custody event already
+    // existed, but no route reached them.)
+    expect(count("evidence.generate_report")).toBe(4);
   });
 
   it("the loader throws one uniform 404 for every denial class (anti-enum)", () => {

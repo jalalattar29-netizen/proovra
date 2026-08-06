@@ -135,12 +135,15 @@ async function gatherPackageFacts(
     select: {
       id: true,
       teamId: true,
-      caseId: true,
+      // PHASE 12B — CaseEvidenceLink is the relationship authority; a hold on
+      // ANY linked case blocks (fail closed).
+      caseLinks: { select: { caseId: true } },
       lifecycleState: true,
       activeDestructionReviewId: true,
     },
   });
   if (!evidence) return null;
+  const linkedCaseIds = evidence.caseLinks.map((l) => l.caseId);
 
   const [
     directHoldCount,
@@ -154,11 +157,17 @@ async function gatherPackageFacts(
         status: prismaPkg.LegalHoldStatus.ACTIVE,
       },
     }),
-    evidence.caseId
-      ? prisma.caseLegalHold.count({
+    // PHASE 12 POINT 3 — canonical-only. Case-scoped holds live in
+    // `evidence_legal_holds` with scope='CASE' after the backfill; the legacy
+    // `case_legal_holds` table disappears at the contract migration. The
+    // scope filter is what keeps this a CASE-hold count and stops it widening
+    // into every hold in the workspace.
+    linkedCaseIds.length > 0
+      ? prisma.evidenceLegalHold.count({
           where: {
-            caseId: evidence.caseId,
-            status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
+            scope: prismaPkg.LegalHoldScope.CASE,
+            caseId: { in: linkedCaseIds },
+            status: prismaPkg.LegalHoldStatus.ACTIVE,
           },
         })
       : Promise.resolve(0),

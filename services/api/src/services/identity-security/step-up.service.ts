@@ -86,6 +86,14 @@ export type StartStepUpInput = {
   ttlSeconds?: number | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  /**
+   * PHASE 12B B3 — the canonical hash of the session starting the challenge
+   * (`req.user.sessionIdHash`). Persisted so the approval can only be spent
+   * from the SAME session. Callers that cannot resolve a session (there are
+   * none on the authenticated step-up routes) pass null and get a legacy
+   * session-unbound challenge.
+   */
+  sessionIdHash?: string | null;
 };
 
 export type StartStepUpResult = {
@@ -125,6 +133,14 @@ export async function startStepUpChallenge(
   const ttl = clampTtl(input.ttlSeconds ?? null);
   const expiresAt = new Date(Date.now() + ttl * 1000);
 
+  // PHASE 12B B3 — the Organization is DERIVED FROM PERSISTENCE, never from a
+  // request field. `Team.organizationId` is NOT NULL, so a resolvable workspace
+  // always yields the Organization the elevation is minted against.
+  const workspace = await client.team.findUnique({
+    where: { id: input.teamId },
+    select: { organizationId: true },
+  });
+
   const challenge = await client.stepUpChallenge.create({
     data: {
       teamId: input.teamId,
@@ -136,6 +152,8 @@ export async function startStepUpChallenge(
       verificationAttemptId: verification.attempt.id,
       expiresAtUtc: expiresAt,
       reason: input.reason?.slice(0, 400) ?? null,
+      sessionIdHash: input.sessionIdHash ?? null,
+      organizationId: workspace?.organizationId ?? null,
     },
   });
   safeEmitSecurityEvent(
@@ -184,6 +202,11 @@ export type CheckStepUpInput = {
   phoneE164OrRaw: string;
   ipAddress?: string | null;
   userAgent?: string | null;
+  /**
+   * PHASE 12B B3 — the session attempting the verification. A challenge started
+   * in one session may only be approved from that same session.
+   */
+  sessionIdHash?: string | null;
 };
 
 export type CheckStepUpResult = {
@@ -202,6 +225,16 @@ export async function checkStepUpChallenge(
     // We deliberately surface a generic not_found so an attacker
     // cannot enumerate other users' challenges.
     throw new StepUpError("challenge_not_found");
+  }
+  // PHASE 12B B3 — the approval must happen in the session that started the
+  // challenge; otherwise a second session could complete someone else's
+  // in-flight elevation. Same generic denial, same anti-enumeration reason.
+  // Nullish — an absent column means the challenge is session-unbound.
+  if (row.sessionIdHash != null) {
+    const verifying = input.sessionIdHash ?? null;
+    if (verifying === null || verifying !== row.sessionIdHash) {
+      throw new StepUpError("challenge_not_found");
+    }
   }
   if (row.status !== prismaPkg.StepUpChallengeStatus.PENDING) {
     throw new StepUpError("challenge_consumed");
@@ -341,6 +374,11 @@ export type ConsumeApprovedChallengeInput = {
   purpose: StepUpPurpose;
   resourceKind?: string | null;
   resourceId?: string | null;
+  /**
+   * PHASE 12B B3 — the canonical hash of the session SPENDING the challenge.
+   * Must equal the session that started it whenever the row carries a binding.
+   */
+  sessionIdHash?: string | null;
 };
 
 export async function consumeApprovedChallenge(
@@ -353,6 +391,37 @@ export async function consumeApprovedChallenge(
   if (!row) throw new StepUpError("challenge_not_found");
   if (row.initiatedByUserId !== input.userId) {
     throw new StepUpError("challenge_not_found");
+  }
+  // PHASE 12B B3 — SESSION BINDING. Enforced whenever the row carries one, so a
+  // stolen cookie replayed from a different session cannot spend an elevation
+  // the legitimate operator approved on their own device. Rows minted before the
+  // binding migration have a null hash and stay session-unbound until they
+  // expire (max TTL one hour). Denials are the generic not_found so a caller
+  // cannot distinguish "wrong session" from "no such challenge".
+  // Nullish, not `!== null`: a row whose column is ABSENT (legacy row, or a
+  // projection that did not select it) reads as `undefined`, and an absent
+  // binding must mean UNBOUND. Treating `undefined` as "bound" would have made
+  // every pre-migration challenge unspendable.
+  if (row.sessionIdHash != null) {
+    const spending = input.sessionIdHash ?? null;
+    if (spending === null || spending !== row.sessionIdHash) {
+      throw new StepUpError("challenge_not_found");
+    }
+  }
+  // PHASE 12B B3 — ORGANIZATION BINDING. teamId already scopes the row, but an
+  // administrator of two Organizations must not be able to spend an
+  // A-minted elevation against a B-owned target, so the Organization the
+  // challenge was minted against is re-verified against the target workspace's
+  // CURRENT persisted parent.
+  // Nullish for the same reason as the session binding above.
+  if (row.organizationId != null) {
+    const workspace = await client.team.findUnique({
+      where: { id: input.teamId },
+      select: { organizationId: true },
+    });
+    if (!workspace || workspace.organizationId !== row.organizationId) {
+      throw new StepUpError("challenge_not_found");
+    }
   }
   if (row.status !== prismaPkg.StepUpChallengeStatus.APPROVED) {
     throw new StepUpError("challenge_not_found");

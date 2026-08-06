@@ -9,7 +9,7 @@
  *      apiFetch error shape; supports exactly one retry per challenge.
  *   2. GovernanceSummary mounted on Evidence detail Overview tab.
  *   3. GovernedExportAction wires Report PDF + Verification Package
- *      ZIP downloads on the ArtifactPanel (A2 vocabulary preserved).
+ *      ZIP downloads on ArtifactHistorySection (A2 vocabulary preserved).
  *   4. Presence routes registered with bounded resource-kind
  *      vocabulary + workspace gate.
  *   5. In-process presence service has bounded TTL + per-key cap.
@@ -57,8 +57,8 @@ const EVIDENCE_PAGE = [
   "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
   "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
 ].map(readSource).join("\n\n");
-const ARTIFACT_PANEL = readSource(
-  "../../../apps/web/app/(app)/evidence/components/ArtifactPanel.tsx",
+const ARTIFACT_HISTORY = readSource(
+  "../../../apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
 );
 const PRESENCE_ROUTES = readSource("../src/routes/presence.routes.ts");
 const PRESENCE_SERVICE = readSource(
@@ -133,33 +133,39 @@ describe("Phase G3 — GovernanceSummary on Evidence detail", () => {
 });
 
 // ===========================================================================
-// 3. GovernedExportAction wiring on ArtifactPanel
+// 3. GovernedExportAction wiring on ArtifactHistorySection
 // ===========================================================================
 
-describe("Phase G3 — GovernedExportAction wired on ArtifactPanel", () => {
+describe("Phase G3 — GovernedExportAction wired on ArtifactHistorySection", () => {
   it("imports GovernedExportAction", () => {
-    expect(ARTIFACT_PANEL).toMatch(
+    expect(ARTIFACT_HISTORY).toMatch(
       /import\s*\{\s*GovernedExportAction\s*\}/,
     );
   });
 
   it("wraps both Report PDF and Verification Package ZIP downloads", () => {
-    expect(ARTIFACT_PANEL).toMatch(
+    expect(ARTIFACT_HISTORY).toMatch(
       /<GovernedExportAction[\s\S]*?actionLabel="Download Report PDF"/,
     );
-    expect(ARTIFACT_PANEL).toMatch(
+    expect(ARTIFACT_HISTORY).toMatch(
       /<GovernedExportAction[\s\S]*?actionLabel="Download Verification Package ZIP"/,
     );
   });
 
   it("preserves Phase A2 vocabulary — Report PDF vs Verification Package ZIP are never collapsed", () => {
-    expect(ARTIFACT_PANEL).toContain("Download Report PDF");
-    expect(ARTIFACT_PANEL).toContain("Download Verification Package ZIP");
+    expect(ARTIFACT_HISTORY).toContain("Download Report PDF");
+    expect(ARTIFACT_HISTORY).toContain("Download Verification Package ZIP");
   });
 
-  it("degrades to the legacy disabled-when-unavailable buttons when evidenceId/teamId are absent", () => {
-    expect(ARTIFACT_PANEL).toMatch(
-      /evidenceId\s*&&\s*teamId\s*\?\s*\([\s\S]*?<GovernedExportAction/,
+  it("degrades to the plain disabled-when-unavailable buttons when evidenceId/teamId are absent", () => {
+    // The governed branch is taken ONLY when both ids are present; the
+    // else-branch renders the ungoverned buttons (server authorization is
+    // unchanged either way).
+    expect(ARTIFACT_HISTORY).toMatch(
+      /const\s+governed\s*=\s*Boolean\(\s*evidenceId\s*&&\s*teamId\s*\)/,
+    );
+    expect(ARTIFACT_HISTORY).toMatch(
+      /governed\s*\?\s*\([\s\S]*?<GovernedExportAction/,
     );
   });
 });

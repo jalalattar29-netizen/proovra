@@ -101,6 +101,9 @@ const QUICK_ACTIONS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/admin/users", label: "Open users" },
   { href: "/admin/evidence-ops", label: "Open evidence ops" },
   { href: "/admin/security", label: "Open security" },
+  // PHASE 12B C10 — restricted support/break-glass console. Reachable by name
+  // from the platform console rather than by guessing a URL.
+  { href: "/admin/support-access", label: "Open support access" },
   { href: "/admin/billing", label: "Open billing" },
   { href: "/admin/platform-health", label: "Open platform health" },
   { href: "/admin/audit", label: "Open audit" },

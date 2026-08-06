@@ -33,6 +33,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { resolveTemplateIdForEvidence } from "../src/services/reviewer-ops/reviewer-operations-engine.service.js";
 
@@ -425,10 +427,8 @@ describe("resolveTemplateIdForEvidence — direct-path failure", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolveTemplateIdForEvidence — Phase T direct-path source guard", () => {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const src = fs.readFileSync(
-    path.join(
+  const src = readFileSync(
+    join(
       __dirname,
       "..",
       "src",

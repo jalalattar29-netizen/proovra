@@ -16,6 +16,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { resolveActiveOperationalWorkspace } from "../services/access/canonical-workspace-resolver.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { BillingLimitError } from "../services/collaboration-team/billing-guards.js";
 import { CollaborationTeamError } from "../services/collaboration-team/collaboration-team.service.js";
 import {
   completeAccessReview,
@@ -63,6 +64,20 @@ function handleError(
     void reply.code(err.httpStatus).send({
       error: err.code,
       message: err.message,
+      requestId,
+    });
+    return;
+  }
+  // PHASE 12 POINT 4 PASS C0 — commercial denials from the canonical
+  // billing guards carry their own status + upgrade CTA. Without this
+  // branch a plan/capacity denial surfaced as an opaque 500 and the
+  // surface could not tell "not included" from "something broke".
+  if (err instanceof BillingLimitError) {
+    void reply.code(err.httpStatus).send({
+      error: err.code,
+      message: err.message,
+      upgradeCta: err.upgradeCta,
+      details: err.details,
       requestId,
     });
     return;

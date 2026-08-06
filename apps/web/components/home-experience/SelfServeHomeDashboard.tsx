@@ -59,7 +59,8 @@ import {
   RecentEvidenceCard,
   WorkspacePrioritiesCard,
 } from "./HomeDashboardSections";
-import { isFreePlan, isProOrTeam } from "./home-view-model";
+// Track 1A — entitlement decisions come from SERVER-projected vm.features,
+// never from the raw plan name.
 
 export function SelfServeHomeDashboard() {
   const state = useHomeData();
@@ -79,8 +80,9 @@ export function SelfServeHomeDashboard() {
   }
 
   const vm = state.viewModel;
-  const free = isFreePlan(vm.plan);
-  const pro = isProOrTeam(vm.plan);
+  // Server-projected entitlements (fail-closed booleans), not plan names.
+  const reportsIncluded = vm.features.reportsIncluded;
+  const intakeIncluded = vm.features.intakeIncluded;
 
   return (
     // Phase 7C — Home now sits on the shared PageShell frame like every
@@ -199,12 +201,12 @@ export function SelfServeHomeDashboard() {
               <TrustStateCard trust={vm.trustState} />
             </div>
             <div className="home-ops-row-2" style={{ marginTop: 16 }}>
-              <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
+              <ReportProductionCard production={vm.reportProduction} isFreePlan={!reportsIncluded} />
               <IntakePipelineCard
                 pipeline={vm.intakePipeline}
                 workspaceId={vm.workspaceId}
                 onChanged={state.reload}
-                locked={!pro}
+                locked={!intakeIncluded}
               />
             </div>
           </PageSection>

@@ -13,6 +13,9 @@ import { logger, withJobContext } from "./logger.js";
 import {
   derivedAssetsQueue,
   derivedAssetsQueueName,
+  redactionDerivativeQueueName,
+  redactionDerivativeQueue,
+  enqueueRedactionDerivativeRenderWorker,
   evidencePurgeQueue,
   evidencePurgeQueueName,
   exifQueue,
@@ -32,8 +35,6 @@ import {
   miEmbedQueueName,
   miSearchIndexQueue,
   miSearchIndexQueueName,
-  ocrQueue,
-  ocrQueueName,
   orgHealthRefreshQueue,
   orgHealthRefreshQueueName,
   otsUpgradeQueue,
@@ -48,8 +49,6 @@ import {
   reportQueueName,
   searchIndexingQueue,
   searchIndexingQueueName,
-  transcriptQueue,
-  transcriptQueueName,
 } from "./queue.js";
 import {
   processGenerateReport,
@@ -57,7 +56,10 @@ import {
 } from "./processor.js";
 import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { processSearchIndexingJob } from "./search-indexing.processor.js";
-import { processMediaIntelligenceJob } from "./media-intelligence.processor.js";
+import {
+  processExifQueueJob,
+  processMediaIntelligenceJob,
+} from "./media-intelligence.processor.js";
 import { processDerivedAssetJob } from "./derived-assets.processor.js";
 // Phase 16 — dedicated mi-embed worker for semantic embedding compute.
 import { processMiEmbedJob } from "./mi-embed.processor.js";
@@ -68,9 +70,7 @@ import {
   processGraphSearchProjectionJob,
   processGraphTimelineSyncJob,
   processMiSearchIndexJob,
-  processOcrJob,
   processOrgHealthRefreshJob,
-  processTranscriptJob,
 } from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
@@ -82,9 +82,15 @@ import { wrapJobHandlerWithOtelContext } from "./observability/queue-otel-contex
 import { PROOVRA_SPAN_NAMES } from "./otel.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
+import { runSearchIndexReconciler } from "./search-index-reconciler.js";
+import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
 import { runLifecycleRecovery } from "./lifecycle-recovery.js";
 import { withCronLock } from "./cron-lock.js";
 // Phase 27.5 — Governance operationalization workers.
+import {
+  processRedactionDerivativeJob,
+  reconcileStrandedRedactionDerivatives,
+} from "./redaction/redaction-derivative.processor.js";
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
@@ -92,6 +98,9 @@ import { runImmutableStorageReconciliation } from "./governance/immutable-storag
 import { runArchiveTierAutoTransitions } from "./governance/archive-tier-auto-transition.worker.js";
 // Reviewer Ops activation — periodic reconcile tick across all teams.
 import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliation.worker.js";
+// Macro-Wave A2 — org-invite delivery sweep tick (stranded/due PENDING
+// outbox rows; retries rotate the invite token API-side).
+import { runOrgInviteDeliverySweep } from "./org-invite-delivery.worker.js";
 // P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
@@ -826,6 +835,136 @@ function stopMfaRecoveryDigestScheduler() {
 // Defaults are deliberately conservative — operator can lower in prod.
 // -----------------------------------------------------------------------------
 
+// PHASE 12B WAVE 2A — stranded-QUEUED redaction-derivative reconciler.
+// Re-enqueues QUEUED derivatives whose enqueue was lost (DB-success/
+// queue-failure direction of the durable-enqueue contract). Idempotent
+// (stable jobId) + cron-locked; missed ticks are recoverable.
+const redactionReconcilerEnabled = envBoolean("REDACTION_RECONCILER_ENABLED", true);
+const redactionReconcilerIntervalMs = envNumber(
+  "REDACTION_RECONCILER_INTERVAL_MS",
+  5 * 60 * 1000, // 5m
+);
+let redactionReconcilerTimer: ReturnType<typeof setInterval> | null = null;
+let redactionReconcilerRunning = false;
+async function runRedactionReconciler() {
+  if (redactionReconcilerRunning) return;
+  redactionReconcilerRunning = true;
+  try {
+    await withCronLock("redaction-derivative-reconciler", () =>
+      reconcileStrandedRedactionDerivatives({
+        enqueue: enqueueRedactionDerivativeRenderWorker,
+      }),
+    );
+  } catch (err) {
+    logger.error({ err }, "redaction_derivative.reconciler.failed");
+  } finally {
+    redactionReconcilerRunning = false;
+  }
+}
+function startRedactionReconcilerScheduler() {
+  if (!redactionReconcilerEnabled) return;
+  redactionReconcilerTimer = setInterval(() => {
+    void runRedactionReconciler();
+  }, redactionReconcilerIntervalMs);
+  redactionReconcilerTimer.unref?.();
+}
+startRedactionReconcilerScheduler();
+void redactionReconcilerTimer;
+
+// ===========================================================================
+// PHASE 12 — POINT 5: stranded-work reconcilers for the projection and
+// intelligence families.
+//
+// Both close the SAME window: a durable row committed by an authorized path,
+// followed by an enqueue that never happened (process death, Redis outage) or
+// a claim whose worker died mid-flight. Without them the row sits stranded
+// forever while the queue looks perfectly healthy — the failure mode that
+// produces "the projection is stale and nothing is alerting".
+//
+// Both are bounded, idempotent and non-destructive; see each module for the
+// reasoning. Overlapping ticks are prevented by the same running-flag pattern
+// every other sweep here uses, and correctness does not depend on it — the
+// reconcilers claim conditionally, so a concurrent tick loses the race rather
+// than double-recovering a row.
+// ===========================================================================
+
+const searchIndexReconcilerEnabled = envBoolean(
+  "SEARCH_INDEX_RECONCILER_ENABLED",
+  true,
+);
+const searchIndexReconcilerIntervalMs = envNumber(
+  "SEARCH_INDEX_RECONCILER_INTERVAL_MS",
+  10 * 60 * 1000,
+);
+let searchIndexReconcilerTimer: ReturnType<typeof setInterval> | null = null;
+let searchIndexReconcilerRunning = false;
+
+async function runSearchIndexReconcilerTick() {
+  if (searchIndexReconcilerRunning) return;
+  searchIndexReconcilerRunning = true;
+  try {
+    await runSearchIndexReconciler({ trigger: "scheduler" });
+  } catch (err) {
+    logger.error({ err }, "search_index.reconciler.failed");
+    captureException(err, { kind: "worker.search_index_reconciler" });
+  } finally {
+    searchIndexReconcilerRunning = false;
+  }
+}
+
+function startSearchIndexReconcilerScheduler() {
+  if (!searchIndexReconcilerEnabled) return;
+  searchIndexReconcilerTimer = setInterval(() => {
+    void runSearchIndexReconcilerTick();
+  }, searchIndexReconcilerIntervalMs);
+  searchIndexReconcilerTimer.unref?.();
+}
+
+function stopSearchIndexReconcilerScheduler() {
+  if (searchIndexReconcilerTimer) clearInterval(searchIndexReconcilerTimer);
+  searchIndexReconcilerTimer = null;
+}
+
+const intelligenceRunReconcilerEnabled = envBoolean(
+  "INTELLIGENCE_RUN_RECONCILER_ENABLED",
+  true,
+);
+const intelligenceRunReconcilerIntervalMs = envNumber(
+  "INTELLIGENCE_RUN_RECONCILER_INTERVAL_MS",
+  10 * 60 * 1000,
+);
+let intelligenceRunReconcilerTimer: ReturnType<typeof setInterval> | null = null;
+let intelligenceRunReconcilerRunning = false;
+
+async function runIntelligenceRunReconcilerTick() {
+  if (intelligenceRunReconcilerRunning) return;
+  intelligenceRunReconcilerRunning = true;
+  try {
+    await runIntelligenceRunReconciler({ trigger: "scheduler" });
+  } catch (err) {
+    logger.error({ err }, "intelligence_run.reconciler.failed");
+    captureException(err, { kind: "worker.intelligence_run_reconciler" });
+  } finally {
+    intelligenceRunReconcilerRunning = false;
+  }
+}
+
+function startIntelligenceRunReconcilerScheduler() {
+  if (!intelligenceRunReconcilerEnabled) return;
+  intelligenceRunReconcilerTimer = setInterval(() => {
+    void runIntelligenceRunReconcilerTick();
+  }, intelligenceRunReconcilerIntervalMs);
+  intelligenceRunReconcilerTimer.unref?.();
+}
+
+function stopIntelligenceRunReconcilerScheduler() {
+  if (intelligenceRunReconcilerTimer) clearInterval(intelligenceRunReconcilerTimer);
+  intelligenceRunReconcilerTimer = null;
+}
+
+startSearchIndexReconcilerScheduler();
+startIntelligenceRunReconcilerScheduler();
+
 const retentionReconciliationEnabled = envBoolean(
   "RETENTION_RECONCILIATION_ENABLED",
   true,
@@ -1250,6 +1389,105 @@ function startReviewerReconciliationScheduler() {
   })();
 }
 
+// -----------------------------------------------------------------------------
+// Macro-Wave A2 — Org-invite delivery sweep scheduler.
+//
+// Drives the durable invite-delivery outbox: the api endpoint
+// POST /v1/org-invite-deliveries/process claims due PENDING rows
+// atomically and retries each with token rotation. The worker only
+// SCHEDULES the sweep (the token + email authorities are API-side).
+// Idempotent + cron-locked; a missed tick is recoverable and an
+// overlapping tick sends zero duplicate emails (state-precondition
+// claims). The inline first attempt happens at invite creation, so
+// this sweep only ever sees stranded/failed-transient rows.
+//
+// Tunables:
+//   ORG_INVITE_DELIVERY_SWEEP_ENABLED     — default true
+//   ORG_INVITE_DELIVERY_SWEEP_INTERVAL_MS — default 5m
+//   ORG_INVITE_DELIVERY_SWEEP_BATCH_SIZE  — default 50 (api caps at 200)
+// -----------------------------------------------------------------------------
+
+const orgInviteDeliverySweepEnabled = envBoolean(
+  "ORG_INVITE_DELIVERY_SWEEP_ENABLED",
+  true,
+);
+const orgInviteDeliverySweepIntervalMs = envNumber(
+  "ORG_INVITE_DELIVERY_SWEEP_INTERVAL_MS",
+  5 * 60 * 1000, // 5m
+);
+const orgInviteDeliverySweepBatchSize = envNumber(
+  "ORG_INVITE_DELIVERY_SWEEP_BATCH_SIZE",
+  50,
+);
+let orgInviteDeliverySweepTimer: ReturnType<typeof setInterval> | null = null;
+let orgInviteDeliverySweepRunning = false;
+
+async function runOrgInviteDeliverySweepTick(trigger: string) {
+  if (orgInviteDeliverySweepRunning) return;
+  orgInviteDeliverySweepRunning = true;
+  try {
+    const outcome = await withCronLock("org-invite-delivery-sweep", () =>
+      runOrgInviteDeliverySweep({
+        trigger,
+        batchSize: orgInviteDeliverySweepBatchSize,
+      }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "org_invite_delivery.sweep.skipped_locked");
+    }
+  } catch (err) {
+    logger.error({ err, trigger }, "org_invite_delivery.sweep.tick_failed");
+    captureException(err, { trigger });
+  } finally {
+    orgInviteDeliverySweepRunning = false;
+  }
+}
+
+function startOrgInviteDeliverySweepScheduler() {
+  if (!orgInviteDeliverySweepEnabled) {
+    logger.info({}, "org_invite_delivery.sweep.scheduler.disabled");
+    return;
+  }
+  orgInviteDeliverySweepTimer = setInterval(() => {
+    void runOrgInviteDeliverySweepTick("interval");
+  }, orgInviteDeliverySweepIntervalMs);
+  logger.info(
+    {
+      intervalMs: orgInviteDeliverySweepIntervalMs,
+      batchSize: orgInviteDeliverySweepBatchSize,
+    },
+    "org_invite_delivery.sweep.scheduler.started",
+  );
+  // Gate the startup-triggered first run on api readiness — the sweep
+  // endpoint lives on the api.
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness(
+      "org-invite-delivery-sweep",
+    );
+    if (!readiness.ready) {
+      logger.warn(
+        {
+          requestId: randomUUID(),
+          consumer: "org-invite-delivery-sweep",
+          attempts: readiness.attempts,
+          totalLatencyMs: readiness.totalLatencyMs,
+          lastError: readiness.lastError,
+        },
+        "org_invite_delivery.sweep.skipped_api_unready",
+      );
+      return;
+    }
+    void runOrgInviteDeliverySweepTick("startup");
+  })();
+}
+
+function stopOrgInviteDeliverySweepScheduler() {
+  if (orgInviteDeliverySweepTimer) {
+    clearInterval(orgInviteDeliverySweepTimer);
+    orgInviteDeliverySweepTimer = null;
+  }
+}
+
 function stopReviewerReconciliationScheduler() {
   if (reviewerReconciliationTimer) {
     clearInterval(reviewerReconciliationTimer);
@@ -1310,11 +1548,6 @@ async function sampleQueueHealthOnce() {
     // `mi-derived-assets`) were invisible to ops via the heartbeat
     // signal. The dedicated `worker_telemetry_snapshots` sampler
     // already covered them but the heartbeat log line was misleading.
-    //
-    // `mi-ocr` / `mi-transcript` are intentionally listed even though
-    // no producer ships today — the sample will return zeros, which
-    // is the truthful operator signal ("nothing using OCR/transcript
-    // right now" vs "I don't see them at all").
     const snapshot = await snapshotQueueHealth([
       { name: reportQueueName, queue: reportQueue },
       { name: reportDlqQueueName, queue: reportDlqQueue },
@@ -1324,10 +1557,19 @@ async function sampleQueueHealthOnce() {
       { name: mediaIntelligenceQueueName, queue: mediaIntelligenceQueue },
       { name: mediaIntelligenceDlqQueueName, queue: mediaIntelligenceDlqQueue },
       { name: derivedAssetsQueueName, queue: derivedAssetsQueue },
+      { name: redactionDerivativeQueueName, queue: redactionDerivativeQueue },
       { name: exifQueueName, queue: exifQueue },
-      { name: ocrQueueName, queue: ocrQueue },
-      { name: transcriptQueueName, queue: transcriptQueue },
       { name: miSearchIndexQueueName, queue: miSearchIndexQueue },
+      // PHASE 12 POINT 5 — `mi-embed` was MISSING from this list. It is a
+      // live, registered BullMQ unit (`EmbedSemanticChunks`) that calls a paid
+      // AI provider, and the heartbeat has never sampled it: a backlog or a
+      // stall on the embedding chain produced no heartbeat signal at all.
+      //
+      // It was missed because the contract test guarding this array carried a
+      // HAND-WRITTEN list of queue names, so it only ever proved the sampler
+      // covered the queues somebody remembered. That test now DISCOVERS the
+      // list from `queue.ts`, which is what surfaced this.
+      { name: miEmbedQueueName, queue: miEmbedQueue },
       { name: graphReconcileQueueName, queue: graphReconcileQueue },
       { name: graphDomainSyncQueueName, queue: graphDomainSyncQueue },
       { name: graphTimelineSyncQueueName, queue: graphTimelineSyncQueue },
@@ -1401,15 +1643,14 @@ type WorkerKind =
   | "media-intelligence"
   | "derived-assets"
   | "mi-exif"
-  | "mi-ocr"
-  | "mi-transcript"
   | "mi-search-index"
   | "mi-embed"
   | "graph-reconcile"
   | "graph-domain-sync"
   | "graph-timeline-sync"
   | "graph-search-projection"
-  | "org-health-refresh";
+  | "org-health-refresh"
+  | "redaction-derivative";
 
 function safeRegisterWorker(
   kind: WorkerKind,
@@ -1554,6 +1795,27 @@ const derivedAssetsWorker = safeRegisterWorker("derived-assets", () =>
   ),
 );
 
+// PHASE 12B WAVE 2A — redaction-derivative renderer. Payload carries ONLY the
+// derivativeId; the processor reloads all authoritative state, atomically
+// claims QUEUED→RENDERING, renders IMAGE (sharp) / PDF (pdfjs raster + pdfkit
+// flattened reassembly), stores to the redactions/ prefix and completes via
+// the ONE worker-side writer. Concurrency 1 — rendering is CPU/memory bound.
+const redactionDerivativeWorker = safeRegisterWorker("redaction-derivative", () =>
+  new Worker(
+    redactionDerivativeQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.redaction_derivative",
+      redactionDerivativeQueueName,
+      processRedactionDerivativeJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
+);
+void redactionDerivativeWorker;
+
 // Phase 31.18 — dedicated EXIF worker (mi-exif). ISOLATED from the
 // generic media-intelligence worker so EXIF extraction (which only
 // reads ~16KB per part and parses with `exifr`) cannot be head-of-
@@ -1567,7 +1829,13 @@ const exifWorker = safeRegisterWorker("mi-exif", () =>
     wrapJobHandlerWithOtelContext(
       "proovra.worker.mi_exif",
       exifQueueName,
-      processMediaIntelligenceJob,
+      // PHASE 12 — POINT 5. This bound `processMediaIntelligenceJob` — the SAME
+      // function the `media-intelligence` queue uses. That sharing is why the
+      // old payload had to carry both a run id and a part id and trust
+      // whichever was present: one function, two identities. `mi-exif` now has
+      // its own entry point, decoding under its own work name against its own
+      // authority (the evidence part whose bytes it reads).
+      processExifQueueJob,
     ),
     {
       connection: redisConnection,
@@ -1576,12 +1844,12 @@ const exifWorker = safeRegisterWorker("mi-exif", () =>
   ),
 );
 
-// Phase 31.19 — four more isolated subsystem workers.
+// Phase 31.19 — two more isolated subsystem workers.
 //
-// mi-ocr / mi-transcript: producers gated on vendor decision. The
-// processor logs receipt and completes (NOT_CONFIGURED). Concurrency
-// is bounded so a vendor that returns slowly cannot saturate the
-// worker process.
+// PHASE 12 POINT 5 — the `mi-ocr` and `mi-transcript` registrations that used
+// to sit here are gone. They bound no-op processors to two queues no producer
+// has ever written to, duplicating an authority the `media-intelligence` queue
+// already owns end to end. See the note in `subsystem-queue-processors.ts`.
 //
 // mi-search-index: thin shim that delegates to the existing Phase
 // 24-J search-indexing queue. Lets the reviewer console / ops UI
@@ -1591,36 +1859,6 @@ const exifWorker = safeRegisterWorker("mi-exif", () =>
 // graph-reconcile: dedicated queue for ad-hoc graph rebuild
 // triggers (operator action, escalation hook, scheduled recurrence).
 // Worker invokes the read-only `reconcileTeamGraph` service.
-const ocrWorker = safeRegisterWorker("mi-ocr", () =>
-  new Worker(
-    ocrQueueName,
-    wrapJobHandlerWithOtelContext(
-      "proovra.worker.mi_ocr",
-      ocrQueueName,
-      processOcrJob,
-    ),
-    {
-      connection: redisConnection,
-      concurrency: 1,
-    },
-  ),
-);
-
-const transcriptWorker = safeRegisterWorker("mi-transcript", () =>
-  new Worker(
-    transcriptQueueName,
-    wrapJobHandlerWithOtelContext(
-      "proovra.worker.mi_transcript",
-      transcriptQueueName,
-      processTranscriptJob,
-    ),
-    {
-      connection: redisConnection,
-      concurrency: 1,
-    },
-  ),
-);
-
 const miSearchIndexWorker = safeRegisterWorker("mi-search-index", () =>
   new Worker(
     miSearchIndexQueueName,
@@ -1755,6 +1993,9 @@ async function shutdown(exitCode: number) {
   stopDemoFollowUpScheduler();
   stopCaptureDraftReaperScheduler();
   stopOrphanScanScheduler();
+  // PHASE 12 — POINT 5 reconcilers.
+  stopSearchIndexReconcilerScheduler();
+  stopIntelligenceRunReconcilerScheduler();
   stopLifecycleRecoveryScheduler();
   stopMfaChallengeGcScheduler();
   stopMfaRecoveryDigestScheduler();
@@ -1769,6 +2010,8 @@ async function shutdown(exitCode: number) {
   stopExchangePackageBuilderScheduler();
   // Reviewer Ops scheduler.
   stopReviewerReconciliationScheduler();
+  // Macro-Wave A2 — org-invite delivery sweep.
+  stopOrgInviteDeliverySweepScheduler();
   // Phase Y — Observability schedulers.
   stopObservabilityHeartbeat();
   stopQueueHealthSampler();
@@ -1891,8 +2134,6 @@ async function shutdown(exitCode: number) {
   // each null-checked. A failed safeRegisterWorker returns null so
   // a single processor regression cannot crash the shutdown path.
   for (const [name, w] of [
-    ["mi-ocr", ocrWorker] as const,
-    ["mi-transcript", transcriptWorker] as const,
     ["mi-search-index", miSearchIndexWorker] as const,
     // Phase 16 — mi-embed worker shutdown.
     ["mi-embed", miEmbedWorker] as const,
@@ -1925,8 +2166,6 @@ async function shutdown(exitCode: number) {
     // Phase 31.18 — exif queue.
     await exifQueue.close();
     // Phase 31.19 — four more isolated subsystem queues.
-    await ocrQueue.close();
-    await transcriptQueue.close();
     await miSearchIndexQueue.close();
     // Phase 16 — mi-embed queue.
     await miEmbedQueue.close();
@@ -2006,6 +2245,9 @@ startHealthServer()
     // Reviewer Ops activation — drives SLA / escalation / workload /
     // reminder engines across all teams on a fixed interval.
     startReviewerReconciliationScheduler();
+    // Macro-Wave A2 — org-invite delivery sweep (stranded PENDING
+    // outbox rows → API-side rotation retry).
+    startOrgInviteDeliverySweepScheduler();
     // Phase Y — Observability heartbeat + queue-health sampler.
     // The heartbeat fires every 30s; a log-based metrics provider
     // can derive `worker_last_heartbeat_age_seconds` by tailing

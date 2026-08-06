@@ -19,6 +19,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  JOB_NAMES,
+  buildCanonicalJobId,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
 
 import {
   isQueuePayloadEnvelope,
@@ -193,16 +198,45 @@ describe("Phase X.1 — Part B: queue envelope adoption", () => {
     expect(decoded.kindMismatch).toBe(true);
   });
 
-  it("evidence-purge enqueue wraps in canonical envelope (source contract)", () => {
+  /**
+   * PHASE 12 — POINT 5 replaced the Phase-X.1 envelope on this chain, and the
+   * replacement is a tightening rather than a swap.
+   *
+   * The envelope was
+   * `{ kind, idempotencyKey, body: { evidenceId }, correlationId, teamId }`
+   * and it was read by a TOLERANT parser that synthesised whatever was missing.
+   * For a HARD-DELETE job that is the wrong posture twice over: tolerance
+   * repairs a malformed or tampered payload into a runnable destruction
+   * command, and the envelope carried a `teamId` the processor could believe.
+   *
+   * Both properties the envelope existed to provide survive, in stronger form:
+   *   * the correlation id is now the bounded `traceId` on the canonical
+   *     envelope, validated rather than synthesised;
+   *   * the idempotency key is the deterministic job id itself, derived from
+   *     the evidence id by the ONE shared authority.
+   */
+  it("evidence-purge enqueues through the canonical authority (no private envelope)", () => {
     const queueSrc = readSource("../../worker/src/queue.ts");
-    expect(queueSrc).toContain("newQueuePayloadEnvelope");
-    expect(queueSrc).toContain('kind: purgeDeletedEvidenceJobName');
+    // The IMPORT is gone; the note explaining where the envelope went is
+    // allowed to name it, because a reader arriving from the old code needs
+    // to find that out.
+    expect(queueSrc).not.toMatch(/^\s*newQueuePayloadEnvelope,$/m);
+    const idx = queueSrc.indexOf("export async function enqueueEvidencePurgeJob");
+    expect(idx).toBeGreaterThan(-1);
+    expect(queueSrc.slice(idx, idx + 900)).toMatch(/enqueueWork\(/);
+    expect(queueSrc.slice(idx, idx + 900)).toMatch(
+      /JOB_NAMES\.PURGE_DELETED_EVIDENCE/,
+    );
   });
 
-  it("evidence-purge processor uses tolerant decode (source contract)", () => {
+  it("evidence-purge processor decodes STRICTLY (a destructive job refuses, never repairs)", () => {
     const processorSrc = readSource("../../worker/src/processor.ts");
-    expect(processorSrc).toContain("parseQueueEnvelope");
-    expect(processorSrc).toContain('expectedKind: "PurgeDeletedEvidenceJob"');
+    expect(processorSrc).not.toContain("parseQueueEnvelope");
+    expect(processorSrc).toMatch(
+      /decodeCanonicalJob\(JOB_NAMES\.PURGE_DELETED_EVIDENCE, job/,
+    );
+    // The evidence id is the decoded REFERENCE, and tenancy comes from the row.
+    expect(processorSrc).toMatch(/const evidenceId = decoded\.commandId;/);
   });
 });
 
@@ -247,12 +281,18 @@ describe("Phase X.1 — Part C: correlation ID propagation", () => {
     expect(src).toContain("reconciliationRunId: ctx.runId");
   });
 
-  it("evidence-purge processor preserves the correlation id from the envelope", () => {
+  it("evidence-purge processor still carries a correlation id into its logs", () => {
+    // PHASE 12 — POINT 5 moved the carrier from the Phase-X.1 envelope's
+    // `correlationId` to the canonical envelope's bounded `traceId`. The
+    // difference that matters: `correlationId` was SYNTHESISED by a tolerant
+    // parser when absent, whereas `traceId` is validated and bounded, and a
+    // payload that cannot be decoded is refused rather than repaired.
     const processorSrc = readSource("../../worker/src/processor.ts");
-    expect(processorSrc).toContain(
-      "const requestId = decoded.correlationId || randomUUID()",
+    expect(processorSrc).toMatch(
+      /decodeCanonicalJob\(JOB_NAMES\.PURGE_DELETED_EVIDENCE, job/,
     );
-    expect(processorSrc).toContain('envelope: decoded.legacy');
+    expect(processorSrc).toContain("correlationId: decoded.traceId || null");
+    expect(processorSrc).toContain("envelope: decoded.legacy");
   });
 
   it("api governance-lifecycle routes pass req.id to services", () => {
@@ -448,9 +488,22 @@ describe("Phase X.1 — Part F: operational safety", () => {
     expect(src).toMatch(/Personal-?scope evidence/);
   });
 
-  it("queue envelope retains BullMQ jobId as idempotency key (no duplicate enqueue)", () => {
+  it("the BullMQ jobId IS the idempotency key (no duplicate enqueue)", () => {
+    // PHASE 12 — POINT 5: the envelope's separate `idempotencyKey: jobId` field
+    // was a restatement of the job id, and `buildEvidencePurgeJobId` was a
+    // private copy of a derivation the shared authority already owns. Both are
+    // deleted; the property they encoded is now structural, because the id is
+    // DERIVED from the evidence id rather than assigned alongside it.
+    const entry = getWorkEntryOrThrow(JOB_NAMES.PURGE_DELETED_EVIDENCE);
+    expect(entry.jobIdPrefix).toBe("evidence-purge");
+    const prefixed = { jobIdPrefix: entry.jobIdPrefix! };
+    expect(buildCanonicalJobId(prefixed, "ev-1")).toBe("evidence-purge-ev-1");
+    expect(buildCanonicalJobId(prefixed, "ev-1")).toBe(
+      buildCanonicalJobId(prefixed, "ev-1"),
+    );
+    expect(entry.idempotency).toContain("deterministic_job_id");
+
     const src = readSource("../../worker/src/queue.ts");
-    expect(src).toContain("idempotencyKey: jobId");
-    expect(src).toContain("buildEvidencePurgeJobId");
+    expect(src).not.toContain("buildEvidencePurgeJobId");
   });
 });

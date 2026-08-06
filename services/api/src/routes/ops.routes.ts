@@ -68,6 +68,22 @@ import {
   INCIDENT_STATUSES,
 } from "@proovra/shared";
 import { runSchemaValidation } from "../runtime/schema-validation.js";
+// PHASE 12 — VERTICAL B. Server authority for Command Center workflow
+// actions: availability projection, persisted-record workspace binding,
+// optimistic concurrency, and durable idempotency.
+import {
+  WORKFLOW_ACTIONS_REQUIRING_STEP_UP,
+  assertWorkflowVersion,
+  bindWorkflowWorkspace,
+  findWorkflowActionReplay,
+  projectWorkflowForPublic,
+  recordWorkflowActionIdempotency,
+  resolveWorkflowActionCapability,
+  stateReasonFor,
+  type BoundWorkflow,
+  type WorkflowActionKey,
+} from "../services/observability/workflow-actions.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 
@@ -830,7 +846,18 @@ export async function opsRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
 
   const ParamsWorkflowId = z.object({ id: z.string().uuid() });
-  const TeamIdOnlyWorkflow = z.object({ teamId: z.string().uuid() });
+  // PHASE 12 — VERTICAL B. Every workflow mutation body now carries two
+  // optional control fields on top of the workspace claim:
+  //   * expectedVersion  — the `updatedAtUtc` the operator's board was
+  //                        rendered from. A mismatch is a 409 with ZERO
+  //                        mutation (stale board).
+  //   * idempotencyKey   — durable dedup token. A retry with the same
+  //                        key replays instead of re-applying.
+  const TeamIdOnlyWorkflow = z.object({
+    teamId: z.string().uuid(),
+    expectedVersion: z.string().min(1).max(64).optional(),
+    idempotencyKey: z.string().min(8).max(120).optional(),
+  });
   const AssignWorkflowBody = TeamIdOnlyWorkflow.extend({
     assigneeUserId: z.string().uuid(),
   });
@@ -857,6 +884,134 @@ export async function opsRoutes(app: FastifyInstance) {
     return false;
   }
 
+  // ---------------------------------------------------------------------------
+  // PHASE 12 — VERTICAL B. Shared workflow-mutation composer.
+  //
+  // Every lifecycle route funnels through this one function AFTER its own
+  // `requireOpsActorAction` gate, so the composition order is identical
+  // for all eight actions:
+  //
+  //   persisted-record workspace binding (done by the caller)
+  //     → capability gate (done by the caller)
+  //     → state-machine precondition
+  //     → expectedVersion / stale-state rejection
+  //     → durable idempotency replay
+  //     → target-bound step-up for sensitive actions
+  //     → ONE state writer (workflow.service.ts)
+  //     → idempotency marker + server projection refresh
+  //
+  // Nothing succeeds before the state writer confirms. The response is
+  // ALWAYS the freshly-read server projection, never an echo of the
+  // request.
+  // ---------------------------------------------------------------------------
+  async function runWorkflowAction(input: {
+    req: FastifyRequest;
+    reply: FastifyReply;
+    bound: BoundWorkflow;
+    actorUserId: string;
+    action: WorkflowActionKey;
+    expectedVersion?: string;
+    idempotencyKey?: string;
+    apply: () => Promise<prismaPkg.OperationalWorkflow>;
+  }) {
+    const { req, reply, bound, action } = input;
+    const teamId = bound.teamId;
+
+    // 1. State-machine precondition. Rejecting here keeps the operator's
+    //    board honest instead of letting the writer silently no-op.
+    const stateReason = stateReasonFor(action, bound.workflow.status);
+    if (stateReason) {
+      return reply.code(409).send({
+        error: {
+          code: "invalid_transition",
+          reason: stateReason,
+          currentStatus: bound.workflow.status,
+        },
+      });
+    }
+
+    // 2. Optimistic concurrency.
+    const version = assertWorkflowVersion(bound.workflow, input.expectedVersion);
+    if (!version.ok) {
+      return reply.code(409).send({
+        error: {
+          code: "stale_workflow_state",
+          currentVersion: version.currentVersion,
+          currentStatus: version.currentStatus,
+        },
+      });
+    }
+
+    const canAct = await resolveWorkflowActionCapability({
+      teamId,
+      userId: input.actorUserId,
+    });
+
+    // 3. Durable idempotency replay — returns the CURRENT server state
+    //    without re-applying.
+    if (input.idempotencyKey) {
+      const replay = await findWorkflowActionReplay({
+        workflowId: bound.workflow.id,
+        teamId,
+        action,
+        idempotencyKey: input.idempotencyKey,
+      });
+      if (replay) {
+        const current =
+          (await prisma.operationalWorkflow.findFirst({
+            where: { id: bound.workflow.id, teamId },
+          })) ?? bound.workflow;
+        return reply.code(200).send({
+          workflow: projectWorkflowForPublic(current, canAct),
+          applied: false,
+          idempotentReplay: true,
+          replayedAtUtc: replay.recordedAtUtc,
+        });
+      }
+    }
+
+    // 4. Target-bound step-up for the sensitive closures.
+    if (WORKFLOW_ACTIONS_REQUIRING_STEP_UP.has(action)) {
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId: input.actorUserId,
+        purpose: "REVIEWER_OPS_ESCALATION_RESOLVE",
+        resourceKind: "operational_workflow",
+        resourceId: bound.workflow.id,
+      });
+      if (stepUp.sent) return;
+    }
+
+    // 5. ONE state writer.
+    let updated: prismaPkg.OperationalWorkflow;
+    try {
+      updated = await input.apply();
+    } catch (err) {
+      if (handleWorkflowError(reply, err)) return;
+      throw err;
+    }
+
+    // 6. Durable provenance for the idempotency key.
+    if (input.idempotencyKey) {
+      await recordWorkflowActionIdempotency({
+        workflowId: updated.id,
+        teamId,
+        action,
+        idempotencyKey: input.idempotencyKey,
+        actorUserId: input.actorUserId,
+        resultingStatus: updated.status,
+      });
+    }
+
+    return reply.code(200).send({
+      workflow: projectWorkflowForPublic(updated, canAct),
+      applied: true,
+      idempotentReplay: false,
+    });
+  }
+
   app.get(
     "/v1/ops/workflows",
     { preHandler: requireAuth },
@@ -880,7 +1035,18 @@ export async function opsRoutes(app: FastifyInstance) {
         workflowType: q.workflowType,
         limit: q.limit,
       });
-      return reply.code(200).send({ workflows: rows });
+      // PHASE 12 — VERTICAL B. Action availability is resolved SERVER-side
+      // once per request and stamped onto every row. The browser renders
+      // this projection; it never derives availability from a role string.
+      const canAct = await resolveWorkflowActionCapability({
+        teamId: q.teamId,
+        userId: actor.userId,
+      });
+      return reply.code(200).send({
+        workflows: rows.map((r) => projectWorkflowForPublic(r, canAct)),
+        canAct,
+        denialReason: canAct ? null : "CAPABILITY_REQUIRED",
+      });
     },
   );
 
@@ -903,7 +1069,42 @@ export async function opsRoutes(app: FastifyInstance) {
           .code(404)
           .send({ error: { code: "workflow_not_found" } });
       }
-      return reply.code(200).send({ workflow: row });
+      const canAct = await resolveWorkflowActionCapability({
+        teamId: q.teamId,
+        userId: actor.userId,
+      });
+      // Bounded operator history for the detail drawer. Never projects
+      // `metadataJson` (it carries generator + idempotency internals).
+      const history = await prisma.operationalWorkflowEvent
+        .findMany({
+          where: { workflowId: row.id, teamId: q.teamId },
+          orderBy: { occurredAtUtc: "desc" },
+          take: 50,
+          select: {
+            id: true,
+            eventType: true,
+            actorUserId: true,
+            fromStatus: true,
+            toStatus: true,
+            summary: true,
+            occurredAtUtc: true,
+          },
+        })
+        .catch(() => []);
+      return reply.code(200).send({
+        workflow: projectWorkflowForPublic(row, canAct),
+        canAct,
+        denialReason: canAct ? null : "CAPABILITY_REQUIRED",
+        history: history.map((h) => ({
+          id: h.id,
+          eventType: h.eventType,
+          actorUserId: h.actorUserId,
+          fromStatus: h.fromStatus,
+          toStatus: h.toStatus,
+          summary: h.summary,
+          occurredAtUtc: h.occurredAtUtc.toISOString(),
+        })),
+      });
     },
   );
 
@@ -913,10 +1114,22 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = AssignWorkflowBody.parse(req.body ?? {});
+      // PHASE 12 — VERTICAL B. The workspace is derived from the
+      // PERSISTED workflow row. A client-declared teamId that does not
+      // own the row resolves to the same 404 a non-existent workflow
+      // resolves to (anti-enumeration), so `body.teamId` below is proven
+      // equal to the persisted `workflow.teamId` before it gates anything.
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
       const member = await prisma.teamMember.findFirst({
-        where: { teamId: body.teamId, userId: body.assigneeUserId },
+        where: { teamId: bound.teamId, userId: body.assigneeUserId },
         select: { id: true },
       });
       if (!member) {
@@ -925,23 +1138,28 @@ export async function opsRoutes(app: FastifyInstance) {
           message: "Assignee must be a member of this workspace.",
         });
       }
-      try {
-        const { assignWorkflow } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await assignWorkflow({
-          workflowId: id,
-          teamId: body.teamId,
-          assigneeUserId: body.assigneeUserId,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "assign",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { assignWorkflow } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return assignWorkflow({
+            workflowId: id,
+            teamId: bound.teamId,
+            assigneeUserId: body.assigneeUserId,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -951,24 +1169,36 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { startWorkflow } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await startWorkflow({
-          workflowId: id,
-          teamId: body.teamId,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "start",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { startWorkflow } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return startWorkflow({
+            workflowId: id,
+            teamId: bound.teamId,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -978,24 +1208,36 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { escalateWorkflow } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await escalateWorkflow({
-          workflowId: id,
-          teamId: body.teamId,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "escalate",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { escalateWorkflow } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return escalateWorkflow({
+            workflowId: id,
+            teamId: bound.teamId,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -1005,25 +1247,37 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = MitigationBody.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { addMitigation } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await addMitigation({
-          workflowId: id,
-          teamId: body.teamId,
-          note: body.note,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "mitigation",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { addMitigation } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return addMitigation({
+            workflowId: id,
+            teamId: bound.teamId,
+            note: body.note,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -1033,25 +1287,37 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = ResolveWorkflowBody.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { resolveWorkflow } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await resolveWorkflow({
-          workflowId: id,
-          teamId: body.teamId,
-          note: body.note ?? null,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "resolve",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { resolveWorkflow } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return resolveWorkflow({
+            workflowId: id,
+            teamId: bound.teamId,
+            note: body.note ?? null,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -1061,24 +1327,36 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { suppressWorkflow } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await suppressWorkflow({
-          workflowId: id,
-          teamId: body.teamId,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "suppress",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { suppressWorkflow } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return suppressWorkflow({
+            workflowId: id,
+            teamId: bound.teamId,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -1088,24 +1366,36 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { reopenWorkflow } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await reopenWorkflow({
-          workflowId: id,
-          teamId: body.teamId,
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "reopen",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { reopenWorkflow } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return reopenWorkflow({
+            workflowId: id,
+            teamId: bound.teamId,
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -1115,25 +1405,37 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = ScheduleRetryBody.parse(req.body ?? {});
+      const bound = await bindWorkflowWorkspace({
+        workflowId: id,
+        declaredTeamId: body.teamId,
+      });
+      if (!bound) {
+        return reply.code(404).send({ error: { code: "workflow_not_found" } });
+      }
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
-      try {
-        const { scheduleRetry } = await import(
-          "../services/observability/workflow.service.js"
-        );
-        const updated = await scheduleRetry({
-          workflowId: id,
-          teamId: body.teamId,
-          nextRetryAtUtc: new Date(body.nextRetryAtUtc),
-          actorUserId: actor.userId,
-          ipAddress: requestIp(req),
-          userAgent: requestUa(req),
-        });
-        return reply.code(200).send({ workflow: updated });
-      } catch (err) {
-        if (handleWorkflowError(reply, err)) return;
-        throw err;
-      }
+      return runWorkflowAction({
+        req,
+        reply,
+        bound,
+        actorUserId: actor.userId,
+        action: "schedule-retry",
+        expectedVersion: body.expectedVersion,
+        idempotencyKey: body.idempotencyKey,
+        apply: async () => {
+          const { scheduleRetry } = await import(
+            "../services/observability/workflow.service.js"
+          );
+          return scheduleRetry({
+            workflowId: id,
+            teamId: bound.teamId,
+            nextRetryAtUtc: new Date(body.nextRetryAtUtc),
+            actorUserId: actor.userId,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          });
+        },
+      });
     },
   );
 
@@ -1182,7 +1484,54 @@ export async function opsRoutes(app: FastifyInstance) {
           .code(404)
           .send({ error: { code: "chain_not_found" } });
       }
-      return reply.code(200).send({ chain });
+      // PHASE 12 — VERTICAL B. Resolve the linked workflows SERVER-side
+      // so the Command Center can render "why is this happening" with
+      // real titles instead of raw UUID lists. Team-anchored; bounded to
+      // 25 rows; never projects generator metadata.
+      const linkedWorkflowIds = Array.isArray(chain.linkedWorkflowIds)
+        ? (chain.linkedWorkflowIds as string[]).slice(0, 25)
+        : [];
+      const linkedWorkflows =
+        linkedWorkflowIds.length > 0
+          ? await prisma.operationalWorkflow
+              .findMany({
+                where: { id: { in: linkedWorkflowIds }, teamId: q.teamId },
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                  severity: true,
+                  workflowType: true,
+                },
+                take: 25,
+              })
+              .catch(() => [])
+          : [];
+      return reply.code(200).send({
+        chain: {
+          id: chain.id,
+          chainKey: chain.chainKey,
+          title: chain.title,
+          summary: chain.summary,
+          rootCauseType: chain.rootCauseType,
+          severity: chain.severity,
+          status: chain.status,
+          linkedIncidentIds: Array.isArray(chain.linkedIncidentIds)
+            ? (chain.linkedIncidentIds as string[]).slice(0, 50)
+            : [],
+          linkedWorkflowIds,
+          linkedCaseIds: Array.isArray(chain.linkedCaseIds)
+            ? (chain.linkedCaseIds as string[]).slice(0, 50)
+            : [],
+          linkedEvidenceIds: Array.isArray(chain.linkedEvidenceIds)
+            ? (chain.linkedEvidenceIds as string[]).slice(0, 50)
+            : [],
+          startAtUtc: chain.startAtUtc.toISOString(),
+          lastSeenAtUtc: chain.lastSeenAtUtc.toISOString(),
+          resolvedAtUtc: chain.resolvedAtUtc?.toISOString() ?? null,
+        },
+        linkedWorkflows,
+      });
     },
   );
 
@@ -1212,7 +1561,26 @@ export async function opsRoutes(app: FastifyInstance) {
     note: z.string().min(1).max(400).optional(),
     assigneeUserId: z.string().uuid().optional(),
     nextRetryAtUtc: z.string().datetime().optional(),
+    // PHASE 12 — VERTICAL B. Durable dedup token. A retry with the same
+    // key returns the ORIGINAL run instead of fanning out a second time.
+    idempotencyKey: z.string().min(8).max(120).optional(),
   });
+
+  /**
+   * PHASE 12 — VERTICAL B. Bounded per-item projection so the operator
+   * sees exactly which target succeeded, was skipped, or failed — never
+   * one global "bulk action failed" banner.
+   */
+  function projectBulkItem(item: prismaPkg.BulkOperationalActionItem) {
+    return {
+      id: item.id,
+      targetType: item.targetType,
+      targetId: item.targetId,
+      status: item.status,
+      errorCode: item.errorCode,
+      completedAtUtc: item.completedAtUtc?.toISOString() ?? null,
+    };
+  }
 
   app.post(
     "/v1/ops/bulk-actions",
@@ -1221,6 +1589,58 @@ export async function opsRoutes(app: FastifyInstance) {
       const body = BulkActionBody.parse(req.body ?? {});
       const actor = await requireOpsActorAction(req, reply, body.teamId);
       if (!actor) return;
+
+      // 1. Durable idempotency replay — the marker is persisted on the
+      //    run row's resultJson, so a retry after a dropped connection
+      //    reads back the original outcome instead of re-fanning out.
+      if (body.idempotencyKey) {
+        const prior = await prisma.bulkOperationalActionRun
+          .findFirst({
+            where: {
+              teamId: body.teamId,
+              actionType: body.actionType,
+              resultJson: {
+                path: ["opsIdempotencyKey"],
+                equals: body.idempotencyKey,
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+          .catch(() => null);
+        if (prior) {
+          const priorItems = await prisma.bulkOperationalActionItem
+            .findMany({
+              where: { runId: prior.id },
+              orderBy: { createdAt: "asc" },
+              take: 500,
+            })
+            .catch(() => []);
+          return reply.code(200).send({
+            run: {
+              runId: prior.id,
+              status: prior.status,
+              ...(prior.resultJson as Record<string, unknown> | null),
+            },
+            items: priorItems.map(projectBulkItem),
+            idempotentReplay: true,
+          });
+        }
+      }
+
+      // 2. Target-bound step-up. A bulk fan-out mutates many operator
+      //    records at once, so the actor re-proves before the runner
+      //    touches anything.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        purpose: "REVIEWER_OPS_BULK_ACTION",
+        resourceKind: "workspace",
+        resourceId: body.teamId,
+      });
+      if (stepUp.sent) return;
+
       const { runBulkAction } = await import(
         "../services/dashboard/bulk-actions.service.js"
       );
@@ -1235,7 +1655,38 @@ export async function opsRoutes(app: FastifyInstance) {
         ipAddress: requestIp(req),
         userAgent: requestUa(req),
       });
-      return reply.code(200).send({ run: result });
+
+      // 3. Stamp the idempotency marker onto the persisted run.
+      if (body.idempotencyKey) {
+        await prisma.bulkOperationalActionRun
+          .update({
+            where: { id: result.runId },
+            data: {
+              resultJson: {
+                total: result.total,
+                succeeded: result.succeeded,
+                failed: result.failed,
+                skipped: result.skipped,
+                opsIdempotencyKey: body.idempotencyKey,
+              },
+            },
+          })
+          .catch(() => undefined);
+      }
+
+      // 4. Per-item outcome so the UI can render which rows moved.
+      const items = await prisma.bulkOperationalActionItem
+        .findMany({
+          where: { runId: result.runId },
+          orderBy: { createdAt: "asc" },
+          take: 500,
+        })
+        .catch(() => []);
+      return reply.code(200).send({
+        run: result,
+        items: items.map(projectBulkItem),
+        idempotentReplay: false,
+      });
     },
   );
 
@@ -1263,7 +1714,33 @@ export async function opsRoutes(app: FastifyInstance) {
           .code(404)
           .send({ error: { code: "run_not_found" } });
       }
-      return reply.code(200).send({ run, items });
+      // Bounded projection — `targetIdsJson` is echoed back but the
+      // internal idempotency marker is stripped from resultJson.
+      const resultJson = (run.resultJson ?? null) as Record<
+        string,
+        unknown
+      > | null;
+      const safeResult = resultJson
+        ? Object.fromEntries(
+            Object.entries(resultJson).filter(
+              ([k]) => k !== "opsIdempotencyKey",
+            ),
+          )
+        : null;
+      return reply.code(200).send({
+        run: {
+          id: run.id,
+          teamId: run.teamId,
+          actionType: run.actionType,
+          status: run.status,
+          requestedByUserId: run.requestedByUserId,
+          noteText: run.noteText,
+          result: safeResult,
+          createdAtUtc: run.createdAt.toISOString(),
+          completedAtUtc: run.completedAtUtc?.toISOString() ?? null,
+        },
+        items: items.map(projectBulkItem),
+      });
     },
   );
 

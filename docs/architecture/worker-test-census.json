@@ -1,0 +1,312 @@
+{
+  "$comment": "PHASE 12 — POINT 5. The FIRST authoritative worker test baseline. Generated from the vitest JSON reporter, per file, so it can be re-derived exactly. Reconcile against this file, never against a hand-reported number.",
+  "generatedFor": "phase-12-point-5-closure",
+  "generator": "services/worker/scripts/build-test-census.mjs",
+  "project": {
+    "command": "pnpm --filter proovra-worker test",
+    "config": "services/worker/vitest.config.ts",
+    "files": 47,
+    "tests": 846,
+    "passed": 846,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "suites": 242
+  },
+  "historicalBaselines": [
+    {
+      "value": "856 tests",
+      "classification": "HAND_REPORTED_ONLY / NON_AUTHORITATIVE",
+      "reason": "No JSON report, runner log or census artifact was ever preserved for it, and the tree that produced it was an uncommitted working state that cannot be reconstructed. It is not reproducible even in principle: several worker suites generate one assertion PER QUEUE or PER CALL SITE — phase-final-worker-visibility iterates 17 queue names, and phase-o1-4-span-emission previously iterated every queue.add call site in queue.ts — so a raw total is a function of the tree, and totals from two different tree states are not comparable by subtraction. It must NOT be used as an executable baseline."
+    },
+    {
+      "value": "this manifest",
+      "classification": "DERIVED_FROM_MANIFEST / AUTHORITATIVE",
+      "reason": "Generated from the vitest JSON reporter with per-file counts. The first worker baseline that can be re-derived exactly."
+    }
+  ],
+  "perFile": {
+    "services/worker/test/api-readiness.test.ts": {
+      "tests": 24,
+      "passed": 24,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/capture-context-location.test.ts": {
+      "tests": 2,
+      "passed": 2,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/custody-capture-presentation.test.ts": {
+      "tests": 11,
+      "passed": 11,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/ffmpeg-capability.test.ts": {
+      "tests": 3,
+      "passed": 3,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/forensic-hardening.test.ts": {
+      "tests": 13,
+      "passed": 13,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/offline-verifier-decommission.test.ts": {
+      "tests": 9,
+      "passed": 9,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/ots-classification.test.ts": {
+      "tests": 16,
+      "passed": 16,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/ots-package-artifact.test.ts": {
+      "tests": 26,
+      "passed": 26,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/ots-state.test.ts": {
+      "tests": 2,
+      "passed": 2,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/ots-upgrade-output.test.ts": {
+      "tests": 6,
+      "passed": 6,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/package-role-labeling.test.ts": {
+      "tests": 4,
+      "passed": 4,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-12-point4-lifecycle-legal-hold-canonical.test.ts": {
+      "tests": 2,
+      "passed": 2,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-12-point4-redaction-reenqueue.test.ts": {
+      "tests": 10,
+      "passed": 10,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-12b-invite-delivery.test.ts": {
+      "tests": 7,
+      "passed": 7,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-12b-redaction-chain.test.ts": {
+      "tests": 11,
+      "passed": 11,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-2-canonical-package-mode.test.ts": {
+      "tests": 7,
+      "passed": 7,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-2-closure-report-v2-canonical.test.ts": {
+      "tests": 5,
+      "passed": 5,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-3-canonical-wiring.test.ts": {
+      "tests": 10,
+      "passed": 10,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-4-canonical-consumer-consolidation.test.ts": {
+      "tests": 4,
+      "passed": 4,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-a0-integrity-hard-gate.test.ts": {
+      "tests": 12,
+      "passed": 12,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-a2-pdf-signing-outcome.test.ts": {
+      "tests": 7,
+      "passed": 7,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-ia-digest-policy-report.test.ts": {
+      "tests": 14,
+      "passed": 14,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-ia-forward-path-ots.test.ts": {
+      "tests": 23,
+      "passed": 23,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-ia-ots-forward-retry-lifecycle.test.ts": {
+      "tests": 5,
+      "passed": 5,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-ia-ots-hybrid-state-fix.test.ts": {
+      "tests": 40,
+      "passed": 40,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-ia-ots-info-fallback.test.ts": {
+      "tests": 25,
+      "passed": 25,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-m3-1-siu-durability.test.ts": {
+      "tests": 32,
+      "passed": 32,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-m3-2-siu-governance-export.test.ts": {
+      "tests": 27,
+      "passed": 27,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-m3-siu.test.ts": {
+      "tests": 29,
+      "passed": 29,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-o1-1-otel-runtime.test.ts": {
+      "tests": 29,
+      "passed": 29,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-o1-2-observability-coverage.test.ts": {
+      "tests": 49,
+      "passed": 49,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-o1-3-otel-final-closure.test.ts": {
+      "tests": 25,
+      "passed": 25,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-o1-4-span-emission.test.ts": {
+      "tests": 99,
+      "passed": 99,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-p3-1-1-package-attestation-closure.test.ts": {
+      "tests": 26,
+      "passed": 26,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-r10-cron-lock.test.ts": {
+      "tests": 5,
+      "passed": 5,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-r4-lifecycle-recovery.test.ts": {
+      "tests": 6,
+      "passed": 6,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/phase-r6-lifecycle-legal-hold.test.ts": {
+      "tests": 11,
+      "passed": 11,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/readiness-smoke.test.ts": {
+      "tests": 46,
+      "passed": 46,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/repair-ots-hybrid-state.test.ts": {
+      "tests": 9,
+      "passed": 9,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/report-location-source.test.ts": {
+      "tests": 4,
+      "passed": 4,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/report-media-intelligence.test.ts": {
+      "tests": 26,
+      "passed": 26,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/report.test.ts": {
+      "tests": 6,
+      "passed": 6,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/subsystem-queues.test.ts": {
+      "tests": 16,
+      "passed": 16,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/technical-metadata.test.ts": {
+      "tests": 60,
+      "passed": 60,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/timestamp-policy.contract.test.ts": {
+      "tests": 3,
+      "passed": 3,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/verification-package-intelligence.test.ts": {
+      "tests": 28,
+      "passed": 28,
+      "skipped": 0,
+      "todo": 0
+    },
+    "services/worker/test/worker-bootstrap-hotfix.test.ts": {
+      "tests": 12,
+      "passed": 12,
+      "skipped": 0,
+      "todo": 0
+    }
+  }
+}

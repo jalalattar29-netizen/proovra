@@ -113,13 +113,6 @@ export async function projectGovernanceDashboard(input: {
       where: { teamId: input.teamId, state: "ACTIVE" },
     })
     .catch(() => 0);
-
-  // Cross-org.
-  const crossOrgActive = await prisma.crossOrgReviewGrant
-    .count({
-      where: { teamId: input.teamId, state: "ACCEPTED" },
-    })
-    .catch(() => 0);
   const crossOrgPending = await prisma.crossOrgReviewGrant
     .count({
       where: { teamId: input.teamId, state: "INVITED" },

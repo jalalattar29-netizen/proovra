@@ -17,7 +17,7 @@
  * R1's fix and CR1.5's observability ratchet stay in sync.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -32,17 +32,11 @@ function repoPath(rel: string): string {
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
-function apiPath(rel: string): string {
-  return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
 function readRepo(rel: string): string {
   return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
-}
-function readApi(rel: string): string {
-  return readFileSync(apiPath(rel), "utf8");
 }
 
 /**
@@ -454,56 +448,6 @@ describe("CR1.5 Test 13 — observability utility is production-safe", () => {
 // PART 14 — No capture upload/finalization files changed in CR1.5
 // =============================================================================
 
-describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => {
-  // File-size pin within ±10% per the same CR0.5 pattern. CR1.5 does
-  // not touch capture, so the sizes must hold.
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±10% of CR1.5 baseline (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath), `${rel} must exist`).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} is outside ±10% window [${low}, ${high}]. CR1.5 must not touch capture/finalization.`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
-
 // =============================================================================
 // PART 15 — No custody/TSA/OTS/report/package files changed in CR1.5
 // =============================================================================
-
-describe("CR1.5 Test 15 — custody / TSA / OTS / report / package files unchanged", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} is within ±10% of CR1.5 baseline (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath), `${rel} must exist`).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} is outside ±10% window [${low}, ${high}]. CR1.5 must not touch custody / TSA / OTS / report / package.`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});

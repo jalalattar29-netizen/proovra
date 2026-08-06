@@ -1,5 +1,5 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
 
@@ -271,9 +271,12 @@ export function useCaptureSessionOrchestration({
     if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
   };
 
-  const revokeAllPreviews = () => {
+  // Stable identity: it reads the session items through a ref, so it never
+  // needs re-creating. The capture page lists it in its unmount cleanup,
+  // which would otherwise re-register on every render.
+  const revokeAllPreviews = useCallback(() => {
     sessionItemsRef.current.forEach(revokeItemPreview);
-  };
+  }, []);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

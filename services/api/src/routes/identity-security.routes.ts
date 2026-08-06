@@ -39,14 +39,21 @@ import * as prismaPkg from "@prisma/client";
 import {
   MFA_POLICY_LEVELS,
   STEP_UP_PURPOSES,
+  isValidDeviceCookieValue,
   type StepUpPurpose,
 } from "@proovra/shared";
 
+import { randomBytes } from "node:crypto";
+
 import { getAuthUserId } from "../auth.js";
-import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { emitPlatformAudit, emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import {
+  INTEGRATION_CRON_HEADER,
+  requireIntegrationCronSecret,
+} from "../middleware/cron-secret.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import {
   StepUpError,
@@ -71,7 +78,6 @@ import {
 } from "../services/identity-security/session-revocation.service.js";
 import {
   listTrustedDevicesForTeam,
-  listTrustedDevicesForUser,
   markDeviceTrusted,
   projectTrustedDevice,
   revokeTrustedDevice,
@@ -237,6 +243,9 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           reason: body.reason ?? null,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
+          // PHASE 12B B3 — bind the challenge to THIS session, read from the
+          // authenticated request rather than any caller-supplied field.
+          sessionIdHash: req.user?.sessionIdHash ?? null,
         });
         return reply
           .code(200)
@@ -267,12 +276,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           teamId: body.teamId,
           userId: actor.userId,
           challengeId: body.challengeId,
-          phone: body.phone,
           phoneE164OrRaw: body.phone,
           code: body.code,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
-        } as never);
+          // PHASE 12B B3 — the approval must come from the session that started
+          // the challenge. (The former `as never` cast was hiding a stray
+          // `phone` field that the input type never declared; removing the cast
+          // means this call is now actually type-checked.)
+          sessionIdHash: req.user?.sessionIdHash ?? null,
+        });
         return reply.code(200).send({
           status: "approved",
           challenge: projectStepUpChallenge(result.challenge),
@@ -377,32 +390,102 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     },
   );
 
+  // PHASE 12B (2026-07-30) — device trust hardening.
+  //
+  // DEFECTS CLOSED on this route:
+  //   1. `deviceCookieValue` was a CLIENT-SUPPLIED device secret. A caller
+  //      could invent any value and have the server hash it into a trusted
+  //      device row, i.e. mint device trust for a device it does not hold.
+  //      The correlation value is now SERVER-DERIVED from an HTTP-only
+  //      cookie (minted here on first use), never accepted from the body.
+  //   2. `userId` let a caller declare the SUBJECT, so an admin could mark
+  //      a device "trusted" on behalf of another member — a device that
+  //      member never used. Trust is now SELF-ONLY: the subject is always
+  //      the authenticated actor. A body `userId` naming anyone else is
+  //      concealed as 404.
+  //   3. The route ran on `identity.member.read` with no step-up. It is now
+  //      `identity.access_review.action` + anti-enumeration authorize +
+  //      target-bound step-up.
+  //
+  // The cookie value never appears in a response, a URL, the DOM, or a log.
+  const DEVICE_CORRELATION_COOKIE = "proovra_device_id";
+
   const TrustBody = z.object({
     teamId: z.string().uuid(),
+    // Accepted ONLY so a caller sending the legacy field gets a bounded
+    // denial instead of silently trusting a device for someone else.
     userId: z.string().uuid().optional(),
-    deviceCookieValue: z.string().min(16).max(256),
     ttlDays: z.number().int().min(1).max(180).optional(),
   });
+
+  function readDeviceCorrelationValue(req: FastifyRequest): string | null {
+    const jar = req.cookies as Record<string, string | undefined> | undefined;
+    const raw = jar?.[DEVICE_CORRELATION_COOKIE];
+    if (typeof raw !== "string") return null;
+    const trimmed = raw.trim();
+    return isValidDeviceCookieValue(trimmed) ? trimmed : null;
+  }
 
   app.post(
     "/v1/identity-security/devices/trust",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = TrustBody.parse(req.body ?? {});
-      const actor = await requireSecurityActor(req, reply, body.teamId, "identity.member.read");
-      if (!actor) return;
-      const targetUserId = body.userId ?? actor.userId;
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "identity.access_review.action",
+        antiEnumeration: true,
+      });
+      if (!authorized) return;
+      // SELF-ONLY subject — server-derived, never client-declared.
+      if (body.userId && body.userId !== authorized.actorUserId) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      const targetUserId = authorized.actorUserId;
+      // Server-derived device correlation value. Minted (and set as an
+      // HTTP-only cookie) when the browser does not yet carry one.
+      let deviceCookieValue = readDeviceCorrelationValue(req);
+      let minted = false;
+      if (!deviceCookieValue) {
+        deviceCookieValue = randomBytes(32).toString("base64url");
+        minted = true;
+      }
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: authorized.actorUserId,
+        // PHASE 12B — dedicated purpose. SESSION_SANITY_CHECK is the generic
+        // "confirm this operator session" purpose; trusting a device suppresses
+        // future prompts on it, so it gets its own auditable purpose.
+        purpose: "TRUSTED_DEVICE_TRUST",
+        resourceKind: "trusted_device_subject",
+        resourceId: targetUserId,
+      });
+      if (gate.sent) return;
       const row = await markDeviceTrusted({
         teamId: body.teamId,
         userId: targetUserId,
-        deviceCookieValue: body.deviceCookieValue,
+        deviceCookieValue,
         ip: requestIp(req),
         userAgent: requestUa(req),
         ttlDays: body.ttlDays ?? null,
-        actorUserId: actor.userId,
+        actorUserId: authorized.actorUserId,
         ipAddressForAudit: requestIp(req),
         userAgentForAudit: requestUa(req),
       });
+      if (minted) {
+        const host = (req.headers.host ?? "").toLowerCase();
+        const isProdDomain = host.includes("proovra.com");
+        reply.setCookie(DEVICE_CORRELATION_COOKIE, deviceCookieValue, {
+          httpOnly: true,
+          secure: isProdDomain,
+          sameSite: "lax",
+          path: "/",
+          ...(isProdDomain ? { domain: ".proovra.com" } : {}),
+          maxAge: 60 * 60 * 24 * 365,
+        });
+      }
       return reply
         .code(200)
         .send({ device: row ? projectTrustedDevice(row) : null });
@@ -528,43 +611,249 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireSecurityActor(req, reply, q.teamId, "identity.access_review.action");
-      if (!actor) return;
+      // PHASE 12B — was `requireSecurityActor` (403 on permission denial,
+      // and NO check that `:id` is a member of the workspace, so an
+      // operator could probe an arbitrary user id's risk posture). Now:
+      // anti-enumeration authorize + the target must hold an ACTIVE
+      // membership in the SAME workspace, otherwise concealed 404.
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: q.teamId,
+        permission: "identity.access_review.action",
+        antiEnumeration: true,
+      });
+      if (!authorized) return;
+      const target = await prisma.teamMember.findFirst({
+        where: { teamId: q.teamId, userId: id, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (!target) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const snapshot = await getRiskSnapshotForUser({
         teamId: q.teamId,
         userId: id,
       });
-      return reply.code(200).send({ snapshot });
+      return reply.code(200).send({
+        snapshot: {
+          userId: id,
+          level: snapshot.level,
+          score: snapshot.score,
+          signals: snapshot.signals.map((s) => ({
+            kind: s.kind,
+            reason: s.reason,
+            observedAtUtc: s.observedAtUtc.toISOString(),
+            expiresAtUtc: s.expiresAtUtc?.toISOString() ?? null,
+          })),
+        },
+      });
     },
   );
 
   // -------------------------------------------------------------------------
-  // Reconcile cron
+  // PHASE 12B (2026-07-30) — concurrent-session POLICY IMPACT projection.
+  //
+  // The org security policy carries `concurrentSessionLimit` /
+  // `maxSessionAgeSeconds` / `idleTimeoutSeconds`, but nothing surfaced what
+  // those settings actually DO to the live session inventory. This read
+  // computes the impact SERVER-SIDE (the client computes no policy
+  // decision): per member, how many live sessions exist and whether that
+  // member is already over the configured concurrency limit.
   // -------------------------------------------------------------------------
+  app.get(
+    "/v1/identity-security/session-policy-impact",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = TeamIdQuery.parse(req.query ?? {});
+      const authorized = await authorizeOrFail(req, reply, {
+        teamId: q.teamId,
+        permission: "identity.org_policy.read",
+        antiEnumeration: true,
+      });
+      if (!authorized) return;
+      const team = await prisma.team.findUnique({
+        where: { id: q.teamId },
+        select: { organizationId: true },
+      });
+      const policyRow = team?.organizationId
+        ? await prisma.organizationSecurityPolicy.findUnique({
+            where: { organizationId: team.organizationId },
+            select: {
+              concurrentSessionLimit: true,
+              maxSessionAgeSeconds: true,
+              idleTimeoutSeconds: true,
+              stepUpIntervalSeconds: true,
+              policyVersion: true,
+            },
+          })
+        : null;
+      const limit = policyRow?.concurrentSessionLimit ?? null;
+      const now = new Date();
+      const members = await prisma.teamMember.findMany({
+        where: { teamId: q.teamId, status: "ACTIVE" },
+        select: { userId: true, role: true },
+        take: 500,
+      });
+      const grouped = await prisma.authenticatedSession.groupBy({
+        by: ["userId"],
+        where: {
+          teamId: q.teamId,
+          revokedAtUtc: null,
+          expiresAtUtc: { gt: now },
+          userId: { in: members.map((m) => m.userId) },
+        },
+        _count: { _all: true },
+      });
+      const counts = new Map<string, number>(
+        grouped.map((g) => [g.userId, g._count._all]),
+      );
+      const rows = members
+        .map((m) => {
+          const activeSessionCount = counts.get(m.userId) ?? 0;
+          return {
+            userId: m.userId,
+            role: m.role,
+            activeSessionCount,
+            // SERVER-side decision — the client never re-derives this.
+            overLimit: limit !== null && activeSessionCount > limit,
+            excessSessionCount:
+              limit !== null && activeSessionCount > limit
+                ? activeSessionCount - limit
+                : 0,
+          };
+        })
+        .sort((a, b) => b.activeSessionCount - a.activeSessionCount);
+      return reply.code(200).send({
+        policy: {
+          policyProvisioned: policyRow !== null,
+          policyVersion: policyRow?.policyVersion ?? 0,
+          concurrentSessionLimit: limit,
+          maxSessionAgeSeconds: policyRow?.maxSessionAgeSeconds ?? null,
+          idleTimeoutSeconds: policyRow?.idleTimeoutSeconds ?? null,
+          stepUpIntervalSeconds: policyRow?.stepUpIntervalSeconds ?? null,
+        },
+        membersOverLimit: rows.filter((r) => r.overLimit).length,
+        impact: rows,
+      });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // NOTE (PHASE 12B, 2026-07-30) — contributor-session revocation
+  // (`POST /v1/identity/contributor-sessions/:id/revoke`, identity.routes.ts)
+  // is owned by the Identity Administration surface, including whatever
+  // inventory read it needs. Deliberately NOT duplicated here so there is
+  // exactly ONE contributor-session authority.
+  // -------------------------------------------------------------------------
+
+  // -------------------------------------------------------------------------
+  // Reconcile — cron OR operator-triggered
+  //
+  // PHASE 12B (2026-07-30): this sweep (expire stale step-up challenges +
+  // TTL-expired trusted devices) was reachable ONLY by the integration cron
+  // secret, so an operator staring at a stuck runtime posture had no product
+  // action. It now has TWO callers with DIFFERENT gates and identical work:
+  //
+  //   - CRON: presents `x-proovra-integration-cron-secret` → unchanged
+  //     `requireIntegrationCronSecret` path, unchanged global sweep.
+  //   - OPERATOR: no cron header → requireAuth + `authorizeOrFail`
+  //     (ACTIVE membership + Organization lifecycle + `identity.org_policy.
+  //     manage` + anti-enumeration) + target-bound step-up, and the sweep
+  //     is SCOPED to the authorized workspace so an operator can never
+  //     trigger a platform-wide mutation. The outcome is audited with both
+  //     the actor and the workspace target.
+  // -------------------------------------------------------------------------
+
+  const ReconcileBody = z.object({ teamId: z.string().uuid() });
 
   app.post(
     "/v1/identity-security/reconcile",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ok = await requireIntegrationCronSecret(req, reply);
-      if (!ok) return;
+      const cronHeaderRaw = req.headers[INTEGRATION_CRON_HEADER];
+      const cronHeader = Array.isArray(cronHeaderRaw)
+        ? cronHeaderRaw[0]
+        : cronHeaderRaw;
+      const isCronCaller =
+        typeof cronHeader === "string" && cronHeader.trim().length > 0;
+
+      let operator: { actorUserId: string; teamId: string } | null = null;
+      if (isCronCaller) {
+        const ok = await requireIntegrationCronSecret(req, reply);
+        if (!ok) return;
+      } else {
+        await requireAuth(req, reply);
+        if (reply.sent) return;
+        const body = ReconcileBody.parse(req.body ?? {});
+        operator = await authorizeOrFail(req, reply, {
+          teamId: body.teamId,
+          permission: "identity.org_policy.manage",
+          antiEnumeration: true,
+        });
+        if (!operator) return;
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: operator.teamId,
+          userId: operator.actorUserId,
+          // PHASE 12B — dedicated purpose: an operator-triggered reconcile
+          // sweep mutates rows in bulk, so it is not a generic session check.
+          purpose: "IDENTITY_RUNTIME_RECONCILE",
+          resourceKind: "workspace_identity_runtime",
+          resourceId: operator.teamId,
+        });
+        if (gate.sent) return;
+      }
+      const scopeTeamId = operator?.teamId ?? null;
       const now = new Date();
-      // 1. Expire step-up challenges past their TTL.
-      const expiredStepUps = await prisma.stepUpChallenge.updateMany({
-        where: {
-          status: prismaPkg.StepUpChallengeStatus.PENDING,
-          expiresAtUtc: { lte: now },
+      // Both sweeps run in ONE transaction so a failure between them can
+      // never leave a half-reconciled runtime.
+      const [expiredStepUps, expiredDevices] = await prisma.$transaction(
+        async (tx) => {
+          // 1. Expire step-up challenges past their TTL.
+          const stepUps = await tx.stepUpChallenge.updateMany({
+            where: {
+              status: prismaPkg.StepUpChallengeStatus.PENDING,
+              expiresAtUtc: { lte: now },
+              ...(scopeTeamId ? { teamId: scopeTeamId } : {}),
+            },
+            data: { status: prismaPkg.StepUpChallengeStatus.EXPIRED },
+          });
+          // 2. Expire trusted devices past trustedUntilUtc.
+          const devices = await tx.trustedDevice.updateMany({
+            where: {
+              status: prismaPkg.TrustedDeviceStatus.ACTIVE,
+              trustedUntilUtc: { lte: now },
+              ...(scopeTeamId ? { teamId: scopeTeamId } : {}),
+            },
+            data: {
+              status: prismaPkg.TrustedDeviceStatus.REVOKED,
+              revokedAtUtc: now,
+              revokedReason: "ttl_expired",
+            },
+          });
+          return [stepUps, devices] as const;
         },
-        data: { status: prismaPkg.StepUpChallengeStatus.EXPIRED },
-      });
-      // 2. Expire trusted devices past trustedUntilUtc.
-      const expiredDevices = await prisma.trustedDevice.updateMany({
-        where: {
-          status: prismaPkg.TrustedDeviceStatus.ACTIVE,
-          trustedUntilUtc: { lte: now },
-        },
-        data: { status: prismaPkg.TrustedDeviceStatus.REVOKED, revokedAtUtc: now, revokedReason: "ttl_expired" },
-      });
+      );
+      if (operator) {
+        await emitTenantAudit({
+          action: "identity_security.runtime.reconcile",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: operator.actorUserId,
+          workspaceId: operator.teamId,
+          resourceType: "workspace_identity_runtime",
+          resourceId: operator.teamId,
+          metadata: {
+            trigger: "operator",
+            targetWorkspaceId: operator.teamId,
+            expiredStepUps: expiredStepUps.count,
+            expiredDevices: expiredDevices.count,
+            ipAddress: requestIp(req),
+            userAgent: requestUa(req),
+          },
+        });
+      }
       return reply.code(200).send({
+        scope: scopeTeamId === null ? "platform_cron" : "workspace",
         expiredStepUps: expiredStepUps.count,
         expiredDevices: expiredDevices.count,
       });
@@ -778,7 +1067,10 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         sessions: rows.map((r) => ({
           id: r.id,
-          sessionIdHash: r.sessionIdHash,
+          // PHASE 12B — `sessionIdHash` REMOVED from the projection. It is
+          // HMAC session-correlation material; the row `id` is the stable
+          // handle every product action (my-sessions/:id/revoke) uses, so
+          // the hash never needs to reach a client, the DOM, or a log.
           isCurrent: currentHash !== null && currentHash === r.sessionIdHash,
           issuedAtUtc: r.issuedAtUtc.toISOString(),
           expiresAtUtc: r.expiresAtUtc.toISOString(),

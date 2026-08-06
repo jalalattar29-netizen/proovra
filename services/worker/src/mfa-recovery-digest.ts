@@ -44,13 +44,46 @@
 
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 
+import * as PrismaPkg from "@prisma/client";
+
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
 import { captureException } from "./sentry.js";
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
+import {
+  AMBIGUOUS_ERROR_CODE,
+  AMBIGUOUS_RETRY_BACKOFF_MS,
+  ATTEMPT_LEASE_MS,
+  MFA_DIGEST_EVENT_TYPE,
+  MFA_DIGEST_TEMPLATE_KEY,
+  canonicalEmailFrom,
+  deliverEmail,
+  DELIVERY_IDEMPOTENCY_OPERATION,
+  STORED_IDEMPOTENCY_KEY_FIELD,
+  mintEmailIdempotencyKey,
+  resolveIntentIdempotencyKey,
+  deriveDeliveryPhase,
+  outcomeCode,
+  type EmailDeliveryOutcome,
+} from "@proovra/shared-runtime";
 
 /** Requests in PENDING_ADMIN_REVIEW older than this many seconds
  *  qualify for digest inclusion. 24 hours per the spec. */
+/**
+ * Is this the database refusing a second holder of a unique slot?
+ *
+ * Narrow on purpose. `P2002` is the ONLY error that means "someone else has
+ * it"; the previous string-matching form (`msg.includes("Unique")`) would
+ * also have swallowed an unrelated failure whose message happened to contain
+ * the word.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    err instanceof PrismaPkg.Prisma.PrismaClientKnownRequestError &&
+    err.code === "P2002"
+  );
+}
+
 const PENDING_AGE_THRESHOLD_SECONDS = 24 * 60 * 60;
 
 /** Bounded per-tick fan-out — the worker processes at most this
@@ -191,20 +224,13 @@ export async function runMfaRecoveryDigest(
       const bucket = teamsByAdmin.get(adminUserId);
       if (!bucket) continue;
 
-      // 4a. Idempotency: this admin already got their digest today?
-      const existing = await prisma.mfaRecoveryAdminDigestLog.findUnique({
-        where: { userId_sentDate: { userId: adminUserId, sentDate } },
-        select: { id: true },
-      });
-      if (existing) continue;
-
-      // 4b. Load this admin's preferences.
+      // 4a. Load this admin's preferences.
       const prefs = await prisma.mfaAdminDigestPreference.findMany({
         where: { userId: adminUserId },
         select: { teamId: true, digestEnabled: true, suppressUntil: true },
       });
 
-      // 4c. Build the per-admin team summary list, filtered by
+      // 4b. Build the per-admin team summary list, filtered by
       //     preferences. Drop teams where the admin is suppressed.
       const includedSummaries: TeamSummary[] = [];
       for (const teamId of bucket.teams) {
@@ -225,34 +251,74 @@ export async function runMfaRecoveryDigest(
         0,
       );
 
+      // 4c. THE CLAIM, taken BEFORE the send — and now backed by a durable
+      //     DELIVERY-ATTEMPT record rather than by the claim row alone.
+      //
+      // What was here before took the claim correctly and recorded it
+      // dishonestly. `MfaRecoveryAdminDigestLog.sentAtUtc` defaults to
+      // `now()`, so the row inserted as a claim was indistinguishable from a
+      // row representing a delivered message. A crash between that INSERT and
+      // the provider call therefore left a row every later tick read as
+      // "today is done": the digest was silently skipped for the rest of the
+      // UTC day and nothing recorded that a message had been intended.
+      //
+      // The claim row still elects the winner — its UNIQUE (userId, sentDate)
+      // is a real atomic primitive and there is no reason to replace it. What
+      // it no longer does is answer "was it sent?". That question now belongs
+      // to a `NotificationDelivery` row created in the SAME transaction, whose
+      // lifecycle distinguishes claimed / in-flight / acknowledged / retryable
+      // / ambiguous / failed, and whose lease lets another worker recover an
+      // attempt whose owner died.
+      const claim = await acquireDigestClaim({
+        adminUserId,
+        adminEmail: bucket.email,
+        sentDate,
+        teamCount: includedSummaries.length,
+        requestCount: totalPending,
+      });
+      if (claim.kind !== "leased") continue;
+
       adminsAttempted += 1;
 
-      // 4d. Send. The per-admin idempotency row is written ONLY
-      //     after the transport returns OK so a failed send
-      //     retries on the next tick.
-      // PHASE R8.1.9 — build a global one-click snooze URL for
-      // this admin. Returns null when AUTH_JWT_SECRET is absent
-      // (test envs); in that case the email omits the snooze link.
+      // 4d. Send, through the canonical transport, carrying the idempotency
+      //     key derived from the durable delivery row. The key does not change
+      //     between attempts — that is what makes a retry after an ambiguous
+      //     outcome safe rather than a second email.
+      //
+      // PHASE R8.1.9 — the one-click snooze URL. Null when AUTH_JWT_SECRET is
+      // absent (test envs); the email then omits the snooze block.
       const snoozeUrl = buildDigestSnoozeUrl(adminUserId);
-      let sent: "ok" | "skipped_no_transport" | "failed";
-      try {
-        const transport = await sendAdminDigest({
-          adminEmail: bucket.email,
-          adminSpaUrl: buildAdminSpaUrl(),
-          teams: includedSummaries,
-          totalPending,
-          snoozeUrl,
-        });
-        sent = transport;
-      } catch (err) {
-        sent = "failed";
+      const outcome = await sendAdminDigest({
+        adminEmail: bucket.email,
+        adminSpaUrl: buildAdminSpaUrl(),
+        teams: includedSummaries,
+        totalPending,
+        snoozeUrl,
+        idempotencyKey: claim.idempotencyKey,
+      });
+
+      // 4e. Project the outcome onto the durable authority. Nothing below
+      //     this line decides what happened; it only records it.
+      await recordDigestOutcome({
+        deliveryId: claim.deliveryId,
+        logId: claim.logId,
+        outcome,
+      });
+
+      if (outcome.kind === "acknowledged" || outcome.kind === "not_configured") {
+        if (outcome.kind === "acknowledged") adminsSent += 1;
+      } else {
+        adminsFailed += 1;
         logger.warn(
-          { err, requestId, trigger, adminUserId },
-          "mfa.recovery_digest.send_failed",
+          {
+            requestId,
+            trigger,
+            adminUserId,
+            outcome: outcome.kind,
+            code: outcomeCode(outcome),
+          },
+          "mfa.recovery_digest.send_not_acknowledged",
         );
-        // Emit the new digest-failed event so SecOps can see the
-        // transport hiccup. Bounded payload — no email address,
-        // no recovery details.
         try {
           await prisma.securityEvent.create({
             data: {
@@ -264,50 +330,21 @@ export async function runMfaRecoveryDigest(
                 trigger,
                 teamCount: includedSummaries.length,
                 requestCount: totalPending,
-                reason: "transport_error",
+                reason: outcome.kind,
+                failureCode: outcomeCode(outcome),
               },
             },
           });
         } catch {
           // Best-effort.
         }
-        adminsFailed += 1;
         continue;
       }
 
-      if (sent === "skipped_no_transport") {
-        // Test envs without RESEND_API_KEY — we DO still record the
-        // log row so opportunistic local runs don't loop forever
-        // attempting to "send" the same digest. SecOps in real
-        // production environments will always have RESEND_API_KEY
-        // set, so this branch never fires there. Documented in
-        // docs/security/R8_1_7_*.md.
-      }
-
-      try {
-        await prisma.mfaRecoveryAdminDigestLog.create({
-          data: {
-            userId: adminUserId,
-            sentDate,
-            teamCount: includedSummaries.length,
-            requestCount: totalPending,
-          },
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "";
-        if (msg.includes("Unique") || msg.includes("UNIQUE")) {
-          // A parallel worker beat us. Don't double-emit.
-          continue;
-        }
-        throw err;
-      }
-      if (sent === "ok") adminsSent += 1;
-
-      // 4e. Mark every team the admin received in their digest as
-      //     "digested today" so SecOps can see at the team level
-      //     too. The per-team log uses UNIQUE (teamId, sentDate)
-      //     so multiple admins covering the same team produce
-      //     exactly one per-team row.
+      // 4f. Mark every team the admin received in their digest as "digested
+      //     today". Reached only on an acknowledged send or on a deliberate
+      //     no-transport skip — a team is never recorded as digested off the
+      //     back of a failure.
       for (const summary of includedSummaries) {
         teamsDigested.add(summary.teamId);
         try {
@@ -320,12 +357,8 @@ export async function runMfaRecoveryDigest(
             },
           });
         } catch (err) {
-          const msg = err instanceof Error ? err.message : "";
-          if (msg.includes("Unique") || msg.includes("UNIQUE")) {
-            // Already recorded for this team today — fine.
-          } else {
-            throw err;
-          }
+          if (!isUniqueViolation(err)) throw err;
+          // Already recorded for this team today — fine.
         }
         // One bounded security event per team that was included.
         try {
@@ -376,6 +409,309 @@ export async function runMfaRecoveryDigest(
     adminsSent,
     adminsFailed,
   };
+}
+
+// ===========================================================================
+// PHASE 12 POINT 5 — the durable delivery-attempt authority
+// ===========================================================================
+
+type DigestClaim =
+  | {
+      kind: "leased";
+      logId: string;
+      deliveryId: string;
+      /** Stable across every attempt on this delivery row. */
+      idempotencyKey: string;
+    }
+  /** Another worker holds a live lease, or the day is already terminal. */
+  | { kind: "unavailable" };
+
+/**
+ * Acquire — or recover — the exclusive right to send today's digest to one
+ * admin.
+ *
+ * Two durable rows, written in ONE transaction:
+ *
+ *   `MfaRecoveryAdminDigestLog`  the daily slot. UNIQUE (userId, sentDate)
+ *                                elects exactly one winner per UTC day.
+ *   `NotificationDelivery`       the attempt record. Created `PENDING` with no
+ *                                attempt marker — the `claimed` phase — and
+ *                                immediately eligible.
+ *
+ * Writing them together is what closes the original lost-message window. If
+ * the slot were taken without an attempt record, a crash before the record was
+ * written would leave a claim nobody could interpret, which is precisely the
+ * state the old code left behind.
+ *
+ * The lease is then taken by a CONDITIONAL update whose affected-row count is
+ * the winner election, so the same code path serves a fresh claim and a
+ * recovery: a row that is `claimed`, `expired`, `retryable` or `ambiguous` has
+ * `nextAttemptAtUtc <= now` and can be leased; a row that is `in_flight` does
+ * not and cannot.
+ */
+async function acquireDigestClaim(input: {
+  adminUserId: string;
+  adminEmail: string;
+  sentDate: string;
+  teamCount: number;
+  requestCount: number;
+}): Promise<DigestClaim> {
+  const now = new Date();
+  let logId: string;
+  let deliveryId: string;
+  /**
+   * The provider idempotency key for this durable intent.
+   *
+   * Minted once when the intent is created and PERSISTED on the row; loaded on
+   * every subsequent attempt. Never re-derived from the current secret, so a
+   * rotation cannot change the key an in-flight message was already sent with.
+   */
+  let storedKey: string;
+
+  const existingLog = await prisma.mfaRecoveryAdminDigestLog.findUnique({
+    where: {
+      userId_sentDate: { userId: input.adminUserId, sentDate: input.sentDate },
+    },
+    select: { id: true },
+  });
+
+  if (existingLog) {
+    logId = existingLog.id;
+    const existingDelivery = await findDigestDelivery(logId);
+    if (!existingDelivery) {
+      // A slot row with no attempt record predates this state machine. Its
+      // meaning is genuinely unknown — the old code wrote such a row both as a
+      // claim and as a delivery marker — so it is treated as delivered. That
+      // is the conservative reading: it can at worst skip one legacy day, and
+      // the alternative could email an admin who already received the digest.
+      return { kind: "unavailable" };
+    }
+    const phase = deriveDeliveryPhase(existingDelivery, now);
+    if (phase === "acknowledged" || phase === "delivered" || phase === "skipped") {
+      return { kind: "unavailable" };
+    }
+    if (phase === "failed") {
+      // Permanent failure is terminal for the day. Visible, not retried.
+      return { kind: "unavailable" };
+    }
+    deliveryId = existingDelivery.id;
+    // The key this intent was ALREADY sent with. Loaded, never re-derived: a
+    // key that changes when the signing secret rotates is not a retry key.
+    // A row written before this authority existed has none, so one is minted
+    // from its immutable id and persisted by the lease update below.
+    storedKey = resolveIntentIdempotencyKey({
+      metadata: existingDelivery.metadata,
+      operation: DELIVERY_IDEMPOTENCY_OPERATION,
+      intentId: deliveryId,
+    }).key;
+  } else {
+    logId = randomUUID();
+    deliveryId = randomUUID();
+    // Minted ONCE, at the moment the durable intent is created, and written in
+    // the same transaction as the claim.
+    storedKey = mintEmailIdempotencyKey(
+      DELIVERY_IDEMPOTENCY_OPERATION,
+      deliveryId,
+    );
+    try {
+      await prisma.$transaction([
+        prisma.mfaRecoveryAdminDigestLog.create({
+          data: {
+            id: logId,
+            userId: input.adminUserId,
+            sentDate: input.sentDate,
+            teamCount: input.teamCount,
+            requestCount: input.requestCount,
+          },
+          select: { id: true },
+        }),
+        prisma.notificationDelivery.create({
+          data: {
+            id: deliveryId,
+            // A digest spans every workspace the admin administers, so it
+            // belongs to none of them. `teamId` is left null rather than
+            // arbitrarily attributed to one of them.
+            teamId: null,
+            eventType: MFA_DIGEST_EVENT_TYPE,
+            channel: "EMAIL",
+            provider: "RESEND",
+            recipient: input.adminEmail,
+            recipientUserId: input.adminUserId,
+            status: "PENDING",
+            templateKey: MFA_DIGEST_TEMPLATE_KEY,
+            // Eligible immediately: a claim with no attempt is recoverable
+            // from the instant it exists.
+            nextAttemptAtUtc: now,
+            metadata: {
+              claimLogId: logId,
+              digestSentDate: input.sentDate,
+              teamCount: input.teamCount,
+              requestCount: input.requestCount,
+              [STORED_IDEMPOTENCY_KEY_FIELD]: storedKey,
+            },
+          },
+          select: { id: true },
+        }),
+      ]);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        // Another tick won the slot between our read and our insert. Its
+        // delivery row exists (same transaction), so the next tick will find
+        // it; this one simply steps aside.
+        return { kind: "unavailable" };
+      }
+      throw err;
+    }
+  }
+
+  // THE LEASE. `updateMany` with the eligibility predicate in the WHERE
+  // clause: the database decides, and the affected-row count is the answer.
+  const idempotencyKey = storedKey;
+  const leased = await prisma.notificationDelivery.updateMany({
+    where: {
+      id: deliveryId,
+      status: { in: ["PENDING", "RETRY_SCHEDULED"] },
+      nextAttemptAtUtc: { lte: now },
+    },
+    data: {
+      status: "PENDING",
+      errorCode: null,
+      errorMessage: null,
+      nextAttemptAtUtc: new Date(now.getTime() + ATTEMPT_LEASE_MS),
+      retryCount: { increment: 1 },
+      metadata: {
+        claimLogId: logId,
+        digestSentDate: input.sentDate,
+        teamCount: input.teamCount,
+        requestCount: input.requestCount,
+        // Rewritten verbatim on every lease so the stored key survives the
+        // metadata replacement — `updateMany` replaces the JSON, it does not
+        // merge into it, and losing the key here would silently re-mint it on
+        // the next attempt.
+        [STORED_IDEMPOTENCY_KEY_FIELD]: idempotencyKey,
+        attempt: {
+          startedAtUtc: now.toISOString(),
+          idempotencyKey,
+        },
+      },
+    },
+  });
+  if (leased.count !== 1) return { kind: "unavailable" };
+
+  return { kind: "leased", logId, deliveryId, idempotencyKey };
+}
+
+/** The attempt record for one claim row, if this state machine wrote one. */
+async function findDigestDelivery(claimLogId: string) {
+  return prisma.notificationDelivery.findFirst({
+    where: {
+      eventType: MFA_DIGEST_EVENT_TYPE,
+      metadata: { path: ["claimLogId"], equals: claimLogId },
+    },
+    select: {
+      id: true,
+      status: true,
+      errorCode: true,
+      providerMessageId: true,
+      sentAtUtc: true,
+      deliveredAtUtc: true,
+      nextAttemptAtUtc: true,
+      metadata: true,
+    },
+  });
+}
+
+/**
+ * Write what the provider actually said.
+ *
+ * Every branch is a state, and none of them is a boolean. In particular
+ * `ambiguous` does not collapse into either success or failure: the row stays
+ * non-terminal, keeps its idempotency key, and becomes eligible again after a
+ * backoff, so the retry is a deduplicated re-send rather than a second email.
+ */
+async function recordDigestOutcome(input: {
+  deliveryId: string;
+  logId: string;
+  outcome: EmailDeliveryOutcome;
+}): Promise<void> {
+  const now = new Date();
+  const { outcome } = input;
+
+  switch (outcome.kind) {
+    case "acknowledged":
+      await prisma.notificationDelivery.update({
+        where: { id: input.deliveryId },
+        data: {
+          status: "SENT",
+          providerMessageId: outcome.providerMessageId,
+          sentAtUtc: now,
+          nextAttemptAtUtc: null,
+          errorCode: null,
+          errorMessage: null,
+        },
+      });
+      // Only now does the daily slot mean "delivered".
+      await prisma.mfaRecoveryAdminDigestLog.update({
+        where: { id: input.logId },
+        data: { sentAtUtc: now },
+      });
+      return;
+
+    case "not_configured":
+      // No transport is configured. This is not a failure to retry: it is a
+      // deliberate no-op, recorded as SKIPPED so an operator can see that the
+      // day produced no message and why.
+      await prisma.notificationDelivery.update({
+        where: { id: input.deliveryId },
+        data: {
+          status: "SKIPPED",
+          errorCode: "not_configured",
+          nextAttemptAtUtc: null,
+        },
+      });
+      await prisma.mfaRecoveryAdminDigestLog.update({
+        where: { id: input.logId },
+        data: { sentAtUtc: now },
+      });
+      return;
+
+    case "permanent":
+      await prisma.notificationDelivery.update({
+        where: { id: input.deliveryId },
+        data: {
+          status: "FAILED",
+          errorCode: outcome.errorCode,
+          failedAtUtc: now,
+          nextAttemptAtUtc: null,
+        },
+      });
+      return;
+
+    case "retryable":
+      await prisma.notificationDelivery.update({
+        where: { id: input.deliveryId },
+        data: {
+          status: "RETRY_SCHEDULED",
+          errorCode: outcome.errorCode,
+          // Eligible on the next tick: the provider answered "not now", not
+          // "maybe". Releasing the lease is the whole retry mechanism.
+          nextAttemptAtUtc: now,
+        },
+      });
+      return;
+
+    case "ambiguous":
+      await prisma.notificationDelivery.update({
+        where: { id: input.deliveryId },
+        data: {
+          status: "RETRY_SCHEDULED",
+          errorCode: AMBIGUOUS_ERROR_CODE,
+          errorMessage: outcome.errorCode,
+          nextAttemptAtUtc: new Date(now.getTime() + AMBIGUOUS_RETRY_BACKOFF_MS),
+        },
+      });
+      return;
+  }
 }
 
 /**
@@ -491,15 +827,20 @@ interface SendAdminDigestInput {
    *  email body omits the snooze block. The URL targets the global
    *  digest preference (teamId = null). */
   snoozeUrl: string | null;
+  /** Derived from the durable delivery row; identical on every retry. */
+  idempotencyKey: string;
 }
 
 /**
- * Minimal Resend HTTP-API client. Uses the global Node `fetch`
- * (no new SDK dependency). Returns:
- *   - "ok": transport accepted the email
- *   - "skipped_no_transport": RESEND_API_KEY not configured
- * Throws on transport error so the caller's `try` records the
- * failure event.
+ * Render the digest and hand it to the CANONICAL transport.
+ *
+ * PHASE 12 POINT 5 — this function used to BE a transport: a raw `fetch` at
+ * the provider's send endpoint, with its own key handling, no timeout, no
+ * idempotency key, and a `throw` on any non-2xx that the caller could only
+ * read as "failed". That made it the third independent email transport policy
+ * engine in the repository, and the only one whose retries could deliver
+ * twice. It now renders, and `deliverEmail` transports — which is also why the
+ * provider's hostname no longer appears anywhere in this file.
  *
  * PHASE R8.1.8 — sends BOTH a plain-text and an HTML body. The
  * HTML body uses a minimal inline template (the API's
@@ -511,11 +852,7 @@ interface SendAdminDigestInput {
  */
 async function sendAdminDigest(
   input: SendAdminDigestInput,
-): Promise<"ok" | "skipped_no_transport"> {
-  const apiKey = process.env["RESEND_API_KEY"];
-  if (!apiKey) return "skipped_no_transport";
-  const from =
-    process.env["RESEND_FROM"] || "PROOVRA <notifications@proovra.com>";
+): Promise<EmailDeliveryOutcome> {
   const totalPending = input.totalPending;
   const teamCount = input.teams.length;
   const subject = `${totalPending} pending MFA recovery request${
@@ -607,24 +944,14 @@ async function sendAdminDigest(
   </div>
 </body></html>`;
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: input.adminEmail,
-      subject,
-      text,
-      html,
-    }),
+  return deliverEmail({
+    from: canonicalEmailFrom(),
+    to: input.adminEmail,
+    subject,
+    text,
+    html,
+    idempotencyKey: input.idempotencyKey,
   });
-  if (!res.ok) {
-    throw new Error(`resend_send_failed_${res.status}`);
-  }
-  return "ok";
 }
 
 /** Bounded HTML escape — defends against a team name containing

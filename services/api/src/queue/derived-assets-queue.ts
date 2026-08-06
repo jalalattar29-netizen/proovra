@@ -1,65 +1,37 @@
 /**
- * Phase 31.13 — API-side enqueue helper for the dedicated
- * `mi-derived-assets` BullMQ queue.
+ * PHASE 12 — POINT 5: derived-asset generation producer.
  *
- * This is the FIRST dedicated queue split out from the original
- * `media-intelligence` queue (which still handles analyze_metadata
- * / extract_exif / reserved kinds). The split closes the first 1 of
- * 9 isolated-queues from the brief's Part 1 and establishes the
- * pattern for the remaining 8 (mi-ocr, mi-transcript, etc.).
+ * The old payload was `{ teamId, evidenceId, evidencePartId, assetKind }` and
+ * the processor believed all four. `teamId` in particular scoped the SQL that
+ * looked up the source bytes, so a tampered value pointed the read at another
+ * workspace's evidence part — and the thumbnail it produced was written back
+ * under that same asserted tenant.
  *
- * Hard rules:
- *   * Lazy-init Redis — importing this module without REDIS_URL is
- *     safe (tests rely on it).
- *   * Idempotent — repeat triggers for the same evidence_part_id +
- *     asset_kind collapse to the existing waiting/active/delayed
- *     job.
- *   * Bounded payload — { teamId, evidenceId, evidencePartId,
- *     assetKind }. NEVER carries storage keys, signed URLs, or raw
- *     evidence content.
- *   * Never throws to the calling route — Redis outages return
- *     { enqueued: false, reason: "queue_unavailable" }.
- *   * Per-queue retry policy (attempts: 3, exponential 10s backoff).
+ * A durable authority for this work already existed; it just was not being used
+ * as one. `EvidencePartDerivedAsset` carries the workspace, the evidence, the
+ * part, the kind and the status, and its `(teamId, evidencePartId, assetKind)`
+ * unique index is exactly the idempotency the job needed. The producer now
+ * COMMITS that row and enqueues its id; the processor derives all four fields
+ * from it.
  */
 
-import { Queue } from "bullmq";
-import IORedis from "ioredis";
+import { JOB_NAMES, type EnqueueOutcome } from "@proovra/shared";
+import { bump } from "@proovra/shared-runtime/ops";
 
-import { bump } from "../services/ops/metrics.service.js";
+import { prisma } from "../db.js";
+import {
+  enqueueCanonicalWork,
+  getReadOnlyQueueHandle,
+} from "./canonical-queue-client.js";
+import { QUEUE_NAMES } from "@proovra/shared";
 
-const derivedAssetsQueueName = "mi-derived-assets";
-const derivedAssetsJobName = "GenerateDerivedAsset";
-
-function must(name: string): string {
-  const v = process.env[name];
-  if (!v || !v.trim()) {
-    throw new Error(`${name} is not set`);
-  }
-  return v.trim();
-}
-
-let _queue: Queue | null = null;
-function getQueue(): Queue {
-  if (_queue) return _queue;
-  const redisConnection = new IORedis(must("REDIS_URL"), {
-    maxRetriesPerRequest: null,
-  });
-  _queue = new Queue(derivedAssetsQueueName, {
-    connection: redisConnection as never,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 10_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    },
-  });
-  return _queue;
-}
-
+/**
+ * Bounded catalog. `image_thumbnail` runs sharp; video/audio kinds run ffmpeg;
+ * `compact_review_preview` is reserved and the processor records it as
+ * UNSUPPORTED rather than pretending to produce it.
+ */
 export const DERIVED_ASSET_KINDS = [
   "image_thumbnail",
-  // Reserved for future phases — payload accepted but worker emits
-  // UNSUPPORTED until ffmpeg is wired up.
   "video_frame",
   "audio_waveform",
   "low_res_proxy",
@@ -68,107 +40,111 @@ export const DERIVED_ASSET_KINDS = [
 
 export type DerivedAssetKind = (typeof DERIVED_ASSET_KINDS)[number];
 
-export type DerivedAssetJobPayload = {
+export type DerivedAssetRequestInput = {
+  /**
+   * Producer INPUT, used to SCOPE THE LOOKUP that proves the caller's evidence
+   * part really is in this workspace. It is not serialised, and the processor
+   * re-derives it from the committed row.
+   */
   teamId: string;
   evidenceId: string;
   evidencePartId: string;
   assetKind: DerivedAssetKind;
 };
 
-export function buildDerivedAssetJobId(
-  evidencePartId: string,
-  assetKind: DerivedAssetKind,
-): string {
-  return `da-${assetKind}-${evidencePartId}`;
-}
-
 export type DerivedAssetEnqueueResult =
-  | { enqueued: true; jobId: string; reused: false }
-  | { enqueued: false; reason: string };
+  | { enqueued: true; jobId: string; derivedAssetId: string }
+  | { enqueued: false; reason: string; derivedAssetId?: string };
 
 /**
- * Idempotent enqueue. Repeat triggers for the same (assetKind,
- * evidencePartId) collapse onto an existing waiting/active/delayed
- * job. Redis outage → `{ enqueued: false, reason: ... }`.
+ * Persist the intent, then enqueue its id.
+ *
+ * Never throws to the calling route. A Redis outage leaves the row PENDING,
+ * which is a recoverable and observable state rather than a lost request.
  */
 export async function enqueueDerivedAssetGeneration(
-  payload: DerivedAssetJobPayload,
+  input: DerivedAssetRequestInput,
 ): Promise<DerivedAssetEnqueueResult> {
-  const jobId = buildDerivedAssetJobId(payload.evidencePartId, payload.assetKind);
-  let queue: Queue;
-  try {
-    queue = getQueue();
-  } catch (err) {
-    bump("derived_assets_enqueue_failed_total");
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
+  if (!(DERIVED_ASSET_KINDS as ReadonlyArray<string>).includes(input.assetKind)) {
+    return { enqueued: false, reason: "unknown_asset_kind" };
   }
+
+  // The part must belong to the caller's workspace. Proving that HERE is what
+  // lets the committed row be trusted later without re-deriving the caller's
+  // scope — and it is a real check, not a restatement of the input, because it
+  // joins through `evidence.team_id`.
+  const part = await prisma.evidencePart.findFirst({
+    where: {
+      id: input.evidencePartId,
+      evidenceId: input.evidenceId,
+      evidence: { teamId: input.teamId, deletedAt: null },
+    },
+    select: { id: true },
+  });
+  if (!part) {
+    return { enqueued: false, reason: "evidence_part_not_found" };
+  }
+
+  // The unique index on (teamId, evidencePartId, assetKind) IS the idempotency:
+  // two concurrent requests for the same derived asset produce one row, and the
+  // deterministic job id then collapses their two enqueues onto one job.
+  let derivedAssetId: string;
   try {
-    const existing = await queue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        bump("derived_assets_enqueue_total");
-        return { enqueued: false, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        /* ignore race */
-      }
-    }
-    await queue.add(derivedAssetsJobName, payload, {
-      jobId,
-      attempts: 3,
-      backoff: { type: "exponential", delay: 10_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
+    const row = await prisma.evidencePartDerivedAsset.upsert({
+      where: {
+        teamId_evidencePartId_assetKind: {
+          teamId: input.teamId,
+          evidencePartId: input.evidencePartId,
+          assetKind: input.assetKind,
+        },
+      },
+      create: {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        evidencePartId: input.evidencePartId,
+        assetKind: input.assetKind,
+        status: "PENDING",
+      },
+      // A re-request re-opens the row rather than creating a second one. It
+      // deliberately does NOT clear `storageKey`: if a previous run produced an
+      // artifact, that artifact stays readable until this run replaces it.
+      update: { status: "PENDING", lastError: null },
+      select: { id: true },
     });
-    bump("derived_assets_enqueue_total");
-    return { enqueued: true, jobId, reused: false };
-  } catch (err) {
+    derivedAssetId = row.id;
+  } catch {
     bump("derived_assets_enqueue_failed_total");
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
+    return { enqueued: false, reason: "request_persist_failed" };
   }
+
+  const outcome: EnqueueOutcome = await enqueueCanonicalWork({
+    workName: JOB_NAMES.GENERATE_DERIVED_ASSET,
+    commandId: derivedAssetId,
+    traceId: input.assetKind,
+  });
+
+  if (outcome.enqueued) {
+    bump("derived_assets_enqueue_total");
+    return { enqueued: true, jobId: outcome.jobId, derivedAssetId };
+  }
+  bump("derived_assets_enqueue_failed_total");
+  return { enqueued: false, reason: outcome.reason, derivedAssetId };
 }
 
 /**
- * Phase 31.13 — Operator-triggered single-job retry. Used by the
- * /ops/media-graph retry surface for derived-asset failures.
+ * Operator-triggered single-job retry, used by the /ops media-graph surface.
+ *
+ * It retries a FAILED job in place rather than enqueuing a new one, so the
+ * operator's action cannot produce a second artifact for the same request.
  */
 export async function retryDerivedAssetJob(
   jobId: string,
-): Promise<
-  { ok: true; retried: true } | { ok: false; reason: string }
-> {
-  let queue: Queue;
-  try {
-    queue = getQueue();
-  } catch (err) {
-    return {
-      ok: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
+): Promise<{ ok: true; retried: true } | { ok: false; reason: string }> {
+  const queue = getReadOnlyQueueHandle(
+    QUEUE_NAMES.DERIVED_ASSETS,
+    JOB_NAMES.GENERATE_DERIVED_ASSET,
+  );
+  if (!queue) return { ok: false, reason: "queue_unavailable" };
   try {
     const job = await queue.getJob(jobId);
     if (!job) return { ok: false, reason: "job_not_found" };

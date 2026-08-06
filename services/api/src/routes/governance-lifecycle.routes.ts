@@ -583,8 +583,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         // no `Case.evidenceLinks` back-relation declared in the
         // schema.
         linkedCaseIds.length > 0
-          ? prisma.caseLegalHold.findMany({
-              where: {
+          ? prisma.evidenceLegalHold.findMany({
+              // P12.3 canonical-only (scope='CASE').
+              where: { scope: "CASE",
                 teamId: query.teamId,
                 status: "ACTIVE",
                 caseId: { in: linkedCaseIds },

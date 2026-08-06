@@ -4,8 +4,14 @@ import * as Sentry from "@sentry/node";
 // production never accidentally profiles at 100%.
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { ZodError } from "zod";
-import { isAppError } from "../errors.js";
+import { classifyReportability, isAppError } from "../errors.js";
 import { readFastifyClientError } from "./fastify-client-error.js";
+import {
+  createRecordingTransport,
+  resolveObservabilityDsn,
+  resolveObservabilityEnvironmentTag,
+  resolveObservabilityMode,
+} from "./observability-environment.js";
 
 let sentryReady = false;
 
@@ -90,8 +96,22 @@ function redactValue(value: unknown): unknown {
 }
 
 export function initSentry() {
-  const dsn = process.env.SENTRY_DSN;
-  if (!dsn || sentryReady) return;
+  if (sentryReady) return;
+
+  // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05). Transport is decided by
+  // WHAT THIS PROCESS IS, not by whether a DSN happens to be in the
+  // environment. The previous gate was `if (!dsn) return`, and the first
+  // Point-7 run proved what that permits: a local test process inherited the
+  // production DSN through `dotenv` and shipped two real issues tagged
+  // `environment=test`. The tag was accurate and completely powerless.
+  //
+  // In `recording` mode Sentry is fully initialised — beforeSend, scrubbing,
+  // sample rates, the lot — against a transport that never opens a socket, so
+  // a test asserts on the REAL capture decision instead of a stub of it.
+  const mode = resolveObservabilityMode();
+  if (mode === "off") return;
+  const dsn = resolveObservabilityDsn(mode);
+  if (mode !== "recording" && !dsn) return;
   // Phase P2.0B — performance + profiling are now first-class. Sample
   // rates come from env so prod / staging can tune independently.
   // Defaults: traces 0.2, profiles 0.1. The traces sampling drives
@@ -106,10 +126,7 @@ export function initSentry() {
     "SENTRY_PROFILES_SAMPLE_RATE",
     0.1,
   );
-  const environment =
-    (process.env.SENTRY_ENVIRONMENT ?? "").trim() ||
-    process.env.NODE_ENV ||
-    "development";
+  const environment = resolveObservabilityEnvironmentTag(mode);
   const release =
     (process.env.SENTRY_RELEASE ?? "").trim() ||
     (process.env.APP_RELEASE_SHA ?? "").trim() ||
@@ -122,18 +139,31 @@ export function initSentry() {
   const skipOtelSetup = isOtelEnabled();
 
   Sentry.init({
-    dsn,
+    // A recording run needs a syntactically valid DSN for the SDK to
+    // initialise; it is never dialled, because the transport below never opens
+    // a socket. The host is `localhost` so that even a future SDK change that
+    // tried to resolve it would be caught by the outbound guard rather than
+    // reaching anyone.
+    dsn: dsn ?? "https://point7recording@localhost/0",
     environment,
     release,
     serverName: "proovra-api",
     tracesSampleRate,
     profilesSampleRate,
+    ...(mode === "recording"
+      ? {
+          transport: createRecordingTransport(),
+          // Profiling spawns a native sampler and has nothing to profile in a
+          // recording run.
+          profilesSampleRate: 0,
+        }
+      : {}),
     // Phase O1.3 — see `isOtelEnabled()` JSDoc. Skips ONLY the
     // OTEL provider/propagator/context global registration; error
     // reporting, beforeSend, beforeSendTransaction, sample rates,
     // and serverName are unaffected.
     skipOpenTelemetrySetup: skipOtelSetup,
-    integrations: [nodeProfilingIntegration()],
+    integrations: mode === "recording" ? [] : [nodeProfilingIntegration()],
     beforeSendTransaction(event) {
       // Scrub authorization-bearing headers from transaction
       // payloads before they leave the process. Transactions can
@@ -176,6 +206,32 @@ export function initSentry() {
       // only suppressing the duplicate Sentry alert that the
       // readiness response already carries.
       const err = hint?.originalException;
+
+      // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): the ONE capture
+      // decision, taken from the error's declared reportability.
+      //
+      // This runs FIRST, ahead of the historical shape-by-shape filters below,
+      // because those filters are a list of things somebody remembered — and
+      // the list did not include a plain `Error` carrying `statusCode: 409`,
+      // which is the shape every commercial-enforcement refusal in this
+      // codebase uses. That omission is what made "Free evidence limit
+      // reached" an error-level issue.
+      //
+      // It is a CLASSIFICATION, never a message match. Filtering on the string
+      // "Free evidence limit reached" would have silenced one sentence and
+      // left every other plan limit paging an operator, and would break the
+      // moment the copy changed.
+      //
+      // SECURITY_SIGNAL is deliberately NOT filtered here: a cross-tenant probe
+      // or a step-up bypass attempt is a 4xx that an operator must still see.
+      // Only the two "this is the product working" classes are dropped.
+      const reportability = classifyReportability(err);
+      if (
+        reportability === "EXPECTED_DENIAL" ||
+        reportability === "OPERATIONAL_WARNING"
+      ) {
+        return null;
+      }
 
       // Phase CAPTURE-HARDENING — client-input validation failures
       // are HTTP 4xx business outcomes, never server-side bugs.

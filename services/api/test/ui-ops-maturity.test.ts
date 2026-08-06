@@ -225,8 +225,6 @@ describe("AppSidebarV2 — IA + operational badges", () => {
   // below no longer have a source to read. Group ordering is now a
   // rendering concern in AppSidebarV2 + the disclosure resolver, covered
   // by their own tests.
-  it.skip("declares the five canonical groups in the documented order (removed with navigation-config)", () => {});
-
   it("canonical workspace routes include Home, Capture, Evidence, Cases, Reports, Search", () => {
     // Dashboard is consolidated under /home — the canonical label is
     // "Home", not "Dashboard". These labels are expressed verbatim in
@@ -246,9 +244,6 @@ describe("AppSidebarV2 — IA + operational badges", () => {
   // these surfaces ("SLA tracking", "Governance policy", "Identity &
   // Security", "Destruction reviews"), so the literal-label assertions
   // no longer hold and were removed with the deleted file.
-  it.skip("Review & Governance group lists Reviewer Ops, SLA, ... (removed with navigation-config)", () => {});
-  it.skip("Platform Health group lists Operations Center, ... (removed with navigation-config)", () => {});
-
   it("canonical administration routes include Workspaces, Billing, Integrations", () => {
     // Phase B0.5 renamed the operational nav label from "Teams" to
     // "Workspaces"; the DB-level Team model name is unchanged. These
@@ -335,7 +330,7 @@ describe("Observability page — Phase 28-J maturity", () => {
 
   it("imports Sparkline from the operational barrel", () => {
     expect(src).toMatch(
-      /import\s*\{[\s\S]*?Sparkline[\s\S]*?\}\s*from\s*"[\.\/]+components\/operational"/,
+      /import\s*\{[\s\S]*?Sparkline[\s\S]*?\}\s*from\s*"[./]+components\/operational"/,
     );
   });
 

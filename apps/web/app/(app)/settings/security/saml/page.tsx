@@ -24,7 +24,7 @@
  *     coherent IA without forking the active codebase.
  *
  * Backed by:
- *   * GET  /v1/admin/identity/sso/providers?teamId=...   (list SAML connections)
+ *   * GET  /v1/admin/identity/providers?teamId=...   (list SAML connections)
  *   * POST /v1/auth/saml/:connectionId/test-connection   (health check)
  *   * PUT  /v1/auth/saml/:connectionId/certificate-next  (rotation cert)
  *   * DEL  /v1/auth/saml/:connectionId/certificate-next  (promote)

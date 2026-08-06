@@ -45,7 +45,6 @@ function readWeb(rel: string): string {
 }
 
 const TYPES = readApi("src/services/platform-context/types.ts");
-const CAP = readApi("src/services/platform-context/capability-registry.ts");
 const SVC = readApi("src/services/platform-context/platform-context.service.ts");
 
 const WEB_TYPES = readWeb("lib/platform-context/types.ts");
@@ -300,13 +299,37 @@ describe("ENTERPRISE TENANT MODEL — frontend types + hooks", () => {
     expect(WEB_TYPES).toMatch(/PlatformContextDuplicatePersonalCandidate\b/);
   });
 
-  it("frontend types declare account/personalSpace/organizations/activeSpace on the envelope", () => {
-    expect(WEB_TYPES).toMatch(/account\?:\s*PlatformContextAccount/);
-    expect(WEB_TYPES).toMatch(/personalSpace\?:\s*PlatformContextPersonalSpace/);
+  it("frontend types declare account/personalSpace/organizations/activeSpace as REQUIRED, matching the server contract", () => {
+    // Phase 12 Point 4 (Pass E) — these four (plus contextOptions and
+    // operationalEligibility) were declared OPTIONAL on the web while the
+    // API declares them REQUIRED and returns them on every envelope build.
+    // That one-sided optionality was the sole justification for a family of
+    // "older deployment / older envelope shape" fallback branches, one of
+    // which fabricated a synthetic `organizationId: "legacy"` group in the
+    // workspace switcher. The web contract now matches the server's.
+    expect(WEB_TYPES).toMatch(/\baccount:\s*PlatformContextAccount/);
+    expect(WEB_TYPES).toMatch(/\bpersonalSpace:\s*PlatformContextPersonalSpace/);
     expect(WEB_TYPES).toMatch(
-      /organizations\?:\s*ReadonlyArray<PlatformContextOrganization>/,
+      /\borganizations:\s*ReadonlyArray<PlatformContextOrganization>/,
     );
-    expect(WEB_TYPES).toMatch(/activeSpace\?:\s*PlatformContextActiveSpace/);
+    expect(WEB_TYPES).toMatch(/\bactiveSpace:\s*PlatformContextActiveSpace/);
+    expect(WEB_TYPES).toMatch(/\bcontextOptions:\s*PlatformContextContextOptions/);
+    expect(WEB_TYPES).toMatch(
+      /\boperationalEligibility:\s*PlatformContextOperationalEligibility/,
+    );
+    // No optional marker may return on any of them.
+    for (const field of [
+      "account",
+      "personalSpace",
+      "organizations",
+      "activeSpace",
+      "contextOptions",
+      "operationalEligibility",
+    ]) {
+      expect(WEB_TYPES, `${field} must not be optional again`).not.toMatch(
+        new RegExp(`\\b${field}\\?:`),
+      );
+    }
   });
 
   it("canonical hooks are exported from the platform-context index", () => {
@@ -351,11 +374,22 @@ describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
 
   it("switcher renders Organization groups from the server-authorized contextOptions (P3/P4 domain remediation 2026-07-21)", () => {
     // The resolver consumes the envelope's SERVER-AUTHORIZED contextOptions
-    // section (the legacy flat `organizations` list survives only as a
-    // rollout fallback grouped under one bucket)…
+    // section — and, since Phase 12 Point 4 (Pass E), ONLY that. The legacy
+    // flat `organizations` rollout fallback is gone: it could not tell OWNED
+    // from ORGANIZATION, so it invented a single bucket under a synthetic
+    // `organizationId: "legacy"` — a fabricated identifier rendered as if the
+    // server had authorized it. A null now means "envelope not loaded" and
+    // yields no workspaces, never a guessed grouping.
     expect(WEB_TOPBAR).toMatch(/contextOptions:\s*envelope\?\.contextOptions/); // (P3/P4 domain remediation 2026-07-21)
-    expect(WEB_ACCOUNT_RESOLVER).toMatch(/input\.contextOptions\.organizations\.map\(/); // (P3/P4 domain remediation 2026-07-21)
-    expect(WEB_ACCOUNT_RESOLVER).toMatch(/organizationId:\s*"legacy"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(WEB_ACCOUNT_RESOLVER).toMatch(
+      /input\.contextOptions\?\.organizations\s*\?\?\s*\[\]/,
+    );
+    // Comments are stripped — the resolver documents why the fabricated
+    // group was removed, and that reasoning should stay readable.
+    const resolverCode = WEB_ACCOUNT_RESOLVER.split("\n")
+      .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
+      .join("\n");
+    expect(resolverCode).not.toMatch(/organizationId:\s*"legacy"/);
     // …and the toolbar renders one ORGANIZATION group per organization,
     // labelled with the organization name — while still mapping the
     // resolved org options.

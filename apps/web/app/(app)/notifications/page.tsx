@@ -16,7 +16,7 @@
  */
 
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
@@ -123,25 +123,35 @@ const queryString = useMemo(() => {
     return params.toString();
   }, [teamId, statusFilter, eventFilter]);
 
-  async function reload() {
+  // `queryString` already carries teamId + both filters, so it IS the query
+  // key. `isStale` lets the effect drop a response that arrived after the
+  // workspace or filters changed — the old tenant's deliveries must never
+  // render under the new selection.
+  const reload = useCallback(async (isStale?: () => boolean) => {
     if (!teamId) return;
     try {
       const res: { deliveries: Delivery[] } = await apiFetch(
         `/v1/notifications/deliveries?${queryString}`,
         { method: "GET" },
       );
+      if (isStale?.()) return;
       setItems(res.deliveries ?? []);
       setError(null);
     } catch (err) {
+      if (isStale?.()) return;
       const e = err as { message?: string };
       setError(toSafeUserError(e, { message: "Unable to load notification log." }).message);
     }
-  }
+  }, [teamId, queryString]);
 
   useEffect(() => {
     if (!queryString) return;
-    void reload();
-  }, [queryString]);
+    let cancelled = false;
+    void reload(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [queryString, reload]);
 
   async function resend(id: string) {
     if (!teamId) return;

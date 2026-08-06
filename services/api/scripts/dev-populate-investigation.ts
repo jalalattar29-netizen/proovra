@@ -1,3 +1,11 @@
+// PHASE 12 — POINT 7 (2026-08-05): load configuration EXPLICITLY.
+//
+// This script used to inherit its environment as a side effect of importing
+// `db.ts`, which opened with `import "dotenv/config"`. That implicit load was
+// the root cause of the production-isolation incident, so it is gone and every
+// entrypoint now asks for its configuration by name.
+import "../src/env.js";
+
 /**
  * dev:populate-investigation
  *

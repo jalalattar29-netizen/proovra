@@ -113,18 +113,6 @@ const ENTRIES: ReadonlyArray<ReplaySafetyEntry> = [
     rationale: "Read-only EXIF extraction; result upsert.",
   },
   {
-    queueName: "mi-ocr",
-    jobKind: "OcrExtraction",
-    category: "safe",
-    rationale: "Read-only OCR; result upsert.",
-  },
-  {
-    queueName: "mi-transcript",
-    jobKind: "TranscriptExtraction",
-    category: "safe",
-    rationale: "Read-only transcription; result upsert.",
-  },
-  {
     queueName: "mi-search-index",
     jobKind: "MiSearchIndex",
     category: "safe",

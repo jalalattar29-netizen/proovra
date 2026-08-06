@@ -17,8 +17,6 @@
 import { prisma } from "../../db.js";
 import type { OpsHealthState } from "./types.js";
 import { severityForStatus } from "./types.js";
-
-const WORKER_FRESH_SECONDS = 120;
 const WORKER_STALE_SECONDS = 600; // 10m
 const QUEUE_FRESH_SECONDS = 240;
 const QUEUE_STALE_SECONDS = 900; // 15m

@@ -1,0 +1,4530 @@
+{
+  "$comment": "PHASE 12 POINT 4 — deterministic API test census, generated from the JSON reporter of the two canonical projects. It is the FIRST authoritative baseline for API test accounting: every earlier figure was hand-reported in a ledger with no preserved runner artifact and is explicitly non-authoritative (see `historicalBaselines`). Per-file COUNTS are recorded for provenance but are deliberately not pinned, because the suites listed in `fileInventoryDriven` emit one assertion per web source file and therefore move with the tree. The machine-checked invariants live in `services/api/test/phase-12-point4-test-census.test.ts`.",
+  "generatedFor": "phase-12-point-4-final-correction",
+  "fileInventoryDriven": {
+    "suites": [
+      "test/phase-r10-visual-maturity.test.ts",
+      "test/phase-r11-browser-qa-accessibility.test.ts",
+      "test/phase-cr5-capture-safety.test.ts"
+    ],
+    "explanation": "These three suites call `walkFiles(apps/web)` and generate an `it()` per discovered source file (plus per forbidden-pattern). Their case counts therefore rise and fall with the web tree — which is why raw API totals from two different tree states are NOT comparable, and why the historical 19,360 figure cannot be reconciled by arithmetic against the current tree.",
+    "currentCounts": {
+      "test/phase-r10-visual-maturity.test.ts": 1366,
+      "test/phase-r11-browser-qa-accessibility.test.ts": 1094,
+      "test/phase-cr5-capture-safety.test.ts": 912
+    }
+  },
+  "historicalBaselines": [
+    {
+      "value": "631 files / 19,360 passed / 21 skipped",
+      "classification": "HAND_REPORTED_ONLY / NON_AUTHORITATIVE",
+      "reason": "Recorded in docs/architecture/program-ledger.md by a prior session. No JSON report, no runner log and no census artifact was preserved, and the tree state that produced it cannot be reconstructed (it was an uncommitted working tree). It must NOT be used as an executable baseline."
+    },
+    {
+      "value": "633 files / 21,223 passed / 21 skipped (combined, pre-integration-split)",
+      "classification": "RAW_RUNNER_ARTIFACT (summary only, no per-file breakdown)",
+      "reason": "Observed directly from `vitest run --reporter=basic`. Usable as a summary boundary but not for per-file arithmetic."
+    },
+    {
+      "value": "this manifest",
+      "classification": "DERIVED_FROM_MANIFEST / AUTHORITATIVE",
+      "reason": "Generated from the JSON reporter of both projects, per file, with duplicate-discovery and twin checks. This is the first baseline that can be re-derived exactly."
+    }
+  ],
+  "projects": {
+    "unit": {
+      "command": "pnpm --filter proovra-api test",
+      "config": "services/api/vitest.config.ts",
+      "files": 633,
+      "tests": 21253,
+      "passed": 21253,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "integration": {
+      "command": "pnpm --filter proovra-api test:integration",
+      "config": "services/api/vitest.integration.config.ts",
+      "files": 4,
+      "tests": 21,
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "combined": {
+    "files": 637,
+    "filesDiscoveredByBothProjects": 0,
+    "tests": 21274,
+    "passed": 21274,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "perFile": {
+    "unit": {
+      "test/admin-lead-cta.contract.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/analytics-path-redaction.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/auth-test-bypass.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/avatar-oauth-ingest.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/capture-closure-pass.contract.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/capture-detail-wiring.contract.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/capture-draft-expiry-sweeper.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/capture-environment-writer.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/capture-finalize-checklist-gate.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/capture-workspace-billing-scope.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/cases-eligibility-selector.contract.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/citizen-capture-evidence-materialisation.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/collaboration-route-guard-active-only.contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/collaboration.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/communications.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/contact-sales-wiring.contract.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/cross-system-governance-integration.test.ts": {
+        "tests": 46,
+        "passed": 46,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/crypto.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/dashboard-pipeline-detail-excludes-deleted.contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/dashboard-records-by-type.contract.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/evidence-complete-fanout-logging.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/evidence-delete-eligibility.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/evidence-detail-capture-note-overview.contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/evidence-detail-enterprise-integrity.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/evidence-unlock-route.contract.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/exif-extractor.service.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/export-package-eligibility-badge-allowed-renders-nothing.contract.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/external-intake-orchestration.service.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/external-intake-source-summary.service.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/fail-closed-governance-enforcement.test.ts": {
+        "tests": 57,
+        "passed": 57,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/fastify-invalid-json-body.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/forensic-hardening.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/governance-platform.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/home-copy-plain-language.contract.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/home-ia-three-layer.contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/home-priority-filter-contract.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/home-truth-fix-counts.contract.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/identity-security.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/identity.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-final-forensic.contract.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-archive.contract.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-client-signals.contract.test.ts": {
+        "tests": 63,
+        "passed": 63,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-completion.contract.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-delivery-truthfulness.contract.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-dispatcher.contract.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-e2e.contract.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-lifecycle.contract.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-location-collection.contract.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-messaging-enterprise.contract.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-link-mode-compat.contract.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-provider-sid-integrity.contract.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-submit-409-fix.contract.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intake-whatsapp-template.contract.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/integrations-api-keys-rotation.service.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/integrations-api-keys.service.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/integrations-governance-bypass.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/integrations-hardening.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/integrations-team-activity-filters.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/integrations-webhooks.service.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/intelligence.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/investigation-suite-audit.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/jwt.test.ts": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/migration-chain-order.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/ots-worker-exists.contract.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/p0-tenant-isolation-remediation.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/p1-workspace-kind.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/p2-invitation-coherence.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-authorization-closure.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-conformance-harness.smoke.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-domain-ai-over-evidence.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-domain-retention-destruction.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-domain-review-redaction-requests.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-evidence-destructive-access.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1-evidence-record-access.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-billing-guards.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-break-glass-runtime.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-closure-matrix.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-concurrent-session.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-continuous-org-policy.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-enterprise-identity.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-guest-login-removed.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-managed-9paths.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-managed-identity-backfill-and-boundaries.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-managed-identity-evidence.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-managed-identity-ownership.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-managed-identity.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-managed-provisioning.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-mandatory-sso-switch.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-no-personal-e2e.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-no-personal-surfaces.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-org-policy-fail-closed.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-org-session-seams.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-paypal-idempotency.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-plan-aware-ui.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-policy-convergence-readiness.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-policy-convergence.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-policy-creators-and-inheritance.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-policy-lifecycle.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-policy-provisioning.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-route-ownership.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-schema-unavailable-fail-closed.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-scim-atomic-reconciliation.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-scim-managed-ownership.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-security-routes.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-support-context-token.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-support-enforcement.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-10-support-runtime.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-admin-manual-audit.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-architecture-guard.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-audit-integrity.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-audit-readiness-command.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-audit-tenant-backfill.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-auth-destination-safety.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-closure-matrix.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-deep-link-resolution.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-severity-policy.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-tenant-audit-query.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-tenant-audit.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-tenant-routes.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-11-visibility-and-intelligence.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-closure-gate.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-convergence-guard.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-coverage-manifest.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-dead-routes-removed.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-evidence-operations-residue-matrix.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-investigation-productization.test.ts": {
+        "tests": 50,
+        "passed": 50,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-legal-hold-compatibility.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-operations-intelligence-matrix.test.ts": {
+        "tests": 97,
+        "passed": 97,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-platform-core-matrix.test.ts": {
+        "tests": 50,
+        "passed": 50,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-bulk-assign-authority.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-canonical-module-integrity.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-certification-attest.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-drift-check-target.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-enterprise-gate-subject.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-guest-invite-entitlement.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-intake-pseudonym-wiring.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-managed-identity-binding.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-org-admin-surface-projection.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-raw-schema-ownership.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-review-status-authority.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-test-census.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-point4-workspace-context-authority.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-queue-census.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-trust-administration-matrix.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-trust-administration-residue-matrix.test.ts": {
+        "tests": 47,
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12-wiring-registry.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12a-reconciliation-gate.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-case-evidence-authority.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-evidence-operations-entry-matrix.test.ts": {
+        "tests": 59,
+        "passed": 59,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-federation-provisioning.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-identity-admin-console-matrix.test.ts": {
+        "tests": 128,
+        "passed": 128,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-identity-administration.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-identity-recovery-org-matrix.test.ts": {
+        "tests": 99,
+        "passed": 99,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-identity-residual-matrix.test.ts": {
+        "tests": 119,
+        "passed": 119,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-identity-security-matrix.test.ts": {
+        "tests": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-identity-selfservice-matrix.test.ts": {
+        "tests": 110,
+        "passed": 110,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-legal-hold-convergence.test.ts": {
+        "tests": 80,
+        "passed": 80,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-redaction-request.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-review-authority.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-12b-security-center.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-13-intelligence-chain.test.ts": {
+        "tests": 52,
+        "passed": 52,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-13-intelligence-completion.test.ts": {
+        "tests": 65,
+        "passed": 65,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-14-global-intelligence-search.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-15-semantic-search.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-16-semantic-activation.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1a-pillar-ia.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1b-closure-runtime.test.ts": {
+        "tests": 43,
+        "passed": 43,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-1b-mobile-capture-trust.test.ts": {
+        "tests": 53,
+        "passed": 53,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-2-domain-classification.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-2-public-verify-output-context.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-24-b-completion.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-24-j-discovery.test.ts": {
+        "tests": 41,
+        "passed": 41,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-25-5-assignment-intelligence.test.ts": {
+        "tests": 37,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-25-6-reviewer-ops-ui.test.ts": {
+        "tests": 37,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-25-7-queue-intelligence.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-25-reviewer-intelligence.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-26-authorize.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-27-28-external-review-grants.test.ts": {
+        "tests": 37,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-27-5-external-review-routes.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-2a-closure-reviewer-experience.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-2a-reviewer-workspace.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-2b-closure-external-portal.test.ts": {
+        "tests": 54,
+        "passed": 54,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-2b-external-reviewer-portal.test.ts": {
+        "tests": 48,
+        "passed": 48,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3-admin-sso-policy-crud.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3-enterprise-identity-domains-and-sp-signing.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3-external-review-grant-step-up.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3-membership-orchestrator.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3-scope-j-evidence-safety-identity.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-10-capture-adoption.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-11-unified-evidence-model.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-12-consumer-integration.test.ts": {
+        "tests": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-5-upload-session-routes.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-6-integrations-uploads.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-7-finalize-gate.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-8-multipart.test.ts": {
+        "tests": 71,
+        "passed": 71,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-9-client-uploads.test.ts": {
+        "tests": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-30-upload-sessions.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-11-report-projection.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-12-verify-and-dashboard.test.ts": {
+        "tests": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-13-derived-assets.test.ts": {
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-14-derived-assets-bytes.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-15-case-graph-reconciler.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-16-graph-domains-and-explorer.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-17-reviewer-domains-and-inspector.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-18-closure-program.test.ts": {
+        "tests": 62,
+        "passed": 62,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-19-producer-mode.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-20-producers-and-final-queues.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-21-enterprise-closure.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-5-32-graph-and-intelligence.test.ts": {
+        "tests": 71,
+        "passed": 71,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-6-32-5-orchestration.test.ts": {
+        "tests": 54,
+        "passed": 54,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-7-32-6-timeline-and-ops.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-8-exif-wiring.test.ts": {
+        "tests": 51,
+        "passed": 51,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-9-ops-actions-ui.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-31-media-intelligence.test.ts": {
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-5-stabilization.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-1-package-state-machine.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-2-reviewer-ops-naming-drift.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-3-team-billing-naming-drift.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-4-frontend-runtime-ux-hotfix.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-5-readiness-correctness.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-6-personal-basic-verification-package.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-6-production-runtime-recovery.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-1-blocker-fix.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-2-security-event-mapping-drift.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-3-readiness-governance-blockers.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-4-case-legal-holds-503-fix.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-5-worker-reconcile-false-degraded.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-6-case-legal-holds-optional-subsystem.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-final-production-stabilization.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-7-runtime-canonicalization.test.ts": {
+        "tests": 33,
+        "passed": 33,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-b-enterprise-navigation.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-command-center.test.ts": {
+        "tests": 142,
+        "passed": 142,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-control-plane.test.ts": {
+        "tests": 56,
+        "passed": 56,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-enterprise-gap-closure.test.ts": {
+        "tests": 70,
+        "passed": 70,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-nav-reliability.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-operational-closure.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-pppp-dashboard-closure.test.ts": {
+        "tests": 52,
+        "passed": 52,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-ppppp-structural-closure.test.ts": {
+        "tests": 67,
+        "passed": 67,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-pppppp-frontend-consumption.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-shell-completion.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-c-workflow-causality.test.ts": {
+        "tests": 75,
+        "passed": 75,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-d-cases-reports.test.ts": {
+        "tests": 48,
+        "passed": 48,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-d-frontend-closure-2.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-d-frontend-closure.test.ts": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-d-frontend-matter-workspace.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-d-matter-workspace.test.ts": {
+        "tests": 60,
+        "passed": 60,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-e-teams-governance-reviewer.test.ts": {
+        "tests": 68,
+        "passed": 68,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-foundation-cleanup.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-foundation-platform-context.test.ts": {
+        "tests": 79,
+        "passed": 79,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-32-8-product-consolidation.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-95-scale-closure.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-95-tenant-access-helpers-behavioral.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-96-integration-harness-guards.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-97-dashboard-projections.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-98-command-center-projection-consumption.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3a-closure-detection-intelligence.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3a-elite-closure-policy-and-video.test.ts": {
+        "tests": 44,
+        "passed": 44,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3a-redaction-platform.test.ts": {
+        "tests": 65,
+        "passed": 65,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3a-redaction-publish-step-up.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3b-enterprise-closure.test.ts": {
+        "tests": 33,
+        "passed": 33,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-3b-intelligence-platform.test.ts": {
+        "tests": 46,
+        "passed": 46,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-enterprise-contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-org-billing-rollup.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-org-lifecycle.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-personal-lifecycle.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-preservation-invariants.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-provisioning-idempotency.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4-workspace-lifecycle.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4a-enterprise-closure.test.ts": {
+        "tests": 54,
+        "passed": 54,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4a-final-closure.test.ts": {
+        "tests": 53,
+        "passed": 53,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4a-trust-and-governance.test.ts": {
+        "tests": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4b-final-closure.test.ts": {
+        "tests": 64,
+        "passed": 64,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-4b-product-packaging-and-lifecycle.test.ts": {
+        "tests": 66,
+        "passed": 66,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-5-evidence-download-audit.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-5-external-access.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-5-invite-acceptance.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-5-lifecycle-hold-gate-union.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-5-org-governance-control-center.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-5-workflow-template-export-policy.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-6-case-assignment.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-6-enterprise-collaboration-honesty.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-6-evidence-scope.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-6-policy-precedence.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-7-team-vs-workspace-anti-confusion.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-bulk-invite.test.ts": {
+        "tests": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-enterprise-reports.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-oidc-callback.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-org-admin-cross-org-isolation.test.ts": {
+        "tests": 52,
+        "passed": 52,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-org-admin-personal-user-isolation.test.ts": {
+        "tests": 37,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-org-admin-tab-surface.test.ts": {
+        "tests": 147,
+        "passed": 147,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-readiness-posture.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-saml-signed-fixture.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-sso-scim-closure.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-8-vocabulary-and-shell-honesty.test.ts": {
+        "tests": 126,
+        "passed": 126,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-authority-writers.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-closure-gaps.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-collab-limits-divergence.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-commercial-context.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-commercial-convergence.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-commercial-invariants.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-commercial-lifecycle.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-commercial-registry.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-final-hardening.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-matrix-gap-rows.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-owned-workspace-policy.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a0-integrity-hard-gate.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a1-ai-disclosure-truthfulness.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a1-evidence-org-tenancy.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a2-pdf-artifact-status.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a2-policy-api.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a2-workspace-ai-policy.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a3-backend-hardening.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a3-provider-privacy.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a4-prompt-injection.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a5-prohibited-claims.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a6-readiness-language.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a7-usage-ledger.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-a8-ai-rate-limit.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-account-activity-emitters.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-account-closure.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-account-data-export.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-account-step-up.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-adoption.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-billing.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-costs.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-customer-lifecycle.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-evidence-ops.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-executive.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-organizations.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-overview.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-platform-health.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-search.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-security.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-timeline-alerts.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-admin-users.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-b-ia-reset.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-b-workflow-templates-center.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-b0-workspace-operating-model.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c-matter-queue-search.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c0-reviewer-console.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c1-c2-grounding-scope.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c1-matter-workspace.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c2-collaboration-surfacing.test.ts": {
+        "tests": 79,
+        "passed": 79,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c3-c6-copilot-foundations.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c3-intake-polish.test.ts": {
+        "tests": 98,
+        "passed": 98,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-c4-db-citation-resolver.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-closure-integration-secret-cleanup.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-closure-integration-step-up-purposes.test.ts": {
+        "tests": 41,
+        "passed": 41,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-closure-notification-failed-event.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-closure-webhook-delivery-latency.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr0-5-recovery-readiness.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr0-system-freeze-baseline.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr1-5-state-observability.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr1-5b-product-state-reaudit.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr1-6-surgical-state-cleanup.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr1-7-master-registry.test.ts": {
+        "tests": 46,
+        "passed": 46,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr1-legacy-purge.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr4-verify-decomposition.test.ts": {
+        "tests": 382,
+        "passed": 382,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-cr5-capture-safety.test.ts": {
+        "tests": 912,
+        "passed": 912,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-d-workflow-templates-projection.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-d1-d2-case-copilot.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-d3-reviewer-copilot.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-d4-copilot-persistence.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-d5-qc-sampling.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e1-ai-retention.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e10-1-pre-launch-hardening.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e10-2-operational-readiness.test.ts": {
+        "tests": 192,
+        "passed": 192,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e10-final-launch-hardening.test.ts": {
+        "tests": 406,
+        "passed": 406,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e2-controlled-collaboration.test.ts": {
+        "tests": 57,
+        "passed": 57,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e2-payload-privacy.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e3-1-automation-execution.test.ts": {
+        "tests": 41,
+        "passed": 41,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e3-2-webhook-delivery.test.ts": {
+        "tests": 74,
+        "passed": 74,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e3-3-async-delivery-runtime.test.ts": {
+        "tests": 59,
+        "passed": 59,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e3-automation-foundation.test.ts": {
+        "tests": 63,
+        "passed": 63,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e4-analytics.test.ts": {
+        "tests": 54,
+        "passed": 54,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e5-trust-center.test.ts": {
+        "tests": 289,
+        "passed": 289,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e6-dr-continuity.test.ts": {
+        "tests": 511,
+        "passed": 511,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e8-external-distribution.test.ts": {
+        "tests": 122,
+        "passed": 122,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-e9-ai-operational-intelligence.test.ts": {
+        "tests": 225,
+        "passed": 225,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-emergency-recovery-bootstrap.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-enterprise-tenant-model.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ev4-email-verification.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-f-governance-ux.test.ts": {
+        "tests": 62,
+        "passed": 62,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-f1-nl-search.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-fh-enterprise-hardening.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-ai-routes-runtime.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-ai-ui-wiring.contract.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-d3-no-window-confirm.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-d5-pt2-no-legacy-personal-security.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-hidden-feature-surfacing.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-provider-retry.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-qc-criteria-runtime.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-teams-collaboration-separation.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-final-worker-visibility.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g0-operational-convergence.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g1-governance-lifecycle.test.ts": {
+        "tests": 75,
+        "passed": 75,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g2-operational-ergonomics.test.ts": {
+        "tests": 61,
+        "passed": 61,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g3-1-live-operations-closure.test.ts": {
+        "tests": 91,
+        "passed": 91,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g3-2-final-live-operations-closure.test.ts": {
+        "tests": 93,
+        "passed": 93,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g3-stepup-presence-realtime.test.ts": {
+        "tests": 62,
+        "passed": 62,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g4-regression-safety.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g4-tenancy-cleanup.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g5-honest-mi.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g5-smoke-contracts.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-g5-vocabulary-contracts.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-home-data-ownership.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-capture-409-autosave.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-cleanup-inbox-and-collaboration.test.ts": {
+        "tests": 70,
+        "passed": 70,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-dev-auth.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-digest-policy-ascii-leak.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-digest-policy-hard-invariant.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-digest-policy.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-forward-path-latest-truth.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-forward-path-smoke.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-forward-path-tsa.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-home-cta-validation.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-home-fork.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-home-no-dup-cta.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-home-operational.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-home-v2.test.ts": {
+        "tests": 54,
+        "passed": 54,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-intake-access-fix.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-intake-completion.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-intake-personal-space-fix.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-reliability-inbox-state.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-route-authz-hardening.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-security-event-drift-fix.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-self-serve-audit-fixes.test.ts": {
+        "tests": 63,
+        "passed": 63,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-self-serve-completion.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-self-serve-regression-fix.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-surface-tier-wiring.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-surface-tier.test.ts": {
+        "tests": 169,
+        "passed": 169,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ia-tsa-false-failed.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-identity-links.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-intake-entitlement-gate.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-intake-link-classification.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-leave-organization.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-lifecycle-cross-family.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o-active-blocker-closure.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o-final-plus-full-schema-audit.test.ts": {
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o-final-schema-repair.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o-live-schema-repair.test.ts": {
+        "tests": 81,
+        "passed": 81,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o-migration-safety-gate.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o-workflow-join-final-repair.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o1-3-sentry-otel-coexistence.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o1-6-dashboard-coverage.test.ts": {
+        "tests": 92,
+        "passed": 92,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-o2-1-presence-redis-backend.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-oauth-session-recording.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-operational-eligibility.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-ops-scope-summary-contract.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-opscenter-completion.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-opscenter-readyz-schema-gate.test.ts": {
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-opscenter-redesign.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-org-lifecycle.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p1-1-identity-operations-completion.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p1-default-deny-domain.test.ts": {
+        "tests": 47,
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p1-identity-operations.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p2-0-secrets-manager.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p2-0b-observability-wiring.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p2-final-closure.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p3-1-signer-governance.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-p3-policy-convergence.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r-workflow-policy-sla-wiring.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r-workflow-templates-sector.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r1-5b-workspace-segmentation.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r1-bulk-destructive-gate.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r1-legal-hold-scope-invariant.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r1-product-state-recovery.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r1-upload-session-evidence-scope.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r10-personal-first-regression.test.ts": {
+        "tests": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r10-visual-maturity.test.ts": {
+        "tests": 1366,
+        "passed": 1366,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r11-browser-qa-accessibility.test.ts": {
+        "tests": 1094,
+        "passed": 1094,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r11-domain-stabilization.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r11-schema-invariants.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r12-runtime-alignment.test.ts": {
+        "tests": 33,
+        "passed": 33,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r13-route-persona-matrix.test.ts": {
+        "tests": 124,
+        "passed": 124,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r14-team-platform.test.ts": {
+        "tests": 47,
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r15-team-frontend.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r16-collaboration-completion.test.ts": {
+        "tests": 49,
+        "passed": 49,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r2-navigation-ia-recovery.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r3-dashboard-orchestration.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r4-product-language-recovery.test.ts": {
+        "tests": 35,
+        "passed": 35,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r5-progressive-disclosure.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r5-reviewer-bulk-capability.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r6-operational-hubs.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r7-onboarding-setup-recovery.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-1-mfa-orchestrator.test.ts": {
+        "tests": 33,
+        "passed": 33,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-2-login-mfa.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-3-org-mfa-policy-and-durable-challenges.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-4-mfa-admin-lifecycle.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-5-mfa-recovery-admin-ui.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-6-mfa-recovery-ux-completion.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-7-mfa-recovery-operations-polish.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-8-mfa-recovery-operations-ui.test.ts": {
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-9-mfa-recovery-finalization.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-mfa-recovery.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-mfa-totp.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-1-real-mfa.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-2-1-saml-hardening.test.ts": {
+        "tests": 39,
+        "passed": 39,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-2-2-saml-compliance.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-2-saml-sp.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-c-consolidation.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-enterprise-identity-security.test.ts": {
+        "tests": 36,
+        "passed": 36,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r8-saved-view-trust-filters.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r9-case-evidence-soft-delete.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r9-duplicate-route-guard.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r9-personal-first-rescue.test.ts": {
+        "tests": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-r9-worker-import-boundary.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-repair-derivative-honesty.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-repair-reviewers-honest-chips.test.ts": {
+        "tests": 33,
+        "passed": 33,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-repair-timeline-query-failure.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-route-fix-navigation.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-rw-audit-emission.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-rw-qc-sampling-producer.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-rw-rbac-hardening.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-rw3-assignable-reviewers.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-rw3-qc-queue.test.ts": {
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-rw3-queue-pagination.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-scim-user-lifecycle.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-settings-remediation-2026-07-17.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-settings-timezone-precedence.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-t-capture-to-evidence-identity.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-t-downstream-traceability.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-t-evidence-to-review-identity.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-t-sla-direct-identity.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-t-template-identity-schema.test.ts": {
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-teams-entitlement-alignment.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-tenant-isolation-scale.test.ts": {
+        "tests": 140,
+        "passed": 140,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-workspace-closure.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-x-architecture-consolidation.test.ts": {
+        "tests": 157,
+        "passed": 157,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-x1-architecture-closure.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-y-observability.test.ts": {
+        "tests": 46,
+        "passed": 46,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-z-hardening.test.ts": {
+        "tests": 79,
+        "passed": 79,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase2-enterprise-provisioning.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase2-integrations-api-keys-routes.test.ts": {
+        "tests": 27,
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase2-lifecycle-enum-parity.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase2-owner-accept-autocomplete.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase2-team-not-enterprise.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase20-hardening.test.ts": {
+        "tests": 41,
+        "passed": 41,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase21-observability.test.ts": {
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase22-workflow.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase23-workflow-ui.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase24-search.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase25-reviewer-ops-runtime-probe.test.ts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase25-reviewer-ops.test.ts": {
+        "tests": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase25_5-reviewer-ops-hardening.test.ts": {
+        "tests": 48,
+        "passed": 48,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase26-identity-governance.test.ts": {
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase26_5-identity-hardening.test.ts": {
+        "tests": 58,
+        "passed": 58,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase26_75-identity-runtime.test.ts": {
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase27-governance-lifecycle.test.ts": {
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase27_5-governance-operations.test.ts": {
+        "tests": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase3-dispatch-test-event.behavior.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase3-integrations-webhooks-test-and-retry.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase3-nav-frontend-drift.test.ts": {
+        "tests": 39,
+        "passed": 39,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase3-session-timeout-policy.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase4-webhook-dual-signing-rotation.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase5-integration-health-dashboard.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase6-collaboration-assignment-immutability.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase6-webhook-event-wiring.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase7-integrations-ux-polish.test.ts": {
+        "tests": 77,
+        "passed": 77,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase8-integrations-final-consolidation.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase9-collaboration-team-billing-parity.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/pricing-hardening-canonical-contract.test.ts": {
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/pricing-hardening-plan-capabilities.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-billing-parity.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-evidence-lifecycle-final-fix.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-evidence-lifecycle-real-fix.test.ts": {
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-governance-additive-repair.test.ts": {
+        "tests": 43,
+        "passed": 43,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-intake-links-no-env-leak.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-integrations-disabled-panel.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-investigation-enterprise-p0-p1.test.ts": {
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-lifecycle-domain-consolidation.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-page-route-gate-platform-admin.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-phase-2-1-final-drift-closure.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-phase-o-stage-4-central-error-handler.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-phase-o-stream-a-route-fixes.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-phase-o-stream-c-route-fixes.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-phase1-drift-stabilization.test.ts": {
+        "tests": 83,
+        "passed": 83,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-phase2-drift-remediation.test.ts": {
+        "tests": 189,
+        "passed": 189,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-sentry-batch-schema-drift.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-signing-key-seed-resolver.test.ts": {
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-subscription-gate-stale-row.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-trust-center-empty-state.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/production-trust-center-enterprise-completion.test.ts": {
+        "tests": 48,
+        "passed": 48,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/program-architecture-registry.test.ts": {
+        "tests": 42,
+        "passed": 42,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/public-verify-consistency.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/reliability.test.ts": {
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/review-operations-completion.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/review-operations.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/reviewer-ops-e2e-operational.test.ts": {
+        "tests": 43,
+        "passed": 43,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/reviewer-ops-lifecycle-activation.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/reviewer-ops-workspace-hotfix.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/runtime-validation-enterprise.test.ts": {
+        "tests": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-diagnostics-behavioral.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-filter-wire-behavioral.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-inclusion-and-diagnostics.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-indexer-error-surface.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-internal-reindex.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-runtime-diagnostics.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/search-trash-included.test.ts": {
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/security-validation.test.ts": {
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/sentry-beforesend-validation-filter.test.ts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/technical-metadata-verify-projection.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/twilio-message-recheck.contract.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/ui-adoption-rollout.test.ts": {
+        "tests": 44,
+        "passed": 44,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/ui-operational-wiring.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/ui-ops-maturity.test.ts": {
+        "tests": 47,
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/ui-ops-polish.test.ts": {
+        "tests": 37,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave-a-chain1-production-route.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave-a-chain4-finalize-binding.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave-a-chains.test.ts": {
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave1-graph-taxonomy.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave1-investigation-diagnostics.test.ts": {
+        "tests": 30,
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave1-producer-mode-resolver.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave2-duplicates.test.ts": {
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave2-empty-state-classifier.test.ts": {
+        "tests": 47,
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave2-enterprise-actions.test.ts": {
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave3-audit-custody-coverage.test.ts": {
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave3-custody-enum-widening.test.ts": {
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave3-playwright-e2e-shape.test.ts": {
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave4-provider-extraction-wiring.test.ts": {
+        "tests": 39,
+        "passed": 39,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/wave5-worker-internal-api-extract.test.ts": {
+        "tests": 34,
+        "passed": 34,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/web-capture-custody-wording.contract.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/webhook-receiver-verification.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/worker-incident-safesummary.contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/worker-plan-resolver-parity.contract.test.ts": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/worker-render-pdf-name-helper.contract.test.ts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/worker-report-plan-gate-sentry.contract.test.ts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/worker-report-queue-registered.contract.test.ts": {
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/workflow-intake-public-projection.test.ts": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/workflow-intake-token.service.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/workflow-template.service.test.ts": {
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/workspace-capability-snapshot-discussion.contract.test.ts": {
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/workspace-surface-audit.test.ts": {
+        "tests": 23,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    "integration": {
+      "test/phase-10-concurrent-session-last-slot.integration.test.ts": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "test/phase-9-8-live-membership-allocation.integration.test.ts": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  }
+}

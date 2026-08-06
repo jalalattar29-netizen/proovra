@@ -8,20 +8,18 @@
  */
 
 import type {
-  CaptureExceptionInput,
   ObservabilityProvider,
   ObservabilitySpan,
-  SpanAttributes,
 } from "./provider.js";
 
 class NoopSpan implements ObservabilitySpan {
-  addEvent(_name: string, _attributes?: SpanAttributes): void {
+  addEvent(): void {
     /* noop */
   }
-  setAttribute(_key: string, _value: string | number | boolean | null): void {
+  setAttribute(): void {
     /* noop */
   }
-  recordException(_err: unknown, _context?: SpanAttributes): void {
+  recordException(): void {
     /* noop */
   }
   end(): void {
@@ -38,15 +36,15 @@ export class NoopObservabilityProvider implements ObservabilityProvider {
     return false;
   }
 
-  startSpan(_name: string, _attributes?: SpanAttributes): ObservabilitySpan {
+  startSpan(): ObservabilitySpan {
     return SINGLETON_SPAN;
   }
 
-  captureException(_input: CaptureExceptionInput): void {
+  captureException(): void {
     /* noop */
   }
 
-  setUserContext(_input: { userId?: string | null; teamId?: string | null }): void {
+  setUserContext(): void {
     /* noop */
   }
 }

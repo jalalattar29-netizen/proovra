@@ -20,6 +20,17 @@
  *   * Suppressed when no teamId or resourceId is available (e.g.,
  *     personal workspace surfaces) so solo users never see an empty
  *     "Also here" chip.
+ *
+ * PHASE 12B — observe-vs-claim split. A backgrounded tab must not keep
+ * claiming "I am here" (that would advertise an operator who has walked
+ * away), but it should still SEE who is here when the reader returns.
+ * So visibility drives the endpoint:
+ *   * visible → POST /v1/me/presence/heartbeat (claim + read)
+ *   * hidden  → GET  /v1/me/presence/here      (read-only, no claim)
+ * Both are workspace-bound server-side. Responses are stamped with the
+ * request's workspace generation and discarded if the workspace or
+ * resource changed while the request was in flight (stale-context
+ * rejection), and polling is disposed on unmount.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -59,24 +70,48 @@ export function PresenceIndicator({
   teamIdRef.current = teamId;
   resourceIdRef.current = resourceId;
 
+  // Workspace/resource generation. Any change invalidates in-flight
+  // responses so a switch can never paint the previous workspace's
+  // viewers into the new one.
+  const generation = `${teamId ?? ""}:${resourceId ?? ""}`;
+  const generationRef = useRef(generation);
+  generationRef.current = generation;
+
   const beat = useCallback(async () => {
     const t = teamIdRef.current;
     const r = resourceIdRef.current;
     if (!t || !r) return;
+    const sentGeneration = generationRef.current;
+    // A hidden tab observes without claiming presence.
+    const observeOnly =
+      typeof document !== "undefined" && document.visibilityState === "hidden";
     try {
-      const res = await apiFetch("/v1/me/presence/heartbeat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId: t,
-          resourceKind,
-          resourceId: r,
-        }),
-      });
-      const json = (await res.json()) as HeartbeatResponse;
-      if (aliveRef.current) setViewers(json.viewers ?? []);
+      // apiFetch resolves to the PARSED body and throws on a non-2xx.
+      // (The previous code called `.json()` on the parsed object inside a
+      // silent catch, so the viewer list never populated at all.)
+      const json = (
+        observeOnly
+          ? await apiFetch(
+              `/v1/me/presence/here?teamId=${encodeURIComponent(t)}&resourceKind=${encodeURIComponent(
+                resourceKind,
+              )}&resourceId=${encodeURIComponent(r)}`,
+            )
+          : await apiFetch("/v1/me/presence/heartbeat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                teamId: t,
+                resourceKind,
+                resourceId: r,
+              }),
+            })
+      ) as HeartbeatResponse | null;
+      // Discard a response that outlived its workspace/resource context.
+      if (!aliveRef.current || generationRef.current !== sentGeneration) return;
+      setViewers(json?.viewers ?? []);
     } catch {
-      // Best-effort. Presence failures must never break the surface.
+      // Best-effort. Presence failures (incl. denial) must never break the
+      // surface and must never invent viewers.
     }
   }, [resourceKind]);
 
@@ -95,7 +130,9 @@ export function PresenceIndicator({
       aliveRef.current = false;
       if (timer) clearTimeout(timer);
     };
-  }, [beat]);
+    // `generation` participates so a workspace/resource switch restarts the
+    // loop against the new context instead of polling the stale one.
+  }, [beat, generation]);
 
   if (!teamId || !resourceId) return null;
   if (viewers.length === 0) return null;

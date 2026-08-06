@@ -217,13 +217,11 @@ test("FIX 6 — Preview's due-date row is gated on canSeeReviewerOps", () => {
   );
 });
 
-test("FIX 6 — Evidence Library page computes canSeeReviewerOps via canAccessSurface and passes it down", () => {
-  assert.match(PAGE, /import \{ canAccessSurface \} from/);
-  assert.match(PAGE, /import \{ useSurfaceUserContext \} from/);
-  assert.match(
-    PAGE,
-    /const canSeeReviewerOps = canAccessSurface\(surfaceUserCtx, "\/reviewer-ops"\);/,
-  );
+test("FIX 6 — Evidence Library page computes canSeeReviewerOps via the server-projection gate and passes it down", () => {
+  // PHASE 12B Track 1A — the page consumes the SERVER-projected enterprise
+  // gate hook (envelope flags), never a client tier/plan computation.
+  assert.match(PAGE, /import \{ useEnterpriseSurfaceAccess \} from/);
+  assert.match(PAGE, /const canSeeReviewerOps = useEnterpriseSurfaceAccess\(\);/);
   assert.match(PAGE, /canSeeReviewerOps=\{canSeeReviewerOps\}/);
 });
 

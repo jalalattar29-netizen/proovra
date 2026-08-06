@@ -1,0 +1,720 @@
+{
+  "generatedFrom": "static trace of routes+pages+workers+writers at HEAD+uncommitted (2026-07-28)",
+  "legend": {
+    "statuses": [
+      "COMPLETE",
+      "MISSING_UI",
+      "MISSING_API",
+      "MISSING_POLICY",
+      "MISSING_WRITER",
+      "MISSING_WORKER",
+      "MISSING_AUDIT",
+      "PARALLEL_AUTHORITY",
+      "LEGACY_CALLER",
+      "LIVE_GATE_PENDING",
+      "UNKNOWN"
+    ],
+    "overall": [
+      "COMPLETE",
+      "PARTIAL",
+      "BROKEN"
+    ]
+  },
+  "journeys": [
+    {
+      "id": 1,
+      "name": "login / context establishment",
+      "layers": [
+        {
+          "layer": "UI",
+          "status": "COMPLETE",
+          "evidence": "apps/web/app/auth/page.tsx (POST /v1/auth/google|apple|email/login); mobile apps/mobile/src/auth-context.tsx:41"
+        },
+        {
+          "layer": "session provider",
+          "status": "COMPLETE",
+          "evidence": "apps/web/app/providers.tsx:83 fetchMe() -> GET /v1/users/me (fallback /v1/auth/me)"
+        },
+        {
+          "layer": "API",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/auth/email/login services/api/src/routes/auth.routes.ts:948; GET /v1/auth/me auth.routes.ts:1545; registered server.ts:966"
+        },
+        {
+          "layer": "context resolver",
+          "status": "COMPLETE",
+          "evidence": "GET /v1/platform/context platform-context.routes.ts:69 -> buildPlatformContext platform-context.service.ts:131; consumer PlatformContextProvider.tsx:399; registered server.ts:968"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "requireAuth preHandler on /v1/platform/context and switch-workspace"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/platform/context/switch-workspace platform-context.routes.ts:103; membership+lifecycle+org-policy+session gates :159-305; persists user.currentWorkspaceId :308"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "safeEmitSecurityEvent workspace_context_switched platform-context.routes.ts:120-134 on allow/deny"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "none - one canonical resolver (/v1/platform/context), no parallel authority"
+    },
+    {
+      "id": 2,
+      "name": "capture -> evidence upload -> finalize",
+      "layers": [
+        {
+          "layer": "UI",
+          "status": "COMPLETE",
+          "evidence": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:86-171 (uploads sessions -> multipart -> complete), :654 POST /v1/evidence, :885 /v1/evidence/:id/complete"
+        },
+        {
+          "layer": "API create",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/evidence evidence.routes.ts:4620 (requireAuthAndLegal); resumable /v1/uploads/sessions upload-sessions.routes.ts:324; registered server.ts:1021,1062"
+        },
+        {
+          "layer": "API finalize",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/evidence/:id/complete evidence.routes.ts:9599"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "getEvidenceWithRecordAccess evidence.routes.ts:9613; no-personal-space gate :9633"
+        },
+        {
+          "layer": "policy",
+          "status": "COMPLETE",
+          "evidence": "governance enforceSensitiveAction :9716-9759; storage-quota entitlement :9778"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "completeEvidence evidence-complete.service.ts:451 prisma.$transaction + pg_advisory_xact_lock :457-460"
+        },
+        {
+          "layer": "worker",
+          "status": "COMPLETE",
+          "evidence": "enqueueGenerateReportJob evidence-complete.service.ts:1253 (queue 'report' report-queue.ts:11); consumed worker index.ts:1457; derived-assets :1543, media-intelligence :1523, exif/ocr/transcript bound"
+        },
+        {
+          "layer": "storage",
+          "status": "COMPLETE",
+          "evidence": "presigned S3 multipart PUT (part.upload.putUrl) hook :846"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "appendCustodyEvent EVIDENCE_COMPLETED evidence.routes.ts:9802; evidence.routes.ts has 138 custody refs"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "none - single canonical completeEvidence finalize pipeline; capture/citizen-capture are distinct web/mobile surfaces, not legacy callers"
+    },
+    {
+      "id": 3,
+      "name": "intake -> evidence request",
+      "layers": [
+        {
+          "layer": "UI intake links",
+          "status": "COMPLETE",
+          "evidence": "apps/web/app/(app)/intake-links/page.tsx: list :510, create :1983, send :2448, revoke :592, submissions :1521 (/v1/workflow/intake-links)"
+        },
+        {
+          "layer": "API intake links",
+          "status": "COMPLETE",
+          "evidence": "workflow-intake-links.routes.ts:273/526/735/802/847/895; registered server.ts:1117"
+        },
+        {
+          "layer": "UI public submission",
+          "status": "COMPLETE",
+          "evidence": "apps/web/app/intake/[token]/page.tsx consumes /v1/external-intake/:token"
+        },
+        {
+          "layer": "API external intake",
+          "status": "COMPLETE",
+          "evidence": "external-intake.routes.ts:495 fetch, :550 consent, :598 parts, :836 submit; registered server.ts:1118"
+        },
+        {
+          "layer": "UI evidence request",
+          "status": "COMPLETE",
+          "evidence": "EvidenceRequestPanel.tsx: create :555, send :165, review :183, cancel/close/needs-more-info (/v1/evidence-requests)"
+        },
+        {
+          "layer": "API evidence requests",
+          "status": "COMPLETE",
+          "evidence": "evidence-requests.routes.ts:167/212/314/349/383/413/443/478; registered server.ts:1120"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "createEvidenceRequest evidence-request.service.ts; external submit submitExternalIntake -> completeEvidence (same custody pipeline as J2), external-intake.routes.ts:836"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "emitTenantAudit x7 in intake-links route; evidenceRequestEvent.create event trail"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "none - external-intake (recipient submission) and evidence-requests (internal tracking) are coherent; external submissions re-enter canonical completeEvidence custody pipeline"
+    },
+    {
+      "id": 4,
+      "name": "case creation / binding",
+      "layers": [
+        {
+          "layer": "UI create",
+          "status": "COMPLETE",
+          "evidence": "CreateCaseModal.tsx:107 POST /v1/cases; cases/page.tsx reads /v1/cases (read shell)"
+        },
+        {
+          "layer": "API create",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/cases cases.routes.ts:175 (requireAuthAndLegal); registered server.ts:1020"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "ACTIVE team-membership check cases.routes.ts:180-197"
+        },
+        {
+          "layer": "writer create",
+          "status": "COMPLETE",
+          "evidence": "prisma.case.create cases.routes.ts:208; best-effort search index :223"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "auditCaseAction cases.create success cases.routes.ts:226 (65 audit refs in file)"
+        },
+        {
+          "layer": "binding writer",
+          "status": "PARALLEL_AUTHORITY",
+          "evidence": "two truth sources: POST /v1/cases/:id/evidence -> Evidence.caseId FK cases.routes.ts:1088/1212 (UI evidence/[id]/page.tsx:917) VS POST /v1/cases/:id/evidence-links -> CaseEvidenceLink join addEvidenceLink case-workspace.routes.ts:1098/1113 (UI EvidenceLinkModal.tsx:144); split acknowledged case-workspace.routes.ts:1130-1133, unreconciled"
+        }
+      ],
+      "overall": "PARTIAL",
+      "criticalGap": "evidence-to-case binding has two live unreconciled authorities: Evidence.caseId FK column vs CaseEvidenceLink join table, reachable from different UIs"
+    },
+    {
+      "id": 5,
+      "name": "review / assignment / queue",
+      "layers": [
+        {
+          "layer": "UI",
+          "status": "COMPLETE",
+          "evidence": "apps/web/app/(app)/review/page.tsx:47 -> ReviewerConsole; assign :403, escalate :483; inspector reviewer-ops/[reviewId]/page.tsx:1694"
+        },
+        {
+          "layer": "API queue/assign",
+          "status": "COMPLETE",
+          "evidence": "GET /v1/reviewer-ops/queue reviewer-ops.routes.ts:374; POST .../reviews/:workflowId/assign :915 -> assignReviewerToWorkflow :957 with seat-quota gate; GET /v1/review-operations/queue review-operations.routes.ts:129"
+        },
+        {
+          "layer": "API decide",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/reviewer-ops/workspace/:workflowId/decisions reviewer-ops.routes.ts:2399"
+        },
+        {
+          "layer": "authorization/policy",
+          "status": "COMPLETE",
+          "evidence": "requireReviewerActor :2413; second-review req :2427; same-reviewer independence guard :2453; adjudicator role guard :2468; rationale required :2499"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "prisma.workflowReviewDecision.create reviewer-ops.routes.ts:2533; DB unique (workflow,stage) -> 409 :2557"
+        },
+        {
+          "layer": "worker",
+          "status": "COMPLETE",
+          "evidence": "reviewer-reconciliation.worker.ts scheduler started worker index.ts:2008 startReviewerReconciliationScheduler -> POST /v1/reviewer-ops/reconcile :1677 (interval, not BullMQ)"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "prisma.teamActivity.create REVIEWER_DECISION_* reviewer-ops.routes.ts:2578"
+        },
+        {
+          "layer": "decision authority",
+          "status": "PARALLEL_AUTHORITY",
+          "evidence": "second decision surface POST /v1/review-operations/evidence/:evidenceId/decision review-operations.routes.ts:249 -> recordReviewDecision mutates EvidenceReviewWorkflow.status; reviewer-ops writes WorkflowReviewDecision rows but never workflow.status; two truth models over same entity, mutually invisible (UI review/operations/page.tsx:158, EvidenceReviewActionsPanel.tsx:145)"
+        }
+      ],
+      "overall": "PARTIAL",
+      "criticalGap": "core reviewer-ops queue/assign/decide fully wired, but parallel /v1/review-operations claim/decision surface maintains a separate workflow.status truth the multi-stage decision-row model never reconciles"
+    },
+    {
+      "id": 6,
+      "name": "redaction (request derivative -> render -> ready -> publish/download)",
+      "layers": [
+        {
+          "layer": "UI lifecycle",
+          "status": "COMPLETE",
+          "evidence": "redaction/page.tsx (list); redaction/[projectId]/page.tsx:139-200 (new version, submit/approve/publish)"
+        },
+        {
+          "layer": "UI request derivative",
+          "status": "MISSING_UI",
+          "evidence": "repo-wide grep of apps/web for POST to /versions/:id/derivative | mark-ready | derivatives/ returns ZERO; onTransition only issues submit/approve/publish"
+        },
+        {
+          "layer": "API request",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/redaction/versions/:id/derivative redaction.routes.ts:1483 -> requestRedactionDerivative; registered server.ts:1051"
+        },
+        {
+          "layer": "authorization/policy",
+          "status": "COMPLETE",
+          "evidence": "assertRedactionCapability + gate redaction.routes.ts:1488; publish step-up :706-758; FEATURE_REDACTION entitlement :583"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "requestRedactionDerivative redaction-derivative.service.ts:97 creates RedactionDerivative state PENDING->RENDERING :90/109; redacted bytes only persisted by markDerivativeReady :155 (never called)"
+        },
+        {
+          "layer": "worker (render)",
+          "status": "MISSING_WORKER",
+          "evidence": "requestRedactionDerivative redaction-derivative.service.ts (lines 1-312) has NO queue import and NO queue.add; services/worker has NO redaction processor (worker index.ts:1319-1338 queues: report,otsUpgrade,evidencePurge,searchIndexing,mediaIntelligence,derivedAssets,exif,ocr,transcript,graph,orgHealthRefresh); callbacks mark-ready :1505 / mark-failed :1531 have no producer"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "RedactionActivity events on request/ready/failed/download redaction-derivative.service.ts:112/124 + redaction.routes.ts:1567-1585"
+        },
+        {
+          "layer": "publish/download",
+          "status": "LIVE_GATE_PENDING",
+          "evidence": "publish gated on READY derivative redaction.routes.ts:748-757; download reads READY :1557; unreachable because no derivative can reach READY through the app"
+        }
+      ],
+      "overall": "BROKEN",
+      "criticalGap": "redaction render is a double dead-end: no UI requests the derivative AND no BullMQ job/worker renders it; derivative stamped RENDERING forever, so publish/download (gated on READY) can never complete"
+    },
+    {
+      "id": 7,
+      "name": "legal hold / retention / destruction",
+      "layers": [
+        {
+          "layer": "UI",
+          "status": "COMPLETE",
+          "evidence": "evidence-lifecycle/legal-holds/page.tsx + retention/page.tsx consume /v1/lifecycle/legal-holds, /v1/lifecycle/retention/policies, /v1/lifecycle/retention/upcoming-expirations"
+        },
+        {
+          "layer": "API lifecycle (canonical)",
+          "status": "COMPLETE",
+          "evidence": "/v1/lifecycle/retention/policies product-and-lifecycle.routes.ts:781/792/832; /v1/lifecycle/legal-holds :871/889; registered server.ts:1148; -> services/lifecycle/retention-engine.service, legal-hold.service, destruction-governance.service"
+        },
+        {
+          "layer": "API retention (parallel surfaces)",
+          "status": "PARALLEL_AUTHORITY",
+          "evidence": "three retention route families over org policy: /v1/lifecycle/retention/* (product-and-lifecycle, UI-consumed) vs /v1/governance/retention-policies governance-lifecycle.routes.ts:213 vs /v1/orgs/:id/policies/retention organizations-governance.routes.ts:127 - governance/org surfaces have no confirmed web consumer"
+        },
+        {
+          "layer": "API destruction review",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/governance/destruction-reviews governance-lifecycle.routes.ts:446, transition :849, certificate :720; executions read-only GET /v1/governance/destruction-executions governance-operations.routes.ts:343"
+        },
+        {
+          "layer": "writer/worker (destruction)",
+          "status": "COMPLETE",
+          "evidence": "destruction-orchestrator.worker.ts: prisma.destructionExecution.create :141, $transaction :266; scheduled by interval worker index.ts:932, default-enabled DESTRUCTION_ORCHESTRATOR_ENABLED=true index.ts:903, cron-lock guarded"
+        },
+        {
+          "layer": "worker (purge)",
+          "status": "COMPLETE",
+          "evidence": "evidence-purge queue: evidencePurgeQueue.add worker queue.ts:1028; consumed evidence-purge worker index.ts:1486 [12B: retention-cleanup.ts bypass DELETED; guard in phase-12-dead-routes-removed.test.ts]"
+        },
+        {
+          "layer": "audit/custody",
+          "status": "COMPLETE",
+          "evidence": "destruction certificate (canonical JSON + SHA-256) destruction-orchestrator.worker.ts:220-247 written to lifecycle ledger with lineage digest [12B: retention-cleanup.ts bypass DELETED; guard in phase-12-dead-routes-removed.test.ts]"
+        }
+      ],
+      "overall": "PARTIAL",
+      "criticalGap": "three parallel retention route families (/v1/lifecycle vs /v1/governance vs /v1/orgs/:id/policies) — only /v1/lifecycle has a live UI. RESOLVED in 12B Wave 0.3: the hold-bypassing retention-cleanup.ts sweep was DELETED (canonical hold-aware chain retention-reconciliation→DestructionReview→destruction-orchestrator is the ONE destructive authority; 4B helper now fails closed on transient DB errors)."
+    },
+    {
+      "id": 8,
+      "name": "report / package / share / verify",
+      "layers": [
+        {
+          "layer": "UI reports",
+          "status": "COMPLETE",
+          "evidence": "reports/page.tsx consumes /v1/reports/artifacts; exchange/page.tsx -> /v1/exchange/packages; packaging/page.tsx -> /v1/packaging/entitlements"
+        },
+        {
+          "layer": "API report",
+          "status": "COMPLETE",
+          "evidence": "GET /v1/reports reports.routes.ts:104 (registerReportsRoutes server.ts:1163); POST /v1/evidence/:id/reports/regenerate evidence.routes.ts:10260; GET /v1/evidence/:id/verification-package :10835"
+        },
+        {
+          "layer": "worker (report/package)",
+          "status": "COMPLETE",
+          "evidence": "enqueueGenerateReportJob report-queue.ts:63 -> reportQueue.add; consumed new Worker(reportQueueName) worker index.ts:1457; verification-package* builders services/worker/src/verification-package*.ts"
+        },
+        {
+          "layer": "API exchange/share",
+          "status": "COMPLETE",
+          "evidence": "/v1/exchange/packages product-and-lifecycle.routes.ts:230/274, :327 ready, :363 sign-url, :383 deliveries, :409 download, :425 revoke, :446 chain-transfers"
+        },
+        {
+          "layer": "worker (exchange build)",
+          "status": "COMPLETE",
+          "evidence": "buildExchangePackage exchange-package-builder.ts:654 uploads ZIP to exchange-packages/<teamId>/<packageId>.zip :802; invoked inline fire-and-forget :906 (not a durable queue)"
+        },
+        {
+          "layer": "verify",
+          "status": "COMPLETE",
+          "evidence": "public verification-package GET /v1/evidence/:id/verification-package evidence.routes.ts:10835; public-verify surfaces evidence.routes.ts:41/198"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "governance enforceSensitiveAction on report/package/public-verify at completeEvidence evidence.routes.ts:9716-9759; EXPORT_BLOCKED_BY_POLICY on deny :9739"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "none blocking; minor - exchange ZIP build is inline fire-and-forget (exchange-package-builder.ts:906) rather than a durable BullMQ queue, so a crash mid-build is not retried"
+    },
+    {
+      "id": 9,
+      "name": "collaboration membership / invitation",
+      "layers": [
+        {
+          "layer": "UI members/invites",
+          "status": "COMPLETE",
+          "evidence": "collaboration-teams/[teamId]/_tabs/MembersTab.tsx + InvitesTab.tsx; accept collaboration-teams/invites/[token]/accept/page.tsx:119 acceptInvite(rawToken)"
+        },
+        {
+          "layer": "API",
+          "status": "COMPLETE",
+          "evidence": "collaboration-teams.routes.ts: create :269, members :408, invites/email :545, revoke :633, accept /v1/collaboration-team-invites/:token/accept :666, assignments :746; registered server.ts:973"
+        },
+        {
+          "layer": "authorization/policy",
+          "status": "COMPLETE",
+          "evidence": "acceptance by invitee (no subscription gate collaboration-teams.routes.ts:674); seat-quota enforced at invite acceptance teams.routes.ts:1738"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "acceptInvite service collaboration-teams.routes.ts:685; org-invite parallel path org-invites/[token]/accept/page.tsx"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "action collaboration_team.invite.accepted collaboration-teams.routes.ts:692"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "none - token accept flow fully wired UI -> lib acceptInvite -> POST accept -> service -> audit; seat gating at acceptance"
+    },
+    {
+      "id": 10,
+      "name": "billing / checkout / webhooks / seats / storage",
+      "layers": [
+        {
+          "layer": "UI checkout",
+          "status": "COMPLETE",
+          "evidence": "CheckoutPanel.tsx:261/499 -> apiFetch('/v1/billing/checkout/stripe', POST) -> redirect data.session.url :271; rendered by billing/page.tsx + BillingSection.tsx"
+        },
+        {
+          "layer": "API checkout",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/billing/checkout/stripe billing.routes.ts:808, /paypal :945, storage-addon :875/1025; registered server.ts:1018"
+        },
+        {
+          "layer": "API webhooks",
+          "status": "COMPLETE",
+          "evidence": "POST /webhooks/stripe webhooks.routes.ts:356, /webhooks/paypal :662; registered prefix '/webhooks' server.ts:1019"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "requireAuthAndLegal + assertPersonalCheckoutAllowed + assertOwnedTeamForCheckout 403 billing.routes.ts:810-826; admin requirePlatformAdmin admin-billing.routes.ts:93"
+        },
+        {
+          "layer": "commercial policy",
+          "status": "COMPLETE",
+          "evidence": "assertPurchasablePlan/assertCheckoutTarget billing.routes.ts:815-819; storage-addon rules re-checked webhooks.routes.ts:165"
+        },
+        {
+          "layer": "webhook signature",
+          "status": "COMPLETE",
+          "evidence": "verifyStripeSignature stripe.service.ts:102-168 HMAC-SHA256 over t.rawBody, crypto.timingSafeEqual :160, 300s replay tolerance, requires STRIPE_WEBHOOK_SECRET; enforced webhooks.routes.ts:365 (hand-rolled, no SDK, cryptographically correct)"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "createStripeCheckoutSession billing-checkout.service.ts:80; entitlement writes webhook-side setPersonalPlan/activateTeamPlan/upsertSubscription/upsertWorkspaceStorageAddon webhooks.routes.ts:438-657; idempotency unique stripeWebhookEvent P2002->200 :390-411"
+        },
+        {
+          "layer": "seat enforcement",
+          "status": "COMPLETE",
+          "evidence": "assertTeamSeatAvailable 409 at INVITE ACCEPTANCE teams.routes.ts:1738 (not at creation, comment :1711); org bulk SEAT_LIMIT_EXCEEDED organizations-bulk-invite.routes.ts:489"
+        },
+        {
+          "layer": "storage quota",
+          "status": "COMPLETE",
+          "evidence": "assertWorkspaceStorageAvailable STORAGE_LIMIT_REACHED/409 workspace-billing.ts:316-357; invoked synchronously in evidence processor.ts:2074/3311 (helper, not own BullMQ processor)"
+        },
+        {
+          "layer": "audit",
+          "status": "MISSING_AUDIT",
+          "evidence": "user-initiated actions audited auditBillingAction billing.routes.ts:124/836/647; BUT webhook handlers that grant/revoke entitlements (checkout.session.completed, subscription.*, invoice.*) emit NO emitTenantAudit - only a stripeWebhookEvent processing row webhooks.routes.ts:438-657"
+        }
+      ],
+      "overall": "PARTIAL",
+      "criticalGap": "webhook-driven entitlement transitions (plan grant/cancel/credit) write no tenant audit/custody event; only user-initiated API billing actions are audited"
+    },
+    {
+      "id": 11,
+      "name": "enterprise provisioning",
+      "layers": [
+        {
+          "layer": "UI org self-create",
+          "status": "LEGACY_CALLER",
+          "evidence": "POST /v1/orgs hardcoded 403 org_self_service_creation_retired organizations.routes.ts:612-624; self-service create modal retired"
+        },
+        {
+          "layer": "UI provisioning",
+          "status": "MISSING_API",
+          "evidence": "admin/provisioning/page.tsx:344-350 POSTs /v1/admin/enterprise/provision body OMITS idempotencyKey which schema REQUIRES (z.string().trim().min(8).max(120)) admin-provisioning.routes.ts:57 -> every call 400s (contract break)"
+        },
+        {
+          "layer": "API provisioning",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/admin/enterprise/provision admin-provisioning.routes.ts:136; registered server.ts:1093"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "requirePlatformAdmin + requireStepUpForSensitiveAction CAPABILITY_GRANT admin-provisioning.routes.ts:138/152"
+        },
+        {
+          "layer": "policy",
+          "status": "COMPLETE",
+          "evidence": "ENTERPRISE-only; idempotencyKey/payloadHash dedupe + DB unique enterprise-provisioning.service.ts:286-355"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "provisionEnterpriseCustomer single $transaction Org+Team+ORG_OWNER membership OR Org+ORG_OWNER invite + pendingEnterpriseSeats enterprise-provisioning.service.ts:462-697"
+        },
+        {
+          "layer": "seat allocation",
+          "status": "COMPLETE",
+          "evidence": "PATCH /v1/admin/orgs/:id/plan admin-provisioning.routes.ts:73 -> grantEnterprisePlanToOrg sets includedSeats service:97-202; UI page:574 with step-up"
+        },
+        {
+          "layer": "bulk invite writer",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/orgs/:id/invites/bulk organizations-bulk-invite.routes.ts:675; requireOrgAdmin; per-row $transaction OrganizationInvite SHA-256 tokenHash; ORG_BULK_INVITATION + per-row ORG_MEMBER_INVITED audit"
+        },
+        {
+          "layer": "bulk invite delivery",
+          "status": "MISSING_WORKER",
+          "evidence": "executeBatch writes token:null (only tokenHash) returns just inviteId organizations-bulk-invite.routes.ts:590/618; no email/queue/processor anywhere -> raw token never surfaced, bulk-invited members can never accept"
+        }
+      ],
+      "overall": "BROKEN",
+      "criticalGap": "provisioning dead-on-arrival - admin UI omits API-required idempotencyKey (page.tsx:344 vs routes.ts:57) so every provision 400s; secondarily bulk invites un-acceptable (raw token discarded, no delivery worker)"
+    },
+    {
+      "id": 12,
+      "name": "SSO / SCIM / managed identity",
+      "layers": [
+        {
+          "layer": "SCIM data-plane API",
+          "status": "COMPLETE",
+          "evidence": "POST/GET/PATCH/DELETE /v2/scim/Users scim.routes.ts:114-267, /v2/scim/Groups :291-379; registered server.ts:1094"
+        },
+        {
+          "layer": "SCIM data-plane UI",
+          "status": "MISSING_UI",
+          "evidence": "IdP-facing machine endpoints; no page consumes /v2/scim/* (correct by design)"
+        },
+        {
+          "layer": "SCIM authorization/policy",
+          "status": "COMPLETE",
+          "evidence": "Bearer scim_pat_*, per-scope + enterprise ssoScim 402 gate, IP allowlist/expiry/revocation, constant-time hash scim.routes.ts:63-104; scim.service.ts:261-308"
+        },
+        {
+          "layer": "SCIM writer",
+          "status": "COMPLETE",
+          "evidence": "scimCreateUser links externalIdentityMapping + $transaction; deactivate/update persist + revoke sessions scim.service.ts:484-536/687-878"
+        },
+        {
+          "layer": "SCIM audit",
+          "status": "COMPLETE",
+          "evidence": "emitTenantAudit + safeEmitSecurityEvent on every op scim.service.ts:546/748/838/973"
+        },
+        {
+          "layer": "SSO OIDC login",
+          "status": "COMPLETE",
+          "evidence": "GET /v1/auth/sso/:id/initiate + /callback sso-auth.routes.ts:207/281; handleOidcCallback verifies id_token JWKS/nonce, JIT-provisions externalIdentityMapping + provisionMembership + audit sso.service.ts:1071-1101"
+        },
+        {
+          "layer": "SAML login",
+          "status": "COMPLETE",
+          "evidence": "GET /v1/auth/saml/:id/login, POST /acs, metadata saml-auth.routes.ts:272/408/932; handleSamlAssertion links externalIdentityMapping saml-user-mapping.service.ts:280+"
+        },
+        {
+          "layer": "admin config API",
+          "status": "COMPLETE",
+          "evidence": "GET/POST /v1/admin/identity/providers (+/transition,/policy) and /scim/tokens (+revoke) admin-identity.routes.ts:198-572; requireIdentityAdmin + adaptive gate + step-up MFA"
+        },
+        {
+          "layer": "admin config UI",
+          "status": "COMPLETE",
+          "evidence": "pages exist: admin/identity/providers/page.tsx, admin/identity/scim/page.tsx, security-center/sso/{page,mapping,health}.tsx, settings/security/saml/page.tsx - all consume config endpoints"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "none - all config surfaces have web consumers; only IdP-facing data-plane (/v2/scim/*, /v1/auth/sso|saml login/callback/acs) lacks pages, which is correct"
+    },
+    {
+      "id": 13,
+      "name": "organization security / session enforcement",
+      "layers": [
+        {
+          "layer": "UI org policy",
+          "status": "COMPLETE",
+          "evidence": "organizations/[id]/admin/security/page.tsx:22 -> OrganizationSecurityPolicyEditor.tsx:81; org-keyed GET /v1/security-policy?organizationId= :104, PATCH :152, high-security activate :183"
+        },
+        {
+          "layer": "UI security center",
+          "status": "COMPLETE",
+          "evidence": "security-center/page.tsx:153-171 consumes /v1/identity-security/{mfa-policy,devices,sessions,risk/me} + /v1/identity/mfa/factors (workspace MFA surface)"
+        },
+        {
+          "layer": "API org policy",
+          "status": "COMPLETE",
+          "evidence": "GET/PATCH /v1/security-policy enterprise-security.routes.ts:92/106; high-security readiness :130, activate :138; registered server.ts:1210"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "requireOrgPolicyAdmin -> checkOrgAccess(ORG_ADMIN) enterprise-security.routes.ts:76-88 + requireStepUpForSensitiveAction on PATCH/activate :114/144"
+        },
+        {
+          "layer": "policy storage (canonical)",
+          "status": "COMPLETE",
+          "evidence": "organizationSecurityPolicy unique on organizationId; resolveOrgPolicyByOrgId org-security-policy.service.ts:374 and applySecurityPolicyPatch upsert where:{organizationId} :466 (org-keyed single storage authority)"
+        },
+        {
+          "layer": "writer (legacy)",
+          "status": "PARALLEL_AUTHORITY",
+          "evidence": "second writer upsertOrgSecurityPolicy org-security-policy.service.ts:140 writes SAME org row via PUT /v1/identity/policy identity.routes.ts:714-731 without policyVersion bump and without step-up; no live web UI caller (grep: only tests) but route registered"
+        },
+        {
+          "layer": "session enforcement",
+          "status": "COMPLETE",
+          "evidence": "evaluateOrgContextForSession/evaluateSessionAgainstPolicy org-security-policy.service.ts:575/614; revoke-all /v1/identity-security/sessions/revoke-all; activateHighSecurityMode $transaction :745 force-revokes org member sessions"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "emitTenantAudit identity.security_policy.update :483, identity...high_security_activated :772"
+        }
+      ],
+      "overall": "PARTIAL",
+      "criticalGap": "storage is single org-keyed authority but legacy upsertOrgSecurityPolicy (PUT /v1/identity/policy) is still registered and writes the same row without versioning/step-up - PARALLEL_AUTHORITY writer (no live UI, but a live registered bypass)"
+    },
+    {
+      "id": 14,
+      "name": "audit query / export",
+      "layers": [
+        {
+          "layer": "UI audit-transparency",
+          "status": "COMPLETE",
+          "evidence": "audit-transparency/page.tsx:66 GET /v1/audit-transparency"
+        },
+        {
+          "layer": "API audit-transparency",
+          "status": "COMPLETE",
+          "evidence": "GET /v1/audit-transparency intelligence-platform.routes.ts:669 -> listAuditTransparency (read-only federated timeline)"
+        },
+        {
+          "layer": "API admin audit log",
+          "status": "COMPLETE",
+          "evidence": "GET/POST /v1/admin/audit-log admin-audit.routes.ts:163/69; export :237; verify :305 (chain verify verifyAdminAuditChain); requirePlatformAdmin"
+        },
+        {
+          "layer": "export (admin audit)",
+          "status": "COMPLETE",
+          "evidence": "SYNCHRONOUS CSV built in-route capped at limit 100 admin-audit.routes.ts:242-301; no worker"
+        },
+        {
+          "layer": "API account data export",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/identity/data-export account-data-export.routes.ts:75 creates accountDataExportRequest REQUESTED (step-up gated); download :149"
+        },
+        {
+          "layer": "worker (account export)",
+          "status": "COMPLETE",
+          "evidence": "processAccountDataExports account-data-export.service.ts:173 flips REQUESTED->PROCESSING->READY, invoked by API cron digest-scheduler.ts:213 via POST /v1/notifications/run-digests cron-secret notifications.routes.ts:276 (ASYNC cron, NOT BullMQ - no worker processor)"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "emitPlatformAudit on request/ready/download account-data-export.routes.ts:131/202 + service:217; admin list/export/verify self-audit admin-audit.routes.ts:217/251/335; operations-exports verify audits :221"
+        }
+      ],
+      "overall": "COMPLETE",
+      "criticalGap": "export is three mechanisms - admin audit-log export is SYNC in-route CSV (cap 100); account data export is ASYNC API-cron (digest-scheduler), NOT a BullMQ worker; operations-exports only reads/verifies pre-built manifests"
+    },
+    {
+      "id": 15,
+      "name": "support / break-glass",
+      "layers": [
+        {
+          "layer": "UI",
+          "status": "MISSING_UI",
+          "evidence": "no apps/web page calls /v1/break-glass/* or /v1/support-access/{start,revoke,enter} (grep clean); SupportAccessBanner.tsx only passively displays a projection; review/external break-glass is unrelated token-reveal"
+        },
+        {
+          "layer": "API break-glass",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/break-glass/activate enterprise-security.routes.ts:156, /revoke :173, /emergency/sessions/revoke :222; registered server.ts:1210"
+        },
+        {
+          "layer": "API support-access",
+          "status": "COMPLETE",
+          "evidence": "POST /v1/support-access/start enterprise-security.routes.ts:183, /revoke :198, /enter :263"
+        },
+        {
+          "layer": "authorization",
+          "status": "COMPLETE",
+          "evidence": "authorizeOrFail(identity.org_policy.manage) + step-up on activate enterprise-security.routes.ts:158-161; emergency operate authorizeWithEmergencyOverlay :224 with server-derived action allowlist"
+        },
+        {
+          "layer": "writer",
+          "status": "COMPLETE",
+          "evidence": "break-glass.service.ts activateBreakGlass:361/revokeBreakGlass:423 (emergencyAccessGrant); support-access.service.ts start:108/revoke:171 (supportAccessGrant); emergencyOrgRevoke $transaction session-quarantine.service.ts:269"
+        },
+        {
+          "layer": "storage",
+          "status": "COMPLETE",
+          "evidence": "emergency_access_grants + support_access_grants tables in committed migration prisma/migrations/20271001000000_org_security_policy_phase10/migration.sql:17/36; models schema.prisma:5217/5247 (live-DB application not statically verifiable; service fails closed P2021)"
+        },
+        {
+          "layer": "audit",
+          "status": "COMPLETE",
+          "evidence": "identity.break_glass.activated break-glass.service.ts:391, revoked :436; evaluateEmergencyAccess audits allow (used) + deny (denied) at every use :195-209/315; support start/revoke emitTenantAudit support-access.service.ts:139/184"
+        }
+      ],
+      "overall": "PARTIAL",
+      "criticalGap": "full backend (API + authz + writer + audit + committed schema) exists and break-glass DOES write immutable audit on activate/use/deny/revoke - but ZERO UI to activate/revoke break-glass or start support access (MISSING_UI); endpoints reachable only by direct API call"
+    }
+  ]
+}

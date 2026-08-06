@@ -42,7 +42,29 @@
  * Groups:  A hash integrity (10)  B severity (7)  C admin-manual (5)
  *          D deep-link resolver (8)  E audit query/export (6)  F facade+backfill (4)
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+import type { FastifyRequest } from "fastify";
+import type { PrismaClient } from "@prisma/client";
+
+import type {
+  AuthorizeOptions,
+  AuthorizationOutcome,
+} from "../src/middleware/authorize.js";
+import type { AppendPlatformAuditParams } from "../src/services/platform-audit-log.service.js";
+import type {
+  PlatformAuditEnvelope,
+  TenantAuditEnvelope,
+} from "../src/services/audit/tenant-audit.service.js";
+import {
+  asPrismaDouble,
+  rec,
+  str,
+  type DelegateArgs,
+  type JsonRecord,
+} from "./support/prisma-double.js";
 
 // Honest provenance for all 40 rows — asserted below so the classification
 // cannot silently drift and no STRUCTURAL row can be mistaken for runtime proof.
@@ -71,16 +93,24 @@ const PROVENANCE: Record<string, "BEHAVIORAL_SERVICE" | "STRUCTURAL_AUTHORITY"> 
 //  BEHAVIORAL_PRODUCTION_ENTRY companions listed in the header.)
 
 // Capture the low-level writer (the facade is its ONLY caller).
-const H = vi.hoisted(() => ({ audit: [] as any[], authz: { allowed: true } as any }));
-vi.mock("../src/services/platform-audit-log.service.js", () => ({
-  appendPlatformAuditLog: async (p: any) => { H.audit.push(p); return { id: "evt" }; },
+const H = vi.hoisted(() => ({
+  audit: [] as AppendPlatformAuditParams[],
+  authz: { allowed: true },
 }));
-// Control canonical authorization for the deep-link rows.
+vi.mock("../src/services/platform-audit-log.service.js", () => ({
+  appendPlatformAuditLog: async (p: AppendPlatformAuditParams) => { H.audit.push(p); return { id: "evt" }; },
+}));
+// Control canonical authorization for the deep-link rows. The denial branch
+// returns the SAME shape production returns (reasonCode + httpStatus), so a
+// consumer that starts reading the denial reason is exercised, not stubbed out.
 vi.mock("../src/middleware/authorize.js", () => ({
-  evaluateAuthorize: async (_req: any, args: any) =>
+  evaluateAuthorize: async (
+    _req: FastifyRequest,
+    args: AuthorizeOptions,
+  ): Promise<AuthorizationOutcome> =>
     H.authz.allowed
-      ? { allowed: true, actorUserId: "actor-1", teamId: args.teamId }
-      : { allowed: false },
+      ? { allowed: true, actorUserId: "actor-1", teamId: args.teamId ?? "" }
+      : { allowed: false, reasonCode: "permission_not_granted", httpStatus: 403 },
   authorizeOrFail: async () => null,
 }));
 
@@ -103,13 +133,45 @@ const V3 = {
 };
 const lastAudit = () => H.audit[H.audit.length - 1];
 const emit = async (fn: () => Promise<unknown>) => { H.audit.length = 0; await fn(); return lastAudit(); };
-const fakeDb = (rows: any[]) => ({
+
+/** The AdminAuditLog columns these rows carry — the shape queryTenantAudit projects. */
+type AuditRowDouble = {
+  id: string;
+  createdAt: Date;
+  action: string;
+  outcome: string | null;
+  userId: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  organizationId: string | null;
+  workspaceId: string | null;
+  metadata: JsonRecord;
+};
+/**
+ * The two AdminAuditLog delegate methods `queryTenantAudit` uses. Kept as a
+ * concrete type (not the full PrismaClient) so the suite can read `.mock.calls`
+ * and assert the WHERE clause the production query built.
+ */
+type AuditDbDouble = {
+  adminAuditLog: {
+    findMany: Mock<(args: DelegateArgs) => Promise<AuditRowDouble[]>>;
+    findUnique: Mock<(args: DelegateArgs) => Promise<AuditRowDouble | null>>;
+  };
+};
+const fakeDb = (rows: AuditRowDouble[]): AuditDbDouble => ({
   adminAuditLog: {
     findMany: vi.fn(async () => rows),
-    findUnique: vi.fn(async ({ where }: any) => rows.find((r) => r.id === where.id) ?? null),
+    findUnique: vi.fn(async ({ where }: DelegateArgs) =>
+      rows.find((r) => r.id === str(rec(where).id)) ?? null),
   },
-}) as any;
-const evReq = {} as any;
+});
+/** The single place the partial AdminAuditLog double is presented as the client. */
+const auditClient = (db: AuditDbDouble): PrismaClient => asPrismaDouble<PrismaClient>(db);
+/** The WHERE clause the production query actually built, as a readable record. */
+const whereOf = (db: AuditDbDouble): JsonRecord =>
+  rec(db.adminAuditLog.findMany.mock.calls[0]?.[0]?.where);
+/** resolveDeepLink reads nothing off the request in these rows (D07 pins that). */
+const evReq = asPrismaDouble<FastifyRequest>({});
 
 describe("PHASE 11 — 40-row closure matrix", () => {
   // ── A. HASH INTEGRITY (V1/V2/V3) ─────────────────────────────────────────
@@ -146,7 +208,7 @@ describe("PHASE 11 — 40-row closure matrix", () => {
     expect(computeAuditLogChainHash({ ...V3, workspaceId: null })).not.toBe(computeAuditLogChainHash({ ...V3, workspaceId: "" }));
   });
   it("A09 the production writer emits chainVersion 3 with tenant columns", async () => {
-    const c = await emit(() => emitTenantAudit({ action: "evidence.read", outcome: "success", workspaceId: "team-1", organizationId: "org-1", actorUserId: "u", sourceApp: "API" } as any));
+    const c = await emit(() => emitTenantAudit({ action: "evidence.read", outcome: "success", workspaceId: "team-1", organizationId: "org-1", actorUserId: "u", sourceApp: "API" }));
     expect(c.workspaceId).toBe("team-1");
     expect(c.organizationId).toBe("org-1");
   });
@@ -160,8 +222,10 @@ describe("PHASE 11 — 40-row closure matrix", () => {
   });
 
   // ── B. SEVERITY POLICY (elevate-only) ────────────────────────────────────
-  const plat = (over: any) => ({ sourceApp: "API", actorUserId: null, ...over });
-  const tenant = (over: any) => ({ sourceApp: "API", actorUserId: "u", workspaceId: "team-1", organizationId: "org-1", ...over });
+  const plat = (over: Omit<PlatformAuditEnvelope, "sourceApp" | "actorUserId"> & Partial<PlatformAuditEnvelope>): PlatformAuditEnvelope =>
+    ({ sourceApp: "API", actorUserId: null, ...over });
+  const tenant = (over: Omit<TenantAuditEnvelope, "sourceApp" | "actorUserId"> & Partial<TenantAuditEnvelope>): TenantAuditEnvelope =>
+    ({ sourceApp: "API", actorUserId: "u", workspaceId: "team-1", organizationId: "org-1", ...over });
   it("B01 break-glass is floored to critical", async () => {
     const c = await emit(() => emitPlatformAudit(plat({ action: "break_glass.activate", outcome: "success" })));
     expect(c.severity).toBe("critical");
@@ -204,8 +268,8 @@ describe("PHASE 11 — 40-row closure matrix", () => {
   });
   it("C03 manual audit strips secrets from metadata", async () => {
     const c = await emit(() => emitAdminManualAudit({ userId: "a", action: "admin.note", metadata: { token: "s3cret", ok: 1 } }));
-    expect(c.metadata.token).toBe("[redacted]");
-    expect(c.metadata.ok).toBe(1);
+    expect(rec(c.metadata).token).toBe("[redacted]");
+    expect(rec(c.metadata).ok).toBe(1);
   });
   it("C04 manual audit actor is the immutable session user", async () => {
     const c = await emit(() => emitAdminManualAudit({ userId: "admin-real", action: "admin.note", metadata: { userId: "spoof" } }));
@@ -217,7 +281,9 @@ describe("PHASE 11 — 40-row closure matrix", () => {
   });
 
   // ── D. DEEP-LINK RESOLVER DECISIONS ──────────────────────────────────────
-  const dbWith = (teamId: string | null) => ({ evidence: { findUnique: async () => (teamId ? { teamId } : null) } }) as any;
+  // resolveDeepLink reads exactly one delegate for the "evidence" family.
+  const dbWith = (teamId: string | null): PrismaClient =>
+    asPrismaDouble<PrismaClient>({ evidence: { findUnique: async () => (teamId ? { teamId } : null) } });
   it("D01 success derives the workspace from the PERSISTED resource", async () => {
     H.authz.allowed = true;
     const d = await resolveDeepLink(evReq, { resourceType: "evidence", resourceId: "ev-1" }, dbWith("team-P"));
@@ -241,7 +307,11 @@ describe("PHASE 11 — 40-row closure matrix", () => {
     H.authz.allowed = false;
     const denied = await resolveDeepLink(evReq, { resourceType: "evidence", resourceId: "ev-1" }, dbWith("team-P"));
     const missing = await resolveDeepLink(evReq, { resourceType: "evidence", resourceId: "ev-x" }, dbWith(null));
-    expect((denied as any).httpStatus).toBe((missing as any).httpStatus);
+    // Narrowed on `ok` — only the denial arm carries httpStatus, so this
+    // comparison cannot silently degrade into `undefined === undefined`.
+    expect(denied.ok).toBe(false);
+    expect(missing.ok).toBe(false);
+    expect(denied.ok === false && denied.httpStatus).toBe(missing.ok === false && missing.httpStatus);
     H.authz.allowed = true;
   });
   it("D06 a matching declared workspace is allowed (no override needed)", async () => {
@@ -256,65 +326,68 @@ describe("PHASE 11 — 40-row closure matrix", () => {
     H.authz.allowed = true;
   });
   it("D08 a resource family with no read capability is concealed (fails closed)", async () => {
-    const d = await resolveDeepLink(evReq, { resourceType: "audit-transparency" as any, resourceId: "x" }, { case: { findUnique: async () => null } } as any);
+    const d = await resolveDeepLink(
+      evReq,
+      { resourceType: "audit-transparency", resourceId: "x" },
+      asPrismaDouble<PrismaClient>({ case: { findUnique: async () => null } }),
+    );
     expect(d).toMatchObject({ ok: false, httpStatus: 404 });
   });
 
   // ── E. TENANT AUDIT QUERY / EXPORT ───────────────────────────────────────
-  const auditRow = (over: any = {}) => ({ id: "a1", createdAt: new Date("2026-07-24T00:00:00Z"), action: "evidence.read", outcome: "success", userId: "u", resourceType: "evidence", resourceId: "ev", organizationId: "org-1", workspaceId: "team-1", metadata: {}, ...over });
+  const auditRow = (over: Partial<AuditRowDouble> = {}): AuditRowDouble => ({ id: "a1", createdAt: new Date("2026-07-24T00:00:00Z"), action: "evidence.read", outcome: "success", userId: "u", resourceType: "evidence", resourceId: "ev", organizationId: "org-1", workspaceId: "team-1", metadata: {}, ...over });
   it("E01 query is DB-filtered on the authoritative workspace column", async () => {
     const db = fakeDb([auditRow()]);
-    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" } }, db);
-    const where = db.adminAuditLog.findMany.mock.calls[0][0].where;
+    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" } }, auditClient(db));
+    const where = whereOf(db);
     expect(JSON.stringify(where)).toContain("team-1");
     expect(JSON.stringify(where)).toContain("tenant_audit");
   });
   it("E02 organization scope filters on the organization column", async () => {
     const db = fakeDb([auditRow()]);
-    await queryTenantAudit({ scope: { kind: "ORGANIZATION", organizationId: "org-1" } }, db);
-    expect(JSON.stringify(db.adminAuditLog.findMany.mock.calls[0][0].where)).toContain("org-1");
+    await queryTenantAudit({ scope: { kind: "ORGANIZATION", organizationId: "org-1" } }, auditClient(db));
+    expect(JSON.stringify(whereOf(db))).toContain("org-1");
   });
   it("E03 UTC from/until bounds are pushed into the DB query", async () => {
     const db = fakeDb([auditRow()]);
-    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" }, occurredFromUtc: new Date("2026-01-01Z"), occurredUntilUtc: new Date("2026-12-31Z") }, db);
-    const where = db.adminAuditLog.findMany.mock.calls[0][0].where;
-    expect(where.createdAt.gte).toBeInstanceOf(Date);
-    expect(where.createdAt.lte).toBeInstanceOf(Date);
+    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" }, occurredFromUtc: new Date("2026-01-01Z"), occurredUntilUtc: new Date("2026-12-31Z") }, auditClient(db));
+    const createdAt = rec(whereOf(db).createdAt);
+    expect(createdAt.gte).toBeInstanceOf(Date);
+    expect(createdAt.lte).toBeInstanceOf(Date);
   });
   it("E04 rows are returned as server projections (no raw metadata leak of scope)", async () => {
     const db = fakeDb([auditRow()]);
-    const page = await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" } }, db);
+    const page = await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" } }, auditClient(db));
     expect(page.items[0].workspaceId).toBe("team-1");
     expect(page.items[0]).toHaveProperty("eventId");
   });
   it("E05 pagination is deterministic (createdAt desc, id desc; cursor honored)", async () => {
     const db = fakeDb([auditRow()]);
-    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" } }, db);
-    const orderBy = db.adminAuditLog.findMany.mock.calls[0][0].orderBy;
+    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" } }, auditClient(db));
+    const orderBy = db.adminAuditLog.findMany.mock.calls[0]?.[0]?.orderBy;
     expect(orderBy).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
   });
   it("E06 export shares the SAME scope-pinned query authority (no client-declared tenant)", async () => {
     // Export at the route reuses queryTenantAudit with the PROVEN scope — same
     // where-clause, no bypass. Prove the scope cannot be widened via input.
     const db = fakeDb([auditRow()]);
-    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" }, action: "evidence.read" }, db);
-    const where = db.adminAuditLog.findMany.mock.calls[0][0].where;
-    expect(where.workspaceId).toBe("team-1"); // scope pin survives extra filters
+    await queryTenantAudit({ scope: { kind: "WORKSPACE", workspaceId: "team-1" }, action: "evidence.read" }, auditClient(db));
+    expect(whereOf(db).workspaceId).toBe("team-1"); // scope pin survives extra filters
   });
 
   // ── F. FACADE EMISSION + BACKFILL ────────────────────────────────────────
   it("F01 emitTenantAudit writes the authoritative tenant columns", async () => {
-    const c = await emit(() => emitTenantAudit({ action: "evidence.read", outcome: "success", workspaceId: "team-9", organizationId: "org-9", actorUserId: "u", sourceApp: "API" } as any));
+    const c = await emit(() => emitTenantAudit({ action: "evidence.read", outcome: "success", workspaceId: "team-9", organizationId: "org-9", actorUserId: "u", sourceApp: "API" }));
     expect(c.workspaceId).toBe("team-9");
     expect(c.organizationId).toBe("org-9");
   });
   it("F02 emitPlatformAudit writes NULL tenant columns (platform scope)", async () => {
-    const c = await emit(() => emitPlatformAudit({ action: "platform.health", outcome: "success", sourceApp: "API", actorUserId: null } as any));
+    const c = await emit(() => emitPlatformAudit({ action: "platform.health", outcome: "success", sourceApp: "API", actorUserId: null }));
     expect(c.organizationId).toBeNull();
     expect(c.workspaceId).toBeNull();
   });
   it("F03 a denial audit carries only a bounded reason (no existence leak)", async () => {
-    const c = await emit(() => emitTenantAudit({ action: "deep_link.resolve", outcome: "denied", denialReason: "not_found", actorUserId: "u", sourceApp: "API", resourceType: "evidence", resourceId: "ev" } as any));
+    const c = await emit(() => emitTenantAudit({ action: "deep_link.resolve", outcome: "denied", denialReason: "not_found", actorUserId: "u", sourceApp: "API", resourceType: "evidence", resourceId: "ev" }));
     expect(c.outcome).toBe("denied");
     expect(c.workspaceId ?? null).toBeNull();
   });
@@ -339,8 +412,6 @@ describe("PHASE 11 — 40-row closure matrix", () => {
   });
 
   it("MATRIX_COMPANIONS — every BEHAVIORAL_PRODUCTION_ENTRY companion suite exists (none orphaned)", () => {
-    const { existsSync } = require("node:fs") as typeof import("node:fs");
-    const { resolve } = require("node:path") as typeof import("node:path");
     const companions = [
       "../test/phase-11-tenant-routes.test.ts",
       "../test/phase-11-auth-destination-safety.test.ts",

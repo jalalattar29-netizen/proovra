@@ -102,6 +102,22 @@ export async function requireStepUpForSensitiveAction(
     input.reply.code(401).send({
       error: {
         code: "STEP_UP_REQUIRED",
+        // PHASE 12B CLUSTER 9 — `message` + `details` are REQUIRED for the
+        // canonical client error normalizer (`apps/web/lib/api.ts`) to
+        // recognise this body as a structured error. Without a `message` it
+        // fell through to the status bucket and re-coded the response as
+        // plain `UNAUTHORIZED`, so `useStepUpAction` never saw
+        // STEP_UP_REQUIRED and the challenge modal never opened — the gate
+        // read as "you are signed out" on every sensitive action.
+        // The gate itself is unchanged: still 401, still unsatisfiable
+        // without a verified challenge id.
+        message: "Step-up verification required.",
+        details: {
+          purpose: input.purpose,
+          resourceKind: input.resourceKind ?? null,
+          resourceId: input.resourceId ?? null,
+        },
+        // Retained at the top level for pre-existing consumers.
         purpose: input.purpose,
         resourceKind: input.resourceKind ?? null,
         resourceId: input.resourceId ?? null,
@@ -172,6 +188,14 @@ export async function requireStepUpForSensitiveAction(
         purpose: input.purpose,
         resourceKind: input.resourceKind ?? null,
         resourceId: input.resourceId ?? null,
+        // PHASE 12B B3 — the session spending the elevation. Read from the
+        // AUTHENTICATED request (never a body/header field the caller controls),
+        // so a challenge approved in one session cannot be replayed from
+        // another. `req.user.sessionIdHash` is the same canonical value the
+        // session-revocation store keys on.
+        sessionIdHash:
+          (input.req as { user?: { sessionIdHash?: string | null } }).user
+            ?.sessionIdHash ?? null,
       },
       client,
     );
@@ -196,6 +220,13 @@ export async function requireStepUpForSensitiveAction(
       input.reply.code(401).send({
         error: {
           code: "STEP_UP_REQUIRED",
+          // Same normalizer contract as the no-header branch above.
+          message: "Step-up verification required.",
+          details: {
+            purpose: input.purpose,
+            resourceKind: input.resourceKind ?? null,
+            resourceId: input.resourceId ?? null,
+          },
           purpose: input.purpose,
           resourceKind: input.resourceKind ?? null,
           resourceId: input.resourceId ?? null,

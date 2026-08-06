@@ -2,7 +2,6 @@
  * Phase 16 — Enterprise collaboration routes.
  *
  *   GET   /v1/collaboration/threads?teamId&evidenceId&status...
- *   GET   /v1/collaboration/threads/counts?teamId
  *   POST  /v1/collaboration/threads
  *   GET   /v1/collaboration/threads/:id
  *   POST  /v1/collaboration/threads/:id/resolve
@@ -47,7 +46,6 @@ import { requirePermission } from "../services/governance.service.js";
 import {
   DiscussionError,
   assignDiscussionThread,
-  countDiscussionThreads,
   createDiscussionThread,
   escalateDiscussionThread,
   getDiscussionThread,
@@ -155,23 +153,6 @@ export async function collaborationRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         threads: rows.map(projectDiscussionThread),
       });
-    },
-  );
-
-  app.get(
-    "/v1/collaboration/threads/counts",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const query = z
-        .object({ teamId: z.string().uuid() })
-        .parse(req.query ?? {});
-      const ok = await requireReviewerMember(req, reply, query.teamId);
-      if (!ok) return;
-      const counts = await countDiscussionThreads({
-        teamId: query.teamId,
-        meUserId: ok.userId,
-      });
-      return reply.code(200).send({ counts });
     },
   );
 

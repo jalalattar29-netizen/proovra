@@ -30,7 +30,7 @@
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
@@ -58,6 +58,7 @@ import {
 } from "../../lib/dashboard";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { CommandCenterQuickActions } from "./CommandCenterQuickActions";
+import { WorkflowOperationsSection } from "./_sections/WorkflowOperationsSection";
 import { RuntimeStatusBanner } from "../operational";
 import type {
   AuditReadinessCounter,
@@ -93,14 +94,35 @@ export function CommandCenter() {
   const activeSpace = useActiveSpace();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
+  // Every value the fetch effect reads, narrowed to statically-checkable
+  // scalars BEFORE the effect. This is what lets the dependency array be both
+  // complete and honest: the dashboard must refetch when the provider state or
+  // the active workspace changes, and must not refetch when an unrelated field
+  // of the context object is replaced.
+  const ctxStateName = ctx.state.name;
+  const ctxFailure =
+    ctx.state.name === "FAILED"
+      ? {
+          errorCode: ctx.state.errorCode,
+          message: ctx.state.message,
+          requestId: ctx.state.requestId ?? null,
+        }
+      : null;
+  const ctxErrorCode = ctxFailure?.errorCode ?? null;
+  const ctxMessage = ctxFailure?.message ?? null;
+  const ctxRequestId = ctxFailure?.requestId ?? null;
+  const activeSpaceId = activeSpace?.id ?? null;
+  const activeSpaceType = activeSpace?.type ?? null;
+  const hasActiveSpace = activeSpace != null;
+
   useEffect(() => {
     // Provider state machine owns loading + auth + transport errors.
-    if (ctx.state.name === "IDLE" || ctx.state.name === "LOADING_CONTEXT") {
+    if (ctxStateName === "IDLE" || ctxStateName === "LOADING_CONTEXT") {
       setState({ status: "loading" });
       return;
     }
-    if (ctx.state.name === "FAILED") {
-      const code = ctx.state.errorCode;
+    if (ctxStateName === "FAILED") {
+      const code = ctxErrorCode;
       if (code === "AUTH_REQUIRED") {
         setState({ status: "auth_error", code: "auth_required" });
       } else if (
@@ -111,8 +133,8 @@ export function CommandCenter() {
       } else {
         setState({
           status: "unavailable",
-          message: ctx.state.message,
-          requestId: ctx.state.requestId ?? null,
+          message: ctxMessage ?? "",
+          requestId: ctxRequestId,
         });
       }
       return;
@@ -122,7 +144,7 @@ export function CommandCenter() {
     // Space), render the structured empty state. Otherwise the active
     // space id drives the dashboard fetch, regardless of PERSONAL vs
     // ORGANIZATION type.
-    if (!activeSpace) {
+    if (!hasActiveSpace) {
       setState({ status: "no_workspace" });
       return;
     }
@@ -133,13 +155,12 @@ export function CommandCenter() {
     // of issuing a request with a literal "null" teamId, which the
     // backend would 400. This also resolves a pre-existing
     // `tsc --noEmit` failure that blocked the Vercel build.
-    const activeSpaceId = activeSpace.id;
     if (activeSpaceId == null) {
       setState({ status: "no_workspace" });
       return;
     }
     emitStateEvent("active-space:resolved", "CommandCenter", {
-      activeSpaceType: activeSpace.type,
+      activeSpaceType,
       activeSpaceId: redactWorkspaceId(activeSpaceId),
     });
     let cancelled = false;
@@ -151,7 +172,7 @@ export function CommandCenter() {
       .then((envelope: CommandCenterEnvelope) => {
         if (cancelled) return;
         emitStateEvent("dashboard:resolved", "CommandCenter", {
-          activeSpaceType: activeSpace.type,
+          activeSpaceType,
         });
         setState({ status: "ready", envelope });
       })
@@ -167,10 +188,13 @@ export function CommandCenter() {
       cancelled = true;
     };
   }, [
-    ctx.state.name,
-    ctx.state.name === "FAILED" ? ctx.state.errorCode : null,
-    activeSpace?.id,
-    activeSpace?.type,
+    ctxStateName,
+    ctxErrorCode,
+    ctxMessage,
+    ctxRequestId,
+    hasActiveSpace,
+    activeSpaceId,
+    activeSpaceType,
   ]);
 
   if (state.status === "loading") return <CommandCenterLoading />;
@@ -457,6 +481,13 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
 
       {/* CRITICAL OPERATIONS BAR — top-of-page health distillation */}
       <CriticalOperationsBar envelope={envelope} />
+
+      {/* PHASE 12 — VERTICAL B. Operational workflow actions live HERE,
+          on the same surface that surfaces the pressure, rather than in
+          a separate workflow product. Action availability, staleness,
+          and idempotency are all server-owned — see the section's own
+          contract notes. */}
+      <WorkflowOperationsSection teamId={workspace.id} />
 
       {/* SUMMARY STRIP */}
       <SummaryStrip envelope={envelope} isTeam={isTeam} />
@@ -5146,6 +5177,9 @@ function opsHealthToShellSeverity(
  */
 function useActiveSection(orderedIds: string[]): string | null {
   const [active, setActive] = useState<string | null>(null);
+  const orderedKey = orderedIds.join(",");
+  const orderedIdsRef = useRef(orderedIds);
+  orderedIdsRef.current = orderedIds;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -5165,7 +5199,7 @@ function useActiveSection(orderedIds: string[]): string | null {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (orderedIds.length === 0) return undefined;
+    if (orderedIdsRef.current.length === 0) return undefined;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -5206,7 +5240,7 @@ function useActiveSection(orderedIds: string[]): string | null {
 
     // Observe every section node we know about.
     const els: Element[] = [];
-    for (const id of orderedIds) {
+    for (const id of orderedIdsRef.current) {
       const el = document.getElementById(id);
       if (el) {
         observer.observe(el);
@@ -5217,7 +5251,10 @@ function useActiveSection(orderedIds: string[]): string | null {
       for (const el of els) observer.unobserve(el);
       observer.disconnect();
     };
-  }, [orderedIds.join(",")]);
+    // The CONTENT of the id list is the subscription key (`orderedKey`); the
+    // ids themselves come from a ref so a new array with identical contents
+    // does not tear down and rebuild the IntersectionObserver each render.
+  }, [orderedKey]);
 
   return active;
 }

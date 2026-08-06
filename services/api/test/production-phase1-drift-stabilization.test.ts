@@ -552,9 +552,13 @@ const PHASE1_SCHEMA_PINS: ReadonlyArray<Phase1SchemaPin> = [
     column: "updated_at",
     fieldRe: /updatedAt\s+DateTime\s+@updatedAt\s+@map\("updated_at"\)\s+@db\.Timestamptz\(6\)/,
   },
-  // LegalHold
+  // LegalHold — PHASE 12 POINT 3: the scope-generic `legal_holds` store was
+  // absorbed into the canonical `evidence_legal_holds` table and DROPped by
+  // 20271108000000_legal_hold_legacy_removal, so the model no longer exists to
+  // pin a column map on. The equivalent guarantee for the surviving store is
+  // asserted on EvidenceLegalHold below.
   {
-    model: "LegalHold",
+    model: "EvidenceLegalHold",
     column: "updated_at",
     fieldRe: /updatedAt\s+DateTime\s+@updatedAt\s+@map\("updated_at"\)\s+@db\.Timestamptz\(6\)/,
   },

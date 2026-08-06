@@ -21,6 +21,7 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 
 import { apiFetch } from "../../lib/api";
+import { formatUserDate } from "../../lib/date";
 import { useDeepLinkNavigation } from "../../lib/navigation/useDeepLinkNavigation";
 
 type BellItem = {
@@ -91,7 +92,7 @@ function relativeTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatUserDate(iso);
 }
 
 function formatCount(n: number, exact: boolean): string {
@@ -165,6 +166,10 @@ export function NotificationBell() {
       return;
     }
     const popover = popoverRef.current;
+    // Captured while the popover is OPEN: the cleanup below must return focus
+    // to the element that owned it then, not to whatever the ref happens to
+    // point at once React has re-rendered/unmounted the trigger.
+    const trigger = triggerRef.current;
     const focusables = () =>
       popover
         ? Array.from(
@@ -191,7 +196,7 @@ export function NotificationBell() {
     popover?.addEventListener("keydown", onTrapKeyDown);
     return () => {
       popover?.removeEventListener("keydown", onTrapKeyDown);
-      triggerRef.current?.focus();
+      trigger?.focus();
     };
   }, [open]);
 

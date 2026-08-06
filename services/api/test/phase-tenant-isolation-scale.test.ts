@@ -61,14 +61,6 @@ function readApi(rel: string): string {
     "utf8",
   );
 }
-function readWorker(rel: string): string {
-  return readFileSync(
-    fileURLToPath(
-      new URL(`../../worker/${rel}`, import.meta.url),
-    ),
-    "utf8",
-  );
-}
 function listFiles(absDir: string, ext: string): string[] {
   try {
     const out: string[] = [];
@@ -532,8 +524,12 @@ describe("Tenant isolation — schema indexes for tenant-scoped scans", () => {
     { model: "Report", leadingKeys: ["evidenceId"] },
     { model: "VerificationPackage", leadingKeys: ["evidenceId"] },
     { model: "CustodyEvent", leadingKeys: ["evidenceId"] },
+    // PHASE 12 POINT 3 — CaseLegalHold was removed from the schema with the
+    // `case_legal_holds` table. CASE-scoped holds are rows in the canonical
+    // model above, whose own tenant-leading indexes (teamId / evidenceId, plus
+    // caseId+status and teamId+scope+status) carry the coverage this entry
+    // used to assert.
     { model: "EvidenceLegalHold", leadingKeys: ["teamId", "evidenceId"] },
-    { model: "CaseLegalHold", leadingKeys: ["teamId", "caseId"] },
     { model: "EvidenceRequest", leadingKeys: ["teamId", "ownerUserId"] },
     { model: "EvidenceRelationship", leadingKeys: ["sourceEvidenceId", "targetEvidenceId"] },
   ];

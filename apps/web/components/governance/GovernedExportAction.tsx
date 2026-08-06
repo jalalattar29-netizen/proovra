@@ -3,11 +3,19 @@
 /**
  * Phase G2 (G1.1 closure) — Governed Export Action wrapper.
  *
- * Composes the Phase G1 `ExportEligibilityPreflight` with an action
- * button so every output action across the app routes through the
- * same deterministic eligibility check. Operators see the verdict
- * BEFORE the destructive POST/GET; the button is only enabled when
- * the backend returns `outcome: "ALLOWED"`.
+ * The canonical governed-export surface: the Phase G1 export-eligibility
+ * pre-flight composed with an action button, so every output action
+ * across the app routes through the same deterministic eligibility
+ * check. Operators see the verdict BEFORE the destructive POST/GET;
+ * the button is only enabled when the backend returns
+ * `outcome: "ALLOWED"`.
+ *
+ * Phase 12 Point 4 — the standalone `ExportEligibilityPreflight`
+ * component was a never-mounted duplicate of this wrapper. Its unique
+ * presentation (bounded outcome labels, lifecycle state, honest error
+ * copy) was migrated here and the duplicate deleted. The same server
+ * verdict is now also enforced on the report + verification-package
+ * download routes, so a direct API call cannot bypass it.
  *
  * Hard rules:
  *   * Action labels are passed in — Report PDF and Verification
@@ -23,6 +31,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 type EligibilityOutcome =
   | "ALLOWED"
@@ -46,6 +55,18 @@ const TONE: Record<
   BLOCKED_BY_LIFECYCLE: { bg: "#fee2e2", fg: "#7f1d1d", border: "#fca5a5" },
   BLOCKED_BY_REVIEW_GATE: { bg: "#fee2e2", fg: "#7f1d1d", border: "#fca5a5" },
   BLOCKED_BY_POLICY: { bg: "#fef3c7", fg: "#78350f", border: "#fcd34d" },
+};
+
+// Bounded operator-readable verdict labels. Migrated from the Phase G1
+// `ExportEligibilityPreflight` (deleted in Phase 12 Point 4 as a
+// duplicate of this wrapper) so the blocked state names the gate that
+// blocked it, not just the server's free-text reason.
+const OUTCOME_LABEL: Record<EligibilityOutcome, string> = {
+  ALLOWED: "Eligible",
+  BLOCKED_BY_HOLD: "Blocked by legal hold",
+  BLOCKED_BY_LIFECYCLE: "Blocked by lifecycle state",
+  BLOCKED_BY_REVIEW_GATE: "Blocked by active destruction review",
+  BLOCKED_BY_POLICY: "Blocked by workspace policy",
 };
 
 const NEXT_STEP: Record<EligibilityOutcome, string> = {
@@ -86,6 +107,7 @@ export function GovernedExportAction({
   compactWhenAllowed?: boolean;
 }) {
   const [data, setData] = useState<EligibilityResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
@@ -95,6 +117,7 @@ export function GovernedExportAction({
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
       const json = (await apiFetch(
@@ -103,8 +126,19 @@ export function GovernedExportAction({
         )}&evidenceId=${encodeURIComponent(evidenceId)}`,
       )) as EligibilityResult;
       if (mountedRef.current) setData(json);
-    } catch {
-      if (mountedRef.current) setData(null);
+    } catch (err) {
+      // Phase 12 Point 4 — the failure reason is surfaced instead of
+      // swallowed (migrated from the deleted preflight component). A
+      // failed eligibility check must never look like a bare "not
+      // available"; the action stays disabled either way.
+      if (mountedRef.current) {
+        setData(null);
+        setError(
+          toSafeUserError(err, {
+            message: "Could not check export eligibility.",
+          }).message,
+        );
+      }
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -160,8 +194,8 @@ export function GovernedExportAction({
       >
         <strong>{actionLabel} — eligibility unavailable</strong>
         <p style={mutedStyle}>
-          The eligibility check could not run. Retry from the governance
-          surface or contact support.
+          {error ??
+            "The eligibility check could not run. Retry from the governance surface or contact support."}
         </p>
       </div>
     );
@@ -184,7 +218,30 @@ export function GovernedExportAction({
     >
       {!(compactWhenAllowed && allowed) ? (
         <header style={{ marginBottom: 8 }}>
-          <strong style={{ fontSize: 13 }}>{actionLabel}</strong>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <strong style={{ fontSize: 13 }}>
+              {actionLabel} — {OUTCOME_LABEL[outcome!]}
+            </strong>
+            {/* Lifecycle state comes from the same server projection.
+                Migrated from the deleted preflight component so a
+                lifecycle block names the state that caused it. */}
+            {data.lifecycleState ? (
+              <span
+                data-governed-export-lifecycle={data.lifecycleState}
+                style={{ fontSize: 11, opacity: 0.8 }}
+              >
+                Lifecycle: {data.lifecycleState}
+              </span>
+            ) : null}
+          </div>
           <p style={{ margin: "2px 0 0", fontSize: 12, opacity: 0.85 }}>
             {data.reason}
           </p>

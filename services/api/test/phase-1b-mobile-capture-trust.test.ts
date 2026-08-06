@@ -68,8 +68,18 @@ const ROUTES_CAPTURE_TRUST = readSource(
   "../../../services/api/src/routes/capture-trust.routes.ts",
 );
 const SERVER = readSource("../../../services/api/src/server.ts");
-const MOBILE_CAPTURE_TRUST = readSource(
-  "../../../apps/mobile/src/capture-trust.ts",
+// Phase 12 Point 4 (Pass E) — retargeted from `apps/mobile/src/
+// capture-trust.ts` (the Phase-1B scaffold) to the shipped runtime.
+// The scaffold declared the contract but never implemented it:
+// `prepareTrustEnvelope` threw "Phase 1B.1 wiring pending" and
+// `maxProvenanceClassForMobileMode` returned a hardcoded "A". Phase 1B
+// Closure landed the real implementation in `apps/mobile/src/trust/*`,
+// which the capture screen imports via `runTrustCapture` — leaving the
+// scaffold as a shadow declaration with zero importers. It was deleted;
+// the contract is pinned on the code that actually runs.
+const MOBILE_TRUST_BARREL = readSource("../../../apps/mobile/src/trust/index.ts");
+const MOBILE_CAPTURE_SCREEN = readSource(
+  "../../../apps/mobile/app/(stack)/capture.tsx",
 );
 
 // ===========================================================================
@@ -355,14 +365,33 @@ describe("Phase 1B — routes", () => {
 // 6 — Mobile scaffolding
 // ===========================================================================
 
-describe("Phase 1B — mobile capture-trust scaffolding", () => {
-  it("declares the captureTrustMode + prepareTrustEnvelope bounded surface", () => {
-    expect(MOBILE_CAPTURE_TRUST).toMatch(/captureTrustMode/);
-    expect(MOBILE_CAPTURE_TRUST).toMatch(/prepareTrustEnvelope/);
-    expect(MOBILE_CAPTURE_TRUST).toMatch(/DISABLED|ENABLED_SHADOW|ENABLED/);
+describe("Phase 1B — mobile capture-trust runtime", () => {
+  it("the trust barrel implements the bounded capture surface", () => {
+    // Device registration → envelope assembly → durable queue → sync.
+    expect(MOBILE_TRUST_BARREL).toMatch(/ensureDeviceRegistered/);
+    expect(MOBILE_TRUST_BARREL).toMatch(/assembleTrustEnvelope/);
+    expect(MOBILE_TRUST_BARREL).toMatch(/enqueueTrustEnvelope/);
+    expect(MOBILE_TRUST_BARREL).toMatch(/syncTrustQueue/);
+    expect(MOBILE_TRUST_BARREL).toMatch(
+      /export\s+async\s+function\s+captureWithTrust/,
+    );
   });
 
-  it("ships the gap report inline with the scaffolding", () => {
-    expect(MOBILE_CAPTURE_TRUST).toMatch(/Mobile PWA \+ Capture Audit/);
+  it("the provenance class is a real projection, not a hardcoded ceiling", () => {
+    // The deleted scaffold's `maxProvenanceClassForMobileMode` returned
+    // "A" unconditionally. The runtime must derive the class from the
+    // shared vocabulary instead.
+    expect(MOBILE_TRUST_BARREL).toMatch(/CaptureProvenanceClass/);
+    expect(MOBILE_TRUST_BARREL).toMatch(/provenanceClass/);
+    expect(MOBILE_TRUST_BARREL).not.toMatch(/return\s+"A"\s*;/);
+  });
+
+  it("the capture screen consumes the runtime — not a scaffold stub", () => {
+    expect(MOBILE_CAPTURE_SCREEN).toMatch(
+      /import\s*\{[^}]*runTrustCapture[^}]*\}\s*from\s*"\.\.\/\.\.\/src\/trust"/,
+    );
+    // Nothing may reach for the deleted Phase-1B scaffold again.
+    expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/capture-trust/);
+    expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/prepareTrustEnvelope/);
   });
 });

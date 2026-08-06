@@ -15,6 +15,7 @@
  *   - Dead-letter after 8 attempts (mirrors webhook-platform.service.ts).
  */
 
+import { SWEEP_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
 import { createHmac } from "node:crypto";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -55,6 +56,17 @@ function webhookDeliveryUpdate(args: {
 // ---------------------------------------------------------------------------
 
 const POLL_LIMIT = 50;
+
+/**
+ * How long a DISPATCHING claim is believed before another tick may reclaim it.
+ *
+ * Read from the registry so the claim window, the recovery window and the
+ * operator projection cannot drift apart — the same reason the retry policy
+ * comes from there rather than from a literal at the call site.
+ */
+const CLAIM_LEASE_MS =
+  getWorkEntryOrThrow(SWEEP_NAMES.WEBHOOK_DISPATCHER).claim?.leaseMs ??
+  5 * 60_000;
 const CONCURRENCY_CAP = 10;
 const DELIVERY_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS_BEFORE_DEAD_LETTER = 8;
@@ -162,11 +174,17 @@ type DeliveryRow = {
   attemptCount: number;
 };
 
+/**
+ * PHASE 12 — POINT 5: this row comes from `LifecycleWebhookEndpoint`.
+ *
+ * It previously came from `WebhookEndpoint`, and the two are different tables
+ * with different columns — see the note on `endpointFindUnique` below.
+ */
 type EndpointRow = {
   id: string;
   url: string;
-  status: string;
-  secretCiphertext: string;
+  state: string;
+  secret: string;
 };
 
 function deliveryFindUnique(id: string): Promise<DeliveryRow | null> {
@@ -178,12 +196,61 @@ function deliveryFindUnique(id: string): Promise<DeliveryRow | null> {
   });
 }
 
+/**
+ * PHASE 12 — POINT 5: FIXED — the dispatcher was reading the WRONG TABLE.
+ *
+ * `LifecycleWebhookDelivery.endpointId` has a foreign key to
+ * `LifecycleWebhookEndpoint` (`webhook_endpoints`). This function looked the
+ * same id up in `prisma.webhookEndpoint`, which is a DIFFERENT model mapping to
+ * `integration_webhook_endpoints`.
+ *
+ * The lookup therefore returned `null` for every real delivery, and the caller
+ * treats a missing endpoint as unrecoverable: it marked the delivery FAILED and
+ * returned WITHOUT EVER ATTEMPTING THE REQUEST. Lifecycle webhook delivery was
+ * a total silent outage — every delivery failed, none was retried, and the
+ * failure looked like a legitimately deactivated endpoint.
+ *
+ * It survived because nothing exercised the dispatcher against a real database:
+ * the two models have similarly-shaped fields, the id is a UUID that is valid
+ * against both, and the typed shim (`as unknown as`) that exists to work around
+ * a stale generated client also suppressed the type error that would have
+ * caught it.
+ *
+ * The column names differ too and are corrected with it: `status` -> `state`,
+ * `secretCiphertext` -> `secret`.
+ */
+/**
+ * Move a delivery out of PENDING/RETRYING into DISPATCHING, atomically.
+ *
+ * Returns true only for the caller whose UPDATE matched a row, which is what
+ * makes "exactly one dispatcher sends this" a database guarantee rather than a
+ * scheduling assumption.
+ *
+ * The signature is written here rather than after the response so the durable
+ * record shows what was signed even if the process dies mid-flight.
+ */
+async function webhookDeliveryClaim(
+  id: string,
+  signature: string,
+): Promise<boolean> {
+  const res = await (prisma.lifecycleWebhookDelivery.updateMany as unknown as (
+    a: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    },
+  ) => Promise<{ count: number }>)({
+    where: { id, state: { in: ["PENDING", "RETRYING"] } },
+    data: { state: "DISPATCHING", signature, lastAttemptAtUtc: new Date() },
+  });
+  return res.count === 1;
+}
+
 function endpointFindUnique(id: string): Promise<EndpointRow | null> {
-  return (prisma.webhookEndpoint.findUnique as unknown as (
+  return (prisma.lifecycleWebhookEndpoint.findUnique as unknown as (
     a: { where: { id: string }; select: Record<string, true> }
   ) => Promise<EndpointRow | null>)({
     where: { id },
-    select: { id: true, url: true, status: true, secretCiphertext: true },
+    select: { id: true, url: true, state: true, secret: true },
   });
 }
 
@@ -203,7 +270,7 @@ async function dispatchOne(
   }
 
   const endpoint = await endpointFindUnique(delivery.endpointId);
-  if (!endpoint || endpoint.status !== "ACTIVE") {
+  if (!endpoint || endpoint.state !== "ACTIVE") {
     await webhookDeliveryUpdate({
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
@@ -226,11 +293,35 @@ async function dispatchOne(
     return;
   }
 
-  // secretCiphertext is the AES-256-GCM ciphertext of the raw signing secret
-  // (base64-encoded). The dispatcher uses it directly as the HMAC key material;
-  // the API layer decrypts it for display purposes only.
-  const signature = signPayload(endpoint.secretCiphertext, canonical);
+  // The endpoint's stored signing secret is used directly as HMAC key
+  // material. It is read HERE, at execution, and never travels on a payload.
+  const signature = signPayload(endpoint.secret, canonical);
   const nextAttemptCount = delivery.attemptCount + 1;
+
+  // PHASE 12 — POINT 5: ATOMIC CLAIM — this did not exist.
+  //
+  // The registry documented `PENDING -> DISPATCHING (conditional_update_many)`
+  // and `conditional_state_claim` idempotency for this sweep. The code
+  // implemented neither: `DISPATCHING` appeared nowhere in this module. The
+  // tick polled due rows and dispatched them, so two dispatcher instances —
+  // or two overlapping ticks of one instance, since the interval is 5 seconds
+  // and the HTTP timeout is longer — both saw the same PENDING row and both
+  // POSTed it. Customer endpoints received DUPLICATE webhook deliveries, and
+  // the only thing standing between the platform and that was single-replica
+  // deployment.
+  //
+  // The claim is a conditional UPDATE: exactly one caller can move a row out
+  // of PENDING/RETRYING, and the loser exits before the network call. The
+  // signature is persisted with it, so the delivery record shows what was
+  // actually signed rather than leaving an empty column behind.
+  const claimed = await webhookDeliveryClaim(deliveryId, signature);
+  if (!claimed) {
+    logger.info(
+      { deliveryId },
+      "webhook.dispatcher.claim_lost",
+    );
+    return;
+  }
 
   let responseStatus: number | null = null;
   let responseBodyExcerpt: string | null = null;
@@ -373,6 +464,37 @@ export async function runWebhookDispatcherTick(options?: {
   const fetcher = options?.fetcher ?? defaultFetcher;
 
   const now = new Date();
+
+  // PHASE 12 — POINT 5: release expired DISPATCHING claims BEFORE polling.
+  //
+  // The atomic claim added in this phase is what stops two dispatchers sending
+  // the same delivery twice — but a claim with no expiry is a new way to lose
+  // work: a process that dies between claiming and responding would leave the
+  // row DISPATCHING forever, invisible to every future tick because
+  // DISPATCHING is not a polled state.
+  //
+  // The lease bound is the registry's (`leaseMs`), so the claim window and the
+  // recovery window cannot drift apart.
+  const leaseFloor = new Date(now.getTime() - CLAIM_LEASE_MS);
+  try {
+    const released = await (
+      prisma.lifecycleWebhookDelivery.updateMany as unknown as (a: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => Promise<{ count: number }>
+    )({
+      where: { state: "DISPATCHING", lastAttemptAtUtc: { lt: leaseFloor } },
+      data: { state: "RETRYING" },
+    });
+    if (released.count > 0) {
+      logger.warn(
+        { released: released.count },
+        "webhook.dispatcher.stale_claims_released",
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "webhook.dispatcher.lease_release_failed");
+  }
 
   // Poll up to POLL_LIMIT rows that are due.
   // PENDING rows have nextAttemptAtUtc = null → dispatch immediately.

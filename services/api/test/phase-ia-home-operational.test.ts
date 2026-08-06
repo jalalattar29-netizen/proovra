@@ -219,12 +219,13 @@ describe("Phase IA-home-operational — Intake Pipeline", () => {
     expect(vm.intakePipeline.empty).toBe(true);
   });
 
-  it("the card renders a locked/upgrade explanation (not a blank) for non-Pro plans", () => {
+  it("the card renders a locked/upgrade explanation (not a blank) when intake is not included", () => {
     expect(SECTIONS).toMatch(/data-intake-locked/);
     expect(SECTIONS).toMatch(/data-intake-upgrade/);
-    // The dashboard locks it for FREE/PAYG (locked={!pro}).
+    // PHASE 12B Track 1A — the lock is the SERVER-projected entitlement
+    // (features.intakeIncluded), never a client plan-name decision.
     const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
-    expect(DASH).toMatch(/locked=\{!pro\}/);
+    expect(DASH).toMatch(/locked=\{!intakeIncluded\}/);
   });
 });
 

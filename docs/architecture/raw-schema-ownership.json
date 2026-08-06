@@ -1,0 +1,5296 @@
+{
+  "$comment": "PHASE 12 POINT 4 — canonical RAW-SCHEMA OWNERSHIP MANIFEST. Every database object here is owned by hand-written migration SQL rather than by the Prisma datamodel. Registering them is what makes the schema authority single and explicit: the datamodel owns table/column EXISTENCE (0 residual differences), and this manifest owns the index-naming, index/FK/unique declarations, column defaults and extension-conditional objects that the datamodel deliberately does not declare. This file is NOT a filter — `scripts/raw-schema-verify.mjs` recomputes the residual set against a fresh database and fails if it differs from this manifest in EITHER direction, so a deleted or mutated registered object is detected, and a NEW undeclared object is detected too.",
+  "generatedFor": "phase-12-point-4",
+  "generatedFrom": "prisma migrate diff --from-config-datasource --to-schema, against a fresh PostgreSQL 16 built from the complete migration history (including 20271112000000_point4_write_unblock_repair and 20271117000000_point4_schema_authority_contract). PHASE 12 POINT 6 — enum scopes are now parsed and verified too.",
+  "invariants": {
+    "tablesProposedForRemoval": 0,
+    "columnsProposedForRemoval": 0,
+    "$note": "Both are ZERO by construction: every previously-undeclared live table and column is now declared in schema.prisma. If either becomes non-zero, the datamodel has lost an object the database still has, and the verifier fails."
+  },
+  "categories": {
+    "INDEX_NAME_CONVENTION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Hand-written migrations name indexes with the project convention (e.g. `evidence_ocr_text_team_evidence_idx`); Prisma would generate its own name from the column list. The index itself is semantically identical — same table, same columns, same order. Only the identifier differs.",
+      "risk": "none — no data, no constraint semantics"
+    },
+    "INDEX_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Index created by hand-written migration SQL and deliberately not declared in the datamodel. Prisma never needs it to read or write; the database plans with it.",
+      "risk": "none — dropping is never proposed against a live table because the datamodel does not claim the table's index set is complete"
+    },
+    "UNIQUE_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Unique constraint enforced in the database by migration SQL. The runtime relies on the DATABASE to enforce it (see the concurrency integration suites), not on a datamodel declaration.",
+      "risk": "MEDIUM — a dropped unique constraint would be a real integrity loss, which is exactly why the verifier fingerprints it"
+    },
+    "FOREIGN_KEY_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Referential integrity enforced in the database. Several of these are on raw-SQL-owned subsystem tables whose models declare scalars only (no Prisma relations), so Prisma has no FK to emit.",
+      "risk": "MEDIUM — verified by fingerprint"
+    },
+    "COLUMN_DEFAULT_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Column default set by migration SQL and not restated in the datamodel. The database applies it on INSERT regardless of what Prisma declares.",
+      "risk": "LOW"
+    },
+    "COLUMN_TYPE_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Native type detail (varchar length, enum-vs-text) that the datamodel expresses more loosely than the physical column. The physical type is authoritative and unchanged.",
+      "risk": "LOW"
+    },
+    "ENUM_VARIANT_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "Enum variant present in the database type but not restated in the datamodel enum.",
+      "risk": "LOW"
+    },
+    "EXTENSION_CONDITIONAL_COLUMN": {
+      "ownership": "EXTENSION_MANAGED",
+      "reason": "`evidence_semantic_chunks.embedding_vector` is `vector(1536)`, created only when the pgvector extension installs successfully. Migration 20270701000000_phase15_semantic_search installs it best-effort and RAISES NOTICE (never fails) when the host forbids it; semantic search falls back to keyword-only. The column is therefore legitimately absent on a stock postgres:16-alpine and present on a pgvector-enabled host.",
+      "risk": "none — the runtime degrades honestly; see the extension manifest below"
+    },
+    "OTHER": {
+      "ownership": "UNCLASSIFIED",
+      "reason": "must be empty",
+      "risk": "n/a"
+    },
+    "EXTENSION_CONDITIONAL_INDEX": {
+      "ownership": "EXTENSION_MANAGED",
+      "reason": "The ivfflat indexes over the pgvector columns — `evidence_semantic_chunks.embedding_vector` and `evidence_search_documents.embedding`. Prisma cannot express the ivfflat access method, so the datamodel never declares them and raw SQL in the semantic-search migrations creates them alongside the extension. They are the MIRROR of EXTENSION_CONDITIONAL_COLUMN: a conditional column is a divergence exactly while the extension is ABSENT, and a conditional index is a divergence exactly while it is PRESENT. PHASE 12 POINT 5 registered them because it made pgvector a production prerequisite — before that, every rehearsal ran on a host without the extension and neither index had ever existed to diverge.",
+      "risk": "none — the index is a query-planner accelerator, and its absence degrades semantic search to a sequential scan rather than changing a result"
+    },
+    "ENUM_LABEL_RESIDUAL": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "A superseded enum variant that migration history created and the datamodel no longer declares. Prisma only maps DECLARED variants, so an undeclared label is inert for reads and writes UNLESS a row still carries it. Removing one is a CONTRACT step: it requires proof that no row uses the label, so it is registered here with an explicit removal condition rather than dropped to make a diff clean."
+    }
+  },
+  "extensions": [
+    {
+      "name": "vector",
+      "owningMigration": "20270701000000_phase15_semantic_search",
+      "installMode": "best-effort (CREATE EXTENSION IF NOT EXISTS inside an exception-trapping DO block)",
+      "ownedObjects": [
+        "evidence_semantic_chunks.embedding_vector (vector(1536))",
+        "ivfflat index on that column"
+      ],
+      "runtimeBehaviourWhenAbsent": "Semantic search runs keyword-only; the in-process cosine path is the fallback. No write path requires the column.",
+      "verifiedBy": "scripts/raw-schema-verify.mjs --extensions"
+    }
+  ],
+  "categoryCounts": {
+    "INDEX_DECLARATION": 198,
+    "COLUMN_TYPE_DECLARATION": 110,
+    "COLUMN_DEFAULT_DECLARATION": 99,
+    "FOREIGN_KEY_DECLARATION": 181,
+    "INDEX_NAME_CONVENTION": 270,
+    "EXTENSION_CONDITIONAL_COLUMN": 2,
+    "UNIQUE_DECLARATION": 4,
+    "EXTENSION_CONDITIONAL_INDEX": 2,
+    "ENUM_LABEL_RESIDUAL": 1
+  },
+  "totalRegisteredObjects": 867,
+  "objects": [
+    {
+      "table": "access_review_campaigns",
+      "sign": "*",
+      "object": "Altered column ends_at_utc (default changed from None to Some(Now))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "*",
+      "object": "Altered column name (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "*",
+      "object": "Altered column starts_at_utc (default changed from None to Some(Now))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"DRAFT\"))) to Some(Value(String(\"SCHEDULED\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, organization_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "access_review_campaigns",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "+",
+      "object": "Added foreign key on columns (campaign_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "+",
+      "object": "Added index on columns (campaign_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "*",
+      "object": "Altered column decision (default changed from Some(Value(String(\"PENDING\"))) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "*",
+      "object": "Altered column notes (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "-",
+      "object": "Removed foreign key on columns (campaign_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "-",
+      "object": "Removed foreign key on columns (campaign_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, campaign_id, decision)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "access_review_items",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, subject_user_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "access_reviews",
+      "sign": "*",
+      "object": "Renamed index access_reviews_team_kind_idx to access_reviews_team_id_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "access_reviews",
+      "sign": "*",
+      "object": "Renamed index access_reviews_team_status_idx to access_reviews_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "account_data_export_requests",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "ai_copilot_observation_reviews",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "ai_copilot_observation_reviews",
+      "sign": "*",
+      "object": "Renamed index ai_copilot_observation_reviews_run_obs_actor_key to ai_copilot_observation_reviews_copilot_run_id_observation_i_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "ai_copilot_runs",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "api_credential_usage_logs",
+      "sign": "*",
+      "object": "Renamed index api_credential_usage_logs_created_idx to api_credential_usage_logs_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "api_credential_usage_logs",
+      "sign": "*",
+      "object": "Renamed index api_credential_usage_logs_credential_created_idx to api_credential_usage_logs_api_credential_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "api_credential_usage_logs",
+      "sign": "*",
+      "object": "Renamed index api_credential_usage_logs_team_created_idx to api_credential_usage_logs_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "api_credentials",
+      "sign": "-",
+      "object": "Removed unique index on columns (previous_key_hash)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "api_credentials",
+      "sign": "*",
+      "object": "Renamed index api_credentials_team_created_idx to api_credentials_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "api_credentials",
+      "sign": "*",
+      "object": "Renamed index api_credentials_team_status_idx to api_credentials_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "+",
+      "object": "Added index on columns (team_id, evidence_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "*",
+      "object": "Altered column failure_reason (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "*",
+      "object": "Altered column from_tier (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"PENDING\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "*",
+      "object": "Altered column storage_class_after (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "*",
+      "object": "Altered column storage_class_before (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "*",
+      "object": "Altered column to_tier (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, transitioned_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, to_tier)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "archive_tier_transitions",
+      "sign": "-",
+      "object": "Removed unique index on columns (evidence_id)",
+      "category": "UNIQUE_DECLARATION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_expires_idx to authenticated_sessions_expires_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_sso_connection_idx to authenticated_sessions_sso_connection_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_team_heartbeat_idx to authenticated_sessions_team_id_last_heartbeat_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_team_quarantined_idx to authenticated_sessions_team_id_quarantined_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_team_recomputed_idx to authenticated_sessions_team_id_last_risk_recomputed_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_team_revoked_idx to authenticated_sessions_team_id_revoked_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_team_risk_idx to authenticated_sessions_team_id_risk_score_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_user_expires_idx to authenticated_sessions_user_id_expires_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_user_org_active_idx to authenticated_sessions_user_id_organization_context_id_revo_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "authenticated_sessions",
+      "sign": "*",
+      "object": "Renamed index authenticated_sessions_user_session_hash_uk to authenticated_sessions_user_id_session_id_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_rules",
+      "sign": "*",
+      "object": "Renamed index automation_rules_team_enabled_idx to automation_rules_team_id_enabled_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_rules",
+      "sign": "*",
+      "object": "Renamed index automation_rules_team_idx to automation_rules_team_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_rules",
+      "sign": "*",
+      "object": "Renamed index automation_rules_team_trigger_idx to automation_rules_team_id_trigger_type_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_runs",
+      "sign": "*",
+      "object": "Renamed index automation_runs_team_created_idx to automation_runs_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_runs",
+      "sign": "*",
+      "object": "Renamed index automation_runs_team_rule_created_idx to automation_runs_team_id_rule_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_runs",
+      "sign": "*",
+      "object": "Renamed index automation_runs_team_rule_idempotency_uniq to automation_runs_team_id_rule_id_idempotency_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_runs",
+      "sign": "*",
+      "object": "Renamed index automation_runs_team_status_idx to automation_runs_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (status, next_attempt_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_deliveries_destination_idx to automation_webhook_deliveries_destination_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_deliveries_team_created_idx to automation_webhook_deliveries_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_deliveries_team_run_dest_uniq to automation_webhook_deliveries_team_id_run_id_destination_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_deliveries_team_status_idx to automation_webhook_deliveries_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_destinations",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_destinations_team_consec_fail_idx to automation_webhook_destinations_team_id_consecutive_failure_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_destinations",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_destinations_team_enabled_idx to automation_webhook_destinations_team_id_enabled_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_destinations",
+      "sign": "*",
+      "object": "Renamed index automation_webhook_destinations_team_origin_uniq to automation_webhook_destinations_team_id_url_origin_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "capture_device_attestations",
+      "sign": "+",
+      "object": "Added foreign key on columns (device_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "capture_device_attestations",
+      "sign": "-",
+      "object": "Removed foreign key on columns (device_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "capture_trust_event_records",
+      "sign": "*",
+      "object": "Renamed index capture_trust_event_records_evidence_seq_idx to capture_trust_event_records_evidence_id_sequence_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "capture_trust_event_records",
+      "sign": "*",
+      "object": "Renamed index capture_trust_event_records_team_evidence_idx to capture_trust_event_records_team_id_evidence_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "case_siu_checklist_items",
+      "sign": "+",
+      "object": "Added foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_checklist_items",
+      "sign": "-",
+      "object": "Removed foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_checklist_items",
+      "sign": "*",
+      "object": "Renamed index case_siu_checklist_profile_item_uniq to case_siu_checklist_items_siu_profile_id_template_item_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "case_siu_exports",
+      "sign": "+",
+      "object": "Added foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_exports",
+      "sign": "-",
+      "object": "Removed foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_follow_ups",
+      "sign": "+",
+      "object": "Added foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_follow_ups",
+      "sign": "-",
+      "object": "Removed foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_review_indicators",
+      "sign": "+",
+      "object": "Added foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_review_indicators",
+      "sign": "-",
+      "object": "Removed foreign key on columns (siu_profile_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "case_siu_saved_views",
+      "sign": "*",
+      "object": "Renamed index case_siu_saved_view_team_owner_name_uniq to case_siu_saved_views_team_id_created_by_user_id_name_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "cases",
+      "sign": "*",
+      "object": "Renamed index case_team_reference_number_uniq to cases_team_id_reference_number_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "chain_transfers",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "chain_transfers",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"INITIATED\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "chain_transfers",
+      "sign": "*",
+      "object": "Altered column to_organization_slug (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "chain_transfers",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "chain_transfers",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, from_organization_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "chain_transfers",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "coding_fields",
+      "sign": "+",
+      "object": "Added foreign key on columns (schema_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "coding_fields",
+      "sign": "-",
+      "object": "Removed foreign key on columns (schema_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "coding_values",
+      "sign": "+",
+      "object": "Added foreign key on columns (field_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "coding_values",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "coding_values",
+      "sign": "-",
+      "object": "Removed foreign key on columns (field_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "+",
+      "object": "Added foreign key on columns (decided_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "+",
+      "object": "Added foreign key on columns (member_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "+",
+      "object": "Added foreign key on columns (review_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "-",
+      "object": "Removed foreign key on columns (decided_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "-",
+      "object": "Removed foreign key on columns (member_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "-",
+      "object": "Removed foreign key on columns (review_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_access_review_item_review_member_uniq to collaboration_team_access_review_items_review_id_member_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_access_review_items",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_access_review_items_member_idx to collaboration_team_access_review_items_member_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "+",
+      "object": "Added foreign key on columns (created_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "-",
+      "object": "Removed foreign key on columns (created_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_access_reviews_team_status_idx to collaboration_team_access_reviews_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_access_reviews",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_access_reviews_workspace_status_idx to collaboration_team_access_reviews_workspace_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_activity",
+      "sign": "+",
+      "object": "Added foreign key on columns (actor_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_activity",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_activity",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_activity",
+      "sign": "-",
+      "object": "Removed foreign key on columns (actor_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_activity",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_activity",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (assigned_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (assignee_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (assigned_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (assignee_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "+",
+      "object": "Added foreign key on columns (comment_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "+",
+      "object": "Added foreign key on columns (mentioned_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (comment_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (mentioned_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_comment_mentions_comment_idx to collaboration_team_comment_mentions_comment_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_comment_mentions_team_type_idx to collaboration_team_comment_mentions_team_id_mention_type_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_comment_mentions",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_comment_mentions_user_idx to collaboration_team_comment_mentions_mentioned_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "+",
+      "object": "Added foreign key on columns (author_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "+",
+      "object": "Added foreign key on columns (deleted_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (author_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (deleted_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_comments",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_comments_team_target_idx to collaboration_team_comments_team_id_target_type_target_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "+",
+      "object": "Added foreign key on columns (accepted_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "+",
+      "object": "Added foreign key on columns (invited_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "+",
+      "object": "Added foreign key on columns (revoked_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "-",
+      "object": "Removed foreign key on columns (accepted_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "-",
+      "object": "Removed foreign key on columns (invited_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "-",
+      "object": "Removed foreign key on columns (revoked_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_guests_team_status_idx to collaboration_team_guests_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_guests",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_guests_workspace_status_idx to collaboration_team_guests_workspace_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "+",
+      "object": "Added foreign key on columns (accepted_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "+",
+      "object": "Added foreign key on columns (created_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "-",
+      "object": "Removed foreign key on columns (accepted_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "-",
+      "object": "Removed foreign key on columns (created_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_invites",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_invite_token_hash_uniq to collaboration_team_invites_token_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "+",
+      "object": "Added foreign key on columns (invited_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "+",
+      "object": "Added foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "-",
+      "object": "Removed foreign key on columns (invited_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "-",
+      "object": "Removed foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_members",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_member_team_user_uniq to collaboration_team_members_team_id_user_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_notification_preferences",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notification_preferences",
+      "sign": "+",
+      "object": "Added foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notification_preferences",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notification_preferences",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notification_preferences",
+      "sign": "-",
+      "object": "Removed foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notification_preferences",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_notification_preference_team_user_uniq to collaboration_team_notification_preferences_team_id_user_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "+",
+      "object": "Added foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "-",
+      "object": "Removed foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_notifications_team_idx to collaboration_team_notifications_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_team_notifications",
+      "sign": "*",
+      "object": "Renamed index collaboration_team_notifications_user_read_idx to collaboration_team_notifications_user_id_read_at_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "collaboration_teams",
+      "sign": "+",
+      "object": "Added foreign key on columns (created_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_teams",
+      "sign": "+",
+      "object": "Added foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_teams",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "collaboration_teams",
+      "sign": "-",
+      "object": "Removed foreign key on columns (created_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "collaboration_teams",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workspace_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "communication_messages",
+      "sign": "*",
+      "object": "Renamed index communication_messages_provider_callback_uk to communication_messages_provider_provider_message_id_status_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_messages",
+      "sign": "*",
+      "object": "Renamed index communication_messages_team_channel_idx to communication_messages_team_id_channel_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_messages",
+      "sign": "*",
+      "object": "Renamed index communication_messages_team_created_at_idx to communication_messages_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_messages",
+      "sign": "*",
+      "object": "Renamed index communication_messages_team_purpose_idx to communication_messages_team_id_purpose_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_messages",
+      "sign": "*",
+      "object": "Renamed index communication_messages_team_status_idx to communication_messages_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_preferences",
+      "sign": "*",
+      "object": "Renamed index communication_preferences_team_contact_hash_uk to communication_preferences_team_id_external_contact_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_preferences",
+      "sign": "*",
+      "object": "Renamed index communication_preferences_team_idx to communication_preferences_team_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "communication_preferences",
+      "sign": "*",
+      "object": "Renamed index communication_preferences_team_user_uk to communication_preferences_team_id_user_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "contact_sales_requests",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "cross_org_review_grants",
+      "sign": "+",
+      "object": "Added index on columns (target_org_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "cross_org_review_grants",
+      "sign": "*",
+      "object": "Altered column scope (default changed from None to Some(Value(Json(\"{}\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "cross_org_review_grants",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"INVITED\"))) to Some(Value(String(\"PENDING\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "cross_org_review_grants",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "cross_org_review_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, inviting_organization_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "cross_org_review_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "delegated_admin_grants",
+      "sign": "+",
+      "object": "Added index on columns (granted_to_user_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "delegated_admin_grants",
+      "sign": "*",
+      "object": "Altered column organization_id (changed from Required to Nullable)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "delegated_admin_grants",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "delegated_admin_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, organization_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "delegated_admin_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, tier)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "+",
+      "object": "Added foreign key on columns (department_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "+",
+      "object": "Added index on columns (department_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "+",
+      "object": "Added index on columns (user_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "*",
+      "object": "Altered column role (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, department_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, user_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "department_memberships",
+      "sign": "-",
+      "object": "Removed unique index on columns (department_id, user_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "departments",
+      "sign": "*",
+      "object": "Altered column organization_id (changed from Required to Nullable)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "departments",
+      "sign": "*",
+      "object": "Altered column slug (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "departments",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "departments",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, organization_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "departments",
+      "sign": "-",
+      "object": "Removed unique index on columns (organization_id, slug)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "+",
+      "object": "Added foreign key on columns (request_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "+",
+      "object": "Added index on columns (request_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "*",
+      "object": "Altered column certificate_uri (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "*",
+      "object": "Altered column certified_at_utc (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "-",
+      "object": "Removed foreign key on columns (request_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, certified_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "destruction_certificates",
+      "sign": "*",
+      "object": "Renamed index destruction_certificates_request_uniq to destruction_certificates_request_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "destruction_executions",
+      "sign": "-",
+      "object": "Removed unique index on columns (destruction_review_id)",
+      "category": "UNIQUE_DECLARATION"
+    },
+    {
+      "table": "destruction_executions",
+      "sign": "*",
+      "object": "Renamed index destruction_executions_planned_at_idx to destruction_executions_planned_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "destruction_executions",
+      "sign": "*",
+      "object": "Renamed index destruction_executions_review_id_status_idx to destruction_executions_destruction_review_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "*",
+      "object": "Altered column approver_user_ids (default changed from None to Some(Value(Json(\"[]\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "*",
+      "object": "Altered column policy_ref (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "*",
+      "object": "Altered column reason (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"REQUESTED\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "destruction_requests",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "destruction_reviews",
+      "sign": "-",
+      "object": "Removed unique index on columns (evidence_id)",
+      "category": "UNIQUE_DECLARATION"
+    },
+    {
+      "table": "destruction_reviews",
+      "sign": "*",
+      "object": "Renamed index destruction_reviews_deferred_idx to destruction_reviews_deferred_until_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "destruction_reviews",
+      "sign": "*",
+      "object": "Renamed index destruction_reviews_evidence_created_idx to destruction_reviews_evidence_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "destruction_reviews",
+      "sign": "*",
+      "object": "Renamed index destruction_reviews_retention_policy_idx to destruction_reviews_retention_policy_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "destruction_reviews",
+      "sign": "*",
+      "object": "Renamed index destruction_reviews_team_status_idx to destruction_reviews_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_mentions",
+      "sign": "*",
+      "object": "Renamed index discussion_mentions_msg_user_unique to discussion_mentions_message_id_mentioned_user_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_mentions",
+      "sign": "*",
+      "object": "Renamed index discussion_mentions_thread_idx to discussion_mentions_thread_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_mentions",
+      "sign": "*",
+      "object": "Renamed index discussion_mentions_user_notified_idx to discussion_mentions_mentioned_user_id_notified_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_messages",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "discussion_messages",
+      "sign": "*",
+      "object": "Renamed index discussion_messages_author_idx to discussion_messages_author_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_messages",
+      "sign": "*",
+      "object": "Renamed index discussion_messages_team_created_idx to discussion_messages_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_messages",
+      "sign": "*",
+      "object": "Renamed index discussion_messages_thread_created_idx to discussion_messages_thread_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_participants",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "discussion_participants",
+      "sign": "*",
+      "object": "Renamed index discussion_participants_session_idx to discussion_participants_intake_session_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_participants",
+      "sign": "*",
+      "object": "Renamed index discussion_participants_thread_session_unique to discussion_participants_thread_id_intake_session_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_participants",
+      "sign": "*",
+      "object": "Renamed index discussion_participants_thread_user_unique to discussion_participants_thread_id_user_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_participants",
+      "sign": "*",
+      "object": "Renamed index discussion_participants_user_idx to discussion_participants_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_threads",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "discussion_threads",
+      "sign": "*",
+      "object": "Renamed index discussion_threads_assigned_status_idx to discussion_threads_assigned_to_user_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_threads",
+      "sign": "*",
+      "object": "Renamed index discussion_threads_evidence_status_idx to discussion_threads_evidence_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "discussion_threads",
+      "sign": "*",
+      "object": "Renamed index discussion_threads_team_status_updated_idx to discussion_threads_team_id_status_updated_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "duplicate_decisions",
+      "sign": "*",
+      "object": "Altered column decision (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "duplicate_decisions",
+      "sign": "*",
+      "object": "Altered column edge_type (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "duplicate_decisions",
+      "sign": "*",
+      "object": "Altered column id (default changed from Some(DbGenerated(Some(\"gen_random_uuid()\"))) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "duplicate_decisions",
+      "sign": "*",
+      "object": "Renamed index duplicate_decisions_team_decision_idx to duplicate_decisions_team_id_decision_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "duplicate_decisions",
+      "sign": "*",
+      "object": "Renamed index duplicate_decisions_team_edge_unique to duplicate_decisions_team_id_edge_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "enterprise_contracts",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "enterprise_provisioning_requests",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Altered column granted_at_utc (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Altered column key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Altered column product_line (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Altered column source (default changed from Some(Value(String(\"PLAN\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "entitlement_grants",
+      "sign": "*",
+      "object": "Renamed index entitlement_grants_team_key_uniq to entitlement_grants_team_id_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "entitlement_usage",
+      "sign": "*",
+      "object": "Altered column key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "entitlement_usage",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "entitlement_usage",
+      "sign": "*",
+      "object": "Renamed index entitlement_usage_team_key_period_uniq to entitlement_usage_team_id_key_period_start_utc_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_annotations",
+      "sign": "+",
+      "object": "Added foreign key on columns (parent_annotation_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence_annotations",
+      "sign": "+",
+      "object": "Added index on columns (parent_annotation_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_entities",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_entities",
+      "sign": "*",
+      "object": "Renamed index evidence_entities_ev_kind_idx to evidence_entities_evidence_id_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_entities",
+      "sign": "*",
+      "object": "Renamed index evidence_entities_team_kind_norm_idx to evidence_entities_team_id_kind_normalized_value_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_exchange_package_builds",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, created_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_builds",
+      "sign": "*",
+      "object": "Renamed index evidence_exchange_package_builds_team_state_idx to evidence_exchange_package_builds_team_id_state_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "+",
+      "object": "Added foreign key on columns (package_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "+",
+      "object": "Added index on columns (package_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "*",
+      "object": "Altered column channel (default changed from Some(Value(String(\"SIGNED_URL\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "*",
+      "object": "Altered column delivered_at_utc (changed from Required to Nullable, default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "*",
+      "object": "Altered column recipient_org_slug (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "-",
+      "object": "Removed foreign key on columns (package_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_package_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, package_id, delivered_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "*",
+      "object": "Altered column signed_url (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"DRAFT\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "*",
+      "object": "Altered column storage_key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, created_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_exchange_packages",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_extracted_texts",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_extracted_texts",
+      "sign": "*",
+      "object": "Renamed index evidence_extracted_texts_ev_kind_idx to evidence_extracted_texts_evidence_id_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_extracted_texts",
+      "sign": "*",
+      "object": "Renamed index evidence_extracted_texts_team_status_idx to evidence_extracted_texts_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_intelligence_jobs",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_intelligence_jobs",
+      "sign": "*",
+      "object": "Renamed index evidence_intelligence_jobs_ev_kind_status_idx to evidence_intelligence_jobs_evidence_id_kind_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_intelligence_jobs",
+      "sign": "*",
+      "object": "Renamed index evidence_intelligence_jobs_status_scheduled_idx to evidence_intelligence_jobs_status_scheduled_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_intelligence_jobs",
+      "sign": "*",
+      "object": "Renamed index evidence_intelligence_jobs_team_status_created_idx to evidence_intelligence_jobs_team_id_status_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_legal_holds",
+      "sign": "-",
+      "object": "Removed index on columns (case_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_legal_holds",
+      "sign": "*",
+      "object": "Renamed index evidence_legal_holds_evidence_status_idx to evidence_legal_holds_evidence_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_legal_holds",
+      "sign": "*",
+      "object": "Renamed index evidence_legal_holds_placed_by_idx to evidence_legal_holds_placed_by_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_legal_holds",
+      "sign": "*",
+      "object": "Renamed index evidence_legal_holds_team_status_idx to evidence_legal_holds_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_lifecycle_events",
+      "sign": "*",
+      "object": "Renamed index evidence_lifecycle_events_evidence_created_idx to evidence_lifecycle_events_evidence_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_lifecycle_events",
+      "sign": "*",
+      "object": "Renamed index evidence_lifecycle_events_team_created_idx to evidence_lifecycle_events_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_lifecycle_events",
+      "sign": "*",
+      "object": "Renamed index evidence_lifecycle_events_team_event_type_idx to evidence_lifecycle_events_team_id_event_type_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_lifecycle_events",
+      "sign": "*",
+      "object": "Renamed index evidence_lifecycle_events_team_to_state_idx to evidence_lifecycle_events_team_id_to_state_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_ocr_text",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, extracted_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_relationships",
+      "sign": "*",
+      "object": "Renamed index evidence_relationships_source_target_type_key to evidence_relationships_source_evidence_id_target_evidence_i_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_request_deliverables",
+      "sign": "*",
+      "object": "Renamed index evidence_request_deliverables_request_sort_idx to evidence_request_deliverables_evidence_request_id_sort_orde_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_request_deliverables",
+      "sign": "*",
+      "object": "Renamed index evidence_request_deliverables_request_status_idx to evidence_request_deliverables_evidence_request_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_request_events",
+      "sign": "*",
+      "object": "Renamed index evidence_request_events_request_created_idx to evidence_request_events_evidence_request_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_request_events",
+      "sign": "*",
+      "object": "Renamed index evidence_request_events_type_created_idx to evidence_request_events_event_type_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_request_responses",
+      "sign": "*",
+      "object": "Renamed index evidence_request_responses_request_status_idx to evidence_request_responses_evidence_request_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_request_responses",
+      "sign": "*",
+      "object": "Renamed index evidence_request_responses_request_submitted_idx to evidence_request_responses_evidence_request_id_submitted_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policies",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policies_case_idx to evidence_retention_policies_case_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policies",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policies_superseded_idx to evidence_retention_policies_superseded_by_policy_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policies",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policies_team_name_status_uk to evidence_retention_policies_team_id_display_name_status_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policies",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policies_team_scope_idx to evidence_retention_policies_team_id_scope_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policies",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policies_team_status_idx to evidence_retention_policies_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policy_versions",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policy_versions_policy_authored_idx to evidence_retention_policy_versions_retention_policy_id_auth_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_retention_policy_versions",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policy_versions_policy_version_uk to evidence_retention_policy_versions_retention_policy_id_vers_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_review_workflows",
+      "sign": "+",
+      "object": "Added foreign key on columns (template_db_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence_review_workflows",
+      "sign": "-",
+      "object": "Removed foreign key on columns (template_db_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_contributor_scoped_idx to evidence_search_documents_team_id_contributor_scoped_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_document_type_idx to evidence_search_documents_team_id_document_type_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_export_state_idx to evidence_search_documents_team_id_export_state_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_legal_hold_state_idx to evidence_search_documents_team_id_legal_hold_state_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_review_state_idx to evidence_search_documents_team_id_review_state_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_reviewer_restricted_idx to evidence_search_documents_team_id_reviewer_restricted_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_source_updated_at_idx to evidence_search_documents_team_id_source_updated_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_type_source_uk to evidence_search_documents_team_id_document_type_source_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "*",
+      "object": "Renamed index evidence_search_documents_team_workflow_state_idx to evidence_search_documents_team_id_workflow_state_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_semantic_chunks",
+      "sign": "+",
+      "object": "Added column embedding_vector",
+      "category": "EXTENSION_CONDITIONAL_COLUMN"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "+",
+      "object": "Added column embedding",
+      "category": "EXTENSION_CONDITIONAL_COLUMN"
+    },
+    {
+      "table": "evidence_semantic_chunks",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_semantic_chunks",
+      "sign": "*",
+      "object": "Renamed index evidence_semantic_chunks_ev_chunk_unique to evidence_semantic_chunks_evidence_id_chunk_index_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_semantic_chunks",
+      "sign": "*",
+      "object": "Renamed index evidence_semantic_chunks_team_idx to evidence_semantic_chunks_team_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_similarities",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_similarities",
+      "sign": "-",
+      "object": "Removed foreign key on columns (graph_edge_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence_similarities",
+      "sign": "*",
+      "object": "Renamed index evidence_similarities_pair_kind_unique to evidence_similarities_source_evidence_id_target_evidence_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_similarities",
+      "sign": "*",
+      "object": "Renamed index evidence_similarities_source_kind_idx to evidence_similarities_source_evidence_id_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_similarities",
+      "sign": "*",
+      "object": "Renamed index evidence_similarities_target_kind_idx to evidence_similarities_target_evidence_id_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_similarities",
+      "sign": "*",
+      "object": "Renamed index evidence_similarities_team_kind_score_idx to evidence_similarities_team_id_kind_score_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_transcript_segments",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, extracted_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_upload_session_parts",
+      "sign": "-",
+      "object": "Removed index on columns (session_id, part_index)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_upload_sessions",
+      "sign": "-",
+      "object": "Removed index on columns (bridged_evidence_part_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_upload_sessions",
+      "sign": "-",
+      "object": "Removed index on columns (expires_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_upload_sessions",
+      "sign": "-",
+      "object": "Removed index on columns (expires_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_upload_sessions",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, idempotency_key)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_upload_sessions",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, multipart_upload_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_workflow_instance_evidence",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_instance_evidence_uk to evidence_workflow_instance_evidence_workflow_instance_id_ev_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_instances",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_instances_team_created_at_idx to evidence_workflow_instances_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_instances",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_instances_team_intake_mode_idx to evidence_workflow_instances_team_id_intake_mode_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_instances",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_instances_team_status_idx to evidence_workflow_instances_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_step_instances",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_step_instances_workflow_order_idx to evidence_workflow_step_instances_workflow_instance_id_order_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_step_instances",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_step_instances_workflow_status_idx to evidence_workflow_step_instances_workflow_instance_id_statu_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_step_instances",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_step_instances_workflow_step_uk to evidence_workflow_step_instances_workflow_instance_id_step__key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_templates",
+      "sign": "-",
+      "object": "Removed unique index on columns (slug)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_workflow_templates",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, slug)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_workflow_templates",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_templates_team_status_idx to evidence_workflow_templates_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_visibility_decisions",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_visibility_decisions_evidence_idx to evidence_workflow_visibility_decisions_evidence_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_visibility_decisions",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_visibility_decisions_uk to evidence_workflow_visibility_decisions_workflow_instance_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_workflow_visibility_decisions",
+      "sign": "*",
+      "object": "Renamed index evidence_workflow_visibility_decisions_workflow_idx to evidence_workflow_visibility_decisions_workflow_instance_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence",
+      "sign": "+",
+      "object": "Added foreign key on columns (organization_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "+",
+      "object": "Added foreign key on columns (template_db_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed foreign key on columns (organization_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed foreign key on columns (template_db_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (public_verify_state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (retention_until_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, department_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, organization_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "*",
+      "object": "Renamed index evidence_owner_id_archived_at_idx to evidence_owner_user_id_archived_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policy_version_idx to evidence_retention_policy_version_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "external_identity_mappings",
+      "sign": "*",
+      "object": "Renamed index external_identity_mappings_provider_subject_uk to external_identity_mappings_provider_external_subject_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "external_identity_mappings",
+      "sign": "*",
+      "object": "Renamed index external_identity_mappings_team_user_idx to external_identity_mappings_team_id_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "external_identity_mappings",
+      "sign": "*",
+      "object": "Renamed index external_identity_mappings_user_idx to external_identity_mappings_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "external_review_activities",
+      "sign": "+",
+      "object": "Added foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_activities",
+      "sign": "+",
+      "object": "Added index on columns (occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_activities",
+      "sign": "+",
+      "object": "Added index on columns (team_id, grant_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_activities",
+      "sign": "-",
+      "object": "Removed foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_comments",
+      "sign": "+",
+      "object": "Added foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_comments",
+      "sign": "+",
+      "object": "Added foreign key on columns (parent_comment_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_comments",
+      "sign": "+",
+      "object": "Added index on columns (parent_comment_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_comments",
+      "sign": "+",
+      "object": "Added index on columns (team_id, grant_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_comments",
+      "sign": "+",
+      "object": "Added index on columns (team_id, workflow_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_comments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_decisions",
+      "sign": "+",
+      "object": "Added foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_decisions",
+      "sign": "+",
+      "object": "Added index on columns (team_id, grant_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_decisions",
+      "sign": "+",
+      "object": "Added index on columns (team_id, workflow_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_decisions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_grants",
+      "sign": "-",
+      "object": "Removed index on columns (expires_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, case_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_grants",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "+",
+      "object": "Added foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "*",
+      "object": "Altered column failure_reason (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "*",
+      "object": "Altered column last_error_preview (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "*",
+      "object": "Altered column subject (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "-",
+      "object": "Removed foreign key on columns (grant_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (bulk_batch_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (provider_message_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, grant_id, queued_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "*",
+      "object": "Renamed index external_review_invitation_deliveries_team_grant_idx to external_review_invitation_deliveries_team_id_grant_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "external_review_invitation_deliveries",
+      "sign": "*",
+      "object": "Renamed index external_review_invitation_deliveries_team_status_idx to external_review_invitation_deliveries_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "file_security_scans",
+      "sign": "*",
+      "object": "Renamed index file_security_scans_evidence_created_idx to file_security_scans_evidence_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "file_security_scans",
+      "sign": "*",
+      "object": "Renamed index file_security_scans_team_status_created_idx to file_security_scans_team_id_status_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "geo_intelligence_lookups",
+      "sign": "*",
+      "object": "Renamed index geo_intelligence_lookups_country_idx to geo_intelligence_lookups_country_code_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "geo_intelligence_lookups",
+      "sign": "*",
+      "object": "Renamed index geo_intelligence_lookups_expires_idx to geo_intelligence_lookups_expires_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "geo_intelligence_lookups",
+      "sign": "*",
+      "object": "Renamed index geo_intelligence_lookups_ip_hash_uk to geo_intelligence_lookups_ip_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_export_snapshots",
+      "sign": "*",
+      "object": "Renamed index governance_export_snapshots_evidence_created_at_idx to governance_export_snapshots_evidence_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_export_snapshots",
+      "sign": "*",
+      "object": "Renamed index governance_export_snapshots_hash_idx to governance_export_snapshots_snapshot_hash_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_export_snapshots",
+      "sign": "*",
+      "object": "Renamed index governance_export_snapshots_team_created_at_idx to governance_export_snapshots_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_export_snapshots",
+      "sign": "*",
+      "object": "Renamed index governance_export_snapshots_team_kind_created_at_idx to governance_export_snapshots_team_id_snapshot_kind_created_a_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_notifications",
+      "sign": "*",
+      "object": "Renamed index governance_notifications_related_evidence_idx to governance_notifications_related_evidence_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_notifications",
+      "sign": "*",
+      "object": "Renamed index governance_notifications_team_delivery_idx to governance_notifications_team_id_delivery_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_notifications",
+      "sign": "*",
+      "object": "Renamed index governance_notifications_team_kind_dedupe_unique to governance_notifications_team_id_kind_dedupe_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_notifications",
+      "sign": "*",
+      "object": "Renamed index governance_notifications_team_kind_last_seen_idx to governance_notifications_team_id_kind_last_seen_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_notifications",
+      "sign": "*",
+      "object": "Renamed index governance_notifications_team_severity_last_seen_idx to governance_notifications_team_id_severity_last_seen_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "governance_policies",
+      "sign": "*",
+      "object": "Altered column enforcement_mode (default changed from Some(Value(String(\"AUDIT_ONLY\"))) to Some(Value(String(\"WARN\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "governance_policies",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "governance_policies",
+      "sign": "*",
+      "object": "Altered column slug (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "governance_policies",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "governance_policies",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, kind, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policies",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, kind, slug)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "+",
+      "object": "Added index on columns (policy_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "*",
+      "object": "Altered column inherit_from_parent (default changed from Some(Value(Boolean(true))) to Some(Value(Boolean(false))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "governance_policy_assignments",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, scope, scope_target_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policy_audits",
+      "sign": "+",
+      "object": "Added foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "governance_policy_audits",
+      "sign": "+",
+      "object": "Added index on columns (policy_id, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policy_audits",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "governance_policy_audits",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "governance_reconciliation_runs",
+      "sign": "-",
+      "object": "Removed unique index on columns (kind, lock_key)",
+      "category": "UNIQUE_DECLARATION"
+    },
+    {
+      "table": "governance_reconciliation_runs",
+      "sign": "*",
+      "object": "Renamed index governance_reconciliation_runs_team_id_kind_started_at_idx to governance_reconciliation_runs_team_id_kind_started_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "immutable_storage_checks",
+      "sign": "*",
+      "object": "Renamed index immutable_storage_checks_evidence_checked_at_idx to immutable_storage_checks_evidence_id_checked_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "immutable_storage_checks",
+      "sign": "*",
+      "object": "Renamed index immutable_storage_checks_raised_incident_idx to immutable_storage_checks_raised_incident_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "immutable_storage_checks",
+      "sign": "*",
+      "object": "Renamed index immutable_storage_checks_team_outcome_checked_at_idx to immutable_storage_checks_team_id_outcome_checked_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "inbox_item_state",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "integration_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index integration_webhook_deliveries_endpoint_created_idx to integration_webhook_deliveries_endpoint_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "integration_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index integration_webhook_deliveries_next_attempt_idx to integration_webhook_deliveries_next_attempt_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "integration_webhook_deliveries",
+      "sign": "*",
+      "object": "Renamed index integration_webhook_deliveries_team_created_idx to integration_webhook_deliveries_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "integration_webhook_endpoints",
+      "sign": "*",
+      "object": "Renamed index integration_webhook_endpoints_team_status_idx to integration_webhook_endpoints_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id, code)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "*",
+      "object": "Altered column code (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "*",
+      "object": "Altered column operation (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "*",
+      "object": "Altered column provider (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "*",
+      "object": "Altered column reason (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "*",
+      "object": "Altered column target_type (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, budget_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, case_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, category, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, code, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, correction_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, project_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "intelligence_activity_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, record_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "investigation_graph_edges",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, source_node_id, edge_type)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "investigation_graph_edges",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, target_node_id, edge_type)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "investigation_graph_nodes",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, node_kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "maintenance_windows",
+      "sign": "*",
+      "object": "Altered column description (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "maintenance_windows",
+      "sign": "*",
+      "object": "Altered column title (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "maintenance_windows",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "maintenance_windows",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, starts_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "maintenance_windows",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "+",
+      "object": "Added foreign key on columns (record_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "+",
+      "object": "Added index on columns (record_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "*",
+      "object": "Altered column confidence_band (default changed from None to Some(Value(String(\"LOW\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "*",
+      "object": "Altered column preview_label (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "-",
+      "object": "Removed foreign key on columns (record_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_entities",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, value_hash)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "+",
+      "object": "Added index on columns (evidence_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column label (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column modality (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column payload (default changed from None to Some(Value(Json(\"{}\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column provider (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column provider_confidence_band (default changed from None to Some(Value(String(\"LOW\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"INGESTED\"))) to Some(Value(String(\"PENDING\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, provider)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_records",
+      "sign": "*",
+      "object": "Renamed index media_intelligence_records_provider_key_uniq to media_intelligence_records_team_id_evidence_id_provider_pro_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "media_intelligence_runs",
+      "sign": "-",
+      "object": "Removed index on columns (scheduled_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_runs",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, idempotency_key)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "media_intelligence_signals",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, created_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "member_capability_grants",
+      "sign": "*",
+      "object": "Renamed index member_capability_grants_member_idx to member_capability_grants_team_member_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "member_capability_grants",
+      "sign": "*",
+      "object": "Renamed index member_capability_grants_member_permission_uk to member_capability_grants_team_member_id_permission_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "member_capability_grants",
+      "sign": "*",
+      "object": "Renamed index member_capability_grants_team_permission_idx to member_capability_grants_team_id_permission_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "member_delegated_admin_scopes",
+      "sign": "*",
+      "object": "Renamed index member_delegated_admin_scopes_member_idx to member_delegated_admin_scopes_team_member_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "member_delegated_admin_scopes",
+      "sign": "*",
+      "object": "Renamed index member_delegated_admin_scopes_member_scope_uk to member_delegated_admin_scopes_team_member_id_scope_kind_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "member_delegated_admin_scopes",
+      "sign": "*",
+      "object": "Renamed index member_delegated_admin_scopes_team_scope_idx to member_delegated_admin_scopes_team_id_scope_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "membership_grants",
+      "sign": "*",
+      "object": "Renamed index membership_grants_organization_membership_id_revoked_at_ut_idx to membership_grants_organization_membership_id_revoked_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "notification_deliveries",
+      "sign": "*",
+      "object": "Renamed index notification_deliveries_event_created_idx to notification_deliveries_event_type_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "notification_deliveries",
+      "sign": "*",
+      "object": "Renamed index notification_deliveries_evidence_idx to notification_deliveries_evidence_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "notification_deliveries",
+      "sign": "*",
+      "object": "Renamed index notification_deliveries_evidence_request_idx to notification_deliveries_evidence_request_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "notification_deliveries",
+      "sign": "*",
+      "object": "Renamed index notification_deliveries_intake_link_idx to notification_deliveries_intake_link_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "notification_deliveries",
+      "sign": "*",
+      "object": "Renamed index notification_deliveries_next_attempt_idx to notification_deliveries_next_attempt_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "notification_deliveries",
+      "sign": "*",
+      "object": "Renamed index notification_deliveries_team_created_idx to notification_deliveries_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_graph_edges",
+      "sign": "*",
+      "object": "Renamed index operational_graph_edges_team_id_source_node_id_target_node_id_e to operational_graph_edges_team_id_source_node_id_target_node__key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incident_events",
+      "sign": "*",
+      "object": "Renamed index operational_incident_events_incident_created_at_idx to operational_incident_events_incident_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incidents",
+      "sign": "*",
+      "object": "Renamed index operational_incidents_last_seen_at_idx to operational_incidents_last_seen_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incidents",
+      "sign": "*",
+      "object": "Renamed index operational_incidents_team_category_idx to operational_incidents_team_id_category_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incidents",
+      "sign": "*",
+      "object": "Renamed index operational_incidents_team_fingerprint_uk to operational_incidents_team_id_fingerprint_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incidents",
+      "sign": "*",
+      "object": "Renamed index operational_incidents_team_severity_idx to operational_incidents_team_id_severity_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incidents",
+      "sign": "*",
+      "object": "Renamed index operational_incidents_team_status_idx to operational_incidents_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_timeline_events",
+      "sign": "*",
+      "object": "Renamed index operational_timeline_source_uniq to operational_timeline_events_source_table_source_id_event_ty_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operations_inbox_snapshots",
+      "sign": "*",
+      "object": "Renamed index operations_inbox_snapshots_user_id_category_last_seen_at_u_idx to operations_inbox_snapshots_user_id_category_last_seen_at_ut_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "org_health_projections",
+      "sign": "*",
+      "object": "Renamed index org_health_projections_team_sampled_desc_idx to org_health_projections_team_id_sampled_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "organization_closure_requests",
+      "sign": "*",
+      "object": "Renamed index organization_closure_requests_status_cooling_off_ends_at_u_idx to organization_closure_requests_status_cooling_off_ends_at_ut_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "organization_domains",
+      "sign": "*",
+      "object": "Renamed index organization_domains_org_domain_uniq to organization_domains_organization_id_domain_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "organization_domains",
+      "sign": "*",
+      "object": "Renamed index organization_domains_org_verified_idx to organization_domains_organization_id_verified_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "organization_notification_policies",
+      "sign": "*",
+      "object": "Renamed index organization_notification_policies_organization_id_categor_key to organization_notification_policies_organization_id_category_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "provider_budget_alerts",
+      "sign": "+",
+      "object": "Added foreign key on columns (budget_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "provider_budget_alerts",
+      "sign": "+",
+      "object": "Added index on columns (budget_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_budget_alerts",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_budget_alerts",
+      "sign": "*",
+      "object": "Altered column threshold (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "provider_budget_alerts",
+      "sign": "-",
+      "object": "Removed foreign key on columns (budget_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "provider_budget_alerts",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, budget_id, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "+",
+      "object": "Added index on columns (team_id, scope)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "*",
+      "object": "Altered column provider (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "*",
+      "object": "Altered column scope (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, provider)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_budgets",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, scope, scope_target_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "*",
+      "object": "Altered column decision (default changed from None to Some(Value(String(\"ALLOW\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "*",
+      "object": "Altered column estimated_cost_usd_micros (default changed from None to Some(Value(BigInt(0))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "*",
+      "object": "Altered column operation (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "*",
+      "object": "Altered column provider (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "*",
+      "object": "Altered column unit (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "*",
+      "object": "Altered column units (default changed from None to Some(Value(Float(BigDecimal(\"0\")))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, case_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, project_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "provider_usage_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, provider, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_activities",
+      "sign": "+",
+      "object": "Added foreign key on columns (project_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_activities",
+      "sign": "+",
+      "object": "Added index on columns (project_id, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_activities",
+      "sign": "-",
+      "object": "Removed foreign key on columns (project_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_activities",
+      "sign": "-",
+      "object": "Removed index on columns (project_id, created_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "+",
+      "object": "Added foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "+",
+      "object": "Added index on columns (version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "*",
+      "object": "Altered column approved_at_utc (default changed from None to Some(Now))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "*",
+      "object": "Altered column rationale (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "-",
+      "object": "Removed index on columns (approver_user_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_approvals",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "+",
+      "object": "Added foreign key on columns (region_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "+",
+      "object": "Added index on columns (region_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "*",
+      "object": "Altered column rationale (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (detection_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "-",
+      "object": "Removed index on columns (detection_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_decisions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "+",
+      "object": "Added foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column failure_reason (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column last_error_preview (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column render_engine (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column storage_bucket (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column storage_key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column storage_region (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "-",
+      "object": "Removed index on columns (file_sha256)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_derivatives",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "+",
+      "object": "Added foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "+",
+      "object": "Added index on columns (version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "*",
+      "object": "Altered column decision_state (default changed from Some(Value(String(\"SUGGESTED\"))) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "*",
+      "object": "Altered column preview_label (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "*",
+      "object": "Altered column suggested_method (default changed from Some(Value(String(\"BLACKOUT\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "-",
+      "object": "Removed index on columns (decision_state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, provider)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_detections",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policies",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policies",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_policies",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, archived_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "+",
+      "object": "Added foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "+",
+      "object": "Added index on columns (version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "*",
+      "object": "Altered column rationale (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "*",
+      "object": "Altered column scope (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, scope, scope_target_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_assignments",
+      "sign": "*",
+      "object": "Renamed index redaction_policy_assignments_policy_idx to redaction_policy_assignments_policy_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "+",
+      "object": "Added foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "+",
+      "object": "Added foreign key on columns (policy_version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "*",
+      "object": "Renamed index redaction_policy_audits_policy_created_idx to redaction_policy_audits_policy_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "*",
+      "object": "Renamed index redaction_policy_audits_policy_version_idx to redaction_policy_audits_policy_version_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "redaction_policy_audits",
+      "sign": "*",
+      "object": "Renamed index redaction_policy_audits_team_idx to redaction_policy_audits_team_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "+",
+      "object": "Added foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "+",
+      "object": "Added index on columns (policy_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "*",
+      "object": "Altered column custom_rules (default changed from None to Some(Value(Json(\"[]\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "*",
+      "object": "Altered column kinds (default changed from None to Some(Value(Json(\"{}\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "*",
+      "object": "Altered column providers (default changed from None to Some(Value(Json(\"{}\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "*",
+      "object": "Altered column rule_actions (default changed from None to Some(Value(Json(\"{}\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (policy_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_policy_versions",
+      "sign": "*",
+      "object": "Renamed index redaction_policy_versions_policy_ordinal_uniq to redaction_policy_versions_policy_id_version_ordinal_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "redaction_projects",
+      "sign": "*",
+      "object": "Altered column artifact_kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_projects",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"DRAFT\"))) to Some(Value(String(\"OPEN\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_projects",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_projects",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, created_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_projects",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "+",
+      "object": "Added foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "+",
+      "object": "Added index on columns (version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "*",
+      "object": "Altered column method (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "*",
+      "object": "Altered column rationale (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (version_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "-",
+      "object": "Removed index on columns (source_detection_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_regions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "+",
+      "object": "Added foreign key on columns (project_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "*",
+      "object": "Altered column rationale (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (project_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (project_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, project_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "redaction_versions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reports",
+      "sign": "-",
+      "object": "Removed index on columns (content_structure_snapshot)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reports",
+      "sign": "-",
+      "object": "Removed index on columns (display_title_snapshot)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reports",
+      "sign": "-",
+      "object": "Removed index on columns (item_count_snapshot)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reports",
+      "sign": "-",
+      "object": "Removed index on columns (primary_content_kind_snapshot)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "*",
+      "object": "Altered column exceptions (default changed from None to Some(Value(Json(\"[]\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "*",
+      "object": "Altered column name (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "*",
+      "object": "Altered column scope_kind (default changed from Some(Value(String(\"WORKSPACE\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "*",
+      "object": "Altered column state (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "*",
+      "object": "Altered column template (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, template)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "retention_policy_configs",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, scope_kind, scope_target_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_assigned_to_status_idx to review_escalations_assigned_to_user_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_incident_idx to review_escalations_incident_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_team_fingerprint_uk to review_escalations_team_id_fingerprint_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_team_reason_idx to review_escalations_team_id_reason_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_team_severity_idx to review_escalations_team_id_severity_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_team_status_idx to review_escalations_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_workflow_created_idx to review_escalations_workflow_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "review_escalations",
+      "sign": "*",
+      "object": "Renamed index review_escalations_workflow_instance_idx to review_escalations_workflow_instance_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "+",
+      "object": "Added foreign key on columns (record_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "+",
+      "object": "Added index on columns (record_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "*",
+      "object": "Altered column patch (default changed from None to Some(Value(Json(\"{}\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (record_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, record_id, created_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reviewer_corrections",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, record_id, version_number)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "reviewer_criteria_sets",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "reviewer_criteria_versions",
+      "sign": "*",
+      "object": "Renamed index reviewer_criteria_versions_set_version_key to reviewer_criteria_versions_criteria_set_id_version_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_criteria",
+      "sign": "*",
+      "object": "Renamed index reviewer_criteria_version_key_key to reviewer_criteria_criteria_version_id_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_disagreements",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "reviewer_ops_reminders",
+      "sign": "*",
+      "object": "Renamed index reviewer_ops_reminders_team_kind_created_idx to reviewer_ops_reminders_team_id_kind_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_ops_reminders",
+      "sign": "*",
+      "object": "Renamed index reviewer_ops_reminders_team_kind_dedup_uk to reviewer_ops_reminders_team_id_kind_dedup_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_ops_reminders",
+      "sign": "*",
+      "object": "Renamed index reviewer_ops_reminders_team_reviewer_created_idx to reviewer_ops_reminders_team_id_reviewer_user_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_ops_reminders",
+      "sign": "*",
+      "object": "Renamed index reviewer_ops_reminders_team_status_idx to reviewer_ops_reminders_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_ops_reminders",
+      "sign": "*",
+      "object": "Renamed index reviewer_ops_reminders_team_workflow_idx to reviewer_ops_reminders_team_id_workflow_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_routing_recommendations",
+      "sign": "*",
+      "object": "Renamed index reviewer_routing_recommendations_source_reviewer_user_id_status to reviewer_routing_recommendations_source_reviewer_user_id_st_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_routing_recommendations",
+      "sign": "*",
+      "object": "Renamed index reviewer_routing_recommendations_target_reviewer_user_id_status to reviewer_routing_recommendations_target_reviewer_user_id_st_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_workload_snapshots",
+      "sign": "*",
+      "object": "Renamed index reviewer_workload_snapshots_team_capacity_idx to reviewer_workload_snapshots_team_id_capacity_score_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_workload_snapshots",
+      "sign": "*",
+      "object": "Renamed index reviewer_workload_snapshots_team_computed_idx to reviewer_workload_snapshots_team_id_computed_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "reviewer_workload_snapshots",
+      "sign": "*",
+      "object": "Renamed index reviewer_workload_snapshots_team_reviewer_computed_idx to reviewer_workload_snapshots_team_id_reviewer_user_id_comput_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "revoked_sessions",
+      "sign": "*",
+      "object": "Renamed index revoked_sessions_team_revoked_at_idx to revoked_sessions_team_id_revoked_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "revoked_sessions",
+      "sign": "*",
+      "object": "Renamed index revoked_sessions_user_scope_idx to revoked_sessions_user_id_scope_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "revoked_sessions",
+      "sign": "*",
+      "object": "Renamed index revoked_sessions_user_session_uk to revoked_sessions_user_id_session_id_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "risk_signals",
+      "sign": "*",
+      "object": "Renamed index risk_signals_team_observed_at_idx to risk_signals_team_id_observed_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "risk_signals",
+      "sign": "*",
+      "object": "Renamed index risk_signals_team_signal_kind_idx to risk_signals_team_id_signal_kind_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "saved_search_views",
+      "sign": "*",
+      "object": "Renamed index saved_search_views_created_by_updated_at_idx to saved_search_views_created_by_user_id_updated_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "saved_search_views",
+      "sign": "*",
+      "object": "Renamed index saved_search_views_team_pinned_idx to saved_search_views_team_id_pinned_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "saved_search_views",
+      "sign": "*",
+      "object": "Renamed index saved_search_views_team_scope_idx to saved_search_views_team_id_scope_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "saved_search_views",
+      "sign": "*",
+      "object": "Renamed index saved_search_views_team_scope_visibility_idx to saved_search_views_team_id_scope_visibility_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "saved_search_views",
+      "sign": "*",
+      "object": "Renamed index saved_search_views_team_user_name_uk to saved_search_views_team_id_created_by_user_id_name_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "saved_search_views",
+      "sign": "*",
+      "object": "Renamed index saved_search_views_team_visibility_idx to saved_search_views_team_id_visibility_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_groups",
+      "sign": "*",
+      "object": "Renamed index scim_groups_team_display_status_uk to scim_groups_team_id_display_name_status_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_groups",
+      "sign": "*",
+      "object": "Renamed index scim_groups_team_external_id_uk to scim_groups_team_id_external_id_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_groups",
+      "sign": "*",
+      "object": "Renamed index scim_groups_team_mapped_role_idx to scim_groups_team_id_mapped_role_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_groups",
+      "sign": "*",
+      "object": "Renamed index scim_groups_team_status_idx to scim_groups_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_provisioning_tokens",
+      "sign": "*",
+      "object": "Renamed index scim_provisioning_tokens_expires_idx to scim_provisioning_tokens_expires_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_provisioning_tokens",
+      "sign": "*",
+      "object": "Renamed index scim_provisioning_tokens_team_created_idx to scim_provisioning_tokens_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_provisioning_tokens",
+      "sign": "*",
+      "object": "Renamed index scim_provisioning_tokens_team_status_idx to scim_provisioning_tokens_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "scim_provisioning_tokens",
+      "sign": "*",
+      "object": "Renamed index scim_provisioning_tokens_token_hash_uk to scim_provisioning_tokens_token_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "search_audit_logs",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, fail_closed, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column control_key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column documented (default changed from Some(Value(Boolean(true))) to Some(Value(Boolean(false))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column evidence_paths (default changed from None to Some(Value(Json(\"[]\"))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column implemented (default changed from None to Some(Value(Boolean(false))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column last_verified_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column limitation (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, implemented)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "security_claim_checks",
+      "sign": "*",
+      "object": "Renamed index security_claim_checks_team_control_uniq to security_claim_checks_team_id_control_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "semantic_usage_daily",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "sso_callback_attempts",
+      "sign": "*",
+      "object": "Renamed index sso_callback_attempts_conn_status_idx to sso_callback_attempts_sso_connection_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_callback_attempts",
+      "sign": "*",
+      "object": "Renamed index sso_callback_attempts_expires_idx to sso_callback_attempts_expires_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_callback_attempts",
+      "sign": "*",
+      "object": "Renamed index sso_callback_attempts_replay_idx to sso_callback_attempts_replay_detected_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_callback_attempts",
+      "sign": "*",
+      "object": "Renamed index sso_callback_attempts_state_hash_uk to sso_callback_attempts_state_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_callback_attempts",
+      "sign": "*",
+      "object": "Renamed index sso_callback_attempts_team_status_idx to sso_callback_attempts_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_connections",
+      "sign": "*",
+      "object": "Renamed index sso_connections_outage_idx to sso_connections_outage_detected_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_connections",
+      "sign": "*",
+      "object": "Renamed index sso_connections_revoked_idx to sso_connections_revoked_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_connections",
+      "sign": "*",
+      "object": "Renamed index sso_connections_team_provider_idx to sso_connections_team_id_provider_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_connections",
+      "sign": "*",
+      "object": "Renamed index sso_connections_team_provider_status_uk to sso_connections_team_id_provider_status_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "sso_connections",
+      "sign": "*",
+      "object": "Renamed index sso_connections_team_status_idx to sso_connections_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Altered column description (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Altered column health (default changed from Some(Value(String(\"UNKNOWN\"))) to Some(Value(String(\"OPERATIONAL\"))), type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Altered column key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Altered column label (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Altered column upstream_source (default changed from Some(Value(String(\"LOCAL\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, health)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "-",
+      "object": "Removed unique index on columns (key)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "status_components",
+      "sign": "*",
+      "object": "Renamed index status_components_team_key_uniq to status_components_team_id_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "status_incident_updates",
+      "sign": "+",
+      "object": "Added foreign key on columns (incident_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "status_incident_updates",
+      "sign": "+",
+      "object": "Added index on columns (incident_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "status_incident_updates",
+      "sign": "*",
+      "object": "Altered column state (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_incident_updates",
+      "sign": "-",
+      "object": "Removed foreign key on columns (incident_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "status_incident_updates",
+      "sign": "-",
+      "object": "Removed foreign key on columns (incident_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "status_incident_updates",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, incident_id, created_at)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "*",
+      "object": "Altered column external_ref (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "*",
+      "object": "Altered column postmortem_url (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "*",
+      "object": "Altered column severity (default changed from Some(Value(String(\"MINOR\"))) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "*",
+      "object": "Altered column state (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "*",
+      "object": "Altered column title (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "status_incidents",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state, started_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "step_up_challenges",
+      "sign": "-",
+      "object": "Removed index on columns (organization_id, status)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "step_up_challenges",
+      "sign": "-",
+      "object": "Removed index on columns (session_id_hash)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "step_up_challenges",
+      "sign": "*",
+      "object": "Renamed index step_up_challenges_team_purpose_resource_idx to step_up_challenges_team_id_purpose_resource_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "step_up_challenges",
+      "sign": "*",
+      "object": "Renamed index step_up_challenges_team_status_idx to step_up_challenges_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "step_up_challenges",
+      "sign": "*",
+      "object": "Renamed index step_up_challenges_user_status_idx to step_up_challenges_initiated_by_user_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "subprocessor_versions",
+      "sign": "+",
+      "object": "Added foreign key on columns (subprocessor_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "subprocessor_versions",
+      "sign": "+",
+      "object": "Added index on columns (subprocessor_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "subprocessor_versions",
+      "sign": "*",
+      "object": "Altered column change_summary (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "subprocessor_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (subprocessor_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "subprocessor_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (subprocessor_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "subprocessor_versions",
+      "sign": "-",
+      "object": "Removed unique index on columns (subprocessor_id, version)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "*",
+      "object": "Altered column change_history_summary (default changed from Some(Value(String(\"Initial registration\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "*",
+      "object": "Altered column documentation_url (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "*",
+      "object": "Altered column name (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "*",
+      "object": "Altered column slug (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "*",
+      "object": "Altered column vendor (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "subprocessors",
+      "sign": "-",
+      "object": "Removed unique index on columns (name)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "team_activities",
+      "sign": "*",
+      "object": "Renamed index team_activity_actor_user_id_idx to team_activities_actor_user_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "team_activities",
+      "sign": "*",
+      "object": "Renamed index team_activity_team_id_created_at_idx to team_activities_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "team_activities",
+      "sign": "*",
+      "object": "Renamed index team_activity_team_id_idx to team_activities_team_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "+",
+      "object": "Added foreign key on columns (article_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "*",
+      "object": "Altered column summary (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "*",
+      "object": "Altered column title (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (article_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (article_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, article_id, version)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "trust_center_article_versions",
+      "sign": "-",
+      "object": "Removed unique index on columns (article_id, version)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "*",
+      "object": "Altered column drift_state (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "*",
+      "object": "Altered column kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "*",
+      "object": "Altered column section (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "*",
+      "object": "Altered column summary (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "*",
+      "object": "Altered column title (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, drift_state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, kind, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "trust_center_articles",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, section)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "trusted_devices",
+      "sign": "*",
+      "object": "Renamed index trusted_devices_team_decay_idx to trusted_devices_team_id_trust_score_decay_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "trusted_devices",
+      "sign": "*",
+      "object": "Renamed index trusted_devices_team_quarantined_idx to trusted_devices_team_id_quarantined_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "trusted_devices",
+      "sign": "*",
+      "object": "Renamed index trusted_devices_team_status_idx to trusted_devices_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "trusted_devices",
+      "sign": "*",
+      "object": "Renamed index trusted_devices_team_user_device_uk to trusted_devices_team_id_user_id_device_id_hash_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "trusted_devices",
+      "sign": "*",
+      "object": "Renamed index trusted_devices_user_status_idx to trusted_devices_user_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "upload_sessions",
+      "sign": "*",
+      "object": "Altered column team_id (changed from Nullable to Required)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "upload_sessions",
+      "sign": "*",
+      "object": "Renamed index upload_sessions_status_activity_idx to upload_sessions_status_last_activity_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "upload_sessions",
+      "sign": "*",
+      "object": "Renamed index upload_sessions_status_created_idx to upload_sessions_status_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "upload_sessions",
+      "sign": "*",
+      "object": "Renamed index upload_sessions_team_status_idx to upload_sessions_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "user_identity_links",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "users",
+      "sign": "-",
+      "object": "Removed index on columns (managing_organization_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "verification_attempts",
+      "sign": "*",
+      "object": "Renamed index verification_attempts_team_created_at_idx to verification_attempts_team_id_created_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "verification_attempts",
+      "sign": "*",
+      "object": "Renamed index verification_attempts_team_status_idx to verification_attempts_team_id_status_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "video_frames",
+      "sign": "*",
+      "object": "Altered column storage_bucket (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "video_frames",
+      "sign": "*",
+      "object": "Altered column storage_key (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "video_frames",
+      "sign": "*",
+      "object": "Altered column storage_region (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "video_frames",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, timestamp_ms)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id, evidence_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "*",
+      "object": "Altered column code (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "*",
+      "object": "Altered column end_ms (default changed from None to Some(Value(BigInt(0))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "*",
+      "object": "Altered column start_ms (default changed from None to Some(Value(BigInt(0))))",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, layer)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, occurred_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_timeline_events",
+      "sign": "-",
+      "object": "Removed index on columns (track_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "+",
+      "object": "Added foreign key on columns (frame_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "+",
+      "object": "Added foreign key on columns (track_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (frame_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (frame_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (track_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "-",
+      "object": "Removed foreign key on columns (track_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "video_track_detections",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, track_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_tracks",
+      "sign": "*",
+      "object": "Altered column method (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "video_tracks",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "video_tracks",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, evidence_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "video_tracks",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, version_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "+",
+      "object": "Added foreign key on columns (endpoint_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "+",
+      "object": "Added index on columns (team_id, endpoint_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "*",
+      "object": "Altered column event_kind (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "*",
+      "object": "Altered column response_body_preview (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "*",
+      "object": "Altered column signature (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "*",
+      "object": "Altered column state (default changed from Some(Value(String(\"PENDING\"))) to None, type changed)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "-",
+      "object": "Removed foreign key on columns (endpoint_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, event_kind)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "webhook_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state, enqueued_at_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "webhook_endpoints",
+      "sign": "+",
+      "object": "Added index on columns (team_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "webhook_endpoints",
+      "sign": "*",
+      "object": "Altered column state (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "webhook_endpoints",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "webhook_endpoints",
+      "sign": "*",
+      "object": "Altered column url (type changed)",
+      "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "webhook_endpoints",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "workflow_intake_links",
+      "sign": "+",
+      "object": "Added foreign key on columns (archived_by_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workflow_intake_links",
+      "sign": "*",
+      "object": "Renamed index workflow_intake_links_team_archived_idx to workflow_intake_links_team_id_archived_at_utc_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "workflow_review_decisions",
+      "sign": "+",
+      "object": "Added foreign key on columns (reviewer_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workflow_review_decisions",
+      "sign": "+",
+      "object": "Added foreign key on columns (workflow_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workflow_review_decisions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (reviewer_user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workflow_review_decisions",
+      "sign": "-",
+      "object": "Removed foreign key on columns (workflow_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workspace_ai_policies",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION"
+    },
+    {
+      "table": "workspace_notification_preferences",
+      "sign": "+",
+      "object": "Added foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workspace_notification_preferences",
+      "sign": "+",
+      "object": "Added foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workspace_notification_preferences",
+      "sign": "-",
+      "object": "Removed foreign key on columns (team_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workspace_notification_preferences",
+      "sign": "-",
+      "object": "Removed foreign key on columns (user_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "workspace_notification_preferences",
+      "sign": "*",
+      "object": "Renamed index workspace_notification_preferences_user_id_team_id_preferenc_ke to workspace_notification_preferences_user_id_team_id_preferen_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence_semantic_chunks",
+      "sign": "-",
+      "object": "Removed index on columns (embedding_vector)",
+      "category": "EXTENSION_CONDITIONAL_INDEX"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "-",
+      "object": "Removed index on columns (embedding)",
+      "category": "EXTENSION_CONDITIONAL_INDEX"
+    },
+    {
+      "table": "mfa_recovery_request_status (enum)",
+      "sign": "-",
+      "object": "Removed variant PENDING",
+      "category": "ENUM_LABEL_RESIDUAL",
+      "removalCondition": "SELECT count(*) FROM mfa_recovery_requests WHERE status::text = 'PENDING' returns 0 in EVERY environment, including production. Only then may a forward migration recreate the type without it. PHASE 12 POINT 6 discovered this residual: the verifier parsed only table scopes, so the AlterEnum block that migrate diff --script emits was invisible to it."
+    }
+  ]
+}

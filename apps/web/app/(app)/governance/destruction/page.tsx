@@ -22,11 +22,17 @@
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  GOVERNANCE_RECONCILIATION_KINDS,
+  type GovernanceReconciliationKind,
+} from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
+import { Card } from "../../../../components/ui/Card";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { DestructionImpactPreview } from "../../../../components/governance/DestructionImpactPreview";
@@ -100,6 +106,82 @@ const REASON_LABEL: Record<Review["reason"], string> = {
   policy_supersede: "Policy supersede",
 };
 
+// -----------------------------------------------------------------------------
+// PHASE 12B CLUSTER 10 — worker execution telemetry.
+//
+// Both projections below are STRICTLY READ-ONLY. The destruction orchestrator
+// and the reconciliation worker are the only writers; this console reports
+// what they did. No row here exposes a control that mutates evidence — the
+// only destructive path on this page remains the reviewer state machine
+// above, which is gated by confirmation + step-up.
+// -----------------------------------------------------------------------------
+
+/** `GET /v1/governance/destruction-executions` */
+type DestructionExecution = {
+  id: string;
+  teamId: string;
+  evidenceId: string;
+  destructionReviewId: string;
+  status: string;
+  phase: string | null;
+  attemptCount: number;
+  plannedAtUtc: string;
+  startedAtUtc: string | null;
+  storageDeletedAtUtc: string | null;
+  tombstonedAtUtc: string | null;
+  completedAtUtc: string | null;
+  failedAtUtc: string | null;
+  rolledBackAtUtc: string | null;
+  certificateHash: string | null;
+  lineageHash: string | null;
+  errorCode: string | null;
+  errorDetail: string | null;
+};
+
+/** `GET /v1/governance/reconciliation-runs` */
+type ReconciliationRun = {
+  id: string;
+  teamId: string | null;
+  kind: string;
+  status: string;
+  trigger: string;
+  startedAtUtc: string;
+  finishedAtUtc: string | null;
+  scannedCount: number;
+  matchedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
+  incidentCount: number;
+  errorSummary: string | null;
+};
+
+/** Deterministic page sizes. The API caps both listings at 200. */
+const OPS_PAGE_SIZES = [25, 50, 100, 200] as const;
+
+type ReadFailure = { kind: "denied" | "error"; message: string };
+
+/**
+ * Bounded resolution of a read failure into the two states this page renders
+ * differently. Never surfaces a raw backend message.
+ */
+function classifyReadFailure(err: unknown): ReadFailure {
+  const e = err as { statusCode?: number };
+  if (e?.statusCode === 403 || e?.statusCode === 404) {
+    return {
+      kind: "denied",
+      message:
+        "You do not have the governance permission required to read execution telemetry in the current workspace.",
+    };
+  }
+  return {
+    kind: "error",
+    message: toSafeUserError(err, {
+      message: "Unable to load execution telemetry.",
+    }).message,
+  };
+}
+
 const ALLOWED_NEXT: Record<ReviewStatus, ReviewStatus[]> = {
   PENDING: ["UNDER_REVIEW", "DEFERRED", "CANCELLED"],
   UNDER_REVIEW: ["APPROVED", "DENIED", "DEFERRED", "CANCELLED"],
@@ -135,6 +217,31 @@ function DestructionQueuePageInner() {
   const [previewFor, setPreviewFor] = useState<Review | null>(null);
   const [certificateFor, setCertificateFor] = useState<Review | null>(null);
   const { confirm } = useConfirmAction();
+
+  // PHASE 12B CLUSTER 10 — tenant generation guard: drop any telemetry
+  // response that lands after the operator switched workspace.
+  const { stamp, isStale } = useTenantGuard();
+
+  // --- Destruction executions ---------------------------------------------
+  const [executions, setExecutions] = useState<DestructionExecution[] | null>(
+    null,
+  );
+  const [executionsFailure, setExecutionsFailure] =
+    useState<ReadFailure | null>(null);
+  const [executionLimit, setExecutionLimit] = useState<number>(
+    OPS_PAGE_SIZES[1],
+  );
+  const [executionReviewFilter, setExecutionReviewFilter] = useState<
+    string | null
+  >(null);
+
+  // --- Reconciliation runs -------------------------------------------------
+  const [runs, setRuns] = useState<ReconciliationRun[] | null>(null);
+  const [runsFailure, setRunsFailure] = useState<ReadFailure | null>(null);
+  const [runKind, setRunKind] = useState<GovernanceReconciliationKind | "ALL">(
+    "ALL",
+  );
+  const [runLimit, setRunLimit] = useState<number>(OPS_PAGE_SIZES[1]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -256,7 +363,228 @@ function DestructionQueuePageInner() {
     }
   }
 
+  const loadExecutions = useCallback(async () => {
+    if (!teamId) return;
+    const captured = stamp();
+    setExecutions(null);
+    setExecutionsFailure(null);
+    const params = new URLSearchParams({
+      teamId,
+      limit: String(executionLimit),
+    });
+    if (executionReviewFilter) params.set("reviewId", executionReviewFilter);
+    try {
+      const res: { executions: DestructionExecution[] } = await apiFetch(
+        `/v1/governance/destruction-executions?${params.toString()}`,
+        { method: "GET" },
+      );
+      if (isStale(captured)) return;
+      setExecutions(res.executions);
+    } catch (err) {
+      if (isStale(captured)) return;
+      setExecutions([]);
+      setExecutionsFailure(classifyReadFailure(err));
+    }
+  }, [teamId, executionLimit, executionReviewFilter, stamp, isStale]);
+
+  useEffect(() => {
+    void loadExecutions();
+  }, [loadExecutions]);
+
+  const loadRuns = useCallback(async () => {
+    if (!teamId) return;
+    const captured = stamp();
+    setRuns(null);
+    setRunsFailure(null);
+    const params = new URLSearchParams({ teamId, limit: String(runLimit) });
+    if (runKind !== "ALL") params.set("kind", runKind);
+    try {
+      const res: { runs: ReconciliationRun[] } = await apiFetch(
+        `/v1/governance/reconciliation-runs?${params.toString()}`,
+        { method: "GET" },
+      );
+      if (isStale(captured)) return;
+      setRuns(res.runs);
+    } catch (err) {
+      if (isStale(captured)) return;
+      setRuns([]);
+      setRunsFailure(classifyReadFailure(err));
+    }
+  }, [teamId, runKind, runLimit, stamp, isStale]);
+
+  useEffect(() => {
+    void loadRuns();
+  }, [loadRuns]);
+
   const visible = useMemo(() => reviews ?? [], [reviews]);
+
+  // PHASE 12B CLUSTER 10 — execution columns. Drill-down targets the
+  // canonical evidence record; the certificate hash is read-only proof.
+  const executionColumns: DataTableColumn<DestructionExecution>[] = [
+    {
+      key: "evidence",
+      header: "Evidence",
+      render: (x) => (
+        <div data-destruction-execution-row={x.id}>
+          <Link href={`/evidence/${x.evidenceId}`} style={monoLinkStyle}>
+            {x.evidenceId.slice(0, 8)}…
+          </Link>
+          <div style={mutedStyle}>
+            Review {x.destructionReviewId.slice(0, 8)}…
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (x) => (
+        <div>
+          <StatusBadge status={x.status} />
+          {x.phase ? <div style={mutedStyle}>{x.phase}</div> : null}
+        </div>
+      ),
+    },
+    {
+      key: "attempts",
+      header: "Attempts",
+      nowrap: true,
+      render: (x) => x.attemptCount,
+    },
+    {
+      key: "progress",
+      header: "Progress",
+      render: (x) => (
+        <div style={{ fontSize: 12, color: "#334155" }}>
+          <div>Planned {formatUserDateTime(x.plannedAtUtc)}</div>
+          {x.storageDeletedAtUtc ? (
+            <div>Storage deleted {formatUserDateTime(x.storageDeletedAtUtc)}</div>
+          ) : null}
+          {x.tombstonedAtUtc ? (
+            <div>Tombstoned {formatUserDateTime(x.tombstonedAtUtc)}</div>
+          ) : null}
+          {x.completedAtUtc ? (
+            <div>Completed {formatUserDateTime(x.completedAtUtc)}</div>
+          ) : null}
+          {x.rolledBackAtUtc ? (
+            <div>Rolled back {formatUserDateTime(x.rolledBackAtUtc)}</div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "proof",
+      header: "Proof",
+      render: (x) =>
+        x.certificateHash || x.lineageHash ? (
+          <div>
+            {x.certificateHash ? (
+              <div style={monoSmallStyle}>
+                cert {x.certificateHash.slice(0, 16)}…
+              </div>
+            ) : null}
+            {x.lineageHash ? (
+              <div style={monoSmallStyle}>
+                lineage {x.lineageHash.slice(0, 16)}…
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+    {
+      key: "failure",
+      header: "Failure",
+      render: (x) =>
+        x.errorCode ? (
+          <div>
+            <Badge tone="risk" subtle>
+              {x.errorCode}
+            </Badge>
+            {x.errorDetail ? (
+              <div style={mutedStyle}>{x.errorDetail}</div>
+            ) : null}
+            {x.failedAtUtc ? (
+              <div style={mutedStyle}>
+                {formatUserDateTime(x.failedAtUtc)}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+  ];
+
+  const runColumns: DataTableColumn<ReconciliationRun>[] = [
+    {
+      key: "kind",
+      header: "Run",
+      render: (r) => (
+        <div data-reconciliation-run-row={r.id}>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>{r.kind}</div>
+          <div style={mutedStyle}>
+            {r.trigger}
+            {r.teamId === null ? " · platform-wide" : ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: "window",
+      header: "Window",
+      render: (r) => (
+        <div style={{ fontSize: 12, color: "#334155" }}>
+          <div>{formatUserDateTime(r.startedAtUtc)}</div>
+          <div style={mutedStyle}>
+            {r.finishedAtUtc
+              ? formatUserDateTime(r.finishedAtUtc)
+              : "Still running"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "counts",
+      header: "Scanned / matched / created",
+      nowrap: true,
+      render: (r) =>
+        `${r.scannedCount.toLocaleString()} / ${r.matchedCount.toLocaleString()} / ${r.createdCount.toLocaleString()}`,
+    },
+    {
+      key: "exceptions",
+      header: "Skipped / failed / incidents",
+      nowrap: true,
+      render: (r) => (
+        <span
+          style={
+            r.failedCount > 0 || r.incidentCount > 0
+              ? { fontWeight: 600, color: "#991b1b" }
+              : undefined
+          }
+        >
+          {r.skippedCount.toLocaleString()} / {r.failedCount.toLocaleString()} /{" "}
+          {r.incidentCount.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "error",
+      header: "Error",
+      render: (r) =>
+        r.errorSummary ? (
+          <span style={{ fontSize: 12 }}>{r.errorSummary}</span>
+        ) : (
+          <span style={mutedStyle}>—</span>
+        ),
+    },
+  ];
 
   const columns: DataTableColumn<Review>[] = [
     {
@@ -420,6 +748,17 @@ function DestructionQueuePageInner() {
                 >
                   Impact
                 </Button>
+                {/* PHASE 12B CLUSTER 10 — canonical drill-down from a
+                    review into the orchestrator's execution telemetry for
+                    that same review. Read-only navigation, no mutation. */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-destruction-review-executions={r.id}
+                  onClick={() => setExecutionReviewFilter(r.id)}
+                >
+                  Executions
+                </Button>
                 {/* Phase F — destruction certificate viewer.
                     Only available for EXECUTED reviews. */}
                 {r.status === "EXECUTED" ? (
@@ -460,6 +799,152 @@ function DestructionQueuePageInner() {
               />
             }
           />
+        )}
+      </PageSection>
+
+      {/* PHASE 12B CLUSTER 10 — destruction executions. The orchestrator's
+          own record of what physically happened per approved review:
+          storage delete, tombstone, certificate, rollback. Read-only. */}
+      <PageSection
+        title="Destruction executions"
+        action={
+          <FilterBar>
+            {executionReviewFilter ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                data-destruction-executions-clear-filter
+                onClick={() => setExecutionReviewFilter(null)}
+              >
+                Clear review filter
+              </Button>
+            ) : null}
+            <FilterBar.Select
+              label="Page size"
+              showLabel
+              value={String(executionLimit)}
+              onChange={(v) => setExecutionLimit(Number(v))}
+              options={OPS_PAGE_SIZES.map((n) => ({
+                value: String(n),
+                label: `${n} rows`,
+              }))}
+            />
+          </FilterBar>
+        }
+      >
+        <p style={{ ...mutedStyle, marginTop: 0 }}>
+          What the destruction orchestrator actually did, newest plan first.
+          Each row is append-only telemetry — nothing on this table can start,
+          retry, or cancel an execution.
+          {executionReviewFilter
+            ? ` Filtered to review ${executionReviewFilter.slice(0, 8)}….`
+            : ""}
+        </p>
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to view its destruction executions."
+          />
+        ) : executionsFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-destruction-executions-failure={executionsFailure.kind}
+          >
+            {executionsFailure.message}
+          </Card>
+        ) : (
+          <div data-destruction-executions-table>
+            <DataTable
+              ariaLabel="Destruction executions"
+              columns={executionColumns}
+              rows={executions ?? []}
+              getRowId={(x) => x.id}
+              loading={!executions}
+              emptyState={
+                <EmptyState
+                  title="No executions recorded"
+                  purpose="No approved destruction has reached the execution stage in this workspace."
+                />
+              }
+            />
+          </div>
+        )}
+      </PageSection>
+
+      {/* PHASE 12B CLUSTER 10 — reconciliation runs. The worker sweeps that
+          produce the queue above (RETENTION flags, DESTRUCTION_SWEEP,
+          IMMUTABLE_STORAGE drift, LIFECYCLE_DRIFT). Read-only. */}
+      <PageSection
+        title="Reconciliation runs"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="Kind"
+              showLabel
+              value={runKind}
+              onChange={(v) =>
+                setRunKind(v as GovernanceReconciliationKind | "ALL")
+              }
+              options={[
+                { value: "ALL", label: "All kinds" },
+                ...GOVERNANCE_RECONCILIATION_KINDS.map((k) => ({
+                  value: k,
+                  label: k,
+                })),
+              ]}
+            />
+            <FilterBar.Select
+              label="Page size"
+              showLabel
+              value={String(runLimit)}
+              onChange={(v) => setRunLimit(Number(v))}
+              options={OPS_PAGE_SIZES.map((n) => ({
+                value: String(n),
+                label: `${n} rows`,
+              }))}
+            />
+          </FilterBar>
+        }
+      >
+        <p style={{ ...mutedStyle, marginTop: 0 }}>
+          Governance worker sweeps, newest start first. A run with failures or
+          incidents means the sweep did not complete cleanly — the queue above
+          may be incomplete until the next successful run.
+        </p>
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to view its reconciliation runs."
+          />
+        ) : runsFailure ? (
+          <Card
+            variant="status"
+            tone="risk"
+            padding="compact"
+            data-reconciliation-runs-failure={runsFailure.kind}
+          >
+            {runsFailure.message}
+          </Card>
+        ) : (
+          <div data-reconciliation-runs-table>
+            <DataTable
+              ariaLabel="Reconciliation runs"
+              columns={runColumns}
+              rows={runs ?? []}
+              getRowId={(r) => r.id}
+              loading={!runs}
+              emptyState={
+                <EmptyState
+                  title="No reconciliation runs recorded"
+                  purpose="The governance reconciliation worker has not recorded a sweep for this workspace yet."
+                />
+              }
+            />
+          </div>
         )}
       </PageSection>
 
@@ -697,6 +1182,14 @@ const monoStyle: React.CSSProperties = {
     "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
   fontSize: 12,
   fontWeight: 600,
+};
+const monoLinkStyle: React.CSSProperties = {
+  fontFamily:
+    "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#4338ca",
+  textDecoration: "none",
 };
 const monoSmallStyle: React.CSSProperties = {
   fontFamily:

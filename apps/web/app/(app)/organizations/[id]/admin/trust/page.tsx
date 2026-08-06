@@ -3,15 +3,23 @@
 /**
  * Phase 8 — Org admin / Trust tab.
  *
- * Surfaces canonical Trust Center deep-links. The /v1/trust/articles
- * and /v1/trust/subprocessors endpoints are workspace-scoped (require
- * an active workspace context); from a pure org-admin context we link
- * to the canonical surfaces rather than fabricate counts.
+ * PHASE 12 VERTICAL C — this tab is now the TRUST ADMINISTRATION CONSOLE, not
+ * just a set of deep links. It is the one authenticated surface where an
+ * operator can see whether what the platform PUBLISHES about itself is still
+ * true, re-check security claims, publish status incidents and maintenance,
+ * and inspect exactly what a verification package would contain.
+ *
+ * Every operation below is workspace-scoped on the SERVER: the API resolves
+ * the workspace from the persisted active-workspace rail and applies the
+ * canonical `authorizeOrFail` capability check, so nothing here declares a
+ * tenant. Publishing actions additionally require a fresh, target-bound
+ * step-up which the sections carry through `useStepUpAction`.
  *
  * Constitutional checks satisfied:
  *
  *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
- *   - No raw window.confirm (read-only).
+ *   - No raw window.confirm — destructive/publishing actions use
+ *     `useConfirmAction`.
  *   - No platform-context workspace-fragment reads.
  *   - Strong TypeScript types throughout.
  *
@@ -28,6 +36,11 @@ import { PageRouteGate } from "../../../../../../components/navigation/PageRoute
 import { PageSection } from "../../../../../../components/ui/PageShell";
 import { Card } from "../../../../../../components/ui/Card";
 import { Button } from "../../../../../../components/ui/Button";
+import { useActiveWorkspaceId } from "../../../../../../lib/platform-context";
+import { TrustContentIntegritySection } from "./_sections/TrustContentIntegritySection";
+import { SecurityClaimsSection } from "./_sections/SecurityClaimsSection";
+import { StatusPublicationSection } from "./_sections/StatusPublicationSection";
+import { VerificationReferencesSection } from "./_sections/VerificationReferencesSection";
 
 export default function OrganizationAdminTrustPage() {
   return (
@@ -40,6 +53,10 @@ export default function OrganizationAdminTrustPage() {
 function TrustTab() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
+  // Used ONLY to bind a step-up challenge to the right tenant. It never
+  // selects which workspace the API reads or writes — the server resolves
+  // that itself from the persisted active-workspace rail.
+  const activeWorkspaceId = useActiveWorkspaceId();
 
   return (
     <section
@@ -62,11 +79,19 @@ function TrustTab() {
         >
           The Trust Center publishes versioned trust articles (security
           policy, methodology, AI disclosure, etc.) and the subprocessor
-          registry. Article + subprocessor CRUD lives on the canonical
-          workspace-scoped surface; drift detection runs against the
-          published versions.
+          registry. Everything below acts on the workspace you are currently
+          in — the server resolves it, so switching workspaces changes what
+          you are administering.
         </p>
       </Card>
+
+      <TrustContentIntegritySection teamId={activeWorkspaceId} />
+
+      <SecurityClaimsSection />
+
+      <StatusPublicationSection teamId={activeWorkspaceId} />
+
+      <VerificationReferencesSection />
 
       <PageSection
         title="Canonical trust surfaces"

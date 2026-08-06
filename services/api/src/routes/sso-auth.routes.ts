@@ -45,7 +45,6 @@ import {
   SsoServiceError,
 } from "../services/access-control/sso.service.js";
 import {
-  readMfaStatus,
   createMfaPendingChallenge,
 } from "../services/security/mfa.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
@@ -74,6 +73,10 @@ import {
   absoluteInternalUrl,
   internalNavPath,
 } from "@proovra/shared";
+// PHASE 12B — the federation READINESS projection (operator session, not the
+// IdP) composes the canonical authorization primitive.
+import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -200,6 +203,160 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }
   const callbacksEnabled = process.env["SSO_CALLBACKS_ENABLED"] !== "false";
+
+  // -------------------------------------------------------------------------
+  // PHASE 12B — GET /v1/auth/sso/readiness
+  //
+  // The federation READINESS projection the provider console needs and could
+  // not previously obtain: is this workspace's Organization enforcing managed
+  // identity, which domains are actually DNS-verified (domain binding), and is
+  // each connection genuinely live or only half-configured.
+  //
+  // Every decision is computed SERVER-side from the canonical authorities; the
+  // browser renders booleans it is handed. The workspace scope is a CANDIDATE
+  // only — `authorizeOrFail` binds the actor's ACTIVE membership and the
+  // Organization lifecycle to it, so a supplied id can only cause a denial.
+  //
+  // SECRET DISCIPLINE: this projection carries NO client secret, NO signing
+  // key, NO certificate private material — only configured/not-configured
+  // status and a truncated public fingerprint.
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/auth/sso/readiness",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .safeParse(req.query ?? {});
+      if (!q.success) {
+        return reply
+          .code(400)
+          .send({ error: { code: "validation_error", detail: q.error.flatten() } });
+      }
+      const actor = await authorizeOrFail(req, reply, {
+        teamId: q.data.teamId,
+        permission: "identity.external_mapping.read",
+        resourceKind: "sso_connection",
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+
+      const organizationId = await organizationIdForPolicy(actor.teamId, prisma);
+      let managedIdentityRequired: boolean | null = null;
+      let policyProvisioned = false;
+      if (organizationId) {
+        try {
+          const policy = await resolveOrganizationPolicy(actor.teamId, prisma);
+          policyProvisioned = policy.applicability === "ORGANIZATION";
+          managedIdentityRequired =
+            policy.applicability === "ORGANIZATION"
+              ? policy.policy.managedIdentityRequired
+              : null;
+        } catch {
+          // Fail closed: an unresolvable policy is NEVER reported as "not
+          // enforcing". The console renders an explicit unknown state.
+          managedIdentityRequired = null;
+          policyProvisioned = false;
+        }
+      }
+
+      const domains = organizationId
+        ? await prisma.organizationDomain.findMany({
+            where: { organizationId },
+            orderBy: [{ domain: "asc" }],
+            take: 100,
+            select: { id: true, domain: true, verifiedAt: true },
+          })
+        : [];
+
+      const connections = await prisma.ssoConnection.findMany({
+        where: { teamId: actor.teamId },
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        take: 100,
+        select: {
+          id: true,
+          provider: true,
+          displayName: true,
+          status: true,
+          issuerUrl: true,
+          clientId: true,
+          allowedEmailDomains: true,
+          restrictToVerifiedDomains: true,
+          samlSignRequests: true,
+          // Status-only reads. `samlSpCertificate` / `samlCertificate` hold
+          // PUBLIC certificate material; the SP PRIVATE key
+          // (`samlSpPrivateKey`) is deliberately NOT selected, and neither is
+          // `clientSecret` — nothing secret can reach this projection.
+          samlSpCertificate: true,
+          samlCertificate: true,
+          samlSsoUrl: true,
+          samlEntityId: true,
+          consecutiveFailureCount: true,
+          outageDetectedAtUtc: true,
+          lastUsedAtUtc: true,
+        },
+      });
+
+      const verifiedDomains = domains
+        .filter((d) => d.verifiedAt !== null)
+        .map((d) => d.domain);
+
+      return reply.code(200).send({
+        readiness: {
+          teamId: actor.teamId,
+          organizationId,
+          policyProvisioned,
+          managedIdentityRequired,
+          domains: domains.map((d) => ({
+            id: d.id,
+            domain: d.domain,
+            verified: d.verifiedAt !== null,
+            verifiedAtUtc: d.verifiedAt?.toISOString() ?? null,
+          })),
+          verifiedDomainCount: verifiedDomains.length,
+          connections: connections.map((c) => {
+            const isSaml = c.provider === "GENERIC_SAML";
+            const blockers: string[] = [];
+            if (isSaml) {
+              if (!c.samlSsoUrl) blockers.push("IDP_SSO_URL_MISSING");
+              if (!c.samlEntityId) blockers.push("SP_ENTITY_ID_MISSING");
+              if (!c.samlCertificate) blockers.push("IDP_CERTIFICATE_MISSING");
+              if (c.samlSignRequests && !c.samlSpCertificate) {
+                blockers.push("SP_CERTIFICATE_MISSING");
+              }
+            } else {
+              if (!c.issuerUrl) blockers.push("ISSUER_URL_MISSING");
+              if (!c.clientId) blockers.push("CLIENT_ID_MISSING");
+            }
+            if (
+              c.restrictToVerifiedDomains &&
+              verifiedDomains.length === 0
+            ) {
+              blockers.push("NO_VERIFIED_DOMAIN");
+            }
+            if (c.status !== "ACTIVE") blockers.push("NOT_ACTIVE");
+            return {
+              id: c.id,
+              provider: c.provider,
+              displayName: c.displayName,
+              status: c.status,
+              // Server-computed. The client never derives readiness itself.
+              ready: blockers.length === 0,
+              blockers,
+              restrictToVerifiedDomains: c.restrictToVerifiedDomains,
+              boundDomains: c.allowedEmailDomains,
+              unverifiedBoundDomains: c.allowedEmailDomains.filter(
+                (d) => !verifiedDomains.includes(d.toLowerCase()),
+              ),
+              consecutiveFailureCount: c.consecutiveFailureCount,
+              inOutage: c.outageDetectedAtUtc !== null,
+              lastUsedAtUtc: c.lastUsedAtUtc?.toISOString() ?? null,
+            };
+          }),
+        },
+      });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /v1/auth/sso/:connectionId/initiate

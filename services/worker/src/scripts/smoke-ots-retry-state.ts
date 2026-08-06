@@ -34,13 +34,15 @@
  *     handle (initialised module-level in queue.ts). No new connections.
  */
 
+import {
+  JOB_NAMES,
+  buildCanonicalJobId,
+  getWorkEntryOrThrow,
+} from "@proovra/shared";
+
 import { prisma } from "../db.js";
+import { otsUpgradeQueue } from "../queue.js";
 import {
-  otsUpgradeQueue,
-  buildOtsUpgradeJobId,
-} from "../queue.js";
-import {
-  buildFollowUpJobId,
   getOtsGlobalBudgetMs,
   isOtsGlobalBudgetExhausted,
 } from "../ots-upgrade.processor.js";
@@ -140,25 +142,25 @@ async function probe(evidenceId: string): Promise<{
   });
 
   // -------------------------------------------------------------------
-  // Queue state — read-only. We look at the stable + initial jobIds
-  // explicitly AND scan for ANY job whose data.evidenceId matches.
-  // The scan catches discriminated jobIds (the Phase IA fix appends a
-  // timestamp suffix when self-rescheduling).
+  // Queue state — read-only.
+  //
+  // PHASE 12 — POINT 5. There is now exactly ONE runnable job id for a given
+  // evidence record's OTS upgrade, so this probe reads that id and stops.
+  //
+  // The old version looked up two ids (an "initial" and a "follow-up") and then
+  // scanned up to 1000 runnable jobs matching `data.evidenceId`, because the
+  // producer appended a timestamp when a job re-enqueued itself and the scan
+  // was the only way to find the result. Both the second id and the timestamp
+  // suffix are gone; so is the scan, along with its dependence on reading an
+  // evidence id off a payload — which is exactly what the canonical envelope
+  // no longer carries.
   // -------------------------------------------------------------------
-  const initialId = buildOtsUpgradeJobId(evidenceId);
-  const followupId = buildFollowUpJobId(evidenceId);
-  const directJobs = await Promise.all([
-    otsUpgradeQueue.getJob(initialId),
-    otsUpgradeQueue.getJob(followupId),
-  ]);
-  const scanBatch = await otsUpgradeQueue.getJobs(
-    ["waiting", "delayed", "active", "prioritized"],
-    0,
-    999,
+  const canonicalId = buildCanonicalJobId(
+    { jobIdPrefix: getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS).jobIdPrefix! },
+    evidenceId,
   );
-  const matchingScan = scanBatch.filter(
-    (j) => j.data?.evidenceId === evidenceId,
-  );
+  const directJobs = [await otsUpgradeQueue.getJob(canonicalId)];
+  const matchingScan: typeof directJobs = [];
 
   const runnable = [
     ...directJobs.filter(Boolean),

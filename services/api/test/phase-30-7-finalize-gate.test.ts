@@ -66,7 +66,7 @@ type StubResponse = StubRow[] | (() => StubRow[]) | Error;
 function makeStubClient(responses: StubResponse[]) {
   let i = 0;
   return {
-    $queryRawUnsafe: async (..._args: unknown[]) => {
+    $queryRawUnsafe: async () => {
       const r = responses[i++];
       if (r === undefined) {
         throw new Error(`stub_exhausted_after_${i}`);

@@ -25,7 +25,7 @@
  * shapes. Matches the pattern of every phase contract from A0 onward.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -33,6 +33,10 @@ import { describe, expect, it } from "vitest";
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
+}
+
+function webPath(rel: string): string {
+  return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 
 // ============================================================================
@@ -57,18 +61,41 @@ describe("Phase IA-cleanup — dashboard quick action no longer points at /colla
   });
 });
 
-describe("Phase IA-cleanup — onboarding step no longer points at /collaboration", () => {
-  const STEPS = readSource("../../../apps/web/lib/onboarding/onboardingSteps.ts");
+describe("Phase IA-cleanup — the /collaboration surface is fully retired", () => {
+  // Phase 12 Point 4 (Pass E) — this used to read
+  // `apps/web/lib/onboarding/onboardingSteps.ts` and assert that ONE step
+  // had been retargeted to /inbox. That module had zero importers (its
+  // intended consumer, PersonaSetupBanner, was deleted with the
+  // workspace-persona feature) and has itself been deleted, so the
+  // assertion constrained nothing that shipped.
+  //
+  // The invariant is now enforced where it is actually load-bearing: the
+  // retired surface must be gone from the navigation model entirely — no
+  // route id, no href — so nothing can route a user at it again.
+  it("no navigation source declares the retired /collaboration route", () => {
+    for (const rel of [
+      "lib/navigation/routeRegistry.ts",
+      "lib/navigation/pillarRegistry.ts",
+      "lib/navigation/phaseBOperationalGroups.ts",
+    ]) {
+      const src = readSource(`../../../apps/web/${rel}`)
+        .split("\n")
+        .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
+        .join("\n");
+      expect(src, `${rel} must not declare workspace.collaboration`).not.toMatch(
+        /["']workspace\.collaboration["']/,
+      );
+      expect(src, `${rel} must not link /collaboration`).not.toMatch(
+        /href:\s*["']\/collaboration["']/,
+      );
+    }
+  });
 
-  it("the personal.collaboration-basics step is retargeted to /inbox", () => {
-    const idx = STEPS.indexOf('id: "personal.collaboration-basics"');
-    expect(idx, "personal.collaboration-basics step not found").toBeGreaterThan(
-      -1,
-    );
-    const block = STEPS.slice(idx, idx + 600);
-    expect(block).toMatch(/href:\s*"\/inbox"/);
-    expect(block).toMatch(/label:\s*"Check your inbox"/);
-    expect(block).not.toMatch(/href:\s*"\/collaboration"/);
+  it("the page file itself is physically gone (the 308 is the retirement)", () => {
+    expect(
+      existsSync(webPath("app/(app)/collaboration/page.tsx")),
+      "a page behind a permanent redirect is unreachable residue",
+    ).toBe(false);
   });
 });
 
@@ -663,16 +690,17 @@ describe("Phase IA-cleanup — /collaboration is legacy-redirect only", () => {
     );
   });
 
-  it("routeRegistry.ts keeps the legacy workspace.collaboration entry hidden from every discovery surface", () => {
+  it("routeRegistry.ts no longer carries the legacy workspace.collaboration entry at all", () => {
+    // Phase 12 Point 4 (Pass E) — strengthened. This used to accept the
+    // entry so long as all three discovery flags were false; the entry's
+    // own comment admitted it was "preserved so the route id, href, and
+    // existing contract tests stay green". A registry row whose page is
+    // permanently redirected away is dead weight, and hiding it from the
+    // discovery surfaces is a weaker guarantee than not having it.
     const registry = readSource(
       "../../../apps/web/lib/navigation/routeRegistry.ts",
     );
-    const idx = registry.indexOf('id: "workspace.collaboration"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
-    expect(block).toMatch(/sidebarEligible:\s*false/);
-    expect(block).toMatch(/commandPaletteVisible:\s*false/);
-    expect(block).toMatch(/allToolsVisible:\s*false/);
+    expect(registry.indexOf('id: "workspace.collaboration"')).toBe(-1);
   });
 
   it("no apps/web source file outside the legacy registry / redirect / middleware ships an href: \"/collaboration\"", () => {
@@ -688,7 +716,6 @@ describe("Phase IA-cleanup — /collaboration is legacy-redirect only", () => {
       "next.config.js",
       "middleware.ts",
       "routeRegistry.ts",
-      "routeRegistry.js",
     ]);
     const exts = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
     const skipDirs = new Set([

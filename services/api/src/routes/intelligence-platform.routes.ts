@@ -185,6 +185,133 @@ async function authorizeWorkspace(
   return { teamId: decision.teamId, userId: decision.actorUserId };
 }
 
+// ---------------------------------------------------------------------------
+// PHASE 12 — VERTICAL B. Server-rendered immutable version chain.
+// ---------------------------------------------------------------------------
+
+type RawVersionChain = NonNullable<
+  Awaited<ReturnType<typeof getCorrectionVersionChain>>
+>;
+type RawVersion = RawVersionChain["versions"][number];
+
+export type RenderedChainVersion = {
+  id: string;
+  versionNumber: number;
+  kind: string;
+  state: string;
+  authoredByUserId: string;
+  acceptedByUserId: string | null;
+  parentCorrectionId: string | null;
+  supersedesCorrectionId: string | null;
+  supersededByCorrectionId: string | null;
+  createdAtUtc: string;
+  acceptedAtUtc: string | null;
+  revertedAtUtc: string | null;
+  supersededAtUtc: string | null;
+  rationale: string | null;
+  /** Bounded key list — the raw patch body is NOT projected. */
+  patchKeys: ReadonlyArray<string>;
+  patchFieldCount: number;
+  /** Server-decided. The client renders this; it never computes it. */
+  isCurrent: boolean;
+  isSuperseded: boolean;
+  isReverted: boolean;
+  /** 0-based depth in the supersede chain, resolved server-side. */
+  depth: number;
+};
+
+export type RenderedVersionChain = {
+  recordId: string;
+  evidenceId: string;
+  immutable: true;
+  /** Ordered oldest → newest. This IS the render order. */
+  versions: ReadonlyArray<RenderedChainVersion>;
+  /** The accepted, non-superseded head — or null when none is accepted. */
+  currentVersionId: string | null;
+  totalVersions: number;
+  acceptedCount: number;
+  revertedCount: number;
+};
+
+/**
+ * Projects the raw chain into the exact shape the reviewer surface
+ * renders. Two invariants live here and nowhere else:
+ *
+ *   1. `currentVersionId` is the highest-numbered ACCEPTED version that
+ *      nothing supersedes. If no version was ever accepted it is null —
+ *      NOT the newest draft, and NOT "version 1".
+ *   2. `patchKeys` replaces the raw patch body. The chain is an audit
+ *      trail of WHAT changed, not a channel for re-emitting extracted
+ *      content into a dashboard.
+ */
+function renderVersionChain(chain: RawVersionChain): RenderedVersionChain {
+  const ordered = [...chain.versions].sort(
+    (a: RawVersion, b: RawVersion) => a.versionNumber - b.versionNumber,
+  );
+  const byId = new Map(ordered.map((v) => [v.id, v] as const));
+  const head =
+    [...ordered]
+      .reverse()
+      .find(
+        (v) =>
+          v.state === "ACCEPTED" &&
+          !v.supersededByCorrectionId &&
+          !v.revertedAtUtc,
+      ) ?? null;
+
+  const depthOf = (v: RawVersion): number => {
+    let depth = 0;
+    let cursor: RawVersion | undefined = v;
+    const seen = new Set<string>();
+    while (cursor?.parentCorrectionId && !seen.has(cursor.id)) {
+      seen.add(cursor.id);
+      const parent: RawVersion | undefined = byId.get(cursor.parentCorrectionId);
+      if (!parent) break;
+      depth += 1;
+      cursor = parent;
+    }
+    return depth;
+  };
+
+  const versions = ordered.map<RenderedChainVersion>((v) => {
+    const patch = (v.patchPreview ?? {}) as Record<string, unknown>;
+    const patchKeys = Object.keys(patch).slice(0, 40);
+    return {
+      id: v.id,
+      versionNumber: v.versionNumber,
+      kind: v.kind,
+      state: v.state,
+      authoredByUserId: v.authoredByUserId,
+      acceptedByUserId: v.acceptedByUserId,
+      parentCorrectionId: v.parentCorrectionId,
+      supersedesCorrectionId: v.supersedesCorrectionId,
+      supersededByCorrectionId: v.supersededByCorrectionId,
+      createdAtUtc: v.createdAtUtc,
+      acceptedAtUtc: v.acceptedAtUtc,
+      revertedAtUtc: v.revertedAtUtc,
+      supersededAtUtc: v.supersededAtUtc,
+      rationale: v.rationale,
+      patchKeys,
+      patchFieldCount: Object.keys(patch).length,
+      isCurrent: head !== null && head.id === v.id,
+      isSuperseded: v.supersededByCorrectionId !== null,
+      isReverted: v.revertedAtUtc !== null,
+      depth: depthOf(v),
+    };
+  });
+
+  return {
+    recordId: chain.recordId,
+    evidenceId: chain.evidenceId,
+    immutable: true,
+    versions,
+    currentVersionId: head?.id ?? null,
+    totalVersions: versions.length,
+    acceptedCount: versions.filter((v) => v.state === "ACCEPTED").length,
+    revertedCount: versions.filter((v) => v.isReverted).length,
+  };
+}
+
 function decodeBase64(payload: string): Uint8Array {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const B = (globalThis as any).Buffer;
@@ -235,7 +362,18 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         recordId: id,
       });
       if (!row) return reply.code(404).send({ denial: "RECORD_NOT_FOUND" });
-      return reply.code(200).send({ record: row });
+      // PHASE 12 — VERTICAL B. The record detail carries its own
+      // server-rendered immutable chain so the restricted admin surface
+      // renders provenance in ONE round trip and never stitches the
+      // chain together itself.
+      const chain = await getCorrectionVersionChain({
+        teamId: ctx.teamId,
+        recordId: id,
+      });
+      return reply.code(200).send({
+        record: row,
+        chain: chain ? renderVersionChain(chain) : null,
+      });
     },
   );
 
@@ -619,6 +757,12 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
   );
 
   // ---- Correction version chain ----
+  //
+  // PHASE 12 — VERTICAL B. The chain is rendered SERVER-side and handed
+  // to the client already ordered, already linked, and already marked
+  // with which version is current. The browser must never reconstruct
+  // parent/supersedes edges from a flat list — that is exactly how an
+  // immutable audit chain silently becomes a client-side opinion.
   app.get(
     "/v1/intelligence/records/:id/version-chain",
     { preHandler: requireAuth },
@@ -631,7 +775,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         recordId: id,
       });
       if (!chain) return reply.code(404).send({ denial: "RECORD_NOT_FOUND" });
-      return reply.code(200).send({ chain });
+      return reply.code(200).send({ chain: renderVersionChain(chain) });
     },
   );
 

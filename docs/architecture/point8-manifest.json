@@ -1,0 +1,711 @@
+{
+  "$schema": "PHASE 12 — POINT 8 external/live staging evidence manifest",
+  "generatedBy": "services/api/test/point8/emit-manifest.mjs",
+  "point8RunId": null,
+  "point8RunState": "NOT_STARTED — Step 2 preflight is not green",
+  "releaseCandidateId": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d",
+  "gitCommit": "36b871dcd926968128a800483980c94bf03f3297",
+  "gitBranch": "main",
+  "uncommittedEntries": 1357,
+  "stagingEnvironmentAlias": null,
+  "strictCspEnabled": false,
+  "databaseMigrationBoundary": null,
+  "preflight": {
+    "ProductionDatabaseSelected": false,
+    "ProductionRedisSelected": false,
+    "ProductionStorageSelected": false,
+    "ProductionPaymentModeSelected": false,
+    "ProductionIdentityTenantSelected": false,
+    "ProductionEmailAudienceSelected": false,
+    "ProductionWebhookReceiverSelected": false,
+    "UnknownCredentialSelections": 23
+  },
+  "preflightGreen": false,
+  "census": {
+    "items": 31,
+    "byClassification": {
+      "CONFIGURED_BUT_UNKNOWN": 23,
+      "PRODUCTION_FORBIDDEN": 2,
+      "MISSING": 6
+    },
+    "sandboxOrStagingVerified": 0,
+    "unknownCredentialSelections": 23,
+    "productionBearingEnvFiles": [
+      ".env",
+      "apps/web/.env.local",
+      "services/api/.env",
+      "services/worker/.env"
+    ]
+  },
+  "migrationDisposition": {
+    "onDisk": 222,
+    "trackedInHead": 204,
+    "untracked": [
+      "20270923500000_persona_profiles_removal_precondition",
+      "20271102000000_uuid_id_default_repair",
+      "20271103000000_case_evidence_link_canonical",
+      "20271104000000_case_evidence_link_integrity",
+      "20271105000000_evidence_case_id_removal",
+      "20271106000000_legal_hold_canonical",
+      "20271107000000_legal_hold_backfill",
+      "20271108000000_legal_hold_legacy_removal",
+      "20271109000000_workspace_governance_policy_version",
+      "20271110000000_exchange_download_authorization_semantics",
+      "20271111000000_step_up_session_organization_binding",
+      "20271112000000_point4_write_unblock_repair",
+      "20271113000000_point5_report_generation_authority",
+      "20271114000000_point5_media_intelligence_kind_catalog",
+      "20271115000000_point5_atomic_sweep_claims",
+      "20271117000000_point4_schema_authority_contract",
+      "20271118000000_legal_hold_strict_scope_target",
+      "20271119000000_search_document_embedding_after_extension"
+    ]
+  },
+  "releaseArtifact": {
+    "headArtifactMigrations": 204,
+    "proposedArtifactMigrations": 222,
+    "worktreeMigrations": 222,
+    "proposedAdditions": {
+      "20270923500000_persona_profiles_removal_precondition": "REQUIRED_LATER_CONTRACT_MIGRATION — the guard for the tracked, unguarded 20270924000000 drop. Shipping the drop without it is the release-blocking defect.",
+      "20271102000000_uuid_id_default_repair": "REQUIRED_RELEASE_MIGRATION — REPAIR, SAFE_TO_APPLY_NOW.",
+      "20271103000000_case_evidence_link_canonical": "REQUIRED_RELEASE_MIGRATION — BACKFILL, self-gating on readiness.",
+      "20271104000000_case_evidence_link_integrity": "REQUIRED_RELEASE_MIGRATION — BACKFILL, self-gating on readiness.",
+      "20271105000000_evidence_case_id_removal": "REQUIRED_LATER_CONTRACT_MIGRATION — self-guarded CONTRACT_DROP.",
+      "20271106000000_legal_hold_canonical": "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW.",
+      "20271107000000_legal_hold_backfill": "REQUIRED_RELEASE_MIGRATION — BACKFILL, self-gating on readiness.",
+      "20271108000000_legal_hold_legacy_removal": "REQUIRED_LATER_CONTRACT_MIGRATION — self-guarded CONTRACT_DROP.",
+      "20271109000000_workspace_governance_policy_version": "REQUIRED_RELEASE_MIGRATION — BACKFILL, self-gating on readiness.",
+      "20271110000000_exchange_download_authorization_semantics": "REQUIRED_RELEASE_MIGRATION — BACKFILL, self-gating on readiness.",
+      "20271111000000_step_up_session_organization_binding": "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW.",
+      "20271112000000_point4_write_unblock_repair": "REQUIRED_RELEASE_MIGRATION — REPAIR that unblocks live writes; prerequisite of 20271117000000.",
+      "20271113000000_point5_report_generation_authority": "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW.",
+      "20271114000000_point5_media_intelligence_kind_catalog": "REQUIRED_RELEASE_MIGRATION — REPAIR, SAFE_TO_APPLY_NOW.",
+      "20271115000000_point5_atomic_sweep_claims": "REQUIRED_RELEASE_MIGRATION — BACKFILL, self-gating on readiness.",
+      "20271117000000_point4_schema_authority_contract": "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT_DROP; destroys through dynamic identifiers, each self-guarded by a RAISE.",
+      "20271118000000_legal_hold_strict_scope_target": "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT_DROP, self-guarded.",
+      "20271119000000_search_document_embedding_after_extension": "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Creates the column and ANN index that 20260620100000 could never create, because its pgvector guard is evaluated a year before CREATE EXTENSION vector."
+    },
+    "proposedExclusions": {},
+    "headArtifactRefused": true,
+    "headArtifactFailures": [
+      {
+        "code": "GUARD_EXCLUDED_FROM_ARTIFACT",
+        "migration": "20270924000000_drop_workspace_persona_profiles",
+        "reason": "destructive migration is in the artifact but its guard (20270923500000_persona_profiles_removal_precondition) is not"
+      }
+    ],
+    "proposedArtifactOk": true,
+    "conservationErrors": [],
+    "inventoryFilesystemMismatch": [],
+    "inventoryUnderstatedDestruction": []
+  },
+  "deployment": {
+    "workflows": 5,
+    "UnknownDeploymentTriggers": 0,
+    "productionDeliveryPaths": [
+      "deploy-images.yml"
+    ],
+    "StagingPathCanTriggerProduction": false
+  },
+  "stagingCredentials": {
+    "byClassification": {
+      "OWNER_CONFIRMATION_REQUIRED": 10,
+      "MISSING": 19,
+      "PRODUCTION_FORBIDDEN": 2
+    },
+    "rows": [
+      {
+        "required": "STAGING_WEB_BASE",
+        "gates": [
+          13
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "STAGING_API_BASE",
+        "gates": [
+          13
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "STAGING_DATABASE_URL",
+        "gates": [
+          1
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STAGING_REDIS_URL",
+        "gates": [
+          2
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "STAGING_S3_OR_R2_ENDPOINT",
+        "gates": [
+          3
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "STAGING_STORAGE_BUCKET",
+        "gates": [
+          3
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STAGING_STORAGE_REGION",
+        "gates": [
+          3
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STAGING_STORAGE_ACCESS_AUTHORITY",
+        "gates": [
+          3
+        ],
+        "classification": "PRODUCTION_FORBIDDEN",
+        "evidence": "no staging input; the configured value carries a live provider marker"
+      },
+      {
+        "required": "STAGING_OBJECT_LOCK_CONFIGURATION",
+        "gates": [
+          3
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STRIPE_SANDBOX_SECRET",
+        "gates": [
+          4
+        ],
+        "classification": "PRODUCTION_FORBIDDEN",
+        "evidence": "no staging input; the configured value carries a live provider marker"
+      },
+      {
+        "required": "STRIPE_SANDBOX_WEBHOOK_SECRET",
+        "gates": [
+          4
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STRIPE_SANDBOX_PRICE_IDS",
+        "gates": [
+          4
+        ],
+        "classification": "MISSING",
+        "evidence": "not configured anywhere"
+      },
+      {
+        "required": "PAYPAL_SANDBOX_CLIENT",
+        "gates": [
+          5
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "PAYPAL_SANDBOX_SECRET",
+        "gates": [
+          5
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "PAYPAL_SANDBOX_WEBHOOK_ID",
+        "gates": [
+          5
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "PAYPAL_SANDBOX_ENDPOINT",
+        "gates": [
+          5
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "SAML_TEST_IDP_METADATA",
+        "gates": [
+          6
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "SAML_TEST_CERTIFICATE",
+        "gates": [
+          6
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "SAML_TEST_ENTITY_ID",
+        "gates": [
+          6
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "SAML_TEST_ACS_CONFIGURATION",
+        "gates": [
+          6
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "SAML_TEST_SSO_URL",
+        "gates": [
+          6
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "OIDC_TEST_ISSUER",
+        "gates": [
+          7
+        ],
+        "classification": "MISSING",
+        "evidence": "not configured anywhere"
+      },
+      {
+        "required": "OIDC_TEST_CLIENT",
+        "gates": [
+          7
+        ],
+        "classification": "MISSING",
+        "evidence": "not configured anywhere"
+      },
+      {
+        "required": "OIDC_TEST_REDIRECT_CONFIGURATION",
+        "gates": [
+          7
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "SCIM_TEST_BASE",
+        "gates": [
+          8
+        ],
+        "classification": "MISSING",
+        "evidence": "not configured anywhere"
+      },
+      {
+        "required": "SCIM_TEST_TOKEN",
+        "gates": [
+          8
+        ],
+        "classification": "MISSING",
+        "evidence": "not configured anywhere"
+      },
+      {
+        "required": "STAGING_EMAIL_TRANSPORT",
+        "gates": [
+          9
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STAGING_EMAIL_SENDER",
+        "gates": [
+          9
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      },
+      {
+        "required": "STAGING_TEST_MAILBOX",
+        "gates": [
+          9
+        ],
+        "classification": "MISSING",
+        "evidence": "not configured anywhere"
+      },
+      {
+        "required": "STAGING_WEBHOOK_RECEIVER",
+        "gates": [
+          10
+        ],
+        "classification": "OWNER_CONFIRMATION_REQUIRED",
+        "evidence": "no staging input; the configured value names a remote host whose tenancy cannot be established from bounded evidence"
+      },
+      {
+        "required": "STAGING_WEBHOOK_SECRET",
+        "gates": [
+          10
+        ],
+        "classification": "MISSING",
+        "evidence": "no staging input; only loopback/local values are configured, which cannot serve a Staging gate"
+      }
+    ]
+  },
+  "gates": [
+    {
+      "gateId": "postgres-live",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_DATABASE_URL=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "redis-bullmq-live",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_REDIS_URL=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "object-storage-live",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_S3_OR_R2_ENDPOINT=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_STORAGE_BUCKET=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_STORAGE_ACCESS_AUTHORITY=PRODUCTION_FORBIDDEN",
+        "STAGING_OBJECT_LOCK_CONFIGURATION=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "stripe-sandbox",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STRIPE_SANDBOX_SECRET=PRODUCTION_FORBIDDEN",
+        "STRIPE_SANDBOX_WEBHOOK_SECRET=CONFIGURED_BUT_UNKNOWN",
+        "STRIPE_SANDBOX_PRICE_IDS=MISSING"
+      ]
+    },
+    {
+      "gateId": "paypal-sandbox",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "PAYPAL_SANDBOX_CLIENT=CONFIGURED_BUT_UNKNOWN",
+        "PAYPAL_SANDBOX_SECRET=CONFIGURED_BUT_UNKNOWN",
+        "PAYPAL_SANDBOX_WEBHOOK_ID=CONFIGURED_BUT_UNKNOWN",
+        "PAYPAL_SANDBOX_ENDPOINT=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "saml-test-idp",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "SAML_TEST_IDP_METADATA=CONFIGURED_BUT_UNKNOWN",
+        "SAML_TEST_CERTIFICATE=CONFIGURED_BUT_UNKNOWN",
+        "SAML_TEST_ENTITY_ID=CONFIGURED_BUT_UNKNOWN",
+        "SAML_TEST_ACS_CONFIGURATION=CONFIGURED_BUT_UNKNOWN",
+        "SAML_TEST_SSO_URL=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "oidc-test-provider",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "OIDC_TEST_ISSUER=MISSING",
+        "OIDC_TEST_CLIENT=MISSING",
+        "OIDC_TEST_REDIRECT_CONFIGURATION=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "scim-live-client",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "SCIM_TEST_BASE=MISSING",
+        "SCIM_TEST_TOKEN=MISSING"
+      ]
+    },
+    {
+      "gateId": "email-staging-delivery",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_EMAIL_TRANSPORT=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_EMAIL_SENDER=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_TEST_MAILBOX=MISSING"
+      ]
+    },
+    {
+      "gateId": "webhook-live-delivery",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_WEBHOOK_RECEIVER=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_WEBHOOK_SECRET=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "redaction-real-files",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_API_BASE=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_S3_OR_R2_ENDPOINT=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_REDIS_URL=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "object-digest-download",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_API_BASE=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_S3_OR_R2_ENDPOINT=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "production-like-cookies-cors",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_WEB_BASE=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_API_BASE=CONFIGURED_BUT_UNKNOWN"
+      ]
+    },
+    {
+      "gateId": "staging-product-journeys",
+      "status": "BLOCKED_OWNER_PREREQUISITE",
+      "runId": null,
+      "buildIds": {
+        "api": "1269de0d661fc963610811bf0ed21c96618e433ed57bc947bdafbf3ac4c3dfd9",
+        "worker": "5cb2c1c4ec78a6d167724d229ef6ab30abd8fda37c9fa913cd19f5132bbab0fa",
+        "web": "8add31fa64bc437eb9cdc412de2bedd094cb259408fe00281b6fd6ec1c9c6e03",
+        "releaseCandidate": "ad077c1d24a1dffdab874705ebdcae8f8bda5cf982a129a2ceb1c94cf373391d"
+      },
+      "stagingEnvironmentAlias": null,
+      "providerMode": "unknown",
+      "scenarioIds": [],
+      "evidenceArtifacts": [],
+      "durableStateChecks": [],
+      "browserResult": null,
+      "cleanupDisposition": "nothing was created — no Staging resource was touched",
+      "blockedBy": [
+        "STAGING_WEB_BASE=CONFIGURED_BUT_UNKNOWN",
+        "STAGING_API_BASE=CONFIGURED_BUT_UNKNOWN",
+        "STRIPE_SANDBOX_SECRET=PRODUCTION_FORBIDDEN",
+        "PAYPAL_SANDBOX_CLIENT=CONFIGURED_BUT_UNKNOWN"
+      ]
+    }
+  ],
+  "metrics": {
+    "canonicalGates": 14,
+    "gatesPassed": 0,
+    "gatesBlocked": 14,
+    "requiredLiveGateSkips": 14,
+    "productionDestinationsAttempted": 0,
+    "productionDestinationsConnected": 0,
+    "mockArtifactsCreditedAsLive": 0,
+    "temporaryArtifacts": 0,
+    "UntrackedMigrationUnknowns": 0,
+    "TrackedDropWithoutGuard": 0,
+    "TrackedDropWithoutGuardInHeadArtifact": 1,
+    "MigrationInventoryFilesystemMismatch": 0,
+    "CleanArtifactMissingMigrations": 0,
+    "MigrationOrderConflicts": 0,
+    "UnknownDeploymentTriggers": 0,
+    "StagingPathCanTriggerProduction": false,
+    "VerifiedStagingCredentials": 0,
+    "ConfiguredButUnknown": 0,
+    "ProductionForbiddenSelected": 0,
+    "MissingRequiredStagingInputs": 29,
+    "StagingProductPlansProven": "0/5"
+  }
+}

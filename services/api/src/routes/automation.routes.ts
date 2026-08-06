@@ -42,7 +42,6 @@ import {
   validateActionConfig,
   validateCondition,
   type AutomationActionType,
-  type AutomationTriggerType,
 } from "../services/automation/automation.service.js";
 
 // ---------------------------------------------------------------------------

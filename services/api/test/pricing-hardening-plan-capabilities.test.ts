@@ -49,7 +49,11 @@ describe("PLAN_CAPABILITIES", () => {
     expect(p.includedStorageBytes).toBe(100n * GB);
     expect(p.aiAdvisoryMonthlyOperations).toBe(100);
     expect(p.monthlyPriceCents).toBe(1900);
-    expect(p.allowsPersonalWorkspace).toBe(true);
+    // POINT 7 CORRECTIVE PASS — renamed. The old `allowsPersonalWorkspace`
+    // answered two different questions with one boolean; this one answers only
+    // "may PRO be purchased with a Personal Workspace as the target", which is
+    // what this pricing pin was always about.
+    expect(p.allowsPersonalWorkspacePurchase).toBe(true);
     expect(p.reportsIncluded).toBe(true);
     expect(p.verificationPackageIncluded).toBe(true);
   });

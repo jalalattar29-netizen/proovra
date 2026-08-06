@@ -22,7 +22,6 @@ import {
   safeBooleanLabel,
 } from "./formatters.js";
 import {
-  mapOtsStatusPublicLabel,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 

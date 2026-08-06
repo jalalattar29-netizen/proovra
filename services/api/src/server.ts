@@ -134,6 +134,9 @@ import {
 } from "./routes/admin-identity.routes.js";
 import { adminProvisioningRoutes } from "./routes/admin-provisioning.routes.js";
 import { scimRoutes } from "./routes/scim.routes.js";
+// PHASE 12B C6 — session-authenticated SCIM administration, kept in its own
+// file so the /v2/scim protocol surface stays bearer-token-only by contract.
+import { scimAdminRoutes } from "./routes/scim-admin.routes.js";
 import { ssoAuthRoutes } from "./routes/sso-auth.routes.js";
 // R8.2 — Real SAML SP routes (HTTP-Redirect + HTTP-POST ACS + SP metadata).
 // Registered separately from sso-auth.routes.ts which handles OIDC.
@@ -220,6 +223,7 @@ import { caseWorkspaceRoutes } from "./routes/case-workspace.routes.js";
 // own generated reports.
 import registerReportsRoutes from "./routes/reports.routes.js";
 import { devLoginRoutes, devAuthEnabled } from "./dev/dev-login.js";
+import { devBillingCreditsRoutes } from "./dev/dev-billing-credits.routes.js";
 import { enterpriseAggregatorsRoutes } from "./routes/enterprise-aggregators.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 // Phase P2.0 — AWS Secrets Manager hydration + runtime health route.
@@ -233,9 +237,12 @@ import { runtimeOtelHealthRoutes } from "./routes/runtime-otel-health.routes.js"
 import {
   AppError,
   ErrorCode,
+  classifyReportability,
   createErrorResponse,
   isAppError,
+  isDomainError,
 } from "./errors.js";
+import { registerCanonicalNotFoundHandler } from "./http/not-found-handler.js";
 
 const REQUIRED_ORIGINS = [
   "https://www.proovra.com",
@@ -552,6 +559,14 @@ allowedHeaders: [
   "authorization",
   "x-web-client",
   "x-internal-key",
+  // PHASE 12B CLUSTER 9 — the step-up challenge header. `requireStepUpForSensitiveAction`
+  // READS this header, and the web client's step-up retry SETS it, but it was
+  // never allow-listed: the browser stripped it on every cross-origin retry, so
+  // no sensitive action could ever satisfy its own gate from the product UI.
+  // Allow-listing a header the server already validates does not weaken the
+  // gate — the challenge must still be started, verified and consumed
+  // server-side before the id means anything.
+  "x-proovra-step-up-challenge-id",
 ],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
@@ -711,6 +726,22 @@ allowedHeaders: [
     req.log.info(logContext, "request.completed");
   });
 
+  /**
+   * PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): a canonical 404.
+   *
+   * Fastify's default not-found body is `{"message":"route post:/v1/... not
+   * found"}` — a different shape from every other error this API emits, and
+   * one that echoes the requested path back verbatim.
+   *
+   * This surfaced only now because the guest-login retirement test could never
+   * reach its real assertion: it boots a server, and in a unit process
+   * `buildServer()` had been failing, so the suite silently took its
+   * source-inspection fallback. Fixing the test environment made the server
+   * boot, the real branch run for the first time, and the inconsistency
+   * visible. The canonical shape is what the rest of the contract uses.
+   */
+  registerCanonicalNotFoundHandler(app);
+
   app.setErrorHandler((err, req, reply) => {
     const requestWithMeta = req as typeof req & {
       evidenceId?: string;
@@ -845,6 +876,45 @@ allowedHeaders: [
       });
     }
 
+    // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): typed domain errors are
+    // answered on the wire from their OWN declaration, before the legacy
+    // AppError path and long before the infrastructure fallthrough.
+    //
+    // The fallthrough is where "Free evidence limit reached" ended up: not an
+    // AppError, not a ZodError, so it was logged at error level, captured to
+    // Sentry, paged as an operational alert, and returned to the browser as a
+    // 500. A published plan limit is none of those things.
+    //
+    // A DomainError carries the httpStatus, the public code, the bounded
+    // public message and the reportability, so this branch does not have to
+    // guess any of them — and the public message is the ONLY thing that
+    // crosses the wire, which is how the org-policy failure stops leaking an
+    // Organization UUID to the client.
+    if (isDomainError(err)) {
+      const logPayload = {
+        ...requestContext,
+        errorCode: err.publicCode,
+        statusCode: err.httpStatus,
+        reportability: err.reportability,
+        ...err.metadata,
+      };
+      if (err.reportability === "UNEXPECTED") {
+        req.log.error(logPayload, "request.failed.domain_unexpected");
+        captureException(err, requestContext);
+      } else if (err.severity === "critical") {
+        req.log.error(logPayload, "request.failed.domain");
+      } else {
+        req.log.warn(logPayload, "request.failed.domain");
+      }
+      return reply.code(err.httpStatus).send({
+        error: {
+          code: err.publicCode,
+          message: err.publicMessage,
+          requestId,
+        },
+      });
+    }
+
     const appError = normalizeUnknownError(err);
 
     if (appError) {
@@ -866,6 +936,49 @@ allowedHeaders: [
       );
 
       return reply.code(appError.statusCode).send(errorResponse);
+    }
+
+    // PHASE 12 — POINT 7 CORRECTIVE PASS: the belt-and-braces half.
+    //
+    // The authorities that matter now throw `DomainError` and are answered
+    // above. This catches the ad-hoc `Object.assign(new Error(), {statusCode,
+    // code})` throwers that have not been converted yet — the shape used by
+    // teams.routes, identity-mode, the workspace lifecycle services and others.
+    // An error carrying a 4xx is a client-visible outcome a route already
+    // decided on; it is not a server fault, and paging an operator for one is
+    // how a real incident gets lost in the noise.
+    //
+    // It is DOWNGRADED, never suppressed: the request still fails, it is still
+    // logged with its code, and the response still says so. Only the
+    // error-level capture and the operational page are withheld. Anything
+    // without a 4xx keeps its full treatment.
+    const reportability = classifyReportability(err);
+    if (reportability !== "UNEXPECTED") {
+      const legacyStatus =
+        typeof (err as { statusCode?: unknown })?.statusCode === "number"
+          ? ((err as { statusCode: number }).statusCode)
+          : 400;
+      const legacyCode =
+        typeof (err as { code?: unknown })?.code === "string"
+          ? ((err as { code: string }).code)
+          : "REQUEST_REFUSED";
+      req.log.warn(
+        {
+          ...requestContext,
+          errorCode: legacyCode,
+          statusCode: legacyStatus,
+          reportability,
+          legacyErrorShape: true,
+        },
+        "request.failed.business_untyped",
+      );
+      return reply.code(legacyStatus).send({
+        error: {
+          code: legacyCode,
+          message: "Request refused.",
+          requestId,
+        },
+      });
     }
 
     req.log.error(
@@ -951,6 +1064,9 @@ allowedHeaders: [
   // (devAuthEnabled() returns false when NODE_ENV==="production").
   if (devAuthEnabled()) {
     await app.register(devLoginRoutes);
+    // Dev-only no-payment credit grant (POST /v1/billing/credits). Not a
+    // product surface; never mounted in production. See dev-billing-credits.
+    await app.register(devBillingCreditsRoutes);
   }
   await app.register(governanceSnapshotRoutes);
   await app.register(runtimeReadinessRoutes);
@@ -1088,6 +1204,7 @@ allowedHeaders: [
   await app.register(adminIdentityRuntimeRoutes);
   await app.register(adminProvisioningRoutes);
   await app.register(scimRoutes);
+  await app.register(scimAdminRoutes);
   await app.register(ssoAuthRoutes);
   // R8.2 — SAML SP routes alongside the OIDC routes. Same canonical session
   // model; no parallel auth surface. SAML_ENABLED=false disables at runtime.
@@ -1157,13 +1274,13 @@ allowedHeaders: [
   await app.register(caseWorkspaceRoutes);
   // Phase IA-self-serve-regression-fix — user-scoped reports list.
   await app.register(registerReportsRoutes);
-  // Phase 32.8E — Enterprise aggregators for Teams + Governance +
-  // ReviewerOps:
+  // Phase 32.8E — Enterprise aggregators for Teams + Governance:
   //   GET /v1/teams/workspace-admin
   //   GET /v1/governance/control-plane
-  //   GET /v1/reviewer-ops/command
   // All read-only, workspace-scoped, no audit, no custody/billing
-  // side effects, partial-failure tolerant.
+  // side effects, partial-failure tolerant. (Phase 12 Point 4 removed
+  // the third aggregator, `GET /v1/reviewer-ops/command`; the reviewer
+  // aggregator is `GET /v1/reviewer-ops/console`.)
   await app.register(enterpriseAggregatorsRoutes);
   // Phase 10 — Integration platform. Two route trees:
   //   * `integrationsRoutes` — workspace-authenticated admin surface

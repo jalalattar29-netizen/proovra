@@ -54,10 +54,6 @@ describe("Phase 11 — canonical authority counts (anti-divergence)", () => {
     const src = ALL.find((f) => f.rel.endsWith("audit/tenant-audit.service.ts"))!.body;
     expect(src).toMatch(/stripSecrets/);
   });
-
-  // §5 — an unwired authority is not convergence: production callers > 0.
-  const callers = (re: RegExp) =>
-    API_SRC.filter((f) => !f.rel.includes(".service.ts") ? re.test(f.body) : false || (re.test(f.body) && !f.rel.endsWith("deep-link-resolution.service.ts") && !f.rel.endsWith("audit/tenant-audit.service.ts"))).map((f) => f.rel);
   it("resolveDeepLink has a PRODUCTION consumer (route), not just a definition", () => {
     const c = API_SRC.filter((f) => /resolveDeepLink\(/.test(f.body) && !f.rel.endsWith("deep-link-resolution.service.ts"));
     expect(c.length).toBeGreaterThan(0);

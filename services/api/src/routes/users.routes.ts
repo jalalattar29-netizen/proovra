@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { Prisma, User as PrismaUser } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { getAuthUserId } from "../auth.js";
 import { getUserLegalAcceptanceStatus, recordLegalAcceptances } from "../services/legal-acceptance.service.js";
 // Final-D5-PT2 — legacy session/password helpers retired (see bottom of
 // file). The canonical surface lives in `identity-security.routes.ts`,
@@ -30,7 +32,7 @@ const CookieConsentBody = z.object({
   marketing: z.boolean().optional(),
 });
 
-function pickMe(u: any) {
+function pickMe(u: PrismaUser) {
   return {
     id: u.id,
     email: u.email,
@@ -69,8 +71,8 @@ function readUserAgent(req: FastifyRequest): string | null {
 }
 
 export async function usersRoutes(app: FastifyInstance) {
-  app.get("/v1/users/me", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.get("/v1/users/me", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { user: null };
@@ -78,12 +80,18 @@ export async function usersRoutes(app: FastifyInstance) {
     return { user: pickMe(user) };
   });
 
-  app.patch("/v1/users/me", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.patch("/v1/users/me", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
     const body = (req.body ?? {}) as Record<string, unknown>;
 
-    const data: Record<string, any> = {};
-    const setStr = (key: string, max: number) => {
+    const data: Prisma.UserUpdateInput = {};
+    // Allowlisted, individually bounded string fields. The key is typed
+    // against Prisma's update input so a field that leaves the model can no
+    // longer be written here through an untyped index.
+    const setStr = (
+      key: "displayName" | "firstName" | "lastName" | "avatarUrl" | "locale" | "timezone",
+      max: number,
+    ) => {
       const v = body[key];
       if (typeof v === "string") data[key] = v.trim().slice(0, max);
       if (v === null) data[key] = null;
@@ -141,8 +149,8 @@ export async function usersRoutes(app: FastifyInstance) {
     return { user: pickMe(updated) };
   });
 
-  app.get("/v1/users/legal-status", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.get("/v1/users/legal-status", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
     const status = await getUserLegalAcceptanceStatus({ userId });
 
     return {
@@ -154,8 +162,8 @@ export async function usersRoutes(app: FastifyInstance) {
     };
   });
 
-  app.get("/v1/users/legal-acceptance", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.get("/v1/users/legal-acceptance", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
 
     const items = await prisma.userLegalAcceptance.findMany({
       where: { userId },
@@ -172,8 +180,8 @@ export async function usersRoutes(app: FastifyInstance) {
     return { items };
   });
 
-  app.post("/v1/users/legal-acceptance", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.post("/v1/users/legal-acceptance", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
     const body = LegalAcceptanceBody.parse(req.body);
 
     await recordLegalAcceptances({
@@ -198,8 +206,8 @@ export async function usersRoutes(app: FastifyInstance) {
     return { ok: true, items };
   });
 
-  app.get("/v1/users/cookie-consent/latest", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.get("/v1/users/cookie-consent/latest", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
 
     const latest = await prisma.cookieConsentRecord.findFirst({
       where: { userId },
@@ -222,8 +230,8 @@ export async function usersRoutes(app: FastifyInstance) {
     };
   });
 
-  app.post("/v1/users/cookie-consent", { preHandler: requireAuth }, async (req: any) => {
-    const userId = req.user.sub;
+  app.post("/v1/users/cookie-consent", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+    const userId = getAuthUserId(req);
     const body = CookieConsentBody.parse(req.body);
 
     const created = await prisma.cookieConsentRecord.create({
@@ -306,7 +314,7 @@ export async function usersRoutes(app: FastifyInstance) {
     req: FastifyRequest,
     legacyAction: string,
   ) {
-    const userId = ((req as any)?.user?.sub as string) ?? null;
+    const userId = req.user?.sub ?? null;
     // Re-use the existing `high_risk_action_blocked` taxonomy: a call
     // to a retired auth-mutation endpoint IS a high-risk action that
     // we are blocking. The `details.reason` field discriminates this

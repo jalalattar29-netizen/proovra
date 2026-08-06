@@ -54,12 +54,17 @@ describe("evidence detail enterprise integrity backend contract", () => {
   });
 
   it("review-workspace preservation matrix carries OTS freshness fields", () => {
-    const idx = SRC.indexOf("preservationMatrix:");
-    expect(idx).toBeGreaterThan(-1);
-    const slice = SRC.slice(idx, idx + 2500);
-    expect(slice).toMatch(/proofPresent:/);
-    expect(slice).toMatch(/lastUpdatedAtUtc:/);
-    expect(slice).toMatch(/pendingReason:/);
+    // Scoped to the `ots:` object inside preservationMatrix rather than a
+    // fixed character window: a comment or a new sibling field must not be
+    // able to push these assertions out of range.
+    const matrixIdx = SRC.indexOf("preservationMatrix:");
+    expect(matrixIdx).toBeGreaterThan(-1);
+    const otsIdx = SRC.indexOf("ots: {", matrixIdx);
+    expect(otsIdx).toBeGreaterThan(matrixIdx);
+    const otsBlock = SRC.slice(otsIdx, SRC.indexOf("\n              },", otsIdx));
+    expect(otsBlock).toMatch(/proofPresent:/);
+    expect(otsBlock).toMatch(/lastUpdatedAtUtc:/);
+    expect(otsBlock).toMatch(/pendingReason:/);
   });
 
   it("source context exposes client signal collection states", () => {

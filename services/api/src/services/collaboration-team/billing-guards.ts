@@ -141,33 +141,6 @@ async function resolveUserPlan(
 }
 
 /**
- * Resolve the owner of a Collaboration Team. The owner is the user
- * who created the parent workspace (`Team.ownerUserId`), which is the
- * billing-bearing identity. For PERSONAL workspaces the parent
- * `Team.ownerUserId` IS the user; for ORGANIZATION workspaces it is
- * the org's billing owner.
- */
-async function resolveCollaborationTeamOwnerUserId(
-  client: PrismaClient,
-  teamId: string,
-): Promise<string> {
-  const row = await client.collaborationTeam.findUnique({
-    where: { id: teamId },
-    select: {
-      workspace: { select: { ownerUserId: true } },
-    },
-  });
-  if (!row) {
-    throwBillingError({
-      code: "TEAM_LIMIT_REACHED",
-      message: "Collaboration team not found.",
-      details: { teamId },
-    });
-  }
-  return row.workspace.ownerUserId;
-}
-
-/**
  * PHASE 9 §9.4 corrected (2026-07-22) — SUBJECT-CORRECT plan resolution for
  * EXISTING-team operations (member adds / invites). The commercial subject
  * is the PARENT WORKSPACE, not the owner's account: the plan comes from the
@@ -487,6 +460,77 @@ export async function assertCanInviteCollaborationTeamMember(
   };
 }
 
+// =============================================================================
+// 4. assertCanInviteCollaborationTeamGuest
+// =============================================================================
+
+/**
+ * PHASE 12 POINT 4 PASS C0 — the ONE commercial authority for external
+ * guest invitation (`POST /v1/collaboration-teams/:teamId/guests/invite`).
+ *
+ * Before this guard, `inviteGuest` resolved its own commercial state by
+ * reading the raw `Team.billingPlan` COLUMN and passing it to
+ * `canPlanUseTeams`. That was a second commercial authority, and it
+ * disagreed with the canonical one in three ways that matter in
+ * production:
+ *
+ *   - a PERSONAL workspace's subject is the OWNER'S ENTITLEMENT, never the
+ *     `Team.billingPlan` column (the column is meaningless for that kind),
+ *     so a paying user's personal-space team was judged on the wrong row;
+ *   - an OWNED workspace carrying a legacy `billingPlan = "ENTERPRISE"`
+ *     string is NOT enterprise-covered (`LEGACY_AMBIGUOUS_FAIL_CLOSED`),
+ *     but the raw column read granted it guests;
+ *   - a non-live `billingStatus` (SUSPENDED / CANCELLED organization or
+ *     owned workspace) still presented its stale plan string, so a
+ *     suspended Organization kept inviting external collaborators.
+ *
+ * This guard resolves the plan through `resolveCollaborationTeamWorkspacePlan`
+ * — the SAME subject-correct path every member-invite channel already uses
+ * (`resolveCommercialContext`: PERSONAL → owner entitlement, OWNED → its own
+ * persisted commercial state with no owner-plan fallback, ORGANIZATION →
+ * the organization contract, all with the live-status rule applied) — and
+ * then applies the SAME catalog limits invitations use. Guests were the
+ * only invitation channel with no capacity gate at all: a PRO workspace
+ * could hold unbounded pending external grants.
+ */
+export async function assertCanInviteCollaborationTeamGuest(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  plan: PlanType;
+  pendingGuests: number;
+  maxPendingPerTeam: number;
+}> {
+  const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
+  const limits = getCollaborationTeamPlanLimits(plan);
+
+  // FREE / PAYG include zero Teams, so they include no external guests
+  // either. PAYG is an operation entitlement, never a workspace plan.
+  assertTeamsFeatureIncluded(plan);
+
+  const pendingGuests = await client.collaborationTeamGuest.count({
+    where: { teamId, status: "PENDING" },
+  });
+
+  if (pendingGuests >= limits.maxPendingInvitesPerTeam) {
+    throwBillingError({
+      code: "TEAM_INVITE_LIMIT_REACHED",
+      message: `This team has reached its pending-invitation limit (${limits.maxPendingInvitesPerTeam}) on plan ${plan}.`,
+      details: {
+        plan,
+        teamId,
+        pendingGuests,
+        maxPendingPerTeam: limits.maxPendingInvitesPerTeam,
+      },
+    });
+  }
+
+  return {
+    plan,
+    pendingGuests,
+    maxPendingPerTeam: limits.maxPendingInvitesPerTeam,
+  };
+}
 
 // =============================================================================
 // 5. assertSubscriptionActiveOrGraceAllowed
@@ -517,7 +561,6 @@ export async function assertCanInviteCollaborationTeamMember(
  */
 export async function assertSubscriptionActiveOrGraceAllowed(
   userId: string,
-  _client: PrismaClient = defaultPrisma,
 ): Promise<{
   plan: PlanType;
   status: SubscriptionStatus;

@@ -53,10 +53,10 @@ describe("Phase IA-self-serve-audit-fixes — Search inspector gates", () => {
 
   it("computes canSeeWorkflows + canSeeInvestigation gates", () => {
     expect(SEARCH).toMatch(
-      /const canSeeWorkflows\s*=\s*canAccessSurface\(surfaceUserCtx,\s*"\/workflows"\)/,
+      /const canSeeWorkflows\s*=\s*enterpriseSurfaces;/,
     );
     expect(SEARCH).toMatch(
-      /const canSeeInvestigation\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/investigation"/,
+      /const canSeeInvestigation\s*=\s*enterpriseSurfaces;/,
     );
   });
 
@@ -359,10 +359,22 @@ describe("Phase IA-self-serve-audit-fixes — Case Detail empty states", () => {
     );
   });
 
-  it("Holds-tab empty state drops 'governance surface' + 'step-up-required'", () => {
+  it("Holds-tab empty state drops 'governance surface' + 'step-up-required' and still says what a hold does", () => {
     expect(MATTER).not.toMatch(/matter's governance surface/);
     expect(MATTER).not.toMatch(/step-up-required for sensitive holds/);
-    expect(MATTER).toMatch(/Use the Holds panel to place a legal hold/);
+    // PHASE 12 POINT 1 (2026-07-31) — this used to pin the exact sentence
+    // "Use the Holds panel to place a legal hold". PHASE 12B CLUSTER 8
+    // consolidated placement onto the ONE Legal-Hold surface, so the empty
+    // state now links there instead of naming an in-tab panel. The literal
+    // was never the contract; the INVARIANT is: plain-language explanation of
+    // what a hold does, plus a route to where one is actually placed. That is
+    // what is asserted now, so a real copy regression still fails while a
+    // deliberate consolidation does not.
+    expect(MATTER).toMatch(
+      /stop records being deleted or destroyed/,
+    );
+    expect(MATTER).toMatch(/Manage legal holds/);
+    expect(MATTER).toMatch(/\/evidence-lifecycle\/legal-holds/);
   });
 
   it("Decisions-tab empty state drops 'step-up token' + 'workspace's governance flag'", () => {
@@ -405,28 +417,18 @@ describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
     "app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
   ].map(readWeb).join("\n\n");
 
-  it("imports canAccessSurface + useSurfaceUserContext", () => {
-    expect(EVI).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
-    );
-    expect(EVI).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
-    );
+  it("consumes the SERVER-projection gate hooks (no client tier computation)", () => {
+    // PHASE 12B Track 1A — enterprise gates come from useEnterpriseSurfaceAccess
+    // (envelope.flags), commercial gates from usePlanFeatureGate (planFeatures).
+    expect(EVI).toMatch(/useEnterpriseSurfaceAccess/);
+    expect(EVI).toMatch(/usePlanFeatureGate/);
   });
 
-  it("computes all four surface gates", () => {
-    expect(EVI).toMatch(
-      /const canSeeReviewerOps\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/reviewer-ops"/,
-    );
-    expect(EVI).toMatch(
-      /const canSeeGovernance\s*=\s*canAccessSurface\(surfaceUserCtx,\s*"\/governance"\)/,
-    );
-    expect(EVI).toMatch(
-      /const canSeeIntelligence\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/intelligence"/,
-    );
-    expect(EVI).toMatch(
-      /const canSeeIntakeLinks\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/intake-links"/,
-    );
+  it("computes all four surface gates from server projections", () => {
+    expect(EVI).toMatch(/const canSeeReviewerOps\s*=\s*enterpriseSurfaces;/);
+    expect(EVI).toMatch(/const canSeeGovernance\s*=\s*enterpriseSurfaces;/);
+    expect(EVI).toMatch(/const canSeeIntelligence\s*=\s*enterpriseSurfaces;/);
+    expect(EVI).toMatch(/const canSeeIntakeLinks\s*=\s*usePlanFeatureGate\("intakeIncluded"\);/);
   });
 
   it("Governance trio is gated by canSeeGovernance", () => {

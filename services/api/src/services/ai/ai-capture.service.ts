@@ -74,7 +74,7 @@ function inferEvidenceTypeFromMimeType(mimeType: string | null | undefined): Evi
  * detail strings may still reference the filename since they do not leave
  * PROOVRA's trust boundary.
  */
-function redactFileName(originalName: string | null | undefined): string {
+function redactFileName(): string {
   // We deliberately surface a generic identifier so the model's downstream
   // text never echoes the original filename back to the user.
   return "redacted-filename";
@@ -131,7 +131,7 @@ function buildRedactedItems(
   return items.map((item, index) => ({
     id: item.id,
     itemLabel: `Item ${index + 1}`,
-    fileName: redactFileName(item.fileName),
+    fileName: redactFileName(),
     mimeType: item.mimeType,
     extensionCategory: buildExtensionCategory(item.fileName),
     sizeBucket: bucketSizeBytes(item.sizeBytes),

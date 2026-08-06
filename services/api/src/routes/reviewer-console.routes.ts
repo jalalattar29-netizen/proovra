@@ -39,7 +39,12 @@
  *        * listReviewerOpsSavedViews   (reviewer's saved views)
  */
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import { z } from "zod";
 import type { PrismaClient } from "@prisma/client";
 
@@ -117,25 +122,16 @@ async function ensureReviewerActor(
 
 export async function reviewerConsoleRoutes(
   app: FastifyInstance,
-  _options: object = {},
-  prismaClient?: PrismaClient,
+  opts: FastifyPluginOptions & { prismaClient?: PrismaClient } = {},
 ): Promise<void> {
-  // Phase O Stage 3 (Sentry NODE-11 repair):
-  //   - Fastify calls plugins as `(app, opts)` and never binds the
-  //     third parameter, so the original `prismaClient: PrismaClient
-  //     = prisma` default worked for production but BROKE for any
-  //     caller (or wrapped registration) that explicitly passed
-  //     `undefined` as the third argument — defaults only fill when
-  //     the argument is undefined at call time, BUT some Fastify
-  //     wrappers (and tests that wire plugins through a registration
-  //     shim) pass the third arg explicitly. In that case
-  //     `prismaClient` becomes `undefined`, every service call
-  //     receives `undefined`, and the downstream `.groupBy of
-  //     undefined` (or similar) crashes the request.
-  //   - Re-anchor every service call to a local `client` constant
-  //     that falls back to the module-level `prisma` whenever the
-  //     third arg is missing OR explicitly `undefined`.
-  const client: PrismaClient = prismaClient ?? prisma;
+  // Fastify calls plugins as `(app, opts)`. The injected Prisma client
+  // therefore has to travel INSIDE `opts` — a bare second positional
+  // parameter would be bound to Fastify's own options object on every
+  // real registration, and `client` would silently become `{}` rather
+  // than a Prisma client. Every service call below is anchored to this
+  // one constant, which falls back to the module-level `prisma` when no
+  // client is injected.
+  const client: PrismaClient = opts.prismaClient ?? prisma;
 
   app.get(
     "/v1/reviewer-ops/console",

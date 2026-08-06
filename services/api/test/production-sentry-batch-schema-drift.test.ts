@@ -299,11 +299,18 @@ describe("Phase O Stream A — /v1/reviewer-ops/queue (NODE-1G)", () => {
 // =============================================================================
 
 describe("Phase O Stream A — /v1/reviewer-ops/console (NODE-11)", () => {
-  it("signature accepts optional prismaClient (defaults via local ?? prisma)", () => {
-    expect(REVIEWER_CONSOLE_ROUTES).toMatch(/prismaClient\?:\s*PrismaClient/);
+  it("accepts an injected prismaClient through Fastify's opts (defaults to prisma)", () => {
+    // Fastify calls plugins as (app, opts). A BARE second positional
+    // parameter would be bound to Fastify's own options object on every
+    // real registration, so the injected client must travel inside opts.
     expect(REVIEWER_CONSOLE_ROUTES).toMatch(
-      /const\s+client:\s*PrismaClient\s*=\s*prismaClient\s*\?\?\s*prisma/,
+      /opts:\s*FastifyPluginOptions\s*&\s*\{\s*prismaClient\?:\s*PrismaClient\s*\}/,
     );
+    expect(REVIEWER_CONSOLE_ROUTES).toMatch(
+      /const\s+client:\s*PrismaClient\s*=\s*opts\.prismaClient\s*\?\?\s*prisma/,
+    );
+    // The plugin must never take the client as a bare positional arg.
+    expect(REVIEWER_CONSOLE_ROUTES).not.toMatch(/prismaClient\?:\s*PrismaClient,/);
   });
 
   it("uses safeParse for query + emits bounded 400 INVALID_QUERY", () => {

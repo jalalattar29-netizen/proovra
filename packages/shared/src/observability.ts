@@ -188,10 +188,38 @@ export function isSafeRequestId(value: string | null | undefined): boolean {
 
 const SAFE_SUMMARY_MAX = 400;
 
+/**
+ * True for the control characters this scrubber removes: the C0 range EXCEPT
+ * TAB (0x09) and LF (0x0A), plus DEL (0x7F). Expressed as explicit code-point
+ * ranges so the control characters are named rather than embedded in a regex
+ * literal — same set, no `no-control-regex` suppression.
+ */
+function isScrubbedControlCode(code: number): boolean {
+  return (code >= 0x00 && code <= 0x08) || (code >= 0x0b && code <= 0x1f) || code === 0x7f;
+}
+
+/** Collapse each RUN of those control characters into a single space. */
+function scrubControlRuns(value: string): string {
+  let out = "";
+  let inRun = false;
+  for (const ch of value) {
+    if (isScrubbedControlCode(ch.charCodeAt(0))) {
+      if (!inRun) {
+        out += " ";
+        inRun = true;
+      }
+      continue;
+    }
+    inRun = false;
+    out += ch;
+  }
+  return out;
+}
+
 export function clipSafeSummary(value: string): string {
   if (!value) return "";
-  // Drop control characters except space (\x20) and tab (\x09) → space.
-  const cleaned = value.replace(/[\x00-\x08\x0B-\x1F\x7F]+/g, " ").trim();
+  // Drop control characters except TAB (0x09) and LF (0x0A) → single space.
+  const cleaned = scrubControlRuns(value).trim();
   if (cleaned.length <= SAFE_SUMMARY_MAX) return cleaned;
   return cleaned.slice(0, SAFE_SUMMARY_MAX - 1) + "…";
 }
@@ -212,5 +240,5 @@ export function isValidIncidentFingerprint(value: string | null | undefined): bo
   const t = value.trim();
   if (t.length === 0 || t.length > FINGERPRINT_MAX_LEN) return false;
   // Allow alnum, dot, colon, hyphen, underscore.
-  return /^[A-Za-z0-9._:\-]+$/.test(t);
+  return /^[A-Za-z0-9._:-]+$/.test(t);
 }

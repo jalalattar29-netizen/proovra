@@ -30,9 +30,10 @@
  */
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+// PHASE 12 POINT 4 PASS C0 — the ONE commercial authority for invitations.
+import { assertCanInviteCollaborationTeamGuest } from "./billing-guards.js";
 import {
   COLLABORATION_TEAM_COMMENT_TARGETS,
-  COLLABORATION_TEAM_NOTIFICATION_TYPES,
   buildCollaborationTeamUserDirectoryEntry,
   collaborationTeamRoleHasPermission,
   isSpecialCollaborationTeamMention,
@@ -48,7 +49,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { CollaborationTeamError } from "./collaboration-team.service.js";
+import {
+  CollaborationTeamError,
+  isCollaborationTeamModerator,
+} from "./collaboration-team.service.js";
 
 // =============================================================================
 // Helpers
@@ -474,7 +478,7 @@ export async function editComment(
     );
   // Authors edit their own; LEAD/ADMIN can edit anyone (moderation).
   const isAuthor = comment.authorUserId === input.actorUserId;
-  const isModerator = role === "LEAD" || role === "ADMIN";
+  const isModerator = isCollaborationTeamModerator(role);
   if (!isAuthor && !isModerator)
     throw new CollaborationTeamError(
       "team_forbidden",
@@ -518,7 +522,7 @@ export async function deleteComment(
     throw new CollaborationTeamError("team_not_found", "Comment not found.", 404);
   if (comment.status === "DELETED") return;
   const isAuthor = comment.authorUserId === input.actorUserId;
-  const isModerator = role === "LEAD" || role === "ADMIN";
+  const isModerator = isCollaborationTeamModerator(role);
   if (!isAuthor && !isModerator)
     throw new CollaborationTeamError(
       "team_forbidden",
@@ -780,6 +784,24 @@ export async function inviteGuest(
     );
   if (!GUEST_EMAIL_RE.test(input.email))
     throw new CollaborationTeamError("team_invalid", "Invalid email.", 400);
+
+  // PHASE 12 POINT 4 PASS C0 — commercial entitlement enforced HERE, at the
+  // canonical authority, not in the browser and not from a raw plan column.
+  //
+  // Guest invitation was gated ONLY by `if (!guestsAllowed) return;` in
+  // apps/web: neither this service nor the route checked the plan, so a FREE
+  // workspace could invite external collaborators by calling the API directly.
+  // That made the frontend the authoritative commercial decision-maker.
+  //
+  // The first fix read `Team.billingPlan` here — correct for an OWNED
+  // workspace on a current row, wrong for a PERSONAL workspace (whose
+  // subject is the owner's entitlement), wrong for a legacy OWNED+ENTERPRISE
+  // string, and wrong for a suspended Organization still carrying its plan
+  // string. Guests now go through the SAME subject-correct commercial
+  // authority and the SAME catalog capacity limits as every other invitation
+  // channel, so there is exactly one commercial decision for invitations.
+  await assertCanInviteCollaborationTeamGuest(input.teamId, client);
+
   const ttlDays = Math.min(
     Math.max(input.expiresInDays ?? GUEST_DEFAULT_TTL_DAYS, 1),
     GUEST_MAX_TTL_DAYS,
@@ -895,7 +917,7 @@ export async function openAccessReview(
     input.teamId,
     input.actorUserId,
   );
-  if (role !== "LEAD" && role !== "ADMIN")
+  if (!isCollaborationTeamModerator(role))
     throw new CollaborationTeamError(
       "team_forbidden",
       "Only LEAD and ADMIN can open access reviews.",
@@ -995,7 +1017,7 @@ export async function decideAccessReviewItem(
     input.teamId,
     input.actorUserId,
   );
-  if (role !== "LEAD" && role !== "ADMIN")
+  if (!isCollaborationTeamModerator(role))
     throw new CollaborationTeamError(
       "team_forbidden",
       "Only LEAD and ADMIN can decide access review items.",
@@ -1045,7 +1067,7 @@ export async function completeAccessReview(
     input.teamId,
     input.actorUserId,
   );
-  if (role !== "LEAD" && role !== "ADMIN")
+  if (!isCollaborationTeamModerator(role))
     throw new CollaborationTeamError(
       "team_forbidden",
       "Only LEAD and ADMIN can complete access reviews.",

@@ -12,7 +12,6 @@ import {
 } from "../observability/otel.js";
 import {
   parseTsaReply,
-  tsaFailureCodeToReason,
   type TsaReplyFailureCode,
   type TsaReplyWarningCode,
 } from "./timestamp/parse-tsa-reply.js";
@@ -128,16 +127,6 @@ function classifyTsaSubprocessError(error: unknown): {
   };
 }
 
-/**
- * Back-compat shim. The previous symbol `normalizeTsaFailureReason` was
- * referenced from elsewhere (tests, in-flight call sites); we keep it
- * delegating to the bounded classifier so any external usage continues
- * to receive the same operator-readable strings.
- */
-function normalizeTsaFailureReason(error: unknown): string {
-  return classifyTsaSubprocessError(error).reason;
-}
-
 export type TimestampResult = {
   provider: string;
   url: string;
@@ -193,19 +182,6 @@ async function cleanup(files: string[]): Promise<void> {
       }
     })
   );
-}
-
-// Phase IA-TSA-falseFailed — the previous `parseOpenSslReplyText` was a
-// single regex pair; the new parser lives in `./timestamp/parse-tsa-reply.ts`
-// and handles double-space dates, multi-line message imprint dumps, and
-// returns a bounded failure code on every failure mode. This helper
-// stays only as a thin wrapper for back-compat with any external import.
-function parseOpenSslReplyText(text: string): {
-  serialNumber: string | null;
-  genTimeUtc: Date | null;
-} {
-  const r = parseTsaReply(text);
-  return { serialNumber: r.serialNumber, genTimeUtc: r.genTimeUtc };
 }
 
 export async function createEvidenceTimestamp(params: {

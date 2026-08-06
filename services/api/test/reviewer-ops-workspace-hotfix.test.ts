@@ -16,7 +16,7 @@
  * No DB. Source-text + pure-helper assertions.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -35,8 +35,12 @@ function readSource(rel: string): string {
 describe("pickMe returns currentWorkspaceId", () => {
   const src = readSource("../src/routes/users.routes.ts");
 
-  it("pickMe function exists", () => {
-    expect(src).toMatch(/function pickMe\(u: any\)/);
+  it("pickMe projects the typed Prisma user row (not an untyped `any`)", () => {
+    // The projection is what the operator consoles read; typing its input
+    // against the real User row means a field that leaves the model breaks
+    // here rather than silently projecting `undefined`.
+    expect(src).toMatch(/function pickMe\(u: PrismaUser\)/);
+    expect(src).not.toMatch(/function pickMe\(u: any\)/);
   });
 
   it("pickMe includes currentWorkspaceId in the response", () => {
@@ -89,52 +93,63 @@ describe("useActiveWorkspaceId hook", () => {
     expect(src).toContain("requestId");
   });
 
-  it.skip("falls back to /v1/teams when currentWorkspaceId is null", () => {});
-
   it("reports no-workspace when canonical envelope reports no team", () => {
     expect(src).toMatch(/status:\s*"no-workspace"/);
   });
 });
 
 // -----------------------------------------------------------------------------
-// Shared WorkspaceGateState renderer
+// Canonical gate renderer — PageRouteGate
 // -----------------------------------------------------------------------------
 
-describe("WorkspaceGateState renderer", () => {
+describe("canonical reviewer-ops gate renderer", () => {
+  // Phase 12 Point 4 Pass D — the local
+  // `app/(app)/reviewer-ops/WorkspaceGateState.tsx` renderer was
+  // deleted after every reviewer-ops / governance consumer migrated to
+  // <PageRouteGate>. The hotfix invariants below (never collapse every
+  // failure into "Switch to a workspace"; distinguish auth vs
+  // permission vs operational; never render a blank page) are asserted
+  // against the renderer that actually mounts.
   const src = readSource(
-    "../../../apps/web/app/(app)/reviewer-ops/WorkspaceGateState.tsx",
+    "../../../apps/web/components/navigation/PageRouteGate.tsx",
   );
 
-  it("renders loading state without claiming no workspace", () => {
-    expect(src).toContain('status === "loading"');
-    expect(src).toContain("Loading");
+  it("the deleted local reviewer-ops gate renderer stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../../../apps/web/app/(app)/reviewer-ops/WorkspaceGateState.tsx",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
   });
 
-  it("renders no-workspace state with the canonical message", () => {
-    expect(src).toContain('status === "no-workspace"');
-    expect(src).toContain("Switch to a workspace");
+  it("distinguishes denial reasons instead of collapsing them into one message", () => {
+    // Each denied access state maps to canonical denial vocabulary
+    // rather than a single hard-coded string.
+    expect(src).toContain("accessStateToDenialReason");
+    expect(src).toContain("denialReasonHeadline");
+    expect(src).toContain("denialReasonGuidance");
+    expect(src).toContain('data-page-route-gate-denial-reason');
   });
 
-  it("renders 401 (auth_required) state", () => {
-    expect(src).toContain("auth_required");
-    expect(src).toContain("Sign in required");
+  it("never renders a blank page — every denied state carries recovery actions", () => {
+    expect(src).toContain("ProovraDenialState");
+    expect(src).toContain("access.primaryAction");
+    expect(src).toContain("page-route-gate-primary-action");
+    // The PLATFORM_ADMIN_ONLY branch used to `return null`; it must
+    // keep rendering a structured panel with a way back.
+    expect(src).toMatch(/PLATFORM_ADMIN_ONLY/);
+    expect(src).toContain('label: "Back to home"');
   });
 
-  it.skip("renders 403 (permission_denied) state with the canonical copy", () => {});
-
-  it("renders operational error with optional requestId", () => {
-    expect(src).toContain("Request ID");
-  });
-
-  it("supports all Reviewer Ops surfaces by name (Phase 32.8B widened with Governance Policy)", () => {
-    // Phase 32.8B — policy admin moved to /governance/policy; the
-    // GateState surface union was widened to add "Governance Policy"
-    // and kept "Review Policy" for the legacy redirect window.
-    expect(src).toContain('"Reviewer Ops"');
-    expect(src).toContain('"SLA"');
-    expect(src).toContain('"Escalations"');
-    expect(src).toContain('"Review Policy"');
-    expect(src).toContain('"Governance Policy"');
+  it("resolves access from the canonical server projection, not a local fetch", () => {
+    expect(src).toContain("usePlatformContext");
+    expect(src).toContain("resolveRouteAccess");
+    expect(src).not.toMatch(/apiFetch\(/);
   });
 });
 
@@ -142,133 +157,119 @@ describe("WorkspaceGateState renderer", () => {
 // Phase 32.8E — main /reviewer-ops console (own Shell states, canonical hook)
 // -----------------------------------------------------------------------------
 
-describe("Phase 32.8E — /reviewer-ops main console workspace wiring", () => {
+describe("Phase 32.8E — canonical /review console workspace wiring", () => {
+  // Phase 12 Point 4 — the Phase-32.8E `ReviewerCommandConsole` lost its
+  // mount when `/reviewer-ops` was redirected to `/review`, and was
+  // deleted once its unique capabilities (bulk triage, multi-stage
+  // summary, runtime banner, operator pivots) were folded into the
+  // canonical console. These invariants now target that console.
   const src = readSource(
-    "../../../apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
+    "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
   );
-
-  it.skip("uses the canonical useActiveWorkspaceId hook", () => {});
+  const live = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
   it("does NOT call /v1/users/me directly for workspace resolution", () => {
-    const live = src
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
     expect(live).not.toMatch(/apiFetch\(\s*['"`]\/v1\/users\/me['"`]\s*,/);
   });
 
-  it("renders its own bounded Shell states (loading / no-workspace / auth-error / unavailable)", () => {
-    expect(src).toContain("ShellLoading");
-    expect(src).toContain("ShellNoWorkspace");
-    expect(src).toContain("ShellAuthError");
-    expect(src).toContain("ShellUnavailable");
+  it("takes the workspace subject from the canonical server projection", () => {
+    // The page resolves the active space from the platform-context
+    // envelope and passes it down; the console re-derives nothing.
+    const page = readSource("../../../apps/web/app/(app)/review/page.tsx");
+    expect(page).toMatch(/usePlatformContext/);
+    expect(page).toMatch(/activeSpace\?\.type === "ORGANIZATION"/);
+    expect(live).toMatch(/useActiveSpace\(\)/);
   });
 
-  it("keeps the 'Switch to a workspace' guidance inside the bounded read-only banner (no bare short-circuit)", () => {
-    const live = src
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
-    // Personal-mode reviewers get a bounded read-only status banner
-    // (data-cc-section-status="not_applicable") that guides them to
-    // switch workspaces — NOT a bare early-return short-circuit that
-    // replaces the console. The console's real short-circuits are the
-    // Shell states (ShellLoading / ShellAuthError / ShellUnavailable).
-    const banner = live.match(
-      /data-cc-section-status="not_applicable"[\s\S]{0,600}?Switch to a workspace to enable/,
+  it("renders bounded loading / error / empty states rather than a bare wall", () => {
+    expect(live).toMatch(/setLoading\(true\)/);
+    expect(live).toMatch(/setError\(/);
+    expect(live).toMatch(/<EmptyState/);
+    expect(live).not.toMatch(/ShellNoWorkspace/);
+  });
+
+  it("never short-circuits to a bare 'Switch to a workspace' prompt", () => {
+    // The canonical PageRouteGate owns the no-workspace path with a
+    // structured recovery panel; the console must not grow a second one.
+    expect(live).not.toContain('"Switch to a workspace"');
+    expect(live).not.toMatch(
+      /return\s*\(?\s*<[A-Za-z][^>]*>\s*Switch to a workspace/,
     );
-    expect(
-      banner,
-      "the 'Switch to a workspace' guidance must live inside the bounded read-only status banner",
-    ).not.toBeNull();
-    // No standalone early-return short-circuit to a bare switch prompt.
-    expect(live).not.toMatch(/return\s*\(?\s*<[A-Za-z][^>]*>\s*Switch to a workspace/);
   });
 });
 
 // -----------------------------------------------------------------------------
-// Page wiring — sub-route reviewer-ops pages use the shared gate-state hook
+// Page wiring — every reviewer-ops sub-route mounts the canonical gate
 // -----------------------------------------------------------------------------
 
-describe("Reviewer Ops pages route through useActiveWorkspaceId", () => {
+describe("Reviewer Ops sub-routes mount the canonical PageRouteGate", () => {
   // Phase 32.8E — the main `/reviewer-ops` page was rebuilt as the
-  // Review Orchestration & Escalation Command console. It no longer
-  // uses the shared WorkspaceGateState renderer; instead it ships
-  // its own bounded Shell states (ShellLoading / ShellNoWorkspace /
-  // ShellAuthError / ShellUnavailable) but still resolves the
-  // workspace via the canonical `useActiveWorkspaceId` hook.
-  // The remaining reviewer-ops sub-routes continue to use the
-  // shared gate renderer.
-  const pages: Array<{ name: string; rel: string; surface: string }> = [
-    // Phase 38.11 — SLA dashboard migrated to <PageRouteGate
-    // routeId="review.sla">. Canonical recovery is owned by
-    // PageRouteGate; legacy WorkspaceGateState contract no longer
-    // applies. See phase-38-11 source-contract tests.
-    // Phase 38.10 — escalations console migrated to <PageRouteGate
-    // routeId="review.escalations">. See phase-38-10 source-contract.
-    // Phase 38.11 — governance/policy migrated to <PageRouteGate
-    // routeId="governance.policy">. See phase-38-11 source-contract.
-    // Phase 38.12 — review workspace [reviewId] migrated to
-    // <PageRouteGate routeId="review.queue_detail">. See phase-38-12
-    // source-contract.
-    //
-    // All reviewer-ops pages that previously used the shared
-    // WorkspaceGateState renderer have migrated. This contract holds
-    // open in case a NEW WorkspaceGateState consumer is added.
+  // Review Orchestration & Escalation Command console; it ships its own
+  // bounded Shell states and is covered above.
+  //
+  // Phase 38.10/38.11/38.12 migrated every remaining sub-route off the
+  // local `WorkspaceGateState` renderer onto `<PageRouteGate>`, and
+  // Phase 12 Point 4 Pass D deleted the renderer. The invariant that
+  // matters — no reviewer-ops sub-route resolves the workspace itself
+  // or short-circuits to a bare "Switch to a workspace" wall — is
+  // asserted here against the pages as they ship today.
+  const pages: Array<{ name: string; rel: string; routeId: string }> = [
+    {
+      name: "SLA dashboard",
+      rel: "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+      routeId: "review.sla",
+    },
+    {
+      name: "Escalations console",
+      rel: "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+      routeId: "review.escalations",
+    },
+    {
+      name: "Review workspace",
+      rel: "../../../apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+      routeId: "review.queue_detail",
+    },
+    {
+      name: "Governance policy",
+      rel: "../../../apps/web/app/(app)/governance/policy/page.tsx",
+      routeId: "governance.policy",
+    },
   ];
 
-  it("all reviewer-ops pages have migrated off the legacy WorkspaceGateState contract", () => {
-    // Sentinel: as long as nothing was re-added to `pages` above, the
-    // legacy contract has zero remaining consumers in the reviewer-ops
-    // domain. New consumers must add their entry here and pass the
-    // legacy gate-state contract tests below.
-    expect(pages.length).toBe(0);
-  });
-
-  for (const { name, rel, surface } of pages) {
+  for (const { name, rel, routeId } of pages) {
     describe(name, () => {
       const src = readSource(rel);
+      const live = src
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
 
-      it.skip("imports useActiveWorkspaceId from the canonical hook", () => {});
-
-      it("imports the shared gate-state renderer", () => {
-        expect(src).toContain("WorkspaceGateState");
+      it("wraps its body in <PageRouteGate> with its registered routeId", () => {
+        expect(live).toContain("PageRouteGate");
+        expect(live).toContain(`routeId="${routeId}"`);
       });
 
-      it("renders WorkspaceGateState with the right surface label", () => {
-        expect(src).toContain(`surface=${surface}`);
-      });
-
-      it("does NOT call /v1/users/me directly for workspace resolution", () => {
-        // Strip comments first — historical mentions in docstrings are fine.
-        const live = src
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/\/\/[^\n]*/g, "");
-        // The page should NOT have a direct setTeamId call wired to
-        // r.user.currentWorkspaceId. The shared hook owns that.
+      it("does NOT resolve the workspace itself from /v1/users/me", () => {
         expect(live).not.toMatch(
           /setTeamId\s*\(\s*r\?\.user\?\.currentWorkspaceId/,
         );
+        expect(live).not.toMatch(/apiFetch\(\s*['"`]\/v1\/users\/me['"`]/);
       });
 
-      it("renders WorkspaceGateState whenever workspaceState !== ready", () => {
-        expect(src).toMatch(/workspaceState\.status\s*!==\s*"ready"/);
-      });
-
-      it("never short-circuits to a bare 'Switch to a workspace' string outside the canonical gate", () => {
-        // Strip comments first — historical mentions in docstrings
-        // explaining the previous bug are fine. The literal
-        // "Switch to a workspace" must ONLY live in
-        // WorkspaceGateState.tsx as a render path.
-        const live = src
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/\/\/[^\n]*/g, "");
+      it("never short-circuits to a bare 'Switch to a workspace' wall", () => {
+        // The canonical gate owns the no-workspace path with a
+        // structured recovery panel. A page rendering the bare phrase
+        // means it re-introduced its own gate.
         expect(live).not.toContain('"Switch to a workspace"');
-        // Defense in depth: no JSX render of the bare phrase either.
         const inlineGate = live.match(/Switch to a workspace[^<]*</);
         if (inlineGate) {
           throw new Error(
-            `Page ${name} has an inline 'Switch to a workspace' render. The shared gate must own this string.`,
+            `Page ${name} has an inline 'Switch to a workspace' render. The canonical PageRouteGate must own this state.`,
           );
         }
+      });
+
+      it("does not import the deleted local gate renderer", () => {
+        expect(live).not.toContain("WorkspaceGateState");
       });
     });
   }
@@ -295,8 +296,6 @@ describe("/home is workspace-resolution-resilient (does not regress)", () => {
       /import\s*\{\s*CommandCenter\s*\}\s*from\s*"[^"]*components\/command-center\/CommandCenter"/,
     );
   });
-
-  it.skip("Command Center routes workspace resolution through the canonical hook (replaced by usePlatformContext)", () => {});
 
   it("/home does NOT depend directly on user.currentWorkspaceId for primary load", () => {
     // The Phase 32.6.4 invariant is preserved: the page never reads

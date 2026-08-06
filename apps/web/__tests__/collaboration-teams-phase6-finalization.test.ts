@@ -49,11 +49,15 @@ const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Mirror the backend derivation used by the sibling enterprise-tier test:
 // an enterprise workspace is one on the ENTERPRISE plan. Nothing else.
 function ctxFor(plan: WorkspacePlan): SurfaceUserContext {
+  // PHASE 12B Track 1A — server-projected booleans, never the plan name.
   return {
-    plan,
-    role: "OWNER",
     isPlatformAdmin: false,
     isEnterpriseWorkspace: plan === "ENTERPRISE",
+    planFeatures: {
+      intakeIncluded: null,
+      professionalSurfacesIncluded:
+        plan === "PRO" || plan === "TEAM" || plan === "ENTERPRISE",
+    },
   };
 }
 
@@ -192,8 +196,7 @@ test("SCOPE K — ENTERPRISE unlocks every enterprise collaboration surface", ()
 
 test("SCOPE K — platform admin unlocks enterprise collaboration surfaces regardless of plan", () => {
   const admin: SurfaceUserContext = {
-    plan: "FREE",
-    role: "OWNER",
+    planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false },
     isPlatformAdmin: true,
     isEnterpriseWorkspace: false,
   };

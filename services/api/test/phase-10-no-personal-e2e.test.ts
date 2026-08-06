@@ -64,9 +64,17 @@ const MANAGED_UNRESOLVED_ROW = {
  * and records every write. `team.create` / `organization.create` / `user.update`
  * MUST NEVER fire on a denial (the zero-mutation custody invariant).
  */
-function identityStub(row: Record<string, unknown>) {
+function identityStub(
+  row: Record<string, unknown>,
+  // PHASE 12 POINT 7 — the second, INDEPENDENT denial rule: an Organization
+  // this user belongs to sets `noPersonalSpace`. Defaults to "no Organization
+  // forbids it" so every pre-existing identity-mode assertion below is
+  // unchanged, and is supplied explicitly by the org-policy cases.
+  denyingPolicies: ReadonlyArray<{ organizationId: string; noPersonalSpace: boolean }> = [],
+) {
   const writes: string[] = [];
   const prisma = {
+    organizationSecurityPolicy: { findMany: async () => denyingPolicies },
     user: {
       findUnique: async () => row,
       update: async () => {
@@ -127,6 +135,51 @@ describe("canonical no-personal decision (personalSpaceAllowed)", () => {
     const { prisma, writes } = identityStub(MANAGED_UNRESOLVED_ROW);
     expect(await personalSpaceAllowed("u1", prisma)).toBe(false);
     await expect(assertPersonalSpaceAllowed("u1", prisma)).rejects.toMatchObject(NO_PERSONAL);
+    expect(writes).toEqual([]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 12 — POINT 7. The SECOND denial rule. Before this, `noPersonalSpace`
+  // was a persisted, admin-settable, HIGH_SECURITY-activated column that
+  // nothing read: `evaluatePersonalSpaceAllowed` had zero production callers,
+  // so an Organization that switched the control on still handed every
+  // STANDARD member a Personal Space and the server still fell back into one.
+  // ---------------------------------------------------------------------------
+  const ORG_POLICY_DENIAL = {
+    statusCode: 403,
+    code: "ORG_POLICY_NO_PERSONAL_SPACE",
+  };
+
+  it("STANDARD identity + org policy noPersonalSpace → personal space DENIED", async () => {
+    const { prisma, writes } = identityStub(STANDARD_ROW, [
+      { organizationId: "org-A", noPersonalSpace: true },
+    ]);
+    expect(await personalSpaceAllowed("u1", prisma)).toBe(false);
+    await expect(assertPersonalSpaceAllowed("u1", prisma)).rejects.toMatchObject(
+      ORG_POLICY_DENIAL,
+    );
+    expect(writes).toEqual([]);
+  });
+
+  it("the two denials are distinguishable: managed identity keeps its own code", async () => {
+    const { prisma } = identityStub(MANAGED_ROW, [
+      { organizationId: "org-A", noPersonalSpace: true },
+    ]);
+    // Both rules deny. The identity rule is evaluated first and owns the
+    // answer, because an org-controlled identity is a different remediation
+    // from an org-wide policy switch.
+    await expect(assertPersonalSpaceAllowed("u1", prisma)).rejects.toMatchObject(
+      NO_PERSONAL,
+    );
+  });
+
+  it("org policy denies the BOOTSTRAP with zero workspace/org/membership mutation", async () => {
+    const { prisma, writes } = identityStub(STANDARD_ROW, [
+      { organizationId: "org-A", noPersonalSpace: true },
+    ]);
+    await expect(
+      ensurePersonalWorkspace({ userId: "u1" }, prisma),
+    ).rejects.toMatchObject({ statusCode: 403 });
     expect(writes).toEqual([]);
   });
 });
@@ -236,13 +289,23 @@ describe("machine metric: server personal-surface no-personal bypasses = 0", () 
     expect(bypasses.length).toBe(0);
   });
 
-  it("the canonical guard is a THIN wrapper over personalSpaceAllowed (not a new resolver)", () => {
+  it("the canonical guard is a THIN wrapper over the ONE decision (not a new resolver)", () => {
     const src = read("services/identity/identity-mode.service.ts");
-    // assertPersonalSpaceAllowed delegates to personalSpaceAllowed and throws
-    // the bounded 403 code — it does NOT re-implement identity resolution.
+    // POINT 7 — the one decision gained a second input (the Organization's
+    // `noPersonalSpace` policy) and a discriminated result, so it is now
+    // `resolvePersonalSpaceEligibility`; `personalSpaceAllowed` is its boolean
+    // projection. The property being pinned is unchanged: the assert
+    // DELEGATES and throws a bounded 403 — it does not re-implement
+    // resolution.
     expect(src).toMatch(/export async function assertPersonalSpaceAllowed/);
-    expect(src).toMatch(/personalSpaceAllowed\(userId, client\)/);
+    expect(src).toMatch(/resolvePersonalSpaceEligibility\(userId, client\)/);
     expect(src).toMatch(/MANAGED_IDENTITY_NO_PERSONAL_SPACE/);
+    expect(src).toMatch(/ORG_POLICY_NO_PERSONAL_SPACE/);
+    // The boolean projection is exactly that — one line delegating to the
+    // decision, never a parallel resolution.
+    expect(src).toMatch(
+      /export async function personalSpaceAllowed[\s\S]{0,400}?return \(await resolvePersonalSpaceEligibility\(userId, client\)\)\.allowed;/,
+    );
   });
 
   it("the finalize surface denies BEFORE completeEvidence (no personal mutation on denial)", () => {

@@ -5,7 +5,7 @@
  * guard denies FREE/PAYG-excluded plans with the stable code before any
  * DB write, and allows PAYG+ (the canonical commercial values).
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // Phase 9 final closure — the internal-tester bypass module was REMOVED;
 // no mock needed (limits are canonical for every account).

@@ -45,7 +45,6 @@ const DOCS_ROOT = resolve(REPO_ROOT, "docs");
 // -----------------------------------------------------------------------------
 
 const SCHEMA_PRISMA = resolve(API_ROOT, "prisma/schema.prisma");
-const ENV_EXAMPLE = resolve(API_ROOT, ".env.example");
 const MIGRATIONS_DIR = resolve(API_ROOT, "prisma/migrations");
 const EMBEDDING_PROVIDER_SRC = resolve(
   API_ROOT,
@@ -365,9 +364,14 @@ describe("Phase 15 frontend — /search page surface", () => {
     expect(body).toMatch(/matchReasons[\s\S]{0,200}\.map\(/);
   });
 
-  it("19. /search page.tsx no-result suggestions include 'Enable semantic search' path", () => {
+  it("19. the legacy 'Enable semantic search' admin suggestion stays removed (truthful empty state owns availability copy)", () => {
+    // SEARCH-REMEDIATION-3 replaced the NoResultsHelp admin suggestion with
+    // the truthful empty state; 12B Track 1A then deleted the dead
+    // canSeeIntegrations client gate + its comments. The operator-readable
+    // "Semantic search not available" copy remains pinned by test 24.
     const body = readUtf8(SEARCH_PAGE_SRC);
-    expect(body).toMatch(/Enable semantic search/i);
+    expect(body).not.toMatch(/Enable semantic search/i);
+    expect(body).not.toMatch(/canSeeIntegrations/);
   });
 
   it("20. Inspector renders semantic pivots when semanticScore > 0", () => {

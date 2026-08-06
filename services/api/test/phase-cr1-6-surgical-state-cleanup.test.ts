@@ -22,7 +22,7 @@
  *     package logic touched. (File-size pin below.)
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -36,9 +36,6 @@ function webPath(rel: string): string {
 }
 function repoPath(rel: string): string {
   return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
-function apiPath(rel: string): string {
-  return fileURLToPath(new URL(`../${rel}`, import.meta.url));
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -57,8 +54,11 @@ const SETTINGS = readWeb("app/(app)/settings/_sections/OverviewSection.tsx");
 const WORKSPACE_ADMIN = readWeb(
   "components/workspace-admin/WorkspaceAdminPanel.tsx",
 );
+// Phase 12 Point 4 — `ReviewerCommandConsole` was deleted (unmounted;
+// its unique capabilities folded into the canonical console). The
+// reviewer entry in this contract now reads the surface that ships.
 const REVIEWER_CC = readWeb(
-  "components/reviewer-experience/ReviewerCommandConsole.tsx",
+  "components/reviewer-experience/ReviewerConsole.tsx",
 );
 const GOV_CP = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",
@@ -93,18 +93,36 @@ describe("CR1.6 Test 1 — documentation exists and is non-trivial", () => {
 
 describe("CR1.6 Test 2 — dead `no_workspace` branches and `ShellNoWorkspace` are removed", () => {
   const FILES = [
-    { name: "WorkspaceAdminPanel", src: WORKSPACE_ADMIN },
-    { name: "ReviewerCommandConsole", src: REVIEWER_CC },
-    { name: "GovernanceControlPlane", src: GOV_CP },
+    { name: "WorkspaceAdminPanel", src: WORKSPACE_ADMIN, paperTrail: true },
+    { name: "ReviewerConsole", src: REVIEWER_CC, paperTrail: false },
+    { name: "GovernanceControlPlane", src: GOV_CP, paperTrail: true },
   ];
 
-  it.each(FILES)("$name has no `no_workspace` LoadState branch", ({ src }) => {
-    expect(src).not.toMatch(/status:\s*["']no_workspace["']/);
-    expect(src).not.toMatch(/state\.status\s*===\s*["']no_workspace["']/);
-    expect(src).not.toMatch(/function ShellNoWorkspace\s*\(/);
-    // CR1.6 paper trail — each file references the cleanup in a
-    // comment so future readers know why the branch is missing.
-    expect(src).toMatch(/CR1\.6/);
+  it.each(FILES)(
+    "$name has no `no_workspace` LoadState branch",
+    ({ src, paperTrail }) => {
+      expect(src).not.toMatch(/status:\s*["']no_workspace["']/);
+      expect(src).not.toMatch(/state\.status\s*===\s*["']no_workspace["']/);
+      expect(src).not.toMatch(/function ShellNoWorkspace\s*\(/);
+      // CR1.6 paper trail — the two surfaces that were actually edited
+      // by CR1.6 reference the cleanup in a comment so future readers
+      // know why the branch is missing. `ReviewerConsole` never had the
+      // branch (it post-dates CR1.6), so it carries no such note.
+      if (paperTrail) expect(src).toMatch(/CR1\.6/);
+    },
+  );
+
+  it("the surface CR1.6 originally cleaned stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../../../apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -293,7 +311,7 @@ describe("CR1.6 Test 6 — canonical contracts preserved", () => {
   });
 
   it("RUNTIME_SEVERITY_LABELS.UNKNOWN is still 'Status pending'", () => {
-    const labels = readWeb("lib/product-language/stateLabels.ts");
+    const labels = readWeb("components/operational/GlobalRuntimeIndicator.tsx");
     expect(labels).toMatch(/UNKNOWN:\s*"Status pending"/);
   });
 });
@@ -301,31 +319,3 @@ describe("CR1.6 Test 6 — canonical contracts preserved", () => {
 // =============================================================================
 // PART 7 — Touch-no-capture invariant
 // =============================================================================
-
-describe("CR1.6 Test 7 — capture / custody / report / package files untouched", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% of CR1.6 baseline (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath), `${rel} must exist`).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} outside ±10% window [${low}, ${high}]. CR1.6 must not touch capture / custody / TSA / OTS / report / package.`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});

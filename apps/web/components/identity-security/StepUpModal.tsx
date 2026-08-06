@@ -166,7 +166,10 @@ export function useStepUpAction({
         return;
       }
       try {
-        const res = await apiFetch(
+        // `apiFetch` returns the PARSED body and throws on non-2xx. It has no
+        // `.json()` — calling one threw a TypeError that this catch reported as
+        // "Could not start step-up challenge", so the flow could never begin.
+        const json = (await apiFetch(
           "/v1/identity-security/step-up/start",
           {
             method: "POST",
@@ -180,10 +183,7 @@ export function useStepUpAction({
               channel: "sms",
             }),
           },
-        );
-        const json = (await res.json()) as {
-          challenge: { id: string };
-        };
+        )) as { challenge: { id: string } };
         setState({
           kind: "verifying",
           details: state.details,
@@ -206,7 +206,8 @@ export function useStepUpAction({
     async (code: string) => {
       if (state.kind !== "verifying") return;
       try {
-        const res = await apiFetch(
+        // Same contract as `startChallenge`: the parsed body IS the result.
+        const json = (await apiFetch(
           "/v1/identity-security/step-up/check",
           {
             method: "POST",
@@ -218,8 +219,7 @@ export function useStepUpAction({
               code,
             }),
           },
-        );
-        const json = (await res.json()) as { status: string };
+        )) as { status: string };
         if (json.status !== "approved") {
           setState({
             kind: "failed",
@@ -292,6 +292,10 @@ const PURPOSE_LABEL: Record<string, string> = {
   REVIEWER_OPS_BULK: "Perform a bulk reviewer action",
   EVIDENCE_DESTRUCTION_APPROVE: "Approve evidence destruction",
   EVIDENCE_DESTRUCTION_EXECUTE: "Execute evidence destruction",
+  GOVERNANCE_POLICY_UPDATE: "Change the workspace governance policy",
+  // PHASE 12B CLUSTER 14 — department membership governance.
+  DEPARTMENT_MEMBERSHIP_GRANT: "Grant this department membership",
+  DEPARTMENT_MEMBERSHIP_REVOKE: "Revoke this department membership",
 };
 
 export function StepUpModal({

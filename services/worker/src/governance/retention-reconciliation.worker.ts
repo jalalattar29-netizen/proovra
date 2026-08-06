@@ -36,7 +36,7 @@ import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
-import { hasActiveLifecycleLegalHold } from "./lifecycle-legal-hold.js";
+import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
 
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_BATCH_SIZE = 1000;
@@ -112,66 +112,30 @@ export async function runRetentionReconciliation(
         // for end-to-end stitching.
         const correlationId = newCorrelationId();
         try {
-          // Hold check.
-          const directHold = await prisma.evidenceLegalHold.findFirst({
-            where: {
-              evidenceId: ev.id,
-              status: prismaPkg.LegalHoldStatus.ACTIVE,
-            },
-            select: { id: true },
-          });
-          if (directHold) {
-            ctx.reportProgress({ skipped: 1 });
-            await emitDestructionBlockedNotification(
-              teamId,
-              ev.id,
-              "hold",
-              correlationId,
-            );
-            continue;
-          }
-          // Cascade case-level hold.
+          // PHASE 12B CLUSTER 8 — ONE union hold check across all three
+          // stores (evidence-direct, case-level on ANY linked case,
+          // scope-generic lifecycle). Replaces the three sequential
+          // per-store checks that used to live here. FAILS CLOSED: a
+          // transient database error propagates to the per-evidence catch
+          // below, which records the failure and never schedules
+          // destruction.
+          // PHASE 12B — CaseEvidenceLink is the relationship authority.
           const evWithCase = await prisma.evidence.findUnique({
             where: { id: ev.id },
-            select: { caseId: true },
+            select: { caseLinks: { select: { caseId: true } } },
           });
-          if (evWithCase?.caseId) {
-            const caseHold = await prisma.caseLegalHold.findFirst({
-              where: {
-                caseId: evWithCase.caseId,
-                status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
-              },
-              select: { id: true },
-            });
-            if (caseHold) {
-              ctx.reportProgress({ skipped: 1 });
-              await emitDestructionBlockedNotification(
-                teamId,
-                ev.id,
-                "case_hold",
-                correlationId,
-              );
-              continue;
-            }
-          }
-
-          // Phase R6 (F39) — Phase-4B LegalHold check. The 4A checks above
-          // only cover EvidenceLegalHold + CaseLegalHold; a hold placed via
-          // the live `/lifecycle/legal-holds` UI lands in the 4B `legalHold`
-          // table (EVIDENCE/WORKSPACE/ORGANIZATION/CASE scope) and must also
-          // suspend automated destruction scheduling.
-          if (
-            await hasActiveLifecycleLegalHold(prisma, {
-              evidenceId: ev.id,
-              teamId,
-              caseId: evWithCase?.caseId ?? null,
-            })
-          ) {
+          const linkedCaseIds = (evWithCase?.caseLinks ?? []).map((l) => l.caseId);
+          const effectiveHold = await evaluateEffectiveLegalHold(prisma, {
+            teamId,
+            evidenceId: ev.id,
+            caseIds: linkedCaseIds,
+          });
+          if (effectiveHold.held) {
             ctx.reportProgress({ skipped: 1 });
             await emitDestructionBlockedNotification(
               teamId,
               ev.id,
-              "hold",
+              effectiveHold.reasonCode === "CASE_HOLD" ? "case_hold" : "hold",
               correlationId,
             );
             continue;
@@ -258,9 +222,19 @@ export async function runRetentionReconciliation(
             }
           }
 
-          // Queue destruction review (atomic).
+          // Queue destruction review.
+          //
+          // PHASE 12 POINT 5 — the pre-check below is a fast path, not the
+          // guarantee. It used to be described as atomic; a `findFirst`
+          // inside a transaction takes no lock at READ COMMITTED, so a global
+          // run and a workspace-scoped run — which hold DIFFERENT lock keys
+          // and may legitimately overlap — both saw no active review and both
+          // created one, with the second rebinding
+          // `Evidence.activeDestructionReviewId` and orphaning the first in
+          // the operator's queue. The real arbiter is now
+          // `destruction_reviews_active_evidence_uniq`; the INSERT below
+          // either wins or raises P2002, which is a bounded skip.
           const review = await prisma.$transaction(async (tx) => {
-            // Double-check inside the tx that no review was created in flight.
             const existing = await tx.destructionReview.findFirst({
               where: {
                 evidenceId: ev.id,
@@ -305,7 +279,22 @@ export async function runRetentionReconciliation(
               },
             });
             return r;
-          });
+          })
+            // A unique violation means another run took the slot between our
+            // pre-check and our INSERT. That is contention, not an error, and
+            // the correct outcome is the same as the pre-check's: skip. Any
+            // OTHER failure must propagate to the per-evidence catch below,
+            // which records it — swallowing those is how a schema or
+            // connection fault becomes a silent "nothing to do".
+            .catch((err: unknown) => {
+              if (
+                err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError &&
+                err.code === "P2002"
+              ) {
+                return null;
+              }
+              throw err;
+            });
           if (!review) {
             ctx.reportProgress({ skipped: 1 });
             continue;

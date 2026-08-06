@@ -156,7 +156,6 @@ const CONCERNS: Concern[] = [
     allowed: {
       "services/identity/membership-provisioning.service.ts": "the orchestrator itself",
       "routes/teams.routes.ts": "team-invite acceptance → orchestrator",
-      "routes/organizations.routes.ts": "org-invite acceptance route → orchestrator surface",
       "services/organization/org-invite-acceptance.service.ts": "org-invite acceptance orchestration (guarded claim → grantOrganizationMembership/grantWorkspaceMembership)",
       "services/enterprise-provisioning.service.ts": "enterprise bootstrap provisioning → orchestrator",
       "services/access-control/scim.service.ts": "SCIM provisioning → orchestrator",
@@ -308,5 +307,65 @@ describe("Program architecture registry — canonical authority per concern", ()
     const topLevel = new Set(CONCERNS.map((c) => c.name.match(/^\d+/)?.[0]).filter(Boolean));
     for (let n = 1; n <= 12; n++) expect(topLevel.has(String(n)), `concern ${n} registered`).toBe(true);
     for (const c of CONCERNS) expect(c.canonicalEntry.length, `${c.name} canonical entry`).toBeGreaterThan(3);
+  });
+});
+
+// ============================================================================
+// PHASE 12 — the 25 concern families, each pinned to its canonical authority
+// FILE SET (exists + bounded) and its guard/proof suite. Extends THIS registry
+// — no second registry. A family whose authority file disappears, whose file
+// set grows a parallel implementation, or whose guard suite is deleted fails.
+// Paths are repo-relative from services/api (../.. = repo root).
+// ============================================================================
+type Phase12Family = {
+  family: string;
+  /** Canonical authority file(s) — every one must exist. */
+  authority: string[];
+  /** Proof suite file — must exist. */
+  guard: string;
+};
+
+const P12 = (rel: string) => rel; // readability marker
+
+const PHASE12_FAMILIES: Phase12Family[] = [
+  { family: "1. workspace/organization kind classification", authority: [P12("../../packages/shared/src/workspace-kind.ts")], guard: "test/p1-workspace-kind.test.ts" },
+  { family: "2. authoritative request context", authority: [P12("src/services/platform-context/platform-context.service.ts")], guard: "test/phase-10-closure-matrix.test.ts" },
+  { family: "3. organization lifecycle", authority: [P12("src/services/organization/org-lifecycle.service.ts")], guard: "test/phase-1-authorization-closure.test.ts" },
+  { family: "4. membership provisioning/transitions", authority: [P12("src/services/identity/membership-provisioning.service.ts")], guard: "test/p2-invitation-coherence.test.ts" },
+  { family: "5. invitations", authority: [P12("src/services/organization/org-invite-acceptance.service.ts")], guard: "test/p2-invitation-coherence.test.ts" },
+  { family: "6. authorization/capability evaluation", authority: [P12("src/middleware/authorize.ts")], guard: "test/phase-1-authorization-closure.test.ts" },
+  { family: "7. evidence custody", authority: [P12("src/services/evidence.service.ts")], guard: "test/phase-4b-product-packaging-and-lifecycle.test.ts" },
+  { family: "8. legal hold/retention/destruction", authority: [P12("src/services/lifecycle/legal-hold.service.ts"), P12("src/services/lifecycle/destruction-governance.service.ts")], guard: "test/phase-4b-product-packaging-and-lifecycle.test.ts" },
+  { family: "9. commercial context", authority: [P12("src/services/billing-overview.service.ts")], guard: "test/phase9-collaboration-team-billing-parity.test.ts" },
+  { family: "10. subscription lifecycle", authority: [P12("src/services/billing-checkout.service.ts")], guard: "test/production-billing-parity.test.ts" },
+  { family: "11. plan/capability/limit vocabulary", authority: [P12("../../packages/shared-billing/src/plan-catalog.ts")], guard: "test/pricing-hardening-plan-capabilities.test.ts" },
+  { family: "12. seats/storage/add-ons", authority: [P12("src/services/billing-overview.service.ts")], guard: "test/phase9-collaboration-team-billing-parity.test.ts" },
+  { family: "13. provider (Stripe/PayPal) state normalization", authority: [P12("src/services/paypal.service.ts"), P12("src/services/billing-checkout.service.ts")], guard: "test/phase-10-paypal-idempotency.test.ts" },
+  { family: "14. enterprise provisioning", authority: [P12("src/services/enterprise-provisioning.service.ts")], guard: "test/phase2-enterprise-provisioning.test.ts" },
+  { family: "15. managed identity/SSO/SCIM", authority: [P12("src/services/identity/identity-mode.service.ts"), P12("src/services/access-control/scim-reconciliation.service.ts")], guard: "test/phase-10-mandatory-sso-switch.test.ts" },
+  { family: "16. OrganizationSecurityPolicy", authority: [P12("src/services/identity/org-security-policy.service.ts")], guard: "test/phase-10-closure-matrix.test.ts" },
+  { family: "17. session policy/concurrency", authority: [P12("src/services/identity/concurrent-session.service.ts")], guard: "test/phase-10-concurrent-session.test.ts" },
+  { family: "18. break-glass", authority: [P12("src/services/identity/break-glass.service.ts")], guard: "test/phase-10-break-glass-runtime.test.ts" },
+  { family: "19. support access", authority: [P12("src/services/identity/support-access.service.ts")], guard: "test/phase-10-support-runtime.test.ts" },
+  { family: "20. no-Personal policy", authority: [P12("src/services/identity/enterprise-security-policy.policy.ts")], guard: "test/phase-10-closure-matrix.test.ts" },
+  { family: "21. internal URL/deep-link resolution", authority: [P12("src/services/identity/deep-link-resolution.service.ts"), P12("../../packages/shared/src/tenant-url.ts")], guard: "test/phase-11-architecture-guard.test.ts" },
+  { family: "22. tenant/platform audit emission", authority: [P12("src/services/audit/tenant-audit.service.ts")], guard: "test/phase-11-architecture-guard.test.ts" },
+  { family: "23. audit query/export", authority: [P12("src/services/audit/tenant-audit.service.ts")], guard: "test/phase-11-architecture-guard.test.ts" },
+  { family: "24. worker authoritative reload", authority: [P12("../worker/src/lifecycle-recovery.ts")], guard: "test/worker-plan-resolver-parity.contract.test.ts" },
+  { family: "25. frontend context safety (server contract)", authority: [P12("src/services/platform-context/platform-context.service.ts")], guard: "test/phase-11-closure-matrix.test.ts" },
+];
+
+describe("PHASE 12 — 25 concern families pinned to one canonical authority", () => {
+  const apiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+  for (const fam of PHASE12_FAMILIES) {
+    it(`${fam.family}: authority file(s) + guard suite present`, () => {
+      for (const a of fam.authority) {
+        expect(statSync(join(apiRoot, a)).isFile(), `${fam.family}: missing authority ${a}`).toBe(true);
+      }
+      expect(statSync(join(apiRoot, fam.guard)).isFile(), `${fam.family}: guard suite missing`).toBe(true);
+    });
+  }
+  it("family coverage = 25 (no silent drop)", () => {
+    expect(PHASE12_FAMILIES).toHaveLength(25);
   });
 });

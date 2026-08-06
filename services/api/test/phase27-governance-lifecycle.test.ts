@@ -606,9 +606,8 @@ describe("Phase 27 — Route wiring", () => {
     expect(routesSrc).toContain(
       '"/v1/governance/retention-policies/:id/versions"',
     );
-    expect(routesSrc).toContain(
-      '"/v1/governance/retention-policies/effective"',
-    );
+    // Phase 12 convergence — /v1/governance/retention-policies/effective
+    // removed (DEAD_LEGACY duplicate; web uses /v1/lifecycle/retention/policies).
   });
 
   it("exposes destruction-review endpoints + lifecycle + export gate + dashboard", () => {

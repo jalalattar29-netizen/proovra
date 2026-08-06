@@ -33,6 +33,9 @@ import { TeamBillingStatus, TeamRole } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../db.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
+// PHASE 12 POINT 4 PASS C — the ONE seat-limit policy lives with the canonical
+// commercial authority; this module must not re-implement it.
+import { computeOverSeatLimit } from "./billing.service.js";
 import { hashInviteToken } from "../routes/organizations.routes.js";
 import { emitOrgAuditEvent } from "./organization/org-audit.service.js";
 import { emitTenantAudit } from "./audit/tenant-audit.service.js";
@@ -40,6 +43,14 @@ import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 import { grantOrganizationMembership } from "./identity/membership-provisioning.service.js";
 // PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2).
 import { upsertEnterpriseContract } from "./organization/enterprise-contract.service.js";
+// Macro-Wave A2 — durable owner-invite delivery: outbox row committed in
+// the SAME transaction as the ORG_OWNER invite, inline first email attempt
+// after commit (raw token in memory only), worker-driven rotation retries
+// for stranded rows. Same chain as the org single/bulk invite paths.
+import {
+  attemptInitialOrgInviteDelivery,
+  recordOrgInviteDeliveryPending,
+} from "./organization/org-invite-delivery.service.js";
 
 /** Plans this admin path is allowed to grant. ENTERPRISE only for now. */
 export type GrantablePlan = "ENTERPRISE";
@@ -115,11 +126,26 @@ export async function grantEnterprisePlanToOrg(
 
     const workspaces = await tx.team.findMany({
       where: { organizationId: input.orgId },
-      select: { id: true, _count: { select: { members: true } } },
+      select: {
+        id: true,
+        _count: {
+          // PHASE 12 POINT 4 PASS C — ACTIVE-only, matching the canonical seat
+          // authority. This counted ALL members, so a suspended or revoked
+          // member inflated the count and could mark a workspace over its seat
+          // limit during an org-plan grant when it was not.
+          select: { members: { where: { status: "ACTIVE" } } },
+        },
+      },
     });
 
     for (const ws of workspaces) {
-      const overSeatLimit = ws._count.members > seats;
+      // One seat-limit policy, shared with refreshTeamSeatState. The inline
+      // comparison this replaces also lacked the `includedSeats > 0` unlimited
+      // guard, so the two paths could disagree about the same workspace.
+      const overSeatLimit = computeOverSeatLimit({
+        activeMemberCount: ws._count.members,
+        includedSeats: seats,
+      });
       await tx.team.update({
         where: { id: ws.id },
         data: {
@@ -249,8 +275,18 @@ function redactProvisioningResult(
   result: ProvisionEnterpriseCustomerResult,
 ): Record<string, unknown> {
   if (result.provisioned) return { ...result };
-  const { ownerInviteToken: _secret, ...rest } = result;
-  return { ...rest, ownerInviteToken: null, oneTimeSecretRedacted: true };
+  // Macro-Wave A2 — `inviteUrl` EMBEDS the raw token, so it is redacted
+  // from the durable snapshot exactly like `ownerInviteToken` (raw
+  // acceptance tokens must never persist in any durable metadata).
+  const rest: Record<string, unknown> = { ...result };
+  delete rest.ownerInviteToken;
+  delete rest.inviteUrl;
+  return {
+    ...rest,
+    ownerInviteToken: null,
+    inviteUrl: null,
+    oneTimeSecretRedacted: true,
+  };
 }
 
 /** In-flight takeover threshold for crashed PENDING rows (single-tx safe). */
@@ -443,6 +479,14 @@ export type ProvisionEnterpriseCustomerResult =
       organizationId: string;
       ownerInviteToken: string;
       inviteUrl: string;
+      /** Macro-Wave A2 — durable delivery state of the owner invite
+       *  (PENDING/SENT/FAILED + attempts). Safe: never a token/URL. */
+      ownerInviteDelivery?: {
+        deliveryId: string;
+        status: "PENDING" | "SENT" | "FAILED" | "CANCELLED";
+        attempts: number;
+        lastError: string | null;
+      } | null;
       provisioned: false;
       pendingOwner: true;
     };
@@ -668,7 +712,17 @@ export async function provisionEnterpriseCustomer(
       },
     });
 
-    return { organizationId: org.id };
+    // Macro-Wave A2 — durable delivery outbox committed WITH the invite
+    // (activation → owner invite → durable delivery is one atomic intent).
+    // Ids only; the raw token is never persisted.
+    const { deliveryId } = await recordOrgInviteDeliveryPending(tx, {
+      inviteId: invite.id,
+      organizationId: org.id,
+      email,
+      initiatedByUserId: input.actorUserId,
+    });
+
+    return { organizationId: org.id, inviteId: invite.id, deliveryId };
   });
 
   await emitTenantAudit({
@@ -687,10 +741,31 @@ export async function provisionEnterpriseCustomer(
     },
   }, client);
 
+  // Macro-Wave A2 — inline FIRST delivery attempt (never throws; on
+  // failure the outbox row stays PENDING and the worker-driven sweep
+  // retries with token rotation).
+  const ownerInviteDelivery = await attemptInitialOrgInviteDelivery(
+    {
+      deliveryId: result.deliveryId,
+      rawToken: token,
+      organizationName: input.organizationName,
+      role: "ORG_OWNER",
+      inviterDisplay: null,
+      expiresAt,
+    },
+    client,
+  );
+
   return {
     organizationId: result.organizationId,
     ownerInviteToken: token,
-    inviteUrl: `/invite/${token}`,
+    // Macro-Wave A2 — CANONICAL org-invite accept path. The previous
+    // `/invite/{token}` path belonged to the TEAM invite journey and could
+    // never accept an OrganizationInvite (broken journey). This is the
+    // exact path the delivery emails contain and the web app serves at
+    // apps/web/app/(app)/org-invites/[token]/accept.
+    inviteUrl: `/org-invites/${token}/accept`,
+    ownerInviteDelivery,
     provisioned: false,
     pendingOwner: true,
   };

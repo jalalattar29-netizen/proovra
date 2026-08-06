@@ -70,6 +70,22 @@ export class CollaborationTeamError extends Error {
   }
 }
 
+/**
+ * PHASE 12 POINT 4 STEP 1 — the ONE definition of collaboration-team
+ * moderator authority.
+ *
+ * LEAD and ADMIN are the two roles that may moderate other members' comments,
+ * manage guests, and run access reviews. `collaboration-completion.service.ts`
+ * imports this for its enforcement gates and
+ * `getCollaborationTeamDetail` projects it as `viewerCapabilities`, so the
+ * affordance the browser renders and the rule the API enforces cannot drift.
+ */
+export function isCollaborationTeamModerator(
+  role: string | null | undefined,
+): boolean {
+  return role === "LEAD" || role === "ADMIN";
+}
+
 const E = {
   notFound: (what: string) =>
     new CollaborationTeamError("team_not_found", `${what} not found.`, 404),
@@ -416,9 +432,9 @@ export async function listCollaborationTeams(
     include: {
       _count: {
         select: {
-          members: { where: { status: "ACTIVE" } } as any,
-          invites: { where: { status: "PENDING" } } as any,
-          assignments: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } } } as any,
+          members: { where: { status: "ACTIVE" } },
+          invites: { where: { status: "PENDING" } },
+          assignments: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } } },
         },
       },
       activity: {
@@ -503,6 +519,25 @@ export async function getCollaborationTeamDetail(
     updatedAt: team.updatedAt,
     archivedAtUtc: team.archivedAtUtc,
     viewerRole: viewer.role as CollaborationTeamRole,
+    // PHASE 12 POINT 4 STEP 1 — SERVER-projected viewer authority.
+    //
+    // The web console used to compute `viewerRole === "LEAD" || "ADMIN"` in
+    // three places to decide whether to render comment moderation, guest
+    // management and access-review controls. Each flag below is computed by
+    // the SAME predicate its gate in `collaboration-completion.service.ts`
+    // uses — `isCollaborationTeamModerator` for comment moderation
+    // (editComment / deleteComment) and access reviews (openAccessReview /
+    // decideAccessReviewItem / completeAccessReview), and the shared
+    // permission catalog for guests (inviteGuest / revokeGuest). Those gates
+    // remain the enforcement point on every direct API call.
+    viewerCapabilities: {
+      canModerateComments: isCollaborationTeamModerator(viewer.role),
+      canManageGuests: collaborationTeamRoleHasPermission(
+        viewer.role as CollaborationTeamRole,
+        "team.member.invite",
+      ),
+      canManageAccessReviews: isCollaborationTeamModerator(viewer.role),
+    },
     members: team.members.map((m) => ({
       id: m.id,
       userId: m.userId,
@@ -1488,9 +1523,4 @@ function maskEmail(email: string): string {
   const head = email[0];
   const tail = email.slice(idx);
   return `${head}***${tail}`;
-}
-
-function maskPhone(phone: string): string {
-  if (phone.length <= 4) return "***";
-  return `${phone.slice(0, 3)}***${phone.slice(-2)}`;
 }

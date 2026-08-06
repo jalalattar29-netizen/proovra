@@ -4,8 +4,9 @@
  * Enterprise-grade public Trust Center for buyers, legal reviewers,
  * security reviewers, procurement teams, and compliance evaluators.
  *
- * IA placement: top-level `/trust`. /about/trust is a thin re-export
- * (legacy in-app help link target). This public Trust Center is the SINGLE
+ * IA placement: top-level `/trust`. The legacy `/about/trust` help-link
+ * target 308s here (its thin re-export page was deleted in Phase 12
+ * Point 4). This public Trust Center is the SINGLE
  * canonical trust portal — the former authenticated `/trust-hub` was removed
  * 2026-07-15 (it now 308s here); in-app `/trust-center/*` articles are a
  * separate non-navigational documentation surface.
@@ -61,18 +62,17 @@ import { RevealSection } from "../../components/motion";
 import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 // =========================================================================
-// METADATA — handled in the thin /about/trust re-export. This page stays
-// a client component for parity with About / Why PROOVRA reveal rhythm,
-// so metadata is declared here as a static export object that Next.js
-// picks up at the route level via the page's static module export.
-// =========================================================================
-
-// NOTE: Next.js disallows a `metadata` export inside a "use client"
-// module. The thin `app/about/trust/page.tsx` re-exports default + a
-// metadata symbol from this module — to keep that import contract
-// working without forcing this page to become server-rendered, we
-// re-export an inert symbol below. The canonical document title +
-// description live in the head via the route's segment metadata
+// METADATA — this page stays a client component for parity with the
+// About / Why PROOVRA reveal rhythm. Next.js disallows a `metadata`
+// export inside a "use client" module, so the canonical document title
+// + description come from the root layout's metadata.
+//
+// Phase 12 Point 4 (Pass E) — the thin `app/about/trust/page.tsx`
+// re-export wrapper was deleted. `/about/trust` is served by the
+// permanent redirect in next.config.js, which made the wrapper page
+// unreachable; there is no longer a re-export import contract to
+// preserve. The canonical document title + description live in the
+// head via the route's segment metadata
 // returned from layout chains.
 
 // =========================================================================
@@ -1460,9 +1460,7 @@ export default function TrustCenterPage() {
   );
 }
 
-// Re-export contract for /about/trust thin wrapper. `about/trust/page.tsx`
-// re-exports ONLY `default` from this module — Next.js disallows a
-// `metadata` export inside a "use client" component, and Next.js page
-// modules also forbid arbitrary named exports beyond the allowed set
-// (default, metadata, generateStaticParams, dynamic, revalidate, etc.).
+// Next.js disallows a `metadata` export inside a "use client" component,
+// and page modules forbid arbitrary named exports beyond the allowed set
+// (default, metadata, generateStaticParams, dynamic, revalidate, …).
 // Site-wide SEO fallback comes from the root layout's metadata.

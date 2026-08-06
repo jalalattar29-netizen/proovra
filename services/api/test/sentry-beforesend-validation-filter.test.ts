@@ -30,7 +30,13 @@ const SENTRY_SRC = readFileSync(
 describe("Sentry beforeSend — validation filter (Phase CAPTURE-HARDENING)", () => {
   it("source: imports ZodError and isAppError (needed to recognise validation outcomes)", () => {
     expect(SENTRY_SRC).toMatch(/import\s+\{\s*ZodError\s*\}\s+from\s+"zod"/);
-    expect(SENTRY_SRC).toMatch(/import\s+\{\s*isAppError\s*\}\s+from\s+"\.\.\/errors\.js"/);
+    // POINT 7 CORRECTIVE PASS — the import list grew: `classifyReportability`
+    // sits alongside `isAppError` now, because the ONE capture decision is
+    // taken from the error's declared reportability before these shape filters
+    // run. The pin allows other named imports; what it still requires is that
+    // `isAppError` comes from the canonical errors module rather than being
+    // re-implemented here.
+    expect(SENTRY_SRC).toMatch(/import\s+\{[^}]*\bisAppError\b[^}]*\}\s+from\s+"\.\.\/errors\.js"/);
   });
 
   it("source: beforeSend drops ZodError originalException → returns null", () => {

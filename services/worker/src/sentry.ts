@@ -188,7 +188,28 @@ export function captureException(
 
   if (context) {
     const safeContext = redactValue(context) as Record<string, unknown>;
-    Sentry.withScope((scope) => {
+    // PHASE 12 — POINT 7 (2026-08-05): a BACKGROUND failure gets its OWN trace.
+    //
+    // Both production worker incidents were filed under the transaction
+    // `GET /health`. The tags were right — `withScope` already isolated those,
+    // and `jobKind` here is the queue the failing worker instance serves — but
+    // the TRANSACTION was whatever span happened to be active in the process,
+    // and on a mostly-idle worker that is the health prober's. An exception
+    // raised by a queue job was therefore attributed to an HTTP request that
+    // had nothing to do with it, which is how a purge stack came to be filed
+    // under a health check and sent the first reading of these events wrong.
+    //
+    // `startNewTrace` detaches from the ambient trace, `withIsolationScope`
+    // stops anything set here leaking into the next capture, and the explicit
+    // transaction name says which queue it actually was.
+    Sentry.startNewTrace(() =>
+    Sentry.withIsolationScope((scope) => {
+      const jobKindTag = safeContext.jobKind;
+      const queueTag = safeContext.queueName;
+      if (typeof jobKindTag === "string" || typeof queueTag === "string") {
+        const queue = typeof queueTag === "string" ? queueTag : jobKindTag;
+        scope.setTransactionName(`queue.${String(queue).slice(0, 64)}`);
+      }
       for (const [key, value] of Object.entries(safeContext)) {
         scope.setExtra(key, value);
       }
@@ -212,7 +233,8 @@ export function captureException(
         scope.setTag("queue_name", queueName.slice(0, 64));
       }
       Sentry.captureException(err);
-    });
+    }),
+    );
     return;
   }
 
@@ -232,7 +254,12 @@ export function setSentryCorrelationContext(input: {
   jobKind?: string | null;
   queueName?: string | null;
 }): void {
-  if (!sentryReady) return;
+  // Deliberately NOT gated on `sentryReady`: setting a tag on a scope is local
+  // bookkeeping with no transport behind it, and gating it would mean the
+  // isolation property can only be observed in a process that has a live DSN.
+  // PHASE 12 — POINT 7 (2026-08-05): writes to the CURRENT scope, which is
+  // only safe INSIDE `runJobWithTelemetryContext`. Left unscoped it is the
+  // defect described there: tags outlive the job that set them.
   const scope = Sentry.getCurrentScope();
   if (input.correlationId) {
     scope.setTag("correlation_id", input.correlationId.slice(0, 64));
@@ -246,4 +273,74 @@ export function setSentryCorrelationContext(input: {
   if (input.queueName) {
     scope.setTag("queue_name", input.queueName.slice(0, 64));
   }
+}
+
+/**
+ * PHASE 12 — POINT 7 (2026-08-05): run ONE job inside its OWN telemetry
+ * context.
+ *
+ * WHAT THE TWO PRODUCTION WORKER EVENTS ACTUALLY SHOWED
+ * ---------------------------------------------------------------------------
+ * Both carried a `processPurgeDeletedEvidence` stack. One was tagged
+ * `job_kind=graph-reconcile`, the other `job_kind=evidence-purge`, and BOTH
+ * were filed under the transaction `GET /health`. Read literally that says the
+ * health endpoint ran a purge, which is not a thing that can happen.
+ *
+ * Exactly one half of that is bleed, and it matters which:
+ *
+ *   * The TAG is sound. It comes from `captureException(err, { jobKind })` in
+ *     the `failed` handler, where `jobKind` is the closure naming the queue
+ *     that worker instance serves, captured inside `withScope`. It is not
+ *     inherited from an earlier job.
+ *   * The TRANSACTION is not set by that path at all — it is whatever span was
+ *     active in the process, and on a mostly-idle worker that is the last
+ *     health probe. A queue failure ends up owned by an unrelated HTTP request.
+ *
+ * This function closes the second half for anything captured WHILE a job runs:
+ * `withIsolationScope` gives each job a fresh scope discarded when it returns,
+ * and the span named here owns what is raised inside it. The `failed`-handler
+ * capture happens after the job has returned, so `captureException` above
+ * carries the matching fix (`startNewTrace` + an explicit transaction name).
+ *
+ * It is wired at ONE place: `wrapJobHandlerWithOtelContext`, the seam every
+ * BullMQ handler in this worker passes through.
+ */
+export async function runJobWithTelemetryContext<T>(
+  input: {
+    jobKind: string;
+    queueName: string;
+    jobId?: string | null;
+    correlationId?: string | null;
+    workerId?: string | null;
+  },
+  run: () => Promise<T>,
+): Promise<T> {
+  // No `sentryReady` short-circuit. Scope isolation is pure context
+  // management — it costs nothing when the SDK has no transport, and gating it
+  // on initialisation would mean the property this function exists to provide
+  // is the one thing a test could never observe.
+  return Sentry.withIsolationScope(async (isolation) => {
+    // The tags go on the ISOLATION scope, not the current one. An exception
+    // raised deep inside a handler — or by a listener the handler started —
+    // carries the isolation scope's data; a tag written to the forked current
+    // scope would be gone by then, which is how a job's identity used to be
+    // missing from exactly the events that needed it.
+    isolation.setTag("job_kind", input.jobKind.slice(0, 64));
+    isolation.setTag("queue_name", input.queueName.slice(0, 64));
+    if (input.jobId) isolation.setTag("job_id", String(input.jobId).slice(0, 64));
+    if (input.correlationId) {
+      isolation.setTag("correlation_id", input.correlationId.slice(0, 64));
+    }
+    if (input.workerId) {
+      isolation.setTag("worker_id", input.workerId.slice(0, 64));
+    }
+    return Sentry.startSpan(
+      {
+        name: `queue.${input.queueName}/${input.jobKind}`,
+        op: "queue.process",
+        forceTransaction: true,
+      },
+      () => run(),
+    );
+  });
 }

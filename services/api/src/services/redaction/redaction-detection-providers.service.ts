@@ -31,20 +31,6 @@ import {
 } from "@proovra/shared";
 
 // Phase 3A Closure — real provider SDK wrappers.
-import {
-  detectFaces as rekognitionDetectFaces,
-  detectLabels as rekognitionDetectLabels,
-  detectText as rekognitionDetectText,
-  probeRekognition,
-} from "./providers/rekognition-client.js";
-import {
-  analyzeDocumentLayout as azureAnalyzeDocumentLayout,
-  probeAzureDocumentIntelligence,
-} from "./providers/azure-document-intelligence-client.js";
-import {
-  probeDeepgram,
-  transcribeAndScan as deepgramTranscribeAndScan,
-} from "./providers/deepgram-client.js";
 
 // ---------------------------------------------------------------------------
 // Public types — shared by every provider
@@ -148,7 +134,7 @@ const REGEX_CATALOG: ReadonlyArray<RegexEntry> = [
   },
   {
     kind: "DATE_OF_BIRTH",
-    rx: /\b(?:0?[1-9]|[12]\d|3[01])[\/\-](?:0?[1-9]|1[0-2])[\/\-]\d{2,4}\b/g,
+    rx: /\b(?:0?[1-9]|[12]\d|3[01])[/-](?:0?[1-9]|1[0-2])[/-]\d{2,4}\b/g,
     rawConfidence: 0.5,
     label: "date_candidate",
   },

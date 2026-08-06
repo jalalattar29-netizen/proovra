@@ -31,6 +31,11 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+// PHASE 12B (Evidence Operations) — product surface for the previously
+// unreachable scope ops: GET /v1/redaction/policy/effective,
+// GET /v1/redaction/policy/assignments, and the step-up gated
+// DELETE /v1/redaction/policy-assignments/:id.
+import { PolicyScopePanel } from "../../../../components/redaction/PolicyScopePanel";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 
@@ -347,6 +352,16 @@ function PolicyManagementConsole() {
                 versions={versions}
                 leftId={compareLeftId}
                 rightId={compareRightId}
+              />
+              {/* PHASE 12B — live assignments + server-resolved effective
+                  policy, with step-up + version-concurrency guarded
+                  withdrawal. */}
+              <PolicyScopePanel
+                onAssignmentsChanged={() => {
+                  if (selectedPolicyId) {
+                    void refreshVersionsAndAudit(selectedPolicyId);
+                  }
+                }}
               />
               <PolicyAuditPanel audit={audit} />
             </>

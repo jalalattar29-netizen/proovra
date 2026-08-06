@@ -17,7 +17,7 @@
  */
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -114,6 +114,8 @@ type Team = {
   ownerUserId?: string;
   currentUserRole?: string;
   canManageMembers?: boolean;
+  /** SERVER-projected OWNER-level workspace authority (delete / closure). */
+  canManageWorkspace?: boolean;
   stats?: TeamStats;
   members?: TeamMember[];
   billingPlan?: string | null;
@@ -254,7 +256,9 @@ function TeamRoleDropdown({
     setMounted(true);
   }, []);
 
-  const updateMenuPosition = () => {
+  // Memoised on the only value it reads besides refs, so the effects below
+  // can list it without re-registering their window listeners every render.
+  const updateMenuPosition = useCallback(() => {
     const button = buttonRef.current;
     if (!button) return;
 
@@ -266,12 +270,12 @@ function TeamRoleDropdown({
       left: rect.left,
       width,
     });
-  };
+  }, [minWidth]);
 
   useLayoutEffect(() => {
     if (!open) return;
     updateMenuPosition();
-  }, [open, minWidth]);
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -308,7 +312,7 @@ function TeamRoleDropdown({
       window.removeEventListener("scroll", handleReposition, true);
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [open]);
+  }, [open, updateMenuPosition]);
 
   const menu =
     mounted && open && !disabled
@@ -496,7 +500,7 @@ function TeamDetailPageBody() {
   const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
   const [unlinkingCaseId, setUnlinkingCaseId] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!teamId) return;
 
     setLoading(true);
@@ -538,11 +542,11 @@ function TeamDetailPageBody() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [teamId, addToast]);
 
   useEffect(() => {
     void loadData();
-  }, [teamId]);
+  }, [loadData]);
 
   const myMemberRecord = useMemo(() => {
     if (!team?.members || !currentUserId) return null;
@@ -550,9 +554,17 @@ function TeamDetailPageBody() {
   }, [team?.members, currentUserId]);
 
   const currentRole = team?.currentUserRole || myMemberRecord?.role || "VIEWER";
-  const isOwner = currentRole === "OWNER";
-  const canManageTeam =
-    team?.canManageMembers ?? (currentRole === "OWNER" || currentRole === "ADMIN");
+  // PHASE 12 POINT 4 STEP 1 — owner-only affordances (delete workspace,
+  // workspace closure) read the SERVER projection, not a client role string.
+  // DELETE /v1/teams/:id and the closure routes enforce OWNER themselves.
+  const isOwner = team?.canManageWorkspace === true;
+  // PHASE 12 POINT 4 STEP 1 — `canManageMembers` is the SERVER projection and
+  // the ONLY authority here. The former `?? (currentRole === "OWNER" ||
+  // currentRole === "ADMIN")` fallback made the browser the decision-maker
+  // whenever the projection was missing, and `currentRole` itself defaults to
+  // a client-side "VIEWER" guess. Absent projection now FAILS CLOSED; the
+  // team routes enforce membership authority on every call regardless.
+  const canManageTeam = team?.canManageMembers === true;
 
   // PHASE 11 §5 — the ONE billing workspace locator. The specific workspace
   // id is folded into the single canonical `?workspace=team:<id>` vocabulary;

@@ -29,7 +29,21 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # PHASE 12 POINT 8 — pgvector, not plain postgres.
+        #
+        # This job existed to prove a clean database can be migrated from
+        # scratch, and it passed for a year while the chain left
+        # `evidence_search_documents.embedding` and its ANN index UNCREATED on
+        # every fresh database. It could not have caught it: `postgres:16-alpine`
+        # has no pgvector, `20270701000000_phase15_semantic_search` swallows the
+        # failed `CREATE EXTENSION` with `WHEN OTHERS THEN RAISE NOTICE`, and
+        # `db:raw-schema-verify` then treats every extension-conditional entry as
+        # an expected divergence. The check was vacuous exactly where the defect
+        # lived.
+        #
+        # Point 5 made pgvector a production prerequisite, so the reproducibility
+        # database must have it or this job is not reproducing production.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: proovra
           POSTGRES_PASSWORD: proovra_password
@@ -164,6 +178,37 @@ jobs:
         working-directory: services/api
         run: pnpm db:drift-check
 
+      # PHASE 12 POINT 4 — the API INTEGRATION suite.
+      #
+      # These four suites used to be describe.skip-ped inside the unit run and
+      # reported as "live pending". They are ordinary database tests: this job
+      # already runs a postgres:16-alpine service, so they execute here against
+      # a dedicated migrated database using the SAME service. Nothing about the
+      # suites is conditional any more.
+      - name: Create + migrate the integration database
+        working-directory: services/api
+        env:
+          DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_integration_test
+        run: |
+          PGPASSWORD=proovra_password createdb -h localhost -U proovra proovra_integration_test
+          pnpm prisma:migrate
+
+      - name: API integration suite (formerly the 21 skipped tests)
+        working-directory: services/api
+        env:
+          # The harness NEVER reads DATABASE_URL; it takes the disposable
+          # database explicitly. The name contains "test", so the harness
+          # safety guard is satisfied without any override.
+          TEST_DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_integration_test
+          RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS: "1"
+          AUTH_JWT_SECRET: ci-integration-only-secret-0123456789abcdef
+        run: pnpm test:integration
+      # PHASE 12 POINT 4 — raw-schema ownership verification. Proves that every
+      # object the datamodel does not declare is REGISTERED, and that no table or
+      # column is proposed for removal (the datamodel owns existence).
+      - name: Raw-schema ownership verification
+        working-directory: services/api
+        run: pnpm db:raw-schema-verify
       - name: Snapshot resulting schema (sanity counts)
         run: |
           PGPASSWORD=proovra_password psql -h localhost -U proovra -d proovra_repro -c "SELECT count(*) AS enum_count FROM pg_type WHERE typtype='e';"

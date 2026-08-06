@@ -148,12 +148,6 @@ const IDENT_CHAR_MAX = 120;
 // is introduced, that mode MAY include these signals, clearly labelled
 // as restricted workspace-correlation observations. Until then the
 // default (and only) behaviour is to exclude them.
-const PACKAGE_RESTRICTED_SIGNAL_TYPES = new Set([
-  "DUPLICATE_HASH_MATCH",
-  "SIMILAR_FILE_CANDIDATE",
-  "POSSIBLE_DERIVATIVE_FILE",
-  "TRANSCODING_LINEAGE_CANDIDATE",
-]);
 
 const ALLOWED_SEVERITIES = new Set(["INFO", "REVIEW_RECOMMENDED", "ATTENTION"]);
 const ALLOWED_CONFIDENCES = new Set(["LOW", "MEDIUM", "HIGH"]);

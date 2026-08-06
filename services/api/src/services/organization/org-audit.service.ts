@@ -116,6 +116,11 @@ export const ORG_AUDIT_EVENT_TYPES = [
   //   metadata.)
   "ORG_BULK_INVITATION_STARTED",
   "ORG_BULK_INVITATION_COMPLETED",
+  // Macro-Wave A2 — durable invite delivery. Emitted whenever a delivery
+  // retry/resend ROTATES the invite token hash (the previously emailed
+  // accept link dies at that instant). Metadata carries ONLY
+  // { inviteId, deliveryId, attempt, newExpiresAt } — never a token.
+  "ORG_INVITE_DELIVERY_ROTATED",
 ] as const;
 
 export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];

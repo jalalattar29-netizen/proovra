@@ -28,6 +28,19 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// PHASE 12 POINT 5 — the async-indexing contract is imported and EXERCISED
+// here, not matched as text.
+import {
+  JOB_NAMES,
+  QUEUE_NAMES,
+  QueuePayloadRejected,
+  buildSearchIndexCommandId,
+  decodeCanonicalJobPayload,
+  enqueueCanonicalJob,
+  getWorkEntryOrThrow,
+  parseSearchIndexCommandId,
+} from "@proovra/shared";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -327,19 +340,96 @@ describe("Phase 24-J — async indexing pipeline", () => {
     "../../../services/worker/src/search-indexing.processor.ts",
   );
 
-  it("API + worker agree on the queue name + job name", () => {
-    expect(apiSrc).toMatch(/searchIndexingQueueName = "search-indexing"/);
-    expect(apiSrc).toMatch(/searchIndexingJobName = "RebuildSearchDocument"/);
-    expect(workerQueueSrc).toMatch(/searchIndexingQueueName = "search-indexing"/);
-    expect(workerQueueSrc).toMatch(/searchIndexingJobName = "RebuildSearchDocument"/);
+  // PHASE 12 POINT 5 — these three properties used to be asserted by matching
+  // source text. That proved the api and the worker each CONTAINED a matching
+  // literal, not that they agreed: two files can hold identical strings and
+  // still drift the moment one of them is edited. They now agree structurally
+  // (one registry entry, imported by both) and the properties below are proved
+  // by RUNNING the shared contract rather than by reading it.
+
+  it("API + worker agree on the queue name + job name — one definition, not two copies", () => {
+    const entry = getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
+    expect(entry.queueName).toBe(QUEUE_NAMES.SEARCH_INDEXING);
+    expect(entry.workName).toBe("RebuildSearchDocument");
+    // Neither transport client may reintroduce a private literal — that is the
+    // regression this replaced.
+    expect(apiSrc).not.toMatch(/"search-indexing"/);
+    expect(apiSrc).not.toMatch(/"RebuildSearchDocument"/);
+    expect(workerQueueSrc).not.toMatch(/"RebuildSearchDocument"/);
   });
 
-  it("API helper is idempotent — repeat enqueues collapse to the existing job", () => {
-    expect(apiSrc).toMatch(/buildJobId/);
-    expect(apiSrc).toMatch(/getJob\(jobId\)/);
-    expect(apiSrc).toMatch(
-      /state === "waiting"[\s\S]*?state === "delayed"[\s\S]*?state === "active"[\s\S]*?state === "prioritized"/,
-    );
+  it("enqueue is idempotent — a live job collapses, a spent job is replaced", async () => {
+    const entry = getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
+    const commandId = buildSearchIndexCommandId("evidence", "ev-1");
+
+    const makeQueue = (existingState: string | null) => {
+      const added: Array<{ name: string; data: unknown }> = [];
+      const removed: string[] = [];
+      return {
+        added,
+        removed,
+        handle: {
+          async getJob(jobId: string) {
+            if (existingState === null) return null;
+            return {
+              id: jobId,
+              async getState() {
+                return existingState;
+              },
+              async remove() {
+                removed.push(jobId);
+              },
+            };
+          },
+          async add(name: string, data: unknown) {
+            added.push({ name, data });
+          },
+        },
+      };
+    };
+
+    // No job holds the id → schedules one.
+    const fresh = makeQueue(null);
+    await expect(
+      enqueueCanonicalJob({
+        queue: fresh.handle,
+        entry,
+        commandId,
+        traceId: "t",
+      }),
+    ).resolves.toMatchObject({ enqueued: true, collapsed: false });
+    expect(fresh.added).toHaveLength(1);
+
+    // A LIVE job holds the id → collapses, schedules nothing.
+    for (const state of ["waiting", "delayed", "active", "prioritized"]) {
+      const live = makeQueue(state);
+      await expect(
+        enqueueCanonicalJob({
+          queue: live.handle,
+          entry,
+          commandId,
+          traceId: "t",
+        }),
+      ).resolves.toMatchObject({ enqueued: true, collapsed: true });
+      expect(live.added).toEqual([]);
+    }
+
+    // A SPENT job holds the id → the id is released and a fresh job scheduled.
+    // BullMQ silently ignores an add onto a retained completed/failed job, so
+    // this is the case that would otherwise report success and do nothing.
+    for (const state of ["completed", "failed"]) {
+      const spent = makeQueue(state);
+      await expect(
+        enqueueCanonicalJob({
+          queue: spent.handle,
+          entry,
+          commandId,
+          traceId: "t",
+        }),
+      ).resolves.toMatchObject({ enqueued: true, collapsed: false });
+      expect(spent.removed).toHaveLength(1);
+      expect(spent.added).toHaveLength(1);
+    }
   });
 
   it("API helper never throws + reports queue_unavailable on Redis failure", () => {
@@ -348,10 +438,84 @@ describe("Phase 24-J — async indexing pipeline", () => {
     expect(apiSrc).toMatch(/search_indexing_enqueue_failed/);
   });
 
-  it("Worker processor refuses jobs without (teamId, kind, sourceId)", () => {
-    expect(workerProcessorSrc).toMatch(
-      /!teamId \|\| !kind \|\| !sourceId[\s\S]*?throw new Error\("invalid_payload"\)/,
+  it("refuses a job whose payload does not resolve to a kind + source id", () => {
+    const registryEntry = getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
+    const entry = {
+      jobName: registryEntry.workName,
+      schemaVersion: registryEntry.schemaVersion,
+    };
+
+    // Malformed shapes are rejected before anything is loaded.
+    expect(() => decodeCanonicalJobPayload(entry, null)).toThrow(
+      QueuePayloadRejected,
     );
+    expect(() => decodeCanonicalJobPayload(entry, "nope")).toThrow(
+      QueuePayloadRejected,
+    );
+    expect(() => decodeCanonicalJobPayload(entry, {})).toThrow(
+      QueuePayloadRejected,
+    );
+
+    // A schema version nobody knows is refused rather than guessed at.
+    expect(() =>
+      decodeCanonicalJobPayload(entry, {
+        commandId: "evidence:ev-1",
+        traceId: "t",
+        schemaVersion: 99,
+      }),
+    ).toThrow(QueuePayloadRejected);
+
+    // An unknown document kind is refused before any row is read.
+    expect(() => parseSearchIndexCommandId("not_a_kind:ev-1")).toThrow(
+      QueuePayloadRejected,
+    );
+    expect(() => parseSearchIndexCommandId("evidence:")).toThrow(
+      QueuePayloadRejected,
+    );
+
+    // The valid case resolves to exactly the kind + source id.
+    const ok = decodeCanonicalJobPayload(entry, {
+      commandId: "evidence:ev-1",
+      traceId: "lifecycle_changed",
+      schemaVersion: entry.schemaVersion,
+    });
+    expect(parseSearchIndexCommandId(ok.commandId)).toEqual({
+      kind: "evidence",
+      sourceId: "ev-1",
+    });
+  });
+
+  it("a tampered payload is REJECTED, not cleaned up and run anyway", () => {
+    const entry = getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
+    const expectation = {
+      jobName: entry.workName,
+      schemaVersion: entry.schemaVersion,
+    };
+    // PHASE 12 POINT 5 — the decoder is strict rather than sanitising. Stripping
+    // a smuggled workspace would turn a tampered payload into a successful job,
+    // giving an attacker who can write to the queue unlimited silent attempts.
+    // Refusing turns the same payload into a counted, logged failure.
+    for (const smuggled of ["teamId", "workspaceId", "storageKey"]) {
+      expect(
+        () =>
+          decodeCanonicalJobPayload(expectation, {
+            commandId: "evidence:ev-1",
+            traceId: "t",
+            schemaVersion: entry.schemaVersion,
+            [smuggled]: "attacker-controlled",
+          }),
+        smuggled,
+      ).toThrow(QueuePayloadRejected);
+    }
+    // The clean payload still decodes to exactly the reference.
+    const ok = decodeCanonicalJobPayload(expectation, {
+      commandId: "evidence:ev-1",
+      traceId: "t",
+      schemaVersion: entry.schemaVersion,
+    });
+    expect(ok.commandId).toBe("evidence:ev-1");
+    expect(Object.keys(ok)).not.toContain("teamId");
+    expect(Object.keys(ok)).not.toContain("workspaceId");
   });
 
   it("Worker processor unblocks OCR + transcript indexing-lag pointers on success", () => {

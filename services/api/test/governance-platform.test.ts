@@ -27,55 +27,92 @@ import { describe, expect, it } from "vitest";
 
 describe("case legal hold service", () => {
   it("place + release both emit CASE_LEGAL_HOLD_* custody events", async () => {
-    const { readFile } = await import("node:fs/promises");
+    const { existsSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
+    // PHASE 12 POINT 3 — governance/case-legal-hold.service.ts is DELETED.
+    // Its writers had already moved to the ONE canonical authority; the last
+    // two live symbols (the bounded error type and the inheritance read
+    // helper) moved with them, and its `CaseLegalHold` Prisma type import was
+    // what kept the dropped model declared in schema.prisma. This assertion
+    // replaces the former "the module must no longer contain a writer" pin —
+    // a module that does not exist cannot host one.
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../src/services/governance/case-legal-hold.service.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+      "the retired case-only legal-hold service must stay deleted",
+    ).toBe(false);
+    const { readFile: rf } = await import("node:fs/promises");
+    const evaluator = await rf(
       fileURLToPath(
         new URL(
-          "../src/services/governance/case-legal-hold.service.ts",
+          "../src/services/governance/effective-legal-hold.ts",
           import.meta.url,
         ),
       ),
       "utf8",
     );
-    expect(src).toMatch(/CASE_LEGAL_HOLD_APPLIED/);
-    expect(src).toMatch(/CASE_LEGAL_HOLD_RELEASED/);
-    // Inheritance helper must check both per-record AND case-level holds.
-    expect(src).toMatch(/evidenceLegalHold\.findFirst/);
-    expect(src).toMatch(/caseLegalHold\.findFirst/);
+    // PHASE 12 POINT 3 — one store, every scope. Coverage is proven by the
+    // canonical scope vocabulary plus the historical clause that makes an
+    // unresolvable ACTIVE hold fail closed.
+    expect(evaluator).toMatch(/prisma\.evidenceLegalHold\.findMany/);
+    expect(evaluator).toMatch(/scope: "EVIDENCE"/);
+    expect(evaluator).toMatch(/scope: "CASE"/);
+    expect(evaluator).toMatch(/scope: "WORKSPACE"/);
+    expect(evaluator).toMatch(/historical/);
+    // No retired store may reappear behind the evaluator.
+    expect(evaluator).not.toMatch(/prisma\.caseLegalHold\./);
+    expect(evaluator).not.toMatch(/prisma\.legalHold\./);
+    // The canonical placement/release commands own the CASE_LEGAL_HOLD_*
+    // custody emissions for CASE-scoped holds.
+    const canonical = await rf(
+      fileURLToPath(
+        new URL("../src/services/governance/legal-hold.service.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    expect(canonical).toMatch(/CASE_LEGAL_HOLD_APPLIED/);
+    expect(canonical).toMatch(/CASE_LEGAL_HOLD_RELEASED/);
   });
 
   it("projection omits release note and reason (internal only)", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
+    // PHASE 12 POINT 3 — `projectCaseLegalHold` went with the deleted
+    // case-only service. The invariant it protected is unchanged and still
+    // load-bearing: the CASE-scoped response must not leak the internal
+    // `reason` / `releaseNote` free text. It is now asserted on the shape the
+    // /v1/governance/case-legal-holds route actually emits.
     const src = await readFile(
       fileURLToPath(
         new URL(
-          "../src/services/governance/case-legal-hold.service.ts",
+          "../src/services/governance/legal-hold.service.ts",
           import.meta.url,
         ),
       ),
       "utf8",
     );
-    // Find the projectCaseLegalHold body by anchoring on its return.
-    const idx = src.indexOf("export function projectCaseLegalHold(");
+    const idx = src.indexOf("export type CaseScopedLegalHoldLegacyShape = {");
     expect(idx).toBeGreaterThan(-1);
-    const body = src.slice(idx, idx + 4000);
-    const returned = body.match(/return \{[\s\S]*?\};/);
-    expect(returned).not.toBeNull();
-    if (returned) {
-      expect(returned[0]).not.toMatch(/^\s+reason:/m);
-      expect(returned[0]).not.toMatch(/releaseNote:/);
-    }
+    const shape = src.slice(idx, src.indexOf("};", idx) + 2);
+    expect(shape).not.toMatch(/^\s+reason:/m);
+    expect(shape).not.toMatch(/releaseNote:/);
   });
 
   it("release requires a non-empty note", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
+    // PHASE 12 POINT 3 — the release command is the ONE canonical writer, so
+    // the mandatory-note guard is asserted where it is actually enforced.
     const src = await readFile(
       fileURLToPath(
         new URL(
-          "../src/services/governance/case-legal-hold.service.ts",
+          "../src/services/governance/legal-hold.service.ts",
           import.meta.url,
         ),
       ),
@@ -83,6 +120,13 @@ describe("case legal hold service", () => {
     );
     expect(src).toMatch(/release_note_required/);
     expect(src).toMatch(/input\.releaseNote\.trim\(\)/);
+    // The guard must run BEFORE the row is read or mutated — an empty note can
+    // never reach a state change.
+    const relIdx = src.indexOf("export async function releaseCanonicalLegalHold");
+    const guardIdx = src.indexOf("release_note_required", relIdx);
+    const readIdx = src.indexOf("client.evidenceLegalHold.findUnique", relIdx);
+    expect(guardIdx).toBeGreaterThan(relIdx);
+    expect(guardIdx).toBeLessThan(readIdx);
   });
 });
 
@@ -251,19 +295,11 @@ describe("governance route surface", () => {
     );
   });
 
-  it("legal-hold release respects requireLegalHoldReleaseApproval policy", async () => {
-    const { readFile } = await import("node:fs/promises");
-    const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
-      fileURLToPath(
-        new URL("../src/routes/governance.routes.ts", import.meta.url),
-      ),
-      "utf8",
-    );
-    expect(src).toMatch(/requireLegalHoldReleaseApproval/);
-    expect(src).toMatch(/approvalAcknowledged/);
-    expect(src).toMatch(/release_approval_required/);
-  });
+  // Phase 12 convergence — the case-legal-holds release approval gate
+  // (requireLegalHoldReleaseApproval / approvalAcknowledged /
+  // release_approval_required) lived in the DEAD_LEGACY
+  // /v1/governance/case-legal-holds/:id/release handler, removed in favor of
+  // /v1/lifecycle/legal-holds. Assertion retired with the route.
 
   it("publish/unpublish/suspend/restore routes all require evidence.publish_verify", async () => {
     const { readFile } = await import("node:fs/promises");

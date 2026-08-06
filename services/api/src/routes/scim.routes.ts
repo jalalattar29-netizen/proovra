@@ -60,11 +60,24 @@ type ScimContext = {
   baseUrl: string;
 };
 
+/**
+ * PHASE 12B — the scope gate accepts a SET of sufficient scopes so the Group
+ * resource can honour the dedicated `groups.read` entitlement without breaking
+ * tokens that were issued with the broader `users.read`. Every entry must be a
+ * real scope from the shared catalog — the gate is deny-by-default.
+ *
+ * PHASE 12B C6 — `groups.write` now exists in the shared catalog and Group
+ * MUTATIONS accept it; the legacy `users.write` remains sufficient so live IdP
+ * integrations keep working across the deploy.
+ */
 async function authenticateScim(
   req: FastifyRequest,
   reply: FastifyReply,
-  required: ScimScope,
+  required: ScimScope | ReadonlyArray<ScimScope>,
 ): Promise<ScimContext | null> {
+  const sufficient: ReadonlyArray<ScimScope> = Array.isArray(required)
+    ? required
+    : [required];
   const auth = req.headers["authorization"];
   const remoteIp = req.ip ?? null;
   const result = await authenticateScimRequest({
@@ -79,7 +92,7 @@ async function authenticateScim(
       .send(scimError(401, result.reason, "invalidCredentials"));
     return null;
   }
-  if (!result.token.scopes.includes(required)) {
+  if (!sufficient.some((s) => result.token.scopes.includes(s))) {
     reply
       .type("application/scim+json")
       .code(403)
@@ -210,8 +223,45 @@ export async function scimRoutes(app: FastifyInstance) {
           );
       }
 
-      // Apply the `active` transition first (it gates whether the user
-      // is resolvable for a subsequent attribute write).
+      // PHASE 12B — ORDERING IS A CORRECTNESS CONTRACT, not a preference.
+      //
+      // The attribute write (displayName / role) is the leg that can be
+      // REJECTED (managed cross-Organization conflict, unresolved managed
+      // identity, seat exhaustion) and it is itself atomic. It therefore runs
+      // FIRST: a rejection returns a SCIM error with ZERO mutation. Running the
+      // `active` transition first — as this route previously did — meant a
+      // rejected attribute write left an already-applied deactivation /
+      // reactivation behind (partial mutation the IdP never learned about).
+      //
+      // It also fixes a real data bug: `scimDeactivateUser` unlinks the
+      // directory mapping, and the displayName write filters on
+      // `unlinkedAtUtc: null` — so a combined "deactivate + rename" PATCH used
+      // to silently drop the rename.
+      if (plan.displayName !== undefined || plan.role !== undefined) {
+        const upd = await scimUpdateUserAttributes(ctx, id, {
+          ...(plan.displayName !== undefined
+            ? { displayName: plan.displayName }
+            : {}),
+          ...(plan.role !== undefined ? { role: plan.role } : {}),
+        });
+        if (!upd.ok && upd.status === 404) {
+          return reply
+            .type("application/scim+json")
+            .code(404)
+            .send(scimError(404, "User not found"));
+        }
+        // A `noTarget` here (e.g. displayName supplied but the mapping is
+        // unlinked) is non-fatal when an `active` change is also requested;
+        // every other rejection is surfaced so the caller is never misled.
+        if (!upd.ok && (plan.active === undefined || upd.status !== 400)) {
+          return reply
+            .type("application/scim+json")
+            .code(upd.status)
+            .send(scimError(upd.status, upd.detail, upd.scimType));
+        }
+      }
+
+      // Apply the `active` transition.
       if (plan.active === false) {
         const result = await scimDeactivateUser(ctx, id);
         if (!result.ok) {
@@ -227,31 +277,6 @@ export async function scimRoutes(app: FastifyInstance) {
             .type("application/scim+json")
             .code(404)
             .send(scimError(404, "User not found"));
-        }
-      }
-
-      // Apply supported attribute updates (displayName / role).
-      if (plan.displayName !== undefined || plan.role !== undefined) {
-        const upd = await scimUpdateUserAttributes(ctx, id, {
-          ...(plan.displayName !== undefined
-            ? { displayName: plan.displayName }
-            : {}),
-          ...(plan.role !== undefined ? { role: plan.role } : {}),
-        });
-        if (!upd.ok && upd.status === 404) {
-          return reply
-            .type("application/scim+json")
-            .code(404)
-            .send(scimError(404, "User not found"));
-        }
-        // A `noTarget` here (e.g. displayName supplied but the mapping is
-        // unlinked) is non-fatal when an `active` change already applied;
-        // otherwise surface it so the caller is not misled.
-        if (!upd.ok && plan.active === undefined) {
-          return reply
-            .type("application/scim+json")
-            .code(upd.status)
-            .send(scimError(upd.status, upd.detail, upd.scimType));
         }
       }
 
@@ -288,10 +313,16 @@ export async function scimRoutes(app: FastifyInstance) {
   const ParamsGroupId = z.object({ id: z.string().uuid() });
 
   // POST /v2/scim/Groups
+  //
+  // PHASE 12B C6 — Group MUTATIONS now accept the dedicated `groups.write`
+  // scope. Group membership propagates to department/visibility scope, so a
+  // token issued purely for user provisioning should not silently also govern
+  // groups. The legacy `users.write` stays sufficient so no live IdP
+  // integration breaks on deploy; new tokens should carry `groups.write`.
   app.post(
     "/v2/scim/Groups",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await authenticateScim(req, reply, "users.write");
+      const ctx = await authenticateScim(req, reply, ["groups.write", "users.write"]);
       if (!ctx) return;
       const parsed = ScimGroupSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -318,7 +349,7 @@ export async function scimRoutes(app: FastifyInstance) {
   app.get(
     "/v2/scim/Groups/:id",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await authenticateScim(req, reply, "users.read");
+      const ctx = await authenticateScim(req, reply, ["groups.read", "users.read"]);
       if (!ctx) return;
       const { id } = ParamsGroupId.parse(req.params);
       const group = await scimReadGroup(ctx, id);
@@ -336,7 +367,7 @@ export async function scimRoutes(app: FastifyInstance) {
   app.get(
     "/v2/scim/Groups",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await authenticateScim(req, reply, "users.read");
+      const ctx = await authenticateScim(req, reply, ["groups.read", "users.read"]);
       if (!ctx) return;
       const q = z
         .object({
@@ -350,11 +381,11 @@ export async function scimRoutes(app: FastifyInstance) {
     },
   );
 
-  // PATCH /v2/scim/Groups/:id
+  // PATCH /v2/scim/Groups/:id — see the POST comment on `groups.write`.
   app.patch(
     "/v2/scim/Groups/:id",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await authenticateScim(req, reply, "users.write");
+      const ctx = await authenticateScim(req, reply, ["groups.write", "users.write"]);
       if (!ctx) return;
       const { id } = ParamsGroupId.parse(req.params);
       const parsed = ScimGroupPatchOpSchema.safeParse(req.body);
@@ -376,10 +407,17 @@ export async function scimRoutes(app: FastifyInstance) {
   );
 
   // DELETE /v2/scim/Groups/:id
+  //
+  // Accepts `groups.write` OR `users.deactivate` — NOT the `users.write` that
+  // the POST/PATCH legs accept. Deleting a group demotes its members, so the
+  // legacy scope that matches it is the deactivation scope, which is what this
+  // route required before `groups.write` existed. A legacy `users.write`-only
+  // token therefore still gets 403 here; that is deliberate and unchanged, and
+  // is why this comment does not defer to the POST note.
   app.delete(
     "/v2/scim/Groups/:id",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await authenticateScim(req, reply, "users.deactivate");
+      const ctx = await authenticateScim(req, reply, ["groups.write", "users.deactivate"]);
       if (!ctx) return;
       const { id } = ParamsGroupId.parse(req.params);
       const result = await scimDeleteGroup(ctx, id);
@@ -392,4 +430,17 @@ export async function scimRoutes(app: FastifyInstance) {
       return reply.type("application/scim+json").code(204).send();
     },
   );
+
+  // ===========================================================================
+  // PHASE 12B C6 — the SCIM ADMINISTRATION legs (operator session-JWT:
+  //   GET  /v1/admin/identity/scim/managed-membership
+  //   POST /v1/admin/identity/scim/tokens/:id/rotate
+  // ) live in routes/scim-admin.routes.ts. They are DELIBERATELY not in this
+  // file: this is the RFC 7644 protocol surface and is bearer-token-only by
+  // contract. Mixing a session-authenticated route in here would let the next
+  // /v2/scim/* route inherit the session preHandler by copy-paste and become
+  // reachable with a customer browser session — which is exactly what the
+  // "SCIM routes NEVER use the session auth preHandler" guard in
+  // phase26-identity-governance.test.ts asserts, as a whole-file check. That
+  // guard is why this comment does not name the middleware symbol either.
 }

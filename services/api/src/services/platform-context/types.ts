@@ -52,6 +52,8 @@ export type PlatformContextPlanFeatures = {
   intakeIncluded: boolean;
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
+  /** PHASE 12B Track 1A — PROFESSIONAL surface tier included (catalog-derived). */
+  professionalSurfacesIncluded: boolean;
   reviewQueuesIncluded: boolean;
   /** Team ownership included (maxOwnedTeams > 0). */
   teamCollaborationIncluded: boolean;
@@ -62,6 +64,23 @@ export type PlatformContextPlanFeatures = {
    * only — the AI cost guard enforces the cap server-side on every call.
    */
   aiAssistanceMonthlyOperations: number | null;
+  /**
+   * PHASE 12 — POINT 7 (2026-08-05) — the NUMERIC commercial limits for the
+   * ACTIVE workspace, projected from the one catalog.
+   *
+   * The frontend renders capacity from these. It does not compute them, and it
+   * does not key them on a plan NAME: the three collaboration surfaces that
+   * used to call `getCollaborationTeamPlanLimits(accountPlan)` were both a
+   * duplicate authority and wrong about the subject — a collaboration team's
+   * capacity belongs to its WORKSPACE, not to the account that owns it.
+   */
+  limits: {
+    /** `maxOwnedTeams` — Owned Workspaces this ACCOUNT may create. */
+    maxOwnedWorkspaces: number;
+    maxMembersPerTeam: number;
+    maxPendingInvitesPerTeam: number;
+    maxInvitesPer24h: number;
+  };
 };
 
 /**
@@ -557,6 +576,13 @@ export type PlatformContextActiveSpace =
       displayName: "Personal Space";
       /** Role label rendered in chips. Always "Owner" for personal mode. */
       roleLabel: "Owner";
+      /**
+       * PHASE 12 POINT 4 STEP 1 — SERVER-resolved plan of the ACTIVE space.
+       * The canonical place to read the active plan; consumers must not
+       * re-derive it from `account` / `personalSpace` / `organizations`, and
+       * must not fall back to the owner's Account plan.
+       */
+      plan: WorkspacePlan | null;
     }
   | {
       type: "ORGANIZATION";
@@ -564,6 +590,8 @@ export type PlatformContextActiveSpace =
       displayName: string | null;
       /** Role label sourced verbatim from `WorkspaceRole`. */
       roleLabel: WorkspaceRole | null;
+      /** SERVER-resolved plan of the ACTIVE organization space. */
+      plan: WorkspacePlan | null;
     };
 
 /**

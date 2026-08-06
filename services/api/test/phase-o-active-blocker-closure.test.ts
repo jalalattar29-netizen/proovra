@@ -15,6 +15,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { createHmac } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -183,9 +184,7 @@ describe("A-4 — Stripe webhook signature timestamp tolerance", () => {
   }
 
   function sign(tsSec: number, body: string): string {
-    const crypto = require("node:crypto") as typeof import("node:crypto");
-    const sig = crypto
-      .createHmac("sha256", TEST_SECRET)
+    const sig = createHmac("sha256", TEST_SECRET)
       .update(`${tsSec}.${body}`)
       .digest("hex");
     return `t=${tsSec},v1=${sig}`;
@@ -341,7 +340,9 @@ describe("D-1 — frontend double-.json() sweep is complete", () => {
       "apps/web/components/governance/RetentionInheritanceSummary.tsx",
       "apps/web/components/command-center/AccountPrioritiesBanner.tsx",
       "apps/web/components/governance/RetentionConflictAlert.tsx",
-      "apps/web/components/governance/ExportEligibilityPreflight.tsx",
+      // ExportEligibilityPreflight was deleted in Phase 12 Point 4 as a
+      // duplicate of GovernedExportAction; the wrapper below is the
+      // surviving call site and carries the same D-1 invariant.
       "apps/web/components/governance/GovernedExportAction.tsx",
       "apps/web/components/governance/DestructionImpactPreview.tsx",
       "apps/web/components/governance/DestructionCertificate.tsx",

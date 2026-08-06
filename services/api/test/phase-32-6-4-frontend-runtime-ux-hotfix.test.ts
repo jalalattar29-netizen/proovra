@@ -108,12 +108,10 @@ describe("Phase 32.6.4 — Governance page resilience (Phase 32.8E architecture)
     // moves that resilience to the server: each section has its
     // own try/catch so the envelope is never half-built.
     const tryCount = (serviceSrc.match(/try\s*\{/g) ?? []).length;
-    const catchCount = (serviceSrc.match(/catch\s*[(\{]/g) ?? []).length;
+    const catchCount = (serviceSrc.match(/catch\s*[({]/g) ?? []).length;
     expect(tryCount).toBeGreaterThanOrEqual(5);
     expect(catchCount).toBeGreaterThanOrEqual(5);
   });
-
-  it.skip("uses the canonical useActiveWorkspaceId hook", () => {});
 
   it("page state machine has loading / ready / error / unavailable branches", () => {
     expect(panelSrc).toContain('status: "loading"');
@@ -150,8 +148,6 @@ describe("Phase 32.6.4 — Ops page resilience", () => {
     const allCalls = src.match(/Promise\.all\(\[/g) ?? [];
     expect(allCalls.length).toBe(0);
   });
-
-  it.skip("uses the canonical useActiveWorkspaceId hook", () => {});
 
   it("each panel has independent loading / ready / error state", () => {
     expect(src).toContain("healthPanel");
@@ -249,24 +245,6 @@ describe("Phase 32.6.4 — Global runtime state clear-on-null + generation guard
     expect(between).toMatch(/setReadiness\(null\)/);
     expect(between).toMatch(/setLoading\(true\)/);
   });
-});
-
-describe("Phase 32.6.4 — Sidebar role wiring", () => {
-  const sidebar = readWebSource("components/app-shell-v2/AppSidebarV2.tsx");
-
-  // OBSOLETE — Phase 32.8 Foundation: sidebar reads navigation from
-  // canonical platform context, no role resolution in the sidebar.
-  // See phase-32-8-foundation-platform-context.test.ts.
-  it.skip("resolves role from useActiveWorkspaceId when no explicit prop is passed", () => {});
-});
-
-describe("Phase 32.6.4 — useActiveWorkspaceId role surface", () => {
-  // Phase 32.8 Foundation cleanup — lib/useActiveWorkspaceId.ts was
-  // deleted. The canonical replacement is
-  // lib/platform-context/useTeamWorkspaceGate.ts.
-  it.skip("exposes a bounded ActiveWorkspaceRole type", () => {});
-  it.skip("ready branch carries an optional role field", () => {});
-  it.skip("does NOT widen the role to an unbounded string", () => {});
 });
 
 describe("Phase 32.6.4 — Diagnostic runbook ships and is read-only", () => {

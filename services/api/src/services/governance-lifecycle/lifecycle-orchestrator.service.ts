@@ -149,14 +149,23 @@ async function evidenceHasActiveHold(
     select: { id: true },
   });
   if (direct) return true;
-  // Cascade through case-level holds.
-  const ev = await client.evidence.findUnique({
-    where: { id: evidenceId },
+  // Cascade through case-level holds. Track 1B closure — a hold on
+  // ANY linked case (canonical CaseEvidenceLink) blocks.
+  const links = await client.caseEvidenceLink.findMany({
+    where: { evidenceId },
     select: { caseId: true },
+    take: 100,
   });
-  if (!ev?.caseId) return false;
-  const caseHold = await client.caseLegalHold.findFirst({
-    where: { caseId: ev.caseId, status: prismaPkg.CaseLegalHoldStatus.ACTIVE },
+  if (links.length === 0) return false;
+  // PHASE 12 POINT 3 — canonical-only. Case holds are scope=CASE rows on
+  // the canonical table after the backfill; the scope filter keeps this a
+  // CASE-hold probe rather than any hold in the workspace.
+  const caseHold = await client.evidenceLegalHold.findFirst({
+    where: {
+      scope: prismaPkg.LegalHoldScope.CASE,
+      caseId: { in: links.map((l) => l.caseId) },
+      status: prismaPkg.LegalHoldStatus.ACTIVE,
+    },
     select: { id: true },
   });
   return Boolean(caseHold);

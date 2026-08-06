@@ -624,6 +624,16 @@ function RegisterPageContent() {
     });
   };
 
+  // The provider SDKs are initialised ONCE per mount and their callbacks live
+  // for the lifetime of the page. Reading these through refs keeps the
+  // callbacks pointed at the CURRENT implementation without the init effect
+  // re-subscribing (re-initialising the SDKs every render would be a real
+  // regression, and a stale closure would submit old form state).
+  const handleAuthRef = useRef(handleAuth);
+  handleAuthRef.current = handleAuth;
+  const renderGoogleButtonRef = useRef(renderGoogleButton);
+  renderGoogleButtonRef.current = renderGoogleButton;
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -647,14 +657,14 @@ function RegisterPageContent() {
                 setError("Google sign-up failed.");
                 return;
               }
-              void handleAuth("/v1/auth/google", idToken);
+              void handleAuthRef.current("/v1/auth/google", idToken);
             },
           });
         }
 
-        renderGoogleButton();
+        renderGoogleButtonRef.current();
 
-        const ro = new ResizeObserver(() => renderGoogleButton());
+        const ro = new ResizeObserver(() => renderGoogleButtonRef.current());
         if (googleBtnHostRef.current) ro.observe(googleBtnHostRef.current);
         return () => ro.disconnect();
       })

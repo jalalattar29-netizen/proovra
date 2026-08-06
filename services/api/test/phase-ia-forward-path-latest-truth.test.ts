@@ -26,6 +26,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  CANONICAL_PAYLOAD_KEYS,
+  FORBIDDEN_PAYLOAD_AUTHORITY_FIELDS,
+} from "@proovra/shared";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -34,17 +38,49 @@ function readSource(rel: string): string {
 describe("Phase IA-forward-path — report processor honours forceRegenerate", () => {
   const PROCESSOR = readSource("../../worker/src/processor.ts");
 
-  it("reads forceRegenerate from job.data and applies it to the early-return guard", () => {
+  /**
+   * PHASE 12 — POINT 5 INVERTED these two assertions, and the inversion is the
+   * point of the phase.
+   *
+   * `forceRegenerate` is not a parameter. It is the OUTCOME OF AN
+   * AUTHORIZATION DECISION — the flag that lets the worker bypass the guard
+   * refusing to overwrite an already-REPORTED artifact — and it was arriving
+   * as an unverified boolean on a BullMQ payload. Anything able to write to
+   * Redis could set it, and the worker would replace a finalised evidentiary
+   * artifact on its word.
+   *
+   * So "reads forceRegenerate from job.data" is now the thing that must NEVER
+   * be true. The behaviour it guarded is unchanged: the early-return guard
+   * still consults the flag, but the flag is loaded from the durable
+   * `ReportGenerationRequest` row that an authorized synchronous path
+   * committed.
+   */
+  it("NEVER reads forceRegenerate from job.data — it is loaded from the durable request", () => {
+    expect(PROCESSOR).not.toMatch(/job\.data\.forceRegenerate/);
+    expect(PROCESSOR).not.toMatch(/job\.data\.regenerateReason/);
+    // The authority: resolved from the request row before the generator runs.
+    expect(PROCESSOR).toMatch(/resolveAndClaimReportRequest\(/);
     expect(PROCESSOR).toMatch(
-      /forceRegenerate\s*=\s*job\.data\.forceRegenerate\s*===\s*true/,
+      /const forceRegenerate = command\.forceRegenerate/,
     );
+    // And the guard it feeds is untouched.
     expect(PROCESSOR).toMatch(
       /evidence\.status\s*===\s*EvidenceStatus\.REPORTED\s*&&\s*!forceRegenerate/,
     );
   });
 
-  it("reads regenerateReason from job.data and trims it", () => {
-    expect(PROCESSOR).toMatch(/regenerateReason\s*=\s*[\s\S]{0,200}job\.data\.regenerateReason/);
+  it("forceRegenerate cannot appear on a canonical queue payload at all", () => {
+    // Belt and braces: the strict decoder refuses it by name, so even a
+    // producer that tried to smuggle it back would be rejected before any DB
+    // access rather than silently sanitised.
+    expect(FORBIDDEN_PAYLOAD_AUTHORITY_FIELDS).toContain("forceRegenerate");
+    expect(CANONICAL_PAYLOAD_KEYS).not.toContain("forceRegenerate");
+  });
+
+  it("the regenerate reason is bounded and comes from the durable request", () => {
+    expect(PROCESSOR).toMatch(
+      /const regenerateReason = command\.regenerateReason/,
+    );
   });
 
   it("logs the regenerating status when forceRegenerate is true", () => {

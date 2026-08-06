@@ -6,8 +6,6 @@ import {
 } from "@proovra/shared-evidence-presentation";
 import {
   describeTsaDigestSource,
-  getTrustDecisionConfidenceLabel,
-  getTrustDecisionPresentationTone,
 } from "@proovra/shared";
 import {
   renderCallout,
@@ -30,14 +28,6 @@ import { escapeHtml } from "../formatters.js";
  * overclaim. Treating them as "Not available" would falsely contradict the
  * archive. We name them honestly.
  */
-function renderPackageComponentFlag(
-  flag: boolean | null | undefined,
-  presentLabel: string
-): string {
-  if (flag === true) return presentLabel;
-  if (flag === false) return "Not available";
-  return "Presence not independently confirmed (legacy package)";
-}
 
 function renderAppendixSection(
   title: string,
@@ -98,153 +88,6 @@ function normalizeAnchoringRows(vm: ReportViewModel): KeyValueRow[] {
       }
       return row;
     });
-}
-
-function renderTechnicalStatusCards(vm: ReportViewModel): string {
-  const timestampTone = vm.technicalAppendix.timestampStatusTone ?? "neutral";
-  const otsTone = vm.technicalAppendix.otsStatusTone ?? "neutral";
-  const trustTone = getTrustDecisionPresentationTone(vm.trustDecision);
-
-  return `
-    <div class="technical-verification-strip">
-      <article class="technical-verification-card tone-${timestampTone}">
-        <div class="technical-verification-kicker">RFC 3161</div>
-        <div class="technical-verification-title">Trusted Timestamp</div>
-        <div class="technical-verification-value">${escapeHtml(
-          vm.technicalAppendix.timestampStatusLabel
-        )}</div>
-        <div class="technical-verification-note">
-          External timestamp state recorded for the preserved evidence digest.
-        </div>
-      </article>
-
-      <article class="technical-verification-card tone-${otsTone}">
-        <div class="technical-verification-kicker">Anchoring</div>
-        <div class="technical-verification-title">Bitcoin Anchoring</div>
-        <div class="technical-verification-value">${escapeHtml(
-          vm.technicalAppendix.otsStatusLabel
-          
-        )}</div>
-        <div class="technical-verification-note">
-          OpenTimestamps anchoring state for the recorded digest.
-        </div>
-      </article>
-      <article class="technical-verification-card tone-${trustTone}">
-        <div class="technical-verification-kicker">Trust Decision</div>
-        <div class="technical-verification-title">Verification Classification</div>
-        <div class="technical-verification-value">${escapeHtml(
-          vm.trustDecision.verdictLabel
-        )}</div>
-        <div class="technical-verification-note">
-          ${escapeHtml(vm.trustDecision.reviewerAction)} Technical confidence: ${escapeHtml(
-            getTrustDecisionConfidenceLabel(vm.trustDecision)
-          )}.
-        </div>
-      </article>
-    </div>
-  `;
-}
-
-function renderVerificationAccess(vm: ReportViewModel): string {
-  return `
-    <div class="technical-access-panel">
-      <div>
-<div class="technical-access-kicker">Independent Verification Endpoint</div>
-<div class="technical-access-title">Technical Verification Endpoint</div>
-        <div class="technical-access-copy">
-          Reviewers can use this endpoint to inspect the verification materials, public status, and technical references connected to this evidence record.
-        </div>
-      </div>
-
-<div class="technical-access-url-block">
-  <div class="technical-access-url-label">Verification Endpoint</div>
-  <div class="technical-access-url-value">
-    ${escapeHtml(vm.technicalUrl)}
-  </div>
-</div>
-    </div>
-  `;
-}
-
-function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
-  const integrity = vm.verificationPackageIntegrity;
-
-  return [
-    // Phase D Blocker 3 — render per-component flags truthfully:
-    //   true  -> "Present" / "Included"
-    //   false -> "Not available"
-    //   null  -> "Presence not independently confirmed" (legacy package
-    //            with no per-component metadata persisted)
-    {
-      label: "Verification Package",
-      value:
-        integrity.available && integrity.version != null
-          ? `Available • v${integrity.version}`
-          : "Not generated",
-    },
-    {
-      label: "Package Manifest",
-      value: renderPackageComponentFlag(integrity.manifestPresent, "Present"),
-    },
-    {
-      label: "Manifest Signature",
-      value: renderPackageComponentFlag(
-        integrity.signedManifestPresent,
-        "Ed25519 signature present"
-      ),
-    },
-    {
-      label: "Manifest Digest",
-      value: renderPackageComponentFlag(
-        integrity.manifestDigestPresent,
-        "Present"
-      ),
-    },
-    {
-      label: "Checksum Index",
-      value: renderPackageComponentFlag(
-        integrity.checksumIndexPresent,
-        "Present"
-      ),
-    },
-    {
-      label: "Audit Export",
-      value: renderPackageComponentFlag(
-        integrity.auditExportIncluded,
-        "Custody and access export included"
-      ),
-    },
-    {
-      label: "Component presence source",
-      value:
-        integrity.componentPresenceSource === "verification_package_metadata"
-          ? "Persisted package artifact-presence record"
-          : integrity.componentPresenceSource === "legacy_inferred_unknown"
-            ? "Legacy package — per-component presence not independently confirmed; inspect the verification package archive directly"
-            : "Not generated",
-    },
-    {
-      label: "Generated At",
-      value: integrity.generatedAtUtc ?? "Not recorded",
-    },
-  ];
-}
-
-function renderVerificationPackageIntegrity(vm: ReportViewModel): string {
-  return renderAppendixSection(
-    "Verification Package Integrity",
-"Compact reference to the machine-verifiable verification package artifacts, including the Ed25519 package-manifest signature when generated.",
-    `
-      ${renderKeyValueGrid(readPackageIntegrityRows(vm))}
-      ${renderCallout({
-        title: "Package integrity layer",
-body:
-  "The verification package is the downloadable forensic bundle. It may include the preserved originals, package manifest, Ed25519 manifest signature, checksum index, custody export, and access audit export. Package access activity is a snapshot taken at generation time; current live access activity should be reviewed on the verification page.",
-          tone: "neutral",
-      })}
-    `,
-    { className: "technical-appendix-package-integrity-block" }
-  );
 }
 
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {

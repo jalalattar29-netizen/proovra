@@ -1,0 +1,150 @@
+{
+  "generatedFrom": "static analysis of apps/web + services/api at HEAD+uncommitted (2026-07-28)",
+  "planCapabilitySource": "packages/shared-billing/src/plan-catalog.ts:158 (PLAN_CAPABILITIES record) — re-exported to the API via services/api/src/services/plan-catalog.service.ts:1-19; effective per-workspace resolution composed in services/api/src/services/billing/commercial-context.service.ts:295 (resolveCommercialContext) which calls getPlanCapabilities and resolveWorkspaceEffectivePlan (plan-catalog.ts:371)",
+  "notes": [
+    "TWO independent web gating systems exist. (A) CANONICAL, plan-free: server projects a capability boolean map in services/api/src/services/platform-context/capability-registry.ts:67 (resolveCapabilities) built from scope+role+isPlatformAdmin (NOT raw plan); the web consumes envelope.capabilities via apps/web/lib/navigation/routeAccessResolver.ts:127 + apps/web/components/navigation/PageRouteGate.tsx. This path makes zero raw plan decisions. (B) PARALLEL, plan-based: apps/web/lib/surface/tiers.ts + access.ts map the raw plan string (from the server envelope) to a CORE/PROFESSIONAL/ENTERPRISE/INTERNAL tier CLIENT-SIDE, consumed by apps/web/middleware.ts, apps/web/components/surface/SurfaceGate.tsx, and the sidebar. System (B) is where the 'zero raw plan decisions' rule is violated.",
+    "Capability keys (CASES_VIEW, REPORTS_VIEW, EVIDENCE_CAPTURE, INTAKE_LINKS_MANAGE, etc.) are granted by scope+role and are plan-independent (capability-registry.ts:117-179). Commercial plan flags (casesIncluded, reportsIncluded, intakeIncluded) live in PLAN_CAPABILITIES and are projected to the envelope as planFeatures (platform-context.service.ts:454); only intakeIncluded is currently wired to a visibility gate (tiers.ts:148 entitlementOverride). casesIncluded/reportsIncluded are NOT wired to page visibility, so /cases and /reports load for FREE/PAYG via both gates even though the plan flag is false — feature-level enforcement (report generation, case creation) is server-side elsewhere.",
+    "ORGANIZATION_ONLY routes require envelope.activeSpace.type === 'ORGANIZATION' (routeAccessResolver.ts:168). A PERSONAL PRO/TEAM user is always in PERSONAL space, so these routes resolve NEEDS_ORGANIZATION regardless of plan; only an ENTERPRISE org workspace enables them. The surface-tier layer additionally marks most of them ENTERPRISE (notFound) for non-enterprise.",
+    "isEnterpriseWorkspace flag = plan is ENTERPRISE only (platform-context.service.ts:78 ENTERPRISE_PLAN_KEYS = {ENTERPRISE}); TEAM is NOT enterprise."
+  ],
+  "frontendRawPlanDecisions": [
+    {"file":"apps/web/lib/surface/tiers.ts","line":296,"detail":"tiersAllowedByPlan(): `plan === \"PRO\" || plan === \"TEAM\"` adds the PROFESSIONAL tier client-side — the raw plan string decides sidebar + direct-URL visibility for PROFESSIONAL surfaces (e.g. /intake-links fallback, /teams). Consumed by SurfaceGate + AppSidebarV2 + middleware."},
+    {"file":"apps/web/lib/surface/access.ts","line":127,"detail":"isUserInTier(): `(ctx.plan as string) === \"ENTERPRISE\"` grants the ENTERPRISE tier client-side — the raw plan string gates review/governance/redaction/organizations/investigation visibility and direct-URL 404/redirect."},
+    {"file":"apps/web/lib/surface/resolveHomeSurface.ts","line":51,"detail":"resolveHomeSurface(): `input.plan === \"ENTERPRISE\"` (and `input.plan !== \"TEAM\"` on line 52) choose the CommandCenter vs self-serve Home client-side from the raw plan string."},
+    {"file":"apps/web/components/home-experience/home-view-model.ts","line":47,"detail":"isProOrTeam(): `plan === \"PRO\" || plan === \"TEAM\"` — raw plan decision driving Home view-model sectioning (and isFreePlan on line 50: `plan === \"FREE\"`)."},
+    {"file":"apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx","line":1163,"detail":"`accessReviewEnabled = plan === \"PRO\" || plan === \"TEAM\"` — a raw plan string gates the access-review feature affordance client-side rather than reading a server capability/entitlement boolean."},
+    {"file":"apps/web/lib/settings/settingsUiContext.ts","line":118,"detail":"`isEnterprise = orgPlan === \"ENTERPRISE\"` — raw plan string decides enterprise settings UI affordances client-side."},
+    {"file":"apps/web/lib/api/billing-summary.ts","line":64,"detail":"`if (plan === \"ENTERPRISE\") return \"unlimited\"` — raw plan comparison; DISPLAY/label formatting of a limit, not an access gate. Borderline (informational), listed for completeness."}
+  ],
+  "rules": [
+    {"rule":"FREE cannot create owned Teams/Workspaces (no invitations/members)","status":"ENFORCED","evidence":"packages/shared-billing/src/plan-catalog.ts:180-183 (FREE maxOwnedTeams=0, maxMembersPerTeam=0, maxPendingInvitesPerTeam=0, maxInvitesPer24h=0); services/api/src/services/collaboration-team/billing-guards.ts:288-304 (assertCanCreateCollaborationTeam throws TEAM_PLAN_REQUIRED 402 when maxTeams<=0); billing-guards.ts:368-380 (assertCollaborationTeamMemberLimit throws when maxMembersPerTeam<=0); billing-guards.ts:239-248 (assertTeamsFeatureIncluded locks all membership growth)"},
+    {"rule":"PAYG cannot create owned Teams/Workspaces (no invitations/members)","status":"ENFORCED","evidence":"packages/shared-billing/src/plan-catalog.ts:208-211 (PAYG maxOwnedTeams=0, maxMembersPerTeam=0, invites=0); same guards as FREE in services/api/src/services/collaboration-team/billing-guards.ts:288-304"},
+    {"rule":"PRO: up to 2 owned collaborative Workspaces/Teams, up to 5 members/Team","status":"ENFORCED","evidence":"packages/shared-billing/src/plan-catalog.ts:236-239 (PRO maxOwnedTeams=2, maxMembersPerTeam=5, maxPendingInvitesPerTeam=10, maxInvitesPer24h=50); enforced by billing-guards.ts:306-312 (ownedTeamCount>=maxTeams -> TEAM_LIMIT_REACHED) and :382-395 (member cap)"},
+    {"rule":"TEAM: up to 5 owned Teams, up to 5 members/Team","status":"ENFORCED","evidence":"packages/shared-billing/src/plan-catalog.ts:264-265 (TEAM maxOwnedTeams=5, maxMembersPerTeam=5); same guards billing-guards.ts:306-312 and :382-395"},
+    {"rule":"ENTERPRISE: contract-provisioned limits, SSO/SCIM/managed identity, OrganizationSecurityPolicy, service accounts","status":"UNCLEAR","evidence":"Capability catalog present: packages/shared-billing/src/plan-catalog.ts:271-297 (ENTERPRISE enterpriseFeatures=ALL_ENTERPRISE_FEATURES {ssoScim, mfaEnforcement, accessReviews, sessionGovernance, legalHold, retentionPolicy, organizationAuditLogs, objectLock all true}; maxOwnedTeams=1000/maxMembersPerTeam=500 are generous DEFAULTS, not literal contract-provisioned per-account overrides — comment plan-catalog.ts:84-92 states Sales provisions overrides as a 'future surface'). Gate helper exists: services/api/src/services/billing-enforcement.service.ts:544 (assertWorkspaceAllowsEnterpriseFeature) + :565 (assertTeamAllowsEnterpriseFeature) + middleware factory services/api/src/middleware/require-enterprise-feature.ts:27. BUT requireEnterpriseFeature is NOT imported by any file under services/api/src/routes (grep = 0 hits), so per-route wiring to SSO/SCIM/legal-hold/service-account routes could not be confirmed in this pass. OrganizationSecurityPolicy/SCIM/serviceAccount identifiers are NOT present in services/api/src/services/organization/enterprise-contract.service.ts. Enterprise contract state resolved by resolveEnterpriseContract (referenced commercial-context.service.ts:266,363)."},
+    {"rule":"Personal PRO never unlocks an Owned FREE Workspace (no owner-plan inheritance)","status":"ENFORCED","evidence":"packages/shared-billing/src/plan-catalog.ts:392-403 (resolveWorkspaceEffectivePlan OWNED case: only the workspace's OWN live TEAM subscription yields TEAM; owner's personal plan NEVER covers an Owned Workspace; maxOwnedTeams governs CREATION allowance only — comment :358-364); services/api/src/services/platform-context/platform-context.service.ts:361-385 (personal Team row stays FREE; PRO entitles the USER not the personal Team); commercial-context.service.ts:355-364"},
+    {"rule":"Frontend must make ZERO raw plan decisions (server projections only)","status":"NOT_ENFORCED","evidence":"Canonical page gate is clean (apps/web/components/navigation/PageRouteGate.tsx + apps/web/lib/navigation/routeAccessResolver.ts:127 read only envelope.capabilities booleans). BUT a parallel client-side plan-decision layer exists: apps/web/lib/surface/tiers.ts:296 and apps/web/lib/surface/access.ts:127 map the raw plan string to visibility tiers, consumed by apps/web/middleware.ts:330 + apps/web/components/surface/SurfaceGate.tsx:59. Additional raw-plan reads in resolveHomeSurface.ts:51, home-view-model.ts:47, collaboration/page.tsx:1163, settingsUiContext.ts:118. See frontendRawPlanDecisions (7 sites)."}
+  ],
+  "pages": [
+    {
+      "page": "/home", "nav": "Home",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.DASHBOARD_VIEW (capability-registry.ts:117-129, granted for any workspace scope); surface tier CORE=allow (tiers.ts:127). Enterprise plan renders CommandCenter variant (resolveHomeSurface.ts:49-53).",
+      "upgradeDestination": "n/a",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:331-345 (workspace.home, DASHBOARD_VIEW, PERSONAL_OR_ORG); apps/web/lib/surface/tiers.ts:127"
+    },
+    {
+      "page": "/capture", "nav": "Capture",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.EVIDENCE_CAPTURE (capability-registry.ts:117-129); surface tier CORE=allow (tiers.ts:128)",
+      "upgradeDestination": "n/a (record caps enforced at write time by plan-catalog maxEvidenceRecords, not by page gate)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:346-360 (workspace.capture, EVIDENCE_CAPTURE, PERSONAL_OR_ORG); tiers.ts:128"
+    },
+    {
+      "page": "/evidence", "nav": "Evidence",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.EVIDENCE_VIEW (capability-registry.ts:117-129); surface tier CORE=allow (tiers.ts:132)",
+      "upgradeDestination": "n/a",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:361-375 (workspace.evidence, EVIDENCE_VIEW, PERSONAL_OR_ORG); tiers.ts:132"
+    },
+    {
+      "page": "/cases", "nav": "Cases",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.CASES_VIEW (granted for any scope, capability-registry.ts:117-129); surface tier CORE=allow (tiers.ts:129). NOTE: casesIncluded plan flag is FALSE for FREE/PAYG (plan-catalog.ts:169,198) but is NOT wired to page visibility — page loads for all plans; case-creation feature enforcement is server-side.",
+      "upgradeDestination": "/billing (commercial cases are Pro+; not gated at this page)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:376-391 (workspace.cases, CASES_VIEW, PERSONAL_OR_ORG); tiers.ts:129; plan-catalog.ts:169,198,216(PRO casesIncluded=true)"
+    },
+    {
+      "page": "/review", "nav": "Review",
+      "perPlan": {"FREE":"hidden","PAYG":"hidden","PRO":"hidden","TEAM":"hidden","ENTERPRISE":"enabled"},
+      "commercialSubject": "org-contract",
+      "serverProjectionSource": "Two gates agree: surface tier ENTERPRISE=notFound for non-enterprise (tiers.ts:230) AND routeRegistry requiredActiveSpace ORGANIZATION_ONLY + REVIEWER_OPS_VIEW (only granted in TEAM/org scope, capability-registry.ts:189-204). Personal PRO/TEAM resolve NEEDS_ORGANIZATION (routeAccessResolver.ts:168).",
+      "upgradeDestination": "/contact-sales (Enterprise); reviewerOperationsIncluded true only on TEAM/ENTERPRISE plan-catalog.ts:255,283 but surface requires org workspace",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:1102-1116 (workspace.review, REVIEWER_OPS_VIEW, ORGANIZATION_ONLY); tiers.ts:230"
+    },
+    {
+      "page": "/intake-links", "nav": "Intake links",
+      "perPlan": {"FREE":"locked","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "owned-workspace",
+      "serverProjectionSource": "surface tier PROFESSIONAL with entitlementOverride=intakeIncluded (tiers.ts:148) -> follows envelope.planFeatures.intakeIncluded (platform-context.service.ts:457) which is FALSE for FREE, TRUE for PAYG/PRO/TEAM/ENTERPRISE (plan-catalog.ts:169,197,217,253,281). Capability INTAKE_LINKS_MANAGE granted in personal/team writer scope (capability-registry.ts:176,221). FREE -> redirect on direct URL.",
+      "upgradeDestination": "/billing (surface tier redirect default /home; page-gate CTA /billing)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:476-497 (workspace.intake_links, INTAKE_LINKS_MANAGE, PERSONAL_OR_ORG); tiers.ts:148; plan-catalog.ts:169(FREE intakeIncluded=false)"
+    },
+    {
+      "page": "/reports", "nav": "Reports",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.REPORTS_VIEW (granted any scope, capability-registry.ts:117-129); surface tier CORE=allow (tiers.ts:134). NOTE reportsIncluded=false on FREE (plan-catalog.ts:166) but NOT wired to page visibility — report GENERATION is the gated commercial action (plan-catalog reportsIncluded / canPlanGenerateReports), not the /reports page load.",
+      "upgradeDestination": "/billing (report generation is Pro+/PAYG per plan-catalog.ts:166,194)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:392-406 (workspace.reports, REPORTS_VIEW, PERSONAL_OR_ORG); tiers.ts:134"
+    },
+    {
+      "page": "/search", "nav": "Search",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.SEARCH_VIEW (any scope, capability-registry.ts:117-129); surface tier CORE=allow (tiers.ts:133)",
+      "upgradeDestination": "n/a",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:407-421 (workspace.search, SEARCH_VIEW, PERSONAL_OR_ORG); tiers.ts:133"
+    },
+    {
+      "page": "/redaction", "nav": "Redaction Projects",
+      "perPlan": {"FREE":"hidden","PAYG":"hidden","PRO":"hidden","TEAM":"hidden","ENTERPRISE":"enabled"},
+      "commercialSubject": "org-contract",
+      "serverProjectionSource": "surface tier ENTERPRISE=notFound (tiers.ts:231) AND routeRegistry ORGANIZATION_ONLY + REVIEWER_OPS_VIEW. Personal plans -> NEEDS_ORGANIZATION / notFound.",
+      "upgradeDestination": "/contact-sales (Enterprise)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:2045-2057 (workspace.review_redaction, REVIEWER_OPS_VIEW, ORGANIZATION_ONLY); apps/web/app/(app)/redaction/page.tsx:62; tiers.ts:231"
+    },
+    {
+      "page": "/evidence-lifecycle", "nav": "Lifecycle Operations",
+      "perPlan": {"FREE":"hidden","PAYG":"hidden","PRO":"hidden","TEAM":"hidden","ENTERPRISE":"enabled"},
+      "commercialSubject": "org-contract",
+      "serverProjectionSource": "surface tier ENTERPRISE=redirect->/evidence (tiers.ts:219) AND routeRegistry ORGANIZATION_ONLY + LIFECYCLE_VIEW (granted only in team/org scope, capability-registry.ts:189-204). Legal-hold/retention mutations additionally gated server-side by assertWorkspaceAllowsEnterpriseFeature (billing-enforcement.service.ts:544).",
+      "upgradeDestination": "/contact-sales (Enterprise); surface redirect target /evidence",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:1956-1965 (workspace.evidence_lifecycle, LIFECYCLE_VIEW, ORGANIZATION_ONLY); apps/web/app/(app)/evidence-lifecycle/retention/page.tsx:124; tiers.ts:219"
+    },
+    {
+      "page": "/collaboration-teams", "nav": "Teams",
+      "perPlan": {"FREE":"visible","PAYG":"visible","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "owned-workspace",
+      "serverProjectionSource": "No surface-tier rule matches '/collaboration-teams' (tiers.ts rules cover '/teams' and '/collaboration' only; findSurfaceTierRule prefix match fails) -> falls through to CORE=allow (tiers.ts:355-357). routeRegistry requiredCapabilities=[] (no cap gate), PERSONAL_OR_ORG -> page VISIBLE to every plan. CREATE-team is plan-gated server-side (assertCanCreateCollaborationTeam -> FREE/PAYG get TEAM_PLAN_REQUIRED 402). 'visible' = page + team list render but create/invite blocked; 'enabled' = create allowed.",
+      "upgradeDestination": "/billing (COLLABORATION_TEAM_BILLING_UPGRADE_CTA, packages/shared/src/collaboration-team-billing-codes.ts:88)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:887-902 (workspace.collaboration_teams, [], PERSONAL_OR_ORG); services/api/src/services/collaboration-team/billing-guards.ts:288-304"
+    },
+    {
+      "page": "/organizations", "nav": "Organizations",
+      "perPlan": {"FREE":"hidden","PAYG":"hidden","PRO":"hidden","TEAM":"hidden","ENTERPRISE":"enabled"},
+      "commercialSubject": "org-contract",
+      "serverProjectionSource": "surface tier ENTERPRISE=notFound (tiers.ts:190) hides for all non-enterprise plans/direct-URL. routeRegistry account.organizations is ACCOUNT/NONE/no-caps (would LOAD) so the plan gate is the surface-tier layer, NOT the capability gate — a divergence between the two systems. Enterprise onboarding wizard (/organizations/:id/setup) inherited via ENTERPRISE tier.",
+      "upgradeDestination": "/contact-sales (Organizations reserved for sales-led Enterprise per tiers.ts:184-190)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:232-247 (account.organizations, [], NONE); apps/web/lib/surface/tiers.ts:190"
+    },
+    {
+      "page": "/billing", "nav": "Billing",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.ACCOUNT_BILLING_VIEW (granted to every authenticated user, capability-registry.ts:316-326); surface tier CORE=allow (tiers.ts:163); routeRegistry ACCOUNT/NONE so never workspace-gated.",
+      "upgradeDestination": "self (this IS the upgrade/checkout surface — CheckoutPanel.tsx)",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:200-218 (account.billing, ACCOUNT_BILLING_VIEW, NONE); tiers.ts:163"
+    },
+    {
+      "page": "/settings", "nav": "Account settings",
+      "perPlan": {"FREE":"enabled","PAYG":"enabled","PRO":"enabled","TEAM":"enabled","ENTERPRISE":"enabled"},
+      "commercialSubject": "personal",
+      "serverProjectionSource": "envelope.capabilities.ACCOUNT_SETTINGS_VIEW (granted to every authenticated user, capability-registry.ts:316-326); surface tier CORE=allow (tiers.ts:162); ACCOUNT/NONE domain. Enterprise-specific settings affordances toggled client-side by orgPlan===ENTERPRISE (settingsUiContext.ts:118 — a raw-plan decision, see frontendRawPlanDecisions).",
+      "upgradeDestination": "n/a",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:111-125 (account.settings, ACCOUNT_SETTINGS_VIEW, NONE); tiers.ts:162"
+    },
+    {
+      "page": "/admin", "nav": "Platform admin",
+      "perPlan": {"FREE":"hidden","PAYG":"hidden","PRO":"hidden","TEAM":"hidden","ENTERPRISE":"hidden"},
+      "commercialSubject": "org-contract",
+      "serverProjectionSource": "HIDDEN-BY-ROLE for all plans — not plan-gated. routeRegistry platform.admin requires PLATFORM_ADMIN capability + PLATFORM_ADMIN active space (routeAccessResolver.ts:135); surface tier ENTERPRISE=notFound (tiers.ts:251). Visible only to platform-admin elevation, independent of plan. (Organization admin overview is a distinct surface at /organizations/:id/admin, org-contract / ENTERPRISE.)",
+      "upgradeDestination": "n/a",
+      "evidence": "apps/web/lib/navigation/routeRegistry.ts:1315-1329 (platform.admin, PLATFORM_ADMIN, PLATFORM_ADMIN); apps/web/lib/surface/tiers.ts:251"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+import { DomainError } from "../errors.js";
 import { consumeCredits } from "./billing.service.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 // §9.7 — the enforcement chokepoint consumes the canonical commercial
@@ -231,15 +232,37 @@ export async function assertWorkspaceAllowsEvidenceCreation(
 
   // Cap reached. Distinguish FREE for backcompat code consumers while
   // emitting the new canonical code for everyone else.
+  //
+  // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): this is a `DomainError`
+  // declaring itself an EXPECTED_DENIAL.
+  //
+  // It used to be a plain `Error` with `statusCode`/`code` assigned onto it —
+  // a shape the central handler does not recognise — so a user hitting the
+  // published FREE record cap produced an error-level Sentry issue, an
+  // operational page, and a 500 on the wire. The most ordinary outcome in the
+  // product was indistinguishable from a crash.
+  //
+  // 409 CONFLICT is retained deliberately: the request conflicts with the
+  // current state of the resource (the workspace is at its record cap), and it
+  // is the status the commercial vocabulary already uses for the report,
+  // package, intake and cases gates. It is not 402 — nothing here is unpaid,
+  // and the same denial applies to plans that cannot buy their way past it.
   const isFree = scope.plan === prismaPkg.PlanType.FREE;
-  const err: Error & { statusCode?: number; code?: string } = new Error(
+  throw new DomainError(
     isFree
       ? "Free evidence limit reached"
-      : "Evidence record limit reached for current plan"
+      : "Evidence record limit reached for current plan",
+    {
+      httpStatus: 409,
+      publicCode: isFree ? "FREE_LIMIT_REACHED" : "EVIDENCE_RECORD_LIMIT_REACHED",
+      publicMessage: isFree
+        ? "You have reached the record limit included in the Free plan. Existing records remain available."
+        : "You have reached the record limit included in your current plan. Existing records remain available.",
+      reportability: "EXPECTED_DENIAL",
+      severity: "info",
+      metadata: { plan: String(scope.plan), limitKind: "evidence_records" },
+    },
   );
-  err.statusCode = 409;
-  err.code = isFree ? "FREE_LIMIT_REACHED" : "EVIDENCE_RECORD_LIMIT_REACHED";
-  throw err;
 }
 
 export async function assertWorkspaceAllowsStorageGrowth(params: {
@@ -285,6 +308,35 @@ export async function assertWorkspaceAllowsIntake(scope: WorkspaceScope) {
     );
     err.statusCode = 409;
     err.code = "INTAKE_NOT_INCLUDED";
+    throw err;
+  }
+}
+
+/**
+ * PHASE 12 — POINT 7 (2026-08-05): the CASES plan gate.
+ *
+ * `casesIncluded` was already a catalog field, a published pricing row
+ * ("Cases & matters: Not included / Not included / Personal / Team /
+ * Org-wide"), a projected `planFeatures` flag the UI hides the surface on, and
+ * an input to operational eligibility. It was enforced NOWHERE: `POST
+ * /v1/cases` created the row for any authenticated member, so a FREE account's
+ * direct request produced a Case with a 201. That is the exact shape of defect
+ * the point exists to close — a lock the UI honours and the server does not.
+ *
+ * Same shape as the report / package / intake guards: 409 with a stable code
+ * the client renders remediation from, thrown BEFORE any row is written.
+ */
+export async function assertWorkspaceAllowsCases(scope: WorkspaceScope) {
+  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
+  assertCommercialLifecycleAllowsPaidMutation(scope);
+  const caps = getPlanCapabilities(scope.plan);
+
+  if (!caps.casesIncluded) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Cases and matters are not included in the current plan"
+    );
+    err.statusCode = 409;
+    err.code = "CASES_NOT_INCLUDED";
     throw err;
   }
 }
@@ -566,9 +618,18 @@ export async function assertTeamAllowsEnterpriseFeature(
   teamId: string,
   feature: keyof EnterpriseFeatureFlags,
 ): Promise<void> {
+  // PHASE 12 POINT 4 PASS C5 — one subject-correct effective-plan authority.
+  //
+  // This was a byte-identical copy of the derivation in
+  // enterprise-gate-resolvers.service.ts: raw `Team.billingPlan`, falling back
+  // to the OWNER's personal entitlement whenever the workspace's billing was
+  // not live. Two copies of a commercial rule, both applying an owner-plan
+  // fallback the canonical policy forbids for an OWNED/ORGANIZATION
+  // workspace — so a lapsed enterprise workspace kept enterprise features on
+  // the strength of its owner's personal plan.
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { ownerUserId: true, billingPlan: true, billingStatus: true },
+    select: { ownerUserId: true },
   });
   if (!team) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
@@ -578,18 +639,12 @@ export async function assertTeamAllowsEnterpriseFeature(
     err.code = "TEAM_NOT_FOUND";
     throw err;
   }
-  let effectivePlan: prismaPkg.PlanType = team.billingPlan;
-  if (
-    team.billingStatus !== prismaPkg.TeamBillingStatus.ACTIVE &&
-    team.billingStatus !== prismaPkg.TeamBillingStatus.PAST_DUE
-  ) {
-    const ent = await prisma.entitlement.findFirst({
-      where: { userId: team.ownerUserId, active: true },
-      orderBy: { createdAt: "desc" },
-      select: { plan: true },
-    });
-    effectivePlan = ent?.plan ?? prismaPkg.PlanType.FREE;
-  }
+  const ctx = await resolveCommercialContext({
+    type: "WORKSPACE",
+    teamId,
+    requesterUserId: team.ownerUserId,
+  });
+  const effectivePlan = ctx.plan as prismaPkg.PlanType;
   if (!planHasEnterpriseFeature(effectivePlan, feature)) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       `Feature "${feature}" is included only on Enterprise plans`,

@@ -23,7 +23,22 @@
  *      issues.
  */
 
-import type { CapabilityKey } from "../platform-context/types";
+import type {
+  CapabilityKey,
+  PlatformContextPlanFeatures,
+} from "../platform-context/types";
+
+/**
+ * Track 1A (surface-tier removal) — boolean commercial-entitlement keys of
+ * the SERVER-computed `envelope.planFeatures` projection that a route may
+ * require. The backend PLAN_CAPABILITIES catalog is the single source of
+ * truth; the client only reads the projected boolean.
+ */
+export type PlanFeatureGateKey = {
+  [K in keyof PlatformContextPlanFeatures]-?: PlatformContextPlanFeatures[K] extends boolean
+    ? K
+    : never;
+}[keyof PlatformContextPlanFeatures];
 
 export const ROUTE_DOMAINS = [
   "PUBLIC",
@@ -97,7 +112,115 @@ export type RouteDefinition = {
    * showing a generic capability prompt.
    */
   denialGuidance?: string;
+  /**
+   * Track 1A (surface-tier removal) — SERVER-projected commercial
+   * entitlement gate. When set, the route additionally requires
+   * `envelope.planFeatures[<key>] === true` (fail-closed while the
+   * envelope is loading/degraded). Platform admins bypass. This replaces
+   * the deleted `lib/surface/tiers.ts` `entitlementOverride` mechanism —
+   * the boolean is computed by the backend PLAN_CAPABILITIES projection;
+   * the client never derives it from a plan name.
+   */
+  requiredPlanFeature?: PlanFeatureGateKey;
 };
+
+/**
+ * Track 1A (surface-tier removal) — routes that additionally require the
+ * SERVER-computed `envelope.flags.isEnterpriseWorkspace` projection (the
+ * backend derives it from ENTERPRISE_PLAN_KEYS = {"ENTERPRISE"} for the
+ * ACTIVE workspace) or platform-admin elevation.
+ *
+ * This is the capability-era replacement for the deleted ENTERPRISE tier
+ * in `lib/surface/tiers.ts`: the decision input is a server-projected
+ * boolean, never a raw plan string, and the rule lives inside the ONE
+ * canonical route registry instead of a parallel path table. The
+ * `resolveRouteAccess` resolver consults this set; membership yields
+ * `NEEDS_UPGRADE` (hidden from nav, bounded denial panel on direct URL)
+ * for non-enterprise, non-platform-admin actors.
+ */
+export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
+  // NOTE (12B correction): the organizations LIST + member-safe DETAIL are
+  // MEMBERSHIP-gated, not enterprise-workspace-gated — a FREE-plan personal
+  // user with an ACTIVE org membership must reach their org list even while
+  // their ACTIVE workspace is personal (canonical account-menu contract:
+  // "membership is the ONLY input — never plan"). Administration below the
+  // detail stays capability-gated and the org ADMIN surfaces below remain
+  // enterprise-workspace-gated.
+  "account.organization-setup",
+  "account.organization_admin",
+  "account.organization_admin_overview",
+  "account.organization_admin_members",
+  "account.organization_admin_departments",
+  "account.organization_admin_governance",
+  "account.organization_admin_governance_external_reviewers",
+  "account.organization_admin_access_reviews",
+  "account.organization_admin_retention",
+  "account.organization_admin_audit",
+  "account.organization_admin_bulk_invite",
+  "account.organization_admin_reports",
+  "account.organization_admin_readiness",
+  "account.organization_admin_security",
+  "account.organization_admin_domains",
+  "account.organization_admin_trust",
+  "account.organization_admin_roles",
+  "account.organization_admin_billing",
+  "account.organization_admin_integrations",
+  // Workspace-admin tenancy + enterprise-shell surfaces.
+  "admin.teams",
+  "workspace.notifications",
+  "workspace.evidence_lifecycle",
+  "workspace.exchange",
+  "workspace.integrations",
+  "workspace.workflows",
+  "workspace.communications",
+  "workspace.packaging",
+  // Reviewer operations.
+  "workspace.review",
+  "review.queue",
+  "review.operations",
+  "review.escalations",
+  "review.queue_detail",
+  "review.sla",
+  "workspace.review_workspace",
+  "workspace.coding_schemas",
+  "workspace.review_qc",
+  "workspace.review_disagreements",
+  "workspace.review_metrics",
+  "workspace.review_queues",
+  "workspace.review_external",
+  "workspace.review_redaction",
+  // Governance / compliance.
+  "governance.hub",
+  "governance.policy",
+  "governance.analytics",
+  "governance.lifecycle",
+  "governance.destruction",
+  "governance.notifications",
+  "governance.retention",
+  "workspace.governance_platform",
+  "workspace.audit_transparency",
+  // Identity / security operator consoles.
+  "workspace.security_center",
+  "security_center.mfa_recovery",
+  // Enterprise analytics / intelligence / investigation power tools.
+  "workspace.executive",
+  "workspace.intelligence",
+  "workspace.intelligence_quality",
+  "workspace.budget_center",
+  "investigation.hub",
+  "investigation.timeline",
+  "investigation.relationships",
+  "investigation.graph",
+  "investigation.duplicates",
+  "investigation.reviewers",
+]);
+
+/** Does this route require an enterprise workspace (or platform admin)? */
+export function routeRequiresEnterpriseWorkspace(
+  route: Pick<RouteDefinition, "id">,
+): boolean {
+  return ENTERPRISE_ONLY_ROUTE_IDS.has(route.id);
+}
 
 /**
  * Canonical product routes. Additive — extend this list when adding new
@@ -481,6 +604,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
+    // Track 1A — commercial gate follows the SERVER-computed
+    // `envelope.planFeatures.intakeIncluded` boolean (PAYG/PRO/TEAM/
+    // ENTERPRISE include intake; FREE does not). Replaces the deleted
+    // surface-tier `entitlementOverride` for this path.
+    requiredPlanFeature: "intakeIncluded",
 
     // Phase IA-intake-access-fix — Intake Links is a CORE self-serve
     // surface for PRO/TEAM, not an advanced add-on. It must render in
@@ -841,36 +969,6 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
-  },
-  {
-    id: "workspace.collaboration",
-    href: "/collaboration",
-    // Phase IA-collapse — `/collaboration` is RETIRED as a standalone
-    // product surface. The workspace-wide discussion list was a thin
-    // bird's-eye view of evidence discussion threads; its real
-    // capabilities (assigned-to-me, unread mentions) are already in
-    // /inbox (`discussion_mention` + `discussion_assigned` items, which
-    // deep-link to the evidence detail discussion tab). The page file +
-    // backend service + DiscussionThread / DiscussionMessage models +
-    // /v1/collaboration/threads/* routes all remain intact — the
-    // evidence detail discussion panel continues to use them. The
-    // standalone URL now redirects to /inbox (see next.config.js). This
-    // registry entry is preserved so the route id, href, and existing
-    // contract tests stay green; sidebar / cmd-K / All Tools all hide
-    // the entry, and the next.config redirect intercepts before the
-    // page renders.
-    label: "Collaboration (legacy — redirected to /inbox)",
-    description:
-      "Legacy standalone discussion list. Redirects to /inbox; discussion threads now live on Evidence Detail → Discussion.",
-    domain: "PERSONAL_WORKSPACE",
-    requiredCapabilities: ["EVIDENCE_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "DEGRADED",
-
-    advancedByDefault: true,
-    commandPaletteVisible: false,
-    allToolsVisible: false,
     sidebarEligible: false,
   },
   // PHASE 6 — Team Collaboration Platform. The canonical Team UI
@@ -1349,6 +1447,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // Surfaced so a Platform Admin can reach provisioning from the command
     // palette / All Tools (and the /admin console nav) — never a direct-URL
     // guess. Non-admins never see it (HIDDEN_IF_NO_CAPABILITY + PLATFORM_ADMIN).
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // PHASE 12B C10 — Support Access + Break-Glass. Restricted INTERNAL STAFF
+  // capabilities, so this is a first-class registry citizen under the same
+  // PLATFORM_ADMIN contract as the rest of /admin/* (the page additionally
+  // inherits the `platform.admin` gate from admin/layout.tsx). Surfaced in the
+  // command palette / All Tools so an on-call responder reaches it by name
+  // rather than by guessing a URL; HIDDEN_IF_NO_CAPABILITY means a customer
+  // admin never sees that it exists, and the API returns a flat 404 to them.
+  {
+    id: "platform.support_access",
+    href: "/admin/support-access",
+    label: "Support access & break-glass",
+    description:
+      "Support-access and break-glass grant lifecycle (PLATFORM_ADMIN only): enter session-bound support context, revoke support grants, cut emergency access. Dual-identity audited.",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: false,
@@ -2412,7 +2533,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // as their sibling org-admin tabs: the /organizations prefix is
   // ENTERPRISE-tier (lib/surface/tiers.ts), so FREE/PAYG/PRO/TEAM never
   // reach them; org admins deep-link from the shell (sidebarEligible: false
-  // — org detail is the sidebar entry). Kept in sync with routeRegistry.js.
+  // — org detail is the sidebar entry).
   {
     id: "account.organization_admin_roles",
     href: "/organizations/:id/admin/roles",
@@ -2468,4 +2589,45 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
  */
 export function getRouteDefinition(id: string): RouteDefinition | null {
   return ROUTE_REGISTRY.find((r) => r.id === id) ?? null;
+}
+
+/**
+ * Track 1A (surface-tier removal) — resolve the registry entry for a URL
+ * pathname. Segment-boundary aware, `:param` / `[param]` tolerant, and
+ * LONGEST-match wins so `/organizations/abc/admin/domains` resolves to the
+ * dedicated admin-domains entry rather than the `/organizations` index.
+ *
+ * Returns null for unregistered paths — callers treat that as "no route
+ * gate declared" (mirrors PageRouteGate's unknown-routeId fallback).
+ */
+export function findRouteDefinitionByPath(
+  pathname: string,
+): RouteDefinition | null {
+  const clean = (pathname.split(/[?#]/)[0] ?? "").replace(/\/+$/, "") || "/";
+  const pathSegs = clean.split("/").filter(Boolean);
+
+  let best: RouteDefinition | null = null;
+  let bestLen = -1;
+  for (const route of ROUTE_REGISTRY) {
+    // Hash-anchored hrefs (e.g. /settings#security) match their base path
+    // only as the plain base route; skip them for path resolution.
+    if (route.href.includes("#")) continue;
+    const hrefSegs = route.href.split("/").filter(Boolean);
+    if (hrefSegs.length > pathSegs.length) continue;
+    let matches = true;
+    for (let i = 0; i < hrefSegs.length; i++) {
+      const h = hrefSegs[i]!;
+      const isParam = h.startsWith(":") || (h.startsWith("[") && h.endsWith("]"));
+      if (!isParam && h !== pathSegs[i]) {
+        matches = false;
+        break;
+      }
+    }
+    if (!matches) continue;
+    if (hrefSegs.length > bestLen) {
+      best = route;
+      bestLen = hrefSegs.length;
+    }
+  }
+  return best;
 }

@@ -273,7 +273,7 @@ export async function listWorkspaceArtifacts(input: {
       teamId: input.teamId,
       status: { in: ["SIGNED", "REPORTED"] },
     };
-    if (input.caseId) whereBase.caseId = input.caseId;
+    if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
     if (input.search && input.search.trim()) {
       whereBase.title = {
         contains: input.search.trim().slice(0, 80),
@@ -313,12 +313,12 @@ export async function listWorkspaceArtifacts(input: {
         type: true,
         status: true,
         verificationStatus: true,
-        caseId: true,
+        caseLinks: { orderBy: { linkedAtUtc: "asc" }, select: { caseId: true }, take: 1 },
         createdAt: true,
         verificationPackageMetadata: true,
         // Phase 6 — template provenance trio surfaced on the
         // report/package envelope for downstream traceability.
-        // Identity-only; never drives any lifecycle decision.
+        // Identity-only; never drives lifecycle.
         templateSlug: true,
         templateVersion: true,
         templateDbId: true,
@@ -394,7 +394,7 @@ export async function listWorkspaceArtifacts(input: {
           verificationStatus: r.verificationStatus
             ? String(r.verificationStatus)
             : null,
-          caseId: r.caseId,
+          caseId: r.caseLinks[0]?.caseId ?? null,
           createdAt: r.createdAt.toISOString(),
           report: {
             state: reportState,

@@ -23,6 +23,11 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  attachEvidenceToCase,
+  detachEvidenceFromCase,
+  CaseEvidenceAuthorityError,
+} from "./case-evidence-link.service.js";
 
 export type CaseErrorCode =
   | "case_not_found"
@@ -122,12 +127,24 @@ export async function changeCaseStatus(
     throw new CaseError("invalid_transition");
   }
 
-  // Preservation invariant: active legal hold blocks CLOSED/ARCHIVED.
+  // Preservation invariant: an active legal hold blocks CLOSED/ARCHIVED.
+  //
+  // PHASE 12 POINT 3 — this counted rows in the LEGACY `case_legal_holds`
+  // store directly. That was wrong in both directions: a hold placed through
+  // the canonical service (scope='CASE' on `evidence_legal_holds`) did NOT
+  // block closure, and the query would throw outright once the contract
+  // migration drops the legacy table. Destructive gates must go through the
+  // ONE effective-hold evaluator, which unions every store and fails closed on
+  // an unresolvable historical hold.
   if (CLOSURE_STATUSES.has(input.toStatus)) {
-    const activeHold = await client.caseLegalHold.count({
-      where: { caseId: existing.id, status: "ACTIVE" },
-    });
-    if (activeHold > 0) {
+    const { isUnderEffectiveLegalHold } = await import(
+      "../governance/effective-legal-hold.js"
+    );
+    const held = await isUnderEffectiveLegalHold(
+      client as unknown as Parameters<typeof isUnderEffectiveLegalHold>[0],
+      { teamId: existing.teamId, caseIds: [existing.id] },
+    );
+    if (held) {
       throw new CaseError("active_legal_hold_blocks_closure");
     }
   }
@@ -616,53 +633,45 @@ export async function addEvidenceLink(
   });
   if (!evidence) throw new CaseError("evidence_not_found");
   // Cross-workspace check: evidence must be in the same team workspace.
+  // Anti-enumeration: surfaced as evidence_not_found, never as an
+  // explicit cross-workspace denial.
   if (existing.teamId && evidence.teamId !== existing.teamId) {
     throw new CaseError("evidence_not_found");
   }
 
+  // Track 1B — the write flows through the CANONICAL case-evidence
+  // authority (case-evidence-link.service.ts): atomic link create +
+  // legacy Evidence.caseId dual-write + tenant-audit in ONE transaction.
   const role = (input.role ?? "SUPPORTING") as prismaPkg.CaseEvidenceLinkRole;
-  // Idempotent on the unique (caseId, evidenceId, role).
-  const existingLink = await client.caseEvidenceLink.findUnique({
-    where: {
-      caseId_evidenceId_role: {
+  try {
+    const result = await attachEvidenceToCase(
+      {
         caseId: existing.id,
         evidenceId: input.evidenceId,
+        actorUserId: input.actorUserId,
         role,
-      },
-    },
-  });
-  if (existingLink) throw new CaseError("evidence_link_exists");
-  const row = await client.caseEvidenceLink.create({
-    data: {
-      teamId: existing.teamId ?? "",
-      caseId: existing.id,
-      evidenceId: input.evidenceId,
-      role,
-      source: "USER",
-      linkedByUserId: input.actorUserId,
-      reason: input.reason ? input.reason.slice(0, 400) : null,
-    },
-  });
-  await emitTenantAudit(
-    {
-      action: "cases.evidence_linked",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: input.actorUserId,
-      workspaceId: existing.teamId,
-      resourceType: "case_evidence_link",
-      resourceId: row.id,
-      metadata: {
-        caseId: existing.id,
-        evidenceId: input.evidenceId,
-        role,
+        source: "USER",
+        reason: input.reason ? input.reason.slice(0, 400) : null,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,
       },
-    },
-    client,
-  );
-  return row;
+      client,
+    );
+    if (!result.created) {
+      // An active link for this (case, evidence) pair already exists —
+      // the authority never creates a duplicate active link (any role).
+      throw new CaseError("evidence_link_exists");
+    }
+    return result.link as prismaPkg.CaseEvidenceLink;
+  } catch (err) {
+    if (err instanceof CaseEvidenceAuthorityError) {
+      if (err.code === "case_not_found") throw new CaseError("case_not_found");
+      // evidence_not_found / evidence_deleted / cross_workspace_denied all
+      // collapse to the anti-enumeration-safe evidence_not_found.
+      throw new CaseError("evidence_not_found");
+    }
+    throw err;
+  }
 }
 
 export async function removeEvidenceLink(
@@ -673,23 +682,16 @@ export async function removeEvidenceLink(
     where: { id: input.linkId, caseId: input.caseId },
   });
   if (!existing) throw new CaseError("evidence_not_found");
-  await client.caseEvidenceLink.delete({ where: { id: existing.id } });
-  await emitTenantAudit(
+  // Track 1B — detach through the CANONICAL authority: link removal +
+  // legacy Evidence.caseId re-sync + tenant-audit in ONE transaction.
+  await detachEvidenceFromCase(
     {
-      action: "cases.evidence_unlinked",
-      outcome: "success",
-      sourceApp: "API",
+      caseId: input.caseId,
+      evidenceId: existing.evidenceId,
       actorUserId: input.actorUserId,
-      workspaceId: existing.teamId,
-      resourceType: "case_evidence_link",
-      resourceId: existing.id,
-      metadata: {
-        caseId: input.caseId,
-        evidenceId: existing.evidenceId,
-        role: existing.role,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
-      },
+      auditMetadata: { role: existing.role, linkId: existing.id },
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
     client,
   );
@@ -697,18 +699,21 @@ export async function removeEvidenceLink(
 }
 
 /**
- * Phase 32.8D-frontend-closure-2 — Audited unlink of a legacy
- * `Evidence.caseId` attachment that has no `CaseEvidenceLink` row.
+ * Phase 32.8D-frontend-closure-2 / Track 1B closure — legacy-attachment
+ * unlink endpoint support.
  *
- *   - Reads the Evidence row. If `evidence.caseId !== caseId`, throws
- *     `evidence_not_found` so callers receive a 404.
- *   - Sets `Evidence.caseId = null` without touching any other field.
- *     The evidence record (and its bytes / metadata) is preserved.
- *   - Writes a platform audit log with action
- *     `cases.legacy_evidence_unlinked` and explicit metadata.
- *   - Does NOT emit custody / download events.
- *   - Does NOT generate reports or packages.
- *   - Does NOT regenerate signed URLs.
+ * The legacy `Evidence.caseId` column was DROPPED (migration
+ * 20271105000000_evidence_case_id_removal); a "legacy-only attachment"
+ * (column set, no `CaseEvidenceLink` row) is no longer representable.
+ * The function is preserved for route/API compatibility and now:
+ *
+ *   - throws `evidence_not_found` when the evidence does not exist or
+ *     when no attachment binds the pair (nothing legacy remains);
+ *   - throws `evidence_link_exists` when a canonical CaseEvidenceLink
+ *     row binds the pair — the canonical unlink route
+ *     (detachEvidenceFromCase) handles that path.
+ *
+ * It performs ZERO mutation and never deletes the evidence row.
  */
 export async function removeLegacyEvidenceCaseId(
   input: CaseActorContext & { caseId: string; evidenceId: string },
@@ -716,14 +721,13 @@ export async function removeLegacyEvidenceCaseId(
 ): Promise<{ unlinked: true; evidenceId: string }> {
   const evidence = await client.evidence.findUnique({
     where: { id: input.evidenceId },
-    select: { id: true, caseId: true, teamId: true, ownerUserId: true },
+    select: { id: true, teamId: true, ownerUserId: true },
   });
-  if (!evidence || evidence.caseId !== input.caseId) {
+  if (!evidence) {
     throw new CaseError("evidence_not_found");
   }
-  // Also refuse if a canonical CaseEvidenceLink row exists — the
-  // canonical unlink route handles that path. This route is strictly
-  // for evidence attached only via the legacy caseId column.
+  // Refuse if a canonical CaseEvidenceLink row exists — the canonical
+  // unlink route handles that path.
   const canonical = await client.caseEvidenceLink.findFirst({
     where: { caseId: input.caseId, evidenceId: input.evidenceId },
     select: { id: true },
@@ -731,28 +735,6 @@ export async function removeLegacyEvidenceCaseId(
   if (canonical) {
     throw new CaseError("evidence_link_exists");
   }
-  await client.evidence.update({
-    where: { id: evidence.id },
-    data: { caseId: null },
-  });
-  await emitTenantAudit(
-    {
-      action: "cases.legacy_evidence_unlinked",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: input.actorUserId,
-      workspaceId: evidence.teamId,
-      resourceType: "evidence",
-      resourceId: evidence.id,
-      metadata: {
-        caseId: input.caseId,
-        evidenceId: evidence.id,
-        attachmentKind: "legacy_case_id",
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
-      },
-    },
-    client,
-  );
-  return { unlinked: true, evidenceId: evidence.id };
+  // No legacy column remains — nothing binds this pair.
+  throw new CaseError("evidence_not_found");
 }

@@ -13,7 +13,7 @@
  * update this test, then update the code.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -321,7 +321,6 @@ describe("Prisma schema + migration", () => {
 // ──────────────────────────────────────────────────────────────────────
 describe("public pricing UI vs catalog parity", () => {
   const page = read(WEB_PRICING_PAGE);
-  const table = read(WEB_COMPARISON_TABLE);
   const types = read(WEB_PRICING_TYPES);
 
   it("Pro card no longer says 'Unlimited evidence records'", () => {
@@ -375,10 +374,21 @@ describe("public pricing UI vs catalog parity", () => {
     expect(page).toContain("Plans &amp; Capacity");
     expect(page).toContain("Operations &amp; Governance");
   });
-  it("comparison-table component no longer renders 'Unlimited'", () => {
-    expect(table).not.toMatch(/values:\s*\[[^\]]*"Unlimited"[^\]]*\]/);
-    expect(table).toContain("/ month");
-    expect(table).toContain("included");
+  // PHASE 12 POINT 4 PASS D/G — the invariant moved to the LIVE page.
+  //
+  // `components/pricing/PricingComparisonTable.tsx` had zero importers: the
+  // pricing page renders its own split tables (asserted above). Pinning the
+  // unmounted component asserted "Unlimited" was absent from a file no user
+  // could reach, while the page that ships was covered only indirectly. The
+  // rule now applies where the table is actually rendered.
+  it("the rendered comparison tables never advertise 'Unlimited' capacity", () => {
+    expect(page).not.toMatch(/values:\s*\[[^\]]*"Unlimited"[^\]]*\]/);
+    expect(page).toContain("/ month");
+    expect(page).toContain("included");
+  });
+
+  it("the unmounted comparison-table component stays removed", () => {
+    expect(existsSync(WEB_COMPARISON_TABLE)).toBe(false);
   });
   it("PlanType in web types declares ENTERPRISE", () => {
     expect(types).toContain(

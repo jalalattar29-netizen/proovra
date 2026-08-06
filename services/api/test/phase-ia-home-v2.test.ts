@@ -140,8 +140,17 @@ const INBOX: HomeInboxInput = {
 const ORGS = [{ id: WS, name: "Acme", displayName: "Acme Legal", memberCount: 4, role: "OWNER", membershipStatus: "ACTIVE" }];
 
 function build(plan: "FREE" | "PAYG" | "PRO" | "TEAM", overrides: Partial<Parameters<typeof normalizeHomeViewModel>[0]> = {}) {
+  // PHASE 12B Track 1A — the view model decides entitlements from the
+  // SERVER-projected planFeatures; build() mirrors the backend projection
+  // for each plan (PLAN_CAPABILITIES catalog).
+  const pro = plan === "PRO" || plan === "TEAM";
   return normalizeHomeViewModel({
     plan,
+    planFeatures: {
+      intakeIncluded: plan !== "FREE",
+      teamCollaborationIncluded: pro,
+      reportsIncluded: plan !== "FREE",
+    },
     workspaceId: WS,
     activeSpaceType: "ORGANIZATION",
     commandCenter: CC,

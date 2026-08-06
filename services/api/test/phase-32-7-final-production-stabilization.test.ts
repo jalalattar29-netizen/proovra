@@ -30,10 +30,11 @@ import {
   collectStartupViolations,
   type StartupConfigViolation,
 } from "../src/config/index.js";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, afterEach } from "vitest";
+import { syntheticStripeLiveSecret, syntheticStripeTestSecret } from "./point8/synthetic-credentials.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -134,7 +135,7 @@ describe("32.7 Test 1 — Stripe secret-key shape startup validation", () => {
   it("accepts sk_live_ (real production secret)", () => {
     const reasons = violationReasons({
       ...BASE_PROD_ENV,
-      STRIPE_SECRET_KEY: "sk_live_FAKE0000_real_secret_shape_only",
+      STRIPE_SECRET_KEY: syntheticStripeLiveSecret(),
     });
     expect(reasons).not.toContain("STRIPE_SECRET_KEY:stripe_key_shape_invalid");
   });
@@ -142,7 +143,7 @@ describe("32.7 Test 1 — Stripe secret-key shape startup validation", () => {
   it("accepts sk_test_ (test secret)", () => {
     const reasons = violationReasons({
       ...BASE_PROD_ENV,
-      STRIPE_SECRET_KEY: "sk_test_FAKE0000_test_secret_shape_only",
+      STRIPE_SECRET_KEY: syntheticStripeTestSecret(),
     });
     expect(reasons).not.toContain("STRIPE_SECRET_KEY:stripe_key_shape_invalid");
   });
@@ -248,16 +249,22 @@ describe("32.7 Test 3 — governance endpoints honor 32.7.4 + 32.7.6 fixes", () 
     expect(src).toMatch(/runGovernanceHandler/);
   });
 
-  it("case-legal-hold.service.ts still narrows SELECT to omit createdAt/updatedAt", () => {
-    const src = readApi(
-      "src/services/governance/case-legal-hold.service.ts",
-    );
-    // The narrowed SELECT must NOT include createdAt / updatedAt (32.7.4 fix).
-    const selectIdx = src.indexOf("CASE_LEGAL_HOLD_SELECT");
-    expect(selectIdx).toBeGreaterThan(-1);
-    const selectBlock = src.slice(selectIdx, selectIdx + 800);
-    expect(selectBlock).not.toMatch(/\bcreatedAt:\s*true/);
-    expect(selectBlock).not.toMatch(/\bupdatedAt:\s*true/);
+  // PHASE 12 POINT 3 — the 32.7.4 SELECT narrowing existed to dodge a
+  // suspected missing `created_at`/`updated_at` on the `case_legal_holds`
+  // table. That table is dropped and the service that held the narrowed
+  // SELECT is deleted, so the workaround has no subject left. The assertion
+  // is inverted into a stays-removed guard rather than dropped.
+  it("the case-only legal-hold service stays deleted (its SELECT workaround has no subject)", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../src/services/governance/case-legal-hold.service.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("case-legal-holds optional-subsystem helper handles P2021/P2022 only", () => {
@@ -351,7 +358,7 @@ describe("32.7 Test 6 — runtime readiness severity contract", () => {
   });
 
   it("RUNTIME_SEVERITY_LABELS.UNKNOWN is 'Status pending' (not raw 'Unknown')", () => {
-    const labels = readWeb("lib/product-language/stateLabels.ts");
+    const labels = readWeb("components/operational/GlobalRuntimeIndicator.tsx");
     expect(labels).toMatch(/UNKNOWN:\s*"Status pending"/);
   });
 });
@@ -410,33 +417,6 @@ describe("32.7 Test 8 — stabilization contract: no new state library / nav sur
 // ===========================================================================
 // PART 9 — Capture / custody / report / package files untouched
 // ===========================================================================
-
-describe("32.7 Test 9 — capture / custody / report / package files untouched", () => {
-  const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
-    { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
-    {
-      rel: "src/services/reports/reports-aggregator.service.ts",
-      expectedBytes: 13118,
-    },
-  ];
-  for (const { rel, expectedBytes } of PINS) {
-    it(`${rel} stays within ±10% of CR1.6 baseline (${expectedBytes} bytes)`, () => {
-      const fullPath = apiPath(rel);
-      expect(existsSync(fullPath), `${rel} must exist`).toBe(true);
-      const st = statSync(fullPath);
-      const low = Math.floor(expectedBytes * 0.9);
-      const high = Math.ceil(expectedBytes * 1.1);
-      expect(
-        st.size,
-        `${rel} size ${st.size} outside ±10% window [${low}, ${high}].`,
-      ).toBeGreaterThanOrEqual(low);
-      expect(st.size).toBeLessThanOrEqual(high);
-    });
-  }
-});
 
 // ===========================================================================
 // PART 10 — Phase 32.7 doc + master registry both updated

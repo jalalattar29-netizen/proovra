@@ -119,6 +119,12 @@ export const SearchFilterSchema = z
       .array(z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]))
       .max(4)
       .optional(),
+    // PHASE 12B — case scoping. Absorbed from the deleted owner-scoped
+    // GET /v1/search/evidence primitive so the unified authority keeps
+    // that capability. Matched against the indexed
+    // `evidence_search_documents.case_id` pointer, so it narrows every
+    // document type that carries a case pointer — not just EVIDENCE.
+    caseId: z.string().uuid().optional(),
     // Workflow + review state filters.
     workflowStatuses: z
       .array(z.string().min(1).max(40))

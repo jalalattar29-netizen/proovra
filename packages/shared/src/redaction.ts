@@ -282,6 +282,9 @@ export type RedactionDerivativeKind =
   (typeof REDACTION_DERIVATIVE_KINDS)[number];
 
 export const REDACTION_DERIVATIVE_STATES = [
+  // PHASE 12B — QUEUED committed BEFORE enqueue; only the worker claims
+  // QUEUED→RENDERING atomically. PENDING retained for historical rows.
+  "QUEUED",
   "PENDING",
   "RENDERING",
   "READY",
@@ -442,6 +445,9 @@ export const REDACTION_DENIAL_REASONS = [
   "ALREADY_PUBLISHED",
   "ALREADY_REJECTED",
   "WORKSPACE_NOT_FOUND",
+  // PHASE 12B — VIDEO/AUDIO redaction is FUTURE_NOT_SHIPPING: rejected BEFORE
+  // any derivative row/enqueue exists. Stable, safe, media-scoped denial.
+  "UNSUPPORTED_REDACTION_MEDIA",
 ] as const;
 export type RedactionDenialReason =
   (typeof REDACTION_DENIAL_REASONS)[number];
@@ -505,12 +511,13 @@ export type RedactionApprovalProjection = {
   rationale: string | null;
 };
 
+// Storage coordinates (bucket/key) are intentionally ABSENT: clients obtain
+// derivative bytes only through the authorized short-lived download-url
+// endpoint, never by learning object locations.
 export type RedactionDerivativeProjection = {
   id: string;
   kind: RedactionDerivativeKind;
   state: RedactionDerivativeState;
-  storageKey: string | null;
-  storageBucket: string | null;
   byteSize: number | null;
   fileSha256: string | null;
   renderedAtUtc: string | null;
@@ -528,6 +535,15 @@ export type RedactionVersionProjection = {
   publishedAtUtc: string | null;
   rationale: string | null;
   regionCount: number;
+  /**
+   * PHASE 12B — the authored regions themselves. Previously the
+   * projection exposed only `regionCount`, so the operator UI could
+   * create regions but never see or remove them and
+   * `DELETE /v1/redaction/regions/:id` had no reachable caller. Bounded
+   * geometry + bounded enums only (same fields the region row carries);
+   * no raw provider payloads.
+   */
+  regions: ReadonlyArray<RedactionRegionProjection>;
   acceptedDetectionCount: number;
   rejectedDetectionCount: number;
   approvals: ReadonlyArray<RedactionApprovalProjection>;
@@ -822,3 +838,54 @@ export type RedactionProviderProbe = {
   /** Bounded operator-facing reason. NEVER the raw provider error. */
   reason: string | null;
 };
+
+// ===========================================================================
+// 19. PHASE 12 POINT 4 PASS C2 — redaction-derivative job identity.
+//
+// The API (request path) and the Worker (stranded-QUEUED reconciler) both
+// enqueue render jobs. They must agree EXACTLY on the queue name, the job
+// name and the job id, and they must apply the SAME collapse-or-replace
+// policy — otherwise the reconciler either duplicates a live render or, as
+// happened before this block existed, silently fails to schedule anything
+// because BullMQ ignores an `add` whose jobId is already occupied by a
+// RETAINED completed/failed job (the exact case the reconciler exists for).
+//
+// The identity + policy live here so there is ONE definition; each process
+// keeps only its own thin transport client.
+// ===========================================================================
+
+export const REDACTION_DERIVATIVE_QUEUE_NAME = "redaction-derivative";
+export const REDACTION_DERIVATIVE_JOB_NAME = "RenderRedactionDerivative";
+
+/**
+ * The job payload. `derivativeId` is the ONLY authoritative field — every
+ * consumer reloads tenant, policy, regions and storage truth from
+ * persistence. `trace` is correlation metadata and is never authoritative.
+ */
+export type RedactionDerivativeJobPayload = {
+  derivativeId: string;
+  trace?: string | null;
+};
+
+/** Stable job id derived from the derivative id. */
+export function buildRedactionDerivativeJobId(derivativeId: string): string {
+  return `rd-${derivativeId}`;
+}
+
+/**
+ * BullMQ job states that mean "a render for this derivative is already
+ * scheduled or running". A new enqueue COLLAPSES onto these. Anything else
+ * (completed / failed / unknown) is a spent job whose id must be released
+ * before a fresh render can be scheduled.
+ */
+export const LIVE_REDACTION_JOB_STATES: ReadonlyArray<string> = [
+  "waiting",
+  "waiting-children",
+  "delayed",
+  "active",
+  "prioritized",
+];
+
+export function isLiveRedactionJobState(state: string | null | undefined): boolean {
+  return !!state && LIVE_REDACTION_JOB_STATES.includes(state);
+}

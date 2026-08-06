@@ -1,7 +1,7 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   PageShell,
@@ -329,7 +329,15 @@ export default function AdminDemoRequestsPage() {
   const [routeTarget, setRouteTarget] = useState("");
   const [routeReason, setRouteReason] = useState("");
 
-  async function loadList() {
+  // The free-text search is applied ONLY when the operator asks for it (Enter,
+  // the Search button, or Clear). Keeping it in a ref — rather than in the
+  // callback's dependency list — preserves that contract: the list must not
+  // re-fetch on every keystroke. The filters below DO auto-reload, so they are
+  // real dependencies.
+  const searchRef = useRef(search);
+  searchRef.current = search;
+
+  const loadList = useCallback(async (searchOverride?: string) => {
     try {
       setLoading(true);
 
@@ -342,7 +350,8 @@ export default function AdminDemoRequestsPage() {
       if (followUpStatusFilter) {
         params.set("followUpStatus", followUpStatusFilter);
       }
-      if (search.trim()) params.set("search", search.trim());
+      const q = (searchOverride ?? searchRef.current).trim();
+      if (q) params.set("search", q);
 
       const data = await apiFetch(`/v1/admin/demo-requests?${params.toString()}`);
 
@@ -364,7 +373,7 @@ export default function AdminDemoRequestsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, priorityFilter, spamFilter, leadTrackFilter, followUpStatusFilter, addToast]);
 
   async function loadDetails(id: string) {
     try {
@@ -503,8 +512,7 @@ export default function AdminDemoRequestsPage() {
 
   useEffect(() => {
     void loadList();
-
-  }, [statusFilter, priorityFilter, spamFilter, leadTrackFilter, followUpStatusFilter]);
+  }, [loadList]);
 
   const activeFollowUps = items.filter((x) => x.followUpStatus === "ACTIVE").length;
   const spamCount = items.filter((x) => x.isSpam).length;
@@ -651,7 +659,9 @@ export default function AdminDemoRequestsPage() {
                     setLeadTrackFilter("");
                     setFollowUpStatusFilter("");
                     setSearch("");
-                    void loadList();
+                    // Pass the cleared value explicitly: setSearch is asynchronous, so
+                    // reading it back here would still send the OLD query.
+                    void loadList("");
                   }}
                 >
                   Clear Filters

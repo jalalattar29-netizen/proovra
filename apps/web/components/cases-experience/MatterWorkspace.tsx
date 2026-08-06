@@ -64,6 +64,7 @@ import { CaseRiskPanel } from "../hidden-feature-panels/HiddenFeaturePanels";
 // `reviewIndicators`. Prior to this mount SiuPanel was orphaned —
 // the file existed and was tested but no host page imported it.
 import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
+import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPanel";
 
 // =============================================================================
 // Envelope shape (mirror of services/api/src/services/cases/matter-workspace.service.ts)
@@ -892,6 +893,11 @@ export function MatterWorkspace({
         {activeTab === "siu" ? (
           <div className="matter-tab matter-tab--siu" data-cc-matter-siu-tab>
             <SiuPanel caseId={envelope.case.id} />
+            {/* PHASE 12 — VERTICAL B. Saved views + intake templates +
+                the worklist they drive. Mounted alongside the per-case
+                profile so an investigator can pivot from this claim to
+                every claim matching the same operational condition. */}
+            <SiuWorklistPanel teamId={envelope.case.teamId ?? null} />
           </div>
         ) : null}
         {activeTab === "audit" ? (
@@ -1252,10 +1258,19 @@ function HoldsTab({
     // confirmation, but that's surfaced inline when the user
     // attempts the action, not advertised in an empty state.
     return (
-      <EmptyState
-        title="No holds active"
-        body="No legal or retention holds apply to this case or its evidence. Use the Holds panel to place a legal hold when you need one."
-      />
+      <div className="matter-tab matter-tab--holds">
+        <EmptyState
+          title="No holds active"
+          body="No legal or retention holds apply to this case or its evidence. Place a hold when you need to stop records being deleted or destroyed."
+        />
+        {/* PHASE 12B CLUSTER 8 — ONE Legal-Hold surface. Placing and
+            releasing holds happens in one place for every scope. */}
+        <p className="matter-tab__hint">
+          <a href="/evidence-lifecycle/legal-holds" data-legal-holds-link>
+            Manage legal holds
+          </a>
+        </p>
+      </div>
     );
   }
   // Phase G3.2 — per-tab filter wiring. Each row's projection composes
@@ -1272,6 +1287,15 @@ function HoldsTab({
   );
   return (
     <div className="matter-tab matter-tab--holds">
+      {/* PHASE 12B CLUSTER 8 — case-level holds now come from the ONE
+          canonical Legal-Hold authority (canonical CASE-scoped rows plus any
+          legacy row not yet converted), and placing/releasing happens on the
+          single Legal Holds surface. */}
+      <p className="matter-tab__hint">
+        <a href="/evidence-lifecycle/legal-holds" data-legal-holds-link>
+          Manage legal holds
+        </a>
+      </p>
       <h3>Case-level holds</h3>
       {filteredCaseHolds.length === 0 ? (
         <p className="matter-tab__inline-empty">No case-level holds.</p>

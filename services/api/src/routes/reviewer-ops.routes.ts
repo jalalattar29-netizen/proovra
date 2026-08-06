@@ -67,7 +67,6 @@ import {
   EscalationEngineError,
   acknowledgeEscalation,
   createEscalation,
-  findOpenEscalationForWorkflow,
   listEscalations,
   reassignEscalation,
   resolveEscalation,
@@ -115,6 +114,17 @@ import {
 // query, no row enumeration, no PII surface.
 import { countPendingQcSamples } from "../services/reviewer-workspace/qc-sample.service.js";
 import { buildReviewerOpsRuntimeProbe } from "../services/reviewer-ops/reviewer-ops-runtime-probe.service.js";
+// Track 1C — canonical review-decision authority. The multi-stage
+// decision POST below no longer writes WorkflowReviewDecision rows
+// inline: the canonical service appends the immutable row AND derives
+// the workflow.status projection in ONE transaction. The GET route
+// shares the same derivation helpers so read + write cannot drift.
+import {
+  ReviewDecisionAuthorityError,
+  deriveReviewState,
+  recordReviewDecision as recordCanonicalReviewDecision,
+  requiresSecondReview,
+} from "../services/reviewer-ops/review-decision.service.js";
 
 // -----------------------------------------------------------------------------
 // Auth helpers — 404-on-non-member + reviewer-capability resolution
@@ -319,6 +329,84 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Track 1C — map the canonical decision-authority error surface onto
+ * the multi-stage decision route's HTTP contract. Kept OUTSIDE the
+ * route handlers so every route-level catch stays a one-line
+ * delegate-or-rethrow (Phase 25 route-layer error contract).
+ */
+function sendDecisionAuthorityError(
+  reply: FastifyReply,
+  err: ReviewDecisionAuthorityError,
+  ctx: { callerRole: string | null; decision: string },
+): void {
+  switch (err.code) {
+    case "workflow_not_found":
+      reply.code(404).send({ error: { code: "not_found" } });
+      return;
+    case "review_already_resolved":
+      reply.code(409).send({
+        error: { code: "decision_not_allowed", reason: "review_is_resolved" },
+      });
+      return;
+    case "stale_decision":
+      reply.code(409).send({
+        error: {
+          code: "decision_not_allowed",
+          reason: "stale_decision",
+          details: err.details ?? null,
+        },
+      });
+      return;
+    case "same_reviewer_blocked":
+      reply.code(409).send({
+        error: {
+          code: "same_reviewer_blocked",
+          reason:
+            "The reviewer who submitted the FIRST decision cannot submit the SECOND. Independence is required.",
+          ...(err.details ?? {}),
+        },
+      });
+      return;
+    case "duplicate_stage_decision":
+      reply.code(409).send({
+        error: {
+          code: "duplicate_stage_decision",
+          reason: "A decision for this stage already exists.",
+          ...(err.details ?? {}),
+        },
+      });
+      return;
+    case "adjudicator_role_required":
+      reply.code(403).send({
+        error: {
+          code: "adjudicator_role_required",
+          reason:
+            "Adjudication requires team OWNER or ADMIN role on this workspace.",
+          callerRole: ctx.callerRole,
+        },
+      });
+      return;
+    case "decision_kind_not_allowed":
+      reply.code(400).send({
+        error: {
+          code: "decision_kind_not_allowed",
+          reason: `${ctx.decision} is only valid at ADJUDICATION stage.`,
+          ...(err.details ?? {}),
+        },
+      });
+      return;
+    case "rationale_required":
+      reply.code(400).send({
+        error: {
+          code: "rationale_required",
+          reason: "All review decisions must include a rationale.",
+        },
+      });
+      return;
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -2180,85 +2268,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     rationale: z.string().trim().min(1).max(4000),
   });
 
-  /**
-   * Phase B.2 — derive whether a workflow currently requires a second
-   * review. We compute this at read-time from the existing workflow
-   * state so we don't need a new column. The brief listed the
-   * triggers; we map them:
-   *
-   *   - workflow.status === ESCALATED → second review required
-   *   - workflow has an open escalation → second review required
-   *   - workflow's evidence has an ACTIVE legal hold → second review required
-   *   - workflow's evidence has at least one redaction-required
-   *     visibility decision → second review required
-   *
-   * Manual operator override (a workflow-level flag) is deferred to a
-   * future migration; the existing triggers above cover the
-   * highest-leverage real cases.
-   */
-  async function requiresSecondReview(input: {
-    workflowId: string;
-    teamId: string;
-    evidenceId: string;
-  }): Promise<{ required: boolean; reason: string | null }> {
-    const [wf, openEsc, holdCount, redactionCount] = await Promise.all([
-      prisma.evidenceReviewWorkflow.findUnique({
-        where: { id: input.workflowId },
-        select: { status: true },
-      }),
-      findOpenEscalationForWorkflow(
-        { teamId: input.teamId, workflowId: input.workflowId },
-        prisma,
-      ),
-      prisma.evidenceLegalHold.count({
-        where: {
-          teamId: input.teamId,
-          evidenceId: input.evidenceId,
-          status: "ACTIVE",
-        },
-      }),
-      prisma.evidenceWorkflowVisibilityDecision.count({
-        where: {
-          evidenceId: input.evidenceId,
-          requiresRedaction: true,
-        },
-      }),
-    ]);
-    if (wf?.status === "ESCALATED") return { required: true, reason: "workflow_escalated" };
-    if (openEsc) return { required: true, reason: "open_escalation" };
-    if (holdCount > 0) return { required: true, reason: "active_legal_hold" };
-    if (redactionCount > 0)
-      return { required: true, reason: "redaction_required" };
-    return { required: false, reason: null };
-  }
-
-  type ReviewState =
-    | "first_required"
-    | "second_required"
-    | "conflict_detected"
-    | "adjudication_required"
-    | "resolved";
-
-  function deriveReviewState(input: {
-    decisions: ReadonlyArray<{ stage: string; decision: string }>;
-    requiresSecond: boolean;
-  }): ReviewState {
-    const first = input.decisions.find((d) => d.stage === "FIRST");
-    const second = input.decisions.find((d) => d.stage === "SECOND");
-    const adj = input.decisions.find((d) => d.stage === "ADJUDICATION");
-    if (adj) return "resolved";
-    if (first && second) {
-      // Conflict when the two stage decisions disagree. APPROVE vs
-      // REJECT vs REQUEST_INFO are the three primary outcomes the
-      // brief calls out; any mismatch among them is a conflict.
-      if (first.decision !== second.decision) return "conflict_detected";
-      return "resolved";
-    }
-    if (first) {
-      return input.requiresSecond ? "second_required" : "resolved";
-    }
-    return "first_required";
-  }
+  // Track 1C — `requiresSecondReview` + `deriveReviewState` moved to the
+  // canonical decision authority (review-decision.service.ts) so the
+  // GET projection, the decision write path, and reconciliation all
+  // share ONE derivation. Imported at the top of this file.
 
   // ---------------------------------------------------------------------------
   // GET /v1/reviewer-ops/workspace/:workflowId/decisions
@@ -2419,204 +2432,54 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
 
-      // Derive current state from existing rows.
-      const existing = await prisma.workflowReviewDecision.findMany({
-        where: { workflowId, teamId: body.teamId },
-        select: { stage: true, decision: true, reviewerUserId: true },
-      });
-      const secondReview = await requiresSecondReview({
-        workflowId,
-        teamId: body.teamId,
-        evidenceId: wf.evidenceId,
-      });
-      const state = deriveReviewState({
-        decisions: existing,
-        requiresSecond: secondReview.required,
-      });
-
-      // Determine which stage this submission targets.
-      let targetStage: "FIRST" | "SECOND" | "ADJUDICATION";
-      if (state === "first_required") targetStage = "FIRST";
-      else if (state === "second_required") targetStage = "SECOND";
-      else if (state === "conflict_detected") targetStage = "ADJUDICATION";
-      else {
-        return reply.code(409).send({
-          error: {
-            code: "decision_not_allowed",
-            reason: "review_is_resolved",
-            currentState: state,
-          },
-        });
-      }
-
-      // Same-reviewer guard (server-enforced).
-      if (targetStage === "SECOND") {
-        const first = existing.find((d) => d.stage === "FIRST");
-        if (first && first.reviewerUserId === ctx.actorUserId) {
-          return reply.code(409).send({
-            error: {
-              code: "same_reviewer_blocked",
-              reason:
-                "The reviewer who submitted the FIRST decision cannot submit the SECOND. Independence is required.",
-              firstReviewerUserId: first.reviewerUserId,
-            },
-          });
-        }
-      }
-
-      // Adjudicator role guard.
-      if (targetStage === "ADJUDICATION") {
-        const teamMember = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: {
-              teamId: body.teamId,
-              userId: ctx.actorUserId,
-            },
-          },
-          select: { role: true },
-        });
-        const isAdjudicator =
-          teamMember?.role === "OWNER" || teamMember?.role === "ADMIN";
-        if (!isAdjudicator) {
-          return reply.code(403).send({
-            error: {
-              code: "adjudicator_role_required",
-              reason:
-                "Adjudication requires team OWNER or ADMIN role on this workspace.",
-              callerRole: teamMember?.role ?? null,
-            },
-          });
-        }
-      }
-
-      // Rationale required for any non-APPROVE decision (and always
-      // required for ADJUDICATION). The zod schema already enforces
-      // min(1); this is a redundant explicit check for first-stage
-      // APPROVE which is the only decision that COULD be rationale-
-      // optional in some configurations. Phase B.2 keeps it required
-      // uniformly — every decision row has an operator-visible
-      // rationale.
-      if (body.rationale.trim().length === 0) {
-        return reply.code(400).send({
-          error: {
-            code: "rationale_required",
-            reason: "All review decisions must include a rationale.",
-          },
-        });
-      }
-
-      // Specific decision-kind constraints:
-      //   - UPHOLD_FIRST / UPHOLD_SECOND only valid at ADJUDICATION
-      //   - At FIRST / SECOND, decision must be one of APPROVE /
-      //     REJECT / REQUEST_INFO / NEEDS_MORE_INFO
-      const adjOnlyKinds = new Set([
-        "UPHOLD_FIRST",
-        "UPHOLD_SECOND",
-        "UNRESOLVED",
-      ]);
-      if (targetStage !== "ADJUDICATION" && adjOnlyKinds.has(body.decision)) {
-        return reply.code(400).send({
-          error: {
-            code: "decision_kind_not_allowed",
-            reason: `${body.decision} is only valid at ADJUDICATION stage.`,
-            stage: targetStage,
-          },
-        });
-      }
-
-      // Create the decision row. The DB unique (workflow_id, stage)
-      // constraint is the source of truth for "one decision per stage" —
-      // a concurrent duplicate write fails at the DB layer with P2002,
-      // which we surface as 409.
-      let created;
-      try {
-        created = await prisma.workflowReviewDecision.create({
-          data: {
-            workflowId,
-            teamId: body.teamId,
-            stage: targetStage,
-            reviewerUserId: ctx.actorUserId,
-            decision: body.decision,
-            reasonCode: body.reasonCode ?? null,
-            rationale: body.rationale.trim(),
-          },
-          select: {
-            id: true,
-            stage: true,
-            decision: true,
-            reasonCode: true,
-            rationale: true,
-            decidedAt: true,
-            reviewerUserId: true,
-          },
-        });
-      } catch (err: unknown) {
-        // Prisma unique violation when a concurrent writer landed
-        // first.
-        const code = (err as { code?: string }).code;
-        if (code === "P2002") {
-          return reply.code(409).send({
-            error: {
-              code: "duplicate_stage_decision",
-              reason: "A decision for this stage already exists.",
-              stage: targetStage,
-            },
-          });
-        }
-        throw err;
-      }
-
-      // Audit emission — workspace-scoped TeamActivity row so the
-      // multi-stage decision appears in the existing audit feed.
-      const auditEventType =
-        targetStage === "FIRST"
-          ? "REVIEWER_DECISION_FIRST"
-          : targetStage === "SECOND"
-            ? "REVIEWER_DECISION_SECOND"
-            : "REVIEWER_DECISION_ADJUDICATION";
-      try {
-        await prisma.teamActivity.create({
-          data: {
-            teamId: body.teamId,
-            actorUserId: ctx.actorUserId,
-            eventType: auditEventType,
-            targetType: "workflow_review_decision",
-            targetId: created.id,
-            metadata: {
-              workflowId,
-              evidenceId: wf.evidenceId,
-              stage: targetStage,
-              decision: body.decision,
-              reasonCode: body.reasonCode ?? null,
-            },
-          },
-        });
-      } catch {
-        /* audit best-effort */
-      }
-
-      // Compute the new state for the response so the UI doesn't need
-      // a separate GET round-trip.
-      const newExisting = [...existing, { stage: targetStage, decision: body.decision, reviewerUserId: ctx.actorUserId }];
-      const newState = deriveReviewState({
-        decisions: newExisting,
-        requiresSecond: secondReview.required,
-      });
-
-      return reply.code(201).send({
-        workflowId,
-        evidenceId: wf.evidenceId,
-        state: newState,
-        decision: {
-          id: created.id,
-          stage: created.stage,
-          decision: created.decision,
-          reasonCode: created.reasonCode,
-          rationale: created.rationale,
-          decidedAt: created.decidedAt.toISOString(),
-          reviewerUserId: created.reviewerUserId,
+      // Adjudicator authority — informational role read (authorization
+      // is already enforced by requireReviewerActor); the canonical
+      // authority enforces it when the decision lands at ADJUDICATION.
+      const teamMember = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: { teamId: body.teamId, userId: ctx.actorUserId },
         },
+        select: { role: true },
       });
+      const isAdjudicator =
+        teamMember?.role === "OWNER" || teamMember?.role === "ADMIN";
+
+      // Track 1C — ONE atomic decision command: workspace isolation,
+      // stale/terminal denial, immutable decision-row append, derived
+      // workflow.status projection, and audit all happen in a single
+      // transaction inside the canonical service.
+      try {
+        const result = await recordCanonicalReviewDecision({
+          workflowId,
+          teamId: body.teamId,
+          actorUserId: ctx.actorUserId,
+          decision: body.decision,
+          reasonCode: body.reasonCode ?? null,
+          rationale: body.rationale,
+          actorIsAdjudicator: isAdjudicator,
+        });
+        return reply.code(result.idempotent ? 200 : 201).send({
+          workflowId,
+          evidenceId: wf.evidenceId,
+          state: result.state,
+          idempotent: result.idempotent,
+          decision: {
+            id: result.decision.id,
+            stage: result.decision.stage,
+            decision: result.decision.decision,
+            reasonCode: result.decision.reasonCode,
+            rationale: result.decision.rationale,
+            decidedAt: result.decision.decidedAt.toISOString(),
+            reviewerUserId: result.decision.reviewerUserId,
+          },
+        });
+      } catch (err) {
+        if (!(err instanceof ReviewDecisionAuthorityError)) throw err;
+        return sendDecisionAuthorityError(reply, err, {
+          callerRole: teamMember?.role ?? null,
+          decision: body.decision,
+        });
+      }
     },
   );
 
@@ -2720,6 +2583,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
                 where: {
                   teamId: q.teamId,
                   evidenceId: { in: evidenceIds },
+                  // PHASE 12B CLUSTER 8 — evidence_id is nullable now that
+                  // the table also carries CASE / WORKSPACE holds. Explicit
+                  // scope keeps this an evidence-hold rollup; the `in`
+                  // predicate can never match a NULL target.
+                  scope: "EVIDENCE",
                   status: "ACTIVE",
                 },
                 _count: { id: true },
@@ -2755,7 +2623,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const legalHoldEvidenceSet = new Set<string>(
         legalHolds
           .filter((h) => (h._count?.id ?? 0) > 0)
-          .map((h) => h.evidenceId),
+          .map((h) => h.evidenceId)
+          .filter((id): id is string => typeof id === "string"),
       );
       const redactionEvidenceSet = new Set<string>(
         redactionDecisions

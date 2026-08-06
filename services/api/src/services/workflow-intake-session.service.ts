@@ -42,6 +42,7 @@ import {
   isAnonymousWorkflowIntakeMode,
 } from "@proovra/shared";
 
+import { stripControlAndInvisible } from "../lib/text-sanitize.js";
 import { prisma as defaultPrisma } from "../db.js";
 import {
   constantTimeEqualHex,
@@ -74,6 +75,9 @@ export type WorkflowIntakeSessionErrorCode =
   | "transition_not_allowed"
   | "consent_not_accepted"
   | "consent_invalid_payload"
+  // Contributor-supplied identity that the link's intake mode requires but
+  // that normalized to nothing usable. Deliberately does NOT echo the value.
+  | "submitter_identity_invalid"
   | "intake_mode_mismatch";
 
 export class WorkflowIntakeSessionError extends Error {
@@ -257,11 +261,17 @@ export type OpenIntakeSessionInput = {
   link: DbWorkflowIntakeLink;
   submitterIp?: string | null;
   submitterUserAgent?: string | null;
-  pseudonym?: string | null;
-  submitterDisplayName?: string | null;
-  submitterEmail?: string | null;
 };
 
+/**
+ * Open a session for a validated link.
+ *
+ * Submitter identity is NEVER accepted here. The session opener runs on the
+ * token-validation request, which carries no body — accepting a pseudonym or
+ * a display name at this point would mean transporting contributor-supplied
+ * personal data through a URL. `recordIntakeSubmitterIdentity` below is the
+ * ONE writer of those three columns; a session always starts with them null.
+ */
 export async function openIntakeSession(
   input: OpenIntakeSessionInput,
   client: PrismaClient = defaultPrisma,
@@ -272,18 +282,6 @@ export async function openIntakeSession(
     : null;
   const userAgent = input.submitterUserAgent?.slice(0, 512) ?? null;
 
-  // For ANONYMOUS / PSEUDONYMOUS, ignore submitter identity fields except
-  // the pseudonym. For ONE_TIME / REUSABLE, the contributor can opt in.
-  const anonymous = isAnonymousWorkflowIntakeMode(
-    input.link.intakeMode as WorkflowIntakeMode,
-  );
-  const displayName = anonymous ? null : input.submitterDisplayName ?? null;
-  const email = anonymous ? null : input.submitterEmail ?? null;
-  const pseudonym =
-    input.link.intakeMode === "EXTERNAL_PSEUDONYMOUS"
-      ? input.pseudonym?.slice(0, 80) ?? null
-      : null;
-
   return client.workflowIntakeSession.create({
     data: {
       intakeLinkId: input.link.id,
@@ -292,10 +290,123 @@ export async function openIntakeSession(
       expiresAtUtc: input.link.expiresAtUtc,
       submitterIpHash,
       submitterUserAgent: userAgent,
-      submitterDisplayName: displayName,
-      submitterEmail: email,
-      pseudonym,
+      submitterDisplayName: null,
+      submitterEmail: null,
+      pseudonym: null,
     },
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Record submitter identity (the ONE writer of the three identity columns)
+// -----------------------------------------------------------------------------
+
+/** Bounded lengths — the DB columns and the reviewer projection both rely on these. */
+export const INTAKE_PSEUDONYM_MAX_LENGTH = 80;
+export const INTAKE_DISPLAY_NAME_MAX_LENGTH = 120;
+export const INTAKE_EMAIL_MAX_LENGTH = 254;
+
+/**
+ * Normalize contributor-supplied free text: strip control characters, collapse
+ * internal whitespace, trim, and bound the length. An empty result is `null`
+ * (an all-whitespace pseudonym is "not provided", never a blank identity).
+ */
+function normalizeSubmitterText(
+  raw: string | null | undefined,
+  maxLength: number,
+): string | null {
+  if (typeof raw !== "string") return null;
+  const scrubbed = stripControlAndInvisible(raw).replace(/\s+/g, " ").trim();
+  if (!scrubbed) return null;
+  return scrubbed.slice(0, maxLength);
+}
+
+export type RecordIntakeSubmitterIdentityInput = {
+  sessionId: string;
+  link: DbWorkflowIntakeLink;
+  pseudonym?: string | null;
+  submitterDisplayName?: string | null;
+  submitterEmail?: string | null;
+};
+
+/**
+ * Record the contributor's self-declared identity for an OPEN session.
+ *
+ * Mode policy (enforced server-side; the client cannot widen it):
+ *
+ *   EXTERNAL_PSEUDONYMOUS  — a pseudonym only. This is the shipping "Display
+ *                            name" intake mode: the contributor chooses a name
+ *                            shown with the submission, and no real-world
+ *                            identity is requested or stored.
+ *   EXTERNAL_ANONYMOUS     — nothing. Any supplied field is refused
+ *                            (`intake_mode_mismatch`) rather than silently
+ *                            dropped, so a mis-wired client is visible.
+ *   EXTERNAL_ONE_TIME /    — an optional display name and/or email.
+ *   EXTERNAL_REUSABLE
+ *   everything else        — refused: identity collection is not part of the
+ *                            contract for authenticated / field-team modes.
+ *
+ * The session must belong to this link and must not be terminal. Errors never
+ * echo the submitted values.
+ */
+export async function recordIntakeSubmitterIdentity(
+  input: RecordIntakeSubmitterIdentityInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<DbWorkflowIntakeSession> {
+  const mode = input.link.intakeMode as WorkflowIntakeMode;
+  const pseudonym = normalizeSubmitterText(
+    input.pseudonym,
+    INTAKE_PSEUDONYM_MAX_LENGTH,
+  );
+  const displayName = normalizeSubmitterText(
+    input.submitterDisplayName,
+    INTAKE_DISPLAY_NAME_MAX_LENGTH,
+  );
+  const email = normalizeSubmitterText(
+    input.submitterEmail,
+    INTAKE_EMAIL_MAX_LENGTH,
+  );
+
+  let data: {
+    pseudonym?: string | null;
+    submitterDisplayName?: string | null;
+    submitterEmail?: string | null;
+  };
+  if (mode === "EXTERNAL_PSEUDONYMOUS") {
+    if (displayName || email) {
+      throw new WorkflowIntakeSessionError("intake_mode_mismatch");
+    }
+    if (!pseudonym) {
+      throw new WorkflowIntakeSessionError("submitter_identity_invalid");
+    }
+    data = { pseudonym };
+  } else if (mode === "EXTERNAL_ONE_TIME" || mode === "EXTERNAL_REUSABLE") {
+    if (pseudonym) {
+      throw new WorkflowIntakeSessionError("intake_mode_mismatch");
+    }
+    if (!displayName && !email) {
+      throw new WorkflowIntakeSessionError("submitter_identity_invalid");
+    }
+    data = { submitterDisplayName: displayName, submitterEmail: email };
+  } else {
+    // ANONYMOUS and every non-external mode collect nothing.
+    throw new WorkflowIntakeSessionError("intake_mode_mismatch");
+  }
+
+  const session = await client.workflowIntakeSession.findUnique({
+    where: { id: input.sessionId },
+  });
+  if (!session) throw new WorkflowIntakeSessionError("session_not_found");
+  if (session.intakeLinkId !== input.link.id) {
+    throw new WorkflowIntakeSessionError("session_link_mismatch");
+  }
+  if (isTerminalWorkflowIntakeSessionStatus(session.status)) {
+    throw new WorkflowIntakeSessionError("session_terminal");
+  }
+
+  return client.workflowIntakeSession.update({
+    where: { id: session.id },
+    data,
   });
 }
 

@@ -436,21 +436,10 @@ export type VerificationPackageIntegrity = {
   accessExportIncluded: boolean;
 };
 
-export type VerifyLifecycleTransparency = {
-  schemaVersion: string;
-  generatedAtUtc: string;
-  evidenceId: string;
-  retention: { policyName: string; years: number } | null;
-  legalHold: { kind: string; state: string } | null;
-  archive: { currentTier: string } | null;
-  transfer: { state: string; toOrganizationSlug: string } | null;
-  destruction: {
-    state: string;
-    certifiedAtUtc: string | null;
-    certificateHashPrefix: string | null;
-  } | null;
-};
-
+// PHASE 12 — VerifyLifecycleTransparency REMOVED: the /public/verify/:id/lifecycle
+// endpoint never existed server-side (Phase-4B I3 shipped frontend-only; the
+// fetch failed silently on every load). The panel returns WITH its backend in
+// the lifecycle-truth program (P5–P11).
 export type VerifySnapshotSection = {
   source?:
     | "REPORT_SNAPSHOT"

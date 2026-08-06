@@ -10,15 +10,8 @@
  * server components, client components, and tests.
  */
 
-import type {
-  WorkspacePlan,
-  WorkspaceRole,
-} from "../platform-context/types";
-
 import {
   findSurfaceTierRule,
-  rolesUnlockingEnterprise,
-  tiersAllowedByPlan,
   type DirectAccessPolicy,
   type SurfaceTier,
   type SurfaceTierRule,
@@ -30,31 +23,35 @@ import {
  * server (middleware). Any field can be null when unknown.
  */
 export type SurfaceUserContext = {
-  plan: WorkspacePlan | null;
-  role: WorkspaceRole | null;
+  // PHASE 12B Track 1A — the raw plan name was REMOVED from this context.
+  // Every entitlement decision is a SERVER-projected boolean; the frontend
+  // never branches on a plan name.
+  //
+  // PHASE 12 POINT 4 STEP 1 — the workspace ROLE was removed too. No rule in
+  // this module ever consulted it after the Phase IA-surface-tier-correction
+  // narrowing, and carrying it invited a role-shaped tier authority to
+  // reappear. Surface eligibility is decided ONLY by the three
+  // server-projected inputs below. Per-surface role/permission enforcement
+  // stays where it belongs: the API route guards.
   isPlatformAdmin: boolean;
   /**
-   * True iff the WORKSPACE is enterprise (PlatformContextFlags.isEnterpriseWorkspace).
-   * Distinct from `plan` because enterprise gating is a flag today, not
-   * a plan tier.
+   * True iff the WORKSPACE is enterprise (PlatformContextFlags.isEnterpriseWorkspace,
+   * server-derived from the commercial catalog / enterprise contract).
    */
   isEnterpriseWorkspace: boolean;
   /**
-   * OpsCenter visibility remediation (2026-07-18) — canonical commercial
-   * entitlements from `envelope.planFeatures` (backend PLAN_CAPABILITIES
-   * projection). `null`/absent = unknown (envelope loading/degraded) —
-   * rules with an `entitlementOverride` then FALL BACK to their tier
-   * (fail-closed). Only the keys a tier rule actually overrides on are
-   * carried here.
+   * Canonical commercial entitlements from `envelope.planFeatures`
+   * (backend PLAN_CAPABILITIES projection). `null`/absent = unknown
+   * (envelope loading/degraded) — every rule then FAILS CLOSED.
    */
   planFeatures?: {
     intakeIncluded: boolean | null;
+    /** PROFESSIONAL surface tier included (catalog-derived, server-projected). */
+    professionalSurfacesIncluded: boolean | null;
   } | null;
 };
 
 export const ANONYMOUS_SURFACE_CONTEXT: SurfaceUserContext = {
-  plan: null,
-  role: null,
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
   planFeatures: null,
@@ -89,12 +86,13 @@ function isUserInTier(
   // CORE is always allowed when the user has any session.
   if (tier === "CORE") return true;
 
-  // PROFESSIONAL requires PRO or TEAM plan, OR enterprise workspace,
-  // OR platform admin.
+  // PROFESSIONAL — SERVER-projected entitlement only (catalog-derived
+  // planFeatures.professionalSurfacesIncluded), OR enterprise workspace,
+  // OR platform admin. Unknown/loading → fail closed.
   if (tier === "PROFESSIONAL") {
     if (ctx.isPlatformAdmin) return true;
     if (ctx.isEnterpriseWorkspace) return true;
-    return tiersAllowedByPlan(ctx.plan).has("PROFESSIONAL");
+    return ctx.planFeatures?.professionalSurfacesIncluded === true;
   }
 
   // ENTERPRISE — strictly enterprise-only.
@@ -106,12 +104,9 @@ function isUserInTier(
   // investigation power tools, security center, organization admin)
   // are reserved for:
   //
-  //   1. workspace plan === "ENTERPRISE"  (forward-compat with future
-  //      WorkspacePlan enum value — checked as a string so today's
-  //      enum lacks it, and the branch is inert until the enum grows)
-  //   2. isEnterpriseWorkspace flag === true (already wired in the
-  //      canonical envelope; the enterprise feature-flag path)
-  //   3. isPlatformAdmin === true
+  //   1. isEnterpriseWorkspace flag === true (SERVER-derived from the
+  //      commercial catalog / enterprise contract — incl. an ENTERPRISE plan)
+  //   2. isPlatformAdmin === true
   //
   // NOT unlocked by:
   //   * TEAM-plan OWNER / ADMIN
@@ -121,22 +116,14 @@ function isUserInTier(
   //   * MEMBER / VIEWER of any plan
   if (tier === "ENTERPRISE") {
     if (ctx.isPlatformAdmin) return true;
+    // The SERVER derives this flag from the commercial catalog / enterprise
+    // contract (incl. an ENTERPRISE plan) — no client plan-name comparison.
     if (ctx.isEnterpriseWorkspace) return true;
-    // String comparison so a future `WorkspacePlan` enum value
-    // "ENTERPRISE" picks this up without a TypeScript error today.
-    if ((ctx.plan as string | null) === "ENTERPRISE") return true;
     return false;
   }
 
   return false;
 }
-
-// Reference helpers so unused-import lint passes — `rolesUnlockingEnterprise`
-// is preserved in the public API surface (it's the documented contract
-// from the tier module) but it is intentionally NOT consulted by the
-// ENTERPRISE branch above. The role table cannot unlock ENTERPRISE on
-// its own; only plan/flag/platform-admin do.
-void rolesUnlockingEnterprise;
 
 // ============================================================================
 // Public API

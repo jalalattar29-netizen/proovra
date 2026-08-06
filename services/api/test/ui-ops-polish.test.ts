@@ -60,8 +60,6 @@ describe("App sidebar — operations surfaces (Phase 38.6 routeRegistry)", () =>
   // routeRegistry has no NavGroup titles, so this ordering assertion no
   // longer has a source to read. Group ordering is a rendering concern
   // in AppSidebarV2 + the disclosure resolver.
-  it.skip("places Platform Health between Review & Governance and Administration (removed with navigation-config)", () => {});
-
   it("never points at the broken /docs/runbooks", () => {
     expect(navConfig).not.toContain("/docs/runbooks");
     expect(src).not.toContain("/docs/runbooks");
@@ -106,7 +104,7 @@ describe("/ops/runbooks page", () => {
   });
 
   it("uses light-surface tokens from the operational barrel", () => {
-    expect(src).toMatch(/from\s+"[\.\/]+components\/operational"/);
+    expect(src).toMatch(/from\s+"[./]+components\/operational"/);
     expect(src).toMatch(/OPS_INK|OPS_SURFACE|OPS_TONES/);
   });
 

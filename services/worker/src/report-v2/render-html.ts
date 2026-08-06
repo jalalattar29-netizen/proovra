@@ -11,6 +11,7 @@ import { renderIntelligenceSummarySection } from "./sections/intelligence-summar
 import { renderLifecycleSummarySection } from "./sections/lifecycle-summary.js";
 import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
+import { renderCertificationsSection } from "./sections/certifications.js";
 
 export function renderReportHtml(vm: ReportViewModel): string {
   const body = [
@@ -57,6 +58,16 @@ export function renderReportHtml(vm: ReportViewModel): string {
     // and before the custody chain so governance context precedes custody detail.
     renderLifecycleSummarySection(vm.lifecycleSummary ?? null),
     renderLegalInterpretationSection(vm),
+    // Phase 12 Point 4 — Certification & Attestation. `vm.certifications`
+    // has been populated by the processor (and served by
+    // `GET /v1/evidence/:id/certifications`) all along, but nothing
+    // rendered it, so an attached custodian / qualified-person
+    // declaration never reached the report. The section returns "" when
+    // `certifications.hasAny` is false, so byte output is unchanged for
+    // every evidence record without a declaration. Positioned after the
+    // legal-interpretation hierarchy — a declaration is read together
+    // with the limitations, not as a substitute for them.
+    renderCertificationsSection(vm),
     renderTechnicalAppendixSection(vm),
   ]
     .filter(Boolean)

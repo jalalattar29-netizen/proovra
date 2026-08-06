@@ -257,3 +257,136 @@ export function createErrorResponse(
 export function isAppError(error: unknown): error is AppError {
   return error instanceof AppError;
 }
+
+// =============================================================================
+// PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): typed domain errors with an
+// explicit REPORTABILITY classification.
+// =============================================================================
+//
+// WHY THIS EXISTS
+// -----------------------------------------------------------------------------
+// The platform had two error shapes. `AppError` (above) is the structured one
+// the central handler understands. Everywhere else — commercial enforcement,
+// team limits, identity mode, org policy — the convention was a plain `Error`
+// with `statusCode` and `code` assigned onto it. The central handler's
+// `normalizeUnknownError` recognises only `AppError` and `ZodError`, so every
+// error of the second shape fell through to the "infrastructure" branch:
+// captured to Sentry as a high-priority error, paged as an operational alert,
+// and returned to the client as a 500.
+//
+// That is how "Free evidence limit reached" — a user hitting a published plan
+// limit, the most ordinary outcome in the product — became an error-level
+// Sentry issue. It is also why the route arm meant to catch it never fired:
+// it compared `err.message === "FREE_LIMIT_REACHED"` against a message that
+// reads "Free evidence limit reached", so the string never matched and nobody
+// noticed, because the fallthrough returned a plausible-looking failure.
+//
+// WHAT REPORTABILITY IS FOR
+// -----------------------------------------------------------------------------
+// The fix is NOT "suppress 4xx". Some 4xx are exactly what an operator needs to
+// see — a cross-tenant probe, a step-up bypass attempt. So the error itself
+// declares what it is, and the handler obeys:
+//
+//   EXPECTED_DENIAL      a published product rule refusing a request. Warn-log,
+//                        canonical 4xx, no capture, no alert.
+//   OPERATIONAL_WARNING  a real operational condition the tenant cannot fix and
+//                        an operator should see, but which is not a crash — a
+//                        required dependency that is not provisioned. Warn-log
+//                        + bounded metric, canonical 4xx/5xx, no error-level
+//                        capture.
+//   SECURITY_SIGNAL      a denial that is ALSO telemetry: bounded security
+//                        event, still no error-level page.
+//   UNEXPECTED           everything else. Captured, alerted, 500.
+//
+// A thrower that says nothing is still UNEXPECTED. Silence keeps meaning
+// "something is wrong", which is the only safe default.
+
+export type ErrorReportability =
+  | "EXPECTED_DENIAL"
+  | "OPERATIONAL_WARNING"
+  | "SECURITY_SIGNAL"
+  | "UNEXPECTED";
+
+export type DomainErrorSeverity = "info" | "warning" | "critical";
+
+export type DomainErrorInit = {
+  /** HTTP status the API contract already uses for this outcome. */
+  httpStatus: number;
+  /** Stable machine code the client renders remediation from. */
+  publicCode: string;
+  /**
+   * What the CLIENT is told. Bounded and free of identifiers: no UUIDs, no SQL,
+   * no stack, no internal implementation detail. The `message` (developer
+   * text) may be richer; only this crosses the wire.
+   */
+  publicMessage: string;
+  reportability: ErrorReportability;
+  severity?: DomainErrorSeverity;
+  /** Bounded, non-sensitive detail for the audit/metric record. */
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+export class DomainError extends Error {
+  readonly httpStatus: number;
+  readonly publicCode: string;
+  readonly publicMessage: string;
+  readonly reportability: ErrorReportability;
+  readonly severity: DomainErrorSeverity;
+  readonly metadata: Record<string, string | number | boolean | null>;
+
+  /**
+   * `statusCode` and `code` mirror `httpStatus` / `publicCode` so the many
+   * existing call sites that duck-type `err.statusCode` / `err.code` keep
+   * working unchanged. This is compatibility, not a second vocabulary: both
+   * are read-only projections of the canonical fields.
+   */
+  readonly statusCode: number;
+  readonly code: string;
+
+  constructor(developerMessage: string, init: DomainErrorInit) {
+    super(developerMessage);
+    this.name = "DomainError";
+    this.httpStatus = init.httpStatus;
+    this.publicCode = init.publicCode;
+    this.publicMessage = init.publicMessage;
+    this.reportability = init.reportability;
+    this.severity =
+      init.severity ?? (init.reportability === "UNEXPECTED" ? "critical" : "warning");
+    this.metadata = init.metadata ?? {};
+    this.statusCode = init.httpStatus;
+    this.code = init.publicCode;
+    Object.setPrototypeOf(this, DomainError.prototype);
+  }
+}
+
+export function isDomainError(error: unknown): error is DomainError {
+  return error instanceof DomainError;
+}
+
+/**
+ * The reportability of ANY thrown value, for the one capture decision.
+ *
+ * A `DomainError` states its own. Everything else is classified structurally,
+ * and the rule is deliberately narrow: an error carrying a 4xx `statusCode` is
+ * a client-visible outcome the route already decided on, so it is not a server
+ * fault — but it is only downgraded to EXPECTED_DENIAL, never suppressed, and
+ * anything without a 4xx stays UNEXPECTED.
+ *
+ * This is the belt-and-braces half of the fix. The commercial and policy
+ * authorities now throw `DomainError` explicitly; this catches the ad-hoc
+ * throwers that have not been converted yet, so a plan limit somewhere else in
+ * the codebase cannot page an operator while it waits its turn.
+ */
+export function classifyReportability(error: unknown): ErrorReportability {
+  if (isDomainError(error)) return error.reportability;
+  if (isAppError(error)) {
+    return error.statusCode >= 400 && error.statusCode < 500
+      ? "EXPECTED_DENIAL"
+      : "UNEXPECTED";
+  }
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  if (typeof status === "number" && status >= 400 && status < 500) {
+    return "EXPECTED_DENIAL";
+  }
+  return "UNEXPECTED";
+}

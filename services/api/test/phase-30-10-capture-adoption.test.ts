@@ -158,7 +158,7 @@ describe("Phase 30.10 — useResumableUploads hook source contract", () => {
 
   it("NEVER writes uploadedAt locally", () => {
     expect(noComments).not.toMatch(/uploadedAtUtc\s*[:=]/);
-    expect(noComments).not.toMatch(/uploadedAt\s*[:=]\s*[^\?]/);
+    expect(noComments).not.toMatch(/uploadedAt\s*[:=]\s*[^?]/);
   });
 
   it("recovery scan is gated on the env flag (no work when flag is off)", () => {

@@ -24,6 +24,8 @@ import {
   safeJsonSnapshot,
 } from "../src/services/observability/redact.js";
 import { NoopObservabilityProvider } from "../src/services/observability/noop-provider.js";
+import type { ObservabilityProvider } from "../src/services/observability/provider.js";
+import type { AlertProvider } from "../src/services/alerts/provider.js";
 import { SentryObservabilityProvider } from "../src/services/observability/sentry-provider.js";
 import {
   buildObservabilityHealth,
@@ -104,7 +106,7 @@ describe("Phase 21 — metadata redactor", () => {
 
 describe("Phase 21 — NoopObservabilityProvider", () => {
   it("never throws on any method", () => {
-    const p = new NoopObservabilityProvider();
+    const p: ObservabilityProvider = new NoopObservabilityProvider();
     expect(p.isReady()).toBe(false);
     const span = p.startSpan("test", { attr: 1 });
     expect(() => span.addEvent("e", { k: "v" })).not.toThrow();
@@ -224,7 +226,7 @@ describe("Phase 21 — IncidentError surface", () => {
 
 describe("Phase 21 — Noop alert provider", () => {
   it("never throws", async () => {
-    const p = new NoopAlertProvider();
+    const p: AlertProvider = new NoopAlertProvider();
     expect(p.isReady()).toBe(false);
     const r = await p.dispatch({
       category: "INCIDENT_HIGH_CREATED",

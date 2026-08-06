@@ -24,7 +24,6 @@ import {
   isNotificationsFeatureEnabled,
   safeSendEmailNotification,
 } from "./index.js";
-import { getEmailWebBaseUrl } from "./templates.js";
 
 const REMINDERS_FLAG = "NOTIFICATION_REMINDERS_ENABLED";
 const REMINDERS_INTERVAL_HOURS = "NOTIFICATION_REMINDER_INTERVAL_HOURS";

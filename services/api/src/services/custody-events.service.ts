@@ -5,11 +5,9 @@ import { prisma } from "../db.js";
 // NEVER the payload contents.
 import {
   PROOVRA_SPAN_NAMES,
-  withProovraSpan,
   withProovraSpanSync,
 } from "../observability/otel.js";
 import {
-  classifyCustodyEventType,
   isAccessCustodyEventType,
 } from "@proovra/shared";
 import { buildCustodyEventHash } from "@proovra/shared/custody-hash";

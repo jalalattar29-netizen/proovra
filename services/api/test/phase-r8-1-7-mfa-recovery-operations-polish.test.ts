@@ -200,26 +200,57 @@ describe("R8.1.7 — digest failure handling", () => {
   // ---------------------------------------------------------------------------
   // 9. Failed email send does NOT mark digest as delivered.
   // ---------------------------------------------------------------------------
-  it("test 9: per-admin digest log is written AFTER the transport returns OK", () => {
-    // The catch block on the sendAdminDigest call sets `sent =
-    // "failed"`, emits the failure event, then `continue` —
-    // BEFORE the `mfaRecoveryAdminDigestLog.create` call. So a
-    // failed admin is left without a log row; the next tick will
-    // retry.
-    const block = DIGEST_WORKER.match(
-      /sent:\s*"ok"\s*\|\s*"skipped_no_transport"\s*\|\s*"failed";[\s\S]*?adminsSent \+= 1;/,
+  it("test 9: a failed digest send leaves NO delivered log row", () => {
+    // WHAT THIS TEST IS FOR, AND WHY IT NO LONGER PINS AN ORDERING
+    // -------------------------------------------------------------------
+    // The guarantee is: a digest that was not delivered must not be recorded
+    // as delivered, so the next tick retries it.
+    //
+    // This used to be checked by matching the SOURCE for a
+    // `mfaRecoveryAdminDigestLog.create` positioned after the failure
+    // branch — i.e. it pinned "write the log AFTER the send". PHASE 12
+    // POINT 5 inverted that ordering deliberately, because writing after
+    // the send is check-then-act across an external side effect: two ticks
+    // both read no log row, both SENT the digest, and only the second
+    // INSERT collided. The unique constraint caught the duplicate row; the
+    // admin had already received the duplicate email.
+    //
+    // The claim is now taken BEFORE the send and RELEASED if the send
+    // fails, which preserves this test's actual guarantee while also making
+    // the send exactly-once. The source-shape assertion would now fail
+    // against strictly better code, so it is replaced by assertions on the
+    // two properties that matter — both of which are additionally proven
+    // against a live database in
+    // `test/point5/family-notifications.integration.test.ts`
+    // ("a failed send releases the day" and "three simultaneous ticks send
+    // ONE email per admin").
+    // PHASE 12 POINT 5 (second pass) — the shape moved again, and for a
+    // reason worth recording. Releasing the claim by DELETING the row was a
+    // correct fix for the duplicate-send bug and a poor record: it destroyed
+    // the only evidence that a message had been intended, so a crash between
+    // the claim and the send still looked like a day that was already served.
+    // The claim row is now paired with a `NotificationDelivery` attempt row
+    // whose status carries the truth, and the failure branches leave that row
+    // non-terminal instead of erasing anything.
+    //
+    // The claim is still taken BEFORE the transport is contacted.
+    expect(DIGEST_WORKER).toMatch(/acquireDigestClaim\([\s\S]*?sendAdminDigest\(/);
+
+    // A failure is recorded as retryable or ambiguous — never as delivered.
+    expect(DIGEST_WORKER).toMatch(
+      /case "retryable":[\s\S]*?status: "RETRY_SCHEDULED"/,
     );
-    expect(block).toBeTruthy();
-    // The failure branch increments adminsFailed and continues.
-    expect(block![0]).toMatch(/sent\s*=\s*"failed"/);
-    expect(block![0]).toMatch(/adminsFailed\s*\+=\s*1/);
-    expect(block![0]).toMatch(/continue/);
-    // The log-row create comes AFTER the failure branch (block
-    // ends with `if (sent === "ok") adminsSent += 1;` and the
-    // create is between the failure continue and that line).
-    expect(block![0]).toMatch(
-      /mfaRecoveryAdminDigestLog\.create[\s\S]*?if\s*\(sent\s*===\s*"ok"\)/,
+    expect(DIGEST_WORKER).toMatch(
+      /case "ambiguous":[\s\S]*?errorCode: AMBIGUOUS_ERROR_CODE/,
     );
+    expect(DIGEST_WORKER).toMatch(/adminsFailed\s*\+=\s*1/);
+
+    // And the daily slot is stamped as delivered in exactly two places — the
+    // acknowledged branch and the deliberate no-transport skip. If a third
+    // appears, some other branch has started claiming delivery.
+    const stamps =
+      DIGEST_WORKER.match(/mfaRecoveryAdminDigestLog\.update\(/g) ?? [];
+    expect(stamps).toHaveLength(2);
   });
 
   // ---------------------------------------------------------------------------
@@ -230,11 +261,14 @@ describe("R8.1.7 — digest failure handling", () => {
     expect(DIGEST_WORKER).toMatch(
       /mfaRecoveryAdminDigestLog\.findUnique\([^)]*userId_sentDate/,
     );
-    expect(DIGEST_WORKER).toMatch(
-      /if\s*\(existing\)\s*continue/,
-    );
-    // UNIQUE catch is the safety net.
-    expect(DIGEST_WORKER).toMatch(/msg\.includes\(["']Unique["']\)/);
+    // A slot already held is stepped over rather than raced.
+    expect(DIGEST_WORKER).toMatch(/if\s*\(existingLog\)\s*\{/);
+    // UNIQUE catch is the safety net — now narrowed to the Prisma error code
+    // that actually means "someone else holds it". The previous form matched
+    // the word "Unique" anywhere in an error message, which would also have
+    // swallowed an unrelated failure that happened to contain it.
+    expect(DIGEST_WORKER).toMatch(/isUniqueViolation\(err\)/);
+    expect(DIGEST_WORKER).toMatch(/err\.code === "P2002"/);
   });
 
   // ---------------------------------------------------------------------------

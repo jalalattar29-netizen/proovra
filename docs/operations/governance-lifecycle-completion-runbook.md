@@ -13,7 +13,7 @@
 | **B0.4** Retention engine integration | Engine queried `EvidenceRetentionPolicy` rows only; never consulted the B0 `resolveTeamRetentionPolicy` resolver | Engine now consults the resolver as a fallback; emits `source: "team_policy" \| "org_policy_inherited" \| "none"` + structured `conflicts[]` |
 | **F.1** Lifecycle badges | Lifecycle state shown only in aggregate counts | New `LifecycleStateBadge` (7 bounded states, compact + block variants, tooltips, inheritance source) |
 | **F.2** Governance summaries | No unified summary panel | New `GovernanceSummary` component (lifecycle / retention / holds / destruction / exports / conflicts) |
-| **F.3** Export eligibility pre-flight | Eligibility checked post-hoc when buttons were clicked | New `ExportEligibilityPreflight` component renders the deterministic verdict + next-step copy BEFORE action |
+| **F.3** Export eligibility pre-flight | Eligibility checked post-hoc when buttons were clicked | The `GovernedExportAction` wrapper renders the deterministic verdict + next-step copy BEFORE action |
 | **F.4** Retention conflict visibility | `countActivePolicyConflicts()` existed but never surfaced in UI | New `RetentionConflictAlert` mounted at the top of `/governance/retention` |
 | **Tenancy observability** | Tenancy resolver threw silently; no metrics | 7 bounded counters in catalog; `tenancy_resolution_failure_total` / `orphan_governance_object_total` / `tenancy_disagreement_total` / `cross_org_resolution_blocked_total` bumped from the resolver |
 | **Public verify destroyed-state** | `lifecycleState === "DESTROYED"` not gated; could leak through public verify | 404 with generic message + audit row with `outcome: "lifecycle_destroyed"` |
@@ -87,7 +87,7 @@ The component **never fetches data** — the caller passes the props. This keeps
 
 ## 5. Export eligibility pre-flight (F.3)
 
-`apps/web/components/governance/ExportEligibilityPreflight.tsx` calls the existing `GET /v1/governance/export-eligibility` endpoint and renders one of the five bounded outcomes (`ALLOWED`, `BLOCKED_BY_HOLD`, `BLOCKED_BY_LIFECYCLE`, `BLOCKED_BY_REVIEW_GATE`, `BLOCKED_BY_POLICY`) plus per-outcome next-step copy.
+`apps/web/components/governance/GovernedExportAction.tsx` calls the existing `GET /v1/governance/export-eligibility` endpoint and renders one of the five bounded outcomes (`ALLOWED`, `BLOCKED_BY_HOLD`, `BLOCKED_BY_LIFECYCLE`, `BLOCKED_BY_REVIEW_GATE`, `BLOCKED_BY_POLICY`) plus per-outcome next-step copy.
 
 **Per-call `actionLabel`** preserves the Phase A2 distinction between Report PDF and Verification Package ZIP — operators see "Report PDF — Blocked by legal hold" or "Verification Package ZIP — Eligible" rather than a collapsed "Export" label.
 
@@ -146,7 +146,7 @@ if (lifecycleState === "DESTROYED") {
 
 ## 9. Reports/packages tenancy optimization
 
-The audit found that the reports/packages aggregator was already correctly workspace-scoped (filtered by `teamId`) without unsafe broad scans. Lifecycle-aware filtering remains a UI-level concern via the new `ExportEligibilityPreflight` component, not a query-rewrite. **No schema changes were necessary** — the bounded helper queries already in `reports-aggregator.service.ts` are sufficient.
+The audit found that the reports/packages aggregator was already correctly workspace-scoped (filtered by `teamId`) without unsafe broad scans. Lifecycle-aware filtering remains a UI-level concern via the `GovernedExportAction` wrapper, not a query-rewrite. **No schema changes were necessary** — the bounded helper queries already in `reports-aggregator.service.ts` are sufficient.
 
 Phase G1 documents this finding rather than adding speculative indexes. If a real workload signal emerges (e.g. slow query log), a follow-up can add a composite `(teamId, lifecycleState)` index without breaking the existing query shape.
 
@@ -177,7 +177,7 @@ Phase G1 documents this finding rather than adding speculative indexes. If a rea
 - Public verify destroyed-state gate: [services/api/src/routes/evidence.routes.ts](services/api/src/routes/evidence.routes.ts)
 - LifecycleStateBadge: [apps/web/components/governance/LifecycleStateBadge.tsx](apps/web/components/governance/LifecycleStateBadge.tsx)
 - GovernanceSummary: [apps/web/components/governance/GovernanceSummary.tsx](apps/web/components/governance/GovernanceSummary.tsx)
-- ExportEligibilityPreflight: [apps/web/components/governance/ExportEligibilityPreflight.tsx](apps/web/components/governance/ExportEligibilityPreflight.tsx)
+- GovernedExportAction: [apps/web/components/governance/GovernedExportAction.tsx](apps/web/components/governance/GovernedExportAction.tsx)
 - RetentionConflictAlert: [apps/web/components/governance/RetentionConflictAlert.tsx](apps/web/components/governance/RetentionConflictAlert.tsx)
 - Retention page mount: [apps/web/app/(app)/governance/retention/page.tsx](apps/web/app/(app)/governance/retention/page.tsx)
 - Tests: [services/api/test/phase-g1-governance-lifecycle.test.ts](services/api/test/phase-g1-governance-lifecycle.test.ts) (69 source-contract tests)
@@ -189,6 +189,6 @@ Phase G1 documents this finding rather than adding speculative indexes. If a rea
 Per Phase G1 Part 12 — **no new same-layer deferreds**. Items remaining are explicit *continuations* of work G1 closed:
 
 - **G1.x → continuation** — Mount `GovernanceSummary` on Evidence detail sidebar + Matter Workspace Overview tile. Component is shipped + contract-asserted; the mounts are mechanical per-page edits.
-- **G1.x → continuation** — Wire `ExportEligibilityPreflight` to specific Report PDF / Verification Package ZIP buttons across `apps/web/app/(app)/evidence/[id]/` and `apps/web/app/(app)/reports/`. Component is shipped + contract-asserted; the call-site wiring is mechanical.
+- **G1.x → DONE** — `GovernedExportAction` is wired to the Report PDF / Verification Package ZIP buttons on the evidence Artifact panel and the reports index, and Phase 12 Point 4 made the server enforce the same verdict on both download routes (the standalone `ExportEligibilityPreflight` duplicate was deleted).
 
 These are not new deferreds — they're the remaining mounts of components delivered in G1. They do not require new product decisions, schema changes, or governance backend work.

@@ -36,7 +36,13 @@ import { canPlanGenerateReports } from "@proovra/shared-billing";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import { enqueueReportJob } from "./queue.js";
+// PHASE 12 — POINT 5. The recovery calls the report AUTHORITY directly rather
+// than the queue: it persists a durable `ReportGenerationRequest` and then
+// enqueues that row's id. Importing the authority (which needs only `./db.js`)
+// instead of `./processor.js` also keeps this module free of the report
+// generator's whole dependency graph.
+import { enqueueReportGenerationRequest } from "./queue.js";
+import { requestReportGenerationFromWorker } from "./report-generation-authority.js";
 import { resolveEffectivePlanForEvidence } from "./workspace-billing.js";
 
 export interface RunLifecycleRecoveryOptions {
@@ -116,7 +122,12 @@ export async function runLifecycleRecovery(
         skippedIneligiblePlan++;
         continue;
       }
-      const res = await enqueueReportJob(ev.id);
+      const res = await requestReportGenerationFromWorker({
+        evidenceId: ev.id,
+        purpose: "lifecycle_recovery",
+        machineId: "worker.lifecycle-recovery",
+        enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
+      });
       if (res.enqueued) {
         reenqueued++;
         logger.warn(

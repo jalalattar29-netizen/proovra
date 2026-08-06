@@ -1,69 +1,107 @@
+/**
+ * PHASE 12 — POINT 5: the worker's transport layer.
+ *
+ * What this file used to be: nineteen `new Queue(...)` declarations each with
+ * a hand-written retry policy, twelve enqueue helpers each with its own job-id
+ * builder and its own copy of the collapse-or-replace ladder, and a `payload`
+ * per queue carrying whatever the producer happened to know — `teamId`,
+ * `evidenceId`, `kind`, `reason`, `domain`, `forceRegenerate`, `chunkIds`.
+ *
+ * What it is now: queue handles, and one delegation.
+ *
+ * Queue name, job name, payload shape, payload version, job id and retry policy
+ * all live in `@proovra/shared/queue-integrity`, and the api calls the SAME
+ * `enqueueCanonicalJob` this file does — not the same policy implemented twice.
+ * Every producer's only remaining decision is which durable row its command
+ * names.
+ */
+
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { env } from "./config.js";
-// Phase O1.3 — bounded OTEL context injection for cross-service
-// trace propagation (API enqueue → worker handler). See
-// `observability/queue-otel-context.ts` for the bounded carrier
-// shape and the "not yet propagated" deferred list.
-import { injectOtelContextIntoJobData } from "./observability/queue-otel-context.js";
+// Phase O1.3 — cross-service trace propagation (API enqueue → worker handler).
+// PHASE 12 POINT 5 moved the carrier from an unbounded `_otel` blob to a
+// validated `traceparent` field on the canonical envelope; see
+// `observability/queue-otel-context.ts`.
 import {
-  buildReportJobId,
-  buildReportJobPayload,
-  decideReportJobEnqueueAction,
-  EnqueueReportJobOptions,
-  ReportJobPayload,
-  generateReportJobName,
-  newQueuePayloadEnvelope,
-  type QueuePayloadEnvelope,
+  currentTraceparent,
+  injectOtelContextIntoJobData,
+} from "./observability/queue-otel-context.js";
+import {
+  // PHASE 12 POINT 4 PASS C2 — ONE redaction job identity + enqueue policy.
+  REDACTION_DERIVATIVE_JOB_NAME,
+  REDACTION_DERIVATIVE_QUEUE_NAME,
+  type RedactionDerivativeJobPayload,
+  // PHASE 12 POINT 5 — the ONE enqueue authority + the ONE job registry.
+  JOB_NAMES,
+  QUEUE_NAMES,
+  buildGraphDomainCommandId,
+  buildSearchIndexCommandId,
+  enqueueCanonicalJob,
+  getWorkEntryOrThrow,
+  type GraphSyncDomain,
+  type QueueHandleLike,
+  type SearchIndexDocumentKind,
+  type WorkName,
 } from "@proovra/shared";
 
-export { generateReportJobName };
+/**
+ * Every name below is now an ALIAS of the registry value, not a second
+ * declaration of it.
+ *
+ * They stay as named exports because the worker bootstrap, the telemetry
+ * sampler and the health endpoint read them, and renaming those is churn with
+ * no safety gain. What changed is that none of them can hold a different
+ * string from the one the producer, the processor, the retry policy and the
+ * closure gate all read. Before this, the report queue's name was written out
+ * as a literal in three separate files.
+ */
+export const generateReportJobName = JOB_NAMES.GENERATE_REPORT;
+export const reportQueueName = QUEUE_NAMES.REPORT;
+export const reportDlqQueueName = QUEUE_NAMES.REPORT_DLQ;
+export const otsUpgradeQueueName = QUEUE_NAMES.OTS_UPGRADE;
+export const otsUpgradeJobName = JOB_NAMES.UPGRADE_OTS;
+export const evidencePurgeQueueName = QUEUE_NAMES.EVIDENCE_PURGE;
+export const purgeDeletedEvidenceJobName = JOB_NAMES.PURGE_DELETED_EVIDENCE;
+export const searchIndexingQueueName = QUEUE_NAMES.SEARCH_INDEXING;
+export const searchIndexingJobName = JOB_NAMES.REBUILD_SEARCH_DOCUMENT;
+export const mediaIntelligenceQueueName = QUEUE_NAMES.MEDIA_INTELLIGENCE;
+export const mediaIntelligenceDlqQueueName =
+  QUEUE_NAMES.MEDIA_INTELLIGENCE_DLQ;
+export const mediaIntelligenceJobName = JOB_NAMES.RUN_MEDIA_INTELLIGENCE;
+export const derivedAssetsQueueName = QUEUE_NAMES.DERIVED_ASSETS;
+export const derivedAssetsJobName = JOB_NAMES.GENERATE_DERIVED_ASSET;
+export const redactionDerivativeQueueName = REDACTION_DERIVATIVE_QUEUE_NAME;
+export const redactionDerivativeJobName = REDACTION_DERIVATIVE_JOB_NAME;
+export const exifQueueName = QUEUE_NAMES.MI_EXIF;
+export const exifJobName = JOB_NAMES.EXTRACT_EXIF;
+export const miSearchIndexQueueName = QUEUE_NAMES.MI_SEARCH_INDEX;
+export const miSearchIndexJobName = JOB_NAMES.INDEX_MEDIA_INTELLIGENCE;
+export const miEmbedQueueName = QUEUE_NAMES.MI_EMBED;
+export const miEmbedJobName = JOB_NAMES.EMBED_SEMANTIC_CHUNKS;
+export const graphReconcileQueueName = QUEUE_NAMES.GRAPH_RECONCILE;
+export const graphReconcileJobName = JOB_NAMES.RECONCILE_TEAM_GRAPH;
+export const graphDomainSyncQueueName = QUEUE_NAMES.GRAPH_DOMAIN_SYNC;
+export const graphDomainSyncJobName = JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN;
+export const graphTimelineSyncQueueName = QUEUE_NAMES.GRAPH_TIMELINE_SYNC;
+export const graphTimelineSyncJobName = JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE;
+export const graphSearchProjectionQueueName =
+  QUEUE_NAMES.GRAPH_SEARCH_PROJECTION;
+export const graphSearchProjectionJobName =
+  JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION;
+export const orgHealthRefreshQueueName = QUEUE_NAMES.ORG_HEALTH_REFRESH;
+export const orgHealthRefreshJobName = JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION;
 
-export const reportQueueName = "report";
-export const reportDlqQueueName = "report-dlq";
-export const otsUpgradeQueueName = "ots-upgrade";
-export const otsUpgradeJobName = "UpgradeOts";
-export const evidencePurgeQueueName = "evidence-purge";
-export const purgeDeletedEvidenceJobName = "PurgeDeletedEvidenceJob";
-
-// Phase 24-J — async Search Discovery indexing queue. Replaces inline
-// indexing on the request path so heavy index builds (multipart OCR
-// rollup, workflow event chains, etc.) don't block the API.
-export const searchIndexingQueueName = "search-indexing";
-export const searchIndexingJobName = "RebuildSearchDocument";
-
-// Phase 31.6 — async media intelligence orchestration. One queue
-// + one DLQ. Job kinds are bounded (matches the Phase 31.5 run
-// tracker's catalog) and carry only `{ teamId, evidenceId, kind }`
-// — never raw evidence content. Processor uses the shared
-// canonical Prisma instance from ./db.ts.
-export const mediaIntelligenceQueueName = "media-intelligence";
-export const mediaIntelligenceDlqQueueName = "media-intelligence-dlq";
-export const mediaIntelligenceJobName = "RunMediaIntelligence";
-
-export type SearchIndexingDocumentKind =
-  | "evidence"
-  | "workflow_instance"
-  | "workflow_step"
-  | "review_event"
-  | "operational_incident"
-  | "case";
-
-export type SearchIndexingJobPayload = {
-  teamId: string;
-  kind: SearchIndexingDocumentKind;
-  sourceId: string;
-  /**
-   * Why this rebuild was enqueued. Bounded catalog so the audit trail
-   * + worker logs stay scanable. Examples: "lifecycle_changed",
-   * "legal_hold_placed", "operator_reindex", "ocr_segment_indexed".
-   */
-  reason: string;
-};
+/** @deprecated Import `SearchIndexDocumentKind` from `@proovra/shared`. */
+export type SearchIndexingDocumentKind = SearchIndexDocumentKind;
 
 export type PurgeDeletedEvidenceJobPayload = {
   evidenceId: string;
 };
+
+// ===========================================================================
+// Redis
+// ===========================================================================
 
 export const redisConnection = new IORedis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -134,70 +172,127 @@ redisConnection.on("close", () => {
   });
 });
 
-export const reportQueue = new Queue(reportQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 5,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
+// ===========================================================================
+// Queue construction
+// ===========================================================================
+//
+// Every queue takes its retry policy FROM THE REGISTRY. They used to declare
+// their own — `attempts: 3, exponential 10s` written out fifteen times, with
+// four different answers for what "bounded" meant — and the enqueue helpers
+// then declared them AGAIN at the call site, so a queue's default and its
+// producer's per-add options could disagree. They did: the report queue's
+// default said 5 attempts while its producer passed 3 for a regeneration and 5
+// otherwise, which meant a reconciler re-enqueue ran under a different budget
+// than the request path for the same work.
 
+/** BullMQ queue options derived from a registered unit of work. */
+function queueOptions(
+  workName: WorkName,
+  retention: {
+    removeOnComplete?: number | boolean;
+    removeOnFail?: number | boolean;
+  } = {},
+) {
+  const entry = getWorkEntryOrThrow(workName);
+  return {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: entry.retry.attempts,
+      backoff: {
+        type: entry.retry.backoff,
+        delay: entry.retry.backoffDelayMs,
+      },
+      removeOnComplete: retention.removeOnComplete ?? 100,
+      removeOnFail: retention.removeOnFail ?? false,
+    },
+  };
+}
+
+export type WorkEnqueueResult =
+  | { enqueued: true; jobId: string }
+  | { enqueued: false; reason: string };
+
+/**
+ * The worker's single enqueue path.
+ *
+ * Behaviourally identical to the api's `enqueueCanonicalWork` because it is the
+ * same shared function underneath. That is the property the twelve helpers this
+ * replaced did not have: each carried its own copy of the collapse-or-replace
+ * ladder, and at least one pair had already drifted on whether a collapsed
+ * enqueue reports success.
+ *
+ * Never throws. A Redis outage is a bounded `{ enqueued: false, reason }`, so a
+ * committed durable row stays recoverable rather than taking its caller down.
+ */
+async function enqueueWork(
+  queue: Queue,
+  workName: WorkName,
+  commandId: string,
+  options: {
+    traceId?: string | null;
+    delayMs?: number;
+    removeOnComplete?: number | boolean;
+    removeOnFail?: number | boolean;
+  } = {},
+): Promise<WorkEnqueueResult> {
+  const outcome = await enqueueCanonicalJob({
+    queue: queue as unknown as QueueHandleLike,
+    entry: getWorkEntryOrThrow(workName),
+    commandId,
+    traceId: options.traceId ?? "",
+    delayMs: options.delayMs,
+    removeOnComplete: options.removeOnComplete,
+    removeOnFail: options.removeOnFail,
+    traceparent: currentTraceparent(),
+  });
+  return outcome.enqueued
+    ? { enqueued: true, jobId: outcome.jobId }
+    : { enqueued: false, reason: outcome.reason };
+}
+
+// ---------------------------------------------------------------------------
+// Queues
+// ---------------------------------------------------------------------------
+
+export const reportQueue = new Queue(
+  reportQueueName,
+  queueOptions(JOB_NAMES.GENERATE_REPORT),
+);
+
+/**
+ * DLQ sink. No registered job and no worker BY DESIGN: exhausted jobs are
+ * moved here for operator triage, and giving it a processor would turn a
+ * dead-letter queue into a retry loop.
+ */
 export const reportDlqQueue = new Queue(reportDlqQueueName, {
   connection: redisConnection,
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
+  defaultJobOptions: { removeOnComplete: true, removeOnFail: false },
 });
 
-export const otsUpgradeQueue = new Queue(otsUpgradeQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 20,
-    backoff: { type: "exponential", delay: 60_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
+export const otsUpgradeQueue = new Queue(
+  otsUpgradeQueueName,
+  queueOptions(JOB_NAMES.UPGRADE_OTS),
+);
 
-export const evidencePurgeQueue = new Queue(evidencePurgeQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 5,
-    backoff: { type: "exponential", delay: 60_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
+export const evidencePurgeQueue = new Queue(
+  evidencePurgeQueueName,
+  queueOptions(JOB_NAMES.PURGE_DELETED_EVIDENCE),
+);
 
-// Phase 24-J — async Search Discovery indexing queue.
-export const searchIndexingQueue = new Queue(searchIndexingQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 5,
-    backoff: { type: "exponential", delay: 5_000 },
+export const searchIndexingQueue = new Queue(
+  searchIndexingQueueName,
+  queueOptions(JOB_NAMES.REBUILD_SEARCH_DOCUMENT, {
     removeOnComplete: 200,
     removeOnFail: 200,
-  },
-});
+  }),
+);
 
-// Phase 31.6 — media intelligence queue + DLQ. Bounded attempts
-// (3) + exponential backoff (10s → 80s). `removeOnFail: false`
-// keeps failed jobs visible to operations until manually
-// dismissed / retried. DLQ collects jobs that exhaust retries so
-// operations can replay them.
-export const mediaIntelligenceQueue = new Queue(mediaIntelligenceQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 10_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
+export const mediaIntelligenceQueue = new Queue(
+  mediaIntelligenceQueueName,
+  queueOptions(JOB_NAMES.RUN_MEDIA_INTELLIGENCE),
+);
 
+/** The second DLQ sink. Same design note as `reportDlqQueue`. */
 export const mediaIntelligenceDlqQueue = new Queue(
   mediaIntelligenceDlqQueueName,
   {
@@ -210,1037 +305,396 @@ export const mediaIntelligenceDlqQueue = new Queue(
   },
 );
 
-// Phase 31.13 — dedicated `mi-derived-assets` queue. First of 9
-// isolated subsystem queues per the Phase 31 brief. Per-queue
-// concurrency, per-queue retry policy, isolated DLQ. The processor
-// runs sharp; capability detection inside the processor itself
-// degrades gracefully on environments where sharp can't load.
-export const derivedAssetsQueueName = "mi-derived-assets";
-export const derivedAssetsJobName = "GenerateDerivedAsset";
-
-export const derivedAssetsQueue = new Queue(derivedAssetsQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 10_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
-
-// Phase 31.18 — dedicated `mi-exif` queue. Second of 9 isolated
-// subsystem queues. EXIF extraction reads a bounded byte range
-// (16KB) per evidence-part and parses with `exifr`. Isolation
-// keeps EXIF jobs from being head-of-line blocked by analyzer
-// runs (which can take seconds to scan the parts table for a
-// large evidence record).
-//
-// The processor SHARES the same media-intelligence job handler —
-// the producer just routes the `extract_exif` kind to this queue
-// instead of the generic media-intelligence queue. This is purely
-// a queue-isolation pattern; no behavior change.
-export const exifQueueName = "mi-exif";
-export const exifJobName = "ExtractExif";
-
-export const exifQueue = new Queue(exifQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 10_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
-
-// Phase 31.19 — four more isolated subsystem queues. These bring
-// the count of isolated queues to 6 of 9. Each queue declaration
-// follows the established pattern:
-//   * dedicated name + job name
-//   * bounded attempts + exponential backoff
-//   * `removeOnFail: false` so operations keeps visibility on
-//     stuck jobs (DLQ-shaped behavior without a separate queue)
-//   * Worker registration in index.ts pairs with a deterministic
-//     idempotent `buildXJobId` helper below.
-//
-// Until concrete producer code lands for each subsystem (OCR
-// vendor, transcript vendor, graph-reconcile cron split), the
-// queues exist as declared targets so SRE can wire dashboards
-// and oncall pages today. The Worker in index.ts uses the same
-// `processMediaIntelligenceJob` / `processGraphReconcileJob`
-// shim for the mi-* family; the graph queues are wired to a
-// shared no-op handler that completes immediately when its
-// payload `kind` isn't yet implemented — this keeps the queue
-// drain healthy when an operator manually enqueues to verify
-// the topology.
-
-export const ocrQueueName = "mi-ocr";
-export const ocrJobName = "ExtractOcr";
-
-export const ocrQueue = new Queue(ocrQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 15_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
-
-export const transcriptQueueName = "mi-transcript";
-export const transcriptJobName = "ExtractTranscript";
-
-export const transcriptQueue = new Queue(transcriptQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 30_000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
-  },
-});
-
-export const miSearchIndexQueueName = "mi-search-index";
-export const miSearchIndexJobName = "IndexMediaIntelligence";
-
-export const miSearchIndexQueue = new Queue(miSearchIndexQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 5,
-    backoff: { type: "exponential", delay: 5_000 },
-    removeOnComplete: 200,
-    removeOnFail: 200,
-  },
-});
-
-// Phase 16 — dedicated `mi-embed` queue. Carries embedding-compute
-// work for the EvidenceSemanticChunk table. The producer side lives in
-// `services/api/src/services/intelligence/semantic.service.ts` (live
-// indexing path) and in `services/api/scripts/backfill-semantic-embeddings.ts`
-// (operator backfill). Bounded retry + exponential backoff keeps a
-// transient OpenAI 5xx from saturating the worker.
-//
-// The processor reuses the same EmbeddingProvider abstraction the
-// API surfaces (see services/worker/src/mi-embed.processor.ts). Per-
-// workspace daily cap + monthly EUR budget is enforced INSIDE the
-// processor via `canEmbedMore` so the queue itself stays simple.
-//
-// `removeOnFail: 200` keeps the last 200 failures observable to SRE
-// without unbounded retention; the inline backfill in
-// `search-indexing.processor.ts` is the safety net for any drift.
-export const miEmbedQueueName = "mi-embed";
-export const miEmbedJobName = "EmbedSemanticChunks";
-
-export const miEmbedQueue = new Queue(miEmbedQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 10_000 },
-    removeOnComplete: 200,
-    removeOnFail: 200,
-  },
-});
-
-export type MiEmbedJobPayload = {
-  teamId: string;
-  /** Bounded — at most 200 chunkIds per payload. Producer is
-   *  responsible for batching so a single payload cannot stall the
-   *  worker. */
-  chunkIds: string[];
-  /** Bounded catalog. Examples: "live_indexing", "backfill_script",
-   *  "search_index_safety_net". */
-  reason: string;
-};
-
-export function buildMiEmbedJobId(chunkIdsHashOrFirst: string): string {
-  return `mi-embed-${chunkIdsHashOrFirst}`;
-}
-
-export async function enqueueMiEmbedJob(
-  payload: MiEmbedJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<
-  | { enqueued: true; jobId: string }
-  | { enqueued: false; reason: string }
-> {
-  if (!payload.chunkIds || payload.chunkIds.length === 0) {
-    return { enqueued: false, reason: "no_chunk_ids" };
-  }
-  // Bound the per-job payload so a single job's lifetime is predictable.
-  const bounded = payload.chunkIds.slice(0, 200);
-  const jobId = buildMiEmbedJobId(bounded[0]);
-  return genericIdempotentEnqueue(
-    miEmbedQueue,
-    miEmbedJobName,
-    jobId,
-    { teamId: payload.teamId, chunkIds: bounded, reason: payload.reason.slice(0, 64) },
-    options,
-  );
-}
-
-export const graphReconcileQueueName = "graph-reconcile";
-export const graphReconcileJobName = "ReconcileTeamGraph";
-
-export const graphReconcileQueue = new Queue(graphReconcileQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 30_000 },
-    removeOnComplete: 50,
-    removeOnFail: false,
-  },
-});
-
-// Phase 31.20 — final three isolated graph subsystem queues. All 9
-// isolated subsystem queues now exist.
-//
-// `graph-domain-sync` runs the per-team domain reconciler with an
-// optional `domain` filter so a single misbehaving domain (e.g.
-// EXTERNAL_REVIEW) can be re-synced without re-running the full
-// reconcile cron.
-//
-// `graph-timeline-sync` refreshes timeline projections for a team.
-// Today the timeline is computed on-demand from union queries — the
-// queue exists so a future incremental projection cache has a
-// canonical job target.
-//
-// `graph-search-projection` refreshes graph-derived search hints
-// (e.g. signal counts on evidence search documents). Today this is
-// covered by the analyzer-side rebuild, but the queue exists so a
-// future projection writer has a canonical job target.
-//
-// All three reuse the same lightweight idempotent enqueue helper +
-// safeRegisterWorker pattern as the prior 6 queues.
-export const graphDomainSyncQueueName = "graph-domain-sync";
-export const graphDomainSyncJobName = "SyncTeamGraphDomain";
-export const graphDomainSyncQueue = new Queue(graphDomainSyncQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 30_000 },
-    removeOnComplete: 50,
-    removeOnFail: false,
-  },
-});
-
-export const graphTimelineSyncQueueName = "graph-timeline-sync";
-export const graphTimelineSyncJobName = "SyncTeamGraphTimeline";
-export const graphTimelineSyncQueue = new Queue(graphTimelineSyncQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 30_000 },
-    removeOnComplete: 50,
-    removeOnFail: false,
-  },
-});
-
-export const graphSearchProjectionQueueName = "graph-search-projection";
-export const graphSearchProjectionJobName = "RefreshGraphSearchProjection";
-export const graphSearchProjectionQueue = new Queue(
-  graphSearchProjectionQueueName,
-  {
-    connection: redisConnection,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 30_000 },
-      removeOnComplete: 50,
-      removeOnFail: false,
-    },
-  },
+export const derivedAssetsQueue = new Queue(
+  derivedAssetsQueueName,
+  queueOptions(JOB_NAMES.GENERATE_DERIVED_ASSET),
 );
 
-// ============================================================================
-// PHASE 37.98 — Org-health projection refresh queue.
-//
-// One job payload = one teamId. The processor calls the canonical
-// `refreshOrgHealthProjection` helper which:
-//   - is idempotent (upsert keyed on `(teamId, sampledAtUtc)`),
-//   - runs only bounded `prisma.<model>.count({ where: { teamId } })`
-//     queries — no global scans, no cross-tenant joins,
-//   - writes only the projection row (no audit / billing / governance
-//     side effects).
-//
-// Retries are exponential. Failed jobs do NOT cross tenant boundaries
-// because the job payload's `teamId` is the SOLE scoping input.
-// ============================================================================
-export const orgHealthRefreshQueueName = "org-health-refresh";
-export const orgHealthRefreshJobName = "RefreshOrgHealthProjection";
-export const orgHealthRefreshQueue = new Queue(orgHealthRefreshQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 15_000 },
+export const redactionDerivativeQueue = new Queue(
+  redactionDerivativeQueueName,
+  queueOptions(JOB_NAMES.RENDER_REDACTION_DERIVATIVE),
+);
+
+export const exifQueue = new Queue(
+  exifQueueName,
+  queueOptions(JOB_NAMES.EXTRACT_EXIF),
+);
+
+export const miSearchIndexQueue = new Queue(
+  miSearchIndexQueueName,
+  queueOptions(JOB_NAMES.INDEX_MEDIA_INTELLIGENCE, {
+    removeOnComplete: 200,
+    removeOnFail: 200,
+  }),
+);
+
+export const miEmbedQueue = new Queue(
+  miEmbedQueueName,
+  queueOptions(JOB_NAMES.EMBED_SEMANTIC_CHUNKS, {
+    removeOnComplete: 200,
+    removeOnFail: 200,
+  }),
+);
+
+export const graphReconcileQueue = new Queue(
+  graphReconcileQueueName,
+  queueOptions(JOB_NAMES.RECONCILE_TEAM_GRAPH, { removeOnComplete: 50 }),
+);
+
+export const graphDomainSyncQueue = new Queue(
+  graphDomainSyncQueueName,
+  queueOptions(JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN, { removeOnComplete: 50 }),
+);
+
+export const graphTimelineSyncQueue = new Queue(
+  graphTimelineSyncQueueName,
+  queueOptions(JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE, { removeOnComplete: 50 }),
+);
+
+export const graphSearchProjectionQueue = new Queue(
+  graphSearchProjectionQueueName,
+  queueOptions(JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION, {
+    removeOnComplete: 50,
+  }),
+);
+
+export const orgHealthRefreshQueue = new Queue(
+  orgHealthRefreshQueueName,
+  queueOptions(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION, {
     removeOnComplete: 100,
     removeOnFail: 100,
-  },
-});
+  }),
+);
 
-export type OrgHealthRefreshJobPayload = {
-  teamId: string;
-};
+// ===========================================================================
+// Producers
+// ===========================================================================
+//
+// Each producer's ONLY remaining decision is which durable row its command
+// names. Everything the old helpers put on the wire — `teamId`, an
+// `evidenceId` alongside a run id, `kind` as a free field, `reason`,
+// `forceRegenerate`, `domain`, an inline list of chunk ids — is either derived
+// by the processor from that row or encoded into the command id against a
+// CLOSED catalog.
 
-export type GraphDomainSyncJobPayload = {
-  teamId: string;
-  /** Optional bounded domain filter. When null the job runs the
-   *  full reconciler (effectively equivalent to graph-reconcile). */
-  domain?:
-    | "CASE"
-    | "REPORT"
-    | "VERIFICATION_PACKAGE"
-    | "EXPORT"
-    | "REVIEW_TASK"
-    | "ESCALATION"
-    | "INCIDENT"
-    | "EXTERNAL_REVIEW"
-    | null;
-  reason?: string | null;
-};
-
-export type GraphTimelineSyncJobPayload = {
-  teamId: string;
-  reason?: string | null;
-};
-
-export type GraphSearchProjectionJobPayload = {
-  teamId: string;
-  reason?: string | null;
-};
-
-export function buildGraphDomainSyncJobId(
-  teamId: string,
-  domain: string | null | undefined,
-): string {
-  const d = (domain ?? "all").toLowerCase();
-  return `graph-domain-sync-${teamId}-${d}`;
-}
-
-export function buildGraphTimelineSyncJobId(teamId: string): string {
-  return `graph-timeline-sync-${teamId}`;
-}
-
-export function buildGraphSearchProjectionJobId(teamId: string): string {
-  return `graph-search-projection-${teamId}`;
-}
-
-export async function enqueueGraphDomainSyncJob(
-  payload: GraphDomainSyncJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  const jobId = buildGraphDomainSyncJobId(payload.teamId, payload.domain ?? null);
-  return genericIdempotentEnqueue(
-    graphDomainSyncQueue,
-    graphDomainSyncJobName,
-    jobId,
-    payload,
-    options,
+/** Redaction: the derivative row is the authority. */
+export async function enqueueRedactionDerivativeRenderWorker(
+  payload: RedactionDerivativeJobPayload,
+): Promise<{ enqueued: boolean }> {
+  const outcome = await enqueueWork(
+    redactionDerivativeQueue,
+    JOB_NAMES.RENDER_REDACTION_DERIVATIVE,
+    payload.derivativeId,
+    { traceId: payload.trace ?? "" },
   );
+  return { enqueued: outcome.enqueued };
 }
 
-export async function enqueueGraphTimelineSyncJob(
-  payload: GraphTimelineSyncJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  const jobId = buildGraphTimelineSyncJobId(payload.teamId);
-  return genericIdempotentEnqueue(
-    graphTimelineSyncQueue,
-    graphTimelineSyncJobName,
-    jobId,
-    payload,
-    options,
-  );
+/** Reports: the `ReportGenerationRequest` row is the authority. */
+export async function enqueueReportGenerationRequest(
+  reportRequestId: string,
+  options: { traceId?: string; delayMs?: number } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(reportQueue, JOB_NAMES.GENERATE_REPORT, reportRequestId, {
+    traceId: options.traceId,
+    delayMs: options.delayMs,
+  });
 }
 
-export async function enqueueGraphSearchProjectionJob(
-  payload: GraphSearchProjectionJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  const jobId = buildGraphSearchProjectionJobId(payload.teamId);
-  return genericIdempotentEnqueue(
-    graphSearchProjectionQueue,
-    graphSearchProjectionJobName,
-    jobId,
-    payload,
-    options,
-  );
-}
-
-export type OcrJobPayload = {
-  teamId: string;
-  evidenceId: string;
-  evidencePartId?: string | null;
-};
-
-export type TranscriptJobPayload = {
-  teamId: string;
-  evidenceId: string;
-  evidencePartId?: string | null;
-};
-
-export type MiSearchIndexJobPayload = {
-  teamId: string;
-  evidenceId: string;
-  /** Why this reindex was enqueued. Bounded catalog. */
+/**
+ * Search projection rebuild.
+ *
+ * `teamId` is accepted as producer INPUT for the caller's own attribution and
+ * is deliberately not serialised — the processor loads the source row and
+ * derives the workspace from it.
+ */
+export type SearchIndexingJobPayload = {
+  teamId?: string | null;
+  kind: SearchIndexDocumentKind;
+  sourceId: string;
+  /** Bounded catalog, e.g. "lifecycle_changed", "operator_reindex". */
   reason: string;
 };
 
-export type GraphReconcileJobPayload = {
-  teamId: string;
-  /** Operator-supplied reason for manual reconciles. Bounded. */
-  reason?: string | null;
-};
-
-export function buildOcrJobId(evidencePartId: string): string {
-  return `mi-ocr-${evidencePartId}`;
-}
-
-export function buildTranscriptJobId(evidencePartId: string): string {
-  return `mi-transcript-${evidencePartId}`;
-}
-
-export function buildMiSearchIndexJobId(evidenceId: string): string {
-  return `mi-search-index-${evidenceId}`;
-}
-
-export function buildGraphReconcileJobId(teamId: string): string {
-  return `graph-reconcile-${teamId}`;
-}
-
-/**
- * Idempotent enqueue helper for the mi-ocr queue. Follows the
- * exact same shape as enqueueExifJob (Phase 31.18) — see that
- * helper for invariant documentation. The OCR producer side is
- * still gated on a vendor decision (see Phase 31.19 OCR/transcript
- * producer mode), so this helper is part of the wiring topology
- * rather than an active producer path today.
- */
-async function genericIdempotentEnqueue<P extends { teamId: string }>(
-  queue: Queue,
-  jobName: string,
-  jobId: string,
-  payload: P,
-  options: { delayMs?: number },
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  try {
-    const existing = await queue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        return { enqueued: false, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        // ignore race
-      }
-    }
-    // Phase O1.4 — inject OTEL context for cross-service trace
-    // continuity. genericIdempotentEnqueue is shared by graph-domain-sync,
-    // graph-timeline-sync, graph-search-projection, mi-ocr, mi-transcript,
-    // mi-search-index, graph-reconcile — so this single injection covers
-    // 7 of the deferred queues from O1.3 in one move.
-    const wrappedPayload = injectOtelContextIntoJobData(
-      payload as unknown as Record<string, unknown>,
-    );
-    await queue.add(jobName, wrappedPayload, {
-      jobId,
-      delay: Math.max(0, options.delayMs ?? 0),
-    });
-    return { enqueued: true, jobId };
-  } catch (err) {
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
-}
-
-export async function enqueueOcrJob(
-  payload: OcrJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  if (!payload.evidencePartId) {
-    return { enqueued: false, reason: "evidence_part_id_required" };
-  }
-  const jobId = buildOcrJobId(payload.evidencePartId);
-  return genericIdempotentEnqueue(ocrQueue, ocrJobName, jobId, payload, options);
-}
-
-export async function enqueueTranscriptJob(
-  payload: TranscriptJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  if (!payload.evidencePartId) {
-    return { enqueued: false, reason: "evidence_part_id_required" };
-  }
-  const jobId = buildTranscriptJobId(payload.evidencePartId);
-  return genericIdempotentEnqueue(
-    transcriptQueue,
-    transcriptJobName,
-    jobId,
-    payload,
-    options,
-  );
-}
-
-export async function enqueueMiSearchIndexJob(
-  payload: MiSearchIndexJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  const jobId = buildMiSearchIndexJobId(payload.evidenceId);
-  return genericIdempotentEnqueue(
-    miSearchIndexQueue,
-    miSearchIndexJobName,
-    jobId,
-    payload,
-    options,
-  );
-}
-
-export async function enqueueGraphReconcileJob(
-  payload: GraphReconcileJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<{ enqueued: true; jobId: string } | { enqueued: false; reason: string }> {
-  const jobId = buildGraphReconcileJobId(payload.teamId);
-  return genericIdempotentEnqueue(
-    graphReconcileQueue,
-    graphReconcileJobName,
-    jobId,
-    payload,
-    options,
-  );
-}
-
-export function buildSearchIndexingJobId(
-  kind: SearchIndexingDocumentKind,
-  sourceId: string,
-): string {
-  return `search-index-${kind}-${sourceId}`;
-}
-
-/**
- * Enqueue a Discovery index rebuild. Idempotent — repeat calls collapse
- * to the existing job. Never throws to the calling flow; a Redis outage
- * returns `enqueued: false, reason: "queue_unavailable"` and the caller
- * relies on the periodic reconciliation cron to catch the drift.
- */
 export async function enqueueSearchIndexingJob(
   payload: SearchIndexingJobPayload,
   options: { delayMs?: number } = {},
-): Promise<
-  | { enqueued: true; jobId: string }
-  | { enqueued: false; reason: string }
-> {
-  const jobId = buildSearchIndexingJobId(payload.kind, payload.sourceId);
+): Promise<WorkEnqueueResult> {
+  let commandId: string;
   try {
-    const existing = await searchIndexingQueue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        // Already queued or running — collapse to existing.
-        return { enqueued: false, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        // ignore race
-      }
-    }
-    // Phase O1.4 — inject OTEL context.
-    const wrappedPayload = injectOtelContextIntoJobData(
-      payload as unknown as Record<string, unknown>,
-    );
-    await searchIndexingQueue.add(searchIndexingJobName, wrappedPayload, {
-      jobId,
-      delay: Math.max(0, options.delayMs ?? 0),
-      attempts: 5,
-      backoff: { type: "exponential", delay: 5_000 },
+    commandId = buildSearchIndexCommandId(payload.kind, payload.sourceId);
+  } catch {
+    return { enqueued: false, reason: "unknown_document_kind" };
+  }
+  return enqueueWork(
+    searchIndexingQueue,
+    JOB_NAMES.REBUILD_SEARCH_DOCUMENT,
+    commandId,
+    {
+      traceId: (payload.reason ?? "").slice(0, 64),
+      delayMs: options.delayMs,
       removeOnComplete: 200,
       removeOnFail: 200,
-    });
-    return { enqueued: true, jobId };
-  } catch (err) {
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
-}
-
-export function buildOtsUpgradeJobId(evidenceId: string): string {
-  return `ots-upgrade-${evidenceId}`;
-}
-
-function isRunnableQueueState(state: string): boolean {
-  return (
-    state === "waiting" ||
-    state === "delayed" ||
-    state === "active" ||
-    state === "prioritized"
+    },
   );
 }
 
-async function findRunnableOtsUpgradeJobForEvidence(
-  evidenceId: string,
-  excludeJobId?: string | number | null
-) {
-  const states = ["waiting", "delayed", "active", "prioritized"] as const;
-  const batchSize = 1000;
-  let start = 0;
-
-  while (true) {
-    const jobs = await otsUpgradeQueue.getJobs(
-      [...states],
-      start,
-      start + batchSize - 1
-    );
-
-    const existing = jobs.find((job) => {
-      if (String(job.id) === String(excludeJobId ?? "")) return false;
-      return job.data?.evidenceId === evidenceId;
-    });
-
-    if (existing) return existing;
-    if (jobs.length < batchSize) return null;
-
-    start += batchSize;
-  }
-}
-
+/**
+ * OTS upgrade: the Evidence row is the authority.
+ *
+ * The previous implementation is worth recording because its complexity was
+ * load-bearing and is now gone. It paginated every runnable job on the queue
+ * looking for one targeting the same evidence, and it appended `Date.now()` to
+ * the job id when a job re-enqueued ITSELF — because a stable id collided with
+ * the currently-active job, BullMQ refused the add, and the evidence sat in
+ * PENDING forever with no future retry.
+ *
+ * Neither is needed now. The deterministic id IS the dedupe (one live
+ * `ots-upgrade-<evidenceId>` at a time, no scan), and the self-reschedule case
+ * collapses onto the live job and reports it rather than failing silently. The
+ * timestamp suffix is deleted rather than kept: a job id with a clock in it is
+ * not deterministic, and two of them for the same evidence would both run.
+ */
 export async function enqueueOtsUpgradeJob(
   evidenceId: string,
-  options?: {
+  options: {
     delayMs?: number;
-    jobId?: string;
-    excludeJobId?: string | number | null;
-  }
-) {
-  // Phase IA-OTS-forward-retry — the stable-jobId design (introduced in
-  // Phase Final-Worker-Visibility) collided with the BullMQ self-
-  // reschedule pattern. When `processOtsUpgrade` runs under jobId
-  // `ots-upgrade-followup-{evidenceId}` and finishes with a PENDING
-  // outcome, it tries to re-enqueue the next follow-up under the SAME
-  // jobId. The lookup below found the currently-running job in `active`
-  // state and short-circuited with `{ enqueued: false, reason: "job_active" }`,
-  // so NO follow-up was scheduled. The handler then returned cleanly,
-  // BullMQ marked the job completed, and the evidence sat in PENDING
-  // forever with no future delayed retry.
-  //
-  // Fix: when the existing job's id matches `excludeJobId` (the caller
-  // is telling us "we're inside this job — don't treat it as a
-  // blocker"), we cannot enqueue under the same id while the current
-  // job is still active. Instead, generate a discriminated jobId so
-  // the new follow-up has a distinct identity. Dedup against parallel
-  // re-enqueues is still enforced by `findRunnableOtsUpgradeJobForEvidence`
-  // (which honors `excludeJobId`); the global retry budget is enforced
-  // by `isOtsGlobalBudgetExhausted` anchored on `evidence.createdAt`.
-  //
-  // The BullMQ `attempts: 20` retry ceiling that the stable-jobId
-  // rationale was protecting only fires when a job THROWS — the
-  // happy-path PENDING return does not throw, so the ceiling never
-  // applied to this flow. The discriminator therefore does not undo
-  // any safety.
-  let jobId = options?.jobId ?? buildOtsUpgradeJobId(evidenceId);
-  const existing = await otsUpgradeQueue.getJob(jobId);
-
-  if (existing) {
-    const isSelfReference =
-      options?.excludeJobId != null &&
-      String(existing.id) === String(options.excludeJobId);
-
-    if (isSelfReference) {
-      // We're being called from INSIDE the currently-running job that
-      // owns this jobId. BullMQ cannot accept a new job under the same
-      // id while the current one is active; use a per-attempt suffix
-      // so the new follow-up lands as a distinct queue entry. Dedup
-      // against parallel callers is still enforced by the
-      // findRunnableOtsUpgradeJobForEvidence scan below.
-      jobId = `${jobId}-${Date.now()}`;
-    } else {
-      const state = await existing.getState();
-
-      if (isRunnableQueueState(state)) {
-        return { enqueued: false, reason: `job_${state}` };
-      }
-
-      try {
-        await existing.remove();
-      } catch {
-        // ignore remove race conditions
-      }
-    }
-  }
-
-  const existingRunnableForEvidence =
-    await findRunnableOtsUpgradeJobForEvidence(
-      evidenceId,
-      options?.excludeJobId
-    );
-
-  if (existingRunnableForEvidence) {
-    const state = await existingRunnableForEvidence.getState();
-    return { enqueued: false, reason: `job_${state}` };
-  }
-
-  // Phase O1.3 — inject the current OTEL trace context so the
-  // worker's `processOtsUpgrade` handler runs as a child span of the
-  // request that triggered the enqueue. No-op when OTEL is disabled.
-  const otsPayload = injectOtelContextIntoJobData({ evidenceId });
-
-  await otsUpgradeQueue.add(
-    otsUpgradeJobName,
-    otsPayload,
-    {
-      jobId,
-      delay: Math.max(0, options?.delayMs ?? 5 * 60 * 1000),
-      attempts: 20,
-      backoff: { type: "exponential", delay: 60_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    }
-  );
-
-  return { enqueued: true };
-}
-
-export async function enqueueReportJob(
-  evidenceId: string,
-  options?: EnqueueReportJobOptions
-) {
-  const payload: ReportJobPayload = buildReportJobPayload(
-    evidenceId,
-    options
-  );
-
-  const jobId = buildReportJobId(evidenceId, options);
-  const existing = await reportQueue.getJob(jobId);
-
-  if (existing) {
-    const state = await existing.getState();
-    const decision = decideReportJobEnqueueAction(state);
-
-    if (decision.action === "skip") {
-      return { enqueued: false, reason: decision.reason };
-    }
-
-    try {
-      await existing.remove();
-    } catch {
-      // ignore remove race conditions
-    }
-  }
-
-  // Phase O1.3 — inject the current OTEL trace context so the
-  // worker's `processGenerateReport` handler runs as a child span
-  // of the request that triggered the enqueue. No-op when OTEL is
-  // disabled or no active span is in context.
-  const reportPayload = injectOtelContextIntoJobData(
-    payload as unknown as Record<string, unknown>,
-  );
-
-  await reportQueue.add(generateReportJobName, reportPayload, {
-    jobId,
-    attempts: options?.forceRegenerate ? 3 : 5,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: 100,
-    removeOnFail: false,
+    traceId?: string;
+    /**
+     * Set by `processOtsUpgrade` when a running job schedules its OWN next
+     * follow-up. Without it the enqueue collapses onto the caller's own active
+     * job, schedules nothing, and the evidence stays OTS-PENDING forever —
+     * which is a real production incident, not a hypothetical.
+     */
+    selfJobId?: string | number | null;
+  } = {},
+): Promise<WorkEnqueueResult> {
+  const outcome = await enqueueCanonicalJob({
+    queue: otsUpgradeQueue as unknown as QueueHandleLike,
+    entry: getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS),
+    commandId: evidenceId,
+    traceId: options.traceId ?? "",
+    delayMs: options.delayMs ?? 5 * 60 * 1000,
+    traceparent: currentTraceparent(),
+    selfJobId: options.selfJobId,
   });
-
-  return { enqueued: true };
+  return outcome.enqueued
+    ? { enqueued: true, jobId: outcome.jobId }
+    : { enqueued: false, reason: outcome.reason };
 }
 
-export function buildEvidencePurgeJobId(evidenceId: string): string {
-  return `evidence-purge-${evidenceId}`;
-}
-
+/** Evidence purge: the Evidence row is the authority. */
 export async function enqueueEvidencePurgeJob(
   evidenceId: string,
   runAtUtc: string | Date,
-  options: { correlationId?: string; teamId?: string | null } = {},
-) {
+  options: { correlationId?: string } = {},
+): Promise<WorkEnqueueResult & { delay: number }> {
   const when =
     runAtUtc instanceof Date ? runAtUtc.getTime() : new Date(runAtUtc).getTime();
-
   if (!Number.isFinite(when)) {
-    throw new Error("enqueueEvidencePurgeJob: invalid runAtUtc");
+    return { enqueued: false, reason: "invalid_run_at", delay: 0 };
   }
-
   const delay = Math.max(0, when - Date.now());
-  const jobId = buildEvidencePurgeJobId(evidenceId);
-
-  const existing = await evidencePurgeQueue.getJob(jobId);
-
-  if (existing) {
-    const state = await existing.getState();
-
-    if (
-      state === "waiting" ||
-      state === "delayed" ||
-      state === "active" ||
-      state === "prioritized"
-    ) {
-      try {
-        await existing.remove();
-      } catch {
-        // ignore remove race conditions
-      }
-    } else {
-      try {
-        await existing.remove();
-      } catch {
-        // ignore remove race conditions
-      }
-    }
-  }
-
-  // Phase X.1 — wrap the payload in the canonical queue envelope.
-  // Downstream processor uses `parseQueueEnvelope` so legacy in-flight
-  // raw payloads still drain. `jobId` doubles as idempotency key — the
-  // queue refuses a second add with the same id.
-  const envelope: QueuePayloadEnvelope<PurgeDeletedEvidenceJobPayload> =
-    newQueuePayloadEnvelope({
-      kind: purgeDeletedEvidenceJobName,
-      idempotencyKey: jobId,
-      body: { evidenceId },
-      correlationId: options.correlationId,
-      teamId: options.teamId ?? null,
-    });
-
-  // Phase O1.4 — inject OTEL context.
-  const wrappedEnvelope = injectOtelContextIntoJobData(
-    envelope as unknown as Record<string, unknown>,
+  const outcome = await enqueueWork(
+    evidencePurgeQueue,
+    JOB_NAMES.PURGE_DELETED_EVIDENCE,
+    evidenceId,
+    { traceId: options.correlationId ?? "", delayMs: delay },
   );
-  await evidencePurgeQueue.add(
-    purgeDeletedEvidenceJobName,
-    wrappedEnvelope,
-    {
-      jobId,
-      delay,
-      attempts: 5,
-      backoff: { type: "exponential", delay: 60_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    }
-  );
-
-  return { enqueued: true, delay, correlationId: envelope.correlationId };
-}
-
-// =============================================================================
-// Phase 31.6 — Media intelligence enqueue helper
-// =============================================================================
-
-export type MediaIntelligenceJobKind =
-  | "analyze_metadata"
-  // Phase 31.8 — real EXIF extraction (bytes → bounded summary).
-  | "extract_exif"
-  | "extract_assets"
-  // Note: compute_duplicates / compute_lineage are intentionally not in
-  // the queue vocabulary. Both kinds remain in the database-backed
-  // MEDIA_INTELLIGENCE_RUN_KINDS catalog (legacy row history) but no
-  // producer enqueues them and no UI surface advertises them.
-  // Phase 12 — perceptual-similarity foundation. Downloads a bounded
-  // image byte range, derives an 8×8 luminance matrix via sharp, and
-  // writes pHash+dHash to evidence_parts.{perceptual_phash,_dhash}.
-  | "compute_perceptual_hashes"
-  // Wave 4 — automatic OCR (Azure Document Intelligence) producer.
-  // Fetches PDF / image bytes from S3, runs the canonical adapter via
-  // runProviderOperation (budget + entitlement + policy gated), and
-  // persists MediaIntelligenceRecord + EvidenceExtractedText rows. The
-  // worker NEVER calls analyzeDocumentLayout directly — it routes
-  // through the adapter so the spend gate / quota gate cover the
-  // automatic path identically to the manual route.
-  | "extract_ocr_azure"
-  // Wave 4 — automatic transcript (Deepgram) producer. Same shape as
-  // extract_ocr_azure but for audio / video evidence via the deepgram
-  // adapter.
-  | "extract_transcript_deepgram"
-  | "wire_ocr_transcript"
-  | "reindex"
-  // Enterprise Technical Metadata layer — deterministic Layer-1 file
-  // metadata extraction. Worker downloads bytes per part, dispatches to
-  // the image/video/pdf parser, writes EvidencePart.technical_metadata.
-  | "extract_technical_metadata"
-  | "reconcile";
-
-export type MediaIntelligenceJobPayload = {
-  teamId: string;
-  evidenceId: string;
-  kind: MediaIntelligenceJobKind;
-  /** Optional run id from media_intelligence_runs (set by the
-   *  producer when the run tracker row already exists). */
-  runId?: string | null;
-  /** Phase 31.8 — Optional evidence-part-id. When the job kind is
-   *  per-part (e.g. extract_exif on a specific multipart material),
-   *  the producer pins which part the worker should fetch. */
-  evidencePartId?: string | null;
-  /** Phase 13 — text-similarity sub-kind for `reconcile` jobs.
-   *  When set, the worker runs text-similarity detection over the
-   *  OCR or transcript text body of this evidence and promotes
-   *  high-confidence matches into SIMILAR_TO graph edges. When
-   *  null/undefined, the `reconcile` job continues to run the
-   *  general analyzer as before. */
-  textKind?: "OCR" | "TRANSCRIPT" | null;
-};
-
-/** Deterministic job id — collapses duplicate triggers for the same
- *  (kind, evidenceId). One queued/active job per (kind, evidenceId)
- *  at a time. */
-export function buildMediaIntelligenceJobId(
-  kind: MediaIntelligenceJobKind,
-  evidenceId: string,
-): string {
-  return `mi-${kind}-${evidenceId}`;
+  return { ...outcome, delay };
 }
 
 /**
- * Enqueue a media intelligence job. Idempotent — repeat calls
- * collapse to the existing queued/active/delayed job. Never throws
- * to the calling flow; a Redis outage returns
- * `{ enqueued: false, reason: "queue_unavailable" }` so the producer
- * (POST /v1/evidence/:id/media-intelligence/run) can surface a 503
- * without blocking the evidence lifecycle.
- */
-export async function enqueueMediaIntelligenceJob(
-  payload: MediaIntelligenceJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<
-  | { enqueued: true; jobId: string }
-  | { enqueued: false; reason: string }
-> {
-  const jobId = buildMediaIntelligenceJobId(payload.kind, payload.evidenceId);
-  try {
-    const existing = await mediaIntelligenceQueue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        return { enqueued: false, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        // ignore race
-      }
-    }
-    // Phase O1.4 — inject OTEL context.
-    const wrappedMiPayload = injectOtelContextIntoJobData(
-      payload as unknown as Record<string, unknown>,
-    );
-    await mediaIntelligenceQueue.add(mediaIntelligenceJobName, wrappedMiPayload, {
-      jobId,
-      delay: Math.max(0, options.delayMs ?? 0),
-      attempts: 3,
-      backoff: { type: "exponential", delay: 10_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    });
-    return { enqueued: true, jobId };
-  } catch (err) {
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
-}
-
-// =============================================================================
-// Phase 31.18 — Dedicated EXIF enqueue helper
-// =============================================================================
-
-/** Deterministic job id — collapses duplicate triggers on the same
- *  evidence-part. One queued/active EXIF job per (evidencePartId) at
- *  a time. */
-export function buildExifJobId(evidencePartId: string): string {
-  return `mi-exif-${evidencePartId}`;
-}
-
-/**
- * Enqueue a real EXIF extraction job into the dedicated `mi-exif`
- * queue. Idempotent — repeat calls collapse to the existing job.
- * Never throws to the calling flow; a Redis outage returns
- * `{ enqueued: false, reason: "queue_unavailable" }` so the producer
- * surfaces a 503 without blocking the evidence lifecycle.
+ * Media intelligence: the `MediaIntelligenceRun` row is the authority.
  *
- * The payload shape matches the generic media-intelligence payload
- * (`kind: "extract_exif"` is required) so the same processor branch
- * handles both queues.
+ * Used by the stranded-run reconciler, which knows only a run id, and by the
+ * request path through the api transport client — the same function either way.
+ */
+export async function enqueueMediaIntelligenceRunById(
+  runId: string,
+  options: { delayMs?: number; traceId?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    mediaIntelligenceQueue,
+    JOB_NAMES.RUN_MEDIA_INTELLIGENCE,
+    runId,
+    { traceId: options.traceId ?? "reconciler", delayMs: options.delayMs },
+  );
+}
+
+/** Derived assets: the `MediaIntelligenceRun` row is the authority. */
+export async function enqueueDerivedAssetJob(
+  runId: string,
+  options: { delayMs?: number; traceId?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    derivedAssetsQueue,
+    JOB_NAMES.GENERATE_DERIVED_ASSET,
+    runId,
+    { traceId: options.traceId, delayMs: options.delayMs },
+  );
+}
+
+/**
+ * EXIF extraction: the evidence PART is the authority.
+ *
+ * `mi-exif` and `media-intelligence` used to share one processor AND one
+ * payload shape, which meant one function had two identities and its command
+ * meant different things depending on which queue delivered it. They are now
+ * separate work names with separate authorities: an EXIF job addresses the part
+ * whose bytes it reads, and a media-intelligence job addresses the run row that
+ * tracks its lifecycle.
  */
 export async function enqueueExifJob(
-  payload: MediaIntelligenceJobPayload,
-  options: { delayMs?: number } = {},
-): Promise<
-  | { enqueued: true; jobId: string }
-  | { enqueued: false; reason: string }
-> {
-  if (payload.kind !== "extract_exif") {
-    return { enqueued: false, reason: "invalid_kind_for_exif_queue" };
-  }
-  if (!payload.evidencePartId) {
+  evidencePartId: string,
+  options: { delayMs?: number; traceId?: string } = {},
+): Promise<WorkEnqueueResult> {
+  if (!evidencePartId.trim()) {
     return { enqueued: false, reason: "evidence_part_id_required" };
   }
-  const jobId = buildExifJobId(payload.evidencePartId);
-  try {
-    const existing = await exifQueue.getJob(jobId);
-    if (existing) {
-      const state = await existing.getState();
-      if (
-        state === "waiting" ||
-        state === "delayed" ||
-        state === "active" ||
-        state === "prioritized"
-      ) {
-        return { enqueued: false, reason: `job_${state}` };
-      }
-      try {
-        await existing.remove();
-      } catch {
-        // ignore race
-      }
-    }
-    // Phase O1.4 — inject OTEL context.
-    const wrappedExifPayload = injectOtelContextIntoJobData(
-      payload as unknown as Record<string, unknown>,
-    );
-    await exifQueue.add(exifJobName, wrappedExifPayload, {
-      jobId,
-      delay: Math.max(0, options.delayMs ?? 0),
-      attempts: 3,
-      backoff: { type: "exponential", delay: 10_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    });
-    return { enqueued: true, jobId };
-  } catch (err) {
-    return {
-      enqueued: false,
-      reason:
-        err instanceof Error
-          ? `queue_unavailable:${err.message.slice(0, 80)}`
-          : "queue_unavailable",
-    };
-  }
+  return enqueueWork(exifQueue, JOB_NAMES.EXTRACT_EXIF, evidencePartId, {
+    traceId: options.traceId,
+    delayMs: options.delayMs,
+  });
 }
 
+/** Media-intelligence reindex: the Evidence row is the authority. */
+export async function enqueueMiSearchIndexJob(
+  evidenceId: string,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    miSearchIndexQueue,
+    JOB_NAMES.INDEX_MEDIA_INTELLIGENCE,
+    evidenceId,
+    { traceId: options.reason, delayMs: options.delayMs },
+  );
+}
+
+/**
+ * Semantic embedding: the ANCHOR chunk is the authority.
+ *
+ * The old payload carried up to 200 chunk ids inline plus a `teamId`. The
+ * processor now loads the anchor chunk, derives the workspace from it, and
+ * selects the batch itself from rows that are actually still pending — which
+ * also closes a real defect: a payload listing chunks that were embedded
+ * between enqueue and execution used to re-embed them, spending provider
+ * budget on work already done.
+ */
+export async function enqueueMiEmbedJob(
+  anchorChunkId: string,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  if (!anchorChunkId.trim()) {
+    return { enqueued: false, reason: "no_chunk_ids" };
+  }
+  return enqueueWork(
+    miEmbedQueue,
+    JOB_NAMES.EMBED_SEMANTIC_CHUNKS,
+    anchorChunkId,
+    {
+      traceId: options.reason,
+      delayMs: options.delayMs,
+      removeOnComplete: 200,
+      removeOnFail: 200,
+    },
+  );
+}
+
+/** Full graph reconcile: the workspace row is the authority. */
+export async function enqueueGraphReconcileJob(
+  workspaceId: string,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    graphReconcileQueue,
+    JOB_NAMES.RECONCILE_TEAM_GRAPH,
+    workspaceId,
+    { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
+  );
+}
+
+/**
+ * Narrowed graph sync.
+ *
+ * The domain filter is encoded into the command id against a CLOSED catalog, so
+ * an unknown domain fails at the producer. It used to be an optional payload
+ * field, which meant an unknown value produced a job the processor silently
+ * completed as a no-op — a request that looked accepted and did nothing.
+ */
+export async function enqueueGraphDomainSyncJob(
+  workspaceId: string,
+  domain: GraphSyncDomain | null | undefined,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  let commandId: string;
+  try {
+    commandId = buildGraphDomainCommandId(domain, workspaceId);
+  } catch {
+    return { enqueued: false, reason: "unknown_graph_domain" };
+  }
+  return enqueueWork(
+    graphDomainSyncQueue,
+    JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN,
+    commandId,
+    { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
+  );
+}
+
+/** Timeline projection refresh: the workspace row is the authority. */
+export async function enqueueGraphTimelineSyncJob(
+  workspaceId: string,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    graphTimelineSyncQueue,
+    JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
+    workspaceId,
+    { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
+  );
+}
+
+/** Graph-derived search hints refresh: the workspace row is the authority. */
+export async function enqueueGraphSearchProjectionJob(
+  workspaceId: string,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    graphSearchProjectionQueue,
+    JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
+    workspaceId,
+    { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
+  );
+}
+
+/** Organization-health projection refresh: the workspace row is the authority. */
+export async function enqueueOrgHealthRefreshJob(
+  workspaceId: string,
+  options: { delayMs?: number; reason?: string } = {},
+): Promise<WorkEnqueueResult> {
+  return enqueueWork(
+    orgHealthRefreshQueue,
+    JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION,
+    workspaceId,
+    {
+      traceId: options.reason,
+      delayMs: options.delayMs,
+      removeOnComplete: 100,
+      removeOnFail: 100,
+    },
+  );
+}
+
+// ===========================================================================
+// Retained OTEL helper
+// ===========================================================================
+//
+// `injectOtelContextIntoJobData` is no longer used by any producer here — the
+// traceparent rides the canonical envelope now — but the DLQ sinks still write
+// raw diagnostic records and benefit from the carrier. Re-exported rather than
+// deleted so a sink write keeps its trace.
+//
+// `newQueuePayloadEnvelope` / `QueuePayloadEnvelope` are GONE from this module:
+// the Phase-X.1 envelope was the evidence-purge payload shape, and it carried a
+// `teamId` a processor could believe.
+export { injectOtelContextIntoJobData };

@@ -44,8 +44,6 @@ import {
   listWorkflowIntakeLinks,
   projectWorkflowIntakeLink,
   revokeWorkflowIntakeLink,
-  sendIntakeLinkViaEmail,
-  sendIntakeLinkViaSms,
   unarchiveWorkflowIntakeLink,
   WorkflowIntakeLinkError,
 } from "../services/workflow-intake-link.service.js";

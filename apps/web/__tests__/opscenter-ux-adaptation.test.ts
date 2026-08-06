@@ -516,7 +516,12 @@ test("Organizations CTA only for org users; personal-only users get evidence rem
 });
 
 test("bell popover manages focus (trap + restore to trigger); no Bell-only eligibility logic", () => {
-  assert.match(BELL, /triggerRef\.current\?\.focus\(\)/);
+  // The trigger element is CAPTURED while the popover is open and focused
+  // from the cleanup. Pinning `triggerRef.current?.focus()` pinned the
+  // stale-ref read that Phase 12 Point 4 (Pass H) removed — the requirement
+  // is that focus returns to the trigger, not which expression does it.
+  assert.match(BELL, /const trigger = triggerRef\.current;/);
+  assert.match(BELL, /trigger\?\.focus\(\);/);
   assert.match(BELL, /onTrapKeyDown/);
   // Parity is structural: the Bell renders only backend-authorized items and
   // applies no client eligibility gate of its own.
@@ -526,4 +531,56 @@ test("bell popover manages focus (trap + restore to trigger); no Bell-only eligi
 test("terminology: Operations Center, not Operational inbox", () => {
   assert.match(PAGE, /eyebrow="Account · Operations Center"/);
   assert.doesNotMatch(PAGE, /Operational inbox"/);
+});
+
+// ---------------------------------------------------------------------------
+// PHASE 12 POINT 4 PASS C5 — the browser holds no role authority.
+//
+// With a degraded / pre-migration envelope (no operationalEligibility block)
+// the admin-attention surface used to be decided in the browser from raw
+// organization roles: `activeOrgs.some(role === "OWNER" || role === "ADMIN")`.
+// The server decides; its absence hides the surface.
+// ---------------------------------------------------------------------------
+
+test("no eligibility projection: admin attention is HIDDEN, not inferred from roles", () => {
+  const c = deriveOperationsUiContext({
+    activeSpaceType: "ORGANIZATION",
+    activeSpaceId: "s-1",
+    personalSpaceId: "p-1",
+    // An OWNER of an ACTIVE organization — the exact input the removed
+    // client-side rule would have granted the admin surface to.
+    organizations: [
+      {
+        organizationId: "o-1",
+        organizationName: "Acme",
+        role: "OWNER",
+        membershipStatus: "ACTIVE",
+      },
+    ] as never,
+    hasGovernanceCapability: false,
+    planFeatures: null,
+    operationalEligibility: null,
+  });
+  assert.equal(c.canViewAdminAttention, false);
+});
+
+test("with the projection present, the server's verdict is what renders", () => {
+  const base = {
+    activeSpaceType: "ORGANIZATION" as const,
+    activeSpaceId: "s-1",
+    personalSpaceId: "p-1",
+    organizations: [] as never,
+    hasGovernanceCapability: false,
+    planFeatures: null,
+  };
+  const granted = deriveOperationsUiContext({
+    ...base,
+    operationalEligibility: eligibility({ security: { hasAdminSurface: true } }),
+  });
+  const denied = deriveOperationsUiContext({
+    ...base,
+    operationalEligibility: eligibility({ security: { hasAdminSurface: false } }),
+  });
+  assert.equal(granted.canViewAdminAttention, true);
+  assert.equal(denied.canViewAdminAttention, false);
 });

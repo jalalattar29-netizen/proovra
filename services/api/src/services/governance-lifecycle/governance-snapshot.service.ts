@@ -349,7 +349,7 @@ export async function buildGovernanceSnapshot(
     select: {
       id: true,
       teamId: true,
-      caseId: true,
+      caseLinks: { select: { caseId: true }, take: 100 },
       lifecycleState: true,
       retentionPolicyVersionId: true,
       retentionUntilUtc: true,
@@ -379,11 +379,13 @@ export async function buildGovernanceSnapshot(
         status: prismaPkg.LegalHoldStatus.ACTIVE,
       },
     }),
-    evidence.caseId
-      ? client.caseLegalHold.count({
-          where: {
-            caseId: evidence.caseId,
-            status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
+    // Track 1B closure — count ACTIVE holds across ALL linked cases.
+    evidence.caseLinks.length > 0
+      ? client.evidenceLegalHold.count({
+          // P12.3 canonical-only (scope='CASE').
+          where: { scope: "CASE",
+            caseId: { in: evidence.caseLinks.map((l) => l.caseId) },
+            status: prismaPkg.LegalHoldStatus.ACTIVE,
           },
         })
       : Promise.resolve(0),
