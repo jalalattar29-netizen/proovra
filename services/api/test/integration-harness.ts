@@ -310,6 +310,64 @@ export function withBoundedWaits(rawUrl: string): string {
 }
 
 /**
+ * Prove the disposable Redis is REACHABLE before any suite depends on it.
+ *
+ * The queue connection is created with `maxRetriesPerRequest: null` — BullMQ
+ * requires that for its blocking commands, and it means "retry forever". So a
+ * command issued against an address where nothing listens never settles: the
+ * awaiting test simply stops, and the only thing reported is that it ran out of
+ * time. That is exactly how three suites failed in CI. `safe-environment.ts`
+ * deliberately refuses to inherit `REDIS_URL` (these suites once reached a
+ * hosted instance), so the address it uses is `P7_TEST_REDIS_URL` or the
+ * conventional local port — and if the runner put Redis somewhere else, every
+ * enqueue hangs.
+ *
+ * A bounded probe turns that into a classified failure in a second or two,
+ * naming the port it tried. It never falls back to another address: an
+ * unreachable disposable Redis is a setup error to fix, not something to route
+ * around.
+ */
+async function assertDisposableRedisReachable(): Promise<void> {
+  const url = process.env.REDIS_URL?.trim();
+  if (!url) return;
+
+  const { default: IORedis } = await import("ioredis");
+  const probe = new IORedis(url, {
+    // Bounded on every axis — this probe must never become the thing that hangs.
+    maxRetriesPerRequest: 1,
+    connectTimeout: 2_000,
+    commandTimeout: 2_000,
+    enableOfflineQueue: false,
+    retryStrategy: () => null,
+    lazyConnect: true,
+  });
+
+  // Report the address WITHOUT credentials: host and port only.
+  let where = "the configured Redis";
+  try {
+    const parsed = new URL(url);
+    where = `${parsed.hostname}:${parsed.port || "6379"}`;
+  } catch {
+    /* keep the generic description */
+  }
+
+  try {
+    await probe.connect();
+    await probe.ping();
+  } catch (cause) {
+    throw new Error(
+      `Integration harness: the disposable Redis at ${where} is unreachable. ` +
+        "These suites enqueue jobs, and the queue connection retries forever, so " +
+        "an absent Redis surfaces as tests that time out with no cause. Start a " +
+        "disposable Redis there, or point P7_TEST_REDIS_URL at one. " +
+        `(${cause instanceof Error ? cause.message : String(cause)})`,
+    );
+  } finally {
+    probe.disconnect();
+  }
+}
+
+/**
  * Boots the Fastify app + opens a Prisma client against TEST_DATABASE_URL.
  * The caller is responsible for running migrations beforehand — the
  * harness deliberately does NOT shell out to prisma migrate.
@@ -319,6 +377,7 @@ export function withBoundedWaits(rawUrl: string): string {
  */
 export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
   const database = await acquireIntegrationDatabase();
+  await assertDisposableRedisReachable();
 
   // Override DATABASE_URL for the lifetime of this process so Prisma
   // points at the test DB. Save the original so cleanup can restore it.

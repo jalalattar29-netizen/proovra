@@ -71,6 +71,19 @@ jobs:
       # .env. Every value below is a sandboxed local-only stub.
       DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_repro
       REDIS_URL: redis://localhost:6379
+      # The integration harness NEVER inherits REDIS_URL — `safe-environment.ts`
+      # scrubs it deliberately, because these suites once reached the machine's
+      # hosted Redis. It takes the disposable instance from `P7_TEST_REDIS_URL`
+      # and otherwise falls back to the conventional local port 56379.
+      #
+      # This job's Redis service listens on 6379, so without this line the
+      # harness pointed at 56379 where nothing listens, and every purge that
+      # RESCHEDULES — `await enqueueEvidencePurgeJob(...)` — hung on an ioredis
+      # connection configured with `maxRetriesPerRequest: null`, i.e. retry
+      # forever. That is what consumed the per-test budget in three suites and
+      # reported only "Test timed out"; the tests were waiting on a Redis that
+      # was never at that address.
+      P7_TEST_REDIS_URL: redis://localhost:6379
       NODE_ENV: development
       PORT: "8081"
       LOG_LEVEL: info
