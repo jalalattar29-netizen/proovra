@@ -1,0 +1,104 @@
+{
+  "note": "SUPERSEDED (2026-08-06, corrective pass 3 §1.3). Every finding below is now a FIRST-CLASS ROW in rows.json, counted by the one canonical generator. This file is retained only as the narrative record of how each was discovered — it is NOT a second ledger and nothing here is excluded from the counts. See rows.json for the authoritative disposition of NEW-001..NEW-006 and INV-001.",
+  "supersededBy": "rows.json",
+  "findings": [
+    {
+      "id": "NEW-001",
+      "severity": "HIGH",
+      "title": "Workspace member revocation and suspension could not complete against a real database — nested $transaction",
+      "discoveredBy": "Direct runtime probing on disposable PostgreSQL 16 + pgvector. NOT discoverable by the unit estate.",
+      "preExisting": true,
+      "preExistenceProof": "The identical call chain is present unchanged at the audited revision a7863bec: rbac.service.ts calls emitMemberAudit(tx, …), tenant-audit.service.ts forwards that client as `db` into appendPlatformAuditLog, and platform-audit-log.service.ts calls db.$transaction(...) — verified with `git show HEAD:` on all three files.",
+      "chain": "rbac.revokeMember/suspendMember -> runAtomically(client, tx => …) -> emitMemberAudit(tx, …) -> emitTenantAudit(env, tx) -> appendPlatformAuditLog({ …, db: tx }) -> db.$transaction(…) -> TypeError: db.$transaction is not a function",
+      "impact": "A Prisma interactive-transaction client exposes no $transaction. Every workspace member REVOCATION and SUSPENSION therefore threw at the audit-append step and rolled back. This is the same code path SEC-001's pointer-repair hygiene lives on, and it is an availability defect on a security-critical control: an operator could not remove a member.",
+      "whyTestsMissedIt": "Every unit suite covering this path injects an in-memory fake whose $transaction is a plain function that passes the same fake back, so the nested call succeeded in the fakes and only in the fakes. This is precisely why the corrective mandate requires runtime proof rather than green tests.",
+      "correction": "appendPlatformAuditLog now detects whether it was handed a transaction client and, when it was, runs its body ON that transaction instead of opening a nested one. This is the stronger semantic, not a workaround: the audit row now commits atomically with the membership change, so a rolled-back revocation can no longer leave an audit row asserting it happened. pg_advisory_xact_lock is scoped to the enclosing transaction either way, so hash-chain serialisation is unchanged.",
+      "files": [
+        "services/api/src/services/platform-audit-log.service.ts"
+      ],
+      "runtimeEvidence": "services/api/test/phase-12-sec-001-stale-pointer.integration.test.ts — the REVOCATION probe fails with the TypeError before the fix and passes after it, against real PostgreSQL.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "residualRisk": "Other callers that pass a transaction client into appendPlatformAuditLog now share the caller's transaction rather than committing independently. That is intended, but it means a caller whose transaction later aborts no longer emits its audit row — which is correct for atomicity and should be confirmed against any audit-retention expectation that assumed independent commit."
+    },
+    {
+      "id": "NEW-002",
+      "severity": "MEDIUM",
+      "title": "The AuthorizedWorkspaceContext brand was compile-time only; the previous pass overstated it as unforgeable",
+      "discoveredBy": "Corrective-pass review of the previous pass's own claim, as directed by the mandate.",
+      "preExisting": false,
+      "impact": "TypeScript's `as` assertion defeats a unique-symbol brand completely. Any module could have minted `{ workspaceId: victimId, … } as AuthorizedWorkspaceContext` and every downstream reader — all of which scope their queries by ctx.workspaceId — would have trusted it. The brand prevented accidental structural construction only.",
+      "correction": "Brand forgery is now BUILD-ENFORCED. verify-authorization-authorities.mjs detects any type assertion, satisfies-expression, or typed object-literal declaration of the branded authority types outside services/api/src/middleware/authorize.ts, and fails the gate. A type could not enforce this, so the build does.",
+      "files": [
+        "services/api/scripts/verify-authorization-authorities.mjs"
+      ],
+      "runtimeEvidence": "Negative fixture injected: a forged context in a new module was rejected with exit 1 and a bounded reason. Fixture removed after the run.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "residualRisk": "The rule is name-based on the declared type. A module that re-exported the type under an alias and asserted the alias would not be caught; the alias would still have to originate from the authorization module."
+    },
+    {
+      "id": "NEW-003",
+      "severity": "MEDIUM",
+      "title": "Pointer repair carried a test-driven accommodation inside production failure handling",
+      "discoveredBy": "Corrective-pass review, as directed by the mandate.",
+      "preExisting": false,
+      "impact": "The previous pass made an absent `user.updateMany` delegate a silent no-op in PRODUCTION so that partial in-memory test transports would not crash. A genuinely broken client would therefore have been reported as a successful repair of zero rows, and a real database error at a membership-withdrawal boundary could be masked. A dead best-effort wrapper that swallowed every error was also left in the module with zero production callers.",
+      "correction": "The accommodation is removed: the delegate is required by the type and asserted at runtime, errors propagate and share the caller's transaction, and the swallowing wrapper is deleted. The three service-level suites that injected partial clients now model `user.updateMany` faithfully — honouring the exact predicate the repair issues — so they exercise real hygiene instead of tolerating the call.",
+      "files": [
+        "services/api/src/services/access/current-workspace-pointer.ts",
+        "services/api/test/phase-scim-user-lifecycle.test.ts",
+        "services/api/test/phase-3-scope-j-evidence-safety-identity.test.ts",
+        "services/api/test/phase-12b-identity-administration.test.ts"
+      ],
+      "runtimeEvidence": "All three suites pass with the strict production policy (33/33 for the first two; 40/40 including the third). SEC-001 runtime probe observes the repair clearing the pointer transactionally on a real revocation.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "residualRisk": "None known."
+    },
+    {
+      "id": "NEW-004",
+      "severity": "HIGH",
+      "title": "External-reviewer invitation emails were not idempotent — a retry, and every concurrent send, delivered another copy of a live bearer-token link",
+      "discoveredBy": "Direct runtime probing on disposable PostgreSQL 16 + pgvector with the local RECORDING email transport, while executing the SEC-001 delivery scenarios the previous pass had not run (corrective mandate §1.1). NOT discoverable from source reading: the code carries a comment asserting the opposite behaviour.",
+      "preExisting": true,
+      "preExistenceProof": "sendInvitationEmail at a7863bec calls prisma.externalReviewInvitationDelivery.create() unconditionally on every invocation and derives the provider idempotency key from that row's id via mintEmailIdempotencyKey('external_review_invitation', delivery.id). There is no read-before-create and no unique constraint on the table.",
+      "chain": "sendInvitationEmail -> externalReviewInvitationDelivery.create() [NEW ROW EVERY CALL] -> mintEmailIdempotencyKey(kind, delivery.id) [NEW KEY EVERY CALL] -> provider is shown a key it has never seen -> accepts it as a NEW message",
+      "impact": "A retried send delivered the invitation TWICE. Four concurrent sends — a double-clicked 'Send invites', a retried bulk batch, two operators acting at once — delivered it FOUR times. Each copy carries a live portal bearer token to an external party. The delivery ledger the operator console reads also gained a row per attempt, so the operator saw N invitations where one was intended.",
+      "misleadingComment": "The key-minting site documented the intended design as 'a retry of THIS attempt reuses it, while a deliberate resend is a different intent and a different key'. Nothing implemented the first half — every call took the create path — so the 'retry of this attempt' branch did not exist. This is why a source review passed it.",
+      "fix": [
+        "prisma/migrations/20271120000000_external_review_delivery_intent_idempotency — UNIQUE (team_id, grant_id, attempt), fully information_schema-guarded, preceded by a deterministic re-numbering of any pre-existing duplicates (oldest row keeps its position; delivery history is renumbered, never deleted).",
+        "portal-invitation-email.service.ts#reserveDeliveryIntent — insert-first, and on P2002 adopt the winner's intent so both callers present the SAME idempotency key. The database constraint is what makes this correct under concurrency; check-then-insert alone still races.",
+        "schema.prisma — a unique index on (teamId, grantId, attempt) so the client raises P2002 rather than the driver failing opaquely."
+      ],
+      "attemptSemanticsUnchanged": "attempt = 1 for an ordinary send, prior+1 for a deliberate resend. Repeats therefore collapse onto one intent while an operator's explicit resend stays a genuinely distinct intent with its own key — the behaviour the operator asked for.",
+      "runtimeProof": "services/api/test/phase-12-sec-001-completion.integration.test.ts — the retry probe, the four-way concurrency probe and the one-idempotency-key probe ALL FAILED before the fix and ALL PASS after (9/9).",
+      "status": "FIXED_RUNTIME_VERIFIED"
+    },
+    {
+      "id": "NEW-005",
+      "severity": "MEDIUM",
+      "title": "requireDelegatedTier authorized off the navigation pointer alone — a SUSPENDED member holding a live delegated-admin grant passed every delegated-tier route",
+      "discoveredBy": "The new currentWorkspaceId gate (scripts/verify-current-workspace-authority.mjs), built for corrective mandate §1.3. The previous pass reported CurrentWorkspaceIdAuthorizationUses = 0 while its verifier stated it did not detect this class.",
+      "preExisting": true,
+      "preExistenceProof": "middleware/require-delegated-tier.ts#resolveTeamId at a7863bec reads User.currentWorkspaceId and returns it; the guard then calls hasDelegatedTier({ teamId, userId, requiredTier }), which answers from DelegatedAdminGrant rows and the implicit-owner ladder and consults no membership row.",
+      "impact": "Membership status, member access expiry, workspace kind and parent-Organization lifecycle were all unchecked on this path. An operator suspended or expired in the workspace — or whose customer Organization had been suspended — kept passing every delegated-tier route for as long as their grant row stayed ACTIVE and their stale pointer kept naming the workspace. This is SEC-001's shape on a different surface.",
+      "fix": [
+        "middleware/authorize.ts — new evaluateCurrentWorkspace(), the evaluate-only counterpart of authorizeCurrentWorkspaceOrFail, for guards that own their own denial shape.",
+        "middleware/require-delegated-tier.ts — the pointer is now only a CANDIDATE; the canonical chain revalidates it in full before the tier question is asked."
+      ],
+      "status": "FIXED_SOURCE_VERIFIED_GATE_ENFORCED"
+    },
+    {
+      "id": "NEW-006",
+      "severity": "MEDIUM",
+      "title": "capture-trust and reviewer-workspace were parallel authorization authorities — each re-checked ACTIVE membership but none of access expiry, workspace kind or Organization lifecycle",
+      "discoveredBy": "The new currentWorkspaceId gate (corrective mandate §1.3), then confirmed by reading both resolvers.",
+      "preExisting": true,
+      "preExistenceProof": "Both files carry a P0 remediation dated 2026-07-21 that added an inline `teamMember` read with `status: 'ACTIVE'`. Neither consults accessExpiresAtUtc, the workspace kind, or the parent Organization's lifecycle.",
+      "impact": "An ACTIVE membership row past its access expiry, or one inside a SUSPENDED/ARCHIVED customer Organization, retained full access to the capture-ingest, device, provenance and reviewer-workspace surfaces.",
+      "fix": [
+        "Both resolvers now delegate to the canonical primitive and keep only their genuinely surface-specific rule (no Personal Space), expressed against the PROVEN workspace kind rather than a re-read isPersonal column."
+      ],
+      "regressionFound": "Migrating reviewer-workspace surfaced a mapping error IN THE MIGRATION ITSELF: the inverse of mapTeamRoleToCanonical is MEMBER->REVIEWER, not CONTRIBUTOR->MEMBER, so every ordinary DB MEMBER was returned as the string 'REVIEWER' and a reviewer received 403 where they had always received 200. Caught by phase-37-98-reviewer-workflow-lifecycle.integration (a live end-to-end lifecycle proof), fixed, and re-verified green.",
+      "status": "FIXED_SOURCE_VERIFIED_GATE_ENFORCED"
+    }
+  ]
+}

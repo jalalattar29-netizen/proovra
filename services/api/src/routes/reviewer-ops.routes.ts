@@ -47,7 +47,14 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+// PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). The ONE authorization
+// authority for this surface; see `requireReviewerActor` below.
+import {
+  assertMintedAuthorizedWorkspaceContext,
+  contextHasCapability,
+  evaluateAuthorizedWorkspace,
+  type AuthorizedWorkspaceContext,
+} from "../middleware/authorize.js";
 import {
   ReviewerOpsError,
   approveReview,
@@ -105,10 +112,12 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 // capability that the bulk-assign action itself requires. Without this
 // the picker would surface team members that cannot in fact be
 // assigned to, which would be a misleading UI signal.
-import {
-  callerHasCapability,
-  resolveReviewerRole,
-} from "../services/reviewer-workspace/reviewer-roles.js";
+// PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). The reviewer-role resolver
+// import is REMOVED from this file. It was a second capability vocabulary
+// derived from a role this file read for itself, status-blind; every gate
+// here now reads the canonical capability set on the proven
+// `AuthorizedWorkspaceContext`. The reviewer-role registry itself is
+// unchanged and still serves the reviewer-workspace surfaces.
 // Phase RW3-3 — pending-QC count for the discovery card on /review/queues.
 // Reused service that backs /v1/reviewer/qc/samples; bounded `count()`
 // query, no row enumeration, no PII surface.
@@ -130,48 +139,109 @@ import {
 // Auth helpers — 404-on-non-member + reviewer-capability resolution
 // -----------------------------------------------------------------------------
 
+/**
+ * PHASE 12 REMEDIATION — AUTH-005 (2026-08-06).
+ *
+ * The engine's `LifecycleActorContext` (its own input contract, unchanged),
+ * carrying the PROVEN `AuthorizedWorkspaceContext` alongside it. Every
+ * secondary role / capability decision in this file now reads
+ * `ctx.authorized` instead of issuing its own TeamMember query.
+ */
+type ReviewerActorContext = LifecycleActorContext & {
+  readonly authorized: AuthorizedWorkspaceContext;
+};
+
+/**
+ * PHASE 12 REMEDIATION — AUTH-005 (2026-08-06).
+ *
+ * This gate is now built on the canonical `AuthorizedWorkspaceContext`
+ * primitive, and it carries that context forward so the rest of the file
+ * stops reading TeamMember rows for itself.
+ *
+ * What was wrong, and what changed:
+ *
+ *   1. FOUR STATUS-BLIND SECONDARY READS. Four sites in this file
+ *      (`:647` runtime-probe, `:885` reviewer picker, `:2338` decision view,
+ *      `:2438` decision write) re-loaded the TeamMember row with
+ *      `select: { role: true }` — no status predicate — to derive a
+ *      reviewer capability or adjudicator authority. They are all replaced
+ *      by reads of the PROVEN context below, so a stored role on an
+ *      inactive row can no longer reach a capability decision even if the
+ *      upstream gate were ever bypassed or reordered.
+ *
+ *   2. ORGANIZATION LIFECYCLE FAILED OPEN. The old body checked
+ *      `member.status !== "ACTIVE"` and nothing else. It called
+ *      `evaluateMemberAccess` only to compute the ADVISORY
+ *      `isReviewerCapable` flag — a denial there produced `false`, never a
+ *      denial — so an ORGANIZATION workspace under a SUSPENDED or ARCHIVED
+ *      CUSTOMER organization stayed fully readable on this surface. The
+ *      primitive now enforces workspace kind and Organization lifecycle as
+ *      part of admission.
+ *
+ * Admission is UNCHANGED in breadth: the baseline permission is
+ * `evidence.read`, which every canonical role holds (OWNER, ADMIN,
+ * REVIEWER, CONTRIBUTOR, VIEWER), so exactly the set of members admitted
+ * before is admitted now. Write operations continue to re-check their own
+ * capability, and they now do so against the proven capability set.
+ *
+ * The bounded denial vocabulary is preserved verbatim — a non-member still
+ * receives `404 not_found` and an inactive member still receives
+ * `403 REVIEW_ACTOR_BLOCKED / member_inactive` — so no existing client or
+ * behavioural expectation changes shape. The newly-enforced lifecycle
+ * denials reuse the same bounded envelope.
+ */
 async function requireReviewerActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<LifecycleActorContext | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, status: true },
+): Promise<ReviewerActorContext | null> {
+  const outcome = await evaluateAuthorizedWorkspace(req, {
+    workspaceId: teamId,
+    // Baseline: "you are an ACTIVE member of a live workspace". Held by
+    // every canonical role, so this admits exactly the prior set.
+    permission: "evidence.read",
+    // Deny shapes are mapped explicitly below, so the primitive's own
+    // anti-enumeration rewrite is not used here.
+    antiEnumeration: false,
   });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({
-      error: { code: "REVIEW_ACTOR_BLOCKED", reason: "member_inactive" },
+  if (!outcome.allowed) {
+    if (outcome.reasonCode === "no_actor" || outcome.reasonCode === "missing_team_id") {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    if (outcome.reasonCode === "missing_actor") {
+      reply.code(401).send({ error: { code: "unauthenticated" } });
+      return null;
+    }
+    // member_not_active / member_access_expired / organization_not_active /
+    // workspace_kind_unresolved / permission_not_granted /
+    // support_access_denied / authorization_unavailable all conceal behind
+    // the surface's existing bounded envelope, carrying the canonical
+    // reason code so operators can still triage.
+    reply.code(outcome.httpStatus === 503 ? 503 : 403).send({
+      error: {
+        code: "REVIEW_ACTOR_BLOCKED",
+        reason:
+          outcome.reasonCode === "member_not_active"
+            ? "member_inactive"
+            : outcome.reasonCode,
+      },
     });
     return null;
   }
-  // Reviewer permission gate. Service-account JWTs are detected via
-  // the auth surface; we look up the user record to read the kind.
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true },
-  });
-  if (!user) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const reviewerCheck = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "evidence_request.review",
-  });
-  // We treat anyone WITHOUT reviewer permission as still able to view
-  // (so admins can dashboard), but write operations re-check.
+  const authorized = outcome.context;
   return {
-    teamId,
-    actorUserId: userId,
-    isReviewerCapable: reviewerCheck.allowed,
+    teamId: authorized.workspaceId,
+    actorUserId: authorized.userId,
+    // Reviewer capability is now read from the PROVEN capability set rather
+    // than from a second `evaluateMemberAccess` round-trip. Anyone WITHOUT
+    // it can still view (so admins can dashboard); write operations re-check.
+    isReviewerCapable: contextHasCapability(
+      authorized,
+      "evidence_request.review",
+    ),
     isServiceAccount: false,
+    authorized,
   };
 }
 
@@ -207,30 +277,47 @@ function requireReviewerCapable(
 // user gets different authority depending on which route/API is used). It
 // is strictly a TIGHTENING — it never grants an action the boolean gate
 // previously denied.
-async function requireReviewerBulkCapable(
-  ctx: LifecycleActorContext,
+// AUTH-005 — this helper also re-read the TeamMember row with no status
+// predicate. It now reads the PROVEN capability set. `review.escalate` is
+// the canonical permission for the SUPERVISOR tier the former
+// `review.bulk` reviewer-capability denoted (OWNER + ADMIN + REVIEWER hold
+// `review.escalate`; the reviewer matrix granted `review.bulk` to
+// SUPERVISOR + REVIEW_ADMIN, i.e. workspace ADMIN + OWNER) — so it is
+// combined with an explicit administrative-tier role floor to preserve the
+// exact admission set rather than widen it.
+
+/**
+ * PHASE 12 CORRECTIVE PASS 3 §2.1 — THE PROVEN ROLE, RE-BOUND.
+ *
+ * Every adjudicator / bulk-capability decision in this file reads the canonical
+ * role off `ctx.authorized`. That context is genuine — it was minted by
+ * `requireReviewerActor` — but these helpers receive it as a BUNDLE, and a
+ * bundle can be assembled with a context that does not match the `teamId` and
+ * `actorUserId` beside it. Provenance alone would accept that pairing; the
+ * binding check refuses it.
+ *
+ * The expected values come from the bundle itself, so this is not a second
+ * policy decision — it is the assertion that the bundle is internally
+ * consistent, which is the one thing a consumer of a handed-in context cannot
+ * take on trust.
+ */
+function provenRole(ctx: ReviewerActorContext) {
+  return assertMintedAuthorizedWorkspaceContext(ctx.authorized, {
+    workspaceId: ctx.teamId,
+    userId: ctx.actorUserId,
+  }).workspaceRole;
+}
+
+function requireReviewerBulkCapable(
+  ctx: ReviewerActorContext,
   reply: FastifyReply,
-): Promise<boolean> {
-  const [userRow, memberRow] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: ctx.actorUserId },
-      select: { platformRole: true },
-    }),
-    prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId: ctx.teamId, userId: ctx.actorUserId } },
-      select: { role: true },
-    }),
-  ]);
-  const resolution = resolveReviewerRole({
-    workspaceRole: (memberRow?.role ?? null) as
-      | "OWNER"
-      | "ADMIN"
-      | "MEMBER"
-      | "VIEWER"
-      | null,
-    isPlatformAdmin: (userRow?.platformRole ?? null) !== null,
-  });
-  if (!callerHasCapability(resolution, "review.bulk")) {
+): boolean {
+  const role = provenRole(ctx);
+  const isAdministrativeTier = role === "OWNER" || role === "ADMIN";
+  if (
+    !isAdministrativeTier ||
+    !contextHasCapability(ctx.authorized, "review.escalate")
+  ) {
     reply.code(403).send({
       error: {
         code: "REVIEW_PERMISSION_DENIED",
@@ -640,26 +727,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse({ teamId: resolvedTeamId });
       const ctx = await requireReviewerActor(req, reply, q.teamId);
       if (!ctx) return;
-      const userRow = await prisma.user.findUnique({
-        where: { id: ctx.actorUserId },
-        select: { platformRole: true },
-      });
-      const memberRow = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: { teamId: q.teamId, userId: ctx.actorUserId },
-        },
-        select: { role: true },
-      });
-      const resolution = resolveReviewerRole({
-        workspaceRole: (memberRow?.role ?? null) as
-          | "OWNER"
-          | "ADMIN"
-          | "MEMBER"
-          | "VIEWER"
-          | null,
-        isPlatformAdmin: (userRow?.platformRole ?? null) !== null,
-      });
-      if (!callerHasCapability(resolution, "review.assign")) {
+      // AUTH-005 — the former block re-read the TeamMember row with
+      // `select: { role: true }` and no status predicate, then derived a
+      // reviewer capability from that bare role. The capability is now read
+      // from the PROVEN context, whose construction already required ACTIVE
+      // membership, a live workspace kind and an ACTIVE parent Organization.
+      if (!contextHasCapability(ctx.authorized, "review.assign")) {
         return reply.code(403).send({
           error: {
             code: "REVIEW_PERMISSION_DENIED",
@@ -878,26 +951,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // status check, but the role itself is not on
       // LifecycleActorContext) and pass it to the bounded reviewer-
       // roles resolver.
-      const userRow = await prisma.user.findUnique({
-        where: { id: ctx.actorUserId },
-        select: { platformRole: true },
-      });
-      const memberRow = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: { teamId: q.teamId, userId: ctx.actorUserId },
-        },
-        select: { role: true },
-      });
-      const resolution = resolveReviewerRole({
-        workspaceRole: (memberRow?.role ?? null) as
-          | "OWNER"
-          | "ADMIN"
-          | "MEMBER"
-          | "VIEWER"
-          | null,
-        isPlatformAdmin: (userRow?.platformRole ?? null) !== null,
-      });
-      if (!callerHasCapability(resolution, "review.assign")) {
+      // AUTH-005 — the former block re-read the TeamMember row with
+      // `select: { role: true }` and no status predicate, then derived a
+      // reviewer capability from that bare role. The capability is now read
+      // from the PROVEN context, whose construction already required ACTIVE
+      // membership, a live workspace kind and an ACTIVE parent Organization.
+      if (!contextHasCapability(ctx.authorized, "review.assign")) {
         return reply.code(403).send({
           error: {
             code: "REVIEW_PERMISSION_DENIED",
@@ -1500,7 +1559,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // (see requireReviewerBulkCapable / finding F38). Closes the
       // bulk-ASSIGN privilege-escalation bypass and aligns authority with
       // the single-assign route + the reviewer-workspace bulk surface.
-      if (!(await requireReviewerBulkCapable(ctx, reply))) return;
+      if (!requireReviewerBulkCapable(ctx, reply)) return;
       // Phase 26.75 — adaptive runtime gate.
       const gateBulk = await runtimeAdaptiveGate({
         req,
@@ -2335,12 +2394,16 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // and their role on the team. ADJUDICATION requires team
       // OWNER/ADMIN; other stages require any reviewer-capable member
       // (already enforced by requireReviewerActor).
-      const teamMember = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: q.teamId, userId: ctx.actorUserId } },
-        select: { role: true },
-      });
+      // AUTH-005 — adjudicator authority is read from the PROVEN context.
+      // The former block re-read the TeamMember row with no status
+      // predicate, so a SUSPENDED/REVOKED OWNER or ADMIN was still treated
+      // as an adjudicator.  here is the CANONICAL role of an
+      // ACTIVE member in a live workspace (OWNER/ADMIN map 1:1; DB MEMBER
+      // maps to REVIEWER), so the admission set is identical and the
+      // inactive case is now unrepresentable.
+      const adjudicatorRole = provenRole(ctx);
       const isAdjudicator =
-        teamMember?.role === "OWNER" || teamMember?.role === "ADMIN";
+        adjudicatorRole === "OWNER" || adjudicatorRole === "ADMIN";
 
       const firstReviewerId = rows.find((r) => r.stage === "FIRST")
         ?.reviewerUserId;
@@ -2374,7 +2437,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         },
         callerContext: {
           userId: ctx.actorUserId,
-          teamRole: teamMember?.role ?? null,
+          // AUTH-005 — the canonical role of the PROVEN active member.
+          teamRole: provenRole(ctx),
           isAdjudicator,
           callerIsFirstReviewer,
           nextAction,
@@ -2432,17 +2496,14 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
 
-      // Adjudicator authority — informational role read (authorization
-      // is already enforced by requireReviewerActor); the canonical
-      // authority enforces it when the decision lands at ADJUDICATION.
-      const teamMember = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: { teamId: body.teamId, userId: ctx.actorUserId },
-        },
-        select: { role: true },
-      });
+      // AUTH-005 — adjudicator authority read from the PROVEN context
+      // rather than from a second, status-blind TeamMember query. The
+      // canonical decision authority still enforces it when the decision
+      // lands at ADJUDICATION; this value is now guaranteed to describe an
+      // ACTIVE member of a live workspace.
+      const adjudicatorRole = provenRole(ctx);
       const isAdjudicator =
-        teamMember?.role === "OWNER" || teamMember?.role === "ADMIN";
+        adjudicatorRole === "OWNER" || adjudicatorRole === "ADMIN";
 
       // Track 1C — ONE atomic decision command: workspace isolation,
       // stale/terminal denial, immutable decision-row append, derived
@@ -2476,7 +2537,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       } catch (err) {
         if (!(err instanceof ReviewDecisionAuthorityError)) throw err;
         return sendDecisionAuthorityError(reply, err, {
-          callerRole: teamMember?.role ?? null,
+          callerRole: provenRole(ctx),
           decision: body.decision,
         });
       }

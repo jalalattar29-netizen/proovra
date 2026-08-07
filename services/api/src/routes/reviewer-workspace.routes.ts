@@ -47,6 +47,10 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  evaluateAuthorizedWorkspace,
+  evaluateCurrentWorkspace,
+} from "../middleware/authorize.js";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 
 import {
@@ -120,44 +124,72 @@ async function resolveTeam(
   const userId = getAuthUserId(req);
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { currentWorkspaceId: true, platformRole: true },
+    select: { platformRole: true },
   });
 
-  const teamId = q.data.teamId ?? user?.currentWorkspaceId;
-  if (!teamId) {
+  // PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — the workspace is chosen by
+  // the CLIENT when it names one, and otherwise by the operator's pointer;
+  // either way it is only a CANDIDATE. The canonical primitive then decides,
+  // so the two inputs are indistinguishable to the authorization outcome —
+  // which is the property that makes accepting a client-supplied `?teamId=`
+  // safe at all.
+  //
+  // What this replaces: the P0 remediation of 2026-07-21 correctly added an
+  // ACTIVE-membership check here, but as a SECOND authority. It did not check
+  // member access expiry, did not check the workspace kind, and did not check
+  // parent-Organization lifecycle — so a reviewer inside a SUSPENDED customer
+  // Organization kept full access to this operational surface. Delegating to
+  // the canonical chain closes all three, and the surface-specific rule
+  // (no Personal Space) is retained against the PROVEN kind.
+  const resolved = q.data.teamId
+    ? await evaluateAuthorizedWorkspace(req, {
+        workspaceId: q.data.teamId,
+        permission: "evidence.read",
+        antiEnumeration: false,
+      })
+    : await evaluateCurrentWorkspace(req, {
+        permission: "evidence.read",
+        antiEnumeration: false,
+      });
+  if (!resolved.allowed) {
+    // Bounded envelope preserved verbatim: a caller who cannot enter the
+    // workspace learns only that there is no workspace for them here.
+    reply
+      .code(403)
+      .send({
+        denial:
+          resolved.reasonCode === "missing_team_id"
+            ? "WORKSPACE_NOT_FOUND"
+            : "NOT_PERMITTED",
+      });
+    return null;
+  }
+  if (resolved.context.workspaceKind === "PERSONAL") {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
 
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { id: true, isPersonal: true },
-  });
-  if (!team || team.isPersonal) {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
-    return null;
-  }
-
-  // P0 remediation (2026-07-21) — FAIL CLOSED. The reviewer workspace is a
-  // tenant-scoped operational surface: a caller with no ACTIVE membership in
-  // the (possibly client-supplied ?teamId=) workspace receives 403 before
-  // any context is returned. Previously this resolver returned a usable
-  // context for NON-members (workspaceRole: null), and un-gated read routes
-  // then served the victim team's data — a cross-tenant read. Platform
-  // admins get no implicit customer access here either; support access must
-  // go through a separate audited mechanism.
-  const membership = await prisma.teamMember.findFirst({
-    where: { teamId: team.id, userId, status: "ACTIVE" },
-    select: { role: true },
-  });
-  if (!membership) {
-    reply.code(403).send({ denial: "NOT_PERMITTED" });
-    return null;
-  }
   return {
-    teamId: team.id,
+    teamId: resolved.context.workspaceId,
     userId,
-    workspaceRole: membership.role as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
+    // The PROVEN canonical role, mapped back to this surface's DB-role
+    // vocabulary. The inverse of `mapTeamRoleToCanonical`, which is
+    // OWNER→OWNER, ADMIN→ADMIN, **MEMBER→REVIEWER**, VIEWER→VIEWER.
+    //
+    // Worth spelling out, because the first draft of this mapped
+    // `CONTRIBUTOR→MEMBER` and left `REVIEWER` untouched. `CONTRIBUTOR` is a
+    // canonical role this DB enum has no member for, so the branch never fired,
+    // and every ordinary DB `MEMBER` came back as the string `"REVIEWER"` —
+    // outside this surface's declared union. The reviewer-workflow lifecycle
+    // proof caught it as a 403 where a reviewer had always been served 200.
+    workspaceRole:
+      resolved.context.workspaceRole === "REVIEWER"
+        ? "MEMBER"
+        : (resolved.context.workspaceRole as
+            | "OWNER"
+            | "ADMIN"
+            | "MEMBER"
+            | "VIEWER"),
     // Note: the previous strict not-null comparison on platformRole
     // coerced a MISSING user row (undefined) to `true`. Bounded fix.
     isPlatformAdmin:

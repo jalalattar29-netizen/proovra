@@ -582,7 +582,7 @@ describe("Phase 32.8C FINAL-3 — dashboard envelope wiring", () => {
       /async function runReviewerCapacityBoard[\s\S]*?\n\}\s*\n/,
     );
     expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/scope === "PERSONAL"[\s\S]*?status:\s*"not_applicable"/);
+    expect(block![0]).toMatch(/scope === "SINGLE_OCCUPANT"[\s\S]*?status:\s*"not_applicable"/);
   });
 
   it("frontend types.ts mirrors the new envelope shape", () => {

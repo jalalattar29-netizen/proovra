@@ -136,9 +136,9 @@ describe("CAPTURE-DETAIL-WIRING — Evidence Detail page", () => {
 });
 
 describe("CAPTURE-DETAIL-WIRING — structural fixes", () => {
-  it("Discussion tab is gated on the backend-computed discussionEnabled / discussionReadOnly flags, NOT on workspaceType labels", () => {
+  it("Discussion tab is gated on the backend-computed discussionEnabled / discussionReadOnly flags, NOT on billingShape labels", () => {
     // Phase DISCUSSION-CAPABILITY-FIX — the previous label-based gate
-    // (`workspaceType === "PERSONAL"`) was brittle now that personal
+    // (`billingShape === "PERSONAL"`) was brittle now that personal
     // workspaces carry a synthetic personal-team UUID. The page now
     // consumes the backend-computed capability flags directly. The
     // full truth-table for the flags themselves is locked by

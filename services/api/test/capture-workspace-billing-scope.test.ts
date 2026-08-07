@@ -19,7 +19,7 @@
  *      contract on services/api/src/services/evidence.service.ts.)
  *
  *   3. assertWorkspaceAllowsEvidenceCreation throws a typed error
- *      with `code === "TEAM_PLAN_REQUIRED"` when (workspaceType ===
+ *      with `code === "TEAM_PLAN_REQUIRED"` when (billingShape ===
  *      "TEAM" && plan !== TEAM). Pure-helper test.
  *
  *   4. POST /v1/evidence returns HTTP 402 with the typed JSON shape
@@ -139,25 +139,25 @@ describe("Capture scope hotfix — createEvidence honors explicit teamId only", 
 
 // -----------------------------------------------------------------------------
 // Invariant 3 — Pure billing helper throws TEAM_PLAN_REQUIRED on the
-// matrix corner (workspaceType === TEAM && plan !== TEAM).
+// matrix corner (billingShape === TEAM && plan !== TEAM).
 // -----------------------------------------------------------------------------
 
 describe("Capture scope hotfix — assertWorkspaceAllowsEvidenceCreation typed errors", () => {
   function scope(
-    workspaceType: "PERSONAL" | "TEAM",
+    billingShape: "SINGLE_OCCUPANT" | "SHARED",
     plan: "FREE" | "PRO" | "TEAM" | "PAYG",
   ): WorkspaceScope {
     return {
-      workspaceType,
+      billingShape,
       ownerUserId: "00000000-0000-0000-0000-000000000001",
-      teamId: workspaceType === "TEAM" ? "00000000-0000-0000-0000-000000000002" : null,
+      teamId: billingShape === "SHARED" ? "00000000-0000-0000-0000-000000000002" : null,
       // Phase A1 — organizationId mirrors the Team's bound org for
       // TEAM scope; null for legacy PERSONAL scope. The function
-      // under test only reads `plan` and `workspaceType` for the
+      // under test only reads `plan` and `billingShape` for the
       // TEAM gate; the personal-bucket branch reads `credits` and
-      // `evidenceCount` but only fires when workspaceType === PERSONAL.
+      // `evidenceCount` but only fires when billingShape === PERSONAL.
       organizationId:
-        workspaceType === "TEAM"
+        billingShape === "SHARED"
           ? "00000000-0000-0000-0000-000000000003"
           : null,
       plan: plan as WorkspaceScope["plan"],
@@ -179,7 +179,7 @@ describe("Capture scope hotfix — assertWorkspaceAllowsEvidenceCreation typed e
     for (const plan of blockedPlans) {
       let caught: (Error & { code?: string; statusCode?: number }) | null = null;
       try {
-        await assertWorkspaceAllowsEvidenceCreation(scope("TEAM", plan));
+        await assertWorkspaceAllowsEvidenceCreation(scope("SHARED", plan));
       } catch (err) {
         caught = err as Error & { code?: string; statusCode?: number };
       }
@@ -200,7 +200,7 @@ describe("Capture scope hotfix — assertWorkspaceAllowsEvidenceCreation typed e
     // as the test-env DB-unavailability and tolerated.
     let caught: (Error & { code?: string }) | null = null;
     try {
-      await assertWorkspaceAllowsEvidenceCreation(scope("TEAM", "TEAM"));
+      await assertWorkspaceAllowsEvidenceCreation(scope("SHARED", "TEAM"));
     } catch (err) {
       caught = err as Error & { code?: string };
     }
@@ -318,16 +318,16 @@ describe("Capture scope hotfix — orchestration preserves staged materials on b
 
 describe("Capture scope matrix — 6 templates × 3 scopes", () => {
   function scope(
-    workspaceType: "PERSONAL" | "TEAM",
+    billingShape: "SINGLE_OCCUPANT" | "SHARED",
     plan: "FREE" | "PRO" | "TEAM" | "PAYG",
   ): WorkspaceScope {
     return {
-      workspaceType,
+      billingShape,
       ownerUserId: "00000000-0000-0000-0000-000000000001",
-      teamId: workspaceType === "TEAM" ? "00000000-0000-0000-0000-000000000002" : null,
+      teamId: billingShape === "SHARED" ? "00000000-0000-0000-0000-000000000002" : null,
       // Phase A1 — see comment in the first `scope()` factory above.
       organizationId:
-        workspaceType === "TEAM"
+        billingShape === "SHARED"
           ? "00000000-0000-0000-0000-000000000003"
           : null,
       plan: plan as WorkspaceScope["plan"],
@@ -341,22 +341,22 @@ describe("Capture scope matrix — 6 templates × 3 scopes", () => {
 
   const cases: Array<{
     template: CaptureTemplateId;
-    workspaceType: "PERSONAL" | "TEAM";
+    billingShape: "SINGLE_OCCUPANT" | "SHARED";
     plan: "FREE" | "PRO" | "TEAM" | "PAYG";
     expect: "ok" | "team_plan_required";
   }> = [];
 
   for (const template of CAPTURE_TEMPLATE_IDS) {
-    cases.push({ template, workspaceType: "PERSONAL", plan: "FREE", expect: "ok" });
-    cases.push({ template, workspaceType: "TEAM", plan: "FREE", expect: "team_plan_required" });
-    cases.push({ template, workspaceType: "TEAM", plan: "TEAM", expect: "ok" });
+    cases.push({ template, billingShape: "SINGLE_OCCUPANT", plan: "FREE", expect: "ok" });
+    cases.push({ template, billingShape: "SHARED", plan: "FREE", expect: "team_plan_required" });
+    cases.push({ template, billingShape: "SHARED", plan: "TEAM", expect: "ok" });
   }
 
   for (const c of cases) {
-    it(`${c.template} × ${c.workspaceType}/${c.plan} → ${c.expect}`, async () => {
+    it(`${c.template} × ${c.billingShape}/${c.plan} → ${c.expect}`, async () => {
       let caught: (Error & { code?: string }) | null = null;
       try {
-        await assertWorkspaceAllowsEvidenceCreation(scope(c.workspaceType, c.plan));
+        await assertWorkspaceAllowsEvidenceCreation(scope(c.billingShape, c.plan));
       } catch (err) {
         caught = err as Error & { code?: string };
       }

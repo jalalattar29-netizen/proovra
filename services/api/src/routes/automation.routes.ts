@@ -43,6 +43,12 @@ import {
   validateCondition,
   type AutomationActionType,
 } from "../services/automation/automation.service.js";
+// ARCH-005 (2026-08-07) — the sweep entry points. The route SCHEDULES; the
+// services below own claim, execution, retry, dead-lettering and reconciliation.
+import { runAutomationDispatchSweep } from "../services/automation/automation-dispatch-runtime.service.js";
+import { sweepDueDeliveries } from "../services/automation/automation-delivery-runtime.service.js";
+import { detectTimeBasedAutomationTriggers } from "../services/automation/automation-triggers.js";
+import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,8 +59,18 @@ const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ListRunsQuery = z.object({
   teamId: z.string().uuid(),
   ruleId: z.string().uuid().optional(),
+  // ARCH-005 (2026-08-07) — RETRY_SCHEDULED and DEAD_LETTERED are real states
+  // now; an operator filtering the run list must be able to name them.
   status: z
-    .enum(["PENDING", "RUNNING", "SUCCEEDED", "FAILED", "SKIPPED"])
+    .enum([
+      "PENDING",
+      "RUNNING",
+      "RETRY_SCHEDULED",
+      "SUCCEEDED",
+      "FAILED",
+      "SKIPPED",
+      "DEAD_LETTERED",
+    ])
     .optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
@@ -141,6 +157,16 @@ function projectRun(row: {
   startedAt: Date | null;
   completedAt: Date | null;
   createdAt: Date;
+  // ARCH-005 (2026-08-07) — the durable lifecycle. Optional in the parameter
+  // type so a caller selecting the narrow shape still type-checks; the routes
+  // below select the whole row.
+  attemptCount?: number;
+  claimGeneration?: number;
+  failureCode?: string | null;
+  nextAttemptAtUtc?: Date | null;
+  leaseExpiresAtUtc?: Date | null;
+  failedAtUtc?: Date | null;
+  deadLetteredAtUtc?: Date | null;
 }): Record<string, unknown> {
   return {
     id: row.id,
@@ -155,6 +181,18 @@ function projectRun(row: {
     startedAt: row.startedAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    // ARCH-005 — the operator surface must show the SAME state the database
+    // holds. Before this, a run that had been retried twice and dead-lettered
+    // rendered as a bare "FAILED" with no attempt count and no reason the
+    // operator could act on, which is how a durable state machine ends up
+    // being debugged with `psql`.
+    attemptCount: row.attemptCount ?? 0,
+    claimGeneration: row.claimGeneration ?? 0,
+    failureCode: row.failureCode ?? null,
+    nextAttemptAtUtc: row.nextAttemptAtUtc?.toISOString() ?? null,
+    leaseExpiresAtUtc: row.leaseExpiresAtUtc?.toISOString() ?? null,
+    failedAtUtc: row.failedAtUtc?.toISOString() ?? null,
+    deadLetteredAtUtc: row.deadLetteredAtUtc?.toISOString() ?? null,
   };
 }
 
@@ -443,4 +481,43 @@ export async function automationRoutes(
       reply.send(projectRun(row));
     },
   );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/automation/runs/process   (ARCH-005, 2026-08-07 — INTERNAL)
+  //
+  // The machine entry point for `AutomationDispatchSweep`. Cron-secret guarded,
+  // never reachable by a session, and it takes NO tenant: the sweep's scope is
+  // "every due run", and each run carries its own already-authorized tenant on
+  // the durable row. A `teamId` parameter here would be a caller-supplied
+  // authority claim, which is the shape this programme keeps removing.
+  //
+  // The worker only SCHEDULES this — the same worker→API pattern as
+  // `/v1/org-invite-deliveries/process`, and for the same reason: the seven
+  // bounded action handlers reach notification, reviewer-assignment and comment
+  // authorities that live API-side, and a worker-side copy of them would be a
+  // second authority for every one.
+  // -------------------------------------------------------------------------
+  app.post("/v1/automation/runs/process", async (req, reply) => {
+    const ok = await requireIntegrationCronSecret(req, reply);
+    if (!ok) return;
+    const body = z
+      .object({
+        batchSize: z.number().int().min(1).max(100).optional(),
+        deliveryBatchSize: z.number().int().min(1).max(100).optional(),
+      })
+      .parse(req.body ?? {});
+
+    // ORDER MATTERS, and each step is here for a stated reason.
+    //
+    //  1. DETECT the four time-based conditions. They have no event to hook,
+    //     so if nothing looks for them nothing ever fires — which is precisely
+    //     what "configurable and inert" meant for four of the eleven triggers.
+    //  2. Claim and execute due runs, including the ones step 1 just wrote, so
+    //     a detected condition acts in this tick rather than the next.
+    //  3. Sweep deliveries, including any a WEBHOOK action just enqueued.
+    const detected = await detectTimeBasedAutomationTriggers({});
+    const runs = await runAutomationDispatchSweep({ limit: body.batchSize });
+    const deliveries = await sweepDueDeliveries({ limit: body.deliveryBatchSize });
+    return reply.code(200).send({ summary: { detected, runs, deliveries } });
+  });
 }

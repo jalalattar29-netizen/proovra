@@ -18,11 +18,7 @@
  * NOT_PUBLISHED / SUSPENDED / UNPUBLISHED rows.
  */
 
-import type {
-  FastifyInstance,
-  FastifyReply,
-  FastifyRequest,
-} from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   AI_ADVISORY_DISCLAIMER,
@@ -33,10 +29,11 @@ import {
   INTELLIGENCE_JOB_STATUSES,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requirePermission } from "../services/governance.service.js";
+// PHASE 12 REMEDIATION — AUTH-001 (2026-08-06). The ONE authorization
+// authority for every membership-gated route in this file.
+import { authorizeWorkspaceOrFail } from "../middleware/authorize.js";
 import {
   configuredOcrProviderName,
   configuredTranscriptProviderName,
@@ -77,42 +74,47 @@ import { evaluateMemberAccess } from "../services/identity/access-policy.service
 
 const ParamsEvidenceId = z.object({ id: z.string().uuid() });
 
-async function requireReviewerMember(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-  });
-  if (!membership) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const perm = requirePermission(membership.role, "evidence_request.review");
-  if (!perm.allowed) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId, role: membership.role };
-}
-
-async function requireMember(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-  });
-  if (!membership) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId, role: membership.role };
-}
+/**
+ * PHASE 12 REMEDIATION — AUTH-001 (2026-08-06).
+ *
+ * `requireReviewerMember` and `requireMember` USED TO LIVE HERE. Both were
+ * STATUS-BLIND: each loaded the TeamMember row with
+ * `findUnique({ teamId_userId })`, 404'd only when the row was ABSENT, and
+ * then used `membership.role` verbatim. Neither read `TeamMember.status`,
+ * so a SUSPENDED or REVOKED member retained full intelligence-platform
+ * access — including ENQUEUEING intelligence jobs. Neither consulted the
+ * parent-Organization lifecycle, so an ORGANIZATION workspace under a
+ * SUSPENDED or ARCHIVED CUSTOMER organization stayed reachable here.
+ *
+ * (The module already imported `evaluateMemberAccess` — it was used at
+ * exactly one unrelated site, for the reviewer-visibility flag on the
+ * deprecated search alias. The engine was in the file; the gates just did
+ * not call it.)
+ *
+ * Both are replaced by the canonical primitive. The membership-existence
+ * check, the status check, the access-expiry check, the workspace-kind
+ * check, the Organization-lifecycle check and the permission check are now
+ * ONE call that cannot be partially performed, and the resulting
+ * `AuthorizedWorkspaceContext` cannot be constructed unless all of them
+ * passed.
+ *
+ * Permission mapping, chosen from the canonical catalog to preserve each
+ * route's intended tier:
+ *
+ *   READ  surfaces  -> `intelligence.read`
+ *                      (OWNER/ADMIN/REVIEWER/CONTRIBUTOR hold it; VIEWER
+ *                       does not — VIEWER never had reviewer-tier access to
+ *                       this platform.)
+ *   WRITE surfaces  -> `intelligence.run`
+ *                      (OWNER/ADMIN/REVIEWER hold it. This replaces the
+ *                       former `evidence_request.review` role probe, which
+ *                       was a REVIEWER-tier proxy for exactly this idea and
+ *                       admits the same roles.)
+ *
+ * `antiEnumeration` stays ON, preserving the existing 404-for-non-member
+ * behaviour: a foreign or inaccessible workspace is indistinguishable from
+ * one that does not exist.
+ */
 
 export async function intelligenceRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
@@ -162,7 +164,10 @@ export async function intelligenceRoutes(app: FastifyInstance) {
             .optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "intelligence.read",
+      });
       if (!ok) return;
 
       // Reuse the canonical search backend. We replicate the
@@ -243,7 +248,10 @@ export async function intelligenceRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireReviewerMember(req, reply, query.teamId);
+      const ok = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "intelligence.read",
+      });
       if (!ok) return;
       const rows = await listIntelligenceJobs({
         teamId: query.teamId,
@@ -274,9 +282,17 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "intelligence.read",
+        resourceKind: "evidence",
+        resourceId: id,
+      });
       if (!ok) return;
-      // Workspace scope guard.
+      // Workspace scope guard: the Evidence row's OWN tenant is reloaded from
+      // the database and compared to the AUTHORIZED workspace, so a caller
+      // cannot pair an evidence id from workspace A with a teamId they hold
+      // in workspace B.
       const ev = await prisma.evidence.findUnique({
         where: { id },
         select: { id: true, teamId: true },
@@ -313,13 +329,20 @@ export async function intelligenceRoutes(app: FastifyInstance) {
           kind: z.enum(INTELLIGENCE_JOB_KINDS),
         })
         .parse(req.body ?? {});
-      const ok = await requireReviewerMember(req, reply, body.teamId);
+      // AUTH-001 — the enqueue is an outbound durable effect, so BOTH the
+      // authorization and the evidence tenant reload complete BEFORE it.
+      const ok = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: body.teamId,
+        permission: "intelligence.run",
+        resourceKind: "evidence",
+        resourceId: id,
+      });
       if (!ok) return;
       const ev = await prisma.evidence.findUnique({
         where: { id },
         select: { id: true, teamId: true },
       });
-      if (!ev || ev.teamId !== body.teamId) {
+      if (!ev || ev.teamId !== ok.workspaceId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       const job = await enqueueIntelligenceJob({
@@ -346,13 +369,18 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ok = await requireReviewerMember(req, reply, body.teamId);
+      const ok = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: body.teamId,
+        permission: "intelligence.run",
+        resourceKind: "evidence",
+        resourceId: id,
+      });
       if (!ok) return;
       const ev = await prisma.evidence.findUnique({
         where: { id },
         select: { id: true, teamId: true },
       });
-      if (!ev || ev.teamId !== body.teamId) {
+      if (!ev || ev.teamId !== ok.workspaceId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       const summary = await reconcileSimilaritiesForEvidence(id);
@@ -391,7 +419,10 @@ export async function intelligenceRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(20).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "intelligence.read",
+      });
       if (!ok) return;
       const findings = await listCrossEvidenceFindings({
         teamId: query.teamId,

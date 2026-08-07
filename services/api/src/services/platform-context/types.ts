@@ -751,6 +751,132 @@ export type PlatformContextSupportAccess = {
   expiresAtUtc: string;
 };
 
+// =============================================================================
+// PHASE 12 CORRECTIVE PASS §1 (ARCH-003, 2026-08-07) — THE CANONICAL,
+// VERSIONED PLATFORM CONTEXT.
+//
+// THE FINDING
+// -----------------------------------------------------------------------------
+// The envelope carried a field called `organizations` whose entries were built
+// with `id: m.team.id` — WORKSPACE ids, in a field named after Organizations,
+// alongside a `memberCount` that counted WORKSPACE members. A consumer reading
+// `organizations[i].id` and handing it to an Organization endpoint was handing
+// it a Workspace id, and nothing in the type said so. `membershipStatus` on the
+// same row described the WORKSPACE membership, not the governance one.
+//
+// Two identifier spaces sharing one field name is the defect. This block is the
+// separation: Organization fields carry Organization ids, Workspace fields
+// carry Workspace ids, and the two membership id spaces are named apart.
+//
+// VERSIONED, because the legacy shape stays populated for one phase and a
+// client has to be able to tell which contract it was answered in.
+// =============================================================================
+
+/** The canonical context contract version. Bumped when a field changes meaning. */
+export const PLATFORM_CONTEXT_VERSION = 2 as const;
+
+/** Identity of the ACCOUNT — one per authenticated human, never per tenant. */
+export type CanonicalContextAccount = {
+  accountId: string;
+  email: string | null;
+  displayName: string | null;
+  /** The ACCOUNT-tier plan. Never the active workspace's effective plan. */
+  accountPlan: WorkspacePlan | null;
+};
+
+/** A Workspace the caller may enter. `workspaceId` is always a Workspace id. */
+export type CanonicalContextWorkspace = {
+  workspaceId: string;
+  name: string | null;
+  kind: "PERSONAL" | "OWNED" | "ORGANIZATION";
+  /** The caller's WORKSPACE role. Never an Organization role. */
+  workspaceRole: WorkspaceRole | null;
+  /** The caller's WORKSPACE membership id — a different id space from governance. */
+  workspaceMembershipId: string | null;
+  /**
+   * Present only for ORGANIZATION workspaces, and it is an ORGANIZATION id.
+   * `null` for PERSONAL and OWNED, which are backed by internal SYSTEM
+   * containers that are not customer Organizations.
+   */
+  organizationId: string | null;
+};
+
+/**
+ * An ORGANIZATION the caller governs or belongs to.
+ *
+ * `organizationId` is an Organization id. This type deliberately carries NO
+ * workspace id and NO workspace member count — the workspaces are in
+ * `organizationWorkspaces`, keyed by this id.
+ */
+export type CanonicalContextOrganization = {
+  organizationId: string;
+  name: string | null;
+  /** CUSTOMER organizations only; SYSTEM containers never appear here. */
+  status: "ACTIVE";
+};
+
+/**
+ * The caller's GOVERNANCE membership of an Organization.
+ *
+ * `organizationMembershipId` is deliberately a different field from
+ * `workspaceMembershipId`: they are different rows in different tables, and
+ * one being mistaken for the other is how a governance action gets applied to
+ * a workspace membership.
+ */
+export type CanonicalContextOrganizationMembership = {
+  organizationMembershipId: string;
+  organizationId: string;
+  organizationRole: string;
+  /** ACTIVE only — a suspended or revoked membership does not appear at all. */
+  status: "ACTIVE";
+};
+
+export type CanonicalPlatformContext = {
+  contextVersion: typeof PLATFORM_CONTEXT_VERSION;
+  account: CanonicalContextAccount;
+  /**
+   * `null` when the caller has none — an ENTERPRISE identity under an
+   * Organization policy of `noPersonalSpace`, for example. Never substituted.
+   */
+  personalSpace: CanonicalContextWorkspace | null;
+  ownedWorkspaces: ReadonlyArray<CanonicalContextWorkspace>;
+  /** ORGANIZATION IDS ONLY. */
+  organizations: ReadonlyArray<CanonicalContextOrganization>;
+  organizationMemberships: ReadonlyArray<CanonicalContextOrganizationMembership>;
+  /** WORKSPACE IDS ONLY, each carrying the Organization id it belongs to. */
+  organizationWorkspaces: ReadonlyArray<CanonicalContextWorkspace>;
+  /**
+   * Where the caller currently IS. A NAVIGATION PREFERENCE, resolved and
+   * re-authorized server-side on every request — never an authorization input.
+   *
+   * A stale pointer HEALS to the caller's own Personal Space rather than
+   * producing a broken shell, and `currentWorkspaceSource` says so. That is the
+   * difference between healing and a SILENT fallback: the client can tell
+   * "you are where you asked to be" from "your pointer was stale and we put you
+   * home", and it can never be healed onto somebody else's workspace.
+   */
+  currentWorkspace: CanonicalContextWorkspace | null;
+  /**
+   * How `currentWorkspace` was arrived at.
+   *
+   *   POINTER                 the caller's pointer named it and they may enter it
+   *   REPAIRED_TO_PERSONAL    the pointer named something they may not enter (or
+   *                           nothing), so it healed to their OWN Personal Space
+   *   NONE                    nothing could be resolved — no substitute was made
+   */
+  currentWorkspaceSource: "POINTER" | "REPAIRED_TO_PERSONAL" | "NONE";
+  /** The Organization of `currentWorkspace`, when it has one. Navigation only. */
+  currentOrganization: CanonicalContextOrganization | null;
+  /** Effective capabilities in the CURRENT workspace. */
+  capabilities: ReadonlyArray<string>;
+  commercialContext: {
+    /** The effective plan of the CURRENT workspace, server-resolved. */
+    effectivePlan: WorkspacePlan | null;
+    /** The commercial SHAPE of the current workspace. Never a tenancy kind. */
+    billingShape: "SINGLE_OCCUPANT" | "SHARED" | null;
+  };
+};
+
 export type PlatformContextEnvelope = {
   authoritySchemaVersion: typeof AUTHORITY_SCHEMA_VERSION;
   capabilitySchemaVersion: typeof CAPABILITY_SCHEMA_VERSION;
@@ -795,10 +921,27 @@ export type PlatformContextEnvelope = {
   /** Always exactly one Personal Space (private default work area). */
   personalSpace: PlatformContextPersonalSpace;
   /**
-   * Real organizations only — rows with `isPersonal=true` are excluded.
-   * Bounded to at most 200 entries.
+   * PHASE 12 CORRECTIVE PASS §1 (ARCH-003, 2026-08-07) — DEPRECATED, AND THE
+   * ENTRIES ARE WORKSPACES.
+   *
+   * @deprecated Read `canonical.organizations` (Organization ids) and
+   * `canonical.organizationWorkspaces` (Workspace ids) instead. Every entry
+   * here has `id = <workspace id>` and `memberCount = <workspace members>`,
+   * despite the field name — which is the ARCH-003 finding itself. It stays
+   * populated for one phase so an installed client does not break, and it is
+   * built by projecting the canonical model rather than by a second query, so
+   * the two cannot disagree.
+   *
+   * REMOVAL CONDITION: delete when no client below the minimum supported build
+   * reads it — measured by `legacy_platform_context_organizations_reads_total`.
    */
   organizations: ReadonlyArray<PlatformContextOrganization>;
+  /**
+   * ARCH-003 — the CANONICAL, versioned context. Organization fields carry
+   * Organization ids; Workspace fields carry Workspace ids; the two membership
+   * id spaces are named apart. New consumers read this and nothing else.
+   */
+  canonical: CanonicalPlatformContext;
   /** Resolved active space (PERSONAL or ORGANIZATION). */
   activeSpace: PlatformContextActiveSpace;
   /**

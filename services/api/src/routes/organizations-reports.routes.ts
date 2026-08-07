@@ -149,6 +149,11 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       return reply.code(429).send(RATE_LIMITED);
     }
 
+    // ARCH-004 — a GOVERNANCE EXPORT deliberately includes suspended and
+    // revoked memberships: an auditor asking "who had access and when did it
+    // end?" is asking precisely about the rows an ACTIVE filter would hide.
+    // The status and its timestamps travel with each row so the export states
+    // the lifecycle rather than implying everyone listed is current.
     const memberships = await prisma.organizationMembership.findMany({
       where: { organizationId: orgId },
       select: {
@@ -156,6 +161,9 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
         userId: true,
         role: true,
         createdAt: true,
+        status: true,
+        statusChangedAtUtc: true,
+        revokedAtUtc: true,
         user: { select: { email: true, displayName: true } },
       },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
@@ -169,6 +177,19 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       { header: "displayName", value: (m) => m.user.displayName },
       { header: "role", value: (m) => m.role },
       { header: "memberSince", value: (m) => m.createdAt.toISOString() },
+      // ARCH-004 — without these three, an export that now INCLUDES suspended
+      // and revoked memberships would read as a list of current members, which
+      // is a worse answer than the one it replaced.
+      { header: "status", value: (m) => m.status },
+      {
+        header: "statusChangedAtUtc",
+        value: (m) =>
+          m.statusChangedAtUtc ? m.statusChangedAtUtc.toISOString() : null,
+      },
+      {
+        header: "revokedAtUtc",
+        value: (m) => (m.revokedAtUtc ? m.revokedAtUtc.toISOString() : null),
+      },
     ];
 
     const csv = toCsv(memberships, columns);
@@ -431,7 +452,24 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       const teamById = new Map(teams.map((t) => [t.id, t.name]));
       const teamIds = teams.map((t) => t.id);
 
-      const grants =
+      /**
+       * PHASE 12 CORRECTIVE PASS §2 (INV-001, 2026-08-06) — THE LIFECYCLE
+       * COMES FROM THE GRANT, NOT FROM THE SIDECAR.
+       *
+       * This export used to read `grantState`, `expiresAtUtc` and
+       * `revokedAtUtc` off `ExternalReviewerRoleAssignment`. Those columns
+       * were added by a model catch-up migration and NO writer has ever
+       * populated them: `grant_state` is NOT NULL DEFAULT 'PENDING' and the
+       * other two are always NULL. So this compliance export reported every
+       * external-review grant as PENDING, never expiring and never revoked —
+       * including grants that were ACTIVE, EXPIRED or REVOKED. An auditor
+       * reading it was told the opposite of the truth.
+       *
+       * `ExternalReviewGrant` is the sole lifecycle authority. The two rows
+       * share one id by construction (`issueInvitation` creates the sidecar
+       * with `id` set to the grant's id), so the join is on `id`.
+       */
+      const assignments =
         teamIds.length === 0
           ? []
           : await prisma.externalReviewerRoleAssignment.findMany({
@@ -443,10 +481,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
                 externalEmail: true,
                 inviteEmail: true,
                 role: true,
-                grantState: true,
                 authMethod: true,
-                expiresAtUtc: true,
-                revokedAtUtc: true,
                 inviteAcceptedAtUtc: true,
                 grantedByUserId: true,
                 createdAt: true,
@@ -455,6 +490,40 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
               orderBy: { createdAt: "desc" },
               take: AUDIT_ROW_CAP,
             });
+
+      const lifecycleById = new Map(
+        (assignments.length === 0
+          ? []
+          : await prisma.externalReviewGrant.findMany({
+              where: { id: { in: assignments.map((a) => a.id) } },
+              select: {
+                id: true,
+                state: true,
+                expiresAtUtc: true,
+                revokedAtUtc: true,
+                acceptedAtUtc: true,
+              },
+            })
+        ).map((g) => [g.id, g] as const),
+      );
+
+      const grants = assignments.map((a) => {
+        const lifecycle = lifecycleById.get(a.id) ?? null;
+        return {
+          ...a,
+          // A sidecar with no grant is an orphan the contract migration
+          // forbids. Until that constraint is applied everywhere, report the
+          // absence honestly rather than substituting a default that reads
+          // like a real state.
+          grantState: lifecycle?.state ?? "UNKNOWN_NO_GRANT",
+          expiresAtUtc: lifecycle?.expiresAtUtc ?? null,
+          revokedAtUtc: lifecycle?.revokedAtUtc ?? null,
+          // Acceptance is the grant's fact too; the sidecar's stamp is the
+          // console's convenience copy and is used only as a fallback.
+          inviteAcceptedAtUtc:
+            lifecycle?.acceptedAtUtc ?? a.inviteAcceptedAtUtc ?? null,
+        };
+      });
 
       type Row = (typeof grants)[number];
       const columns: CsvColumn<Row>[] = [

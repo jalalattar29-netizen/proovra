@@ -165,18 +165,33 @@ describe("Point 5 — topology conservation", () => {
     // independent topology gate, which does not read this registry at all.
   });
 
-  it("17 DB sweeps are registered; the 2 telemetry samplers are not work", () => {
-    // 19 declared schedulers = 17 work sweeps + 2 samplers. The samplers own no
-    // durable state and process no rows, so registering them as Point-5 work
-    // would inflate the count with things that have nothing to be idempotent
-    // about.
-    expect(measured.schedulers).toHaveLength(19);
+  it("every DB sweep is registered; the 2 telemetry samplers are not work", () => {
+    // ARCH-005 (2026-08-07) — this case used to pin 19 and 17 as LITERALS, and
+    // adding `AutomationDispatchSweep` moved both at once. A literal per number
+    // invites picking whichever one makes the run green, and this file's own
+    // sibling case above already says so about the queue counts. The
+    // conservation is now an IDENTITY between three independently derived
+    // sets — the schedulers declared in the worker, the names in the shared
+    // authority, and the registry — with the samplers as the single stated
+    // difference.
+    //
+    // The samplers own no durable state and process no rows, so registering
+    // them as Point-5 work would inflate the count with things that have
+    // nothing to be idempotent about.
     const samplers = measured.schedulers.filter(
       (s) => s === "startObservabilityHeartbeat" || s === "startQueueHealthSampler",
     );
     expect(samplers).toHaveLength(2);
-    expect(Object.values(SWEEP_NAMES)).toHaveLength(17);
-    expect(getSweepEntries()).toHaveLength(17);
+    expect(Object.values(SWEEP_NAMES)).toHaveLength(getSweepEntries().length);
+    expect(measured.schedulers).toHaveLength(
+      Object.values(SWEEP_NAMES).length + samplers.length,
+    );
+    // The sweep this pass added, named explicitly so its presence is a
+    // measurement rather than an arithmetic side effect.
+    expect(Object.values(SWEEP_NAMES) as string[]).toContain(
+      "AutomationDispatchSweep",
+    );
+    expect(measured.schedulers).toContain("startAutomationDispatchScheduler");
   });
 
   it("RegisteredBullMqJobs = BullMqJobsWithProducerAndProcessor (no orphans)", () => {

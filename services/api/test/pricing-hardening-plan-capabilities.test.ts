@@ -65,7 +65,7 @@ describe("PLAN_CAPABILITIES", () => {
     expect(t.includedStorageBytes).toBe(500n * GB);
     expect(t.aiAdvisoryMonthlyOperations).toBe(500);
     expect(t.monthlyPriceCents).toBe(7900);
-    expect(t.allowsTeamWorkspace).toBe(true);
+    expect(t.allowsSharedWorkspace).toBe(true);
     expect(t.teamWorkspaceRequired).toBe(true);
   });
 

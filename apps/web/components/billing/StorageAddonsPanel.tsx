@@ -108,7 +108,8 @@ type StorageAddonCatalogItem = {
   storageBytes: string | number;
   priceCents: number;
   currency: string;
-  workspaceType: CheckoutTarget;
+  /** ARCH-001 — the COMMERCIAL shape the server sells this add-on for. */
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
   billingCycle?: "ONE_TIME" | "MONTHLY";
 };
 
@@ -223,7 +224,7 @@ export function StorageAddonsPanel({
     () =>
       catalogItems.filter(
         (item) =>
-          item.workspaceType === "PERSONAL" &&
+          item.billingShape === "SINGLE_OCCUPANT" &&
           String(item.billingCycle ?? "ONE_TIME").toUpperCase() === "ONE_TIME"
       ),
     [catalogItems]
@@ -233,7 +234,7 @@ export function StorageAddonsPanel({
     () =>
       catalogItems.filter(
         (item) =>
-          item.workspaceType === "TEAM" &&
+          item.billingShape === "SHARED" &&
           String(item.billingCycle ?? "ONE_TIME").toUpperCase() === "ONE_TIME"
       ),
     [catalogItems]
@@ -472,7 +473,10 @@ export function StorageAddonsPanel({
                     </div>
 
                     <div className="mt-1 text-[0.80rem] text-[#5F6878]">
-                      One-time purchase · {item.workspaceType.toLowerCase()} workspace
+                      One-time purchase ·{" "}
+                      {item.billingShape === "SINGLE_OCCUPANT"
+                        ? "Personal Space"
+                        : "shared workspace"}
                     </div>
 
                     <div className="mt-4">

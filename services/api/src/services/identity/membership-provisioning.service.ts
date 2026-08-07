@@ -24,6 +24,17 @@ import {
   type ManagedIdentityEvidence,
 } from "./identity-mode.service.js";
 import { organizationIdForPolicy } from "./org-security-policy.service.js";
+// ARCH-004 — the ONE lifecycle authority for governance membership. This
+// module composes it; it does not reimplement any transition.
+import {
+  revokeOrganizationMembership,
+  type OrgMembershipStatusSource,
+} from "./org-membership-lifecycle.service.js";
+// PHASE 12 REMEDIATION §4.4 (2026-08-06) — ONE pointer-hygiene authority,
+// invoked at every leg of this module that withdraws ACTIVE workspace
+// membership (individual, SCIM/group deprovision, and workspace-wide mass
+// suspension / revocation). HYGIENE ONLY — the pointer authorizes nothing.
+import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
@@ -243,7 +254,7 @@ export async function revokeWorkspaceMembershipSource(
   }
   if (!hadGrantRows) {
     // UNKNOWN historical provenance: suspend (reversible), never revoke.
-    await tx.teamMember.update({
+    const suspendedRow = await tx.teamMember.update({
       where: { id: input.teamMemberId },
       data: {
         status: "SUSPENDED",
@@ -253,13 +264,26 @@ export async function revokeWorkspaceMembershipSource(
           `${input.reason} (legacy provenance unknown — suspended, not revoked)`.slice(0, 400),
       },
     });
+    // §4.4 — a SUSPENDED membership is an inaccessible context; clear a
+    // pointer that names it (same transaction, NULL only).
+    await repairStaleCurrentWorkspacePointers(
+      {
+        memberships: [
+          {
+            userId: suspendedRow.userId,
+            workspaceId: suspendedRow.teamId,
+          },
+        ],
+      },
+      tx as never,
+    );
     return {
       membershipRevoked: false,
       otherSourcesRemain: false,
       legacyProvenanceUnknown: true,
     };
   }
-  await tx.teamMember.update({
+  const revokedRow = await tx.teamMember.update({
     where: { id: input.teamMemberId },
     data: {
       status: "REVOKED",
@@ -268,6 +292,16 @@ export async function revokeWorkspaceMembershipSource(
       revocationReason: input.reason.slice(0, 400),
     },
   });
+  // §4.4 — same hygiene on the revocation leg. The updated row already
+  // carries the pair, so no extra read is issued.
+  await repairStaleCurrentWorkspacePointers(
+    {
+      memberships: [
+        { userId: revokedRow.userId, workspaceId: revokedRow.teamId },
+      ],
+    },
+    tx as never,
+  );
   return { membershipRevoked: true, otherSourcesRemain: false };
 }
 
@@ -482,7 +516,7 @@ export async function suspendWorkspaceMembership(
     reason: string;
   },
 ): Promise<void> {
-  await tx.teamMember.update({
+  const suspended = await tx.teamMember.update({
     where: { id: input.teamMemberId },
     data: {
       status: "SUSPENDED",
@@ -491,6 +525,16 @@ export async function suspendWorkspaceMembership(
       suspensionReason: input.reason.slice(0, 400),
     },
   });
+  // §4.4 — pointer hygiene at the suspension boundary, from the row the
+  // update already returned.
+  await repairStaleCurrentWorkspacePointers(
+    {
+      memberships: [
+        { userId: suspended.userId, workspaceId: suspended.teamId },
+      ],
+    },
+    tx as never,
+  );
 }
 
 /**
@@ -891,22 +935,59 @@ export async function updateOrganizationMembershipRole(
 }
 
 /**
- * Governance-membership removal (admin removal / self-leave). Closes
- * provenance first, then deletes the row (physical removal is the
- * product's canonical governance-removal semantics; closed grant rows
- * preserve the historical provenance trail).
+ * Governance-membership removal (admin removal / self-leave).
+ *
+ * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — REVOKE, DO NOT DELETE.
+ *
+ * This used to close the provenance grants and then DELETE the membership row,
+ * on the reasoning that "closed grant rows preserve the historical provenance
+ * trail". They preserve the GRANT trail — but not the membership, so the
+ * system could not answer "was this person a member, who removed them, when,
+ * and why?" from the membership itself, and there was no reversible pause at
+ * all.
+ *
+ * The grants are still closed, in the same order and for the same reason. What
+ * changed is the second step: the row now transitions to REVOKED through the
+ * canonical orchestrator, which stamps the actor, the time, the reason and the
+ * provenance, emits the audit event, and fences the transition against a
+ * concurrent one. A REVOKED membership grants nothing —
+ * `organizationMembershipGrantsAccess` is the one predicate that decides that
+ * — but it can be read.
+ *
+ * Physical deletion survives in exactly one place, `removeAllOrganization
+ * MembershipsForUser`, which serves account closure/erasure. That is a
+ * different obligation and is not this function.
  */
 export async function removeOrganizationMembership(
   tx: TxClient,
-  input: { organizationMembershipId: string; actorUserId?: string | null },
+  input: {
+    organizationMembershipId: string;
+    actorUserId?: string | null;
+    /** Bounded provenance. Defaults to a manual administrative action. */
+    source?: OrgMembershipStatusSource;
+    reason?: string | null;
+  },
 ): Promise<void> {
   await closeGrantsForOrgMemberships(
     tx,
     [input.organizationMembershipId],
     input.actorUserId ?? null,
   );
-  await tx.organizationMembership.delete({
+  // The orchestrator needs the Organization id to scope its guarded UPDATE —
+  // a transition must never be addressable by membership id alone, or a
+  // caller holding an id from another tenant could move it.
+  const row = await tx.organizationMembership.findUnique({
     where: { id: input.organizationMembershipId },
+    select: { organizationId: true },
+  });
+  if (!row) return;
+  await revokeOrganizationMembership({
+    prisma: tx as unknown as Parameters<typeof revokeOrganizationMembership>[0]["prisma"],
+    organizationId: row.organizationId,
+    membershipId: input.organizationMembershipId,
+    actorUserId: input.actorUserId ?? null,
+    source: input.source ?? "MANUAL",
+    reason: input.reason ?? null,
   });
 }
 
@@ -947,9 +1028,11 @@ export async function massRevokeWorkspaceMemberships(
     ...(input.where.teamId ? { teamId: input.where.teamId } : {}),
     ...(input.where.teamIds ? { teamId: { in: input.where.teamIds } } : {}),
   };
+  // §4.4 — `userId`/`teamId` are selected alongside `id` so pointer
+  // hygiene below issues NO additional read.
   const affected = await tx.teamMember.findMany({
     where: memberWhere,
-    select: { id: true },
+    select: { id: true, userId: true, teamId: true },
   });
   if (affected.length === 0) return { count: 0 };
   await tx.teamMember.updateMany({
@@ -965,6 +1048,18 @@ export async function massRevokeWorkspaceMemberships(
     tx,
     affected.map((m) => m.id),
     input.actorUserId ?? null,
+  );
+  // §4.4 — SCIM deprovision / administrative mass revocation. Every affected
+  // member loses this workspace, so every pointer naming it is cleared in
+  // the same transaction.
+  await repairStaleCurrentWorkspacePointers(
+    {
+      memberships: affected.map((m) => ({
+        userId: m.userId,
+        workspaceId: m.teamId,
+      })),
+    },
+    tx as never,
   );
   return { count: affected.length };
 }
@@ -1124,9 +1219,11 @@ export async function massSuspendWorkspaceMemberships(
   tx: TxClient,
   input: { teamId: string; actorUserId?: string | null; reason: string },
 ): Promise<{ count: number }> {
+  // §4.4 — `userId`/`teamId` selected alongside `id` so pointer hygiene
+  // below issues NO additional read.
   const affected = await tx.teamMember.findMany({
     where: { teamId: input.teamId, status: "ACTIVE" },
-    select: { id: true },
+    select: { id: true, userId: true, teamId: true },
   });
   if (affected.length === 0) return { count: 0 };
   await tx.teamMember.updateMany({
@@ -1146,6 +1243,17 @@ export async function massSuspendWorkspaceMemberships(
       grantedByUserId: input.actorUserId ?? null,
     });
   }
+  // §4.4 — workspace-wide suspension makes the context unusable for every
+  // member at once; clear every pointer naming it.
+  await repairStaleCurrentWorkspacePointers(
+    {
+      memberships: affected.map((m) => ({
+        userId: m.userId,
+        workspaceId: m.teamId,
+      })),
+    },
+    tx as never,
+  );
   return { count: affected.length };
 }
 

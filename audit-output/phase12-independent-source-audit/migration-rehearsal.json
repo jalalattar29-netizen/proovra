@@ -1,0 +1,38 @@
+{
+  "generatedBy": "services/api/scripts/migration-rehearsal.mjs",
+  "scenarios": "A",
+  "checks": 5,
+  "failures": 0,
+  "results": [
+    {
+      "scenario": "A",
+      "check": "full chain applies",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "second deploy reports no pending migrations",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "external_review_grants.token_version exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "the duplicate lifecycle columns are absent",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "teams.workspace_kind is NOT NULL",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

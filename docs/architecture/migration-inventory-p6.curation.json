@@ -2665,6 +2665,145 @@
       "safeBeforeCodeDeployment": true,
       "evidence": "PHASE 12 POINT 8 — additive repair proven necessary by the clean-artifact rehearsal. 20260620100000_phase24_31_consolidated_drift_patches creates evidence_search_documents.embedding and its IVFFLAT index inside IF has_pgvector, but CREATE EXTENSION vector is issued by 20270701000000_phase15_semantic_search, a year later in lexical order. On any database built from this chain the guard is false when evaluated and both objects are silently skipped, while the datamodel DECLARES the column (EvidenceSearchDocument.embedding Unsupported(\"vector(384)\")?) and raw-schema-ownership.json registers the index. Applying the artifact to an empty PostgreSQL 16 + pgvector and running db:raw-schema-verify reported the index gone. Every statement here is conditional and idempotent, so it is a no-op on production, which acquired the objects out of band. It RAISES rather than skipping when pgvector is absent, because the silent skip is what hid this.",
       "rollbackDisposition": "Additive only. DROP INDEX IF EXISTS evidence_search_documents_embedding_ivfflat; the column is declared by the datamodel and should not be dropped."
+    },
+    "20271120000000_external_review_invitation_authority_expand": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "evidence": "PHASE 12 CORRECTIVE PASS §2/§3 (2026-08-06) — INV-001 + NEW-004. Replaces 20271120000000_external_review_delivery_intent_idempotency, which claimed EXPAND/SAFE_TO_APPLY_NOW while its first statement re-numbered every historical `attempt` value with a window function; renumbering a business-visible counter is a rewrite of history, so both the classification and the description were wrong. That migration was never committed and never applied outside a disposable database (verified against HEAD, origin/main and every committed inventory), so replacing it rewrites no deployed history. This file adds external_review_grants.token_version and the delivery intent columns (content_version, resend_seq, intent_key) as nullable/defaulted columns ONLY: no constraint, no index over unpopulated data, no data change. Fully information_schema-guarded, so it is a no-op where the tables are absent.",
+      "rollbackDisposition": "Additive only. The columns may be dropped by hand if an older build must be restored; nothing reads them until the code deploys."
+    },
+    "20271121000000_external_review_invitation_authority_backfill": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B",
+      "evidence": "PHASE 12 CORRECTIVE PASS §3 (2026-08-06). Classifies every historical delivery row into a durable logical intent using the only structural authority a historical row has — its ordering within its grant. content_version = 1 (rotation was not a durable fact before this change, so no historical row can be attributed to a later generation); resend_seq = dense rank by queued_at then id; intent_key derived from the triple. `attempt` is NOT touched, which is the difference from the migration this replaces. No row is deleted and no delivery outcome is invented: status, sent_at_utc, delivered_at_utc and failed_at_utc are not written at all. Every statement is conditioned so a re-run changes zero rows. Rehearsed against production-shaped duplicate history (three rows for one grant, one of them ambiguous) with row conservation, outcome preservation and attempt preservation all asserted.",
+      "rollbackDisposition": "ROLL_FORWARD — the assignment is deterministic and re-runnable; re-running reproduces the same values."
+    },
+    "20271122000000_external_review_invitation_authority_contract": {
+      "classification": "CONTRACT_DROP",
+      "releaseWave": "CONTRACT_DROP_LATER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B-REFUSE",
+      "blockingReadinessCategories": [
+        "SIDECAR_LIFECYCLE_COLUMN_POPULATED",
+        "ORPHAN_ROLE_ASSIGNMENT",
+        "ORPHAN_DELIVERY",
+        "MISSING_INTENT_KEY",
+        "CONFLICTING_LOGICAL_INTENT"
+      ],
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 (2026-08-06) — INV-001. Establishes ExternalReviewGrant as the SOLE lifecycle authority for an external-review invitation and removes the duplicate: five columns on external_reviewer_role_assignments (grant_state NOT NULL DEFAULT PENDING, raw_token, token_hash, expires_at_utc, revoked_at_utc) that a model catch-up migration added and no writer has ever populated. One reader trusted them — the organization external-access CSV export — so that compliance export reported every grant as PENDING with no expiry and no revocation whatever the grant said. Every destructive statement is preceded IN THIS SAME FILE by the readiness check that authorises it, and each RAISEs rather than proceeding, so a refusal leaves the database exactly as it was. Also binds the role assignment to its grant by FK (ON DELETE CASCADE) and replaces the wrong delivery-intent uniqueness (team, grant, attempt) with the right one (team, grant, content_version, resend_seq).",
+      "removalCondition": "None — this IS the removal. Apply in the final wave, after the code that stops reading the dropped columns has deployed.",
+      "rollbackDisposition": "ROLL_FORWARD — the dropped columns held no data (the guards prove it before dropping). Restoring them would restore an empty duplicate authority, not data.",
+      "ownerAction": "Apply in Release D only, after the API deploy."
+    },
+    "20271123000000_workspace_kind_authority_expand": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "evidence": "PHASE 12 CORRECTIVE PASS §5.2 (2026-08-06) — ARCH-002. Adds a partial index over rows with a NULL workspace_kind so the readiness query in the contract migration does not scan the table, and records the classification authority as a COLUMN COMMENT in the database. Adds no constraint and changes no data.",
+      "rollbackDisposition": "Additive only. DROP INDEX IF EXISTS teams_workspace_kind_null_idx."
+    },
+    "20271124000000_workspace_kind_authority_backfill": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B",
+      "evidence": "PHASE 12 CORRECTIVE PASS §5.2 (2026-08-06) — ARCH-002. Classifies every workspace with a NULL kind from STRUCTURAL authority only, in three steps: the Personal Space ownership invariant (is_personal), the Organization provisioning relation (organizations.kind = CUSTOMER), and explicit account ownership inside a SYSTEM container. It NEVER reads billing_plan, billing_status, a subscription, a role name, a display name or a UI route — the plan-derived fallback being removed here is what silently turned an Owned workspace into an ORGANIZATION workspace on a commercial upgrade, and back again on a downgrade, with no audit record. Rehearsed against a seed containing an ENTERPRISE-plan workspace in a SYSTEM container, which classifies OWNED.",
+      "rollbackDisposition": "ROLL_FORWARD — deterministic and re-runnable; conditioned on workspace_kind IS NULL so an explicitly-set kind is never overwritten."
+    },
+    "20271125000000_workspace_kind_authority_contract": {
+      "classification": "CONTRACT_DROP",
+      "releaseWave": "CONTRACT_DROP_LATER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B-REFUSE",
+      "blockingReadinessCategories": [
+        "NULL_WORKSPACE_KIND",
+        "PERSONAL_UNDER_CUSTOMER_ORG",
+        "ORGANIZATION_WITHOUT_CUSTOMER_ORG",
+        "OWNED_UNDER_CUSTOMER_ORG",
+        "DUPLICATE_PERSONAL_SPACE"
+      ],
+      "evidence": "PHASE 12 CORRECTIVE PASS §5.2 (2026-08-06) — ARCH-002. Makes teams.workspace_kind NOT NULL, adds the CHECK that workspace_kind = PERSONAL and is_personal = TRUE are equivalent, and enforces one Personal Space per identity by partial unique index. Every readiness condition is checked in this same file, before the constraint it authorises, and each RAISEs — observed to refuse on a Personal Space under a CUSTOMER Organization and on a duplicate Personal Space, with the database left intact both times. It also drops the partial index the expand created, which has by then done its job.",
+      "removalCondition": "None — this IS the contract. Apply in the final wave, after the code that no longer derives a kind from a plan has deployed.",
+      "rollbackDisposition": "ROLL_FORWARD — ALTER COLUMN DROP NOT NULL would restore nullability by hand if an older build must be restored.",
+      "ownerAction": "Apply in Release D only, after the API deploy."
+    },
+    "20271126000000_org_membership_lifecycle_expand": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — ARCH-004. Ordinary revocation of an Organization membership was a physical DELETE: the provenance grants were closed first so the GRANT trail survived, but the membership row did not, and there was no SUSPENDED state at all — so an administrator wanting to pause governance access had only the irreversible option. This adds the OrganizationMembershipStatus enum (ACTIVE/SUSPENDED/REVOKED, matching TeamMemberStatus so one product does not spell the same three facts two ways) and eleven nullable/defaulted lifecycle columns, the attribution foreign keys (ON DELETE SET NULL — removing an administrator must never erase the record of what they did) and the two status read indexes. PENDING is deliberately absent: an unaccepted invitation is organization_invites' business. Every column is nullable or defaulted so an existing row is immediately valid; no constraint and no data change.",
+      "rollbackDisposition": "Additive only. The columns may be dropped by hand if an older build must be restored; no reader depends on them until the code deploys."
+    },
+    "20271127000000_org_membership_lifecycle_backfill": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B",
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — ARCH-004. Deliberately small, and the smallness is the honesty: EVERY SURVIVING ROW IS ACTIVE, which is a structural fact rather than a guess (a row exists today if and only if nobody removed it, because removal deleted it). HISTORICALLY DELETED MEMBERSHIPS CANNOT BE RECONSTRUCTED and this migration does not pretend otherwise — it invents no REVOKED rows, no suspension, and no actor it does not have. It states ACTIVE explicitly, stamps status_changed_at_utc from created_at so the timeline is not null, records provenance as LEGACY_BACKFILL rather than guessing MANUAL, and sets generation 0. Every statement is conditioned so a re-run changes zero rows.",
+      "rollbackDisposition": "ROLL_FORWARD — deterministic and re-runnable; it writes only what a surviving row already implies."
+    },
+    "20271128000000_org_membership_lifecycle_contract": {
+      "classification": "CONTRACT_DROP",
+      "releaseWave": "CONTRACT_DROP_LATER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B-REFUSE",
+      "blockingReadinessCategories": [
+        "MEMBERSHIP_WITHOUT_STATUS",
+        "STATUS_TIMESTAMP_CONTRADICTION",
+        "AMBIGUOUS_SUSPENDED_AND_REVOKED",
+        "DUPLICATE_ACTIVE_MEMBERSHIP"
+      ],
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — ARCH-004. Makes status NOT NULL, adds the CHECK that a status and its timestamps cannot disagree (ACTIVE clears both, SUSPENDED sets the suspension pair, REVOKED sets the revocation pair) and the non-negative generation check. Four readiness conditions are counted IN THIS SAME FILE, before the constraints they authorise, and each RAISEs — so a refusal aborts inside the transaction and leaves the database exactly as it was. Two of the eight readiness categories §2.1 C names are CODE properties (REVOKED/SUSPENDED granting access) and are enforced by phase-12-arch-004-org-membership-lifecycle.test.ts plus the 15-case runtime probe, because asserting them in SQL would be asserting the wrong thing in the wrong place.",
+      "removalCondition": "None — this IS the contract. Apply in the final wave, after the code that filters on ACTIVE has deployed.",
+      "rollbackDisposition": "ROLL_FORWARD — ALTER COLUMN DROP NOT NULL and DROP CONSTRAINT would restore the looser shape by hand if an older build must be restored.",
+      "ownerAction": "Apply in Release D only, after the API deploy."
+    },
+    "20271129000000_automation_runtime_durability_expand": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 CONTINUATION (2026-08-07) — ARCH-005. The Automation feature was configurable and inert: its dispatcher had zero production callers, and where execution existed it was an in-process `setImmediate` that a restart lost. `automation_runs` had NO FENCE — no claimed_at, no lease, no generation, no attempt counter, no dead-letter — so two workers could claim one row, a stalled worker could overwrite a newer attempt's terminal state, and an interrupted run stayed RUNNING forever. This adds ten nullable/defaulted columns (source_event_id, action_idempotency_key, claimed_at_utc, lease_expires_at_utc, claim_generation, attempt_count, next_attempt_at_utc, failed_at_utc, dead_lettered_at_utc, failure_code), the two partial read indexes the sweep's only two questions need (what is due, whose lease expired), and the same lease/generation pair on automation_webhook_deliveries. The status CHECK is WIDENED to admit RETRY_SCHEDULED and DEAD_LETTERED — widening can never invalidate an existing row, and the new code must be able to write both the moment it deploys. RUNNING is retained rather than renamed to PROCESSING: it is the value this table has always used and a rolling deploy must not have two vocabularies for one fact.",
+      "rollbackDisposition": "Additive only. The columns and indexes may be dropped by hand if an older build must be restored; no reader depends on them until the code deploys, and the widened CHECK accepts every value the narrower one did."
+    },
+    "20271130000000_automation_runtime_durability_backfill": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B",
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 CONTINUATION (2026-08-07) — ARCH-005. Deterministic and re-runnable; every statement is conditioned on the value it is about to write being absent. IT INVENTS NOTHING, and the omissions are the point. A historical run has NO source event id because no writer ever produced one, so it stays NULL — manufacturing one from the run's own columns would make an event look observed when it never was, and the contract migration's uniqueness would then be enforcing a fiction. A historical RUNNING run is NOT resolved: it was interrupted by a process that is long gone and nobody can say whether its action reached the outside world, so it is left RUNNING with an EXPIRED lease — exactly the shape the reconciler is built to handle — rather than being assigned a SUCCEEDED or FAILED that nobody observed. What it does state: the counters explicitly, failed_at_utc moved from completed_at for rows already terminal in FAILED, and action_idempotency_key DERIVED from the run's own id (`automation-run:<id>`), which is the same shape the producer writes so the retry path cannot tell an old row from a new one. No row is deleted and no attempt counter is renumbered.",
+      "rollbackDisposition": "ROLL_FORWARD — deterministic and re-runnable; it writes only what an existing row already implies."
+    },
+    "20271131000000_automation_runtime_durability_contract": {
+      "classification": "CONTRACT_DROP",
+      "releaseWave": "CONTRACT_DROP_LATER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": false,
+      "readinessCommand": "node services/api/scripts/migration-rehearsal.mjs B-REFUSE",
+      "blockingReadinessCategories": [
+        "RUN_WITHOUT_ACTION_IDEMPOTENCY_KEY",
+        "NEGATIVE_OR_NULL_FENCE",
+        "DUPLICATE_SOURCE_EVENT_PER_RULE",
+        "TERMINAL_RUN_HOLDING_LIVE_LEASE",
+        "DEAD_LETTERED_AND_SUCCEEDED"
+      ],
+      "evidence": "PHASE 12 CORRECTIVE PASS §2 CONTINUATION (2026-08-07) — ARCH-005. Self-guarded: six readiness counts are taken IN THIS SAME FILE, before the constraints they authorise, and each RAISEs — so a refusal aborts inside the transaction and leaves the database exactly as it was. It then makes action_idempotency_key, claim_generation and attempt_count NOT NULL, adds the non-negative fence CHECK and the check that a run cannot be both dead-lettered and SUCCEEDED, and creates the PARTIAL unique index on (team_id, rule_id, source_event_id) that makes a replayed source event collapse to one run. The only DROP is the helper index the expand migration created for this file's own readiness scan; nothing holding data is dropped. The FENCE SEMANTICS themselves are CODE properties (a stale generation updating zero rows, an ambiguous outcome never becoming success) and are enforced by phase-12-arch-005-automation-runtime.integration.test.ts against real rows, because asserting them in SQL would be asserting the wrong thing in the wrong place.",
+      "removalCondition": "None — this IS the contract. Apply in the final wave, after the code that writes source_event_id and action_idempotency_key has deployed.",
+      "rollbackDisposition": "ROLL_FORWARD — ALTER COLUMN DROP NOT NULL, DROP CONSTRAINT and DROP INDEX would restore the looser shape by hand if an older build must be restored.",
+      "ownerAction": "Apply in Release D only, after the API deploy."
     }
   }
 }

@@ -7,6 +7,7 @@ import {
 } from "./billing-enforcement.service.js";
 import * as prismaPkg from "@prisma/client";
 import { ensureLegacyGuestCustodyIdentity } from "./evidence-legacy-custody.js";
+import { triggerEvidenceCreated } from "./automation/automation-triggers.js";
 import { appendCustodyEventTx } from "./custody-events.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 import {
@@ -259,7 +260,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
         "Forbidden team workspace"
       );
       err.statusCode = 403;
-      err.code = "TEAM_WORKSPACE_FORBIDDEN";
+      err.code = "SHARED_WORKSPACE_FORBIDDEN";
       throw err;
     }
   } else {
@@ -525,6 +526,29 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         status: EvidenceStatus.UPLOADING,
         storageBucket: bucket,
         storageKey: key,
+      },
+    });
+
+    /**
+     * ARCH-005 (2026-08-07) — EVIDENCE_CREATED, inside THIS transaction.
+     *
+     * `tx`, not `prisma`. That is the whole durability guarantee: if anything
+     * below this line rolls the transaction back, the automation run rolls
+     * back with the evidence, and if the process dies after the commit the run
+     * is already durably there. Calling the dispatcher after `$transaction`
+     * returned — the obvious repair, and the one that was never made — would
+     * have left a window where the evidence exists and the trigger does not.
+     *
+     * It cannot throw and it cannot abort this transaction: the producer
+     * inserts with ON CONFLICT DO NOTHING and returns a count on every path.
+     */
+    await triggerEvidenceCreated(tx, {
+      teamId: effectiveTeamId,
+      evidenceId: evidence.id,
+      context: {
+        status: String(EvidenceStatus.UPLOADING),
+        captureMethod: String(prismaPkg.CaptureMethod.UPLOADED_FILE),
+        contentType: normalizedMimeType,
       },
     });
 

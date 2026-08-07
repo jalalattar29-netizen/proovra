@@ -73,7 +73,7 @@ describe("Phase 12 Point 4 — a named workspace is decided, never substituted",
     });
     await expect(
       resolveActiveOperationalWorkspace(req("ws-team"), "user-1", client),
-    ).resolves.toEqual({ teamId: "ws-team", kind: "TEAM", source: "header" });
+    ).resolves.toEqual({ teamId: "ws-team", kind: "SHARED", source: "header" });
   });
 
   it("DENIES when the named workspace has no ACTIVE membership — no Personal substitute", async () => {
@@ -107,7 +107,7 @@ describe("Phase 12 Point 4 — a named workspace is decided, never substituted",
       resolveActiveOperationalWorkspace(req(), "user-1", client),
     ).resolves.toEqual({
       teamId: "ws-personal",
-      kind: "PERSONAL",
+      kind: "SINGLE_OCCUPANT",
       source: "personal-default",
     });
   });

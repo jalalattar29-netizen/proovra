@@ -239,6 +239,9 @@ async function resolveOrCreateWorkspace(): Promise<{
         ownerUserId: user.id,
         isPersonal: false,
         organizationId: org.id,
+        // ARCH-002 — every writer states the kind explicitly. A dev-populate
+        // workspace is an OWNED one; it is not provisioned by an Organization.
+        workspaceKind: "OWNED",
       },
       select: { id: true },
     });

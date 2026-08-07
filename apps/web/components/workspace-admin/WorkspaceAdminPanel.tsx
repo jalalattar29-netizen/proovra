@@ -135,7 +135,7 @@ export function WorkspaceAdminPanel() {
           <h1 className="cc-title">{env.workspace.name}</h1>
           <p className="cc-subtitle">
             <span data-workspace-scope={env.workspace.scope}>
-              {env.workspace.scope === "PERSONAL"
+              {env.workspace.scope === "SINGLE_OCCUPANT"
                 ? "Personal workspace"
                 : `Workspace · ${env.workspace.memberCount} members · ${env.workspace.adminCount} admins`}
             </span>

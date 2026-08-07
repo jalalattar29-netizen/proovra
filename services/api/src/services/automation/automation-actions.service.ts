@@ -77,7 +77,10 @@ import {
 import {
   validateDestinationUrlWithDns,
 } from "./automation-webhook.service.js";
-import { enqueueDelivery } from "./automation-delivery-runtime.service.js";
+// ARCH-005 (2026-08-07) — this file no longer imports anything that DELIVERS.
+// It records a durable, due delivery row; `automation-delivery-runtime.service`
+// is reached only by the sweep. Keeping the import out is what stops an
+// in-process hand-off reappearing here.
 
 // ---------------------------------------------------------------------------
 // Public input shape
@@ -93,6 +96,15 @@ export type ActionExecutionInput = {
   targetType: string;
   targetId: string;
   context: Readonly<Record<string, unknown>>;
+  /**
+   * ARCH-005 (2026-08-07) — the DURABLE ACTION INTENT.
+   *
+   * A retry of the same run carries the SAME key, so a handler with an
+   * external side effect can prove the second attempt is the same intent
+   * rather than a second one. Optional only so the eight handlers that have no
+   * external boundary need not thread it; the webhook handler requires it.
+   */
+  actionIdempotencyKey?: string;
 };
 
 export type ActionExecutionResult = {
@@ -196,9 +208,13 @@ async function actionNotifyUser(
   if (!userId || !template) {
     return { executed: false, skipped: true, reason: "missing_config" };
   }
-  // Team scope defence-in-depth: target user must be a member.
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId: input.teamId, userId } },
+  // Team scope defence-in-depth: the target user must be an ACTIVE member.
+  // PHASE 12 REMEDIATION (2026-08-06) — this was status-blind, so an
+  // automation could notify a suspended or revoked user about workspace
+  // activity they no longer have access to.
+  const membership = await prisma.teamMember.findFirst({
+    where: { teamId: input.teamId, userId, status: "ACTIVE" },
+    select: { id: true },
   });
   if (!membership) {
     return { executed: false, skipped: true, reason: "user_not_in_team" };
@@ -232,8 +248,10 @@ async function actionNotifyRole(
   // IDs in the audit summary — only the count + role. The role is
   // cast to the Prisma enum at the boundary — the E3 Zod schema
   // already constrains it to OWNER / ADMIN / REVIEWER / MEMBER.
+  // PHASE 12 REMEDIATION (2026-08-06) — "all current members holding this
+  // role" excludes members whose access has been withdrawn.
   const count = await prisma.teamMember.count({
-    where: { teamId: input.teamId, role: role as never },
+    where: { teamId: input.teamId, status: "ACTIVE", role: role as never },
   });
   return {
     executed: true,
@@ -326,8 +344,11 @@ async function actionAssignReviewer(
   if (!userId) {
     return { executed: false, skipped: true, reason: "missing_assignee" };
   }
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId: input.teamId, userId } },
+  // PHASE 12 REMEDIATION (2026-08-06) — a reviewer who cannot enter the
+  // workspace cannot be assigned its work.
+  const membership = await prisma.teamMember.findFirst({
+    where: { teamId: input.teamId, userId, status: "ACTIVE" },
+    select: { id: true },
   });
   if (!membership) {
     return { executed: false, skipped: true, reason: "assignee_not_in_team" };
@@ -472,26 +493,48 @@ async function actionWebhookDelivery(
     };
   }
 
-  // Idempotency: upsert delivery row keyed on (team, run, destination).
+  // -------------------------------------------------------------------------
+  // ARCH-005 (2026-08-07) — THE INTENT IS THE ROW, AND THE ROW IS DUE.
+  //
+  // This block used to INSERT the delivery as DELIVERING, immediately UPDATE
+  // it back to PENDING so the runtime's claim would accept it, and then call
+  // `enqueueDelivery`, which was a `setImmediate`. Three defects in five
+  // lines: a row that briefly claimed to be in flight when nothing was; two
+  // writes where one belongs; and a hand-off that existed only in this
+  // process's event loop, so a restart between the INSERT and the tick left a
+  // PENDING delivery nobody was going to attempt.
+  //
+  // It is now ONE insert, PENDING and DUE. The delivery sweep is the only
+  // thing that attempts it, on this process or any other, now or after a
+  // restart. `nextAttemptAt` is set rather than left null so the sweep's
+  // due-ordering is total.
+  //
+  // The idempotency key is the RUN'S durable action key when the processor
+  // supplied one. A retried run carries the same key AND the same runId, so
+  // the unique index on (team, run, destination) collapses the second attempt
+  // onto the first delivery — which is the point: a retry must not become a
+  // second webhook.
+  // -------------------------------------------------------------------------
   const deliveryId = randomUUID();
-  let delivery;
   try {
-    delivery = await prisma.automationWebhookDelivery.create({
+    await prisma.automationWebhookDelivery.create({
       data: {
         id: deliveryId,
         teamId: input.teamId,
         runId: input.runId,
         destinationId,
-        idempotencyKey: `${input.runId}.${destinationId}`,
-        status: "DELIVERING",
-        attemptCount: 1,
-        lastAttemptAt: new Date(),
+        idempotencyKey: (
+          input.actionIdempotencyKey ?? `${input.runId}.${destinationId}`
+        ).slice(0, 120),
+        status: "PENDING",
+        attemptCount: 0,
+        nextAttemptAt: new Date(),
       },
     });
   } catch (err) {
-    // P2002 — duplicate delivery for this (run, destination). Treat as
-    // success-equivalent SKIP: the prior delivery row carries the
-    // canonical status.
+    // P2002 — this (run, destination) already has a delivery. That is the
+    // idempotency working, not a failure: the existing row carries the
+    // canonical status and its own retry ladder.
     const e = err as { code?: string };
     if (e?.code === "P2002") {
       return {
@@ -502,29 +545,6 @@ async function actionWebhookDelivery(
     }
     throw err;
   }
-
-  // Phase E3.3 — Async hand-off. The delivery row is left in PENDING
-  // and handed off to the async runtime, which processes it on the
-  // next event-loop tick (and applies bounded retry / lifecycle event
-  // emission). The action handler returns immediately so the
-  // dispatcher's caller is never blocked by outbound network I/O.
-  //
-  // The actual SSRF revalidation, secret decryption, payload signing,
-  // and outbound HTTP all happen inside the runtime — keeping the
-  // sync code path here narrow.
-  //
-  // Pre-flight: change the freshly-inserted DELIVERING row back to
-  // PENDING so the runtime's "claim" logic (only PENDING |
-  // RETRY_SCHEDULED) picks it up.
-  try {
-    await prisma.automationWebhookDelivery.update({
-      where: { id: delivery.id },
-      data: { status: "PENDING", attemptCount: 0 },
-    });
-  } catch {
-    /* best-effort */
-  }
-  enqueueDelivery({ deliveryId: delivery.id, prisma });
   return {
     executed: true,
     summary: {

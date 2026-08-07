@@ -1,0 +1,319 @@
+{
+ "sourceRevision": "a7863bec33f10549d84a839ee7ab353509626a2a",
+ "pass": "FOCUSED_REACHABILITY_CLOSURE",
+ "supersedes": "the PARTIAL_BASELINE findings.json of the prior pass — corrections are recorded in CORRECTIONS below",
+ "testsUsedAsEvidence": false,
+ "counts": { "CRITICAL": 1, "HIGH": 5, "MEDIUM": 8, "LOW": 6, "UNKNOWN_BLOCKED": 4 },
+
+ "CORRECTIONS_TO_PRIOR_PASS": [
+  {
+   "priorFinding": "DB-001 — 'No unguarded destructive DDL in executable migration SQL' / 'all eleven migrations that initially looked destructive carry those tokens only inside rollback comments'",
+   "status": "WITHDRAWN — FALSE",
+   "why": "The prior scan stripped only lines beginning with `--` and then classified `DROP TABLE IF EXISTS` as 'guarded', so an entire class of deliberate CONTRACT_DROP migrations was never surfaced. Executable destructive DDL demonstrably exists: 20270924000000_drop_workspace_persona_profiles (DROP TABLE ... CASCADE), 20271105000000_evidence_case_id_removal (ALTER TABLE evidence DROP COLUMN case_id via EXECUTE), 20271108000000_legal_hold_legacy_removal, 20271117000000_point4_schema_authority_contract (dynamic DROP COLUMN and DROP TABLE via format()), 20261009000000_drop_reviewer_queue_projection, 20270908000000_drop_evidence_anchor_publication_columns. Dynamic SQL inside DO $$ … EXECUTE format(...) is invisible to a token scan of the outer text.",
+   "replacedBy": "DB-010 (correct classification of the contract-migration class)"
+  },
+  {
+   "priorFinding": "AUTH-004 — 'canonical primitive adopted by only 101/1081 routes'",
+   "status": "CORRECTED — materially understated adoption",
+   "why": "101 was the count of routes calling authorizeOrFail/requireAuthorize INLINE. Mapping each route to the gate helper it actually calls, and reading every helper body, shows 520 routes reach the canonical primitive (419 via an audited per-file helper + 101 inline) plus 6 via the policy engine directly and 89 via an explicitly status-aware helper. The real residual is 17 routes behind a status-blind helper plus 28 inline membership checks.",
+   "replacedBy": "AUTH-004 (restated with measured numbers)"
+  },
+  {
+   "priorFinding": "K. Legacy verdict — 'OrphanServices 0', 'DeadRouteModules 0' presented as overall dead-code closure",
+   "status": "CORRECTED — file classification was mistaken for reachability",
+   "why": "The prior pass classified 2,187 files into subsystems but never computed reachability from runtime entrypoints, so it could not and did not detect orphaned services. Import-graph closure finds 14 confirmed DEAD_UNREACHABLE production modules, including the entire automation execution engine.",
+   "replacedBy": "LEGACY-003, LEGACY-004, ARCH-005"
+  }
+ ],
+
+ "findings": [
+  {
+   "id": "SEC-001",
+   "severity": "CRITICAL",
+   "classification": "PROVEN_MISMATCH / CROSS_TENANT_PATH",
+   "title": "Four external-review routes authorize off a stale navigation pointer with no membership requirement — cross-tenant read plus an outbound email side effect",
+   "reachableEntrypoint": "GET /v1/external-review/invitations · GET /v1/external-review/invitations/:id/activity · GET /v1/external-review/invitations/:id/delivery · POST /v1/external-review/invitations/:id/send-email",
+   "exactSymbol": "services/api/src/routes/external-portal.routes.ts:187 resolveInternalTeam; route bodies at :341, :430, :637, :1033",
+   "authorityChain": "requireAuth → resolveInternalTeam(req,reply) → prisma.user.findUnique(select currentWorkspaceId, platformRole) → prisma.team.findUnique(select id, isPersonal) → denies only when the pointer is null OR the team is missing OR team.isPersonal → prisma.teamMember.findFirst(select role) → returns { teamId, userId, workspaceRole: membership?.role ?? null } → handler proceeds directly to tenant-scoped queries on ctx.teamId. No requireCap, no status check, no authorizeOrFail.",
+   "approvedInvariant": "1.7 / 10 — stored IDs and client state are hints only; context restoration must revalidate database authority; membership status must gate access.",
+   "actualBehavior": "resolveInternalTeam returns SUCCESS for a caller with NO TeamMember row at all (workspaceRole becomes null) and for a caller whose row is SUSPENDED or REVOKED (the stored role is returned verbatim). The other eight resolveInternalTeam call sites follow it with requireCap(...), which fails closed for a null role because reviewer-roles.ts:resolveReviewerRole returns {role:null,capabilities:[]}. These four do not call requireCap at all, so nothing downstream re-checks membership.",
+   "reachabilityOfTheStalePointer": "User.currentWorkspaceId is written by platform-context.routes.ts:422 (ACTIVE-membership gated) and cleared by org closure/lifecycle, workspace closure/lifecycle and SCIM deprovision (scim.service.ts:1098). It is NOT cleared by workspace membership revocation or suspension — membership-provisioning.service.ts and rbac.service.ts never touch it. A revoked member therefore retains a valid pointer at the workspace indefinitely unless they load the web app, whose envelope build self-heals it.",
+   "impact": "A user who has been suspended or fully removed from workspace W, and whose last selected context was W, can still enumerate W's external-reviewer invitations and their delivery and activity records, and can invoke POST .../send-email to transmit an invitation email carrying a caller-supplied rawToken on W's behalf. This is a cross-tenant data read plus an irreversible outbound side effect performed by a non-member.",
+   "affectedSurfaces": ["API"],
+   "corroboration": "This exact hazard is a NAMED, PREVIOUSLY-REMEDIATED bug class in this codebase: capture-trust.routes.ts:531 carries the P0 2026-07-21 remediation comment ('currentWorkspaceId is a navigation pointer, NOT authorization … re-check ACTIVE membership at request time so a deprovisioned user cannot keep operating off a stale pointer') and does re-check. governance.routes.ts:130, admin-identity.routes.ts:285 and identity.routes.ts:213 read the same rail and immediately hand it to authorizeOrFail. external-portal.routes.ts is the single un-remediated consumer.",
+   "confidence": "HIGH — every link in the chain was read in source; no inference from naming."
+  },
+  {
+   "id": "ARCH-005",
+   "severity": "HIGH",
+   "classification": "DEAD_OR_DISCONNECTED",
+   "title": "The entire automation execution engine is unreachable — rules and webhook destinations can be configured but can never fire",
+   "reachableEntrypoint": "POST /v1/automation/rules · PATCH /v1/automation/rules/:id · POST /v1/automation/webhooks · POST /v1/automation/webhooks/:id/rotate-secret (14 routes across automation.routes.ts + automation-webhooks.routes.ts) · web page apps/web/app/(app)/operations/automation/page.tsx",
+   "exactSymbol": "services/api/src/services/automation/automation-dispatcher.service.ts · automation-actions.service.ts · automation-delivery-runtime.service.ts",
+   "authorityChain": "automation.routes.ts imports ONLY ../services/automation/automation.service.js, which exports validateActionConfig, validateCondition, computeIdempotencyKey and sanitiseReason — no dispatch entry point. automation-actions.service.ts ↔ automation-dispatcher.service.ts import each other and automation-actions imports automation-delivery-runtime; nothing outside that three-file cluster imports any of them. Import-graph BFS from services/api/src/index.ts, services/worker/src/index.ts, the web app and the mobile app reaches none of the three. The only remaining textual reference is services/api/src/services/identity/authorization-allowlist.ts:164, itself DEAD_UNREACHABLE.",
+   "approvedInvariant": "13/17 — every reachable interactive control must be CONNECTED_CORRECTLY; a shipped capability must have a live execution path.",
+   "actualBehavior": "prisma.automationRun.create appears ONLY at automation-dispatcher.service.ts:276 and :321. prisma.automationWebhookDelivery.create appears ONLY at automation-actions.service.ts:479. Both files are unreachable, so no AutomationRun row and no AutomationWebhookDelivery row can ever be produced in production. Rules are persisted, listed and presented as enabled; no rule can execute and no automation webhook can be delivered.",
+   "impact": "A user-configurable, UI-exposed enterprise capability is inert. Operators can create rules, enable them, register webhook destinations and rotate their secrets, and receive no signal that nothing will ever run.",
+   "affectedSurfaces": ["API", "WEB", "DATABASE"],
+   "confidence": "HIGH — established by import-graph closure and confirmed by exact-path grep returning zero importers."
+  },
+  {
+   "id": "AUTH-001",
+   "severity": "HIGH",
+   "classification": "PROVEN_MISMATCH / STATUS_BLIND_GATE",
+   "title": "Intelligence-platform routes treat membership existence as membership validity",
+   "reachableEntrypoint": "GET /v1/intelligence/jobs · GET /v1/intelligence/evidence/:id · POST /v1/intelligence/evidence/:id/enqueue · POST /v1/intelligence/evidence/:id/reconcile-similarity · GET /v1/investigation/cross-evidence",
+   "exactSymbol": "services/api/src/routes/intelligence.routes.ts:80 requireReviewerMember (4 routes) and :101 requireMember (1 route)",
+   "authorityChain": "app.<method> → requireMember/requireReviewerMember → prisma.teamMember.findUnique({where:{teamId_userId}}) → 404 only when the row is absent → returns membership.role → handler proceeds. Neither helper reads TeamMember.status; neither calls authorizeOrFail or evaluateMemberAccess. The module imports evaluateMemberAccess at line 74 but uses it at exactly one unrelated site (line 172).",
+   "approvedInvariant": "1.7 / 5.4 — inactive membership grants zero access; Organization lifecycle must be checked.",
+   "actualBehavior": "A SUSPENDED or REVOKED member retains full intelligence-platform access, including enqueueing intelligence jobs. The parent-Organization lifecycle gate is also skipped, so an ORGANIZATION workspace under a SUSPENDED or ARCHIVED CUSTOMER organization stays reachable through these routes.",
+   "impact": "Deprovisioned operators keep reading and acting on workspace intelligence; org suspension does not fail closed on this surface.",
+   "affectedSurfaces": ["API"],
+   "corroboration": "services/api/src/routes/collaboration.routes.ts:71-96 is the same helper shape written correctly, with a comment explaining that a suspended user 'could call /v1/collaboration/* directly and bypass the workspace's access-lifecycle controls'.",
+   "confidence": "HIGH — re-read and reconfirmed in this pass."
+  },
+  {
+   "id": "AUTH-002",
+   "severity": "HIGH",
+   "classification": "PROVEN_MISMATCH / STATUS_BLIND_ENUMERATION",
+   "title": "GET /v1/me/inbox derives the caller's workspace set from status-blind membership; the membership-loss redaction never fires",
+   "reachableEntrypoint": "GET /v1/me/inbox",
+   "exactSymbol": "services/api/src/routes/me-inbox.routes.ts:875, :943, :2559, :2620",
+   "authorityChain": "GET /v1/me/inbox → requireAuthAndLegal → prisma.teamMember.findMany({where:{userId}}) [:875, no status predicate] → teamIdSet → every inbox source is scoped to teamIds; adjudicator privilege derived at :943 from role with no status predicate; the ?workspaceId narrowing validated at :2559 with select:{teamId} and no status; the history view rebuilds 'currentTeamIds' at :2620 with no status.",
+   "approvedInvariant": "1.7 — available contexts are derived from ACTIVE memberships and lifecycle state.",
+   "actualBehavior": "Governance notifications, workflow and reviewer items and operational inbox content for a workspace remain visible to a SUSPENDED or REVOKED member, and such a member is still treated as an adjudicator. The :2620 redaction exists specifically to withhold content from workspaces the caller 'can no longer access', but a REVOKED row satisfies its membership test, so it is inert.",
+   "impact": "Cross-lifecycle information disclosure on the primary operator landing surface.",
+   "affectedSurfaces": ["API", "WEB"],
+   "confidence": "HIGH — re-read and reconfirmed in this pass."
+  },
+  {
+   "id": "AUTH-003",
+   "severity": "HIGH",
+   "classification": "PROVEN_MISMATCH / STATUS_BLIND_GATE",
+   "title": "Case mutation permission service resolves the caller's role without consulting membership status",
+   "reachableEntrypoint": "reached from /v1/cases/* handlers and any future caller of the shared service",
+   "exactSymbol": "services/api/src/services/cases/case-permission.service.ts:309-320",
+   "authorityChain": "… → prisma.teamMember.findUnique({where:{teamId_userId}}) → 'not a member' only when the row is absent → accessRole = member.role → evaluateCaseMutationPermission({mutation, accessRole})",
+   "approvedInvariant": "6 — one canonical decision authority; no status-blind membership check.",
+   "actualBehavior": "The full row is loaded but member.status is never read, so a SUSPENDED/REVOKED row yields its stored role.",
+   "mitigation": "The reachable HTTP surface is currently defended: routes/cases.routes.ts independently checks member?.status === 'ACTIVE' at :192, :542, :664, :752, :1154, :1342 and :1582 before calling in.",
+   "impact": "A shared permission authority with no internal status gate; any caller that does not duplicate the route-level check grants case-mutation rights to an inactive member.",
+   "affectedSurfaces": ["API"],
+   "corroboration": "services/api/src/services/governance/destructive-action-gate.service.ts:99-108 performs the identical lookup and explicitly downgrades to role-less via teamMemberStatusGrantsAccess.",
+   "confidence": "HIGH — re-read and reconfirmed in this pass."
+  },
+  {
+   "id": "AUTH-004",
+   "severity": "HIGH",
+   "classification": "DUPLICATE_AUTHORITY",
+   "title": "Authorization policy is re-implemented per route file; the mechanism meant to prevent that is itself unreachable and stale",
+   "reachableEntrypoint": "all 1,081 registered routes",
+   "exactSymbol": "services/api/src/middleware/authorize.ts (canonical) vs ~30 per-file requireXActor helpers; governance ledger at services/api/src/services/identity/authorization-allowlist.ts",
+   "authorityChain": "Measured by mapping every route to the gate it actually calls and reading every helper body: CANONICAL_VIA_HELPER 419, CANONICAL_INLINE 101, POLICY_ENGINE_INLINE 6 (=526 reaching the canonical primitive), STATUS_AWARE_HELPER 89, INLINE_MEMBERSHIP_CHECK 28, STATUS_BLIND_HELPER 17, PLATFORM_ADMIN 38, CRON_SECRET 12, TOKEN_SCOPED 10, API_CREDENTIAL/INTERNAL 1, AUTHENTICATED_ONLY 283, PUBLIC_OR_FILE_LEVEL 77.",
+   "approvedInvariant": "6 — a secondary helper is acceptable only if it delegates to the canonical implementation without reimplementing policy.",
+   "actualBehavior": "Correctness is per-file. authorization-allowlist.ts declares itself the machine-checkable registry whose PENDING list must be empty for Phase 1 to be done, and its PENDING array IS empty — yet intelligence.routes.ts, me-inbox.routes.ts and external-portal.routes.ts all carry status-blind gates and appear nowhere in it. The file additionally has ZERO production importers, so whatever enforces it is outside the production graph.",
+   "impact": "The control designed to stop a new status-blind gate from being introduced silently neither covers the existing ones nor executes in production. SEC-001, AUTH-001 and AUTH-002 are the direct consequence.",
+   "affectedSurfaces": ["API"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "AUTH-005",
+   "severity": "MEDIUM",
+   "classification": "RAW_INLINE_DECISION",
+   "title": "28 routes perform an inline membership check instead of calling any audited gate",
+   "reachableEntrypoint": "see backend-route-matrix.json, gateClass = INLINE_MEMBERSHIP_CHECK",
+   "exactSymbol": "distributed across cases.routes.ts, teams.routes.ts, evidence.routes.ts, siu.routes.ts, reviewer-ops.routes.ts, review-operations.routes.ts, ops.routes.ts",
+   "approvedInvariant": "6 — one canonical decision authority per decision.",
+   "actualBehavior": "Each performs its own teamMember lookup and its own status/role comparison. Most do check status (the cases.routes.ts family and siu.routes.ts explicitly compare against 'ACTIVE'); the reviewer-ops.routes.ts sites at :647, :885, :2338 and :2438 select only { role } and never compare status.",
+   "impact": "Adjudicator determination and reviewer-ops queue surfaces can be reached by an inactive member holding OWNER/ADMIN.",
+   "affectedSurfaces": ["API"],
+   "confidence": "HIGH for the enumeration; MEDIUM for per-route exploitability (several sit behind an outer requireAuth-plus-context gate that was audited separately)."
+  },
+  {
+   "id": "COMM-001",
+   "severity": "MEDIUM",
+   "classification": "PROVEN_MISMATCH",
+   "title": "Seat and member counts include SUSPENDED and REVOKED members",
+   "reachableEntrypoint": "POST /v1/billing/subscription/cancel; worker workspace-billing reconciliation",
+   "exactSymbol": "services/api/src/services/billing.service.ts:328 · services/worker/src/workspace-billing.ts:268",
+   "authorityChain": "prisma.teamMember.count({ where: { teamId } }) with no status predicate → in cancelTeamPlan the result sets Team.overSeatLimit = memberCount > 0",
+   "approvedInvariant": "9 — seat/member limits are server-authoritative and must reflect real occupancy.",
+   "actualBehavior": "Revoked members occupy seats in the arithmetic. Contrast services/api/src/services/identity/rbac.service.ts:122, which counts with status: ACTIVE.",
+   "impact": "A workspace whose members were all revoked is still marked over-seat-limit on cancellation; worker-side seat reconciliation overstates occupancy.",
+   "affectedSurfaces": ["API", "WORKER"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "ARCH-001",
+   "severity": "MEDIUM",
+   "classification": "DUPLICATE_AUTHORITY",
+   "title": "Two workspace vocabularies coexist: tri-state WorkspaceKind and binary workspaceType (PERSONAL|TEAM)",
+   "exactSymbol": "packages/shared/src/workspace-kind.ts:NormalizedWorkspaceKind vs packages/shared-billing/src/plan-catalog.ts:1 WorkspaceScopeType; 82 reachable consumption sites",
+   "approvedInvariant": "1.2 / 5.5 — the only semantic categories are PERSONAL, OWNED, ORGANIZATION_PROVISIONED.",
+   "actualBehavior": "The binary collapses OWNED and ORGANIZATION into one bucket literally named TEAM, e.g. services/api/src/services/billing-enforcement.service.ts:117 branches on scope.workspaceType === 'TEAM'. It is a derived projection with no independent writer, so it is NOT a Team-Workspace authority — but it is a second vocabulary for the same fact and it reuses a plan name for a container concept.",
+   "impact": "Terminology collision that invites exactly the forbidden inference; no live behavioural defect.",
+   "affectedSurfaces": ["API", "WORKER", "SHARED"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "ARCH-002",
+   "severity": "MEDIUM",
+   "classification": "PARTIAL_IMPLEMENTATION / WORKSPACE_KIND_INFERENCE",
+   "title": "Workspace kind is not enforced by the database and the NULL fallback infers kind from the plan",
+   "exactSymbol": "services/api/prisma/schema.prisma Team.workspaceKind (nullable, no CHECK) · packages/shared/src/workspace-kind.ts:53-56 · migration 20270920000000_workspace_kind_discriminator",
+   "approvedInvariant": "5.3 — no plan-to-kind inference; the kind must be explicit.",
+   "actualBehavior": "The discriminator migration adds the column nullable, backfills every existing row deterministically, adds DO-block integrity guards that fail the migration rather than ship bad data, and never issues SET NOT NULL. normalizeWorkspaceKind's NULL branch returns ORGANIZATION when billingPlan === 'ENTERPRISE', otherwise OWNED. Team.isPersonal survives as a second discriminator on the same row.",
+   "impact": "Bounded today — all four creation writers set the kind explicitly, so no new NULL row is producible. Residual risk is a direct SQL insert or a restored older row.",
+   "affectedSurfaces": ["DATABASE", "API", "WORKER"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "ARCH-003",
+   "severity": "MEDIUM",
+   "classification": "LEGACY_ACTIVE",
+   "title": "Platform-context envelope field named `organizations` carries Workspace (Team) ids",
+   "exactSymbol": "services/api/src/services/platform-context/platform-context.service.ts:715 organizations.push({ id: m.team.id, … }); type comment at services/api/src/services/platform-context/types.ts:801 claims 'Real organizations only'",
+   "approvedInvariant": "5.4 — Organization and Workspace IDs must never be substituted.",
+   "actualBehavior": "The array is built from TeamMember rows and its id is m.team.id. The canonical grouped surface is contextOptions (Personal / OWNED / grouped by parent org). Consumption is narrow: apps/web/lib/platform-context/useTenantModel.ts:57 and personalSpaceGate.ts:71, the latter reading contextOptions.organizations rather than the legacy field.",
+   "impact": "No consumer currently passes the value to an /v1/orgs/:id endpoint, so there is no live cross-ID defect; the name and the type comment actively mislead a future consumer.",
+   "affectedSurfaces": ["API", "WEB"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "DB-010",
+   "severity": "MEDIUM",
+   "classification": "PROVEN_MATCH (corrected classification, replacing the withdrawn DB-001)",
+   "title": "Contract/destructive migrations exist and are correctly guarded; the release-artifact split is the residual risk",
+   "exactSymbol": "20270923500000_persona_profiles_removal_precondition + 20270924000000_drop_workspace_persona_profiles · 20271105000000_evidence_case_id_removal · 20271108000000_legal_hold_legacy_removal · 20271117000000_point4_schema_authority_contract",
+   "actualBehavior": "Each was read in full. (a) The persona DROP TABLE … CASCADE is preceded — lexically and therefore in apply order — by a dedicated precondition migration that RAISEs if any foreign key or view depends on the table, so CASCADE cannot silently destroy an unexpected dependant. (b) evidence.case_id removal RAISEs unless case_evidence_links exists, both of its foreign keys are present AND convalidated, every non-null legacy pointer has a canonical link, no link crosses a workspace boundary and the legacy pointer's workspace agrees with the link's. (c) Legal-hold legacy removal RAISEs unless evidence_legal_holds exists with all seven canonical columns and the (source_store, source_row_id) idempotency key, and unless every legacy row has been converted. (d) The Point-4 contract drops five duplicate columns only when no row holds a NOT NULL duplicate that disagrees with its canonical twin, and drops three superseded singular tables only when empty. No guard was found positioned after the destructive statement it protects.",
+   "residualRisk": "20271117000000_point4_schema_authority_contract carries an explicit banner that it MUST NOT be present in the Release A/B/C artifact, and the persona guard is a SEPARATE migration from the drop it protects. Both properties are enforced by artifact assembly, not by the migration chain itself — an artifact that ships the drop without its precondition silently loses the guard.",
+   "approvedInvariant": "15 — contract migrations must not run before code cutover; guards must precede the destructive statement.",
+   "affectedSurfaces": ["DATABASE", "DEPLOYMENT"],
+   "confidence": "HIGH for the guard correctness; the artifact-assembly property is UNKNOWN_BLOCKED (UNK-001)."
+  },
+  {
+   "id": "DB-011",
+   "severity": "MEDIUM",
+   "classification": "PROVEN_MATCH",
+   "title": "No reachable writer targets any object removed by the contract migrations",
+   "exactSymbol": "Evidence model in services/api/prisma/schema.prisma has no caseId field; no model maps to case_legal_holds or legal_holds or workspace_persona_profiles",
+   "actualBehavior": "case_evidence_links has exactly ONE reachable writer (services/api/src/services/cases/case-evidence-link.service.ts, 3 sites). evidence_legal_holds has exactly ONE (services/api/src/services/governance/legal-hold.service.ts, 2 sites). services/api/src/services/cases/matter-queue.service.ts:127 reads case_id from case_evidence_links by raw SQL and documents that the legacy column was dropped. Persona residue survives only as comments in 4 files.",
+   "affectedSurfaces": ["API", "DATABASE"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "MOBILE-001",
+   "severity": "MEDIUM",
+   "classification": "DISCONNECTED",
+   "title": "Mobile Teams tab lists workspaces but exposes no action and no navigation",
+   "reachableEntrypoint": "apps/mobile/app/(tabs)/teams.tsx",
+   "exactSymbol": "apps/mobile/app/(tabs)/teams.tsx:9-45",
+   "actualBehavior": "Fetches GET /v1/teams and renders each row as Card > ListRow with a hard-coded 'Members' subtitle and an empty <View /> badge. No onPress, no route push, no create or join affordance; the empty state invites 'Create a team' with no way to do so. Of 43 onPress handlers across the reachable mobile graph this screen contributes none.",
+   "impact": "A dead product surface advertising a capability the app does not implement. Mobile has no workspace switcher by design (apps/mobile/src/personal-space.ts).",
+   "affectedSurfaces": ["MOBILE"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "INFRA-001",
+   "severity": "MEDIUM",
+   "classification": "PROVEN_MISMATCH",
+   "title": "Production compose defaults both service images to the floating :latest tag",
+   "exactSymbol": "infra/docker/docker-compose.prod.yml:16 and :93 — ghcr.io/${GHCR_OWNER}/proovra-{api,worker}:${IMAGE_TAG:-latest}",
+   "actualBehavior": "API and worker share one IMAGE_TAG variable so they cannot skew relative to each other, but an unset IMAGE_TAG resolves both to whatever :latest currently points at.",
+   "impact": "The deployed revision is not pinned by the compose file; source-to-image correspondence is undeterminable from the repository (UNK-002).",
+   "affectedSurfaces": ["DEPLOYMENT"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "LEGACY-003",
+   "severity": "LOW",
+   "classification": "DEAD_UNREACHABLE",
+   "title": "Eleven further production modules are unreachable from every runtime entrypoint",
+   "exactSymbol": "services/api/src/middleware/require-enterprise-feature.ts · services/api/src/services/identity/authorization-allowlist.ts · services/api/src/services/organization/tenancy-resolver.service.ts · services/api/src/services/access/tenant-access.helpers.ts · services/api/src/services/ops-health/projection-health.service.ts · services/api/src/services/intelligence/search.service.ts · services/api/src/services/search/{transcript,ocr}-foundations.service.ts · services/api/src/services/redaction/{redaction,policy}-verification-manifest.service.ts · services/api/src/services/redaction/video/video-verification-manifest.service.ts",
+   "actualBehavior": "Each was verified by exact import-path grep returning zero non-test importers. require-enterprise-feature.ts is a dead DUPLICATE of the live gate — enterprise features are actually enforced by services/api/src/services/billing-enforcement.service.ts:600,648 via planHasEnterpriseFeature — so this is dead code, not a missing gate.",
+   "impact": "Maintenance surface and misleading grep results; no runtime effect.",
+   "affectedSurfaces": ["API"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "LEGACY-001",
+   "severity": "LOW",
+   "classification": "LEGACY_ACTIVE",
+   "title": "TEAM_WORKSPACE_* error codes and allowsTeamWorkspace retain Team-Workspace terminology",
+   "exactSymbol": "packages/shared-billing/src/plan-catalog.ts:111 allowsTeamWorkspace · routes/teams.routes.ts:322,422 TEAM_WORKSPACE_LIMIT_REACHED · routes/billing.routes.ts:306 TEAM_WORKSPACE_PLAN_REQUIRED · services/evidence.service.ts:262 TEAM_WORKSPACE_FORBIDDEN",
+   "actualBehavior": "All writers and readers traced. allowsTeamWorkspace is FREE=false, PAYG=false, PRO=true, TEAM=true, ENTERPRISE=true and is consumed at exactly three enforcement sites as an ENTITLEMENT ('may this plan operate a collaborative workspace'). It never classifies a workspace. No TEAM_WORKSPACE enum value, WorkspaceKind member or separate Team container exists in schema or code.",
+   "impact": "Naming only. TeamWorkspaceAuthorities = 0.",
+   "affectedSurfaces": ["API", "SHARED"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "COMM-002",
+   "severity": "LOW",
+   "classification": "CLIENT_COMMERCIAL_AUTHORITY",
+   "title": "Public pricing page hard-codes owned-workspace limits as client-side fallbacks",
+   "exactSymbol": "apps/web/app/pricing/page.tsx:624-625 — catalog?.pro?.maxOwnedTeams ?? 2, catalog?.team?.maxOwnedTeams ?? 5",
+   "actualBehavior": "Literal 2 and 5 stand in when the server catalog is unavailable; enforcement is unaffected and lives in routes/teams.routes.ts against packages/shared-billing.",
+   "impact": "Marketing display can advertise a limit the server does not honour.",
+   "affectedSurfaces": ["WEB"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "WEB-002",
+   "severity": "LOW",
+   "classification": "DUPLICATE_AUTHORITY",
+   "title": "Search recent-queries bypasses the canonical tenant-storage helper",
+   "exactSymbol": "apps/web/app/(app)/search/page.tsx:708 `proovra:search:recent:${teamId}` vs apps/web/lib/platform-context/tenantStorage.ts:tenantStorageKey",
+   "actualBehavior": "The key IS workspace-scoped so there is no cross-tenant leak; it uses its own prefix instead of the proovra:tenant:<workspaceId>:<key> namespace, so a tenant-scoped purge that iterates the canonical namespace will not clear it.",
+   "affectedSurfaces": ["WEB"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "WEB-001",
+   "severity": "LOW",
+   "classification": "PROVEN_MATCH",
+   "title": "CSP nonce vs static-render hazard is closed",
+   "exactSymbol": "apps/web/app/layout.tsx:41 export const dynamic = \"force-dynamic\" · apps/web/middleware.ts:153-196, :367",
+   "actualBehavior": "The middleware sets the CSP on the REQUEST headers, which is where Next reads the nonce for its own inline bootstrap scripts, as well as on the response; the root layout forces per-request rendering so no page can be emitted with nonce=$undefined. Matcher /((?!_next|favicon.ico).*) covers every page; the single generateStaticParams (settings/legal/[slug]) sits under the force-dynamic root layout.",
+   "affectedSurfaces": ["WEB"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "ARCH-004",
+   "severity": "LOW",
+   "classification": "PARTIAL_IMPLEMENTATION",
+   "title": "Organization membership has no lifecycle state; revocation is a physical delete",
+   "exactSymbol": "services/api/prisma/schema.prisma OrganizationMembership (no status column) · services/api/src/services/identity/membership-provisioning.service.ts:908, :989",
+   "actualBehavior": "Access control is correct because absence denies at org-access.ts:82. The gap is governance symmetry: org access cannot be suspended without destroying the membership record.",
+   "affectedSurfaces": ["DATABASE", "API"],
+   "confidence": "HIGH"
+  },
+  {
+   "id": "UNK-001",
+   "severity": "UNKNOWN_BLOCKED",
+   "title": "Whether the deployment artifact ships each contract migration together with its guard is unverifiable",
+   "reason": "20270924000000_drop_workspace_persona_profiles depends on the separate preceding migration 20270923500000_persona_profiles_removal_precondition, and 20271117000000_point4_schema_authority_contract carries a banner forbidding its presence in Release A/B/C. Both are artifact-assembly properties. services/api/scripts/release-deploy.mjs stages waves into services/api/.p8-release-wave/<wave>, which is untracked, so the assembled artifact cannot be inspected from the repository.",
+   "whatWouldResolveIt": "The migration directory listing of the built API image, or the wave manifest used by release-deploy.mjs."
+  },
+  {
+   "id": "UNK-002",
+   "severity": "UNKNOWN_BLOCKED",
+   "title": "Source-to-image correspondence cannot be proven",
+   "reason": "No images, revision labels or registry metadata are available locally, and infra/docker/docker-compose.prod.yml defaults to :latest.",
+   "whatWouldResolveIt": "docker inspect of the deployed proovra-api and proovra-worker images (org.opencontainers.image.revision), or the resolved IMAGE_TAG."
+  },
+  {
+   "id": "UNK-003",
+   "severity": "UNKNOWN_BLOCKED",
+   "title": "Applied-migration state, checksum drift and post-contract schema convergence cannot be compared",
+   "reason": "No read-only production metadata connection. _prisma_migrations contents, applied checksums, live constraint/index inventory and whether the live schema matches the post-contract shape the API and worker expect are all unverifiable from source. The runtime does defend itself: services/api/src/runtime/schema-validation.ts refuses to boot on CRITICAL drift and services/api/src/runtime/migration-drift.ts feeds readiness.",
+   "whatWouldResolveIt": "A read-only connection limited to _prisma_migrations, information_schema and pg_catalog."
+  },
+  {
+   "id": "UNK-004",
+   "severity": "UNKNOWN_BLOCKED",
+   "title": "Production count of teams.workspace_kind IS NULL is unknown",
+   "reason": "The column is nullable. The backfill classified every row present at apply time and all four creation writers set it explicitly, so no new NULL should exist, but the live count cannot be read from source. Any such row is classified from its billing plan (ARCH-002).",
+   "whatWouldResolveIt": "SELECT count(*) FROM teams WHERE workspace_kind IS NULL on a read-only connection."
+  }
+ ]
+}

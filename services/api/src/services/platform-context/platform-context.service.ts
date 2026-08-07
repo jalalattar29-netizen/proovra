@@ -53,10 +53,17 @@ import {
   type SectionStatus,
   type WorkspacePlan,
   type WorkspaceRole,
+  PLATFORM_CONTEXT_VERSION,
+  type CanonicalContextOrganization,
+  type CanonicalContextOrganizationMembership,
+  type CanonicalContextWorkspace,
+  type CanonicalPlatformContext,
 } from "./types.js";
 import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
 // PHASE 2 (2026-07-21) — the ONE canonical workspace-kind classifier.
 import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
+// ARCH-003 — the ONE tenancy→commerce derivation, shared with billing.
+import { billingShapeForWorkspaceKind } from "@proovra/shared-billing";
 // PHASE 10 STEP 5 (2026-07-23) — active support-access envelope projection.
 // The ONE authority (support-access.service) evaluates the grant; this
 // builder only reads + shapes it. Additive envelope section.
@@ -524,15 +531,15 @@ export async function buildPlatformContext(
     // The Exchange/collaboration surface previously decided this in the browser
     // with a hardcoded `plan === "PRO" || plan === "TEAM"`, which (a) made the
     // client the commercial authority and (b) wrongly excluded ENTERPRISE.
-    // `allowsTeamWorkspace` is the SAME catalog value the server enforces in
-    // collaboration-completion.service#inviteGuest via `canPlanUseTeams`, so
+    // `allowsSharedWorkspace` is the SAME catalog value the server enforces in
+    // collaboration-completion.service#inviteGuest via `canPlanOperateSharedWorkspace`, so
     // the projection and the enforcement cannot disagree.
     //
     // The subject is the ACTIVE workspace's resolved commercial state — for a
     // PERSONAL workspace that is the user's own entitlement (applied above),
     // for an ORGANIZATION workspace the org contract carried on the team row.
     // There is no owner-plan fallback for an OWNED workspace.
-    canInviteGuests: planCaps.allowsTeamWorkspace,
+    canInviteGuests: planCaps.allowsSharedWorkspace,
     /**
      * PHASE 12 — POINT 7 (2026-08-05): the NUMERIC limits, projected.
      *
@@ -628,10 +635,22 @@ export async function buildPlatformContext(
     billingPlan: string | null;
   };
   const personalTeams: PersonalTeamRow[] = [];
+  /**
+   * ARCH-003 — workspace id → WORKSPACE membership id.
+   *
+   * Collected here, from the same rows the switcher is built from, so the
+   * canonical envelope can report a workspace membership id that is visibly a
+   * DIFFERENT id space from the governance membership id. Mistaking one for
+   * the other is how a governance action gets applied to a workspace row.
+   */
+  const workspaceMembershipIdByWorkspace = new Map<string, string>();
   try {
     const memberRows = await prisma.teamMember.findMany({
       where: { userId: userRow.id, status: "ACTIVE" },
       select: {
+        // ARCH-003 — the WORKSPACE membership id, kept distinct from the
+        // ORGANIZATION membership id in the canonical envelope.
+        id: true,
         role: true,
         status: true,
         team: {
@@ -661,6 +680,7 @@ export async function buildPlatformContext(
 
     for (const m of memberRows) {
       if (!m.team) continue;
+      workspaceMembershipIdByWorkspace.set(m.team.id, m.id);
       // P0 remediation (2026-07-21) — an ACTIVE membership in a workspace
       // whose parent organization is not ACTIVE is not a valid operating
       // context; exclude it from the switcher (the switch mutation denies
@@ -1069,6 +1089,168 @@ export async function buildPlatformContext(
     hasPendingInvitation = false;
   }
 
+  // ===========================================================================
+  // PHASE 12 CORRECTIVE PASS §1 (ARCH-003, 2026-08-07) — THE CANONICAL,
+  // VERSIONED CONTEXT.
+  //
+  // Built from the SAME already-authorized rows the legacy sections use — not
+  // from a second set of queries. A second query is a second authority, and the
+  // two would eventually disagree about who may enter what.
+  //
+  // What it separates:
+  //   * `organizations` holds ORGANIZATION ids, read from
+  //     OrganizationMembership. The legacy field of the same name holds
+  //     WORKSPACE ids, which is the ARCH-003 finding.
+  //   * `organizationWorkspaces` holds WORKSPACE ids, each carrying the
+  //     Organization it belongs to.
+  //   * `organizationMembershipId` and `workspaceMembershipId` are named apart
+  //     because they are rows in different tables.
+  //
+  // ACTIVE only, throughout: `contextOptionRows` is already filtered to ACTIVE
+  // workspace memberships in ACTIVE parent Organizations, and the governance
+  // memberships below are filtered to ACTIVE by the query.
+  // ===========================================================================
+  let canonicalOrganizations: CanonicalContextOrganization[] = [];
+  let canonicalOrgMemberships: CanonicalContextOrganizationMembership[] = [];
+  try {
+    const govRows = await prisma.organizationMembership.findMany({
+      where: {
+        userId: userRow.id,
+        status: "ACTIVE",
+        // CUSTOMER organizations only. A SYSTEM container is the internal row
+        // that backs a Personal or Owned workspace; surfacing one as an
+        // Organization the user "belongs to" is what made the legacy field
+        // ambiguous in the first place.
+        organization: { kind: "CUSTOMER", status: "ACTIVE" },
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        role: true,
+        organization: { select: { name: true } },
+      },
+      take: 200,
+    });
+    canonicalOrganizations = govRows.map((r) => ({
+      organizationId: r.organizationId,
+      name: r.organization?.name ?? null,
+      status: "ACTIVE" as const,
+    }));
+    canonicalOrgMemberships = govRows.map((r) => ({
+      organizationMembershipId: r.id,
+      organizationId: r.organizationId,
+      organizationRole: String(r.role),
+      status: "ACTIVE" as const,
+    }));
+  } catch {
+    // Degraded reads leave the canonical governance sections EMPTY rather than
+    // partially populated: an empty list denies, a half list invites a client
+    // to believe it has the whole picture.
+    canonicalOrganizations = [];
+    canonicalOrgMemberships = [];
+  }
+
+  const toCanonicalWorkspace = (row: {
+    workspaceId: string;
+    name: string | null;
+    kind: "PERSONAL" | "OWNED" | "ORGANIZATION";
+    role: ReturnType<typeof coerceRole>;
+    organizationId: string | null;
+  }): CanonicalContextWorkspace => ({
+    workspaceId: row.workspaceId,
+    name: row.name,
+    kind: row.kind,
+    workspaceRole: row.role,
+    workspaceMembershipId: workspaceMembershipIdByWorkspace.get(row.workspaceId) ?? null,
+    // An Organization id ONLY for ORGANIZATION workspaces. PERSONAL and OWNED
+    // are backed by internal SYSTEM containers, and reporting those container
+    // ids here would put a non-customer id in an Organization field.
+    organizationId: row.kind === "ORGANIZATION" ? row.organizationId : null,
+  });
+
+  const canonicalOwned = contextOptionRows
+    .filter((r) => r.kind === "OWNED")
+    .map(toCanonicalWorkspace);
+  const canonicalOrgWorkspaces = contextOptionRows
+    .filter((r) => r.kind === "ORGANIZATION")
+    .map(toCanonicalWorkspace);
+
+  const canonicalPersonal: CanonicalContextWorkspace | null =
+    personalTeamId && personalSpaceAllowedFlag
+      ? {
+          workspaceId: personalTeamId,
+          name: "Personal Space",
+          kind: "PERSONAL",
+          workspaceRole: "OWNER",
+          workspaceMembershipId:
+            workspaceMembershipIdByWorkspace.get(personalTeamId) ?? null,
+          organizationId: null,
+        }
+      : null;
+
+  // The CURRENT workspace is looked up among the workspaces already proven
+  // enterable. A pointer at anything else resolves to `null` — never to a
+  // substitute, which is what "no silent fallback" means here.
+  const canonicalCurrentWorkspace: CanonicalContextWorkspace | null =
+    [canonicalPersonal, ...canonicalOwned, ...canonicalOrgWorkspaces].find(
+      (w): w is CanonicalContextWorkspace =>
+        w !== null && w.workspaceId === activeSpace.id,
+    ) ?? null;
+
+  /**
+   * ARCH-003 — the repair is REPORTED, not silent.
+   *
+   * The builder already heals a stale pointer to the caller's own Personal
+   * Space rather than rendering a broken shell, and that is the right
+   * behaviour. What was missing is the client being able to TELL: a healed
+   * context and a requested one were indistinguishable in the envelope, so a
+   * surface could not say "we brought you home" and could not notice a
+   * pointer that keeps going stale. It can never heal onto somebody else's
+   * workspace — the lookup above is over workspaces already proven enterable.
+   */
+  const canonicalCurrentWorkspaceSource: CanonicalPlatformContext["currentWorkspaceSource"] =
+    canonicalCurrentWorkspace === null
+      ? "NONE"
+      : userRow.currentWorkspaceId === canonicalCurrentWorkspace.workspaceId
+        ? "POINTER"
+        : "REPAIRED_TO_PERSONAL";
+
+  const canonicalCurrentOrganization: CanonicalContextOrganization | null =
+    canonicalCurrentWorkspace?.organizationId
+      ? (canonicalOrganizations.find(
+          (o) => o.organizationId === canonicalCurrentWorkspace.organizationId,
+        ) ?? null)
+      : null;
+
+  const canonical: CanonicalPlatformContext = {
+    contextVersion: PLATFORM_CONTEXT_VERSION,
+    account: {
+      accountId: userRow.id,
+      email: userRow.email ?? null,
+      displayName: account.displayName ?? null,
+      accountPlan: account.accountPlan ?? null,
+    },
+    personalSpace: canonicalPersonal,
+    ownedWorkspaces: canonicalOwned,
+    organizations: canonicalOrganizations,
+    organizationMemberships: canonicalOrgMemberships,
+    organizationWorkspaces: canonicalOrgWorkspaces,
+    currentWorkspace: canonicalCurrentWorkspace,
+    currentWorkspaceSource: canonicalCurrentWorkspaceSource,
+    currentOrganization: canonicalCurrentOrganization,
+    capabilities: Object.keys(capabilities).filter(
+      (k) => (capabilities as Record<string, unknown>)[k] === true,
+    ),
+    commercialContext: {
+      effectivePlan: activeSpace.plan ?? null,
+      // Derived from the CURRENT workspace's canonical kind by the one shared
+      // function; never inferred from the plan.
+      billingShape: canonicalCurrentWorkspace
+        ? billingShapeForWorkspaceKind(canonicalCurrentWorkspace.kind)
+        : null,
+    },
+  };
+
   const operationalEligibility = deriveOperationalEligibility({
     capabilities,
     activeRole: workspace.membership.role,
@@ -1154,6 +1336,9 @@ export async function buildPlatformContext(
 
     // ENTERPRISE TENANT MODEL — canonical product sections.
     account,
+    // ARCH-003 — the CANONICAL, versioned context. Organization fields carry
+    // Organization ids; Workspace fields carry Workspace ids.
+    canonical,
     personalSpace,
     organizations,
     activeSpace,

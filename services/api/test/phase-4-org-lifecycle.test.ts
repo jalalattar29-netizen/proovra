@@ -36,6 +36,27 @@ function makeTx() {
     {},
     {
       get(_t, model: string) {
+        /**
+         * ARCH-004 (2026-08-07) — the transaction client now also carries
+         * `$queryRawUnsafe`, because Organization suspension/resume moves
+         * governance memberships through the ONE lifecycle orchestrator, which
+         * uses a single guarded UPDATE ... RETURNING (the generation fence
+         * cannot be expressed as a Prisma `updateMany`).
+         *
+         * Modelled FAITHFULLY rather than stubbed to `undefined`: the calls are
+         * recorded like every other, and it answers with the empty result set a
+         * fixture whose Organization has no memberships would genuinely
+         * produce. The suspend/resume membership behaviour itself is proven
+         * against a real database in
+         * `phase-12-arch-004-org-membership-lifecycle.integration.test.ts`
+         * case 9.
+         */
+        if (model === "$queryRawUnsafe") {
+          return async (...args: unknown[]) => {
+            H.calls.push({ model: "$queryRawUnsafe", method: "call", args });
+            return [];
+          };
+        }
         return new Proxy(
           {},
           {

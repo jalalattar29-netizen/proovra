@@ -127,7 +127,7 @@ function projectPublishedPlan<P extends "FREE" | "PAYG" | "PRO" | "TEAM">(
     maxEvidenceRecordsPerMonth: caps.maxEvidenceRecordsPerMonth,
     aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
     seats: caps.includedSeats,
-    workspaceType: caps.workspaceType,
+    billingShape: caps.billingShape,
     maxOwnedTeams: caps.maxOwnedTeams,
     maxMembersPerTeam: caps.maxMembersPerTeam,
     enterpriseFeatures: caps.enterpriseFeatures,
@@ -195,7 +195,7 @@ export function buildPricingCatalogResponse(params: {
     },
     storageAddons: listStorageAddonDefinitions().map((item) => ({
       key: item.key,
-      workspaceType: item.workspaceType,
+      billingShape: item.billingShape,
       label: item.label,
       storageBytes: Number(item.storageBytes),
       priceCents: getStorageAddonPriceCents({

@@ -146,7 +146,7 @@ describe("ExportPackageEligibilityBadge — positive-state removal", () => {
 });
 
 describe("Evidence Detail page — Discussion tab gate uses capability flags, not labels", () => {
-  it("page.tsx no longer reads `workspaceType === \"PERSONAL\"` to gate the Discussion tab", () => {
+  it("page.tsx no longer reads `billingShape === \"PERSONAL\"` to gate the Discussion tab", () => {
     // The brittle label-based gate must be gone. (The label may still
     // appear elsewhere on the page for non-Discussion display
     // purposes — we only assert it is NOT the gating predicate.)

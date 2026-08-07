@@ -73,7 +73,7 @@ function mockWorkflowRow(
 }
 
 describe("review workflow projection — privacy + correctness", () => {
-  it("does NOT expose workspaceType or raw status", () => {
+  it("does NOT expose billingShape or raw status", () => {
     const projected = projectReviewWorkflow(mockWorkflowRow());
     expect((projected as Record<string, unknown>).workspaceType).toBeUndefined();
     expect((projected as Record<string, unknown>).status).toBeUndefined();

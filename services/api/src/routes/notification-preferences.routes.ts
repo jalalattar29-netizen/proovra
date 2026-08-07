@@ -226,10 +226,13 @@ export async function notificationPreferencesRoutes(app: FastifyInstance) {
       // Drives the org-admin policy card in the settings UI.
       let canManageOrgPolicy = false;
       if (ok.organizationId) {
+        // ARCH-004 — an AUTHORIZATION check. Role without status is grant
+        // EXISTENCE mistaken for grant VALIDITY, the same shape as NEW-005.
         const adminRow = await prisma.organizationMembership.findFirst({
           where: {
             userId: ok.userId,
             organizationId: ok.organizationId,
+            status: "ACTIVE",
             role: { in: ["ORG_OWNER", "ORG_ADMIN"] },
           },
           select: { id: true },

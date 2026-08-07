@@ -1,0 +1,60 @@
+ M apps/mobile/app/(tabs)/teams.tsx
+ M apps/mobile/components/ui.tsx
+ M apps/web/__tests__/search-remediation-2.test.ts
+ M apps/web/app/(app)/search/page.tsx
+ M apps/web/app/pricing/page.tsx
+ M infra/docker/docker-compose.prod.yml
+ M packages/shared-runtime/src/index.ts
+ M packages/shared-runtime/src/ops/metrics.service.ts
+ M services/api/package.json
+ M services/api/scripts/deploy-safe.mjs
+ M services/api/src/middleware/authorize.ts
+ M services/api/src/middleware/cron-secret.ts
+ M services/api/src/routes/enterprise.routes.ts
+ M services/api/src/routes/external-portal.routes.ts
+ M services/api/src/routes/intelligence.routes.ts
+ M services/api/src/routes/me-inbox.routes.ts
+ M services/api/src/routes/reviewer-ops.routes.ts
+ M services/api/src/services/analytics/analytics.service.ts
+ M services/api/src/services/automation/automation-actions.service.ts
+ M services/api/src/services/billing.service.ts
+ M services/api/src/services/cases/case-permission.service.ts
+ M services/api/src/services/collaboration/discussion.service.ts
+ M services/api/src/services/dashboard/bulk-actions.service.ts
+ M services/api/src/services/external-review/external-review-grant.service.ts
+ M services/api/src/services/external-review/portal-bulk-invitations.service.ts
+ M services/api/src/services/external-review/portal-invitation-email.service.ts
+ M services/api/src/services/governance/governance-dashboard.service.ts
+ M services/api/src/services/identity/access-policy.service.ts
+ M services/api/src/services/identity/authorization-allowlist.ts
+ M services/api/src/services/identity/external-identity.service.ts
+ M services/api/src/services/identity/membership-provisioning.service.ts
+ M services/api/src/services/identity/rbac.service.ts
+ M services/api/src/services/ops/operational-seed.service.ts
+ M services/api/src/services/platform-audit-log.service.ts
+ M services/api/src/services/reviewer-ops/queue-intelligence.service.ts
+ M services/api/src/services/workflows/evidence-workflow-engine.service.ts
+ M services/api/test/helpers/authorization-conformance.ts
+ M services/api/test/identity.test.ts
+ M services/api/test/intelligence.test.ts
+ M services/api/test/phase-12-evidence-operations-residue-matrix.test.ts
+ M services/api/test/phase-12b-identity-administration.test.ts
+ M services/api/test/phase-3-external-review-grant-step-up.test.ts
+ M services/api/test/phase-3-scope-j-evidence-safety-identity.test.ts
+ M services/api/test/phase-9-commercial-invariants.test.ts
+ M services/api/test/phase-e3-1-automation-execution.test.ts
+ M services/api/test/phase-opscenter-completion.test.ts
+ M services/api/test/phase-opscenter-redesign.test.ts
+ M services/api/test/phase-r5-reviewer-bulk-capability.test.ts
+ M services/api/test/phase-rw-rbac-hardening.test.ts
+ M services/api/test/phase-rw3-assignable-reviewers.test.ts
+ M services/api/test/phase-scim-user-lifecycle.test.ts
+ M services/worker/src/workspace-billing.ts
+?? .p12snapshot/
+?? audit-output/
+?? packages/shared-runtime/src/billing/
+?? services/api/scripts/verify-authorization-authorities.mjs
+?? services/api/scripts/verify-release-identity.mjs
+?? services/api/src/services/access/accessible-workspaces.ts
+?? services/api/src/services/access/current-workspace-pointer.ts
+?? services/api/test/phase-12-sec-001-stale-pointer.integration.test.ts

@@ -123,7 +123,7 @@ describe("POINT 7 CORRECTIVE — TEAM / Personal-Space semantics (live PostgreSQ
     );
     const personalScope = await getPersonalWorkspaceScope(t.owner.userId);
     expect(personalScope.plan).toBe("TEAM");
-    expect(personalScope.workspaceType).toBe("PERSONAL");
+    expect(personalScope.billingShape).toBe("SINGLE_OCCUPANT");
 
     // … the commercial surface answers rather than throwing …
     const overview = await inject({
@@ -176,19 +176,19 @@ describe("POINT 7 CORRECTIVE — TEAM / Personal-Space semantics (live PostgreSQ
   it("p7.sem.team_plan_is_not_a_personal_purchase_target", async () => {
     // The OTHER authority, still enforced — and now under a name that says
     // which question it answers.
-    const { assertPlanPurchasableForWorkspaceType, getPlanCapabilities } =
+    const { assertPlanPurchasableForWorkspaceShape, getPlanCapabilities } =
       await import("@proovra/shared-billing");
     expect(getPlanCapabilities("TEAM").allowsPersonalWorkspacePurchase).toBe(false);
     expect(() =>
-      assertPlanPurchasableForWorkspaceType({
-        workspaceType: "PERSONAL",
+      assertPlanPurchasableForWorkspaceShape({
+        billingShape: "SINGLE_OCCUPANT",
         plan: "TEAM",
       }),
     ).toThrow(/personal workspace/i);
     // And the plans that CAN be bought for a personal workspace still can.
     for (const plan of ["FREE", "PAYG", "PRO", "ENTERPRISE"] as const) {
       expect(() =>
-        assertPlanPurchasableForWorkspaceType({ workspaceType: "PERSONAL", plan }),
+        assertPlanPurchasableForWorkspaceShape({ billingShape: "SINGLE_OCCUPANT", plan }),
       ).not.toThrow();
     }
     provenScenario("SERVER", "p7.sem.team_plan_is_not_a_personal_purchase_target");

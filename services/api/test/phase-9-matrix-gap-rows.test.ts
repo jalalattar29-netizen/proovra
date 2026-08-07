@@ -68,7 +68,7 @@ describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denia
   it("exhausted seats deny BEFORE any membership mutation, with a stable shape, twice in a row", async () => {
     H.activeMembers = 5; // TEAM seat limit (5) fully consumed → exhausted
     H.includedSeats = 1;
-    const scope = { workspaceType: "TEAM", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never;
+    const scope = { billingShape: "SHARED", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never;
     const first = await assertTeamSeatAvailable(scope).then(
       () => "allowed",
       (e: Error & { code?: string; statusCode?: number }) => ({ code: e.code, status: e.statusCode }),
@@ -86,7 +86,7 @@ describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denia
     H.activeMembers = 0;
     H.includedSeats = 1;
     await expect(
-      assertTeamSeatAvailable({ workspaceType: "TEAM", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never),
+      assertTeamSeatAvailable({ billingShape: "SHARED", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never),
     ).resolves.toMatchObject({ seatLimit: 5 });
   });
 });

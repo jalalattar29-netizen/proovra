@@ -186,10 +186,16 @@ export function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
 
+  // PHASE 12 REMEDIATION — MOBILE-001 (2026-08-06). The Workspaces entry is
+  // REMOVED. It routed to a screen that listed workspaces with no action, no
+  // navigation and no create path, in an app whose approved scope is
+  // Personal-Space-only citizen capture. Navigation must not advertise a
+  // capability the app does not implement. The route itself is retained (see
+  // app/(tabs)/teams.tsx) so an existing deep link lands on an honest
+  // explanation instead of a crash.
   const items = [
     { label: t("home"), href: "/" },
     { label: t("cases"), href: "/cases" },
-    { label: t("teams"), href: "/teams" },
     { label: t("settings"), href: "/settings" }
   ];
 

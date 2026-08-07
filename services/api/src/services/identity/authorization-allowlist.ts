@@ -1,6 +1,48 @@
 /**
- * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
- * exception registry + migration ledger.
+ * PHASE 12 REMEDIATION — AUTH-004 (2026-08-06). STATUS CHANGE: THIS MODULE IS
+ * NO LONGER AN AUTHORITY. IT IS DECLARED DATA THAT AN AUTHORITY VALIDATES.
+ *
+ * What the Phase-12 audit found
+ * -----------------------------
+ * This file described itself as "the machine-checkable registry whose
+ * PENDING list must be empty for Phase 1 to be done". Its PENDING array WAS
+ * empty — and at the same moment `intelligence.routes.ts` (AUTH-001),
+ * `me-inbox.routes.ts` (AUTH-002) and `external-portal.routes.ts` (SEC-001)
+ * all carried status-blind gates and appeared nowhere in it. The file also
+ * had ZERO production importers, so nothing enforced it anywhere in the
+ * running system.
+ *
+ * It was a FICTIONAL CONTROL: an artifact that recorded a conclusion it
+ * never computed. An empty PENDING list meant only that nobody had added an
+ * entry.
+ *
+ * What enforces this now
+ * ----------------------
+ *   services/api/scripts/verify-authorization-authorities.mjs
+ *
+ * That verifier COMPUTES the answer on every run: it discovers route modules
+ * from ACTUAL `app.register(...)` calls in `server.ts`, walks the TypeScript
+ * AST of every production module, finds each `teamMember.find*` call
+ * SEMANTICALLY, and classifies it by reading the query's own `where` clause
+ * and its enclosing function. Anything it cannot prove is live-membership
+ * safe FAILS the build. The default is VIOLATION, not ALLOW.
+ *
+ * This file's remaining role
+ * --------------------------
+ * It is the human-readable ledger of WHY each documented non-membership flow
+ * is legitimate. The verifier reads it and FAILS if:
+ *   * `PENDING_AUTHORIZATION_MIGRATIONS` is non-empty (its own stated
+ *     definition of done), or
+ *   * an `AUTHORIZATION_EXCEPTIONS` entry names a file that no longer
+ *     exists (the ledger has drifted from the system it describes).
+ *
+ * Reading this ledger can only ADD failures. It can never suppress one:
+ * classification that actually excuses a call lives in the verifier's own
+ * `CLASSIFIED_MODULES`, keyed by full path, each with a stated reason.
+ * There is therefore ONE governance authority, and this is its input.
+ *
+ * ---------------------------------------------------------------------------
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — original description follows.
  *
  * This is NOT an allow-by-default list. Its purpose is to make the set of
  * routes/services that authorize WITHOUT ordinary ACTIVE Workspace

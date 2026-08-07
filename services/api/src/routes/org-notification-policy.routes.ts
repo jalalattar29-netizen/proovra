@@ -47,10 +47,12 @@ async function requireOrgAdmin(
   userId: string,
   orgId: string,
 ): Promise<boolean> {
+  // ARCH-004 — an AUTHORIZATION check; ACTIVE only.
   const membership = await prisma.organizationMembership.findFirst({
     where: {
       userId,
       organizationId: orgId,
+      status: "ACTIVE",
       role: { in: ["ORG_OWNER", "ORG_ADMIN"] },
     },
     select: { id: true },

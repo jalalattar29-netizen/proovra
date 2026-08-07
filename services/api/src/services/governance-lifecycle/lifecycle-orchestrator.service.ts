@@ -45,6 +45,19 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { triggerEvidenceFinalized } from "../automation/automation-triggers.js";
+
+/**
+ * ARCH-005 (2026-08-07) — the states that mean "settled".
+ *
+ * Named as data rather than inlined so the set is greppable and so the two
+ * deliberate ABSENCES (PENDING_DESTRUCTION, DESTROYED) are visible as a
+ * decision rather than as an oversight.
+ */
+const FINALIZED_LIFECYCLE_STATES: ReadonlySet<string> = new Set([
+  "ARCHIVED",
+  "RETENTION_LOCKED",
+]);
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -442,7 +455,7 @@ export async function transitionLifecycle(
         lifecycleState: input.toState as prismaPkg.EvidenceLifecycleState,
       },
     });
-    return tx.evidenceLifecycleEvent.create({
+    const event = await tx.evidenceLifecycleEvent.create({
       data: {
         teamId: input.teamId,
         evidenceId: input.evidenceId,
@@ -455,6 +468,30 @@ export async function transitionLifecycle(
         requestId: input.requestId?.slice(0, 64) ?? null,
       },
     });
+
+    /**
+     * ARCH-005 (2026-08-07) — EVIDENCE_FINALIZED, in the SAME transaction as
+     * the state change and its ledger row.
+     *
+     * The trigger fires for the lifecycle states that mean "this evidence is
+     * settled": ARCHIVED and RETENTION_LOCKED. It deliberately does NOT fire
+     * for PENDING_DESTRUCTION or DESTROYED — those belong to the destruction
+     * authority, and letting an automation rule react to them would put an
+     * operator convenience next to a legal-hold decision.
+     *
+     * The source identity is the LEDGER EVENT id, so re-entering a state is a
+     * new occurrence and one transition is never counted twice.
+     */
+    if (FINALIZED_LIFECYCLE_STATES.has(input.toState)) {
+      await triggerEvidenceFinalized(tx, {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        lifecycleEventId: event.id,
+        context: { fromState, toState: input.toState },
+      });
+    }
+
+    return event;
   });
 
   bump("lifecycle_transition_total");

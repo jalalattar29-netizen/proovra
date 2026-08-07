@@ -9,6 +9,9 @@ import "./otel-bootstrap.js";
 import "./register-shared-runtime.js";
 import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
+// PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
+// with the API. See the call site near the bottom of this file.
+import { initSecretsAuthority } from "@proovra/shared-runtime";
 import { logger, withJobContext } from "./logger.js";
 import {
   derivedAssetsQueue,
@@ -101,6 +104,7 @@ import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliatio
 // Macro-Wave A2 — org-invite delivery sweep tick (stranded/due PENDING
 // outbox rows; retries rotate the invite token API-side).
 import { runOrgInviteDeliverySweep } from "./org-invite-delivery.worker.js";
+import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
 // P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
@@ -1488,6 +1492,110 @@ function stopOrgInviteDeliverySweepScheduler() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07) —
+// AutomationDispatchSweep.
+//
+// The keystone this whole subsystem was missing. Automation had a schema, an
+// API and a UI, and NOTHING scheduled it: `dispatchAutomationTrigger` had zero
+// production callers and `sweepDueRetries` was never wired to a timer, so an
+// enabled rule never ran and a scheduled retry died with the process that
+// scheduled it.
+//
+// One tick claims due AutomationRun rows under a lease and a fence, executes
+// the bounded action, persists exactly one outcome, retries what is retryable,
+// dead-letters what is exhausted, reconciles what a dead worker stranded, and
+// then sweeps the durable webhook-delivery outbox on the same terms.
+//
+// `withCronLock` is not optional here: it is what makes a second worker
+// replica safe, alongside the per-row fence.
+//
+// Tunables:
+//   AUTOMATION_DISPATCH_SWEEP_ENABLED      — default true
+//   AUTOMATION_DISPATCH_SWEEP_INTERVAL_MS  — default 60s
+//   AUTOMATION_DISPATCH_SWEEP_BATCH_SIZE   — default 25 (api caps at 100)
+// -----------------------------------------------------------------------------
+
+const automationDispatchSweepEnabled = envBoolean(
+  "AUTOMATION_DISPATCH_SWEEP_ENABLED",
+  true,
+);
+const automationDispatchSweepIntervalMs = envNumber(
+  "AUTOMATION_DISPATCH_SWEEP_INTERVAL_MS",
+  60 * 1000,
+);
+const automationDispatchSweepBatchSize = envNumber(
+  "AUTOMATION_DISPATCH_SWEEP_BATCH_SIZE",
+  25,
+);
+let automationDispatchSweepTimer: ReturnType<typeof setInterval> | null = null;
+let automationDispatchSweepRunning = false;
+
+async function runAutomationDispatchTick(trigger: string) {
+  if (automationDispatchSweepRunning) return;
+  automationDispatchSweepRunning = true;
+  try {
+    const outcome = await withCronLock("automation-dispatch-sweep", () =>
+      runAutomationDispatchSweepTick({
+        trigger,
+        batchSize: automationDispatchSweepBatchSize,
+        deliveryBatchSize: automationDispatchSweepBatchSize,
+      }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "automation_dispatch.sweep.skipped_locked");
+    }
+  } catch (err) {
+    logger.error({ err, trigger }, "automation_dispatch.sweep.tick_failed");
+    captureException(err, { trigger });
+  } finally {
+    automationDispatchSweepRunning = false;
+  }
+}
+
+function startAutomationDispatchScheduler() {
+  if (!automationDispatchSweepEnabled) {
+    logger.info({}, "automation_dispatch.sweep.scheduler.disabled");
+    return;
+  }
+  automationDispatchSweepTimer = setInterval(() => {
+    void runAutomationDispatchTick("interval");
+  }, automationDispatchSweepIntervalMs);
+  logger.info(
+    {
+      intervalMs: automationDispatchSweepIntervalMs,
+      batchSize: automationDispatchSweepBatchSize,
+    },
+    "automation_dispatch.sweep.scheduler.started",
+  );
+  // The sweep endpoint lives on the api, so the startup-triggered first run is
+  // gated on api readiness exactly like the sibling sweeps.
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness("automation-dispatch-sweep");
+    if (!readiness.ready) {
+      logger.warn(
+        {
+          requestId: randomUUID(),
+          consumer: "automation-dispatch-sweep",
+          attempts: readiness.attempts,
+          totalLatencyMs: readiness.totalLatencyMs,
+          lastError: readiness.lastError,
+        },
+        "automation_dispatch.sweep.skipped_api_unready",
+      );
+      return;
+    }
+    void runAutomationDispatchTick("startup");
+  })();
+}
+
+function stopAutomationDispatchScheduler() {
+  if (automationDispatchSweepTimer) {
+    clearInterval(automationDispatchSweepTimer);
+    automationDispatchSweepTimer = null;
+  }
+}
+
 function stopReviewerReconciliationScheduler() {
   if (reviewerReconciliationTimer) {
     clearInterval(reviewerReconciliationTimer);
@@ -2012,6 +2120,7 @@ async function shutdown(exitCode: number) {
   stopReviewerReconciliationScheduler();
   // Macro-Wave A2 — org-invite delivery sweep.
   stopOrgInviteDeliverySweepScheduler();
+  stopAutomationDispatchScheduler();
   // Phase Y — Observability schedulers.
   stopObservabilityHeartbeat();
   stopQueueHealthSampler();
@@ -2209,7 +2318,27 @@ async function shutdown(exitCode: number) {
   process.exit(exitCode);
 }
 
-startHealthServer()
+/**
+ * PHASE 12 CORRECTIVE PASS §4 (SEC-004, 2026-08-06) — THE WORKER HYDRATES THE
+ * SAME SECRETS AUTHORITY THE API DOES, AND DOES IT FIRST.
+ *
+ * Before this, the API called `initSecretsManager` at boot and the Worker
+ * called nothing — it could not, because the loader was a private module of
+ * the other service. So the two processes of one deployment could resolve
+ * their secrets from DIFFERENT stores: the API from Secrets Manager, the
+ * Worker from whatever `process.env` happened to hold. A deployment that
+ * declared `required` was required in one process and unenforced in the other,
+ * and the unenforced one is the one that signs and sends.
+ *
+ * It runs BEFORE `startHealthServer` and before any scheduler, because a
+ * consumer that reads a secret before hydration would silently take the
+ * environment's value and look identical to a correctly-configured
+ * env-authority deployment. In `required` mode this REJECTS, and the existing
+ * `.catch` below shuts the process down non-zero — fail closed, before any job
+ * is claimed.
+ */
+initSecretsAuthority(logger)
+  .then(() => startHealthServer())
   .then(async (server) => {
     healthServer = server;
     // Phase C #1 — Object Lock startup verification at the worker too.
@@ -2248,6 +2377,7 @@ startHealthServer()
     // Macro-Wave A2 — org-invite delivery sweep (stranded PENDING
     // outbox rows → API-side rotation retry).
     startOrgInviteDeliverySweepScheduler();
+    startAutomationDispatchScheduler();
     // Phase Y — Observability heartbeat + queue-health sampler.
     // The heartbeat fires every 30s; a log-based metrics provider
     // can derive `worker_last_heartbeat_age_seconds` by tailing
@@ -2269,6 +2399,11 @@ startHealthServer()
   })
   .catch((err) => {
     const requestId = randomUUID();
+    // SEC-004: this now also covers `aws_secrets.required_authority_unavailable`.
+    // A `required` deployment whose secret store refused MUST NOT proceed to
+    // claim jobs on an empty environment, and the non-zero exit is what makes
+    // that visible to the orchestrator instead of surviving as a degraded
+    // worker that silently produces unsigned or undelivered work.
     logger.error({ requestId, err }, "worker.health_start_failed");
     captureException(err, { requestId });
 

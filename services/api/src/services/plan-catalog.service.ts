@@ -3,7 +3,7 @@ export {
   canPlanGenerateReports,
   canPlanGenerateVerificationPackage,
   canPlanPurchasePersonalWorkspacePlan,
-  canPlanUseTeams,
+  canPlanOperateSharedWorkspace,
   formatBytesHuman,
   getPlanCapabilities,
   getPlanSeatLimit,
@@ -12,5 +12,4 @@ export {
   planHasEnterpriseFeature,
   type EnterpriseFeatureFlags,
   type PlanCapabilities,
-  type WorkspaceScopeType,
 } from "@proovra/shared-billing";

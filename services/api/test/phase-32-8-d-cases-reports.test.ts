@@ -113,7 +113,7 @@ describe("Phase 32.8D — case-workspace service contract", () => {
 
   it("personal-case `reviewCoordination` short-circuits to `not_applicable`", () => {
     expect(CASE_SVC).toMatch(
-      /scope === "PERSONAL"[\s\S]{0,200}status:\s*"not_applicable"/,
+      /scope === "SINGLE_OCCUPANT"[\s\S]{0,200}status:\s*"not_applicable"/,
     );
   });
 
@@ -642,7 +642,7 @@ describe("Phase 32.8D — shared invariants", () => {
   it("personal-workspace governance/reviewer sections honor not_applicable from the server", () => {
     // server-side guard (legacy /v1/cases/:id/workspace)
     expect(CASE_SVC).toMatch(
-      /reviewCoordination[\s\S]{0,400}scope === "PERSONAL"[\s\S]{0,200}not_applicable/,
+      /reviewCoordination[\s\S]{0,400}scope === "SINGLE_OCCUPANT"[\s\S]{0,200}not_applicable/,
     );
     // Phase C1 / C1.1 — the canonical MatterWorkspace consumes the
     // server-provided SectionStatus enum (`ok | degraded | unavailable

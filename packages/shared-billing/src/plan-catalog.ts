@@ -1,4 +1,34 @@
-export type WorkspaceScopeType = "PERSONAL" | "TEAM";
+/**
+ * PHASE 12 CORRECTIVE PASS §1 (ARCH-001 + LEGACY-001, 2026-08-07) — THE
+ * COMMERCIAL SHAPE OF A WORKSPACE. NOT ITS TENANCY KIND.
+ *
+ * This type used to be `WorkspaceScopeType = "PERSONAL" | "TEAM"`, and those
+ * two spellings were the whole problem. `PERSONAL` and `TEAM` READ like
+ * container categories, sat next to a `TEAM` PLAN, and were consumed by
+ * functions called `allowsTeamWorkspace` and errors called
+ * `TEAM_WORKSPACE_LIMIT_REACHED` — so a reader had no way to tell whether
+ * "TEAM" meant a kind of workspace, a plan, or a capability bundle. It meant
+ * the second and third; there has never been a TEAM workspace KIND.
+ *
+ * The canonical tenancy vocabulary is `WorkspaceKind` (PERSONAL | OWNED |
+ * ORGANIZATION) in @proovra/shared, and it lives in the database. What THIS
+ * type expresses is the only thing billing actually needs to know:
+ *
+ *   SINGLE_OCCUPANT  one identity occupies it — a Personal Space. No seats to
+ *                    sell, no members to invite.
+ *   SHARED           more than one identity can occupy it — an Owned or an
+ *                    Organization workspace. Seats and member limits apply.
+ *
+ * It is DERIVED from the canonical kind by `billingShapeForWorkspaceKind`, in
+ * one place, and is never persisted, never authorizes, and never selects a
+ * tenant.
+ */
+export type WorkspaceBillingShape = "SINGLE_OCCUPANT" | "SHARED";
+
+/**
+ * The plan catalogue. TEAM is a PLAN — a capability bundle bought for a
+ * workspace — and never a workspace kind.
+ */
 export type PlanType = "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE";
 
 /**
@@ -23,7 +53,11 @@ export type EnterpriseFeatureFlags = {
 export type PlanCapabilities = {
   plan: PlanType;
   displayName: string;
-  workspaceType: WorkspaceScopeType | "BOTH";
+  /**
+   * Which commercial shape this plan may be bought FOR. `BOTH` means the plan
+   * is valid for a Personal Space and for a shared workspace alike.
+   */
+  billingShape: WorkspaceBillingShape | "BOTH";
   monthlyPriceCents: number | null;
 
   includedStorageBytes: bigint;
@@ -108,7 +142,12 @@ export type PlanCapabilities = {
    * take it away.
    */
   allowsPersonalWorkspacePurchase: boolean;
-  allowsTeamWorkspace: boolean;
+  /**
+   * ARCH-001 — may this plan operate a SHARED workspace (Owned or
+   * Organization)? Renamed from `allowsTeamWorkspace`, which read as a
+   * statement about a workspace KIND called "team" that has never existed.
+   */
+  allowsSharedWorkspace: boolean;
   teamWorkspaceRequired: boolean;
 
   /**
@@ -189,7 +228,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
   FREE: {
     plan: "FREE",
     displayName: "Free",
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     monthlyPriceCents: 0,
     includedStorageBytes: 250n * MB,
     includedSeats: 0,
@@ -206,7 +245,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 0,
     allowsPersonalWorkspacePurchase: true,
-    allowsTeamWorkspace: false,
+    allowsSharedWorkspace: false,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
@@ -218,7 +257,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
   PAYG: {
     plan: "PAYG",
     displayName: "Pay-as-you-go",
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     monthlyPriceCents: 500,
     includedStorageBytes: 5n * GB,
     includedSeats: 0,
@@ -235,7 +274,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     paygCreditsRequiredPerCompletion: 1,
     aiAdvisoryMonthlyOperations: 50,
     allowsPersonalWorkspacePurchase: true,
-    allowsTeamWorkspace: false,
+    allowsSharedWorkspace: false,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
@@ -247,7 +286,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
   PRO: {
     plan: "PRO",
     displayName: "Pro",
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     monthlyPriceCents: 1900,
     includedStorageBytes: 100n * GB,
     includedSeats: 0,
@@ -264,7 +303,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 100,
     allowsPersonalWorkspacePurchase: true,
-    allowsTeamWorkspace: true,
+    allowsSharedWorkspace: true,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 2,
     maxMembersPerTeam: 5,
@@ -276,7 +315,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
   TEAM: {
     plan: "TEAM",
     displayName: "Team",
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
     monthlyPriceCents: 7900,
     includedStorageBytes: 500n * GB,
     includedSeats: 5,
@@ -293,7 +332,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 500,
     allowsPersonalWorkspacePurchase: false,
-    allowsTeamWorkspace: true,
+    allowsSharedWorkspace: true,
     teamWorkspaceRequired: true,
     maxOwnedTeams: 5,
     maxMembersPerTeam: 5,
@@ -305,7 +344,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
   ENTERPRISE: {
     plan: "ENTERPRISE",
     displayName: "Enterprise",
-    workspaceType: "BOTH",
+    billingShape: "BOTH",
     monthlyPriceCents: null,
     includedStorageBytes: 500n * GB,
     includedSeats: 5,
@@ -322,7 +361,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: null,
     allowsPersonalWorkspacePurchase: true,
-    allowsTeamWorkspace: true,
+    allowsSharedWorkspace: true,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 1000,
     maxMembersPerTeam: 500,
@@ -507,8 +546,16 @@ export function getPlanSeatLimit(plan: PlanType): number {
   return getPlanCapabilities(plan).includedSeats;
 }
 
-export function canPlanUseTeams(plan: PlanType): boolean {
-  return getPlanCapabilities(plan).allowsTeamWorkspace;
+/**
+ * ARCH-001 — may this plan operate a SHARED workspace?
+ *
+ * Renamed from `canPlanOperateSharedWorkspace`, which invited the reading "can this plan use
+ * the Teams feature" and was in fact answering "may a workspace on this plan
+ * have more than one occupant". The old name is kept as a deprecated alias
+ * below so no call site had to be touched blind; the gate forbids new uses.
+ */
+export function canPlanOperateSharedWorkspace(plan: PlanType): boolean {
+  return getPlanCapabilities(plan).allowsSharedWorkspace;
 }
 
 export function canPlanPurchasePersonalWorkspacePlan(plan: PlanType): boolean {
@@ -559,7 +606,7 @@ function projectPlan(plan: PlanType) {
     maxEvidenceRecordsPerMonth: caps.maxEvidenceRecordsPerMonth,
     aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
     seats: caps.includedSeats,
-    workspaceType: caps.workspaceType,
+    billingShape: caps.billingShape,
     maxOwnedTeams: caps.maxOwnedTeams,
     maxMembersPerTeam: caps.maxMembersPerTeam,
     enterpriseFeatures: caps.enterpriseFeatures,

@@ -37,6 +37,7 @@
  */
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { triggerLegalHoldCreated } from "../automation/automation-triggers.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
@@ -315,6 +316,19 @@ export async function placeCanonicalLegalHold(
     },
     select: CANONICAL_SELECT,
   })) as CanonicalLegalHoldRow;
+
+  /**
+   * ARCH-005 (2026-08-07) — LEGAL_HOLD_CREATED, on the SAME client the hold
+   * was written with. When that client is a transaction, the run commits with
+   * the hold; when the caller is not in one, the hold is already durable by
+   * the time this line runs. Either way there is no window in which a hold
+   * exists and its trigger does not.
+   */
+  await triggerLegalHoldCreated(client, {
+    teamId: input.teamId,
+    holdId: hold.id,
+    context: { scope: String(scope), status: "ACTIVE" },
+  });
 
   await fanOutCustodyEvents(client, hold, "LEGAL_HOLD_PLACED", {
     legalHoldId: hold.id,

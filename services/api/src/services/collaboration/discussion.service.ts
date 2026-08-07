@@ -504,8 +504,11 @@ async function resolveMentionsForMessage(
     select: { teamId: true },
   });
   if (!thread || !thread.teamId) return [];
+  // PHASE 12 REMEDIATION (2026-08-06) — an @mention must not resolve to a
+  // member who no longer has access; that would notify a revoked user about
+  // workspace content.
   const members = await client.teamMember.findMany({
-    where: { teamId: thread.teamId },
+    where: { teamId: thread.teamId, status: "ACTIVE" },
     select: {
       userId: true,
       user: { select: { id: true, email: true, displayName: true } },

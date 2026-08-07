@@ -874,6 +874,11 @@ model User {
   // governance role; it does NOT grant any workspace access (those
   // remain TeamMember-scoped).
   organizationMemberships           OrganizationMembership[]
+  // ARCH-004 — who suspended / revoked a governance membership. Back-relations
+  // for the attributable lifecycle; SetNull so removing an administrator never
+  // erases the record of what they did.
+  suspendedOrgMemberships           OrganizationMembership[]     @relation("OrgMembershipSuspendedBy")
+  revokedOrgMemberships             OrganizationMembership[]     @relation("OrgMembershipRevokedBy")
   claimedGuestIdentities            GuestIdentity[]               @relation("GuestClaimedBy")
   guestIdentity                     GuestIdentity?
   passwordResetTokens               PasswordResetToken[]
@@ -1113,7 +1118,17 @@ model Team {
   // rows deterministically (isPersonal→PERSONAL, ENTERPRISE plan→
   // ORGANIZATION, else OWNED). Readers must FAIL CLOSED on NULL when
   // presenting switch targets. Creation paths always set it explicitly.
-  workspaceKind WorkspaceKind? @map("workspace_kind")
+  /**
+   * PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — MANDATORY.
+   *
+   * Nullable meant readers could not rely on it, which is why
+   * `normalizeWorkspaceKind` carried a plan-derived fallback that turned a
+   * commercial upgrade into a silent tenancy change. Made NOT NULL by
+   * 20271125000000 after a backfill that classifies from STRUCTURAL authority
+   * only (personal-space invariant, CUSTOMER-organization provisioning,
+   * SYSTEM-container ownership) and refuses anything ambiguous.
+   */
+  workspaceKind WorkspaceKind @map("workspace_kind")
 
   // Phase 2.7X Stage 1 — nullable Organization FK.
   //
@@ -1389,6 +1404,22 @@ model EvidenceAiCategorization {
 model EvidenceReviewWorkflow {
   id               String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId       String                         @unique @map("evidence_id") @db.Uuid
+  /**
+   * PHASE 12 CORRECTIVE PASS §1 (ARCH-001, 2026-08-07) — CLASSIFIED AS
+   * PERSISTENCE, DELIBERATELY NOT RENAMED.
+   *
+   * §1.1 requires every occurrence of the retired vocabulary to be CLASSIFIED,
+   * and §1.2 forbids blindly renaming historically stable identifiers. This is
+   * a persisted VARCHAR carrying "PERSONAL" or "TEAM" on every existing row.
+   * Renaming the column would rewrite settled history for a label; renaming
+   * only the Prisma field would put a second name on one fact.
+   *
+   * What matters is that it is INERT: it is written once at workflow creation
+   * and read back only as a display label. It authorizes nothing, selects no
+   * tenant, grants no entitlement and decides no plan — which is exactly why
+   * leaving the name alone is safe, and the vocabulary gate asserts that it
+   * stays that way.
+   */
   workspaceType    String                         @map("workspace_type") @db.VarChar(32)
   teamId           String?                        @map("team_id") @db.Uuid
   assignedToUserId String?                        @map("assigned_to_user_id") @db.Uuid
@@ -9721,14 +9752,56 @@ model AutomationRun {
   /// Unique on (teamId, ruleId, idempotencyKey) — duplicate trigger
   /// events for the same target do not duplicate runs.
   idempotencyKey String    @map("idempotency_key") @db.VarChar(120)
-  /// PENDING | RUNNING | SUCCEEDED | FAILED | SKIPPED — bounded enum.
-  status         String    @default("PENDING") @db.VarChar(20)
+  /// PENDING | RUNNING | RETRY_SCHEDULED | SUCCEEDED | FAILED | SKIPPED |
+  /// DEAD_LETTERED | AMBIGUOUS | DEAD_LETTERED_UNKNOWN — bounded enum, mirrored
+  /// by `automation_runs_status_allowlist`.
+  ///
+  /// VarChar(32), not (20): `DEAD_LETTERED_UNKNOWN` is 21 characters, and at
+  /// (20) the widened CHECK accepted a value the column then refused — a
+  /// rejection that surfaced as a write matching no rows, which is
+  /// indistinguishable from ordinary fence contention.
+  status         String    @default("PENDING") @db.VarChar(32)
   /// Operator-safe reason: never contains raw evidence content,
   /// secrets, tokens, or external payloads.
   reason         String?   @db.VarChar(400)
   startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
   completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // ---------------------------------------------------------------------
+  // PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07) — the
+  // DURABLE runtime. Before this the row had no fence at all: two workers
+  // could claim it, an expired worker could overwrite a newer attempt's
+  // terminal state, and an interrupted run stayed RUNNING forever.
+  // ---------------------------------------------------------------------
+  /// Durable identity of the domain event that produced this run, written
+  /// INSIDE the source transaction. A rolled-back source transaction leaves
+  /// no run; a replayed event collapses on the partial unique index.
+  sourceEventId        String?   @map("source_event_id") @db.VarChar(160)
+  /// Durable identity of the ACTION intent. A retry REUSES it, so a retried
+  /// email or webhook is the same intent rather than a second one.
+  actionIdempotencyKey String?   @map("action_idempotency_key") @db.VarChar(160)
+  claimedAtUtc         DateTime? @map("claimed_at_utc") @db.Timestamptz(6)
+  leaseExpiresAtUtc    DateTime? @map("lease_expires_at_utc") @db.Timestamptz(6)
+  /// Monotonic fence. Every claim increments it; every terminal write names
+  /// the generation it claimed under, so a stale worker updates ZERO rows.
+  claimGeneration      Int       @default(0) @map("claim_generation")
+  attemptCount         Int       @default(0) @map("attempt_count")
+  nextAttemptAtUtc     DateTime? @map("next_attempt_at_utc") @db.Timestamptz(6)
+  failedAtUtc          DateTime? @map("failed_at_utc") @db.Timestamptz(6)
+  deadLetteredAtUtc    DateTime? @map("dead_lettered_at_utc") @db.Timestamptz(6)
+  /// BOUNDED classification — never a message, never a response body, never
+  /// a URL with a query string.
+  failureCode          String?   @map("failure_code") @db.VarChar(60)
+
+  /// ARCH-005 §1 (2026-08-07) — AMBIGUITY, on the run as on the delivery.
+  ///
+  /// An action whose outcome the system cannot determine is neither a success
+  /// nor an ordinary failure, and it must not be re-executed on the retry
+  /// ladder. It waits, bounded, and then becomes DEAD_LETTERED_UNKNOWN —
+  /// which an operator must be able to tell apart from a refusal.
+  ambiguousAtUtc         DateTime? @map("ambiguous_at_utc") @db.Timestamptz(6)
+  reconciliationAttempts Int       @default(0) @map("reconciliation_attempts")
 
   team              Team                        @relation(fields: [teamId], references: [id], onDelete: Cascade)
   rule              AutomationRule              @relation(fields: [ruleId], references: [id], onDelete: Cascade)
@@ -9814,8 +9887,10 @@ model AutomationWebhookDelivery {
   /// Deterministic key from (runId + destinationId). Unique on
   /// (team, run, destination) prevents duplicate delivery rows.
   idempotencyKey String    @map("idempotency_key") @db.VarChar(120)
-  /// Bounded enum: PENDING | DELIVERING | SUCCEEDED | FAILED | SKIPPED
-  status         String    @default("PENDING") @db.VarChar(20)
+  /// Bounded enum: PENDING | DELIVERING | SUCCEEDED | FAILED | SKIPPED |
+  /// RETRY_SCHEDULED | RETRY_EXHAUSTED | AMBIGUOUS | DEAD_LETTERED_UNKNOWN.
+  /// VarChar(32) for the same reason as AutomationRun.status.
+  status         String    @default("PENDING") @db.VarChar(32)
   attemptCount   Int       @default(0) @map("attempt_count")
   nextAttemptAt  DateTime? @map("next_attempt_at") @db.Timestamptz(6)
   lastAttemptAt  DateTime? @map("last_attempt_at") @db.Timestamptz(6)
@@ -9827,6 +9902,23 @@ model AutomationWebhookDelivery {
   failureReason  String?   @map("failure_reason") @db.VarChar(400)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // ARCH-005 (2026-08-07) — the delivery outbox gets the same fence as the
+  // run. E3.2's claim was a `status` precondition only, which is correct
+  // within one process and says nothing about a worker that died holding the
+  // row: a DELIVERING delivery was indistinguishable from a live one.
+  leaseExpiresAtUtc DateTime? @map("lease_expires_at_utc") @db.Timestamptz(6)
+  claimGeneration   Int       @default(0) @map("claim_generation")
+
+  /// ARCH-005 §1 (2026-08-07) — AMBIGUITY.
+  ///
+  /// When the request was WRITTEN and the answer was lost, the outcome is
+  /// genuinely unknown. `ambiguousAtUtc` records when we stopped knowing;
+  /// `reconciliationAttempts` bounds how many times we ask before declaring
+  /// DEAD_LETTERED_UNKNOWN. Neither is a failure counter — an unknown outcome
+  /// must never be projected to an operator as a refusal.
+  ambiguousAtUtc         DateTime? @map("ambiguous_at_utc") @db.Timestamptz(6)
+  reconciliationAttempts Int       @default(0) @map("reconciliation_attempts")
 
   team        Team                         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   run         AutomationRun                @relation(fields: [runId], references: [id], onDelete: Cascade)
@@ -9998,6 +10090,32 @@ model OrganizationDomain {
   @@map("organization_domains")
 }
 
+/**
+ * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — GOVERNANCE MEMBERSHIP
+ * HAS A LIFECYCLE.
+ *
+ * The finding: ordinary revocation was a physical DELETE
+ * (`removeOrganizationMembership`). The provenance grants were closed first,
+ * so the *grant* trail survived — but the membership row did not, which means
+ * the system could not answer "was this person ever a member, and who removed
+ * them, and why?" from the membership itself. It also meant there was no
+ * SUSPENDED state at all: an administrator who wanted to pause someone's
+ * governance access had only the irreversible option.
+ *
+ * The lifecycle mirrors the one `TeamMember` has carried since Phase 17, on
+ * purpose — two membership concepts in one product should not have two
+ * different vocabularies for the same three facts.
+ *
+ *   ACTIVE     the only state that grants Organization authority.
+ *   SUSPENDED  reversible pause. Access is refused; history is intact.
+ *   REVOKED    terminal. Access is refused; the row REMAINS so the removal is
+ *              attributable. Physical deletion survives only for account
+ *              closure/erasure, which is a different obligation.
+ *
+ * PENDING is deliberately ABSENT. An invitation that has not been accepted is
+ * `OrganizationInvite`'s business, and duplicating it here would create the
+ * second authority this whole exercise exists to remove.
+ */
 model OrganizationMembership {
   id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String           @map("organization_id") @db.Uuid
@@ -10006,13 +10124,49 @@ model OrganizationMembership {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  /** The ONLY field that decides whether this membership grants anything. */
+  status              OrganizationMembershipStatus @default(ACTIVE)
+  statusChangedAtUtc  DateTime?                    @map("status_changed_at_utc") @db.Timestamptz(6)
+  suspendedAtUtc      DateTime?                    @map("suspended_at_utc") @db.Timestamptz(6)
+  suspendedByUserId   String?                      @map("suspended_by_user_id") @db.Uuid
+  suspensionReason    String?                      @map("suspension_reason") @db.VarChar(400)
+  revokedAtUtc        DateTime?                    @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId     String?                      @map("revoked_by_user_id") @db.Uuid
+  revocationReason    String?                      @map("revocation_reason") @db.VarChar(400)
+  /** Which authority last moved this membership: MANUAL, SCIM, SYSTEM… */
+  statusSource        String?                      @map("status_source") @db.VarChar(32)
+  /** Contract-bounded membership, where the agreement needs one. */
+  validUntilUtc       DateTime?                    @map("valid_until_utc") @db.Timestamptz(6)
+  /**
+   * Monotonic generation. Every transition increments it inside the same
+   * guarded UPDATE that changes the status, and every transition names the
+   * generation it believes it is moving FROM. A caller holding a stale
+   * generation updates zero rows — which is what makes concurrent
+   * suspend/restore deterministic instead of last-writer-wins.
+   */
+  statusGeneration    Int                          @default(0) @map("status_generation")
+
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suspendedBy  User?        @relation("OrgMembershipSuspendedBy", fields: [suspendedByUserId], references: [id], onDelete: SetNull)
+  revokedBy    User?        @relation("OrgMembershipRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, userId], name: "organization_memberships_org_user_uniq")
   @@index([userId])
   @@index([organizationId, role])
+  @@index([organizationId, status])
+  @@index([userId, status])
   @@map("organization_memberships")
+}
+
+/**
+ * ARCH-004. Deliberately the same three values as `TeamMemberStatus`: one
+ * product should not spell the same three facts two different ways.
+ */
+enum OrganizationMembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
 }
 
 model OrganizationInvite {
@@ -10826,17 +10980,44 @@ model QcSample {
 // Phase 2B Closure — External Reviewer Portal
 // ---------------------------------------------------------------------------
 
+/**
+ * PHASE 12 CORRECTIVE PASS §2 (INV-001) — THE ROLE/FEDERATION FACET OF AN
+ * INVITATION. NOT A SECOND LIFECYCLE.
+ *
+ * The finding asked whether an external-review invitation being TWO rows is
+ * two legitimate bounded aggregates or one duplicated authority. Tracing every
+ * reader and writer answered it: this row has no identity of its own. It is
+ * created by `issueInvitation` with `id` set to the GRANT's id, so it is 1:1
+ * by construction, and nothing ever creates one without a grant.
+ *
+ * What made it a DUPLICATE AUTHORITY was a set of lifecycle columns that a
+ * "model catch-up" migration added here and that no writer has ever
+ * populated: `grant_state` (NOT NULL DEFAULT 'PENDING'), `raw_token`,
+ * `token_hash`, `expires_at_utc`, `revoked_at_utc`. They encode exactly the
+ * lifecycle `ExternalReviewGrant` owns. Most readers correctly took the
+ * lifecycle from the grant — `listInvitations` does — but the organization
+ * external-access CSV export read them from HERE, so a compliance export
+ * reported every grant as `grantState=PENDING` with no expiry and no
+ * revocation, whatever the grant actually said.
+ *
+ * DECISION: `ExternalReviewGrant` is the sole authority for identity,
+ * recipient, workspace, token hash, token version, issue time, expiry,
+ * revocation, rotation, acceptance and invitation status. This row owns ONLY
+ * role, MFA requirement, watermark policy, the federation/SSO binding, and
+ * the operator-facing send/accept timestamps used by the console. The
+ * duplicate columns are dropped by
+ * `20271122000000_external_review_invitation_authority_contract`, which
+ * refuses to drop them if any row ever carried a non-default value.
+ *
+ * `raw_token` was also a plaintext-token column. Nothing wrote it; removing
+ * it removes the possibility.
+ */
 model ExternalReviewerRoleAssignment {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId              String    @map("team_id") @db.Uuid
   evidenceId          String    @map("evidence_id") @db.Uuid
   grantedByUserId     String    @map("granted_by_user_id") @db.Uuid
   externalEmail       String    @map("external_email") @db.VarChar(320)
-  grantState          String    @default("PENDING") @map("grant_state") @db.VarChar(20)
-  rawToken            String?   @map("raw_token") @db.VarChar(128)
-  tokenHash           String?   @unique @map("token_hash") @db.VarChar(128)
-  expiresAtUtc        DateTime? @map("expires_at_utc") @db.Timestamptz(6)
-  revokedAtUtc        DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
   // Phase 2B Closure — federation + adaptive auth
   authMethod          String    @default("TOKEN") @map("auth_method") @db.VarChar(20)
   ssoConnectionId     String?   @map("sso_connection_id") @db.VarChar(128)
@@ -10856,6 +11037,13 @@ model ExternalReviewerRoleAssignment {
   organization        String?   @db.VarChar(200)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  /**
+   * ARCH/INV-001 — the sidecar IS the grant, sharing its id. Declared as a
+   * relation so the ORM knows it and the FK the contract migration adds is
+   * expressed in the datamodel rather than living only in raw SQL.
+   */
+  grant      ExternalReviewGrant  @relation(fields: [id], references: [id], onDelete: Cascade)
 
   deliveries ExternalReviewInvitationDelivery[]
   activities ExternalReviewActivity[]
@@ -10892,8 +11080,48 @@ model ExternalReviewInvitationDelivery {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  /**
+   * PHASE 12 CORRECTIVE PASS §3 (NEW-004) — THE DURABLE LOGICAL INTENT.
+   *
+   * The §1.1 fix keyed the intent on `(team, grant, attempt)` and derived the
+   * provider idempotency key from the row id. That collapsed ordinary repeats,
+   * which was the point — but it made `attempt` carry two incompatible
+   * meanings at once (how many times we have TRIED, and which MESSAGE this
+   * is), and it forced a migration that renumbered historical `attempt`
+   * values. Renumbering a business-visible counter is a rewrite of history,
+   * and the migration described itself as "expand-only, rewrites no history",
+   * which was not true.
+   *
+   * The two meanings are now separate columns:
+   *
+   *   contentVersion  WHICH generation of the invitation link this message
+   *                   carried — the grant's `token_version` at send time. A
+   *                   rotation changes the content, so it MUST be a new
+   *                   message; without this, a rotated link would collapse
+   *                   onto the superseded message's key and the reviewer
+   *                   would be left holding a dead link and no successor.
+   *   resendSeq       0 for the original send of a given content version, and
+   *                   N for the Nth deliberate operator resend of it.
+   *   attempt         unchanged in meaning: how many times THIS intent has
+   *                   been physically attempted. Historical values are left
+   *                   exactly as they were.
+   *
+   * `intentKey` is the durable identity derived from those, and it — not the
+   * row's surrogate id — is what the provider idempotency key is minted from.
+   * A retry finds the same intent and therefore presents the same key; a
+   * resend or a rotation is a different intent and presents a different one.
+   */
+  contentVersion    Int       @default(1) @map("content_version")
+  resendSeq         Int       @default(0) @map("resend_seq")
+  intentKey         String?   @map("intent_key") @db.VarChar(200)
+
   grant ExternalReviewerRoleAssignment @relation(fields: [grantId], references: [id], onDelete: Cascade)
 
+  // The real intent invariant. Enforced in the database because
+  // check-then-insert cannot survive a race: two sessions can both observe
+  // "no existing row" before either inserts.
+  @@unique([teamId, grantId, contentVersion, resendSeq], map: "external_review_invitation_deliveries_intent_key")
+  @@unique([intentKey], map: "external_review_invitation_deliveries_intent_key_uk")
   @@index([teamId, grantId])
   @@index([teamId, status])
   @@map("external_review_invitation_deliveries")
@@ -12869,6 +13097,23 @@ model ExternalReviewGrant {
   caseId                 String?   @map("case_id") @db.Uuid
   packageId              String?   @map("package_id") @db.Uuid
   tokenHash              String    @unique(map: "external_review_grants_token_hash_uk") @map("token_hash") @db.VarChar(128)
+
+  /**
+   * PHASE 12 CORRECTIVE PASS §2/§3 (INV-001 + NEW-004) — WHICH TOKEN THIS IS.
+   *
+   * Rotation overwrites `token_hash` in place, which is correct for
+   * authentication — the predecessor stops working the instant the row
+   * changes. But it left NOTHING durable saying that the CONTENT of the
+   * invitation had changed, and the delivery layer needs exactly that: a
+   * message carrying the superseded link and a message carrying its successor
+   * are different messages to a human, and must not collapse onto one
+   * provider idempotency key.
+   *
+   * Starts at 1 and increments on every rotation. It is not a secret and it
+   * is not a credential: it names WHICH generation of the link a delivery
+   * carried, and nothing about the link itself.
+   */
+  tokenVersion           Int       @default(1) @map("token_version")
   reviewerEmail          String    @map("reviewer_email") @db.VarChar(320)
   reviewerDisplayName    String?   @map("reviewer_display_name") @db.VarChar(200)
   state                  String    @default("INVITED") @db.VarChar(24)
@@ -12886,6 +13131,8 @@ model ExternalReviewGrant {
   safeNote               String?   @map("safe_note") @db.VarChar(500)
   createdAtUtc           DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc           DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  roleAssignment ExternalReviewerRoleAssignment?
 
   @@index([teamId, reviewerEmail], map: "external_review_grants_team_reviewer_idx")
   @@index([teamId, state, expiresAtUtc(sort: Desc)], map: "external_review_grants_team_state_expires_idx")

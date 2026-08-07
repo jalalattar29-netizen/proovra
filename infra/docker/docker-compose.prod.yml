@@ -13,7 +13,19 @@ services:
       retries: 10
 
   proovra-api:
-    image: ghcr.io/${GHCR_OWNER}/proovra-api:${IMAGE_TAG:-latest}
+    # PHASE 12 REMEDIATION — INFRA-001 (2026-08-06).
+    #
+    # The `:-latest` default is REMOVED. `${IMAGE_TAG:?...}` makes an unset or
+    # empty IMAGE_TAG a HARD COMPOSE ERROR instead of silently resolving to
+    # whatever the floating `:latest` tag happens to point at. The deployed
+    # revision is now pinned by the invocation, so source-to-image
+    # correspondence is determinable rather than assumed.
+    #
+    # IMAGE_TAG must be an IMMUTABLE release identity — a commit SHA or an
+    # image digest. `scripts/verify-release-identity.mjs` refuses a mutable
+    # tag and verifies the pulled images OCI `org.opencontainers.image.revision`
+    # label matches the intended commit for BOTH services.
+    image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/proovra-api:${IMAGE_TAG:?IMAGE_TAG must be an immutable release identity (commit SHA or digest); :latest is not permitted}
     env_file:
       - /opt/proovra/app/.env
     depends_on:
@@ -90,7 +102,10 @@ services:
     restart: unless-stopped
 
   proovra-worker:
-    image: ghcr.io/${GHCR_OWNER}/proovra-worker:${IMAGE_TAG:-latest}
+    # INFRA-001 — same immutable identity, same variable. API and worker share
+    # ONE IMAGE_TAG by construction, so they cannot skew relative to each
+    # other; removing the default means they also cannot both float.
+    image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/proovra-worker:${IMAGE_TAG:?IMAGE_TAG must be an immutable release identity (commit SHA or digest); :latest is not permitted}
     env_file:
       - /opt/proovra/app/.env
     depends_on:

@@ -139,7 +139,7 @@ import type { WorkspaceScope } from "../src/services/workspace-billing.service.j
 
 function personalScope(over: Partial<WorkspaceScope> = {}): WorkspaceScope {
   return {
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     ownerUserId: "u1",
     teamId: null,
     organizationId: null,

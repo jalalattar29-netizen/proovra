@@ -104,6 +104,95 @@ export function migrationSql(name) {
  * `proposedAdditions` is the explicit list A1/A3 justify adding to HEAD.
  * `proposedExclusions` maps a name to the reason it is deliberately left out.
  */
+/**
+ * PHASE 12 CORRECTIVE PASS 3 §1.1 (2026-08-06) — THE LEDGER IS A HISTORY, THE
+ * PARTITION IS DERIVED.
+ *
+ * What was wrong
+ * ---------------------------------------------------------------------------
+ * `proposedAdditions` was a hand-maintained list that meant "on disk but not
+ * yet in HEAD". That is a statement about a MOMENT, and the list outlived the
+ * moment: the eighteen Point-8 entries landed at `a7863bec`, a nineteenth was
+ * authored afterwards, and the all-in-or-all-out check then reported
+ *
+ *     "the release landed partially: 18 of 19 additions are in HEAD"
+ *
+ * — a true statement about a drifted model, not about the migrations. The
+ * previous pass concluded this could only be repaired by a commit. That was
+ * wrong: nothing about the repair requires committing. The list simply has to
+ * stop being a snapshot and become what it always described — a LEDGER of every
+ * addition this programme has justified, with the landed/proposed split DERIVED
+ * from HEAD at evaluation time.
+ *
+ * The model now
+ * ---------------------------------------------------------------------------
+ *   LEDGER     every justified addition, ever. Append-only. An entry is never
+ *              removed when it lands, because the justification is still the
+ *              reason the migration is in the artifact.
+ *   LANDED     ledger ∩ HEAD. Baseline. Not proposed, not re-litigated.
+ *   PROPOSED   ledger ∩ (disk \ HEAD). What a release would still add.
+ *
+ * Both partitions are computed, so the model cannot drift again: committing a
+ * migration moves it from PROPOSED to LANDED with no edit, and authoring one
+ * moves it into PROPOSED as soon as it is justified.
+ *
+ * Conservation is strictly stronger than before. The removed check could only
+ * see one failure (a mixed list). These see five, and each is adversarially
+ * injected in `phase-12-point8-release-artifact.test.ts`:
+ * a landed entry reported as still proposed; a worktree-only migration missing
+ * from the ledger; a ledger entry naming a migration that exists nowhere; a
+ * HEAD migration deleted from disk; and a guard/drop pair split across the HEAD
+ * boundary.
+ */
+export function partitionAdditions({ ledger, head, disk }) {
+  const headSet = new Set(head);
+  const diskSet = new Set(disk);
+  const landed = [];
+  const proposed = [];
+  const vanished = [];
+  for (const n of ledger) {
+    if (headSet.has(n)) landed.push(n);
+    else if (diskSet.has(n)) proposed.push(n);
+    else vanished.push(n);
+  }
+  return { landed: landed.sort(), proposed: proposed.sort(), vanished: vanished.sort() };
+}
+
+/**
+ * A destructive migration and the guard whose RAISE is its only safety must
+ * never be separated. The wave selector already enforces that WITHIN an
+ * artifact; this enforces it ACROSS the HEAD boundary, which is the split that
+ * actually shipped: the drop was tracked and its guard was not.
+ *
+ * A pair is discovered, not listed — the guard names the migration it guards in
+ * its own SQL, which is the link the Point-8 gate established.
+ */
+function guardDropSplitAcrossHead({ disk, head }) {
+  const headSet = new Set(head);
+  const errors = [];
+  for (const guard of disk) {
+    let text;
+    try {
+      text = migrationSql(guard).toString("utf8");
+    } catch {
+      continue;
+    }
+    for (const target of disk) {
+      if (target === guard) continue;
+      if (!text.includes(target)) continue;
+      // `guard` names `target`. If exactly one of them is in HEAD, a clean
+      // checkout ships half the pair.
+      if (headSet.has(guard) !== headSet.has(target)) {
+        errors.push(
+          `guard/drop pair split across the HEAD boundary: ${guard} names ${target}, ` +
+            `but only ${headSet.has(guard) ? guard : target} is tracked`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
 export function buildViews({ proposedAdditions = [], proposedExclusions = {} } = {}) {
   const onDisk = migrationsOnDisk();
   const head = migrationsInHead();
@@ -111,44 +200,52 @@ export function buildViews({ proposedAdditions = [], proposedExclusions = {} } =
 
   const headSet = new Set(head);
   const diskSet = new Set(onDisk);
-  const addSet = new Set(proposedAdditions);
   const exclSet = new Set(Object.keys(proposedExclusions));
 
-  const proposed = [...new Set([...head, ...proposedAdditions])].filter((n) => !exclSet.has(n)).sort();
+  // `proposedAdditions` is the LEDGER. The landed/proposed split is derived.
+  const ledger = [...proposedAdditions];
+  const ledgerSet = new Set(ledger);
+  const { landed, proposed: stillProposed, vanished } = partitionAdditions({
+    ledger,
+    head,
+    disk: onDisk,
+  });
+
+  const proposed = [...new Set([...head, ...stillProposed])].filter((n) => !exclSet.has(n)).sort();
 
   const untrackedOnDisk = onDisk.filter((n) => !headSet.has(n));
 
   const errors = [];
 
-  // Conservation 1: every proposed addition must actually exist on disk.
-  for (const n of proposedAdditions) {
-    if (!diskSet.has(n)) errors.push(`proposed addition is not on disk: ${n}`);
+  // Conservation 1: a ledger entry must exist SOMEWHERE — in HEAD or on disk.
+  // An entry naming neither is a migration that was justified and then lost,
+  // which is exactly the class of disappearance this file exists to catch.
+  for (const n of vanished) {
+    errors.push(`ledger entry exists in neither HEAD nor the worktree: ${n}`);
   }
 
-  // Conservation 1b: the additions must be all-out or all-in relative to HEAD.
-  //
-  // Before the release commits, none of them are tracked; after it commits, all
-  // of them are. Both are correct states. What is NEVER correct is a mixture —
-  // that means the release landed partially, which is precisely the shape that
-  // ships a destructive migration whose guard was left behind. Asserting the
-  // old "must not already be in HEAD" made the release un-committable: every
-  // addition is in HEAD the instant it lands, so the gate would have failed on
-  // every clean checkout from then on. This check is strictly stronger: it
-  // still rejects a stale additions list, and it also catches partial landing,
-  // which the previous form could not see at all.
-  const addedInHead = proposedAdditions.filter((n) => headSet.has(n));
-  if (addedInHead.length > 0 && addedInHead.length < proposedAdditions.length) {
-    const missing = proposedAdditions.filter((n) => !headSet.has(n));
-    errors.push(
-      `the release landed partially: ${addedInHead.length} of ${proposedAdditions.length} ` +
-        `additions are in HEAD, missing ${missing.join(", ")}`,
-    );
+  // Conservation 1b: a LANDED entry must never be reported as still proposed.
+  // Derived, so it cannot be violated by construction — asserted anyway,
+  // because a future change to the partition would otherwise fail silently.
+  for (const n of landed) {
+    if (stillProposed.includes(n)) {
+      errors.push(`landed migration is still listed as proposed: ${n}`);
+    }
   }
 
-  // Conservation 2: every untracked directory must be either added or
+  // Conservation 1c: a tracked migration must not have been deleted from disk.
+  // `git ls-tree` still reports it, so a clean checkout would ship a directory
+  // this worktree no longer has — and every local rehearsal would be blind to it.
+  for (const n of head) {
+    if (!diskSet.has(n)) {
+      errors.push(`migration is in HEAD but missing from the worktree: ${n}`);
+    }
+  }
+
+  // Conservation 2: every untracked directory must be in the ledger or
   // explicitly excluded with a reason. Silence is the bug.
   for (const n of untrackedOnDisk) {
-    if (!addSet.has(n) && !exclSet.has(n)) {
+    if (!ledgerSet.has(n) && !exclSet.has(n)) {
       errors.push(`untracked migration is neither added nor excluded with a reason: ${n}`);
     }
   }
@@ -159,6 +256,9 @@ export function buildViews({ proposedAdditions = [], proposedExclusions = {} } =
       errors.push(`HEAD migration disappears from the proposed artifact: ${n}`);
     }
   }
+
+  // Conservation 3b: a guard and the migration it guards must land together.
+  errors.push(...guardDropSplitAcrossHead({ disk: onDisk, head }));
 
   // Conservation 4: the Point-6 inventory must describe exactly what is on disk.
   const invSet = new Set(inventory);
@@ -179,9 +279,12 @@ export function buildViews({ proposedAdditions = [], proposedExclusions = {} } =
       proposedReleaseArtifact: proposed.length,
       inventory: inventory.length,
       untrackedOnDisk: untrackedOnDisk.length,
-      proposedAdditions: proposedAdditions.length,
+      additionLedger: ledger.length,
+      landedAdditions: landed.length,
+      proposedAdditions: stillProposed.length,
       proposedExclusions: exclSet.size,
     },
+    additions: { landed, proposed: stillProposed, vanished },
     untrackedOnDisk,
     conservationErrors: errors,
     inventoryFilesystemMismatch,

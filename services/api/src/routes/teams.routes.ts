@@ -319,7 +319,7 @@ async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
       details?: Record<string, unknown>;
     } = new Error("Team limit reached for current plan");
     err.statusCode = 409;
-    err.code = "TEAM_WORKSPACE_LIMIT_REACHED";
+    err.code = "SHARED_WORKSPACE_LIMIT_REACHED";
     err.details = {
       plan: personalScope.plan,
       maxOwnedTeams,
@@ -419,7 +419,7 @@ export async function teamsRoutes(app: FastifyInstance) {
             details?: Record<string, unknown>;
           } = new Error("Team limit reached for current plan");
           err.statusCode = 409;
-          err.code = "TEAM_WORKSPACE_LIMIT_REACHED";
+          err.code = "SHARED_WORKSPACE_LIMIT_REACHED";
           err.details = {
             plan: ownershipState.plan,
             maxOwnedTeams: ownershipState.maxOwnedTeams,
@@ -1063,7 +1063,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId })).scope;
       const scopeCaps = getPlanCapabilities(scope.plan);
 
-      if (!scopeCaps.allowsTeamWorkspace) {
+      if (!scopeCaps.allowsSharedWorkspace) {
         auditTeamAction(req, {
           userId,
           action: "teams.invite_create",
@@ -1797,7 +1797,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId: invite.teamId, requesterUserId: userId })).scope;
         const scopeCaps = getPlanCapabilities(scope.plan);
 
-        if (!scopeCaps.allowsTeamWorkspace) {
+        if (!scopeCaps.allowsSharedWorkspace) {
           auditTeamAction(req, {
             userId,
             action: "teams.invite_accept",

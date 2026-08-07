@@ -6,7 +6,8 @@ import { ensureEntitlement } from "./billing.service.js";
 import { resolveWorkspaceKind } from "./identity/workspace-kind.js";
 import {
   type BillingWorkspaceScope,
-  type WorkspaceScopeType,
+  type WorkspaceBillingShape,
+  billingShapeForWorkspaceKind,
   getEffectiveSeatLimit,
   assertWorkspacePlanCompatible,
   // PHASE 9 §9.4 — the canonical PURE commercial policy (the decisions
@@ -16,7 +17,13 @@ import {
 } from "@proovra/shared-billing";
 
 export type WorkspaceScope = {
-  workspaceType: WorkspaceScopeType;
+  /**
+   * ARCH-001 (2026-08-07) — the COMMERCIAL shape, derived from the canonical
+   * WorkspaceKind by `billingShapeForWorkspaceKind`. Renamed from
+   * `billingShape: "SINGLE_OCCUPANT" | "TEAM"`, whose values read as tenancy kinds
+   * next to a TEAM plan and were used as if they were.
+   */
+  billingShape: WorkspaceBillingShape;
   ownerUserId: string;
   teamId: string | null;
   /**
@@ -87,7 +94,7 @@ export type WorkspaceScope = {
 
 function toBillingWorkspaceScope(scope: WorkspaceScope): BillingWorkspaceScope {
   return {
-    workspaceType: scope.workspaceType,
+    billingShape: scope.billingShape,
     ownerUserId: scope.ownerUserId,
     teamId: scope.teamId,
     plan: scope.plan,
@@ -159,7 +166,8 @@ export async function getPersonalWorkspaceScope(
   const personalPlan = entitlement.plan;
 
   const scope: WorkspaceScope = {
-    workspaceType: "PERSONAL",
+    // ARCH-001 — a Personal Space is SINGLE_OCCUPANT by definition.
+    billingShape: "SINGLE_OCCUPANT",
     ownerUserId: userId,
     teamId: null,
     organizationId: personalTeam?.organizationId ?? null,
@@ -243,7 +251,7 @@ export async function getTeamWorkspaceScope(
    * from the canonical KIND instead of being hardcoded.
    *
    * `getTeamWorkspaceScope` is reached by team ID, and it stamped every scope
-   * `workspaceType: "TEAM"` — including the user's PERSONAL workspace, which
+   * `billingShape: "SHARED"` — including the user's PERSONAL workspace, which
    * is also a `Team` row. Everything downstream reads that field as "this is a
    * collaboration workspace", and two of them then contradicted the
    * effective-plan policy in the same package:
@@ -258,13 +266,20 @@ export async function getTeamWorkspaceScope(
    *     without `allowsTeamWorkspace`, which is right for an Owned workspace
    *     on FREE and wrong for a FREE user's own Personal Space.
    *
-   * The ledger already recorded this as the Phase-12 condition: "migrate to
-   * workspaceKind in Phase 12". A PERSONAL-kind row is a PERSONAL billing
-   * scope; OWNED and ORGANIZATION are TEAM scopes; UNKNOWN keeps the stricter
-   * TEAM reading, which fails closed.
+   * PHASE 12 CORRECTIVE PASS §1 (ARCH-001, 2026-08-07) — and the derivation is
+   * now a CALL, not a ternary written here.
+   *
+   * `billingShapeForWorkspaceKind` is the one place tenancy becomes commerce.
+   * Writing the mapping inline — as this line used to — is how a second copy
+   * of it comes to exist somewhere else and then disagrees.
+   *
+   * UNKNOWN keeps the stricter SHARED reading, which fails closed: a workspace
+   * whose kind cannot be proven is treated as one that could hold other people.
    */
-  const workspaceType: WorkspaceScopeType =
-    workspaceKind === "PERSONAL" ? "PERSONAL" : "TEAM";
+  const billingShape: WorkspaceBillingShape =
+    workspaceKind === "UNKNOWN"
+      ? "SHARED"
+      : billingShapeForWorkspaceKind(workspaceKind);
 
   const activeStorageAddonBytes = await getActiveWorkspaceStorageAddonBytes({
     ownerUserId: team.ownerUserId,
@@ -272,7 +287,7 @@ export async function getTeamWorkspaceScope(
   });
 
   const scope: WorkspaceScope = {
-    workspaceType,
+    billingShape,
     ownerUserId: team.ownerUserId,
     teamId: team.id,
     // Phase A1 — Stage 6 makes this column NOT NULL at the schema
@@ -286,11 +301,11 @@ export async function getTeamWorkspaceScope(
     // Canonical seat cap lives in @proovra/shared-billing; this service
     // must not re-derive the plan-cap precedence itself.
     teamSeats: getEffectiveSeatLimit({
-      // POINT 7 — the SAME resolved scope type, not a second hardcoded one.
-      // A Personal Space has no seats to sell; passing "TEAM" here gave it the
-      // plan's member cap, which the seat projection then reported as capacity
-      // that cannot be filled.
-      workspaceType,
+      // POINT 7 — the SAME resolved shape, not a second hardcoded one. A
+      // Personal Space has no seats to sell; passing the shared shape here gave
+      // it the plan's member cap, which the seat projection then reported as
+      // capacity that cannot be filled.
+      billingShape,
       ownerUserId: team.ownerUserId,
       teamId: team.id,
       plan: effectivePlan,

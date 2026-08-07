@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateCondition,
 } from "../src/services/automation/automation-dispatcher.service.js";
+import { AUTOMATION_TRIGGER_TYPES } from "../src/services/automation/automation.service.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,6 +49,12 @@ const DISPATCHER = readApi(
   "src/services/automation/automation-dispatcher.service.ts",
 );
 const ACTIONS = readApi("src/services/automation/automation-actions.service.ts");
+// ARCH-005 (2026-08-07) — the two halves the dispatcher was split into.
+const OUTBOX = readApi("src/services/automation/automation-outbox.service.ts");
+const PROCESSOR = readApi(
+  "src/services/automation/automation-dispatch-runtime.service.ts",
+);
+const TRIGGERS = readApi("src/services/automation/automation-triggers.ts");
 const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
 
 // ===========================================================================
@@ -213,19 +220,112 @@ describe("E3.1 Test 2 — dispatcher source contains no scripting / no fetch", (
     expect(DISPATCHER).not.toMatch(/new\s+Function\s*\(/);
   });
 
-  it("filters rules by enabled=true (disabled rules cannot run)", () => {
-    expect(DISPATCHER).toMatch(/enabled:\s*true/);
+  /**
+   * ARCH-005 (2026-08-07) — THESE MOVED, AND THEY GOT STRICTER.
+   *
+   * They used to read the dispatcher, which matched rules and executed them in
+   * one in-request pass. That pass is gone: matching is the PRODUCER's job and
+   * execution is the PROCESSOR's, so the assertions follow the behaviour to
+   * where it now lives rather than being deleted with the code that used to
+   * hold it. Each also asserts the property the OLD shape could not have.
+   */
+  it("the producer filters rules by enabled=true (disabled rules cannot run)", () => {
+    expect(OUTBOX).toMatch(/enabled:\s*true/);
   });
 
-  it("filters by teamId AND triggerType (team-scoped)", () => {
-    expect(DISPATCHER).toMatch(/teamId:\s*input\.teamId/);
-    expect(DISPATCHER).toMatch(/triggerType:\s*input\.triggerType/);
+  it("the producer is team-scoped, and takes the tenant from the source row", () => {
+    expect(OUTBOX).toMatch(/teamId:\s*input\.teamId/);
+    expect(OUTBOX).toMatch(/triggerType:\s*input\.triggerType/);
   });
 
-  it("treats P2002 (unique conflict) as duplicate_trigger SKIP", () => {
-    expect(DISPATCHER).toMatch(/isUniqueConflict/);
-    expect(DISPATCHER).toMatch(/duplicate_trigger/);
-    expect(DISPATCHER).toMatch(/P2002/);
+  it("the producer collapses a duplicate source event WITHOUT raising", () => {
+    // The old assertion wanted a CAUGHT P2002. Inside a source transaction a
+    // raised unique violation POISONS that transaction, so catching it in
+    // JavaScript would not save the caller's commit — the domain change would
+    // be lost because an automation rule fired twice. ON CONFLICT DO NOTHING
+    // is the only admissible strategy, and the ABSENCE of the catch is now
+    // part of the contract rather than an omission.
+    expect(OUTBOX).toMatch(/skipDuplicates:\s*true/);
+    // Asserted against CODE, not prose: the module's header explains why the
+    // catch is inadmissible, so a bare /P2002/ would fail on its own
+    // explanation. What must be absent is the HANDLER.
+    expect(OUTBOX).not.toMatch(/code\s*===\s*["']P2002["']/);
+    expect(OUTBOX).not.toMatch(/isUniqueConflict/);
+  });
+
+  it("the producer NEVER executes — execution belongs to the fenced processor", () => {
+    expect(OUTBOX).not.toMatch(/executeAutomationAction/);
+    expect(PROCESSOR).toMatch(/executeAutomationAction\(/);
+  });
+
+  it("the processor claims under a lease AND a monotonic generation", () => {
+    expect(PROCESSOR).toMatch(/claimGeneration:\s*run\.claimGeneration/);
+    expect(PROCESSOR).toMatch(
+      /leaseExpiresAtUtc:\s*new Date\(nowMs \+ AUTOMATION_LEASE_MS\)/,
+    );
+  });
+
+  it("every terminal write is FENCED on the generation it claimed under", () => {
+    // `fencedUpdate` is the ONLY writer of a terminal state, and its WHERE
+    // carries both the status and the generation, so a stale worker updates
+    // zero rows. The old in-request executor could not even express this — it
+    // had no generation, and it called `automationRun.update({where:{id}})`
+    // directly, which overwrites whatever is there.
+    const idx = PROCESSOR.indexOf("async function fencedUpdate");
+    expect(idx).toBeGreaterThan(-1);
+    const body = PROCESSOR.slice(idx, idx + 900);
+    expect(body).toMatch(/status:\s*"RUNNING"/);
+    expect(body).toMatch(/claimGeneration:\s*generation/);
+    expect(body).toMatch(/res\.count === 1/);
+    for (const terminal of ["SUCCEEDED", "FAILED", "SKIPPED", "DEAD_LETTERED"]) {
+      expect(
+        PROCESSOR.includes(`status: "${terminal}"`),
+        `${terminal} must be a real written state`,
+      ).toBe(true);
+    }
+    // And nothing bypasses it.
+    expect(PROCESSOR.match(/automationRun\.update\(/g) ?? []).toEqual([]);
+  });
+
+  it("an ambiguous outcome never becomes SUCCEEDED", () => {
+    expect(PROCESSOR).toMatch(/AMBIGUOUS_CODES/);
+    expect(PROCESSOR).toMatch(/action_ambiguous/);
+    // The classifier maps a timeout or a reset to AMBIGUOUS, never to success
+    // and never to a permanent rejection.
+    expect(PROCESSOR).toMatch(/timeout/);
+    expect(PROCESSOR).toMatch(/econnreset/);
+  });
+
+  it("the dispatcher module no longer executes anything", () => {
+    // The in-request executor is gone. If it comes back, this fails.
+    // Again asserted against CODE: the file documents where the dispatcher
+    // went, so the NAME appears in its prose. What must be absent is a
+    // callable, and any import that would let it execute.
+    expect(DISPATCHER).not.toMatch(
+      /export\s+(async\s+)?function\s+dispatchAutomationTrigger/,
+    );
+    expect(DISPATCHER).not.toMatch(/automationRun\.(create|update|updateMany)/);
+    expect(DISPATCHER).not.toMatch(/executeAutomationAction\(/);
+    expect(DISPATCHER).not.toMatch(/^import .*automation-actions/m);
+    // And neither half re-creates or calls the removed entry point. (Both
+    // name it in prose, explaining what they replaced — so, again, the
+    // assertion is on the callable and the import, not on the string.)
+    for (const src of [OUTBOX, PROCESSOR, TRIGGERS]) {
+      expect(src).not.toMatch(/dispatchAutomationTrigger\s*\(/);
+      expect(src).not.toMatch(/import[^\n]*dispatchAutomationTrigger/);
+    }
+  });
+
+  it("all eleven allowlisted triggers have a real source", () => {
+    // The finding was not "the dispatcher is unreachable" — it was that a
+    // customer could build a rule that never ran. That is only closed when
+    // EVERY trigger in the allowlist is emitted or detected by something.
+    for (const trigger of AUTOMATION_TRIGGER_TYPES) {
+      expect(
+        TRIGGERS.includes(`"${trigger}"`),
+        `${trigger} has no source in automation-triggers.ts`,
+      ).toBe(true);
+    }
   });
 
   it("emits the 4 lifecycle events", () => {
@@ -239,11 +339,13 @@ describe("E3.1 Test 2 — dispatcher source contains no scripting / no fetch", (
     }
   });
 
-  it("never throws past its boundary — every Prisma call wrapped in try/catch", () => {
-    // The dispatcher uses try/catch around DB writes so the caller's
-    // flow never breaks. Spot-check the pattern is present.
-    const tryCount = (DISPATCHER.match(/\btry\s*\{/g) ?? []).length;
-    expect(tryCount).toBeGreaterThanOrEqual(4);
+  it("neither half throws past its boundary", () => {
+    // The PRODUCER runs inside somebody else's transaction, so an exception
+    // here would roll back a legitimate domain change because an automation
+    // rule was misconfigured. The PROCESSOR runs in a sweep, where a throw
+    // would abandon the rest of the batch.
+    expect((OUTBOX.match(/\btry\s*\{/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect((PROCESSOR.match(/\btry\s*\{/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
 
   it("safeEmitSecurityEvent is the canonical emitter (no raw payload assembly)", () => {
@@ -325,10 +427,29 @@ describe("E3.1 Test 3 — action handler source contains no scripting / no fetch
   it("team-scope defence-in-depth: assignee + role membership checked via teamMember", () => {
     // NOTIFY_USER + ASSIGN_REVIEWER both look up team membership before
     // recording the action.
+    //
+    // PHASE 12 REMEDIATION — AUTH-004 (2026-08-06). INTENTIONAL CONTRACT
+    // CHANGE, strictly stronger.
+    //
+    //   OLD: `teamMember.findUnique({ where: { teamId_userId } })` with NO
+    //        status predicate. The check proved only that a membership ROW
+    //        existed, so an automation could notify a suspended user about
+    //        workspace activity they no longer have access to, and could
+    //        assign review work to a revoked member who cannot open it.
+    //
+    //   NEW: `teamMember.findFirst({ where: { …, status: "ACTIVE" } })`, the
+    //        canonical predicate. The defence-in-depth property this test
+    //        pins — "the action TARGET is verified to belong to the team
+    //        before the action is recorded" — is unchanged and now actually
+    //        means live membership.
+    //
+    // The assertion counts the target checks by their status-scoped shape,
+    // so a regression back to a status-blind lookup fails here.
     const membershipChecks = (ACTIONS.match(
-      /teamMember\.findUnique/g,
+      /teamMember\.findFirst\(\{\s*\n?\s*where:\s*\{[^}]*status:\s*"ACTIVE"/g,
     ) ?? []).length;
     expect(membershipChecks).toBeGreaterThanOrEqual(2);
+    expect(ACTIONS).not.toMatch(/teamMember\.findUnique/);
   });
 
   it("emits automation_action_executed for every action result", () => {

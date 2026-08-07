@@ -2,6 +2,7 @@
 export interface ViewResult {
   views: { HEAD_ARTIFACT: string[]; SETTLED_WORKTREE: string[]; PROPOSED_RELEASE_ARTIFACT: string[] };
   counts: Record<string, number>;
+  additions: { landed: string[]; proposed: string[]; vanished: string[] };
   untrackedOnDisk: string[];
   conservationErrors: string[];
   inventoryFilesystemMismatch: string[];
@@ -25,3 +26,13 @@ export declare function buildViews(args?: {
   proposedAdditions?: string[];
   proposedExclusions?: Record<string, string>;
 }): ViewResult;
+
+/**
+ * PHASE 12 CORRECTIVE PASS 3 §1.1 — the landed/proposed split, DERIVED from
+ * HEAD and the worktree rather than hand-maintained.
+ */
+export declare function partitionAdditions(args: {
+  ledger: string[];
+  head: string[];
+  disk: string[];
+}): { landed: string[]; proposed: string[]; vanished: string[] };

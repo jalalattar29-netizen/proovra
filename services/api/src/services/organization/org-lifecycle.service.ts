@@ -42,6 +42,13 @@
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+// ARCH-004 — governance-membership transitions have ONE orchestrator. This
+// module composes it; it never writes `status` itself.
+import {
+  ORG_SUSPENSION_MEMBERSHIP_MARKER,
+  resumeOrganizationSuspendedMemberships,
+  suspendAllOrganizationMemberships,
+} from "../identity/org-membership-lifecycle.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 
 /** SSO/SCIM string-status marker written by suspend, reverted by resume. */
@@ -182,6 +189,33 @@ export async function suspendOrganization(input: {
       });
     }
 
+    /**
+     * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — GOVERNANCE
+     * MEMBERSHIP IS PAUSED TOO.
+     *
+     * Suspending an Organization already halted SSO, SCIM, API credentials
+     * and the switcher pointer, and `checkOrgAccess` already refuses on
+     * `org.status === 'SUSPENDED'` — so access was correctly denied. What was
+     * MISSING was the membership's own state: every governance membership
+     * still said ACTIVE, so the context envelope, the seat count and the
+     * member roster all reported people as live members of a dead
+     * Organization.
+     *
+     * Marked with `ORG_SUSPENSION_MEMBERSHIP_MARKER` so the resume leg
+     * restores EXACTLY this set — a membership an administrator suspended
+     * individually stays suspended when the Organization resumes. Resuming an
+     * Organization is not a blanket amnesty, and that is the same contract the
+     * API-credential leg above already follows.
+     */
+    const governanceMembershipsSuspended = (
+      await suspendAllOrganizationMemberships({
+        prisma: tx as never,
+        organizationId,
+        actorUserId,
+        reason: ORG_SUSPENSION_MEMBERSHIP_MARKER,
+      })
+    ).suspended;
+
     // 5. Open invites expire NOW (not restored on resume).
     const invitesExpired = (
       await tx.organizationInvite.updateMany({
@@ -207,6 +241,7 @@ export async function suspendOrganization(input: {
         scimTokensSuspended,
         invitesExpired,
         apiCredentialsSuspended,
+        governanceMembershipsSuspended,
         // Resume contract: exactly these credentials get re-enabled.
         pausedApiCredentialIds: pausedCredentialIds,
       },
@@ -270,6 +305,8 @@ export async function resumeOrganization(input: {
   ssoConnectionsRestored: number;
   scimTokensRestored: number;
   apiCredentialsRestored: number;
+  /** ARCH-004 — how many governance memberships this resume reinstated. */
+  governanceMembershipsRestored: number;
 }> {
   const { organizationId, actorUserId } = input;
 
@@ -342,8 +379,28 @@ export async function resumeOrganization(input: {
       }
     }
 
-    // NOT restored: sessions (users re-authenticate), invites (re-issue),
-    // memberships (never touched by org suspension in the first place).
+    /**
+     * ARCH-004 — restore EXACTLY the governance memberships this suspension
+     * paused, matched on the marker reason.
+     *
+     * The comment that used to sit here said memberships were "never touched
+     * by org suspension in the first place", which was true and was the
+     * defect: the Organization went dark while every membership still claimed
+     * ACTIVE. Now suspension pauses them and resume restores them — and a
+     * membership an administrator suspended INDIVIDUALLY keeps its own
+     * suspension, because its reason does not match the marker. That is the
+     * same contract the API-credential leg above already follows.
+     */
+    const governanceMembershipsRestored = (
+      await resumeOrganizationSuspendedMemberships({
+        prisma: tx as never,
+        organizationId,
+        actorUserId,
+        markerReason: ORG_SUSPENSION_MEMBERSHIP_MARKER,
+      })
+    ).restored;
+
+    // NOT restored: sessions (users re-authenticate) or invites (re-issue).
 
     await emitOrgAuditEvent(tx, {
       organizationId,
@@ -355,10 +412,16 @@ export async function resumeOrganization(input: {
         ssoConnectionsRestored,
         scimTokensRestored,
         apiCredentialsRestored,
+        governanceMembershipsRestored,
       },
     });
 
-    return { ssoConnectionsRestored, scimTokensRestored, apiCredentialsRestored };
+    return {
+      ssoConnectionsRestored,
+      scimTokensRestored,
+      apiCredentialsRestored,
+      governanceMembershipsRestored,
+    };
   });
 
   await emitTenantAudit({

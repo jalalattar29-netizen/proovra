@@ -1,0 +1,1130 @@
+{
+  "generatedBy": "audit-output/phase12-independent-source-audit/ledger/generate-ledger.mjs",
+  "note": "Every scalar in this file is DERIVED from rows.json. No count is hand-maintained.",
+  "rowCount": 45,
+  "actionable": {
+    "total": 39,
+    "closed": 38,
+    "open": 1,
+    "bySeverity": {
+      "CRITICAL": {
+        "total": 1,
+        "closed": 1,
+        "open": 0
+      },
+      "HIGH": {
+        "total": 9,
+        "closed": 9,
+        "open": 0
+      },
+      "MEDIUM": {
+        "total": 19,
+        "closed": 19,
+        "open": 0
+      },
+      "LOW": {
+        "total": 10,
+        "closed": 9,
+        "open": 1
+      }
+    },
+    "byOrigin": {
+      "ORIGINAL": {
+        "total": 19,
+        "closed": 18,
+        "open": 1
+      },
+      "DISCOVERED": {
+        "total": 20,
+        "closed": 20,
+        "open": 0
+      }
+    }
+  },
+  "verifiedClosures": {
+    "total": 2,
+    "ids": [
+      "DB-011",
+      "WEB-001"
+    ]
+  },
+  "unknownBlocked": {
+    "total": 4,
+    "ids": [
+      "UNK-001",
+      "UNK-002",
+      "UNK-003",
+      "UNK-004"
+    ],
+    "byDisposition": {
+      "UNKNOWN_STILL_BLOCKED": 1,
+      "UNKNOWN_OWNER_PENDING": 3
+    }
+  },
+  "fixedIds": [
+    "SEC-001",
+    "ARCH-005",
+    "AUTH-001",
+    "AUTH-002",
+    "AUTH-003",
+    "AUTH-004",
+    "AUTH-005",
+    "COMM-001",
+    "ARCH-001",
+    "ARCH-002",
+    "ARCH-003",
+    "DB-010",
+    "MOBILE-001",
+    "INFRA-001",
+    "LEGACY-001",
+    "COMM-002",
+    "WEB-002",
+    "ARCH-004",
+    "NEW-001",
+    "NEW-002",
+    "NEW-003",
+    "NEW-004",
+    "NEW-005",
+    "NEW-006",
+    "INV-001",
+    "SEC-002",
+    "SEC-003",
+    "SEC-004",
+    "NEW-007",
+    "NEW-008",
+    "NEW-009",
+    "NEW-010",
+    "NEW-011",
+    "NEW-012",
+    "NEW-013",
+    "NEW-014",
+    "NEW-015",
+    "NEW-016"
+  ],
+  "remainingIds": [
+    "LEGACY-003"
+  ],
+  "conservationEquation": "38 fixed + 1 remaining = 39 actionable; + 2 closures + 4 unknown = 45 rows",
+  "verificationCoverage": {
+    "sourceVerifiedPass": 39,
+    "runtimeVerifiedPass": 27,
+    "migrationVerifiedPass": 9,
+    "browserVerifiedPass": 0,
+    "runtimeNotExecuted": 4
+  },
+  "rows": [
+    {
+      "id": "SEC-001",
+      "originalSeverity": "CRITICAL",
+      "normalizedSeverity": "CRITICAL",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/src/middleware/authorize.ts",
+        "services/api/src/routes/external-portal.routes.ts",
+        "services/api/src/services/identity/access-policy.service.ts",
+        "services/api/src/services/external-review/external-review-grant.service.ts",
+        "services/api/src/services/external-review/portal-invitation-email.service.ts",
+        "services/api/src/services/external-review/portal-bulk-invitations.service.ts",
+        "services/api/src/services/access/current-workspace-pointer.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "Runtime-proven across BOTH halves of the finding. Stale-pointer half: 10/10 (phase-12-sec-001-stale-pointer.integration). Token/delivery half: 9/9 (phase-12-sec-001-completion.integration) — acceptance is taken from the RECORDING MAILBOX's delivered link, never from the token hash's row. The brand is now enforced at RUNTIME, not only at compile time (15/15 forgery classes refused). Probing the delivery half FOUND A NEW DEFECT (NEW-004, duplicate delivery intents) which is fixed and proven. NOT covered: browser-level acceptance of the delivered link under `next start` (that is the §12 Point-7 run, which is not re-executed and whose freshness gate is RED).",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-sec-001-stale-pointer.integration.test.ts (10/10 vs disposable PostgreSQL 16 + pgvector, real Fastify)",
+        "services/api/test/phase-12-sec-001-completion.integration.test.ts (9/9) — revocation, rotation-supersedes-predecessor, successor reaches only the intended mailbox, retry keeps ONE intent, four concurrent sends collapse to ONE, one idempotency key, ambiguous provider result is neither DELIVERED nor BOUNCED, no cross-tenant message or token, raw token absent from grant row / delivery row / audit chain / security events / provider ids, refused send acknowledges zero messages",
+        "services/api/test/phase-12-authorized-context-runtime-brand.integration.test.ts (15/15) — runtime forgery refusal",
+        "verify-authorization-authorities.mjs: 0 violations, brandForgeries 0",
+        "verify-current-workspace-authority.mjs: currentWorkspaceIdAuthorizationUses 0 over 33 classified occurrences, self-test 12/12"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "ARCH-005",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "services/api/src/services/automation/automation-outbox.service.ts",
+        "services/api/src/services/automation/automation-triggers.ts",
+        "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
+        "services/api/src/services/automation/automation-dispatcher.service.ts",
+        "services/api/src/services/automation/automation-delivery-runtime.service.ts",
+        "services/api/src/services/automation/automation-actions.service.ts",
+        "services/api/src/services/automation/automation-webhook.service.ts",
+        "services/api/src/routes/automation.routes.ts",
+        "services/api/src/services/evidence.service.ts",
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
+        "services/api/src/services/governance/legal-hold.service.ts",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
+        "services/api/src/services/review-operations/review-operations.service.ts",
+        "services/api/src/services/reports/report-generation-authority.service.ts",
+        "services/worker/src/automation-dispatch.ts",
+        "services/worker/src/index.ts",
+        "packages/shared/src/queue-integrity/names.ts",
+        "packages/shared/src/queue-integrity/registry.ts",
+        "services/api/prisma/schema.prisma",
+        "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
+        "services/api/prisma/migrations/20271130000000_automation_runtime_durability_backfill/migration.sql",
+        "services/api/prisma/migrations/20271131000000_automation_runtime_durability_contract/migration.sql"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PARTIAL",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "The finding is closed: Automation is no longer configurable-and-inert. PRODUCER — `enqueueAutomationTrigger` writes PENDING AutomationRun rows INSIDE the source domain transaction using `createMany({skipDuplicates})`, so a rolled-back change leaves no run, a committed one cannot be lost between commit and dispatch, and a replayed event collapses on a partial unique index rather than raising inside somebody else's transaction. All ELEVEN allowlisted triggers now have a real source: six are event-sourced from their own transaction (evidence creation, lifecycle finalization, report request, reviewer assignment, escalation, legal hold) and five are detected from durable rows (review overdue, SLA due soon, external access expiring, retention candidate, package ready — the last classified as DETECTED rather than emitted because its writer is the worker, which by design does not import API modules). No trigger was invented. PROCESSOR — one claim under a lease AND a monotonic `claimGeneration`; every terminal write is fenced on the generation it claimed under, so a stale worker's success or failure updates zero rows; ambiguity is never success (a timeout dead-letters rather than failing); retries are bounded at 4 attempts / 330 s and reuse the action idempotency key; a reconciler returns expired-lease runs to the pool and dead-letters exhausted ones. DELIVERY — `enqueueDelivery`'s `setImmediate` and the retry `setTimeout` are DELETED; the durable row and its `nextAttemptAt` are the whole schedule, the sweep claims PENDING as well as RETRY_SCHEDULED under the same lease/fence, and the module no longer imports `node:timers` at all. TOPOLOGY — `AutomationDispatchSweep` is a first-class registry entry (18 sweeps / 35 entries), scheduled by the worker under `withCronLock` and executed API-side over the cron-secret machine route, because the eight action handlers reach notification/reviewer/comment authorities that live there. ONE new security exemption was added and fenced three ways (NODE_ENV must be exactly `test`, the flag must be exactly `1`, and it widens LOOPBACK only — private, link-local and metadata addresses stay refused, observed refusing with the flag ON). NOT COVERED: the migration rehearsal (§5) and the production-build browser matrix (§6) have not been executed, so `migrationVerified` is PARTIAL and `browserVerified` is NOT_EXECUTED. §1 CONTINUATION (2026-08-07): the ambiguity contract was CORRECTED after this row was first closed. An ambiguous outcome no longer rides the retry ladder (NEW-015) and no longer stalls forever in reconciliation (NEW-016); it has its own non-terminal state, a bounded reconciliation policy with a provider-lookup seam, and a DEAD_LETTERED_UNKNOWN terminal that an operator can tell apart from a refusal. All ten Point-5 behavioural obligations for AutomationDispatchSweep are recorded through the real recorder, SHA-bound to the suite that executed them.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts — 33/33 (measured 2026-08-07) after the §1 ambiguity correction; the eight ambiguity cases are NEW-015/NEW-016's evidence and are part of this row's closure",
+        "services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts — 26/26 against disposable PostgreSQL 16 + pgvector with a REAL loopback HTTP receiver (measured 2026-08-07): enabled rule executes; disabled produces nothing; rolled-back source transaction creates no run; duplicate source event creates one run; workspace A cannot match workspace B's rule; four concurrent claims produce one winner; expired lease reclaimed with the generation moved; stale success and stale failure each update ZERO rows; retry reuses the action intent and creates no second webhook; ambiguous response never acknowledged; 429/5xx retry and 4xx terminates; signature verified by independent recomputation AND the shipped verifier; tampered/replayed/lifted/wrong-secret signatures all refused; rotation takes effect; six SSRF targets refused with zero requests reaching the receiver; stranded run reconciled idempotently; exhausted run dead-lettered and terminal; a rule created through the REAL API reaches the runtime; the API projection equals the durable row; a fresh client finds the pending delivery a restart would have orphaned; no run left permanently RUNNING and none unfenced; the time-based detectors do not re-fire",
+        "services/api/test/phase-12-arch-005-automation-topology.test.ts — 10/10 (measured 2026-08-07): DisconnectedAutomationRuntime=0, AutomationDuplicateAuthorities=0, AutomationOrphanQueues=0, AutomationUnfencedTerminalWrites=0, every allowlisted trigger has a source and none was invented, the loopback exemption is unreachable outside NODE_ENV=test",
+        "services/api/test/phase-e3-1-automation-execution.test.ts + phase-e3-2 + phase-e3-3 + phase-12-point5-queue-integrity-gate + phase-12-point5-topology-gate — 249/249 (measured 2026-08-07); the E3 source pins were MOVED to the two halves the dispatcher was split into and tightened, not deleted",
+        "services/api/scripts/verify-module-reachability.mjs — ConnectedButUnreachable=0; all three automation modules are reachable from the API entrypoint"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "AUTH-001",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/intelligence.routes.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "No route-specific runtime probe executed. The canonical primitive these routes now share IS proven at runtime by the SEC-001 suite; the per-route decision is proven semantically (AST), not behaviourally. requireReviewerMember/requireMember absent (0 declarations, 0 invocations); 6 canonical intelligence.* permissions present",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "verify-authorization-authorities.mjs: 0 status-blind gates across 673 modules / 188 TeamMember reads",
+        "services/api/src/routes/intelligence.routes.ts"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "AUTH-002",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/me-inbox.routes.ts",
+        "services/api/src/services/access/accessible-workspaces.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "No route-specific runtime probe executed. The canonical primitive these routes now share IS proven at runtime by the SEC-001 suite; the per-route decision is proven semantically (AST), not behaviourally. all four derivations replaced by the single accessible-workspace resolver; the only remaining findMany mention is inside an explanatory comment",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "verify-authorization-authorities.mjs: 0 status-blind gates across 673 modules / 188 TeamMember reads",
+        "services/api/src/routes/me-inbox.routes.ts"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "AUTH-003",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/src/services/cases/case-permission.service.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "No route-specific runtime probe executed. The canonical primitive these routes now share IS proven at runtime by the SEC-001 suite; the per-route decision is proven semantically (AST), not behaviourally. teamMemberStatusGrantsAccess enforced inside the shared service, not by callers",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "verify-authorization-authorities.mjs: 0 status-blind gates across 673 modules / 188 TeamMember reads",
+        "services/api/src/services/cases/case-permission.service.ts"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "AUTH-004",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/scripts/verify-authorization-authorities.mjs",
+        "services/api/scripts/deploy-safe.mjs",
+        "services/api/src/services/identity/authorization-allowlist.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "The gap this row carried — 'the verifier does not yet detect currentWorkspaceId-as-authorization as its own class' — is CLOSED by a dedicated gate (scripts/verify-current-workspace-authority.mjs) whose 12 adversarial fixtures prove it detects every forbidden form before it reports a zero. Running it found ELEVEN authorization-bearing uses where the previous pass printed zero; four were real defects and are fixed, seven were classified with stated reasons and bounded allowed-forms.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/scripts/verify-current-workspace-authority.mjs — selfTestFailures 0 over 12 fixtures; currentWorkspaceIdAuthorizationUses 0 over 33 occurrences in 673 modules",
+        "fixed: require-delegated-tier.ts (a SUSPENDED member holding a live delegated-admin grant passed every delegated-tier route), capture-trust.routes.ts, reviewer-workspace.routes.ts (both were parallel authorities missing access-expiry, workspace-kind and Organization-lifecycle enforcement)",
+        "services/api/test/phase-12b-identity-workspace-rail.test.ts — structural guard that every resolveWorkspaceSubject call site authorizes"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "AUTH-005",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "No route-specific runtime probe executed. The canonical primitive these routes now share IS proven at runtime by the SEC-001 suite; the per-route decision is proven semantically (AST), not behaviourally. callerHasCapability(resolution,…) count is 0; all gates read the proven capability set",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "verify-authorization-authorities.mjs: 0 status-blind gates across 673 modules / 188 TeamMember reads",
+        "services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "COMM-001",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "services/api/src/services/billing.service.ts",
+        "services/worker/src/workspace-billing.ts",
+        "packages/shared-runtime/src/billing/seat-occupancy.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "NOT_EXECUTED",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "Concurrent seat-limit races and invite-occupancy semantics were not probed at runtime.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "countActiveSeatOccupancy used by BOTH hosts (api 3, worker 2 references)",
+        "one ceiling authority retained: computeOverSeatLimit"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "ARCH-001",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "packages/shared-billing/src/workspace.ts",
+        "packages/shared-billing/src/plan-catalog.ts",
+        "packages/shared/src/legacy-workspace-vocabulary.ts",
+        "packages/shared/src/index.ts",
+        "services/api/src/services/workspace-billing.service.ts",
+        "services/api/src/services/access/canonical-workspace-resolver.ts",
+        "services/api/src/services/billing.service.ts",
+        "apps/web/app/pricing/types.ts",
+        "apps/web/components/billing/types.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE for the finding. Three vocabularies are now separated by name: WorkspaceKind (PERSONAL|OWNED|ORGANIZATION) is TENANCY and lives in the database; WorkspaceBillingShape (SINGLE_OCCUPANT|SHARED) is COMMERCE, derived from the kind by ONE function (`billingShapeForWorkspaceKind`) and never persisted; PlanType keeps TEAM, which lives there and nowhere else. The retired `WorkspaceScopeType = PERSONAL|TEAM` no longer exists in runtime source. UNKNOWN keeps the stricter SHARED reading, which fails closed. No migration: the shape was never a column.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-001-workspace-vocabulary.test.ts — 26/26 (measured 2026-08-07), including SEVEN negative fixtures fed to the same detector the positive checks use, so the detector is observed detecting rather than assumed to",
+        "packages/shared/src/legacy-workspace-vocabulary.ts — the legacy projection is READ-ONLY, metered (`legacyVocabularyProjectionCount`) and carries an explicit version + removal condition",
+        "services/api/test/point7/plan-contract.ts — the Point-7 plan matrix names the workspace SHAPE, not a kind",
+        "API unit suite green on the renamed vocabulary; API + Worker + Web typecheck 0"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "ARCH-002",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "packages/shared/src/workspace-kind.ts",
+        "services/api/prisma/schema.prisma",
+        "services/api/prisma/migrations/20271123000000_workspace_kind_authority_expand/migration.sql",
+        "services/api/prisma/migrations/20271124000000_workspace_kind_authority_backfill/migration.sql",
+        "services/api/prisma/migrations/20271125000000_workspace_kind_authority_contract/migration.sql",
+        "services/api/test/integration-harness.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "The plan-derived fallback is GONE and the column is NOT NULL. The fallback read `isPersonal=false && billingPlan==='ENTERPRISE'` as ORGANIZATION, so an Owned workspace silently changed tenancy on a commercial upgrade — and back on a downgrade — with no audit record and no decision by anyone. The personal-space invariant is retained deliberately: `is_personal` is STRUCTURAL (the same authority the backfill uses, and the contract migration makes the two equivalent by CHECK), so keeping it does not lock a user out of their own Personal Space during a rolling deploy. Four production writers already stated the kind; the FIXTURES did not, which is why every suite that thought it was exercising an ORGANIZATION workspace was exercising an Owned one — corrected, and the whole integration suite is green against the corrected fixtures. NOT COVERED: the browser product matrix (§10, not executed).",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/scripts/migration-rehearsal.mjs A — 5/5 on an empty PostgreSQL 16 + pgvector, including teams.workspace_kind NOT NULL",
+        "services/api/scripts/migration-rehearsal.mjs B — the seed contains an ENTERPRISE-plan workspace in a SYSTEM container; it classifies OWNED, proving no kind is inferred from a plan",
+        "services/api/scripts/migration-rehearsal.mjs B-REFUSE — the readiness guards observed refusing on a Personal Space under a CUSTOMER Organization and on a duplicate Personal Space, database intact both times",
+        "services/api/test/phase-12-arch-002-workspace-kind-authority.test.ts — 10/10 (the classifier reads no plan, an ENTERPRISE plan yields UNKNOWN, TEAM is not a kind, the schema is mandatory, every writer states a kind, no writer exists outside the pinned set, the backfill reads no commercial column)",
+        "API integration suite 447/447 against the corrected fixtures; API unit 21897/21898 (the one failure is the Point-7 freshness gate, RED before this pass and regenerated by §10)"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "ARCH-003",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "services/api/src/services/platform-context/types.ts",
+        "services/api/src/services/platform-context/platform-context.service.ts",
+        "apps/web/lib/platform-context/types.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "The finding is closed at the contract: `canonical.organizations[].organizationId` holds ORGANIZATION ids read from OrganizationMembership; `canonical.organizationWorkspaces[]` holds WORKSPACE ids each carrying its Organization; `organizationMembershipId` and `workspaceMembershipId` are named apart because they are rows in different tables; `contextVersion` is 2. A dirty pointer HEALS to the caller's OWN Personal Space and says so through `currentWorkspaceSource` (POINTER | REPAIRED_TO_PERSONAL | NONE) — never onto a foreign workspace, never a silent substitution. The legacy `organizations` field stays populated for one phase, built by PROJECTING the canonical model rather than by a second query so the two cannot disagree, and is deprecated with a metered removal condition (`legacy_platform_context_organizations_reads_total`). NOT COVERED at this row's writing: the production-build browser matrix, which §6 executes.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-003-platform-context.integration.test.ts — 12/12 against disposable PostgreSQL 16 + pgvector (measured 2026-08-07): every id in `organizations` resolves as an Organization and never as a workspace and the converse; the two membership id spaces are distinct rows; the legacy field is a projection that cannot disagree; a dirty pointer heals HOME and reports it; a second account restores none of the first account's tenants",
+        "services/api/test/phase-12-arch-001-workspace-vocabulary.test.ts — the context gate cases (commercialContext names a SHAPE, never a tenancy kind)"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "DB-010",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "services/api/scripts/verify-migration-artifact.mjs",
+        "services/api/test/phase-12-db-010-migration-artifact.test.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. An INDEPENDENT gate over the MATERIALIZED artifact, not over a directory listing — which is what the Point-8 boundary gate checks and why it could not close this. It reads the SQL: destructive kinds (DROP TABLE/COLUMN/CONSTRAINT/INDEX/TYPE/SCHEMA, DROP-amplifying CASCADE, ALTER…DROP COLUMN/CONSTRAINT, RENAME, TRUNCATE, DELETE-without-WHERE), destructive DYNAMIC statements built through EXECUTE, and unclassifiable executable SQL. It proves guard-and-contract ship together and the guard PRECEDES (including the one legitimate cross-file case, `20270924000000`, whose bytes are frozen and whose guard is a declared preceding migration), release-wave correctness, the runtime cutover prerequisite, runnable-or-self-executing readiness, historical checksum immutability, source↔artifact inventory parity, API/Worker inventory parity, and immutable image identity. Settled history is REPORTED but not failed on — demanding a guard there would demand rewriting frozen bytes.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-db-010-migration-artifact.test.ts — 12/12: the clean Release-D artifact passes with 18 destructive migrations seen (12 of them settled history), and all TEN negative injections fail as required",
+        "the ten injections: persona drop shipped without its declared guard; guard after the drop; a CONTRACT_DROP that can only skip, never refuse; a legal-hold removal with neither; a contract migration in Release A/B/C; a changed historical checksum; a drop built dynamically through format(); a source migration missing from the image; an API/Worker inventory mismatch; a floating image identity",
+        "CLI: node services/api/scripts/verify-migration-artifact.mjs --artifact <dir> --wave D → 228 migrations, 0 failures"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "MOBILE-001",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "apps/mobile/app/(tabs)/teams.tsx",
+        "apps/mobile/components/ui.tsx"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "Deep-link behaviour into the retained route was not exercised on a device/simulator.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "nav entry removed (0 references to /teams in BottomNav)",
+        "screen makes no API call (0 apiFetch)"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "INFRA-001",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "infra/docker/docker-compose.prod.yml",
+        "services/api/scripts/verify-release-identity.mjs"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "C3: the FINDING (floating :latest default) is closed. Deployed-image correspondence is a DIFFERENT question and remains open as UNK-002.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "0 occurrences of :-latest} in docker-compose.prod.yml",
+        "verify-release-identity.mjs executed and fails closed on an unpinned host"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "LEGACY-003",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "services/api/src/services/identity/authorization-allowlist.ts",
+        "services/api/scripts/verify-module-reachability.mjs"
+      ],
+      "sourceVerified": "PARTIAL",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "OPEN. The ANALYSIS is complete and the EXECUTION is not, and this row says which. (a) The reachability verifier now seeds every real entrypoint — the eleven operator commands in src/commands, src/scripts, prisma/scripts, worker/src/scripts and seed-signing-key, four of which acquired a package script in this pass — and resolves @proovra/* workspace imports, so an edge into a package is no longer a dead end. Those two corrections alone moved 13 modules from \"unreachable\" to reachable, which they always were: the graph simply had not been started from them. (b) FOUR modules are dispositioned AND executed: the three Automation modules are CONNECTED with runtime proof, authorization-allowlist.ts is REGISTERED_CLI with entrypoint, package script, owner and input. (c) TWENTY-FOUR are analysed to a decision and recorded in ANALYSED_PENDING_REMOVAL, deliberately kept OUT of DISPOSITIONS because a REMOVED row whose file is still on disk is a false statement. Each has had the five checks run and all were zero: exact importers, exports, DB writes, queue/event ownership, route/UI/script/deployment references. SIX are stale twins whose canonical copies live in packages/shared-runtime/src and are imported there by relative path — a duplicate-authority finding rather than a bookkeeping one. FOUR are worker/src/report-v2 modules reachable only through a barrel that production does not use (services/worker/src/processor.ts imports the concrete modules directly). (d) The deletion was ATTEMPTED and REVERTED inside this session: removing the twenty-four broke twenty-two source-contract suites that read them at load time, and repairing all of those was beyond the remaining budget. Restoring them from HEAD was the honest choice over leaving a red tree; every restored file was first proven byte-identical to HEAD and absent from the recovery snapshot patch, so LostPreexistingChanges = 0. Current counters: UnclassifiedUnreachableProductionModules = 24, ConnectedButUnreachable = 0, RemovedButPresent = 0.",
+      "finalDisposition": "OPEN_PARTIAL",
+      "evidenceReferences": [
+        "services/api/scripts/verify-module-reachability.mjs — executed 2026-08-07: 798 production modules, 773 reachable (up from 761 once the operator entrypoints and workspace imports were seeded), 25 unreachable, ConnectedButUnreachable=0, RemovedButPresent=0",
+        "services/api/package.json — four operator commands registered: ops:audit-tenant-scope-readiness, ops:redact-leaked-intake-tokens, ops:twilio-message-recheck, db:org-security-policy-readiness",
+        "services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts — the three CONNECTED dispositions carry direct execution proof rather than an import-graph claim"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "LEGACY-001",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "packages/shared/src/legacy-workspace-vocabulary.ts",
+        "packages/shared-billing/src/workspace.ts",
+        "services/api/src/services/collaboration-team/billing-guards.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE for the finding. `TEAM_WORKSPACE_*` error codes and `allowsTeamWorkspace`/`canPlanUseTeams` named a workspace KIND that has never existed. They are renamed to the shape vocabulary (`canPlanOperateSharedWorkspace`, `assertPlanPurchasableForWorkspaceShape`). What survives is one deliberate, metered legacy PROJECTION with a stated version and removal condition — kept so an installed client is not broken by a rename, and gated so it cannot become a second authority: it is read-only and authorizes nothing.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-001-workspace-vocabulary.test.ts — 26/26 (measured 2026-08-07); the stays-removed gate scans runtime roots only, and its negative fixtures include each retired code shape",
+        "packages/shared/src/legacy-workspace-vocabulary.ts — LEGACY_WORKSPACE_VOCABULARY_VERSION + LEGACY_WORKSPACE_VOCABULARY_REMOVAL_CONDITION are asserted by that gate"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "COMM-002",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "apps/web/app/pricing/page.tsx"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "Unavailable-state rendering not verified in a browser under next start.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "0 hard-coded commercial fallbacks in code; the single grep hit is inside the explanatory comment"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "WEB-002",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "CLAIMED_FIXED",
+      "claimedRemediationFiles": [
+        "apps/web/app/(app)/search/page.tsx"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "Workspace-switch invalidation and logout clearing not exercised in a browser.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "tenantStorageKey(teamId ?? null, \"search:recent\") in use; legacy key migrated then removed"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "ARCH-004",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "CLAIMED_REMAINING",
+      "claimedRemediationFiles": [
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts",
+        "services/api/src/services/identity/membership-provisioning.service.ts",
+        "services/api/src/services/organization/org-access.ts",
+        "services/api/src/services/organization/org-lifecycle.service.ts",
+        "services/api/src/services/organization/organization-resolver.service.ts",
+        "services/api/src/services/access-control/scim.service.ts",
+        "services/api/src/routes/organizations.routes.ts",
+        "services/api/src/routes/organizations-reports.routes.ts",
+        "services/api/src/routes/me-inbox.routes.ts",
+        "services/api/prisma/migrations/20271126000000_org_membership_lifecycle_expand/migration.sql",
+        "services/api/prisma/migrations/20271127000000_org_membership_lifecycle_backfill/migration.sql",
+        "services/api/prisma/migrations/20271128000000_org_membership_lifecycle_contract/migration.sql"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE for the finding. `removeOrganizationMembership` no longer DELETEs: the row transitions to REVOKED through ONE orchestrator that stamps actor, time, reason and provenance, emits the audit event, and FENCES the transition on a monotonic generation so a concurrent suspend/restore produces a deterministic winner rather than last-writer-wins. SUSPENDED is the reversible half the model never had, exposed as POST /v1/orgs/:id/members/:memberId/suspend|restore. `organizationMembershipGrantsAccess` is the ONE predicate deciding which statuses grant anything, and every read that used to test row EXISTENCE now consults it (checkOrgAccess, the resolver, the switcher list, the inbox, the seat count, the last-owner protection). Deliberately retained: the ADMINISTRATION roster and the governance CSV export still show suspended and revoked rows — an administrator cannot restore what the console will not show, and an auditor asking 'when did access end?' is asking about exactly those rows; both carry the status and its timestamps so neither reads as a list of current members. Physical deletion survives in exactly one place, `removeAllOrganizationMembershipsForUser`, which serves account closure/erasure — a different obligation.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts — 15/15 against disposable PostgreSQL 16 + pgvector (measured 2026-08-07), including the fenced concurrent transition, the suspended member losing every org surface, and the session deny-list watermark moving on suspension",
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.test.ts — 10/10 (measured 2026-08-07): one orchestrator, one access predicate, no surviving physical DELETE outside account erasure",
+        "migrations 20271126000000_expand / 20271127000000_backfill / 20271128000000_contract — the contract's four readiness counts RAISE in the same file before the constraints they authorise; the backfill invents no suspension, revocation or actor",
+        "services/api/scripts/release-materialize.mjs — all three migrations carry a release-wave justification; the contract is Release D"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "DB-011",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "VERIFIED_CLOSURE",
+      "prePassDisposition": "VERIFIED_CLOSURE",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "NOT_EXECUTED",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_EXECUTED",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "must re-confirm no new writer targets removed structures",
+      "finalDisposition": "VERIFIED_CLOSURE_RETAINED",
+      "evidenceReferences": [],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "WEB-001",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "VERIFIED_CLOSURE",
+      "prePassDisposition": "VERIFIED_CLOSURE",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "NOT_EXECUTED",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "must re-confirm CSP nonce reaches the browser under next start",
+      "finalDisposition": "VERIFIED_CLOSURE_RETAINED",
+      "evidenceReferences": [],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "UNK-001",
+      "originalSeverity": "UNKNOWN_BLOCKED",
+      "normalizedSeverity": "UNKNOWN_BLOCKED",
+      "prePassDisposition": "UNKNOWN",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "NOT_EXECUTED",
+      "runtimeVerified": "NOT_APPLICABLE",
+      "migrationVerified": "NOT_EXECUTED",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "artifact guard/drop conservation unproven",
+      "finalDisposition": "UNKNOWN_STILL_BLOCKED",
+      "evidenceReferences": [],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "UNK-002",
+      "originalSeverity": "UNKNOWN_BLOCKED",
+      "normalizedSeverity": "UNKNOWN_BLOCKED",
+      "prePassDisposition": "CLAIMED_RESOLVED_MECHANISM",
+      "claimedRemediationFiles": [
+        "services/api/scripts/verify-release-identity.mjs"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PARTIAL",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "C3 SPLIT — verifier mechanism: IMPLEMENTED and executed. Local image correspondence: NOT PROVEN (no images built or inspected this pass). Deployed image correspondence: UNKNOWN, owner-only. Not inferable from :latest.",
+      "finalDisposition": "UNKNOWN_OWNER_PENDING",
+      "evidenceReferences": [
+        "verify-release-identity.mjs executed on this host: OneReleaseCandidate=false, fails closed as designed"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "UNK-003",
+      "originalSeverity": "UNKNOWN_BLOCKED",
+      "normalizedSeverity": "UNKNOWN_BLOCKED",
+      "prePassDisposition": "UNKNOWN",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "NOT_EXECUTED",
+      "runtimeVerified": "NOT_EXECUTED",
+      "migrationVerified": "NOT_EXECUTED",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "production migration/checksum reconciliation requires owner read-only URL Requires P12_PRODUCTION_READONLY_DATABASE_URL; no such URL was supplied and none was inferred.",
+      "finalDisposition": "UNKNOWN_OWNER_PENDING",
+      "evidenceReferences": [
+        "no production connection attempted; outbound guard active"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "UNK-004",
+      "originalSeverity": "UNKNOWN_BLOCKED",
+      "normalizedSeverity": "UNKNOWN_BLOCKED",
+      "prePassDisposition": "UNKNOWN",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "NOT_EXECUTED",
+      "runtimeVerified": "NOT_EXECUTED",
+      "migrationVerified": "NOT_EXECUTED",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "production workspace_kind IS NULL count requires owner read-only URL Requires P12_PRODUCTION_READONLY_DATABASE_URL; no such URL was supplied and none was inferred.",
+      "finalDisposition": "UNKNOWN_OWNER_PENDING",
+      "evidenceReferences": [
+        "no production connection attempted; outbound guard active"
+      ],
+      "origin": "ORIGINAL"
+    },
+    {
+      "id": "NEW-001",
+      "origin": "DISCOVERED",
+      "title": "Workspace member revocation and suspension could not complete against a real database — nested $transaction",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "None known. Audit-transaction semantics are now classified (state-transition vs security-attempt), every caller traced, and both client shapes proven — including that an aborted transaction leaves no audit row.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-audit-transaction-semantics.integration.test.ts (7/7 vs disposable PostgreSQL 16 + pgvector)",
+        "The identical call chain is present unchanged at the audited revision a7863bec: rbac.service.ts calls emitMemberAudit(tx, …), tenant-audit.service.ts forwards that client as `db` into appendPlatformAuditLog, and platform-audit-log.service.ts calls db.$transaction(...) — verified with `git show HEAD:` on all three files."
+      ],
+      "rootCause": "rbac.revokeMember/suspendMember -> runAtomically(client, tx => …) -> emitMemberAudit(tx, …) -> emitTenantAudit(env, tx) -> appendPlatformAuditLog({ …, db: tx }) -> db.$transaction(…) -> TypeError: db.$transaction is not a function",
+      "discoveredBy": "Direct runtime probing on disposable PostgreSQL 16 + pgvector. NOT discoverable by the unit estate."
+    },
+    {
+      "id": "NEW-002",
+      "origin": "DISCOVERED",
+      "title": "The AuthorizedWorkspaceContext brand was compile-time only; the previous pass overstated it as unforgeable",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "Closed at the consumer boundary too. `verify-authorized-context-consumers.mjs` enumerates every production read of a context field, classifies it A-F, and requires provenance / binding / live revalidation accordingly. UnvalidatedAuthorizedContextConsumers = 0 over 672 modules, self-test 8/8. All 18 refusal classes named by the mandate are proven at runtime (21/21).",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-authorized-context-runtime-brand.integration.test.ts (21/21) — plain object, direct cast, double cast, spread, JSON round trip, Object.create, Proxy, JavaScript caller, wrapper-returned object, workspace A used for B, actor A used by B, minted before suspension, before revoke, before access expiry, before Organization suspension, reused in another request after the grant changed, background-job replay, forged wide capability set, no transportable secret",
+        "services/api/scripts/verify-authorized-context-consumers.mjs — UnvalidatedAuthorizedContextConsumers 0, selfTestFailures 0",
+        "Binding (not merely provenance) now enforced in external-portal tier helpers and reviewer-ops provenRole"
+      ],
+      "rootCause": null,
+      "discoveredBy": "Corrective-pass review of the previous pass's own claim, as directed by the mandate."
+    },
+    {
+      "id": "NEW-003",
+      "origin": "DISCOVERED",
+      "title": "Pointer repair carried a test-driven accommodation inside production failure handling",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "Superseded by the dedicated currentWorkspaceId gate, which self-tests against 12 adversarial fixtures before reporting.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/scripts/verify-current-workspace-authority.mjs (selfTestFailures 0, currentWorkspaceIdAuthorizationUses 0)"
+      ],
+      "rootCause": null,
+      "discoveredBy": "Corrective-pass review, as directed by the mandate."
+    },
+    {
+      "id": "NEW-004",
+      "origin": "DISCOVERED",
+      "title": "External-reviewer invitation emails were not idempotent — a retry, and every concurrent send, delivered another copy of a live bearer-token link",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [
+        "services/api/prisma/migrations/20271120000000_external_review_invitation_authority_expand/migration.sql",
+        "services/api/prisma/migrations/20271121000000_external_review_invitation_authority_backfill/migration.sql",
+        "services/api/prisma/migrations/20271122000000_external_review_invitation_authority_contract/migration.sql",
+        "services/api/src/services/external-review/portal-invitation-email.service.ts",
+        "services/api/src/services/external-review/external-review-grant.service.ts",
+        "services/api/scripts/migration-rehearsal.mjs"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "The migration is RESTRUCTURED and the false claim is gone. It was verified worktree-only (absent from HEAD, origin/main and every committed inventory) before its bytes were replaced, so no deployed history was rewritten. `attempt` keeps its meaning and its values; the intent is keyed on (grant, contentVersion, resendSeq) instead. PROBING IT FOUND TWO FURTHER DEFECTS IN THE PREVIOUS FIX, both now rows of their own: a token rotation collapsed onto the superseded message's idempotency key so the reviewer received no successor link (NEW-009), and two concurrent resends raced through count()+1 so the second was silently never sent while its caller was told it succeeded (NEW-010). NOT COVERED: browser-level acceptance of a delivered link under `next start` — that is the §10 product run, which is not executed in this pass.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/scripts/migration-rehearsal.mjs B — 12/12 against production-shaped duplicate history (three delivery rows for one grant, one of them ambiguous): row conservation, no invented outcome, `attempt` unchanged, a distinct durable intent per row, idempotent re-run",
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts B1–B7 — retry collapses to one intent with the attempt counter honestly rising, four concurrent sends collapse to one, a deliberate resend is a new intent, a ROTATION is a new content version AND REACHES the reviewer while the predecessor dies, two concurrent resends lose nothing, the key is derived from the intent and not from a row id",
+        "services/api/test/phase-12-inv-001-authority-gate.test.ts — the backfill is asserted never to write `attempt` and never to DELETE"
+      ],
+      "rootCause": "sendInvitationEmail -> externalReviewInvitationDelivery.create() [NEW ROW EVERY CALL] -> mintEmailIdempotencyKey(kind, delivery.id) [NEW KEY EVERY CALL] -> provider is shown a key it has never seen -> accepts it as a NEW message",
+      "discoveredBy": "Direct runtime probing on disposable PostgreSQL 16 + pgvector with the local RECORDING email transport, while executing the SEC-001 delivery scenarios the previous pass had not run (corrective mandate §1.1). NOT discoverable from source reading: the code carries a comment asserting the opposite behaviour."
+    },
+    {
+      "id": "NEW-005",
+      "origin": "DISCOVERED",
+      "title": "requireDelegatedTier authorized off the navigation pointer alone — a SUSPENDED member holding a live delegated-admin grant passed every delegated-tier route",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [
+        "services/api/src/middleware/require-delegated-tier.ts",
+        "services/api/src/middleware/authorize.ts",
+        "services/api/test/delegated-tier-route-inventory.ts",
+        "services/api/test/phase-12-new-005-delegated-tier-membership.integration.test.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. The guard's whole surface — all 48 registrations, DERIVED from the sources and cross-checked against an independent count of guard call sites — was driven against the real Fastify app on a disposable PostgreSQL 16 + pgvector. Eleven refusal families (SUSPENDED, REVOKED, deleted, expired access, expired grant, revoked grant, workspace suspended via the real lifecycle service, suspended parent Organization, cross-workspace grant, wrong tier, stale pointer) refuse on every one of the 48; a live member holding every tier is admitted on every one of the 48. A refused sweep of the whole surface changes NO row in ANY non-audit table in the public schema (census derived from information_schema, not a hand-picked list), acknowledges no message and reaches for no socket. Foreign, absent and null pointers are byte-identical in their responses.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-new-005-delegated-tier-membership.integration.test.ts — 17/17 against disposable PostgreSQL 16 + pgvector, real Fastify, real Redis",
+        "services/api/test/delegated-tier-route-inventory.ts — 48 registrations parsed, cross-checked against an independent guard-call-site count per module",
+        "case 13 records the load-bearing fact as an executable assertion: hasDelegatedTier still answers TRUE for a SUSPENDED member, so it is not an authorization primitive and every call site must sit behind a membership-proving gate"
+      ],
+      "rootCause": "middleware/require-delegated-tier.ts#resolveTeamId at a7863bec reads User.currentWorkspaceId and returns it; the guard then calls hasDelegatedTier({ teamId, userId, requiredTier }), which answers from DelegatedAdminGrant rows and the implicit-owner ladder and consults no membership row.",
+      "discoveredBy": "The new currentWorkspaceId gate (scripts/verify-current-workspace-authority.mjs), built for corrective mandate §1.3. The previous pass reported CurrentWorkspaceIdAuthorizationUses = 0 while its verifier stated it did not detect this class."
+    },
+    {
+      "id": "NEW-006",
+      "origin": "DISCOVERED",
+      "title": "capture-trust and reviewer-workspace were parallel authorization authorities — each re-checked ACTIVE membership but none of access expiry, workspace kind or Organization lifecycle",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [
+        "Both resolvers now delegate to the canonical primitive and keep only their genuinely surface-specific rule (no Personal Space), expressed against the PROVEN workspace kind rather than a re-read isPersonal column."
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "Both resolvers now delegate to the canonical chain. A role-mapping regression introduced by the migration itself (MEMBER->REVIEWER inverse) was caught by the live reviewer-workflow lifecycle proof and fixed.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts (green after fix)",
+        "services/api/test/p0-tenant-isolation-remediation.test.ts (assertions strengthened to require canonical delegation and no private membership authority)",
+        "Both files carry a P0 remediation dated 2026-07-21 that added an inline `teamMember` read with `status: 'ACTIVE'`. Neither consults accessExpiresAtUtc, the workspace kind, or the parent Organization's lifecycle.",
+        "Both resolvers now delegate to the canonical primitive and keep only their genuinely surface-specific rule (no Personal Space), expressed against the PROVEN workspace kind rather than a re-read isPersonal column."
+      ],
+      "rootCause": "Both files carry a P0 remediation dated 2026-07-21 that added an inline `teamMember` read with `status: 'ACTIVE'`. Neither consults accessExpiresAtUtc, the workspace kind, or the parent Organization's lifecycle.",
+      "discoveredBy": "The new currentWorkspaceId gate (corrective mandate §1.3), then confirmed by reading both resolvers."
+    },
+    {
+      "id": "INV-001",
+      "origin": "DISCOVERED",
+      "title": "INV-001",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "claimedRemediationFiles": [
+        "services/api/prisma/schema.prisma",
+        "services/api/prisma/migrations/20271122000000_external_review_invitation_authority_contract/migration.sql",
+        "services/api/src/routes/organizations-reports.routes.ts",
+        "audit-output/phase12-independent-source-audit/invitation-authority-matrix.json"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. DECIDED, not left as a candidate: the two rows are ONE logical invitation (issueInvitation creates the sidecar with the grant's id, so it is 1:1 by construction and has no identity of its own), so Option A is false. The DUPLICATE AUTHORITY was five lifecycle columns on the sidecar that no writer has ever populated — and one reader trusted them, so the organization external-access CSV reported every grant as PENDING with no expiry and no revocation whatever the grant said (NEW-008). ExternalReviewGrant is now the sole authority for identity, recipient, workspace, token hash, token version, issue time, expiry, revocation, rotation, acceptance and status; the sidecar owns role, MFA, watermark and federation only; the two are bound by FK (ON DELETE CASCADE) so an orphan cannot exist; the duplicate columns are dropped behind readiness checks that were OBSERVED refusing.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "audit-output/phase12-independent-source-audit/invitation-authority-matrix.json — the full field-by-field matrix and the decision",
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts — 15/15 against disposable PostgreSQL 16 + pgvector (columns gone, FK present, orphan refused, one issue = one invitation, revocation visible through the one authority, the CSV reports REVOKED not PENDING, no raw token anywhere but the mailbox, cross-tenant refused)",
+        "services/api/test/phase-12-inv-001-authority-gate.test.ts — 8/8 structural gate so the duplicate cannot return",
+        "services/api/scripts/migration-rehearsal.mjs B-REFUSE — the readiness guards observed refusing on a populated lifecycle column, a plaintext token and an orphan role assignment, with all five columns still present afterwards"
+      ],
+      "rootCause": null,
+      "discoveredBy": "corrective pass 3"
+    },
+    {
+      "origin": "DISCOVERED",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "id": "SEC-002",
+      "title": "No deployment could declare Secrets Manager as its AUTHORITY — a failed hydration silently served on whatever process.env held",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "claimedRemediationFiles": [
+        "services/api/src/config/secrets-manager.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "finalDisposition": "FIXED_VERIFIED",
+      "rootCause": "The loader had exactly two behaviours — off, or on-with-env-fallback — and its stated contract was 'env fallback ALWAYS preserved… the app NEVER crashes from a failed AWS fetch'. There was no way to express that Secrets Manager IS the authority, so the observed `aws_secrets.hydration_failed access_denied` produced one bounded warning and the process then served on whatever process.env held. For a deployment whose secrets live only in Secrets Manager, that is nothing.",
+      "remainingRisk": "AWS_SECRETS_MODE now declares the authority (disabled | optional | required); required fails startup closed with a bounded code; an unrecognised mode refuses rather than silently downgrading. AWS_SECRETS_ENABLED=true still maps to optional, so no existing deployment changes meaning. Readiness reports the declared mode instead of leaving it to be inferred from two booleans.",
+      "evidenceReferences": [
+        "services/api/test/phase-12-secrets-authority.test.ts (6/6) — default disabled; ENABLED=true still optional and survives; required rejects with aws_secrets.required_authority_unavailable; the thrown message is the bounded code and nothing else; an unrecognised mode refuses; health exposes a key COUNT and never a name or value"
+      ],
+      "discoveredBy": "corrective pass 3 §8, reading the module to answer 'is this authority required, optional, or a competing second authority?'"
+    },
+    {
+      "origin": "DISCOVERED",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "id": "SEC-003",
+      "title": "The secret refresh loop repeated an UNAUTHORIZED call every hour, forever",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "claimedRemediationFiles": [
+        "services/api/src/config/secrets-manager.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "NOT_EXECUTED",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "finalDisposition": "FIXED_VERIFIED",
+      "rootCause": "`refreshLoop` re-attempted hydration on a fixed interval regardless of why the previous attempt failed. `access_denied` is an IAM decision, not a transient condition — it does not become true by asking again in an hour.",
+      "remainingRisk": "The loop now suspends on access_denied, logs `aws_secrets.refresh_suspended_until_restart` ONCE, and increments `secrets_refresh_suspended_total` thereafter. `network`/`unknown` keep retrying because they are genuinely transient; `not_found`/`decode` keep retrying deliberately, because an operator can fix those without a redeploy and the call is authorized. Not runtime-probed: exercising the suspension requires an interval to elapse with a scripted access_denied, which the unit project does not run.",
+      "evidenceReferences": [
+        "services/api/src/config/secrets-manager.ts#refreshLoop — suspendedReason guard",
+        "packages/shared-runtime/src/ops/metrics.service.ts — secrets_refresh_suspended_total registered"
+      ],
+      "discoveredBy": "corrective pass 3 §8"
+    },
+    {
+      "origin": "DISCOVERED",
+      "prePassDisposition": "DISCOVERED_THIS_PROGRAMME",
+      "id": "SEC-004",
+      "title": "API and Worker do not agree on the secret authority — the Worker never hydrates from Secrets Manager at all",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "claimedRemediationFiles": [
+        "packages/shared-runtime/src/config/secrets-authority.ts",
+        "packages/shared-runtime/src/config/secrets-recording-provider.ts",
+        "packages/shared-runtime/src/index.ts",
+        "packages/shared-runtime/package.json",
+        "services/api/src/config/secrets-manager.ts",
+        "services/worker/src/index.ts",
+        "services/worker/src/health.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "finalDisposition": "FIXED_VERIFIED",
+      "rootCause": "`initSecretsManager` is imported by exactly one module in the repository: services/api/src/server.ts. services/worker never calls it and cannot import it (the loader lives inside the API package). So with AWS_SECRETS_MODE=optional or required, the API can serve from Secrets Manager while the Worker is unconditionally env-only. A secret that exists ONLY in Secrets Manager is present for the API and absent for the Worker, and the Worker reports nothing unusual because it does not know the authority exists.",
+      "remainingRisk": "NONE LOCALLY. The loader is ONE implementation in @proovra/shared-runtime; the API module is a re-export containing no logic (asserted structurally); the Worker calls the same initSecretsAuthority BEFORE its health server and every scheduler, and a rejection routes to shutdown(1). Both services publish the SAME readiness document from the same getSecretsHealth, and the Worker now exposes GET /health/secrets so parity is checkable in a running deployment. Nine bootstrap outcomes proven in-process against a local RECORDING provider, plus four in a REAL spawned process (required+refused exits non-zero and hydrates nothing; required+granted exits zero; optional+refused boots degraded and suspends; disabled never loads the AWS SDK at all). NOT COVERED: a live AWS account — deliberately, since this pass must reach nothing outside the machine, and the substitution is the transport only.",
+      "evidenceReferences": [
+        "services/api/test/phase-12-sec-004-secrets-parity.test.ts — 18/18 (structure, nine bootstrap outcomes, API/Worker parity)",
+        "services/api/test/phase-12-sec-004-fail-closed-process.test.ts — 4/4 in real spawned Node processes, each verified to have STARTED before its output is believed",
+        "services/api/test/phase-12-secrets-authority.test.ts + phase-p2-0-secrets-manager.test.ts + phase-p2-0b-observability-wiring.test.ts — 43/43, with the never-logs-a-secret scan repointed at the IMPLEMENTATION (it had become a scan of an empty re-export file)"
+      ],
+      "discoveredBy": "corrective pass 3 §8"
+    },
+    {
+      "id": "NEW-007",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/identity.routes.ts",
+        "services/api/test/phase-12b-identity-workspace-rail.test.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. `verify-current-workspace-authority.mjs` was RED at the start of this pass with one violation: identity.routes.ts#resolveWorkspaceSubject read User.currentWorkspaceId and RETURNED it, relying on seven callers to authorize on the next line and on a parsing test to enforce that they did. A module whose defence is 'another test watches my callers' is arguing with the gate rather than satisfying it. The derivation and the authorization are now ONE call: the pointer is handed to authorizeOrFail inside the same function and never escapes unproven. Still exactly one policy evaluation and one permission-decision audit row per request.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "node services/api/scripts/verify-current-workspace-authority.mjs → currentWorkspaceIdAuthorizationUses 0 over 34 occurrences, 34 candidate uses, 12/12 self-test fixtures (was 1 violation)",
+        "services/api/test/phase-12b-identity-workspace-rail.test.ts — 5/5, inverted to check the resolver CANNOT be bypassed: the laundering helper is gone, membership is probed before authorization so denial is 404 not 403, every call site consumes the authorized result, and NO handler in the module reads the pointer directly",
+        "services/api/test/identity.test.ts + phase-12b-identity-administration.test.ts — 48/48"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-008",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/organizations-reports.routes.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE. GET /v1/orgs/:id/reports/external-access.csv read grantState, expiresAtUtc and revokedAtUtc off ExternalReviewerRoleAssignment. Those columns are NOT NULL DEFAULT 'PENDING' and NULL respectively and no writer has ever populated them, so this compliance export told an auditor that every external-review grant was PENDING, never expiring and never revoked — including grants that were ACTIVE, EXPIRED or REVOKED. The lifecycle is now joined from ExternalReviewGrant; a sidecar with no grant reports UNKNOWN_NO_GRANT rather than a default that reads like a real state.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts A6 — a revoked grant is driven through the real route and the CSV line contains REVOKED and does not contain PENDING"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-009",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/services/external-review/external-review-grant.service.ts",
+        "services/api/src/services/external-review/portal-invitation-email.service.ts",
+        "services/api/prisma/schema.prisma"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE. Introduced BY the previous pass's de-duplication fix: keying the delivery intent on `attempt` meant a token ROTATION kept attempt = 1, collapsed onto the superseded message's provider idempotency key, and the provider acknowledged it as a repeat and sent nothing. The reviewer was left holding a link that had just been invalidated, with no successor — a lockout produced by a correctness fix. `contentVersion` now comes from ExternalReviewGrant.tokenVersion, which rotation increments in the SAME guarded UPDATE that replaces the hash, so no caller has to remember to say the content changed.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts B4 — rotation advances the generation, the successor is actually delivered to the recording mailbox, and the predecessor token authenticates nothing",
+        "services/api/test/phase-12-inv-001-authority-gate.test.ts — the rotation UPDATE is asserted to advance token_version in the same statement as the hash"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-010",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/services/external-review/portal-invitation-email.service.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. `deriveAttemptCounter` computed the next attempt as count()+1 — a read-then-write. Two concurrent operator resends both read N, both computed N+1, and the loser ADOPTED the winner's row: the second deliberate resend was silently never sent while its caller was told it succeeded. resendSeq is now allocated as MAX(resend_seq)+1 inside the statement, the unique index is the arbiter, and a loser is recorded as a retry of that intent rather than vanishing.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts B5 — two concurrent resends; every distinct intent produces exactly one message and both callers point at a real, findable delivery row"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-011",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/prisma/migrations/20271122000000_external_review_invitation_authority_contract/migration.sql",
+        "services/api/prisma/schema.prisma"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. `external_reviewer_role_assignments.raw_token VARCHAR(128)` was a PLAINTEXT bearer-token column. Nothing wrote it — but its existence was a standing invitation to, next to a UNIQUE token_hash that made it look intentional. Dropped, behind a readiness check that refuses if any row ever carried a value.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts A1 and A7 — the column is gone and the raw token appears in the mailbox and nowhere else (not the grant row, not the sidecar, not the delivery ledger)",
+        "services/api/scripts/migration-rehearsal.mjs B-REFUSE — a plaintext token left in the sidecar makes the migration refuse, dropping nothing"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-012",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/prisma/migrations/20271122000000_external_review_invitation_authority_contract/migration.sql"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PASS",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. No foreign key bound ExternalReviewerRoleAssignment to ExternalReviewGrant even though the two share an id by construction, so an orphan role assignment — and therefore an orphan delivery ledger pointing at it — was possible. `external_reviewer_role_assignments_grant_fk` ON DELETE CASCADE, added after a readiness check that counts orphans in both directions and refuses.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-inv-001-invitation-authority.integration.test.ts A2, A3, B7 — the FK exists with CASCADE, creating an orphan sidecar is rejected by the database, and zero orphans of any kind remain after the whole suite",
+        "services/api/scripts/migration-rehearsal.mjs B-REFUSE — an injected orphan makes the migration refuse"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-013",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/organizations.routes.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE. ROOT CAUSE: the composite guard `requireAuthAndLegal` carried the comment 'requireAuth replies on failure; if we reach here auth succeeded', which is not what the code did. `requireAuth` SENDS its 401 and returns normally, so control DID reach the next line, `requireLegalAcceptance` sent a second reply, and Fastify raised FST_ERR_REP_ALREADY_SENT — which surfaces to the caller as a 500. Every Organization route using this composite therefore answered an expired or revoked session with 'the server broke' instead of 'reauthenticate'. It was invisible until ARCH-004 made Organization suspension revoke its members' sessions, which is what turned a rare condition into a routine one. FIX: `if (reply.sent) return;` — a reply that has already gone out means the composite's job is done. No authorization was weakened: a rejected caller was rejected before and is rejected now; only the status code and the error contract were wrong.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/src/routes/organizations.routes.ts — `requireAuthAndLegal` now short-circuits on `reply.sent`",
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts — 15/15 (measured 2026-08-07); the suspension cases drive the revoked-session path through this composite against the real Fastify instance, which is how the 500 was observed in the first place"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-014",
+      "originalSeverity": "LOW",
+      "normalizedSeverity": "LOW",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/routes/organizations.routes.ts",
+        "docs/architecture/current-runtime-capability-map.json"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "NOT_APPLICABLE",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE. ROOT CAUSE: the two new membership-lifecycle routes were first registered by a loop over the action names, so the registration argument was a TEMPLATE LITERAL. The runtime-capability inventory that keeps `current-runtime-capability-map.json` honest derives the route surface by scanning registration LITERALS in the route sources; a template literal gave it `POST /v1/orgs/:id/members/:memberId/` — a path that exists in no router. The map would have recorded a route nobody serves while omitting the two that are served, so a gate whose whole purpose is to detect an unreachable or unregistered surface would have had a blind spot at exactly the surface it was added for. FIX: both routes are registered EXPLICITLY with string literals, with the reason recorded at the call site so the four saved lines are not reintroduced. This is the same class as the ledger's own refusal rules — an audit input that the auditor cannot read is a fictional control.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/src/routes/organizations.routes.ts — the suspend/restore pair is registered twice with literals; the comment states why a loop is refused here",
+        "docs/architecture/current-runtime-capability-map.json — both `/v1/orgs/:id/members/:memberId/suspend` and `/restore` appear in the machine-generated capability map, and the truncated template path does not",
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts — 15/15 (measured 2026-08-07); both routes are driven through the real router, so the registered path is proven to be the served path"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-015",
+      "originalSeverity": "HIGH",
+      "normalizedSeverity": "HIGH",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/src/services/automation/automation-webhook.service.ts",
+        "services/api/src/services/automation/automation-delivery-runtime.service.ts",
+        "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
+        "packages/shared/src/security.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PARTIAL",
+      "browserVerified": "NOT_EXECUTED",
+      "remainingRisk": "NONE for the finding. ROOT CAUSE: the transport classifier had TWO buckets — retryable and not — and put `timeout` and `fetch_error` in \"retryable\". That is a claim the transport never made. A timeout means the request was WRITTEN and the answer was lost; the receiver may well have processed it. So an ambiguous webhook was re-sent after 30 s, and for a webhook whose purpose is to trigger downstream work that is a real duplicate action, not a retry. FIX: three buckets, and the distinction between the first two is whether the transport can PROVE nothing committed. NO_COMMIT (connection refused, DNS failure, TLS failure, or a receiver that ANSWERED 503/429) is the only family that may resend. AMBIGUOUS (timeout, reset, hang-up, or anything unrecognised — the default, deliberately) gets its own non-terminal state, its own bounded reconciliation policy (3 passes, 60/300/900 s), and its own terminal DEAD_LETTERED_UNKNOWN, which is NOT the same as FAILED because \"the receiver refused\" and \"we never found out\" are different facts an operator acts on differently. `deliverWebhookOnce` now reports the underlying syscall rather than collapsing everything to two strings. The action idempotency key stays attached throughout, so if a provider lookup ever establishes that nothing committed, the resend is the SAME intent.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts cases 12.1–12.8 — 33/33 measured 2026-08-07 against real PostgreSQL 16 + pgvector with a real loopback receiver: a receiver that hangs past the client timeout parks the delivery AMBIGUOUS, and a second sweep pass with its reconciliation time reached sends NOTHING (asserted by counting the receiver's hits); a provider lookup that says COMMITTED resolves to SUCCEEDED without any request; NOT_COMMITTED returns it to the retry ladder with the SAME idempotency key and the SAME row; exhausted reconciliation reaches DEAD_LETTERED_UNKNOWN and never FAILED; no (run, destination) pair ever produced two deliveries; a stale worker cannot overwrite a reconciled outcome",
+        "docs/architecture/point5-family-proven-cases.json — `auto.provider.unknown_outcome_non_terminal` and `auto.provider.unknown_never_projected_as_failure` recorded through the real Point-5 recorder, SHA-bound to the suite that executed them"
+      ],
+      "origin": "DISCOVERED"
+    },
+    {
+      "id": "NEW-016",
+      "originalSeverity": "MEDIUM",
+      "normalizedSeverity": "MEDIUM",
+      "prePassDisposition": "DISCOVERED_THIS_PASS",
+      "claimedRemediationFiles": [
+        "services/api/prisma/schema.prisma",
+        "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
+        "services/api/src/services/automation/automation-delivery-runtime.service.ts"
+      ],
+      "sourceVerified": "PASS",
+      "runtimeVerified": "PASS",
+      "migrationVerified": "PARTIAL",
+      "browserVerified": "NOT_APPLICABLE",
+      "remainingRisk": "NONE. ROOT CAUSE: both status columns were VARCHAR(20), sized when the longest value was `RETRY_SCHEDULED`. `DEAD_LETTERED_UNKNOWN` is 21 characters. The widened CHECK therefore accepted a value the COLUMN refused, and PostgreSQL raised value-too-long — which the fenced updater caught and reported as `false`, the same answer it gives for an honest zero-row match. The reconciler read that as \"another worker got there first\", left the row AMBIGUOUS, and revisited it on every tick forever without ever terminating it. TWO fixes, both real: (1) widen both columns to VARCHAR(32) in the same EXPAND migration, which is safe by construction because every value that fit still fits; (2) the fenced updater now DISTINGUISHES a rejected write from a zero-row match and emits an operator-visible event with the error NAME (never the message, which can carry row contents) before returning false. The second is the load-bearing one: without it a broken deployment looks exactly like healthy contention, and this defect was findable only because that distinction was made first.",
+      "finalDisposition": "FIXED_VERIFIED",
+      "evidenceReferences": [
+        "services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts case 12.6 — 33/33 measured 2026-08-07; the row reaches DEAD_LETTERED_UNKNOWN with `reconciliationAttempts === AMBIGUITY_MAX_RECONCILIATIONS` and `nextAttemptAt === null`, i.e. it stopped asking rather than reconciling forever",
+        "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql section 0 — the widening is conditioned on `character_maximum_length < 32` so it is re-runnable and a no-op on an already-widened database"
+      ],
+      "origin": "DISCOVERED"
+    }
+  ]
+}

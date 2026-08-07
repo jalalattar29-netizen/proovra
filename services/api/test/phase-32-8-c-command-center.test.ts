@@ -169,13 +169,13 @@ describe("Phase 32.8C — service layer composition", () => {
     );
     const reviewerEnd = SERVICE.indexOf("\n}\n", reviewerIdx);
     const reviewerBody = SERVICE.slice(reviewerIdx, reviewerEnd);
-    expect(reviewerBody).toMatch(/scope === "PERSONAL"/);
+    expect(reviewerBody).toMatch(/scope === "SINGLE_OCCUPANT"/);
     expect(reviewerBody).toMatch(/status:\s*"not_applicable"/);
 
     const govIdx = SERVICE.indexOf("async function runGovernancePosture");
     const govEnd = SERVICE.indexOf("\n}\n", govIdx);
     const govBody = SERVICE.slice(govIdx, govEnd);
-    expect(govBody).toMatch(/scope === "PERSONAL"/);
+    expect(govBody).toMatch(/scope === "SINGLE_OCCUPANT"/);
     expect(govBody).toMatch(/status:\s*"not_applicable"/);
   });
 
@@ -202,7 +202,7 @@ describe("Phase 32.8C — service layer composition", () => {
 
   it("detectWorkspaceScope uses the workspace's personal/team flag rather than member count", () => {
     expect(SERVICE).toMatch(
-      /scope:\s*team\?\.isPersonal\s*===\s*true\s*\?\s*"PERSONAL"\s*:\s*"TEAM"/,
+      /scope:\s*team\?\.isPersonal\s*===\s*true\s*\?\s*"SINGLE_OCCUPANT"\s*:\s*"SHARED"/,
     );
   });
 });
@@ -1125,7 +1125,7 @@ describe("Phase 32.8C+ — Workload Engine", () => {
 
   it("personal-workspace short-circuits to not_applicable + HEALTHY (no broken team workload)", () => {
     expect(SERVICE).toMatch(
-      /scope === "PERSONAL"[\s\S]{0,400}status:\s*"not_applicable"[\s\S]{0,200}health:\s*"HEALTHY"/,
+      /scope === "SINGLE_OCCUPANT"[\s\S]{0,400}status:\s*"not_applicable"[\s\S]{0,200}health:\s*"HEALTHY"/,
     );
   });
 });
@@ -1372,7 +1372,7 @@ describe("Phase 32.8C++ — Cross-Case Intelligence V2 engine", () => {
 
   it("personal-workspace short-circuits cross-case V2 to not_applicable", () => {
     expect(SERVICE).toMatch(
-      /runCrossCaseIntelligenceV2[\s\S]{0,1200}scope === "PERSONAL"[\s\S]{0,400}status:\s*"not_applicable"/,
+      /runCrossCaseIntelligenceV2[\s\S]{0,1200}scope === "SINGLE_OCCUPANT"[\s\S]{0,400}status:\s*"not_applicable"/,
     );
   });
 

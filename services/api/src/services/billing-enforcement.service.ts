@@ -114,7 +114,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
   assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
-  if (scope.workspaceType === "TEAM" && !caps.allowsTeamWorkspace) {
+  if (scope.billingShape === "SHARED" && !caps.allowsSharedWorkspace) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "Current plan does not include team workspace evidence creation"
     );
@@ -123,7 +123,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     throw err;
   }
 
-  if (scope.workspaceType === "TEAM") {
+  if (scope.billingShape === "SHARED") {
     // Rolling 30-day cap on TEAM workspaces. ENTERPRISE workspaces have
     // null monthly cap and skip the count. The team's `evidence_team_id_created_at_idx`
     // compound index covers this query.

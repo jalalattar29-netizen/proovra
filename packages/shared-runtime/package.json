@@ -52,6 +52,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1055.0",
     "@prisma/client": "^7.3.0",
     "@proovra/shared": "workspace:*",
     "exifr": "^7.1.3"

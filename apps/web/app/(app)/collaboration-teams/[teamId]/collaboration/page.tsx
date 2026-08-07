@@ -1176,7 +1176,7 @@ function useAccessReviewPlanGate(): {
   // This was `plan === "PRO" || plan === "TEAM"`, which made the browser the
   // commercial authority and wrongly excluded ENTERPRISE. `canInviteGuests` is
   // projected from the same catalog value the API enforces in
-  // collaboration-completion.service#inviteGuest (`canPlanUseTeams`), so the
+  // collaboration-completion.service#inviteGuest (`canPlanOperateSharedWorkspace`), so the
   // affordance and the enforcement cannot disagree, and an ENTERPRISE
   // workspace is correctly eligible.
   //

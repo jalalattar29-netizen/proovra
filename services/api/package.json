@@ -45,7 +45,13 @@
     "db:migration-inventory": "node scripts/migration-inventory.mjs",
     "db:migration-inventory:write": "node scripts/migration-inventory.mjs --write --git",
     "db:p6-production-snapshot": "node scripts/p6-production-migration-snapshot.mjs",
-    "db:p6-reconcile": "node scripts/migration-production-reconcile.mjs"
+    "db:p6-reconcile": "node scripts/migration-production-reconcile.mjs",
+    "verify:authorization": "node scripts/verify-authorization-authorities.mjs",
+    "verify:release-identity": "node scripts/verify-release-identity.mjs",
+    "ops:audit-tenant-scope-readiness": "tsx src/commands/audit-tenant-scope-readiness.ts",
+    "ops:redact-leaked-intake-tokens": "tsx src/scripts/redact-leaked-intake-tokens.ts",
+    "ops:twilio-message-recheck": "tsx src/scripts/twilio-message-recheck.ts",
+    "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts"
   },
   "keywords": [],
   "author": "",

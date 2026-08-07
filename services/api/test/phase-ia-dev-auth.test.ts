@@ -124,14 +124,14 @@ describe("Phase IA-dev-auth — persona allowlist + minting", () => {
       expect(p.userId).toMatch(/^[0-9a-f-]{36}$/);
       expect(p.workspaceId).toMatch(/^[0-9a-f-]{36}$/);
       expect(["PRO", "TEAM"]).toContain(p.plan);
-      expect(["PERSONAL", "ORGANIZATION"]).toContain(p.workspaceType);
+      expect(["PERSONAL", "ORGANIZATION"]).toContain(p.workspaceKind);
     }
     // The personas the brief mandates.
-    expect(HOME_PERSONAS["pro-empty"].workspaceType).toBe("PERSONAL");
-    expect(HOME_PERSONAS["pro-populated"].workspaceType).toBe("PERSONAL");
-    expect(HOME_PERSONAS["pro-issues"].workspaceType).toBe("PERSONAL");
+    expect(HOME_PERSONAS["pro-empty"].workspaceKind).toBe("PERSONAL");
+    expect(HOME_PERSONAS["pro-populated"].workspaceKind).toBe("PERSONAL");
+    expect(HOME_PERSONAS["pro-issues"].workspaceKind).toBe("PERSONAL");
     expect(HOME_PERSONAS["pro-issues"].plan).toBe("PRO");
-    expect(HOME_PERSONAS["team-org"].workspaceType).toBe("ORGANIZATION");
+    expect(HOME_PERSONAS["team-org"].workspaceKind).toBe("ORGANIZATION");
     expect(HOME_PERSONAS["team-org"].plan).toBe("TEAM");
   });
 });

@@ -254,8 +254,11 @@ async function getRealQuotas(userId: string) {
   let teamMembersUsed = 0;
 
   try {
+    // PHASE 12 REMEDIATION — COMM-001 family (2026-08-06). Quota usage must
+    // reflect REAL occupancy; a revoked member consumes no seat.
     teamMembersUsed = await prisma.teamMember.count({
       where: {
+        status: "ACTIVE",
         team: {
           ownerUserId: userId,
         },

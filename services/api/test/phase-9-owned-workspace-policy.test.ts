@@ -82,7 +82,11 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
 
   it("9. SYSTEM parent/backfill never confers Enterprise on PERSONAL/OWNED kinds", () => {
     expect(normalizeWorkspaceKind({ workspaceKind: null, isPersonal: true, billingPlan: "TEAM", teamLoaded: true })).toBe("PERSONAL");
-    expect(normalizeWorkspaceKind({ workspaceKind: null, isPersonal: false, billingPlan: "PRO", teamLoaded: true })).toBe("OWNED");
+    // ARCH-002 (2026-08-06): a NULL kind on a non-personal row no longer
+    // resolves to OWNED by elimination — it fails closed. The point this case
+    // makes (a plan never confers Enterprise) is now made more strongly: the
+    // plan confers no kind at all.
+    expect(normalizeWorkspaceKind({ workspaceKind: null, isPersonal: false, billingPlan: "PRO", teamLoaded: true })).toBe("UNKNOWN");
     const personal = resolveWorkspaceEffectivePlan({ workspaceKind: "PERSONAL", billingPlan: "FREE", billingStatus: "INACTIVE", ownerPlan: "PRO" });
     expect(personal.source).toBe("PERSONAL_ENTITLEMENT"); // personal subject, never contract
   });

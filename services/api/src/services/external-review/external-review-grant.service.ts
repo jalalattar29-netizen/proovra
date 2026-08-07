@@ -660,33 +660,92 @@ export type RotateTokenResult =
   | { ok: false; reason: ExternalReviewGrantDenialCode };
 
 /**
- * Reveal the stored raw token for a role assignment (break-glass / operator
- * resend use-case). The token is stored in plain-text on the
- * ExternalReviewerRoleAssignment row so that the operator can resend it
- * without re-issuing. Returns token_unknown if the row is missing or the
- * rawToken column is null.
+ * PHASE 12 REMEDIATION §4.3 (2026-08-06) — SERVER-OWNED SUCCESSOR TOKEN.
+ *
+ * What this replaces
+ * ------------------
+ * This function's contract used to be "reveal the stored raw token", reading
+ * a PLAINTEXT `ExternalReviewerRoleAssignment.rawToken` column. Two things
+ * were wrong with that, and the Phase-12 remediation corrects both:
+ *
+ *   1. The column is never written by ANY production writer —
+ *      `issueInvitation` persists only the SHA-256 hash on
+ *      `external_review_grants`, exactly as the module contract requires.
+ *      The reveal path therefore could only ever return `token_unknown`;
+ *      the break-glass route was inert.
+ *   2. Even if it had been populated, retaining a bearer token in plaintext
+ *      so it can be re-read is precisely the storage shape this service
+ *      exists to avoid ("token storage is the SHA-256 hash only").
+ *
+ * What it does now
+ * ----------------
+ * The token is HASH-ONLY and therefore genuinely unrecoverable, so the
+ * canonical answer is to MINT A SUCCESSOR server-side:
+ *
+ *   * a fresh 256-bit token is generated here, never accepted from a caller;
+ *   * its hash ATOMICALLY supersedes the prior hash in a single guarded
+ *     UPDATE — the predicate pins team, grant and a live state, so a
+ *     concurrent revoke/expire wins and no token is minted for a dead grant;
+ *   * the predecessor stops authenticating the instant that UPDATE commits;
+ *   * invitation history is untouched — the grant row keeps its identity,
+ *     its issuance provenance, its scope and its activity trail;
+ *   * the raw value is returned EXACTLY ONCE to the authorized caller and is
+ *     never persisted, logged, or emitted in an audit payload.
+ *
+ * The name is unchanged because the ROUTE contract is unchanged: this is
+ * still "the operator asked for a usable token for this invitation", and it
+ * still returns `{ ok: true, rawToken }` exactly once. Only the mechanism
+ * became honest.
  */
 export async function rotateExternalReviewGrantToken(
   input: RotateTokenInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RotateTokenResult> {
   try {
-    // Phase 2B Closure — break-glass primitive. Reveal/rotate is a sensitive
-    // operator action; require a meaningful justification (≥10 trimmed chars)
-    // so the audit reason is not an empty placeholder. Below-threshold reasons
-    // are rejected with `token_unknown` (same code as missing row — refuses to
-    // leak whether the grant exists).
+    // Phase 2B Closure — rotation is a sensitive operator action; require a
+    // meaningful justification (≥10 trimmed chars) so the audit reason is not
+    // an empty placeholder. Below-threshold reasons are rejected with
+    // `token_unknown` (the same code as a missing row — the service refuses
+    // to leak whether the grant exists).
     if (input.reason.trim().length < 10) {
       return { ok: false, reason: "token_unknown" };
     }
-    const row = await client.externalReviewerRoleAssignment.findFirst({
-      where: { id: input.grantId, teamId: input.teamId },
-      select: { rawToken: true, grantState: true },
-    });
-    if (!row) {
-      return { ok: false, reason: "token_unknown" };
-    }
-    if (!row.rawToken) {
+    const rawToken = generateRawToken();
+    const tokenHash = hashToken(rawToken);
+    // ATOMIC SUPERSEDE. The WHERE clause is the concurrency control: the
+    // grant must still belong to this workspace AND still be in a state that
+    // can authenticate a reviewer. `expires_at_utc > now()` keeps an expired
+    // grant from being silently resurrected by a rotation.
+    // PHASE 12 CORRECTIVE PASS §2/§3 — the generation counter moves WITH the
+    // hash, in the same guarded UPDATE.
+    //
+    // Rotation already superseded the predecessor correctly for
+    // AUTHENTICATION. What was missing was a durable statement that the
+    // CONTENT of the invitation had changed, and the delivery layer needs
+    // exactly that: without it, the message carrying the successor link
+    // collapsed onto the superseded message's provider idempotency key, the
+    // provider acknowledged it as a repeat, and the reviewer was left holding
+    // a dead link with no successor to replace it. Incrementing here — rather
+    // than in the mail path — means no caller can rotate without the delivery
+    // layer noticing.
+    const rows = (await client.$queryRawUnsafe(
+      `UPDATE "external_review_grants"
+          SET "token_hash" = $1,
+              "token_version" = "token_version" + 1,
+              "updated_at_utc" = now()
+        WHERE "id" = $2::uuid
+          AND "team_id" = $3::uuid
+          AND "state" IN ('INVITED', 'ACTIVE')
+          AND "revoked_at_utc" IS NULL
+          AND "expires_at_utc" > now()
+        RETURNING "id", "state"`,
+      tokenHash,
+      input.grantId,
+      input.teamId,
+    )) as Array<{ id: string; state: string }>;
+    const updated = rows[0];
+    if (!updated) {
+      // Missing, foreign, revoked or expired all conceal as one code.
       return { ok: false, reason: "token_unknown" };
     }
     safeEmitSecurityEvent({
@@ -694,17 +753,21 @@ export async function rotateExternalReviewGrantToken(
       eventType: "external_review_token_revealed",
       severity: "WARNING",
       details: {
-        // Phase 2B Closure — `breakGlass: true` lets security ops dashboards
-        // and SIEM forwarders filter on this single field to distinguish
-        // operator-initiated break-glass reveals from normal invitation
-        // delivery (which never re-reveals a stored raw token).
+        // `breakGlass: true` lets security-ops dashboards and SIEM forwarders
+        // filter on this single field to distinguish an operator-initiated
+        // rotation from normal invitation delivery.
         breakGlass: true,
+        // §4.3 — record that the predecessor was superseded, so an operator
+        // reading the trail knows the older link stopped working here.
+        tokenSuperseded: true,
         actorUserId: input.actorUserId,
         grantId: input.grantId,
+        grantState: updated.state,
         reasonPreview: input.reason.slice(0, 80),
       },
     });
-    return { ok: true, rawToken: row.rawToken };
+    bump("external_review_grant_token_rotated_total");
+    return { ok: true, rawToken };
   } catch {
     return { ok: false, reason: "service_unavailable" };
   }

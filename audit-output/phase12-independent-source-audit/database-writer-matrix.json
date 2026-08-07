@@ -1,0 +1,1787 @@
+{
+ "sourceRevision": "a7863bec33f10549d84a839ee7ab353509626a2a",
+ "method": "Mechanical discovery of prisma/tx/client .<model>.<create|createMany|update|updateMany|upsert|delete|deleteMany>( plus $executeRaw/$queryRaw, intersected with the reachable graph.",
+ "writeCallSitesTotal": 1188,
+ "writeCallSitesReachable": 1093,
+ "writeCallSitesUnreachable": 95,
+ "rawSqlSitesTotal": 269,
+ "rawSqlSitesReachable": 252,
+ "distinctModelsWrittenReachable": 256,
+ "canonicalSingleWriterModels": {
+  "teamMember": [
+   "services/api/src/services/identity/membership-provisioning.service.ts",
+   "services/api/src/services/identity/rbac.service.ts"
+  ],
+  "organizationMembership": [
+   "services/api/src/services/identity/membership-provisioning.service.ts"
+  ],
+  "caseEvidenceLink": [
+   "services/api/src/services/cases/case-evidence-link.service.ts"
+  ],
+  "evidenceLegalHold": [
+   "services/api/src/services/governance/legal-hold.service.ts"
+  ],
+  "team": [
+   "services/api/src/routes/teams.routes.ts",
+   "services/api/src/services/enterprise-provisioning.service.ts",
+   "services/api/src/services/platform-context/workspace-bootstrap.service.ts",
+   "services/api/src/services/workspace/workspace-lifecycle.service.ts",
+   "services/api/src/services/billing.service.ts"
+  ]
+ },
+ "writersWithNoReachableProducer": {
+  "AutomationRun": "services/api/src/services/automation/automation-dispatcher.service.ts (DEAD_UNREACHABLE)",
+  "AutomationWebhookDelivery": "services/api/src/services/automation/automation-actions.service.ts + automation-delivery-runtime.service.ts (DEAD_UNREACHABLE)"
+ },
+ "perModel": {
+  "reportGenerationRequest": {
+   "sites": 5,
+   "files": [
+    "packages/shared-runtime/src/reports/report-generation-request.ts",
+    "services/worker/src/report-generation-authority.ts"
+   ]
+  },
+  "captureSession": {
+   "sites": 6,
+   "files": [
+    "services/api/src/jobs/capture-draft-expiry.job.ts",
+    "services/api/src/routes/capture.routes.ts",
+    "services/api/src/routes/evidence.routes.ts",
+    "services/worker/src/capture-reaper.ts"
+   ]
+  },
+  "captureSessionEvent": {
+   "sites": 7,
+   "files": [
+    "services/api/src/jobs/capture-draft-expiry.job.ts",
+    "services/api/src/routes/capture.routes.ts",
+    "services/api/src/routes/evidence.routes.ts",
+    "services/worker/src/capture-reaper.ts"
+   ]
+  },
+  "evidencePartDerivedAsset": {
+   "sites": 1,
+   "files": [
+    "services/api/src/queue/derived-assets-queue.ts"
+   ]
+  },
+  "accountClosureRequest": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/account-closure.routes.ts",
+    "services/api/src/services/identity/account-closure.service.ts"
+   ]
+  },
+  "accountDataExportRequest": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/account-data-export.routes.ts",
+    "services/api/src/services/identity/account-closure.service.ts",
+    "services/api/src/services/identity/account-data-export.service.ts"
+   ]
+  },
+  "contactSalesRequest": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/admin-contact-sales.routes.ts",
+    "services/api/src/services/contact-sales.service.ts"
+   ]
+  },
+  "demoRequest": {
+   "sites": 6,
+   "files": [
+    "services/api/src/routes/admin-demo-requests.routes.ts",
+    "services/api/src/services/demo-follow-up.service.ts",
+    "services/api/src/services/demo-request.service.ts"
+   ]
+  },
+  "automationWebhookDestination": {
+   "sites": 4,
+   "files": [
+    "services/api/src/routes/automation-webhooks.routes.ts"
+   ]
+  },
+  "automationRule": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/automation.routes.ts"
+   ]
+  },
+  "subscription": {
+   "sites": 2,
+   "files": [
+    "services/api/src/routes/billing.routes.ts",
+    "services/api/src/services/billing.service.ts"
+   ]
+  },
+  "workspaceStorageAddon": {
+   "sites": 4,
+   "files": [
+    "services/api/src/routes/billing.routes.ts",
+    "services/api/src/services/billing.service.ts"
+   ]
+  },
+  "case": {
+   "sites": 8,
+   "files": [
+    "services/api/src/routes/cases.routes.ts",
+    "services/api/src/routes/teams.routes.ts",
+    "services/api/src/services/cases/case-lifecycle.service.ts"
+   ]
+  },
+  "caseAccess": {
+   "sites": 6,
+   "files": [
+    "services/api/src/routes/cases.routes.ts",
+    "services/api/src/routes/teams.routes.ts"
+   ]
+  },
+  "discussionMention": {
+   "sites": 2,
+   "files": [
+    "services/api/src/routes/collaboration.routes.ts",
+    "services/api/src/services/collaboration/discussion.service.ts"
+   ]
+  },
+  "discussionParticipant": {
+   "sites": 8,
+   "files": [
+    "services/api/src/routes/collaboration.routes.ts",
+    "services/api/src/services/collaboration/discussion.service.ts"
+   ]
+  },
+  "communicationMessage": {
+   "sites": 18,
+   "files": [
+    "services/api/src/routes/communications.routes.ts",
+    "services/api/src/routes/ops.routes.ts",
+    "services/api/src/services/communications/communication.service.ts",
+    "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
+    "services/api/src/services/workflow-intake-link.service.ts"
+   ]
+  },
+  "evidenceRequest": {
+   "sites": 6,
+   "files": [
+    "services/api/src/routes/evidence-requests.routes.ts",
+    "services/api/src/services/evidence-request.service.ts"
+   ]
+  },
+  "evidenceRequestEvent": {
+   "sites": 2,
+   "files": [
+    "services/api/src/routes/evidence-requests.routes.ts",
+    "services/api/src/services/evidence-request.service.ts"
+   ]
+  },
+  "evidence": {
+   "sites": 51,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts",
+    "services/api/src/routes/teams.routes.ts",
+    "services/api/src/services/cases/case-evidence-link.service.ts",
+    "services/api/src/services/evidence-complete.service.ts",
+    "services/api/src/services/evidence.service.ts",
+    "services/api/src/services/external-intake-orchestration.service.ts",
+    "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
+    "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
+    "services/api/src/services/governance.service.ts",
+    "services/api/src/services/governance/publication.service.ts",
+    "services/api/src/services/governance/retention-sweeper.service.ts",
+    "services/api/src/services/lifecycle/destruction-governance.service.ts",
+    "services/api/src/services/technical-metadata/capture-environment-writer.ts",
+    "services/worker/src/governance/destruction-orchestrator.worker.ts",
+    "services/worker/src/governance/retention-reconciliation.worker.ts",
+    "services/worker/src/integrity-rejection.service.ts",
+    "services/worker/src/ots-upgrade.processor.ts",
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "evidencePart": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts",
+    "services/api/src/services/evidence-complete.service.ts",
+    "services/api/src/services/external-intake-orchestration.service.ts",
+    "services/api/src/services/uploads/upload-session.service.ts",
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "guestIdentity": {
+   "sites": 2,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts",
+    "services/api/src/services/evidence-legacy-custody.ts"
+   ]
+  },
+  "evidenceReviewerComment": {
+   "sites": 4,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts",
+    "services/api/src/routes/reviewer-ops.routes.ts"
+   ]
+  },
+  "evidenceLegalNote": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts"
+   ]
+  },
+  "evidenceAnnotation": {
+   "sites": 6,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts",
+    "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts"
+   ]
+  },
+  "evidenceAiCategorization": {
+   "sites": 1,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts"
+   ]
+  },
+  "verificationView": {
+   "sites": 2,
+   "files": [
+    "services/api/src/routes/evidence.routes.ts",
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "evidenceSavedView": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/evidence.saved-views.routes.ts"
+   ]
+  },
+  "userIdentityLink": {
+   "sites": 4,
+   "files": [
+    "services/api/src/routes/identity-links.routes.ts",
+    "services/api/src/services/auth.service.ts",
+    "services/api/src/services/identity/account-closure.service.ts"
+   ]
+  },
+  "user": {
+   "sites": 24,
+   "files": [
+    "services/api/src/routes/identity-links.routes.ts",
+    "services/api/src/routes/organizations.routes.ts",
+    "services/api/src/routes/platform-context.routes.ts",
+    "services/api/src/routes/users.routes.ts",
+    "services/api/src/services/access-control/scim.service.ts",
+    "services/api/src/services/access-control/sso.service.ts",
+    "services/api/src/services/auth.service.ts",
+    "services/api/src/services/email-password-auth.service.ts",
+    "services/api/src/services/identity/account-closure.service.ts",
+    "services/api/src/services/organization/org-closure.service.ts",
+    "services/api/src/services/organization/org-lifecycle.service.ts",
+    "services/api/src/services/platform-context/platform-context.service.ts",
+    "services/api/src/services/security/saml-user-mapping.service.ts",
+    "services/api/src/services/workspace/workspace-closure.service.ts",
+    "services/api/src/services/workspace/workspace-lifecycle.service.ts"
+   ]
+  },
+  "stepUpChallenge": {
+   "sites": 9,
+   "files": [
+    "services/api/src/routes/identity-security.routes.ts",
+    "services/api/src/routes/ops.routes.ts",
+    "services/api/src/services/identity-security/step-up.service.ts"
+   ]
+  },
+  "trustedDevice": {
+   "sites": 9,
+   "files": [
+    "services/api/src/routes/identity-security.routes.ts",
+    "services/api/src/routes/ops.routes.ts",
+    "services/api/src/services/access-control/trusted-device-decay.service.ts",
+    "services/api/src/services/identity-security/trusted-device.service.ts",
+    "services/api/src/services/security/mfa-admin-lifecycle.service.ts"
+   ]
+  },
+  "authenticatedSession": {
+   "sites": 24,
+   "files": [
+    "services/api/src/routes/identity-security.routes.ts",
+    "services/api/src/routes/saml-auth.routes.ts",
+    "services/api/src/routes/sso-auth.routes.ts",
+    "services/api/src/services/access-control/runtime-risk.service.ts",
+    "services/api/src/services/access-control/session-inventory.service.ts",
+    "services/api/src/services/access-control/session-quarantine.service.ts",
+    "services/api/src/services/access-control/suspicious-session.service.ts",
+    "services/api/src/services/identity/account-closure.service.ts",
+    "services/api/src/services/identity/concurrent-session.service.ts"
+   ]
+  },
+  "teamActivity": {
+   "sites": 11,
+   "files": [
+    "services/api/src/routes/integrations.routes.ts",
+    "services/api/src/routes/reviewer-ops.routes.ts",
+    "services/api/src/routes/teams.routes.ts",
+    "services/api/src/services/reviewer-ops/review-decision.service.ts",
+    "services/api/src/services/workspace/workspace-closure.service.ts",
+    "services/api/src/services/workspace/workspace-lifecycle.service.ts"
+   ]
+  },
+  "operationsInboxSnapshot": {
+   "sites": 6,
+   "files": [
+    "services/api/src/routes/me-inbox.routes.ts",
+    "services/api/src/services/notifications/digest-scheduler.ts"
+   ]
+  },
+  "collaborationTeamNotification": {
+   "sites": 6,
+   "files": [
+    "services/api/src/routes/me-inbox.routes.ts",
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "inboxItemState": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/me-inbox.routes.ts"
+   ]
+  },
+  "bulkOperationalActionRun": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/ops.routes.ts",
+    "services/api/src/services/dashboard/bulk-actions.service.ts"
+   ]
+  },
+  "organizationNotificationPolicy": {
+   "sites": 1,
+   "files": [
+    "services/api/src/routes/org-notification-policy.routes.ts"
+   ]
+  },
+  "organizationDomain": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/organization-domains.routes.ts"
+   ]
+  },
+  "organizationInvite": {
+   "sites": 9,
+   "files": [
+    "services/api/src/routes/organizations-bulk-invite.routes.ts",
+    "services/api/src/routes/organizations.routes.ts",
+    "services/api/src/services/enterprise-provisioning.service.ts",
+    "services/api/src/services/organization/org-invite-acceptance.service.ts",
+    "services/api/src/services/organization/org-invite-delivery.service.ts",
+    "services/api/src/services/organization/org-lifecycle.service.ts"
+   ]
+  },
+  "organizationPolicy": {
+   "sites": 1,
+   "files": [
+    "services/api/src/routes/organizations-governance.routes.ts"
+   ]
+  },
+  "organization": {
+   "sites": 11,
+   "files": [
+    "services/api/src/routes/organizations.routes.ts",
+    "services/api/src/routes/teams.routes.ts",
+    "services/api/src/services/enterprise-provisioning.service.ts",
+    "services/api/src/services/organization/org-closure.service.ts",
+    "services/api/src/services/organization/org-lifecycle.service.ts",
+    "services/api/src/services/platform-context/workspace-bootstrap.service.ts"
+   ]
+  },
+  "organizationClosureRequest": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/organizations.routes.ts",
+    "services/api/src/services/organization/org-closure.service.ts"
+   ]
+  },
+  "lifecycleWebhookDelivery": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/product-and-lifecycle.routes.ts",
+    "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
+   ]
+  },
+  "redactionDerivative": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/redaction.routes.ts",
+    "services/api/src/services/redaction/redaction-derivative.service.ts",
+    "services/worker/src/redaction/redaction-derivative-writer.ts"
+   ]
+  },
+  "reviewerCriteriaSet": {
+   "sites": 5,
+   "files": [
+    "services/api/src/routes/reviewer-criteria.routes.ts"
+   ]
+  },
+  "reviewerCriteriaVersion": {
+   "sites": 4,
+   "files": [
+    "services/api/src/routes/reviewer-criteria.routes.ts"
+   ]
+  },
+  "reviewerCriterion": {
+   "sites": 1,
+   "files": [
+    "services/api/src/routes/reviewer-criteria.routes.ts"
+   ]
+  },
+  "ssoConnection": {
+   "sites": 15,
+   "files": [
+    "services/api/src/routes/saml-auth.routes.ts",
+    "services/api/src/services/access-control/sso-hardening.service.ts",
+    "services/api/src/services/access-control/sso.service.ts",
+    "services/api/src/services/organization/org-lifecycle.service.ts",
+    "services/api/src/services/security/saml-mapping.service.ts"
+   ]
+  },
+  "team": {
+   "sites": 11,
+   "files": [
+    "services/api/src/routes/teams.routes.ts",
+    "services/api/src/services/billing.service.ts",
+    "services/api/src/services/enterprise-provisioning.service.ts",
+    "services/api/src/services/platform-context/workspace-bootstrap.service.ts",
+    "services/api/src/services/workspace/workspace-lifecycle.service.ts"
+   ]
+  },
+  "teamInvite": {
+   "sites": 4,
+   "files": [
+    "services/api/src/routes/teams.routes.ts"
+   ]
+  },
+  "workspaceClosureRequest": {
+   "sites": 7,
+   "files": [
+    "services/api/src/routes/teams.routes.ts",
+    "services/api/src/services/workspace/workspace-closure.service.ts"
+   ]
+  },
+  "cookieConsentRecord": {
+   "sites": 1,
+   "files": [
+    "services/api/src/routes/users.routes.ts"
+   ]
+  },
+  "stripeWebhookEvent": {
+   "sites": 2,
+   "files": [
+    "services/api/src/routes/webhooks.routes.ts"
+   ]
+  },
+  "paypalWebhookEvent": {
+   "sites": 3,
+   "files": [
+    "services/api/src/routes/webhooks.routes.ts"
+   ]
+  },
+  "geoIntelligenceLookup": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/access-control/geo-intelligence.service.ts"
+   ]
+  },
+  "memberCapabilityGrant": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/access-control/rbac-engine.service.ts",
+    "services/api/src/services/identity/rbac.service.ts"
+   ]
+  },
+  "scimProvisioningToken": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/access-control/scim-reconciliation.service.ts",
+    "services/api/src/services/access-control/scim.service.ts",
+    "services/api/src/services/organization/org-lifecycle.service.ts"
+   ]
+  },
+  "scimGroup": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/access-control/scim-reconciliation.service.ts"
+   ]
+  },
+  "externalIdentityMapping": {
+   "sites": 7,
+   "files": [
+    "services/api/src/services/access-control/scim.service.ts",
+    "services/api/src/services/access-control/sso.service.ts",
+    "services/api/src/services/identity/external-identity.service.ts",
+    "services/api/src/services/security/saml-user-mapping.service.ts"
+   ]
+  },
+  "ssoCallbackAttempt": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/access-control/sso-hardening.service.ts"
+   ]
+  },
+  "aiCopilotRun": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/ai/ai-copilot-run-store.service.ts",
+    "services/api/src/services/ai/ai-retention.service.ts"
+   ]
+  },
+  "aiCopilotObservationReview": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/ai/ai-copilot-run-store.service.ts"
+   ]
+  },
+  "aiUsageEvent": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/ai/ai-retention.service.ts",
+    "services/api/src/services/ai/ai-usage-ledger.service.ts"
+   ]
+  },
+  "aiUsageDaily": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/ai/ai-retention.service.ts",
+    "services/api/src/services/ai/ai-usage-ledger.service.ts"
+   ]
+  },
+  "aiUsageMonthly": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/ai/ai-retention.service.ts",
+    "services/api/src/services/ai/ai-usage-ledger.service.ts"
+   ]
+  },
+  "responses": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/ai/openai-provider.ts",
+    "services/api/src/services/ai/structured-copilot-provider.ts"
+   ]
+  },
+  "workspaceAiPolicy": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/ai/workspace-ai-policy.service.ts"
+   ]
+  },
+  "analyticsSession": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/analytics-event.service.ts"
+   ]
+  },
+  "analyticsEvent": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/analytics-event.service.ts",
+    "services/worker/src/analytics-events.ts"
+   ]
+  },
+  "entitlement": {
+   "sites": 7,
+   "files": [
+    "services/api/src/services/auth.service.ts",
+    "services/api/src/services/billing-enforcement.service.ts",
+    "services/api/src/services/billing.service.ts",
+    "services/api/src/services/email-password-auth.service.ts"
+   ]
+  },
+  "entitlementUsage": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/billing-enforcement.service.ts",
+    "services/api/src/services/packaging/entitlement.service.ts"
+   ]
+  },
+  "payment": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/billing.service.ts"
+   ]
+  },
+  "captureDeviceAttestation": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/capture-trust/attestation-verifier.service.ts"
+   ]
+  },
+  "device": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/capture-trust/device-identity.service.ts"
+   ]
+  },
+  "captureTrustEventRecord": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/capture-trust/trust-event.service.ts"
+   ]
+  },
+  "caseEvidenceLink": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/cases/case-evidence-link.service.ts"
+   ]
+  },
+  "caseStatusHistory": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/cases/case-lifecycle.service.ts"
+   ]
+  },
+  "caseAssignment": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/cases/case-lifecycle.service.ts"
+   ]
+  },
+  "caseComment": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/cases/case-lifecycle.service.ts"
+   ]
+  },
+  "evidenceSearchDocument": {
+   "sites": 19,
+   "files": [
+    "services/api/src/services/cases/case-lifecycle.service.ts",
+    "services/api/src/services/search/artifact-indexing.service.ts",
+    "services/api/src/services/search/case-indexing.service.ts",
+    "services/api/src/services/search/evidence-indexing.service.ts",
+    "services/worker/src/search-index/artifact-indexer.ts",
+    "services/worker/src/search-indexing.processor.ts"
+   ]
+  },
+  "caseRiskSnapshot": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/cases/case-risk-engine.service.ts"
+   ]
+  },
+  "collaborationTeamActivity": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+    "services/api/src/services/collaboration-team/collaboration-team.service.ts"
+   ]
+  },
+  "collaborationTeamComment": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "collaborationTeamCommentMention": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "collaborationTeamNotificationPreference": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "collaborationTeamGuest": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "collaborationTeamAccessReview": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "collaborationTeamAccessReviewItem": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts"
+   ]
+  },
+  "collaborationTeam": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-team.service.ts"
+   ]
+  },
+  "collaborationTeamMember": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-team.service.ts"
+   ]
+  },
+  "collaborationTeamInvite": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-team.service.ts"
+   ]
+  },
+  "collaborationTeamAssignment": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/collaboration-team/collaboration-team.service.ts"
+   ]
+  },
+  "discussionThread": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/collaboration/discussion.service.ts"
+   ]
+  },
+  "discussionMessage": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/collaboration/discussion.service.ts"
+   ]
+  },
+  "communicationPreference": {
+   "sites": 7,
+   "files": [
+    "services/api/src/services/communications/communication-preference.service.ts"
+   ]
+  },
+  "verificationAttempt": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/communications/verification.service.ts"
+   ]
+  },
+  "custodyEvent": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/custody-events.service.ts",
+    "services/worker/src/custody-events.ts",
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "accessAnomaly": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/dashboard/access-anomaly.service.ts"
+   ]
+  },
+  "bulkOperationalActionItem": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/dashboard/bulk-actions.service.ts"
+   ]
+  },
+  "operationalCausalityLink": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/causality.service.ts"
+   ]
+  },
+  "operationalCausalityChain": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/causality.service.ts"
+   ]
+  },
+  "operationalCorrelation": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/incident-correlation.service.ts"
+   ]
+  },
+  "evidenceIntegritySnapshot": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/integrity-snapshot.service.ts"
+   ]
+  },
+  "operationalGraphNode": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/operational-graph.service.ts"
+   ]
+  },
+  "operationalGraphEdge": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/operational-graph.service.ts"
+   ]
+  },
+  "operationalTimelineEvent": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/operational-timeline.service.ts"
+   ]
+  },
+  "organizationalHealthSnapshot": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/org-health.service.ts"
+   ]
+  },
+  "orgHealthProjection": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/dashboard/projections/refresh-org-health.service.ts",
+    "services/worker/src/subsystem-queue-processors.ts"
+   ]
+  },
+  "queueTelemetrySnapshot": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/dashboard/queue-telemetry.service.ts",
+    "services/worker/src/telemetry.ts"
+   ]
+  },
+  "reviewerCapacitySnapshot": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/reviewer-capacity.service.ts"
+   ]
+  },
+  "reviewerRoutingRecommendation": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/reviewer-capacity.service.ts"
+   ]
+  },
+  "workerTelemetrySnapshot": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/dashboard/worker-telemetry.service.ts",
+    "services/worker/src/telemetry.ts"
+   ]
+  },
+  "operationalWorkflow": {
+   "sites": 11,
+   "files": [
+    "services/api/src/services/dashboard/workflow-generator.service.ts",
+    "services/api/src/services/observability/workflow.service.ts"
+   ]
+  },
+  "operationalWorkflowAction": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/dashboard/workflow-generator.service.ts"
+   ]
+  },
+  "operationalWorkflowEvent": {
+   "sites": 9,
+   "files": [
+    "services/api/src/services/dashboard/workflow-generator.service.ts",
+    "services/api/src/services/observability/workflow-actions.service.ts",
+    "services/api/src/services/observability/workflow.service.ts"
+   ]
+  },
+  "notificationDelivery": {
+   "sites": 36,
+   "files": [
+    "services/api/src/services/demo-follow-up.service.ts",
+    "services/api/src/services/notifications/index.ts",
+    "services/api/src/services/organization/org-invite-delivery.service.ts",
+    "services/worker/src/mfa-recovery-digest.ts"
+   ]
+  },
+  "passwordResetToken": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/email-password-auth.service.ts"
+   ]
+  },
+  "emailVerificationToken": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/email-password-auth.service.ts"
+   ]
+  },
+  "enterpriseProvisioningRequest": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/enterprise-provisioning.service.ts"
+   ]
+  },
+  "enterpriseContract": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/enterprise-provisioning.service.ts",
+    "services/api/src/services/organization/enterprise-contract.service.ts"
+   ]
+  },
+  "evidenceCertification": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/evidence-certification.service.ts",
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "evidenceRequestDeliverable": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/evidence-request.service.ts"
+   ]
+  },
+  "evidenceRequestResponse": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/evidence-request.service.ts"
+   ]
+  },
+  "evidenceRelationship": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/evidence-review/relationship-summary.service.ts",
+    "services/api/src/services/search/evidence-search.service.ts"
+   ]
+  },
+  "evidenceReviewerAuditEvent": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/evidence-review/reviewer-audit.service.ts"
+   ]
+  },
+  "evidenceReviewWorkflow": {
+   "sites": 17,
+   "files": [
+    "services/api/src/services/evidence-review/reviewer-workflow.service.ts",
+    "services/api/src/services/ops/operational-seed.service.ts",
+    "services/api/src/services/review-operations/review-operations.service.ts",
+    "services/api/src/services/reviewer-ops/bulk-triage.service.ts",
+    "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
+    "services/api/src/services/reviewer-ops/review-decision.service.ts",
+    "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
+    "services/api/src/services/reviewer-workspace/coding-schema.service.ts"
+   ]
+  },
+  "evidenceReviewWorkflowEvent": {
+   "sites": 9,
+   "files": [
+    "services/api/src/services/evidence-review/reviewer-workflow.service.ts",
+    "services/api/src/services/ops/operational-seed.service.ts",
+    "services/api/src/services/review-operations/review-operations.service.ts",
+    "services/api/src/services/reviewer-ops/review-decision.service.ts"
+   ]
+  },
+  "chainTransfer": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/exchange/chain-transfer.service.ts"
+   ]
+  },
+  "evidenceExchangePackage": {
+   "sites": 7,
+   "files": [
+    "services/api/src/services/exchange/evidence-exchange.service.ts",
+    "services/worker/src/exchange-package-builder.ts"
+   ]
+  },
+  "evidenceExchangePackageDelivery": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/exchange/evidence-exchange.service.ts",
+    "services/api/src/services/exchange/signed-delivery.service.ts"
+   ]
+  },
+  "workflowIntakeSession": {
+   "sites": 7,
+   "files": [
+    "services/api/src/services/external-intake-orchestration.service.ts",
+    "services/api/src/services/identity/contributor-governance.service.ts",
+    "services/api/src/services/workflow-intake-session.service.ts"
+   ]
+  },
+  "externalReviewActivity": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/external-review/portal-activity.service.ts"
+   ]
+  },
+  "externalReviewerRoleAssignment": {
+   "sites": 6,
+   "files": [
+    "services/api/src/services/external-review/portal-bulk-invitations.service.ts",
+    "services/api/src/services/external-review/portal-invitation.service.ts",
+    "services/api/src/services/external-review/portal-session.service.ts",
+    "services/api/src/services/external-review/portal-sso.service.ts"
+   ]
+  },
+  "externalReviewComment": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/external-review/portal-comments.service.ts"
+   ]
+  },
+  "externalReviewDecision": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/external-review/portal-decisions.service.ts"
+   ]
+  },
+  "externalReviewInvitationDelivery": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/external-review/portal-invitation-email.service.ts"
+   ]
+  },
+  "destructionReview": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
+    "services/worker/src/governance/destruction-orchestrator.worker.ts",
+    "services/worker/src/governance/retention-reconciliation.worker.ts"
+   ]
+  },
+  "evidenceLifecycleEvent": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
+    "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
+    "services/worker/src/governance/destruction-orchestrator.worker.ts",
+    "services/worker/src/governance/retention-reconciliation.worker.ts"
+   ]
+  },
+  "governanceExportSnapshot": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/governance-lifecycle/export-lineage.service.ts"
+   ]
+  },
+  "governanceNotification": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/governance-lifecycle/governance-notification.service.ts",
+    "services/worker/src/governance/notification-emitter.ts"
+   ]
+  },
+  "evidenceRetentionPolicy": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/governance-lifecycle/retention-engine.service.ts"
+   ]
+  },
+  "evidenceRetentionPolicyVersion": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/governance-lifecycle/retention-engine.service.ts"
+   ]
+  },
+  "workspaceGovernancePolicy": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/governance.service.ts",
+    "services/api/src/services/reviewer-ops/sla-policy.service.ts"
+   ]
+  },
+  "accessReviewItem": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/governance/access-review-escalation.service.ts",
+    "services/api/src/services/governance/access-review.service.ts"
+   ]
+  },
+  "accessReviewCampaign": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/governance/access-review.service.ts"
+   ]
+  },
+  "crossOrgReviewGrant": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/governance/cross-org-review.service.ts"
+   ]
+  },
+  "delegatedAdminGrant": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/governance/delegated-admin.service.ts"
+   ]
+  },
+  "departmentMembership": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/governance/department-membership.service.ts"
+   ]
+  },
+  "department": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/governance/department.service.ts"
+   ]
+  },
+  "governancePolicy": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/governance/governance-policy.service.ts"
+   ]
+  },
+  "governancePolicyAssignment": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/governance/governance-policy.service.ts"
+   ]
+  },
+  "governancePolicyAudit": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/governance/governance-policy.service.ts"
+   ]
+  },
+  "evidenceLegalHold": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/governance/legal-hold.service.ts"
+   ]
+  },
+  "organizationSecurityPolicy": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/identity-security/mfa-policy.service.ts",
+    "services/api/src/services/identity/org-security-policy.service.ts"
+   ]
+  },
+  "riskSignal": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/identity-security/risk.service.ts"
+   ]
+  },
+  "revokedSession": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/identity-security/session-revocation.service.ts"
+   ]
+  },
+  "accessReview": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/identity/access-review.service.ts"
+   ]
+  },
+  "emergencyAccessGrant": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/identity/break-glass.service.ts"
+   ]
+  },
+  "membershipGrant": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/identity/membership-provisioning.service.ts"
+   ]
+  },
+  "teamMember": {
+   "sites": 23,
+   "files": [
+    "services/api/src/services/identity/membership-provisioning.service.ts",
+    "services/api/src/services/identity/rbac.service.ts"
+   ]
+  },
+  "organizationMembership": {
+   "sites": 6,
+   "files": [
+    "services/api/src/services/identity/membership-provisioning.service.ts"
+   ]
+  },
+  "memberDelegatedAdminScope": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/identity/rbac.service.ts"
+   ]
+  },
+  "supportAccessGrant": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/identity/support-access.service.ts"
+   ]
+  },
+  "apiCredentialUsageLog": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/integrations/api-key-usage.service.ts"
+   ]
+  },
+  "apiCredential": {
+   "sites": 13,
+   "files": [
+    "services/api/src/services/integrations/api-keys.service.ts",
+    "services/api/src/services/integrations/secret-cleanup.service.ts",
+    "services/api/src/services/organization/org-closure.service.ts",
+    "services/api/src/services/organization/org-lifecycle.service.ts",
+    "services/api/src/services/workspace/workspace-closure.service.ts"
+   ]
+  },
+  "webhookEndpoint": {
+   "sites": 12,
+   "files": [
+    "services/api/src/services/integrations/secret-cleanup.service.ts",
+    "services/api/src/services/integrations/webhooks.service.ts",
+    "services/api/src/services/organization/org-closure.service.ts",
+    "services/api/src/services/workspace/workspace-closure.service.ts",
+    "services/api/src/services/workspace/workspace-lifecycle.service.ts"
+   ]
+  },
+  "integrationWebhookDelivery": {
+   "sites": 11,
+   "files": [
+    "services/api/src/services/integrations/webhook-deliveries.service.ts",
+    "services/api/src/services/integrations/webhook-dispatcher.ts",
+    "services/api/src/services/integrations/webhook-retry-processor.ts"
+   ]
+  },
+  "evidenceEntity": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/intelligence/entity-extraction.service.ts"
+   ]
+  },
+  "evidenceIntelligenceJob": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/intelligence/extraction.service.ts"
+   ]
+  },
+  "evidenceExtractedText": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/intelligence/extraction.service.ts"
+   ]
+  },
+  "intelligenceActivityEvent": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/intelligence/intelligence-activity.service.ts",
+    "services/api/src/services/trust/trust-and-governance-audit.service.ts",
+    "services/worker/src/webhook-dispatcher.ts"
+   ]
+  },
+  "mediaIntelligenceRecord": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/intelligence/media-intelligence.service.ts",
+    "services/api/src/services/intelligence/reviewer-correction.service.ts"
+   ]
+  },
+  "mediaIntelligenceEntity": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/intelligence/media-intelligence.service.ts"
+   ]
+  },
+  "providerBudget": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/intelligence/provider-budget.service.ts"
+   ]
+  },
+  "providerUsageEvent": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/intelligence/provider-usage.service.ts"
+   ]
+  },
+  "reviewerCorrection": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/intelligence/reviewer-correction.service.ts"
+   ]
+  },
+  "evidenceSemanticChunk": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/intelligence/semantic.service.ts",
+    "services/worker/src/search-indexing.processor.ts"
+   ]
+  },
+  "evidenceSimilarity": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/intelligence/similarity.service.ts"
+   ]
+  },
+  "userLegalAcceptance": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/legal-acceptance.service.ts"
+   ]
+  },
+  "archiveTierTransition": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/lifecycle/archive-tier.service.ts",
+    "services/worker/src/governance/archive-tier-auto-transition.worker.ts"
+   ]
+  },
+  "destructionRequest": {
+   "sites": 9,
+   "files": [
+    "services/api/src/services/lifecycle/destruction-governance.service.ts"
+   ]
+  },
+  "retentionPolicyConfig": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/lifecycle/retention-engine.service.ts"
+   ]
+  },
+  "notificationScheduleSetting": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/notifications/digest-scheduler.ts",
+    "services/api/src/services/notifications/notification-preferences.service.ts"
+   ]
+  },
+  "workspaceNotificationPreference": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/notifications/notification-preferences.service.ts"
+   ]
+  },
+  "operationalIncident": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/observability/incident.service.ts",
+    "services/api/src/services/ops/operational-seed.service.ts",
+    "services/worker/src/governance/incident-emitter.ts"
+   ]
+  },
+  "operationalIncidentEvent": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/observability/incident.service.ts",
+    "services/worker/src/governance/incident-emitter.ts"
+   ]
+  },
+  "reviewEscalation": {
+   "sites": 8,
+   "files": [
+    "services/api/src/services/ops/operational-seed.service.ts",
+    "services/api/src/services/reviewer-ops/escalation-engine.service.ts"
+   ]
+  },
+  "organizationAuditEvent": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/organization/org-audit.service.ts"
+   ]
+  },
+  "entitlementGrant": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/packaging/entitlement.service.ts"
+   ]
+  },
+  "lifecycleWebhookEndpoint": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"
+   ]
+  },
+  "adminAuditLog": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/platform-audit-log.service.ts",
+    "services/worker/src/platform-audit-append.ts"
+   ]
+  },
+  "redactionActivity": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/redaction/redaction-activity.service.ts",
+    "services/worker/src/redaction/redaction-derivative-writer.ts"
+   ]
+  },
+  "redactionApproval": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/redaction/redaction-approval.service.ts"
+   ]
+  },
+  "redactionDecision": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/redaction/redaction-decision.service.ts"
+   ]
+  },
+  "redactionDetection": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/redaction/redaction-decision.service.ts",
+    "services/api/src/services/redaction/redaction-detection.service.ts"
+   ]
+  },
+  "redactionPolicy": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/redaction/redaction-policy-store.service.ts"
+   ]
+  },
+  "redactionPolicyVersion": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/redaction/redaction-policy-store.service.ts"
+   ]
+  },
+  "redactionPolicyAssignment": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/redaction/redaction-policy-store.service.ts"
+   ]
+  },
+  "redactionPolicyAudit": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/redaction/redaction-policy-store.service.ts"
+   ]
+  },
+  "redactionProject": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/redaction/redaction-project.service.ts"
+   ]
+  },
+  "redactionVersion": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/redaction/redaction-project.service.ts"
+   ]
+  },
+  "redactionRegion": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/redaction/redaction-region.service.ts"
+   ]
+  },
+  "videoFrame": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/redaction/video/video-frame.service.ts"
+   ]
+  },
+  "videoTimelineEvent": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/redaction/video/video-timeline.service.ts"
+   ]
+  },
+  "videoTrack": {
+   "sites": 9,
+   "files": [
+    "services/api/src/services/redaction/video/video-track.service.ts",
+    "services/api/src/services/redaction/video/video-tracking.service.ts"
+   ]
+  },
+  "videoTrackDetection": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/redaction/video/video-track.service.ts"
+   ]
+  },
+  "uploadSession": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/reliability/upload-session.service.ts"
+   ]
+  },
+  "reviewerOpsReminder": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/reviewer-ops/reminder-engine.service.ts"
+   ]
+  },
+  "workflowReviewDecision": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/reviewer-ops/review-decision.service.ts"
+   ]
+  },
+  "savedSearchView": {
+   "sites": 6,
+   "files": [
+    "services/api/src/services/reviewer-ops/saved-queue-views.service.ts",
+    "services/api/src/services/search/saved-search.service.ts"
+   ]
+  },
+  "reviewerWorkloadSnapshot": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/reviewer-ops/workload.service.ts"
+   ]
+  },
+  "codingSchema": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/reviewer-workspace/coding-schema.service.ts"
+   ]
+  },
+  "codingValue": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/reviewer-workspace/coding-value.service.ts"
+   ]
+  },
+  "qcSample": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/reviewer-workspace/qc-sample.service.ts"
+   ]
+  },
+  "reviewerDisagreement": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts"
+   ]
+  },
+  "embeddings": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/search/embedding-provider.ts",
+    "services/worker/src/mi-embed.processor.ts",
+    "services/worker/src/search-indexing.processor.ts"
+   ]
+  },
+  "semanticUsageDaily": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/search/semantic-budget.service.ts",
+    "services/worker/src/mi-embed.processor.ts"
+   ]
+  },
+  "fileSecurityScan": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/security/file-security-scan.service.ts"
+   ]
+  },
+  "mfaFactor": {
+   "sites": 7,
+   "files": [
+    "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
+    "services/api/src/services/security/mfa-recovery-request.service.ts",
+    "services/api/src/services/security/mfa.service.ts"
+   ]
+  },
+  "mfaAdminDigestPreference": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/security/mfa-digest-preference.service.ts"
+   ]
+  },
+  "mfaRecoveryRequest": {
+   "sites": 11,
+   "files": [
+    "services/api/src/services/security/mfa-recovery-request.service.ts",
+    "services/worker/src/mfa-challenge-gc.ts"
+   ]
+  },
+  "mfaRecoveryRequestApproval": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/security/mfa-recovery-request.service.ts"
+   ]
+  },
+  "mfaRecoveryCode": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/security/mfa-recovery-request.service.ts",
+    "services/api/src/services/security/mfa.service.ts"
+   ]
+  },
+  "mfaPendingChallenge": {
+   "sites": 6,
+   "files": [
+    "services/api/src/services/security/mfa.service.ts",
+    "services/worker/src/mfa-challenge-gc.ts"
+   ]
+  },
+  "securityEvent": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/security/security-event.service.ts",
+    "services/worker/src/integrity-rejection.service.ts",
+    "services/worker/src/mfa-challenge-gc.ts",
+    "services/worker/src/mfa-recovery-digest.ts"
+   ]
+  },
+  "caseSiuExport": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/siu/siu-export-bundle.service.ts"
+   ]
+  },
+  "caseSiuProfile": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/siu/siu-profile.service.ts"
+   ]
+  },
+  "caseSiuChecklistItem": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/siu/siu-profile.service.ts"
+   ]
+  },
+  "caseSiuReviewIndicator": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/siu/siu-profile.service.ts"
+   ]
+  },
+  "caseSiuFollowUp": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/siu/siu-profile.service.ts"
+   ]
+  },
+  "caseSiuSavedView": {
+   "sites": 4,
+   "files": [
+    "services/api/src/services/siu/siu-saved-views.service.ts"
+   ]
+  },
+  "securityClaimCheck": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/trust/security-claim-check.service.ts"
+   ]
+  },
+  "statusComponent": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/trust/status-page.service.ts"
+   ]
+  },
+  "statusIncident": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/trust/status-page.service.ts"
+   ]
+  },
+  "statusIncidentUpdate": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/trust/status-page.service.ts"
+   ]
+  },
+  "maintenanceWindow": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/trust/status-page.service.ts"
+   ]
+  },
+  "subprocessor": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/trust/subprocessor.service.ts"
+   ]
+  },
+  "subprocessorVersion": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/trust/subprocessor.service.ts"
+   ]
+  },
+  "trustCenterArticle": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/trust/trust-center.service.ts",
+    "services/api/src/services/trust/trust-drift.service.ts"
+   ]
+  },
+  "trustCenterArticleVersion": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/trust/trust-center.service.ts"
+   ]
+  },
+  "workflowIntakeLink": {
+   "sites": 5,
+   "files": [
+    "services/api/src/services/workflow-intake-link.service.ts",
+    "services/api/src/services/workflow-intake-session.service.ts"
+   ]
+  },
+  "evidenceWorkflowTemplate": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/workflow-template.service.ts"
+   ]
+  },
+  "evidenceWorkflowInstance": {
+   "sites": 3,
+   "files": [
+    "services/api/src/services/workflows/evidence-workflow-engine.service.ts"
+   ]
+  },
+  "evidenceWorkflowStepInstance": {
+   "sites": 2,
+   "files": [
+    "services/api/src/services/workflows/evidence-workflow-engine.service.ts"
+   ]
+  },
+  "evidenceWorkflowInstanceEvidence": {
+   "sites": 1,
+   "files": [
+    "services/api/src/services/workflows/evidence-workflow-engine.service.ts"
+   ]
+  },
+  "destructionExecution": {
+   "sites": 9,
+   "files": [
+    "services/worker/src/governance/destruction-orchestrator.worker.ts"
+   ]
+  },
+  "immutableStorageCheck": {
+   "sites": 2,
+   "files": [
+    "services/worker/src/governance/immutable-storage-reconciliation.worker.ts"
+   ]
+  },
+  "governanceReconciliationRun": {
+   "sites": 3,
+   "files": [
+    "services/worker/src/governance/reconciliation-run.ts"
+   ]
+  },
+  "mediaIntelligenceRun": {
+   "sites": 2,
+   "files": [
+    "services/worker/src/intelligence-run-reconciler.ts"
+   ]
+  },
+  "mfaRecoveryDigestLog": {
+   "sites": 1,
+   "files": [
+    "services/worker/src/mfa-recovery-digest.ts"
+   ]
+  },
+  "mfaRecoveryAdminDigestLog": {
+   "sites": 3,
+   "files": [
+    "services/worker/src/mfa-recovery-digest.ts"
+   ]
+  },
+  "report": {
+   "sites": 3,
+   "files": [
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "verificationPackage": {
+   "sites": 2,
+   "files": [
+    "services/worker/src/processor.ts"
+   ]
+  },
+  "evidenceAnchor": {
+   "sites": 1,
+   "files": [
+    "services/worker/src/processor.ts"
+   ]
+  }
+ }
+}

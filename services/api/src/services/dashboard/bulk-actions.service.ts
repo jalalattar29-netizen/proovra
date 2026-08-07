@@ -216,8 +216,15 @@ async function runOneItem(input: {
       if (!input.actor.assigneeUserId) {
         throw new BulkActionError("invalid_assignee");
       }
+      // PHASE 12 REMEDIATION (2026-08-06) — assignment TARGET validity. Work
+      // must not be bulk-assigned to a suspended or revoked member, who
+      // cannot open it.
       const member = await c.teamMember.findFirst({
-        where: { teamId: input.teamId, userId: input.actor.assigneeUserId },
+        where: {
+          teamId: input.teamId,
+          userId: input.actor.assigneeUserId,
+          status: "ACTIVE",
+        },
         select: { id: true },
       });
       if (!member) throw new BulkActionError("invalid_assignee");

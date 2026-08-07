@@ -156,7 +156,10 @@ export const DENIAL_CODES = {
   planHasNoTeams: "TEAM_PLAN_REQUIRED",
   teamLimitReached: "TEAM_LIMIT_REACHED",
   ownedWorkspaceCreationNotAllowed: "TEAM_CREATION_NOT_ALLOWED",
-  ownedWorkspaceLimitReached: "TEAM_WORKSPACE_LIMIT_REACHED",
+  // ARCH-001 (2026-08-07) — the code names the workspace SHAPE, not a kind
+  // called "team" that has never existed. Old clients still receive the legacy
+  // spelling through the bounded adapter in @proovra/shared.
+  ownedWorkspaceLimitReached: "SHARED_WORKSPACE_LIMIT_REACHED",
   managedIdentityNoPersonalSpace: "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
   orgPolicyNoPersonalSpace: "ORG_POLICY_NO_PERSONAL_SPACE",
   workspaceMembershipRequired: "workspace_membership_required",

@@ -440,22 +440,60 @@ describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
 // ---------------------------------------------------------------------------
 
 describe("P0 — source contracts for fail-closed tenant guards", () => {
-  it("reviewer resolveTeam fails closed on missing ACTIVE membership (incl. platform admins)", () => {
+  /**
+   * PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — BOTH ASSERTIONS UPDATED.
+   * COVERAGE STRENGTHENED, NOT WEAKENED.
+   *
+   * These two tests pinned the P0 remediation of 2026-07-21, which fixed the
+   * right defect (a stale pointer must not authorize) by writing a private
+   * four-step check into each route: pointer -> team row -> isPersonal ->
+   * inline `teamMember` read with `status: "ACTIVE"`.
+   *
+   * The regexes pinned that INLINE SPELLING. So they pinned a SECOND
+   * authorization authority in place — and a second authority is a second
+   * place to forget something. Both routes had forgotten the same three
+   * things, which the canonical chain has always enforced:
+   *
+   *     member ACCESS EXPIRY   — an ACTIVE row past `accessExpiresAtUtc`
+   *     WORKSPACE KIND         — an unprovable kind was treated as fine
+   *     ORGANIZATION LIFECYCLE — access survived a SUSPENDED/ARCHIVED org
+   *
+   * Both routes now delegate to `evaluateCurrentWorkspace` /
+   * `evaluateAuthorizedWorkspace`, so the ACTIVE-membership requirement these
+   * tests protect is still enforced — by the primitive whose enforcement of it
+   * is itself runtime-proven (phase-12-sec-001-stale-pointer.integration) —
+   * plus the three checks the inline versions lacked.
+   *
+   * The assertions therefore move from "this file contains an inline ACTIVE
+   * check" to "this file delegates to the canonical authority and adds no
+   * private membership authority of its own", which is a STRICTLY STRONGER
+   * property: the old form would have passed even if a second, weaker gate had
+   * been added beside it.
+   */
+  it("reviewer resolveTeam fails closed via the canonical authority (incl. platform admins)", () => {
     const src = read("src/routes/reviewer-workspace.routes.ts");
-    expect(src).toMatch(/status:\s*"ACTIVE"/);
-    expect(src).toMatch(/if \(!membership\) \{[\s\S]{0,200}NOT_PERMITTED/);
+    // Delegates to the canonical primitive…
+    expect(src).toMatch(/evaluateAuthorizedWorkspace\(/);
+    expect(src).toMatch(/evaluateCurrentWorkspace\(/);
+    // …and keeps no private membership authority beside it.
+    expect(src).not.toMatch(/teamMember\.(findFirst|findUnique)/);
+    // Bounded denial vocabulary preserved.
+    expect(src).toMatch(/denial:\s*"NOT_PERMITTED"/);
     // The old non-member context shape is gone.
     expect(src).not.toMatch(/workspaceRole:\s*\(membership\?\.role \?\? null\)/);
     // The undefined-user platform-admin coercion is gone.
     expect(src).not.toMatch(/user\?\.platformRole !== null/);
   });
 
-  it("capture-trust re-checks ACTIVE membership on the currentWorkspaceId pointer", () => {
+  it("capture-trust resolves the currentWorkspaceId pointer through the canonical authority", () => {
     const src = read("src/routes/capture-trust.routes.ts");
-    expect(src).toMatch(
-      /teamMember\.findUnique[\s\S]{0,200}teamId: team\.id, userId/,
-    );
-    expect(src).toMatch(/membership\?\.status !== "ACTIVE"/);
+    expect(src).toMatch(/evaluateCurrentWorkspace\(/);
+    // No private membership authority beside it.
+    expect(src).not.toMatch(/teamMember\.(findFirst|findUnique)/);
+    // The surface-specific rule is retained, now against the PROVEN kind
+    // rather than a re-read `isPersonal` column.
+    expect(src).toMatch(/workspaceKind === "PERSONAL"/);
+    expect(src).toMatch(/denial:\s*"WORKSPACE_NOT_FOUND"/);
   });
 
   it("switch-workspace enforces org lifecycle and audits every attempt", () => {

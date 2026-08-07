@@ -136,6 +136,26 @@ runStage({
   ],
 });
 
+// ---------------------------------------------------------------------------
+// Stage 1b — PHASE 12 REMEDIATION, AUTH-004 (2026-08-06).
+//
+// Authorization-authority verification. Static, read-only, source-only: it
+// opens no database connection and makes no network call, so it is safe in
+// every mode including dry-run.
+//
+// This is the control that replaces the dead `authorization-allowlist.ts`.
+// It fails the deployment when any production module performs a direct
+// TeamMember read that could reach an authorization decision without
+// proving the membership is live — the exact defect class behind SEC-001,
+// AUTH-001, AUTH-002, AUTH-003 and AUTH-005. It runs BEFORE any migration
+// so a release carrying a new status-blind gate never reaches the database.
+// ---------------------------------------------------------------------------
+runStage({
+  name: "authorization authorities (Phase 12 AUTH-004)",
+  command: "node",
+  args: [resolve(__dirname, "verify-authorization-authorities.mjs")],
+});
+
 if (dryRun) {
   // ---------------------------------------------------------------------------
   // Stage 2 (dry-run) — Prisma client typecheck only, no migrate.

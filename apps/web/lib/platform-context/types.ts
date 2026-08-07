@@ -29,7 +29,7 @@ export type PlatformContextPlanFeatures = {
   teamCollaborationIncluded: boolean;
   /**
    * PHASE 12 POINT 4 — guest-invitation eligibility, server-projected from the
-   * SAME catalog value the API enforces (canPlanUseTeams).
+   * SAME catalog value the API enforces (canPlanOperateSharedWorkspace).
    *
    * Declared REQUIRED, like its sibling booleans, so it is reachable through
    * `usePlanFeature` — that hook's key union is built with a `-?` mapped type

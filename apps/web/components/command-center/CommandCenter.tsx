@@ -346,7 +346,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         </div>
         <div className="ec-hero-meta" data-cc-meta>
           <span data-cc-workspace-scope={workspace.scope}>
-            {workspace.scope === "PERSONAL"
+            {workspace.scope === "SINGLE_OCCUPANT"
               ? "Personal workspace"
               : `Team · ${workspace.memberCount} members`}
           </span>
@@ -5307,7 +5307,7 @@ function BulkActionsToolbar({
       label: "Bulk assign workflows",
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5319,7 +5319,7 @@ function BulkActionsToolbar({
       label: "Bulk escalate",
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5331,7 +5331,7 @@ function BulkActionsToolbar({
       label: "Bulk resolve",
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5343,7 +5343,7 @@ function BulkActionsToolbar({
       label: "Bulk acknowledge incidents",
       canAct: capabilities.bulkActions && capabilities.incidentActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5355,7 +5355,7 @@ function BulkActionsToolbar({
       label: "Bulk suppress noisy incidents",
       canAct: capabilities.bulkActions && capabilities.incidentActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5367,7 +5367,7 @@ function BulkActionsToolbar({
       label: "Bulk schedule retry review",
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? "Records retry intent only — never invokes the queue."
@@ -5379,7 +5379,7 @@ function BulkActionsToolbar({
       label: "Bulk add mitigation note",
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5391,7 +5391,7 @@ function BulkActionsToolbar({
       label: "Bulk dismiss routing recommendations",
       canAct: capabilities.bulkActions,
       reason:
-        scope === "PERSONAL"
+        scope === "SINGLE_OCCUPANT"
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
@@ -5413,7 +5413,7 @@ function BulkActionsToolbar({
         <span className="ec-chip-faint">
           {anyAvailable
             ? `${actions.filter((a) => a.canAct).length} actions available`
-            : scope === "PERSONAL"
+            : scope === "SINGLE_OCCUPANT"
               ? "Switch to a workspace to unlock bulk actions"
               : "Requires ADMIN or OWNER role"}
         </span>

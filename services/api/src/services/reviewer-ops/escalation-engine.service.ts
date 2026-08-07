@@ -24,6 +24,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { triggerEscalationCreated } from "../automation/automation-triggers.js";
 
 import type {
   PrismaClient,
@@ -293,6 +294,22 @@ export async function createEscalation(
       assignedToUserId:
         input.assignedToUserId ?? workflow.assignedToUserId ?? null,
       fingerprint,
+    },
+  });
+
+  /**
+   * ARCH-005 (2026-08-07) — ESCALATION_CREATED, on the same client that wrote
+   * the escalation. The dedupe above (`existing`) already collapses a repeated
+   * escalation onto one row, and the producer's source-event identity collapses
+   * a repeated dispatch onto one run, so the two agree.
+   */
+  await triggerEscalationCreated(client, {
+    teamId: input.teamId,
+    escalationId: created.id,
+    context: {
+      severity: String(severity),
+      status: "OPEN",
+      reason: String(input.reason),
     },
   });
 

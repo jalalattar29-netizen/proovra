@@ -74,20 +74,164 @@ export const WEBHOOK_AUTO_DISABLE_THRESHOLD = 10;
  * receivers — 4xx means "the request itself is bad", retrying will
  * not change the outcome.
  */
-export function isRetryableFailure(reason: string): boolean {
-  if (reason === "timeout") return true;
-  if (reason === "fetch_error") return true;
+/**
+ * PHASE 12 CORRECTIVE PASS §1 CONTINUATION (ARCH-005, 2026-08-07).
+ *
+ * THE THREE OUTCOMES A TRANSPORT CAN ACTUALLY REPORT.
+ *
+ * The previous classification had two buckets — retryable and not — and put
+ * `timeout` and `fetch_error` in "retryable". That is a claim the transport
+ * never made. A timeout means the request was WRITTEN and the answer never
+ * came back; the receiver may well have processed it. Resending is not a
+ * retry, it is a SECOND delivery, and for a webhook that fires a downstream
+ * action it is a real duplicate side effect.
+ *
+ * So the buckets are now three, and the difference between the first two is
+ * whether the transport can PROVE nothing was committed:
+ *
+ *   NO_COMMIT   the connection was never established — DNS failed, the port
+ *               refused, the TLS handshake failed. Nothing was written, so a
+ *               resend is genuinely a retry.
+ *   AMBIGUOUS   the connection WAS established and then the answer was lost —
+ *               a timeout, a reset, a socket hang-up. The receiver may or may
+ *               not have committed. This is not a failure and it is not a
+ *               success, and it must not be resent.
+ *   PERMANENT   the receiver answered and refused (a non-retryable 4xx), or
+ *               our own configuration is wrong.
+ *
+ * Defaulting is deliberately toward AMBIGUOUS for anything unrecognised: an
+ * unknown transport failure is, by definition, an unknown outcome.
+ */
+export const TRANSPORT_OUTCOMES = ["NO_COMMIT", "AMBIGUOUS", "PERMANENT"] as const;
+export type TransportOutcome = (typeof TRANSPORT_OUTCOMES)[number];
+
+/** Reasons the transport emits when the connection was never established. */
+export const NO_COMMIT_REASONS: ReadonlyArray<string> = [
+  "connect_failed",
+  "dns_failed",
+  "tls_failed",
+];
+
+/** Reasons that mean "written, answer lost". */
+export const AMBIGUOUS_REASONS: ReadonlyArray<string> = [
+  "timeout",
+  "connection_reset",
+  "socket_hang_up",
+  "transport_unknown",
+];
+
+/**
+ * Statuses whose HTTP SEMANTICS alone guarantee the request was not processed.
+ *
+ * Only two qualify, and neither is a judgement call:
+ *
+ *   408 Request Timeout — RFC 9110: "the server did not receive a complete
+ *                         request message within the time it was prepared to
+ *                         wait". An incomplete request cannot have been acted
+ *                         on.
+ *   425 Too Early       — RFC 8470: the server is "unwilling to risk
+ *                         processing a request that might be replayed". The
+ *                         refusal is the whole point of the status.
+ *
+ * 5xx is NOT here, and neither is 429. A 500 can be raised after the handler
+ * committed and before it answered. A 502/504 comes from a GATEWAY, which
+ * knows nothing about whether the origin processed the request — that is the
+ * definition of ambiguous. A 503 from a load balancer means the request never
+ * arrived; a 503 from the application itself may mean it arrived and failed
+ * midway, and the sender cannot tell those two apart from the status line.
+ * 429 usually means refused-before-processing, but "usually" is not a
+ * guarantee, and a receiver that rate-limits AFTER enqueuing the work would
+ * make every retry a duplicate.
+ */
+const REFUSAL_BEFORE_COMMIT_STATUSES: ReadonlyArray<number> = [408, 425];
+
+/**
+ * What a specific destination's operator has DECLARED about its own behaviour.
+ *
+ * The default is deliberately empty: nothing is assumed on a customer's behalf.
+ * A receiver that genuinely guarantees "429 means I did not accept it" can say
+ * so, and only then does that status become resendable for that destination.
+ *
+ * This is a seam, not a stub — the classifier's whole contract is that the
+ * ONLY way a 5xx or a 429 becomes NO_COMMIT is a declaration, so the parameter
+ * has to exist for the rule to be expressible at all.
+ */
+export type ProviderRefusalContract = {
+  /** Statuses this provider guarantees are refusals BEFORE any commit. */
+  refusalBeforeCommitStatuses?: ReadonlyArray<number>;
+};
+
+export const NO_DECLARED_PROVIDER_CONTRACT: ProviderRefusalContract = Object.freeze(
+  {},
+);
+
+/**
+ * Classify what the transport actually told us.
+ *
+ * PHASE 12 CORRECTIVE PASS §1 (2026-08-07), CORRECTED AGAIN: the first version
+ * of this function put every 5xx and 429 in NO_COMMIT, on the reasoning that
+ * "the receiver ANSWERED, so it did not leave us guessing". That reasoning is
+ * wrong. Answering 500 tells us the request ARRIVED; it tells us nothing about
+ * whether the handler committed before it failed. Resending on a generic 5xx
+ * is therefore the same duplicate-side-effect defect as resending on a
+ * timeout, one step further along.
+ *
+ * The rule now: a status is NO_COMMIT only when HTTP itself guarantees it
+ * (408, 425) or when the destination's operator has declared it. Everything
+ * else the receiver says that is not a definite refusal is AMBIGUOUS.
+ */
+export function classifyTransportOutcome(
+  reason: string,
+  contract: ProviderRefusalContract = NO_DECLARED_PROVIDER_CONTRACT,
+): TransportOutcome {
+  if (NO_COMMIT_REASONS.includes(reason)) return "NO_COMMIT";
+  if (AMBIGUOUS_REASONS.includes(reason)) return "AMBIGUOUS";
+
   if (reason.startsWith("non_2xx:")) {
     const code = Number.parseInt(reason.slice("non_2xx:".length), 10);
-    if (Number.isFinite(code)) {
-      // 5xx + 408 (Request Timeout) + 425 (Too Early) + 429 (Too
-      // Many Requests) are retryable. Everything else is terminal.
-      if (code >= 500 && code < 600) return true;
-      if (code === 408 || code === 425 || code === 429) return true;
+    if (!Number.isFinite(code)) return "AMBIGUOUS";
+
+    if (
+      REFUSAL_BEFORE_COMMIT_STATUSES.includes(code) ||
+      (contract.refusalBeforeCommitStatuses ?? []).includes(code)
+    ) {
+      return "NO_COMMIT";
     }
-    return false;
+    // Anything the origin or a gateway returns that is not a definite refusal
+    // leaves the outcome unknown. 502 and 504 are named explicitly because a
+    // gateway error is the clearest case of all: the thing that answered is
+    // not the thing that would have committed.
+    if (code >= 500 && code < 600) return "AMBIGUOUS";
+    if (code === 429) return "AMBIGUOUS";
+    // A definite 4xx refusal: the receiver understood the request and declined
+    // it, and it will decline the same request again.
+    return "PERMANENT";
   }
-  return false;
+
+  // Configuration problems: our key, our URL, our destination state. The
+  // request never left, and it will not succeed on a retry either.
+  if (
+    reason.startsWith("ssrf_blocked") ||
+    reason === "destination_disabled" ||
+    reason === "secret_decryption_failed" ||
+    reason === "destination_not_in_team"
+  ) {
+    return "PERMANENT";
+  }
+  return "AMBIGUOUS";
+}
+
+/**
+ * RETAINED, and deliberately narrowed to what it always should have meant:
+ * "may this be sent again?". Only NO_COMMIT may. AMBIGUOUS goes to
+ * reconciliation, not to the retry ladder — see
+ * `automation-delivery-runtime.service.ts`.
+ */
+export function isRetryableFailure(
+  reason: string,
+  contract: ProviderRefusalContract = NO_DECLARED_PROVIDER_CONTRACT,
+): boolean {
+  return classifyTransportOutcome(reason, contract) === "NO_COMMIT";
 }
 
 /**
@@ -277,16 +421,60 @@ export const URL_VALIDATION_REASONS = [
 export type UrlValidationReason = (typeof URL_VALIDATION_REASONS)[number];
 
 /**
+ * ARCH-005 (2026-08-07) — THE CONTROLLED LOCAL-TESTING MODE, AND ITS FENCE.
+ *
+ * Proving that a webhook is signed, verified, replay-refused, retried and
+ * dead-lettered requires an actual HTTP receiver, and the only receiver a test
+ * can stand up is a loopback one — which every rule above correctly refuses.
+ *
+ * So there is exactly one escape, and it is fenced three ways:
+ *
+ *   1. It requires `NODE_ENV === "test"`. Not "not production" — TEST. A
+ *      staging or development process cannot enable it however its environment
+ *      is configured, so there is no deployment in which a misplaced variable
+ *      opens an SSRF hole.
+ *   2. It requires the variable to be exactly "1".
+ *   3. It widens the check to LOOPBACK ONLY. Private ranges, link-local
+ *      addresses and the cloud metadata service stay refused even here,
+ *      because a test never needs them and the day one does is the day this
+ *      exemption has become a hole.
+ *
+ * The refusal itself is not weakened: `phase-12-arch-005-automation-runtime`
+ * drives a metadata-service destination and a private-range destination WITH
+ * the flag set and observes both refused before any network call.
+ */
+export function isLocalWebhookTestingEnabled(): boolean {
+  return (
+    process.env.NODE_ENV === "test" &&
+    process.env.AUTOMATION_WEBHOOK_ALLOW_LOOPBACK === "1"
+  );
+}
+
+/**
  * Validate the URL itself (scheme / port / credentials). Does NOT
  * perform DNS resolution — call `validateDestinationUrlWithDns()` for
  * a fully-checked URL.
  */
 export function validateDestinationUrlStatic(input: string): UrlValidationResult {
+  const allowLoopback = isLocalWebhookTestingEnabled();
   let parsed: URL;
   try {
     parsed = new URL(input);
   } catch {
     return { ok: false, reason: "invalid_url" };
+  }
+  if (allowLoopback) {
+    const raw = parsed.hostname.toLowerCase();
+    const h = raw.startsWith("[") && raw.endsWith("]") ? raw.slice(1, -1) : raw;
+    const isLoopback = h === "127.0.0.1" || h === "::1";
+    if (isLoopback && (parsed.protocol === "http:" || parsed.protocol === "https:")) {
+      if (parsed.username || parsed.password) {
+        return { ok: false, reason: "credentials_in_url" };
+      }
+      return { ok: true, origin: parsed.origin, hostname: h };
+    }
+    // Anything else falls through to the ordinary rules below — including
+    // every private, link-local and metadata address.
   }
   if (parsed.protocol !== "https:") {
     return { ok: false, reason: "non_https_scheme" };
@@ -583,15 +771,45 @@ export async function deliverWebhookOnce(input: {
       reason: `non_2xx:${res.status}`,
     };
   } catch (err) {
-    const e = err as { name?: string; message?: string };
-    if (e?.name === "AbortError") {
+    /**
+     * ARCH-005 (2026-08-07) — REPORT WHAT THE TRANSPORT KNOWS, NOT LESS.
+     *
+     * This used to collapse everything into `timeout` or `fetch_error`, and
+     * the caller then treated both as retryable. That discarded the one
+     * distinction that matters: whether the request was ever WRITTEN.
+     *
+     * `undici` surfaces the underlying syscall on `err.cause.code`. A refused
+     * connection, an unresolvable host or a failed handshake all mean nothing
+     * left this process — those are safe to send again. A reset or a hang-up
+     * mid-flight means bytes DID leave and the answer was lost, which is not
+     * the same thing and must never be resent as though it were.
+     */
+    const e = err as { name?: string; cause?: { code?: string } };
+    const code = e?.cause?.code ?? "";
+    if (e?.name === "AbortError" || e?.name === "TimeoutError") {
+      // The abort fires only after the request has been dispatched, so the
+      // receiver may have processed it. AMBIGUOUS, not retryable.
       return { ok: false, status: 0, reason: "timeout" };
     }
-    return {
-      ok: false,
-      status: 0,
-      reason: "fetch_error",
-    };
+    if (code === "ECONNREFUSED" || code === "ERR_SOCKET_CONNECTION_TIMEOUT") {
+      return { ok: false, status: 0, reason: "connect_failed" };
+    }
+    if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+      return { ok: false, status: 0, reason: "dns_failed" };
+    }
+    if (code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL")) {
+      return { ok: false, status: 0, reason: "tls_failed" };
+    }
+    if (code === "ECONNRESET" || code === "EPIPE") {
+      return { ok: false, status: 0, reason: "connection_reset" };
+    }
+    if (code === "UND_ERR_SOCKET") {
+      return { ok: false, status: 0, reason: "socket_hang_up" };
+    }
+    // Unrecognised. An unknown transport failure IS an unknown outcome, and
+    // this default is the one place where guessing "retryable" would silently
+    // reintroduce duplicate deliveries.
+    return { ok: false, status: 0, reason: "transport_unknown" };
   } finally {
     clearTimeout(timeout);
   }

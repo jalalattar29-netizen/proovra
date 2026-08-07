@@ -105,10 +105,37 @@ describe("intelligence routes — anti-enumeration + scope", () => {
       ),
       "utf8",
     );
-    // Find the three reviewer-required routes by anchoring on
-    // requireReviewerMember invocations next to the route path.
-    const matches = src.match(/requireReviewerMember/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(3);
+    // PHASE 12 REMEDIATION — AUTH-001 (2026-08-06). INTENTIONAL CONTRACT
+    // CHANGE, strictly stronger.
+    //
+    //   OLD: three routes were gated by the local `requireReviewerMember`
+    //        helper, which 404'd only when the TeamMember row was ABSENT and
+    //        then used `membership.role` verbatim. It read no `status`, so a
+    //        SUSPENDED or REVOKED member retained full reviewer-tier access —
+    //        including ENQUEUEING intelligence jobs — and it consulted no
+    //        Organization lifecycle, so an ORGANIZATION workspace under a
+    //        SUSPENDED organization stayed reachable.
+    //
+    //   NEW: those routes call the canonical primitive with the canonical
+    //        `intelligence.run` permission, which is held by OWNER, ADMIN and
+    //        REVIEWER — the same tier the former `evidence_request.review`
+    //        role probe admitted — and which cannot be evaluated without
+    //        ACTIVE membership, unexpired access, a provable workspace kind
+    //        and an ACTIVE parent Organization.
+    //
+    // The property this test asserts is unchanged in meaning ("the mutating
+    // intelligence routes require reviewer-tier membership") and is now
+    // pinned to the canonical gate rather than to a deleted local helper.
+    // No DECLARATION and no INVOCATION survives. (The identifier still
+    // appears in the remediation comment that records what was removed and
+    // why, so the assertion targets the code shapes, not the word.)
+    expect(src).not.toMatch(/function requireReviewerMember\s*\(/);
+    expect(src).not.toMatch(/await requireReviewerMember\(/);
+    const matches = src.match(/permission:\s*"intelligence\.run"/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+    // …and the read surfaces carry the canonical read permission.
+    const reads = src.match(/permission:\s*"intelligence\.read"/g) ?? [];
+    expect(reads.length).toBeGreaterThanOrEqual(3);
   });
 
   it("workspace scope is enforced before any per-evidence read", async () => {

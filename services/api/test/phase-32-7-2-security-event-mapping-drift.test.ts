@@ -1003,6 +1003,43 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // datamodel goes on declaring the column. Additive, idempotent, and it
       // RAISEs rather than skipping when pgvector is absent.
       "20271119000000_search_document_embedding_after_extension",
+      // PHASE 12 CORRECTIVE PASS §2/§3 (2026-08-06) — INV-001 + NEW-004.
+      //
+      // Not attributable to Phase 32.7.2 and unrelated to security-event
+      // mapping. Together they establish ONE authority for an external-review
+      // invitation and a DURABLE identity for each message sent about it:
+      // expand adds `token_version` plus the delivery intent columns, backfill
+      // classifies existing rows deterministically WITHOUT renumbering
+      // `attempt`, and contract enforces the invariants and drops the five
+      // duplicate lifecycle columns behind readiness checks that ship in the
+      // same file and RAISE rather than destroy.
+      //
+      // They replace `20271120000000_external_review_delivery_intent_
+      // idempotency`, which keyed the intent on `attempt` and re-numbered
+      // history to make that key creatable.
+      "20271120000000_external_review_invitation_authority_expand",
+      "20271121000000_external_review_invitation_authority_backfill",
+      "20271122000000_external_review_invitation_authority_contract",
+      // PHASE 12 CORRECTIVE PASS §5.2 (2026-08-06) — ARCH-002. The workspace
+      // kind becomes MANDATORY and stops being derivable from a commercial
+      // plan. Unrelated to Phase 32.7.2 security-event mapping.
+      "20271123000000_workspace_kind_authority_expand",
+      "20271124000000_workspace_kind_authority_backfill",
+      "20271125000000_workspace_kind_authority_contract",
+      // PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — ARCH-004. Organization
+      // membership gains ACTIVE/SUSPENDED/REVOKED so revocation stops being a
+      // physical delete. Unrelated to Phase 32.7.2 security-event mapping.
+      "20271126000000_org_membership_lifecycle_expand",
+      "20271127000000_org_membership_lifecycle_backfill",
+      "20271128000000_org_membership_lifecycle_contract",
+      // PHASE 12 CORRECTIVE PASS §2 CONTINUATION (2026-08-07) — ARCH-005. The
+      // Automation runtime gains a lease, a monotonic claim fence, an attempt
+      // counter, a retry schedule and a dead-letter state, so a run can no
+      // longer be claimed twice, overwritten by a stalled worker, or left
+      // permanently RUNNING. Unrelated to Phase 32.7.2 security-event mapping.
+      "20271129000000_automation_runtime_durability_expand",
+      "20271130000000_automation_runtime_durability_backfill",
+      "20271131000000_automation_runtime_durability_contract",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -241,7 +241,19 @@ describe("Phase P2.0 — Source-contract assertions", () => {
   });
 
   it("the secrets-manager loader never logs secret values", () => {
-    const src = readSource("../src/config/secrets-manager.ts");
+    // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — scan the IMPLEMENTATION, not the
+    // re-export. The loader moved into `@proovra/shared-runtime` so the Worker
+    // could share it, and `src/config/secrets-manager.ts` is now nothing but
+    // `export { … } from …`. Left pointed at that file, this assertion would
+    // have found zero `log.*` calls and passed vacuously — a scan of an empty
+    // file is not a proof about a loader.
+    const src = readSource(
+      "../../../packages/shared-runtime/src/config/secrets-authority.ts",
+    );
+    // A positive control: if the regex below ever stops matching (a refactor
+    // to a different logging shape), this test must fail loudly rather than
+    // silently checking nothing.
+    expect(src.match(/log\.(info|warn)\(/g)?.length ?? 0).toBeGreaterThan(3);
     // The loader's logged keys are restricted to:
     //   secretName / region (operator-safe), keyCount (size only),
     //   code / reason (bounded enums).

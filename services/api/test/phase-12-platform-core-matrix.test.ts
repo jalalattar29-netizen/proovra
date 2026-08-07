@@ -230,7 +230,7 @@ function overview() {
     entitlement: { plan: H.plan, credits: H.credits, teamSeats: 1 },
     summary: { personalPlan: H.plan },
     workspaces: {
-      personal: { workspaceType: "PERSONAL", plan: H.plan },
+      personal: { billingShape: "SINGLE_OCCUPANT", plan: H.plan },
       teams: H.ownedTeamIds.map((id) => ({ id, name: "Workspace", plan: "TEAM" })),
     },
     payments: [],
@@ -262,7 +262,7 @@ vi.mock("../src/services/billing.service.js", () => ({
   },
   cancelWorkspaceStorageAddon: async () => ({ id: "a-1" }),
   getStorageAddonDefinition: () => ({
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     priceCents: 100,
     currency: "USD",
   }),

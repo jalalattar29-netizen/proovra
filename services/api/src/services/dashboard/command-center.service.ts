@@ -90,7 +90,7 @@ import type { OpsHealthState } from "../ops-health/types.js";
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
 /**
- * @deprecated PHASE 3 — Inline `"PERSONAL" | "TEAM"` declaration.
+ * @deprecated PHASE 3 — Inline `"SINGLE_OCCUPANT" | "SHARED"` declaration.
  *   Prefer the canonical `WorkspaceScope` from
  *   `services/api/src/services/platform-context/types.ts`, or — for
  *   new code that speaks in the Target Domain Blueprint vocabulary —
@@ -100,7 +100,7 @@ export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable"
  *   MUST consume the canonical type.
  *   See docs/architecture/domain-debt-register.md (DBT-WS-04).
  */
-export type WorkspaceScope = "PERSONAL" | "TEAM";
+export type WorkspaceScope = "SINGLE_OCCUPANT" | "SHARED";
 
 export type SeverityTone = "info" | "warning" | "high" | "critical";
 
@@ -1190,7 +1190,7 @@ async function detectWorkspaceScope(teamId: string): Promise<{
     }),
   ]);
   return {
-    scope: team?.isPersonal === true ? "PERSONAL" : "TEAM",
+    scope: team?.isPersonal === true ? "SINGLE_OCCUPANT" : "SHARED",
     memberCount,
   };
 }
@@ -1248,7 +1248,7 @@ async function runOperationalPressure(
   };
 
   // Overdue reviews (team only) — workflows past dueAt that are still open.
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const rows = await prisma.evidenceReviewWorkflow.findMany({
         where: {
@@ -1290,7 +1290,7 @@ async function runOperationalPressure(
   }
 
   // Stalled review workflows (IN_REVIEW / NEEDS_INFO not touched in N hours)
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const rows = await prisma.evidenceReviewWorkflow.findMany({
         where: {
@@ -1325,7 +1325,7 @@ async function runOperationalPressure(
   }
 
   // Unassigned review workflows (queued for > N hours)
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const queuedTooLong = await prisma.evidenceReviewWorkflow.findMany({
         where: {
@@ -1355,7 +1355,7 @@ async function runOperationalPressure(
   }
 
   // Open escalations (CRITICAL/HIGH first)
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const rows = await prisma.reviewEscalation.findMany({
         where: { teamId, status: "OPEN" },
@@ -1628,7 +1628,7 @@ async function runOperationalPressure(
   }
 
   // Governance conflicts (policy conflicts)
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const { countActivePolicyConflicts } = await import(
         "../governance-lifecycle/retention-engine.service.js"
@@ -1652,7 +1652,7 @@ async function runOperationalPressure(
   }
 
   // Blocked exports — evidence with verificationPackageMetadata.blocked === true
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const sample = await prisma.evidence.findMany({
         where: {
@@ -1697,7 +1697,7 @@ async function runOperationalPressure(
   }
 
   // Evidence without case linkage (team only)
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const rows = await prisma.evidence.findMany({
         where: { teamId, caseLinks: { none: {} } },
@@ -1852,7 +1852,7 @@ async function runCaseOperations(
     });
 
     let unreviewedEvidenceCount = 0;
-    if (scope === "TEAM") {
+    if (scope === "SHARED") {
       unreviewedEvidenceCount = await prisma.evidence.count({
         where: {
           teamId,
@@ -1888,7 +1888,7 @@ async function runCaseOperations(
           take: caseIds.length * 4,
         })
         .catch(() => []),
-      scope === "TEAM"
+      scope === "SHARED"
         ? prisma.evidenceReviewWorkflow.findMany({
             where: {
               teamId,
@@ -1913,7 +1913,7 @@ async function runCaseOperations(
             take: 500,
           })
         : Promise.resolve([]),
-      scope === "TEAM"
+      scope === "SHARED"
         ? prisma.caseEvidenceLink.groupBy({
             by: ["caseId"],
             where: {
@@ -1952,7 +1952,7 @@ async function runCaseOperations(
     for (const h of holdsByCase) if (h.caseId) holdsSet.add(h.caseId);
 
     let openEscalationsByCase = new Map<string, number>();
-    if (scope === "TEAM") {
+    if (scope === "SHARED") {
       try {
         const escalations = await prisma.reviewEscalation.findMany({
           where: {
@@ -2078,7 +2078,7 @@ async function runReviewerOrchestration(
   teamId: string,
   scope: WorkspaceScope,
 ): Promise<CommandCenterEnvelope["sections"]["reviewerOrchestration"]> {
-  if (scope === "PERSONAL") {
+  if (scope === "SINGLE_OCCUPANT") {
     return { status: "not_applicable", data: null };
   }
   try {
@@ -2470,7 +2470,7 @@ async function runGovernancePosture(
   teamId: string,
   scope: WorkspaceScope,
 ): Promise<CommandCenterEnvelope["sections"]["governancePosture"]> {
-  if (scope === "PERSONAL") {
+  if (scope === "SINGLE_OCCUPANT") {
     return { status: "not_applicable", data: null };
   }
   let anyOk = false;
@@ -3013,7 +3013,7 @@ async function runAuditReadiness(
       severity: failedPackages > 0 ? "high" : "info",
     });
 
-    if (scope === "TEAM") {
+    if (scope === "SHARED") {
       const pendingGovReviews = await prisma.destructionReview
         .count({
           where: {
@@ -3257,7 +3257,7 @@ async function runLegacyReviewerWorkload(
   teamId: string,
   scope: WorkspaceScope,
 ): Promise<CommandCenterEnvelope["sections"]["reviewerWorkload"]> {
-  if (scope === "PERSONAL") return { status: "not_applicable", data: null };
+  if (scope === "SINGLE_OCCUPANT") return { status: "not_applicable", data: null };
   try {
     const now = new Date();
     const [queuedCount, assignedCount, inReviewCount, overdueCount, openEscalationsCount] =
@@ -3660,7 +3660,7 @@ async function runReviewerCapacityBoard(
       "EvidenceReviewWorkflow (real source)",
     ],
   };
-  if (scope === "PERSONAL") {
+  if (scope === "SINGLE_OCCUPANT") {
     return {
       meta: { ...meta, status: "not_applicable" },
       reviewers: [],
@@ -4181,7 +4181,7 @@ async function runInvestigationIntelligence(
         href: "/governance",
       });
     }
-    if (scope === "TEAM") {
+    if (scope === "SHARED") {
       try {
         // Reviewer overload affecting multi-case = reviewer with >= 5
         // assignments that touch >= 2 distinct cases.
@@ -4253,7 +4253,7 @@ async function runQueueCongestion(
 
   try {
     // Review queue depth (QUEUED workflows + oldest age)
-    if (scope === "TEAM") {
+    if (scope === "SHARED") {
       const queuedDepth = await prisma.evidenceReviewWorkflow.count({
         where: { teamId, status: "QUEUED" },
       });
@@ -4308,7 +4308,7 @@ async function runQueueCongestion(
       source: "Evidence(status=REPORTED, verificationPackages={none})",
     });
 
-    if (scope === "TEAM") {
+    if (scope === "SHARED") {
       const destructionPending = await prisma.destructionReview
         .count({
           where: {
@@ -4531,7 +4531,7 @@ async function runWorkloadEngine(
     ],
   };
 
-  if (scope === "PERSONAL") {
+  if (scope === "SINGLE_OCCUPANT") {
     return {
       meta: { ...meta, status: "not_applicable" },
       health: "HEALTHY",
@@ -5033,7 +5033,7 @@ async function runCrossCaseIntelligenceV2(
     ],
   };
   const signals: CrossCaseSignalV2[] = [];
-  if (scope === "PERSONAL") {
+  if (scope === "SINGLE_OCCUPANT") {
     return { meta: { ...meta, status: "not_applicable" }, signals: [] };
   }
 
@@ -6202,7 +6202,7 @@ async function runQueueWorkerTelemetry(
       oldestQueued,
       retryStormIncidents,
     ] = await Promise.all([
-      scope === "TEAM"
+      scope === "SHARED"
         ? prisma.evidenceReviewWorkflow.count({
             where: { teamId, status: "QUEUED" },
           })
@@ -6217,7 +6217,7 @@ async function runQueueWorkerTelemetry(
           verificationPackages: { none: {} },
         },
       }),
-      scope === "TEAM"
+      scope === "SHARED"
         ? prisma.evidenceReviewWorkflow.findFirst({
             where: { teamId, status: "QUEUED" },
             orderBy: { createdAt: "asc" },
@@ -6336,7 +6336,7 @@ async function runCoordinationSignals(
     reviewerCommentOpenCount: 0,
     annotationOpenCount: 0,
   };
-  if (scope === "PERSONAL") {
+  if (scope === "SINGLE_OCCUPANT") {
     return {
       meta: { ...meta, status: "not_applicable" },
       signals: [],

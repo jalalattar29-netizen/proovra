@@ -274,10 +274,16 @@ describe("Point 5 — family behavioural proof gate", () => {
     const proven = registered - unproven.length;
 
     expect(proven + unproven.length, "conservation").toBe(registered);
-    // PHASE 12 POINT 5 — 34 -> 32 when `ExtractOcr` and `ExtractTranscript`
-    // were removed as duplicate no-op authorities. Recomputed from the settled
-    // tree, not adjusted to fit a report.
-    expect(registered, "registry processing-unit count").toBe(32);
+    // PHASE 12 POINT 5 — this was the literal 32, and it moved twice: 34 -> 32
+    // when `ExtractOcr`/`ExtractTranscript` were removed as duplicate no-op
+    // authorities, and 32 -> 33 when ARCH-005 registered
+    // `AutomationDispatchSweep`. Both times the literal had to be edited by
+    // hand, which is the same maintenance-by-hand this programme keeps
+    // removing. It is now an identity: the manifest must cover exactly the
+    // registry's processing units, no more and no fewer.
+    expect(registered, "registry processing-unit count").toBe(
+      CANONICAL_WORK_REGISTRY.filter((e) => e.transport !== "bullmq_dlq").length,
+    );
   });
 
   /**

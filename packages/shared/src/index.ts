@@ -62,6 +62,12 @@ export {
   type WorkspaceKindNormalizationInput,
 } from "./workspace-kind.js";
 
+// PHASE 12 CORRECTIVE PASS §1 (ARCH-001 + LEGACY-001, 2026-08-07) — the ONE
+// bounded, versioned, read-only, metered compatibility adapter for the retired
+// PERSONAL|TEAM workspace vocabulary. It can produce a legacy string; it can
+// never consume one, authorize with one, or persist one.
+export * from "./legacy-workspace-vocabulary.js";
+
 // PROOVRA Phase 3 — Canonical denial vocabulary (Stage 3).
 // See docs/architecture/architecture-invariants.md (INV-9).
 export {

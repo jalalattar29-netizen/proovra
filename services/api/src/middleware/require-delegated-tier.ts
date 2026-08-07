@@ -27,7 +27,7 @@ import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastif
 import type { DelegatedAdminTier } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
-import { prisma } from "../db.js";
+import { evaluateCurrentWorkspace } from "./authorize.js";
 import { hasDelegatedTier } from "../services/governance/delegated-admin.service.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 
@@ -41,12 +41,44 @@ function normaliseTiers(
     : [tier as DelegatedAdminTier];
 }
 
-async function resolveTeamId(userId: string): Promise<string | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
+/**
+ * PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — SEC-001-CLASS RESIDUE, FIXED.
+ *
+ * What was wrong
+ * ---------------------------------------------------------------------------
+ * This guard resolved the workspace from `User.currentWorkspaceId` alone and
+ * then asked `hasDelegatedTier` whether the caller held the tier. That
+ * question is answered from `DelegatedAdminGrant` rows and the implicit-owner
+ * ladder — it says nothing about whether the caller is still a live member of
+ * the workspace. So an operator who had been SUSPENDED or whose access had
+ * EXPIRED, or whose parent Organization had been suspended, continued to pass
+ * every delegated-tier route for as long as their grant row stayed ACTIVE and
+ * their stale pointer kept naming the workspace. That is SEC-001 exactly: the
+ * navigation pointer selecting the tenant, and grant EXISTENCE mistaken for
+ * grant VALIDITY.
+ *
+ * The correction
+ * ---------------------------------------------------------------------------
+ * The pointer is now only a CANDIDATE. `evaluateAuthorizedWorkspace` — the
+ * same canonical primitive every other migrated surface uses — revalidates it
+ * in full (workspace existence, workspace kind, EXPLICIT membership,
+ * membership status, access expiry, parent-Organization lifecycle, the
+ * baseline permission, and the support-access guard) before this guard even
+ * asks about tiers. Only then does `hasDelegatedTier` run, and it now runs on
+ * a workspace the caller has been PROVEN to be entitled to be inside.
+ *
+ * The baseline permission is `evidence.read`, which every canonical role
+ * holds. Admission is therefore not narrowed for any live member — the change
+ * removes access only from callers who should already have had none.
+ */
+async function resolveAuthorizedTeamId(
+  req: FastifyRequest,
+): Promise<string | null> {
+  const outcome = await evaluateCurrentWorkspace(req, {
+    permission: "evidence.read",
   });
-  return user?.currentWorkspaceId ?? null;
+  if (outcome.allowed) return outcome.context.workspaceId;
+  return null;
 }
 
 async function emitDenialEvent(input: {
@@ -107,7 +139,7 @@ export function requireDelegatedTier(
       return;
     }
 
-    const teamId = await resolveTeamId(userId);
+    const teamId = await resolveAuthorizedTeamId(req);
     if (!teamId) {
       await emitDenialEvent({
         teamId: null,

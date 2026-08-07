@@ -99,7 +99,7 @@ describe("QA-bypass REMOVAL — zero production commercial bypasses", () => {
 describe("AI subject — Workspace A's AI entitlement cannot come from Personal plan or Workspace B", () => {
   function scope(overrides: Partial<WorkspaceScope>): WorkspaceScope {
     return {
-      workspaceType: "TEAM",
+      billingShape: "SHARED",
       ownerUserId: "owner-1",
       teamId: "ws-A",
       organizationId: "org-1",

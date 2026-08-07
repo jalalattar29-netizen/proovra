@@ -571,6 +571,32 @@ export const SECURITY_EVENT_TYPES = [
   "automation_webhook_destination_auto_disabled",
 
   // ---------------------------------------------------------------------------
+  // PHASE 12 CORRECTIVE PASS §1 CONTINUATION (ARCH-005, 2026-08-07) — AMBIGUITY
+  // IS AUDITED AS AMBIGUITY.
+  //
+  // A timeout or a reset after the request was written means the receiver MAY
+  // have processed the event. Emitting `_failed` for that would put a refusal
+  // in the audit trail that nobody observed, and emitting `_succeeded` would
+  // invent a delivery. These three say exactly what happened:
+  //
+  //   _ambiguous               the outcome became unknown, and the row is now
+  //                            in bounded reconciliation rather than on the
+  //                            retry ladder.
+  //   _ambiguity_resolved      a provider lookup answered — either it HAD
+  //                            committed (the row becomes SUCCEEDED) or it had
+  //                            not (the row becomes safely resendable). The
+  //                            reason field says which.
+  //   _dead_lettered_unknown   reconciliation is exhausted and the outcome is
+  //                            STILL unknown. Terminal, operator-visible, and
+  //                            deliberately not the same event as a failure.
+  // ---------------------------------------------------------------------------
+  "automation_webhook_delivery_ambiguous",
+  "automation_webhook_delivery_ambiguity_resolved",
+  "automation_webhook_delivery_dead_lettered_unknown",
+  "automation_run_ambiguous",
+  "automation_run_dead_lettered_unknown",
+
+  // ---------------------------------------------------------------------------
   // Phase A0 — Integrity hard-gate.
   //
   // Emitted alongside the INTEGRITY_REJECTED_HASH_MISMATCH custody

@@ -109,15 +109,26 @@ test("Phase 8 — Bulk-invite page offers preview, send, resend, and template do
 // PART B — registry + pillar wiring (owned by shared wiring files)
 // ============================================================================
 
+// PHASE 12 CORRECTIVE PASS §1.4 (2026-08-06) — THE TWO TODOS ARE PROMOTED.
+//
 // These two assertions verify wiring owned by the shared registry files
-// (routeRegistry / pillarRegistry). They are marked `todo` so they DO NOT
-// hard-fail the slice before the shared-wiring owner registers the route id;
-// once the entry + pillar mapping land, remove `{ todo: true }` to promote
-// them to enforced guards. The PART A page-contract guarantees above do not
-// depend on the registry.
+// (routeRegistry / pillarRegistry). They were written as `todo` so they would
+// not hard-fail the slice before the shared-wiring owner registered the route
+// id, with the instruction: "once the entry + pillar mapping land, remove
+// `{ todo: true }` to promote them to enforced guards."
+//
+// The wiring HAS landed. `ROUTE_REGISTRY` carries
+// `account.organization_admin_bulk_invite` (href
+// `/organizations/:id/admin/bulk-invite`, `sidebarEligible: false`) and
+// `PILLAR_FOR_ROUTE_ID` maps it to ADMIN. The `todo` markers were simply never
+// removed, so the repository reported two outstanding todos for wiring that was
+// already complete — and the page, which gates on this exact route id via
+// `PageRouteGate`, had no enforced guarantee that the id it gates on exists.
+//
+// Promoted to enforced guards. `AbsoluteTodoTests` across every project is now
+// 0, and it is 0 because the work is done, not because it stopped being counted.
 test(
   "Phase 8 — Bulk-invite route id is registered with the enterprise-safe contract",
-  { todo: "pending shared-wiring owner registering the route id" },
   () => {
     const entry = (ROUTE_REGISTRY as ReadonlyArray<Record<string, unknown>>).find(
       (r) => r.id === ROUTE_ID,
@@ -134,7 +145,6 @@ test(
 
 test(
   "Phase 8 — Bulk-invite route id is mapped to the ADMIN pillar (phase-1a coverage)",
-  { todo: "pending shared-wiring owner mapping the route id to ADMIN" },
   () => {
     assert.ok(PILLAR_FOR_ROUTE_ID.has(ROUTE_ID), `${ROUTE_ID} must be in PILLAR_FOR_ROUTE_ID`);
     assert.equal(PILLAR_FOR_ROUTE_ID.get(ROUTE_ID), "ADMIN");

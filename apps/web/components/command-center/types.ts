@@ -45,7 +45,7 @@ export type OpsHealthState = {
 };
 
 /**
- * @deprecated PHASE 3 — Inline `"PERSONAL" | "TEAM"` declaration.
+ * @deprecated PHASE 3 — Inline `"SINGLE_OCCUPANT" | "SHARED"` declaration.
  *   Prefer the canonical `WorkspaceScope` from
  *   `apps/web/lib/platform-context/types.ts`, or — for new code that
  *   speaks in the Target Domain Blueprint vocabulary — the
@@ -55,7 +55,7 @@ export type OpsHealthState = {
  *   consume the canonical type.
  *   See docs/architecture/domain-debt-register.md (DBT-WS-04).
  */
-export type WorkspaceScope = "PERSONAL" | "TEAM";
+export type WorkspaceScope = "SINGLE_OCCUPANT" | "SHARED";
 
 export type SeverityTone = "info" | "warning" | "high" | "critical";
 
@@ -723,7 +723,7 @@ export type CommandCenterEnvelope = {
    * The matrix never weakens auth; canonical gates live at routes.
    */
   capabilityMatrix?: {
-    workspaceType: "PERSONAL" | "TEAM";
+    workspaceType: "SINGLE_OCCUPANT" | "SHARED";
     role: string;
     persona: string;
     capabilities: {

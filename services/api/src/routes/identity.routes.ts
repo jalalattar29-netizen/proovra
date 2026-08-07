@@ -201,21 +201,68 @@ async function requireIdentityActor(
  * (written only by the audited workspace switcher). A declared `teamId` that
  * disagrees is a concealed 404 — the client cannot point a list or a link at a
  * workspace it is not currently in.
+ *
+ * PHASE 12 CORRECTIVE PASS §1 (2026-08-06) — THE POINTER NO LONGER LEAVES THIS
+ * FUNCTION UNAUTHORIZED.
+ *
+ * What was here before, and why it was replaced
+ * ---------------------------------------------------------------------------
+ * A `resolveWorkspaceSubject` helper READ the pointer and RETURNED it, on the
+ * argument that all seven callers authorized on the next line and a parsing
+ * test enforced that they did. The reasoning was sound but the arrangement was
+ * not: `verify-current-workspace-authority.mjs` — the gate whose entire
+ * purpose is to find pointers laundered through a return value — reported it
+ * as its ONE outstanding violation, and a gate that a module argues its way
+ * around is not a gate. The previous note also justified the shape by the cost
+ * of "a second authorization", which was the wrong trade to be weighing: the
+ * fix is not to authorize twice, it is to authorize ONCE, HERE.
+ *
+ * So the derivation and the authorization are now the same call. The pointer is
+ * a CANDIDATE that never escapes: it is handed to `authorizeOrFail` inside this
+ * function, and what comes back to the caller is a workspace id the canonical
+ * chain has already proven — identity, workspace existence, workspace kind,
+ * EXPLICIT membership, membership status, access expiry, parent-Organization
+ * lifecycle, the permission, and the support-access guard. There is exactly one
+ * policy evaluation and exactly one permission-decision audit row per request,
+ * as before.
+ *
+ * Membership existence is probed FIRST and answers 404, never 403: a caller
+ * with no membership must not learn that the workspace or its contents exist.
  */
-async function resolveWorkspaceSubject(
+async function resolveAuthorizedWorkspaceSubject(
   req: FastifyRequest,
   reply: FastifyReply,
+  permission: Permission,
   declaredTeamId?: string | undefined,
-): Promise<string | null> {
+  resource?: { kind: string; id: string },
+): Promise<{ teamId: string; actor: { userId: string; teamMemberId: string } } | null> {
   const userId = getAuthUserId(req);
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { currentWorkspaceId: true },
   });
-  const teamId = user?.currentWorkspaceId ?? null;
-  if (!teamId) return notFound(reply);
-  if (declaredTeamId && declaredTeamId !== teamId) return notFound(reply);
-  return teamId;
+  const candidateTeamId = user?.currentWorkspaceId ?? null;
+  if (!candidateTeamId) return notFound(reply);
+  // A consistency check that can only NARROW the outcome: it rejects, it never
+  // selects. The authorization below runs on the pointer either way.
+  if (declaredTeamId && declaredTeamId !== candidateTeamId) return notFound(reply);
+
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: candidateTeamId, userId } },
+    select: { id: true },
+  });
+  if (!member) return notFound(reply);
+
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId: candidateTeamId,
+    permission,
+    ...(resource ? { resourceKind: resource.kind, resourceId: resource.id } : {}),
+  });
+  if (!outcome) return null;
+  return {
+    teamId: candidateTeamId,
+    actor: { userId: outcome.actorUserId, teamMemberId: member.id },
+  };
 }
 
 type MemberTarget = {
@@ -472,10 +519,12 @@ export async function identityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = DeclaredTeamId.parse(req.query ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, q.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(req, reply, teamId, "identity.member.read");
-      if (!actor) return;
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.member.read", q.teamId,
+      );
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
+      void actor;
       const rows = await listTeamMembersWithAccess(teamId);
       // The SERVER-derived workspace is echoed so the console can render the
       // scope it is actually administering instead of asserting one.
@@ -850,10 +899,12 @@ export async function identityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = DeclaredTeamId.parse(req.query ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, q.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(req, reply, teamId, "identity.service_account.manage");
-      if (!actor) return;
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.service_account.manage", q.teamId,
+      );
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
+      void actor;
       const rows = await listApiCredentials({ teamId });
       return reply
         .code(200)
@@ -1086,10 +1137,12 @@ export async function identityRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, q.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(req, reply, teamId, "identity.access_review.read");
-      if (!actor) return;
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.access_review.read", q.teamId,
+      );
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
+      void actor;
       if (await denyIfTeamNotEnterprise(reply, teamId, "accessReviews")) return;
       const rows = await listAccessReviews({
         teamId,
@@ -1106,10 +1159,11 @@ export async function identityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = DeclaredTeamId.parse(req.body ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, body.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(req, reply, teamId, "identity.access_review.action");
-      if (!actor) return;
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.access_review.action", body.teamId,
+      );
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
       if (await denyIfTeamNotEnterprise(reply, teamId, "accessReviews")) return;
       const { created } = await regenerateAccessReviewQueue({
         teamId,
@@ -1136,13 +1190,12 @@ export async function identityRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const body = DecisionBody.parse(req.body ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, body.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(
-        req, reply, teamId, "identity.access_review.action",
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.access_review.action", body.teamId,
         { kind: "access_review", id },
       );
-      if (!actor) return;
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
       if (await denyIfTeamNotEnterprise(reply, teamId, "accessReviews")) return;
 
       // PHASE 12B ACCEPTANCE — CLOSE A STEP-UP AND MANAGED-IDENTITY BYPASS.
@@ -1221,10 +1274,12 @@ export async function identityRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, q.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(req, reply, teamId, "identity.external_mapping.read");
-      if (!actor) return;
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.external_mapping.read", q.teamId,
+      );
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
+      void actor;
       const rows = await listExternalIdentityMappings({
         teamId,
         ...(q.activeOnly === undefined ? {} : { activeOnly: q.activeOnly }),
@@ -1247,13 +1302,12 @@ export async function identityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = LinkExternalBody.parse(req.body ?? {});
-      const teamId = await resolveWorkspaceSubject(req, reply, body.teamId);
-      if (!teamId) return;
-      const actor = await requireIdentityActor(
-        req, reply, teamId, "identity.external_mapping.manage",
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.external_mapping.manage", body.teamId,
         { kind: "user", id: body.userId },
       );
-      if (!actor) return;
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
       // The subject must be a member of the SERVER-derived workspace. A
       // foreign subject is concealed as 404 by `handleExternalError`.
       if (await denyIfManagedIdentity(reply, body.userId)) return;

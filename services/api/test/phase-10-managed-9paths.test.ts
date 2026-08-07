@@ -194,18 +194,41 @@ describe("§1 — 9-path managed-identity matrix", () => {
     expect(GROUPS).toMatch(/source: "IDP_GROUP"/);
     expect(GROUPS).toMatch(/applyDirectoryRoleChange\(/);
   });
+  /**
+   * ARCH-004 (2026-08-07) — these two cases used to slice a FIXED number of
+   * characters after the function name (2500 and 1800). That is a window that
+   * silently shrinks its own coverage: adding the governance-membership
+   * suspension to `scimDeactivateUser` pushed `revokeAllSessionsForUser` past
+   * character 2500 and the case failed for a reason that had nothing to do
+   * with what it asserts.
+   *
+   * `functionBody` slices to the function's real end, so the case keeps
+   * covering the whole function however it grows — and, more importantly,
+   * cannot start covering LESS of it without anybody noticing.
+   */
+  const functionBody = (source: string, name: string): string => {
+    const start = source.indexOf(`export async function ${name}`);
+    expect(start, `${name} must exist`).toBeGreaterThan(-1);
+    const end = source.indexOf("\n}", start);
+    expect(end, `${name} must be terminated`).toBeGreaterThan(start);
+    return source.slice(start, end + 2);
+  };
+
   it("4. SCIM deactivate → PRESERVES managed ownership (never releaseManagedIdentity) + revokes sessions", () => {
     expect(SCIM).not.toMatch(/releaseManagedIdentity\(/);
-    const deIdx = SCIM.indexOf("export async function scimDeactivateUser");
-    const block = SCIM.slice(deIdx, deIdx + 2500);
+    const block = functionBody(SCIM, "scimDeactivateUser");
     expect(block).toMatch(/revokeAllSessionsForUser\(/);
     expect(block).toMatch(/suspendWorkspaceMembership\(/); // seat released via suspension
+    // ARCH-004 — and the GOVERNANCE membership is suspended in the same
+    // transaction, so a deprovisioned directory user is not left a live member.
+    expect(block).toMatch(/suspendOrganizationMembership\(/);
   });
   it("5. SCIM reactivate → re-affirms managed + rechecks seat through the atomic intent", () => {
-    const reIdx = SCIM.indexOf("export async function scimReactivateUser");
-    const block = SCIM.slice(reIdx, reIdx + 1800);
+    const block = functionBody(SCIM, "scimReactivateUser");
     expect(block).toMatch(/provisionManagedMembership\(tx, \{/);
     expect(block).toMatch(/seatPolicy: "ENFORCE"/);
+    // …and restores EXACTLY the governance membership it suspended.
+    expect(block).toMatch(/restoreOrganizationMembership\(/);
   });
   it("6. SAML first login → binds BEFORE session establishment when managed is required", () => {
     const bindIdx = SAML.indexOf("provisionManagedMembership(tx");

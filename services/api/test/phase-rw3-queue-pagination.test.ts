@@ -119,7 +119,7 @@ function makeRow(id: string, overrides: Record<string, unknown> = {}) {
     id,
     evidenceId: `ev-${id}`,
     teamId: TEAM_ID,
-    workspaceType: "INTERNAL",
+    billingShape: "INTERNAL",
     status: "AWAITING_REVIEW",
     priority: "NORMAL",
     assignedToUserId: null,

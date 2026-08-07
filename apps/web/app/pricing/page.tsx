@@ -133,6 +133,37 @@ function ProovraGradientIcon({
   );
 }
 
+/**
+ * PHASE 12 REMEDIATION — COMM-002 (2026-08-06).
+ *
+ * The bounded "server has not told us yet" placeholder.
+ *
+ * What this replaces: every commercial figure on this page carried a
+ * hard-coded literal fallback (`catalog?.pro?.maxOwnedTeams ?? 2`,
+ * `?? "100 GB"`, `?? "$19"`, and twenty-odd more). When the pricing catalog
+ * was unavailable — a failed fetch, a cold start, a currency the endpoint
+ * rejects — the page did not say so. It ADVERTISED A NUMBER, silently, and
+ * that number was a client-side copy of a server-authoritative limit that
+ * could drift from what the server actually enforces.
+ *
+ * Enforcement is unchanged and stays server-side (`routes/teams.routes.ts`
+ * against `@proovra/shared-billing`). What changes is that the marketing
+ * surface no longer holds a SECOND copy of the commercial truth. It renders
+ * what the server said, or it renders this — never an invented limit.
+ */
+const CATALOG_VALUE_UNAVAILABLE = "—";
+
+/**
+ * Render a served catalog value, or the bounded placeholder when the
+ * catalog has not loaded. Deliberately accepts `string | number` and
+ * nothing else: there is no "default" parameter, because a default is
+ * precisely the client-side commercial authority being removed.
+ */
+function catalogValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return CATALOG_VALUE_UNAVAILABLE;
+  return String(value);
+}
+
 export default function MarketingPricingPage() {
   const { hasSession } = useAuth();
   const [preferredCurrency, setPreferredCurrency] =
@@ -193,13 +224,13 @@ export default function MarketingPricingPage() {
   const freePrice = displayCurrency === "EUR" ? "€0" : "$0";
   const paygPrice =
     formatPlanPrice(catalog?.payg?.monthlyPriceCents, displayCurrency) ??
-    (displayCurrency === "EUR" ? "€" : "$");
+    CATALOG_VALUE_UNAVAILABLE;
   const proPrice =
     formatPlanPrice(catalog?.pro?.monthlyPriceCents, displayCurrency) ??
-    (displayCurrency === "EUR" ? "€19" : "$19");
+    CATALOG_VALUE_UNAVAILABLE;
   const teamPrice =
     formatPlanPrice(catalog?.team?.monthlyPriceCents, displayCurrency) ??
-    (displayCurrency === "EUR" ? "€79" : "$79");
+    CATALOG_VALUE_UNAVAILABLE;
 
   const plans: PricingPlan[] = [
     {
@@ -217,8 +248,8 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("personal"),
       ctaHref: buildCtaHref("personal"),
       features: [
-        `${catalog?.free?.maxEvidenceRecords ?? 3} evidence records total`,
-        `${catalog?.free?.storageLabel ?? "250 MB"} storage`,
+        `${catalogValue(catalog?.free?.maxEvidenceRecords)} evidence records total`,
+        `${catalogValue(catalog?.free?.storageLabel)} storage`,
         "Basic integrity signals",
         "Public verification access",
       ],
@@ -263,10 +294,10 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("pro"),
       ctaHref: buildCtaHref("pro"),
       features: [
-        `${catalog?.pro?.maxEvidenceRecords ?? 100} evidence records included`,
-        `${catalog?.pro?.storageLabel ?? "100 GB"} storage`,
+        `${catalogValue(catalog?.pro?.maxEvidenceRecords)} evidence records included`,
+        `${catalogValue(catalog?.pro?.storageLabel)} storage`,
         "Reports & verification packages included",
-        `AI assistance: ${catalog?.pro?.aiAdvisoryMonthlyOperations ?? 100} operations / month`,
+        `AI assistance: ${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} operations / month`,
         "Personal workspace",
       ],
     },
@@ -287,11 +318,11 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("team"),
       ctaHref: buildCtaHref("team"),
       features: [
-        `${catalog?.team?.maxEvidenceRecordsPerMonth ?? 500} evidence records / month`,
-        `${catalog?.team?.storageLabel ?? "500 GB"} storage`,
-        `AI assistance: ${catalog?.team?.aiAdvisoryMonthlyOperations ?? 500} operations / month`,
+        `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} evidence records / month`,
+        `${catalogValue(catalog?.team?.storageLabel)} storage`,
+        `AI assistance: ${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} operations / month`,
         "Shared workspace, review assignments, team governance",
-        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} members per Team`,
+        `Up to ${catalogValue(catalog?.team?.maxMembersPerTeam)} members per Team`,
       ],
     },
     {
@@ -427,20 +458,20 @@ export default function MarketingPricingPage() {
     {
       label: "Evidence records",
       values: [
-        `${catalog?.free?.maxEvidenceRecords ?? 3} total`,
+        `${catalogValue(catalog?.free?.maxEvidenceRecords)} total`,
         "Pay only when you complete evidence",
-        `${catalog?.pro?.maxEvidenceRecords ?? 100} included`,
-        `${catalog?.team?.maxEvidenceRecordsPerMonth ?? 500} / month`,
+        `${catalogValue(catalog?.pro?.maxEvidenceRecords)} included`,
+        `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} / month`,
         "Custom operational volume",
       ],
     },
     {
       label: "Storage included",
       values: [
-        catalog?.free?.storageLabel ?? "250 MB",
-        catalog?.payg?.storageLabel ?? "5 GB",
-        catalog?.pro?.storageLabel ?? "100 GB",
-        catalog?.team?.storageLabel ?? "500 GB",
+        catalogValue(catalog?.free?.storageLabel),
+        catalogValue(catalog?.payg?.storageLabel),
+        catalogValue(catalog?.pro?.storageLabel),
+        catalogValue(catalog?.team?.storageLabel),
         "Custom storage envelope",
       ],
     },
@@ -493,9 +524,9 @@ export default function MarketingPricingPage() {
       label: "AI assistance (advisory)",
       values: [
         "Not included",
-        `${catalog?.payg?.aiAdvisoryMonthlyOperations ?? 50} ops / month`,
-        `${catalog?.pro?.aiAdvisoryMonthlyOperations ?? 100} ops / month`,
-        `${catalog?.team?.aiAdvisoryMonthlyOperations ?? 500} ops / month`,
+        `${catalogValue(catalog?.payg?.aiAdvisoryMonthlyOperations)} ops / month`,
+        `${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} ops / month`,
+        `${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} ops / month`,
         "Custom AI assistance",
       ],
     },
@@ -621,8 +652,8 @@ export default function MarketingPricingPage() {
       values: [
         "Not included",
         "Not included",
-        `Up to ${catalog?.pro?.maxOwnedTeams ?? 2}`,
-        `Up to ${catalog?.team?.maxOwnedTeams ?? 5}`,
+        `Up to ${catalogValue(catalog?.pro?.maxOwnedTeams)}`,
+        `Up to ${catalogValue(catalog?.team?.maxOwnedTeams)}`,
         "Custom",
       ],
     },
@@ -635,8 +666,8 @@ export default function MarketingPricingPage() {
       values: [
         "Not included",
         "Not included",
-        `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5} per Team`,
-        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} per Team`,
+        `Up to ${catalogValue(catalog?.pro?.maxMembersPerTeam)} per Team`,
+        `Up to ${catalogValue(catalog?.team?.maxMembersPerTeam)} per Team`,
         "Custom",
       ],
     },

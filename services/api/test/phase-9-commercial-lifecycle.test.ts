@@ -64,7 +64,7 @@ import { resolveCommercialContext } from "../src/services/billing/commercial-con
 
 const DAY = 24 * 60 * 60 * 1000;
 function personal(plan: string) {
-  H.scope = { workspaceType: "PERSONAL", ownerUserId: "u1", teamId: null, organizationId: null, plan };
+  H.scope = { billingShape: "SINGLE_OCCUPANT", ownerUserId: "u1", teamId: null, organizationId: null, plan };
 }
 async function life() {
   return (await resolveCommercialContext({ ownerUserId: "u1" })).lifecycle;

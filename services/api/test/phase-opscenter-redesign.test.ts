@@ -63,10 +63,57 @@ vi.mock("../src/db.js", () => {
     },
     organizationMembership: { findMany: async () => [{ role: "ORG_MEMBER", organization: { id: "org-1", name: "Org", status: "ACTIVE" } }] },
     teamMember: {
-      findMany: async ({ select }: { select?: Record<string, unknown> }) =>
-        select && "team" in select
-          ? [{ team: { id: H.teamId, name: "Workspace A" } }]
-          : [{ teamId: H.teamId, role: H.role }],
+      // PHASE 12 REMEDIATION — AUTH-002 (2026-08-06). INTENTIONAL CONTRACT
+      // CHANGE, transport shape only.
+      //
+      //   OLD: /v1/me/inbox derived the caller's workspace set from
+      //        `teamMember.findMany({ where: { userId } })` with NO status
+      //        predicate, selecting only `{ team: { id, name } }`, and
+      //        separately re-queried `{ teamId, role }` for the adjudicator
+      //        subset. This fake answered both by sniffing the `select`.
+      //
+      //   NEW: it asks the ONE canonical accessible-workspace resolver
+      //        (services/access/accessible-workspaces.ts), which selects
+      //        `{ teamId, role, status, accessExpiresAtUtc, team: {...} }`
+      //        and requires ACTIVE membership, unexpired access, a provable
+      //        workspace kind, and — for an ORGANIZATION workspace — an
+      //        ACTIVE parent Organization.
+      //
+      // WHY the production architecture requires it: the four derivations in
+      // that handler had drifted apart, and the membership-loss redaction —
+      // whose whole purpose is to withhold content from workspaces the
+      // caller can no longer access — was inert because a REVOKED row
+      // satisfied its status-blind test.
+      //
+      // This fake now returns the FULL row the resolver reads. It is
+      // deliberately ACTIVE / ORGANIZATION / ACTIVE-org so the existing
+      // positive cases describe the same reachable workspace as before; NO
+      // assertion below is relaxed, and the negative cases (non-member 403,
+      // inactive member) continue to key off `H.wsMember` / `H.role`.
+      // `H.wsMember` keeps its original meaning — "the caller belongs to
+      // nothing" — and now drives the resolver's input rather than only the
+      // single-row `findUnique`, because the resolver is what the handler
+      // asks. The non-member 403 cases are unchanged in intent and strength.
+      findMany: async () =>
+        H.wsMember
+          ? [
+              {
+                teamId: H.teamId,
+                role: H.role,
+                status: "ACTIVE",
+                accessExpiresAtUtc: null,
+                team: {
+                  id: H.teamId,
+                  name: "Workspace A",
+                  isPersonal: false,
+                  workspaceKind: "ORGANIZATION",
+                  billingPlan: "ENTERPRISE",
+                  organizationId: "org-1",
+                  organization: { status: "ACTIVE" },
+                },
+              },
+            ]
+          : [],
       // PHASE 1 (2026-07-21): full canonical-primitive snapshot shape.
       findUnique: async () =>
         H.wsMember

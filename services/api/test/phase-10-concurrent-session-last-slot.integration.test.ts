@@ -73,6 +73,9 @@ describe("Phase 10 §2 — last-slot race (real Postgres)", () => {
         isPersonal: false,
         organizationId: org.id,
         ownerUserId: user.id,
+        // ARCH-002 — this fixture exercises ORGANIZATION security policy, so it
+        // is an ORGANIZATION workspace. Stated, never inferred from the plan.
+        workspaceKind: "ORGANIZATION",
       },
     });
     await db.organizationSecurityPolicy.create({

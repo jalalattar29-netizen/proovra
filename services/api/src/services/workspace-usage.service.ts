@@ -14,7 +14,7 @@ type StorageAddonOffer = {
   storageBytes: bigint;
   priceCents: number;
   currency: string;
-  workspaceType: "PERSONAL" | "TEAM";
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
 };
 
 const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
@@ -24,7 +24,7 @@ const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
     storageBytes: 10n * GB,
     priceCents: 299,
     currency: "EUR",
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
   },
   {
     key: prismaPkg.StorageAddonKey.PERSONAL_50_GB,
@@ -32,7 +32,7 @@ const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
     storageBytes: 50n * GB,
     priceCents: 799,
     currency: "EUR",
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
   },
   {
     key: prismaPkg.StorageAddonKey.PERSONAL_200_GB,
@@ -40,7 +40,7 @@ const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
     storageBytes: 200n * GB,
     priceCents: 1999,
     currency: "EUR",
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
   },
   {
     key: prismaPkg.StorageAddonKey.TEAM_100_GB,
@@ -48,7 +48,7 @@ const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
     storageBytes: 100n * GB,
     priceCents: 999,
     currency: "EUR",
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
   },
   {
     key: prismaPkg.StorageAddonKey.TEAM_500_GB,
@@ -56,7 +56,7 @@ const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
     storageBytes: 500n * GB,
     priceCents: 3499,
     currency: "EUR",
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
   },
   {
     key: prismaPkg.StorageAddonKey.TEAM_1_TB,
@@ -64,7 +64,7 @@ const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
     storageBytes: 1024n * GB,
     priceCents: 5999,
     currency: "EUR",
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
   },
 ] as const;
 
@@ -91,8 +91,8 @@ function maxBigInt(a: bigint, b: bigint): bigint {
 }
 
 function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
-  if (scope.workspaceType === "TEAM") {
-    return STORAGE_ADDON_OFFERS.filter((offer) => offer.workspaceType === "TEAM");
+  if (scope.billingShape === "SHARED") {
+    return STORAGE_ADDON_OFFERS.filter((offer) => offer.billingShape === "SHARED");
   }
 
   if (scope.plan === prismaPkg.PlanType.PAYG) {
@@ -105,7 +105,7 @@ function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
 
   if (scope.plan === prismaPkg.PlanType.PRO) {
     return STORAGE_ADDON_OFFERS.filter(
-      (offer) => offer.workspaceType === "PERSONAL"
+      (offer) => offer.billingShape === "SINGLE_OCCUPANT"
     );
   }
 
@@ -115,7 +115,7 @@ function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
 function getSuggestedUpgradePlan(
   scope: WorkspaceScope
 ): prismaPkg.PlanType | null {
-  if (scope.workspaceType === "TEAM") {
+  if (scope.billingShape === "SHARED") {
     return null;
   }
 
@@ -409,7 +409,7 @@ export async function assertWorkspaceStorageAvailable(params: {
     err.statusCode = 409;
     err.code = "STORAGE_LIMIT_REACHED";
     err.details = {
-      workspaceType: params.scope.workspaceType,
+      billingShape: params.scope.billingShape,
       teamId: params.scope.teamId,
       plan: params.scope.plan,
       storageBytesUsed: usage.storageBytesUsed.toString(),
@@ -452,7 +452,7 @@ export async function assertTeamSeatAvailable(scope: WorkspaceScope) {
     err.code = "TEAM_PLAN_REQUIRED";
     err.details = {
       plan: scope.plan,
-      workspaceType: scope.workspaceType,
+      billingShape: scope.billingShape,
       teamId: scope.teamId,
     };
     throw err;

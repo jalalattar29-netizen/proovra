@@ -148,10 +148,21 @@ describe("Phase 3 — invitation ISSUE / bulk / reveal routes are step-up gated"
       ROUTES_PORTAL.indexOf('"/v1/external-review/invitations"'),
       ROUTES_PORTAL.indexOf("const res = await issueInvitation("),
     );
-    expect(block).toMatch(/requireCap\(ctx,\s*"review\.assign"\)/);
+    // PHASE 12 REMEDIATION — SEC-001 (2026-08-06). INTENTIONAL CONTRACT
+    // CHANGE. The RBAC gate is no longer the local, status-blind
+    // `requireCap(ctx, …)` helper — that helper was deleted along with
+    // `resolveInternalTeam`, the audit's CRITICAL finding. It is now the
+    // canonical primitive plus the administrative-tier floor read from the
+    // PROVEN canonical role, which admits exactly the same ADMIN+OWNER set.
+    //
+    // THE ORDERING PROPERTY THIS TEST EXISTS FOR IS UNCHANGED and still
+    // asserted below: RBAC completes BEFORE the step-up challenge, which
+    // completes before the mutation.
+    expect(block).toMatch(/authorizeCurrentWorkspaceOrFail\(/);
+    expect(block).toMatch(/isAdministrativeTier\(ctx, ctx\.workspaceId\)/);
     expect(block).toMatch(/requireStepUpForSensitiveAction\(/);
     expect(block).toMatch(/purpose:\s*"EXTERNAL_REVIEW_GRANT_ISSUE"/);
-    expect(block.indexOf('requireCap(ctx, "review.assign")')).toBeLessThan(
+    expect(block.indexOf("isAdministrativeTier(ctx, ctx.workspaceId)")).toBeLessThan(
       block.indexOf("requireStepUpForSensitiveAction("),
     );
   });
@@ -170,12 +181,20 @@ describe("Phase 3 — invitation ISSUE / bulk / reveal routes are step-up gated"
       ROUTES_PORTAL.indexOf('"/v1/external-review/invitations/:id/reveal-token"'),
       ROUTES_PORTAL.indexOf("rotateExternalReviewGrantToken({"),
     );
-    expect(block).toMatch(/requireCap\(ctx,\s*"review\.sampling\.policy"\)/);
+    // PHASE 12 REMEDIATION — SEC-001 (2026-08-06). Same intentional change.
+    // The break-glass tier is preserved EXACTLY: `review.sla.configure` is
+    // the canonical Permission held by OWNER only — ADMIN does not hold it —
+    // and `isOwnerTier` re-asserts it from the proven role, matching the
+    // former REVIEW_ADMIN-only `review.sampling.policy` capability. The
+    // ordering property is unchanged: RBAC before step-up, step-up before
+    // the rotation.
+    expect(block).toMatch(/permission:\s*"review\.sla\.configure"/);
+    expect(block).toMatch(/isOwnerTier\(ctx, ctx\.workspaceId\)/);
     expect(block).toMatch(/requireStepUpForSensitiveAction\(/);
     expect(block).toMatch(/purpose:\s*"EXTERNAL_REVIEW_GRANT_ISSUE"/);
-    expect(
-      block.indexOf('requireCap(ctx, "review.sampling.policy")'),
-    ).toBeLessThan(block.indexOf("requireStepUpForSensitiveAction("));
+    expect(block.indexOf("isOwnerTier(ctx, ctx.workspaceId)")).toBeLessThan(
+      block.indexOf("requireStepUpForSensitiveAction("),
+    );
   });
 });
 

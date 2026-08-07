@@ -27,7 +27,13 @@ export type PricingCatalogPlan = {
   /** Monthly cap on AI advisory operations; null = custom (Enterprise); 0 = AI disabled. */
   aiAdvisoryMonthlyOperations?: number | null;
   monthlyPriceCents?: number | null;
-  workspaceType?: "PERSONAL" | "TEAM" | "BOTH";
+  /**
+   * ARCH-001 (2026-08-07) — the COMMERCIAL shape this plan may be bought for.
+   * Renamed with the server: `workspaceType: "PERSONAL" | "TEAM"` read as a
+   * tenancy kind next to a TEAM plan, and there has never been a TEAM
+   * workspace KIND.
+   */
+  billingShape?: "SINGLE_OCCUPANT" | "SHARED" | "BOTH";
   maxOwnedTeams?: number;
   maxMembersPerTeam?: number;
   enterpriseFeatures?: EnterpriseFeatureFlags;
@@ -39,7 +45,8 @@ export type PricingStorageAddonCatalogItem = {
   storageBytes: number;
   priceCents: number;
   currency: string;
-  workspaceType: "PERSONAL" | "TEAM";
+  /** ARCH-001 — which commercial shape this add-on is sold for. */
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
 };
 
 export type PricingEnterpriseCatalog = {

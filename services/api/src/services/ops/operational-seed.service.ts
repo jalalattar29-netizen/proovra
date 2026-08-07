@@ -423,8 +423,10 @@ async function findSeedReviewer(
   // doesn't require actual `evidence_request.review` permission
   // because we only annotate workflow rows for visibility; runReconcile
   // doesn't validate reviewer permission.
+  // PHASE 12 REMEDIATION (2026-08-06) — the placeholder reviewer must be a
+  // member who actually holds access.
   const member = await client.teamMember.findFirst({
-    where: { teamId },
+    where: { teamId, status: "ACTIVE" },
     select: { userId: true },
     orderBy: { createdAt: "asc" },
   });

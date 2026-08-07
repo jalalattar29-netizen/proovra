@@ -210,7 +210,35 @@ test("Search input wires ArrowUp / ArrowDown / Enter / Escape via onKeyDown", ()
 });
 
 test("Recent searches use a per-workspace localStorage key and cap at 10 entries", () => {
-  assert.match(SEARCH_PAGE, /const recentKey = `proovra:search:recent:\$\{teamId\}`;/);
+  // PHASE 12 REMEDIATION — WEB-002 (2026-08-06). INTENTIONAL CONTRACT CHANGE.
+  //
+  //   OLD: `const recentKey = \`proovra:search:recent:${teamId}\`;`
+  //   NEW: `const recentKey = tenantStorageKey(teamId ?? null, "search:recent");`
+  //
+  // WHY the production architecture requires it: the old key WAS
+  // workspace-scoped, so there was never a cross-tenant leak — but it lived
+  // in its own namespace, outside the canonical
+  // `proovra:tenant:<workspaceId>:<key>` namespace that `tenantStorageKey`
+  // owns. A tenant-scoped purge iterates the canonical namespace, so it
+  // walked straight past this entry: switching or leaving a workspace
+  // cleared every other tenant-scoped draft and left the search history
+  // behind on the device.
+  //
+  // The property this test exists for — PER-WORKSPACE scoping, capped at 10
+  // — is unchanged and asserted below, now against the canonical helper. A
+  // one-time migration off the legacy key is also pinned, so an existing
+  // user keeps their history AND the stray key stops surviving purges.
+  assert.match(
+    SEARCH_PAGE,
+    /const recentKey = tenantStorageKey\(teamId \?\? null, "search:recent"\);/,
+  );
+  assert.match(
+    SEARCH_PAGE,
+    /import \{ tenantStorageKey \} from "\.\.\/\.\.\/\.\.\/lib\/platform-context\/tenantStorage";/,
+  );
+  // Legacy-key migration: read once, rewrite canonically, then remove.
+  assert.match(SEARCH_PAGE, /const legacyRecentKey = `proovra:search:recent:\$\{teamId\}`;/);
+  assert.match(SEARCH_PAGE, /window\.localStorage\.removeItem\(legacyRecentKey\)/);
   assert.match(SEARCH_PAGE, /\.slice\(0, 10\)/);
 });
 

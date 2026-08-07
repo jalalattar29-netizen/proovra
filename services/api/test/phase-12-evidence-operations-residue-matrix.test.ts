@@ -125,6 +125,121 @@ vi.mock("../src/middleware/authorize.js", () => ({
     return { actorUserId: H.actorUserId, teamId: opts.teamId ?? TEAM };
   },
   requireAuthorize: () => async () => {},
+
+  // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). INTENTIONAL CONTRACT
+  // CHANGE, and the reason it is required.
+  //
+  //   OLD: reviewer-ops' `requireReviewerActor` read the TeamMember row
+  //        itself, checked `status !== "ACTIVE"`, and then FOUR further
+  //        sites in the same file re-read the row with `select: { role }`
+  //        and NO status predicate to derive reviewer capability and
+  //        adjudicator authority. The gate also never consulted workspace
+  //        kind or parent-Organization lifecycle, so an ORGANIZATION
+  //        workspace under a SUSPENDED organization stayed readable.
+  //
+  //   NEW: it composes the canonical `AuthorizedWorkspaceContext`
+  //        primitive. Admission is the baseline `evidence.read`, which every
+  //        canonical role holds — so exactly the set admitted before is
+  //        admitted now — and every secondary capability decision reads the
+  //        PROVEN capability set instead of a fresh, status-blind query.
+  //
+  // The knobs keep their exact meanings and still drive every case:
+  //   H.memberStatus    null → non-member (404); "SUSPENDED" → 403.
+  //   H.reviewerCapable false → an ACTIVE member who is NOT reviewer-capable,
+  //                     expressed as the VIEWER role, which genuinely lacks
+  //                     `evidence_request.review` in the canonical matrix. The
+  //                     "still sees the signals, told they cannot act" case is
+  //                     therefore now driven by real role policy rather than
+  //                     by a standalone boolean.
+  evaluateAuthorizedWorkspace: async (
+    _req: unknown,
+    opts: { permission: string; workspaceId?: string | null },
+  ) => {
+    H.seenPermissions.push(opts.permission);
+    if (!H.memberStatus) {
+      return { allowed: false, reasonCode: "no_actor", httpStatus: 404 };
+    }
+    if (H.memberStatus !== "ACTIVE") {
+      return {
+        allowed: false,
+        reasonCode: "member_not_active",
+        httpStatus: 403,
+      };
+    }
+    const workspaceRole = H.reviewerCapable ? "OWNER" : "VIEWER";
+    return {
+      allowed: true,
+      context: {
+        userId: H.actorUserId,
+        workspaceId: opts.workspaceId ?? TEAM,
+        workspaceKind: "OWNED",
+        workspaceRole,
+        membershipStatus: "ACTIVE",
+        organizationId: null,
+        organizationLifecycle: null,
+        capabilities: new Set<string>(
+          H.reviewerCapable
+            ? [
+                "evidence.read",
+                "evidence_request.review",
+                "review.assign",
+                "review.escalate",
+              ]
+            : ["evidence.read"],
+        ),
+      },
+    };
+  },
+  contextHasCapability: (
+    ctx: { capabilities: ReadonlySet<string> },
+    permission: string,
+  ) => ctx.capabilities.has(permission),
+
+  // PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — DOUBLE EXTENDED, NOT
+  // ASSERTION WEAKENED.
+  //
+  // `capture-trust.routes.ts#resolveTeamIdOrDeny` used to be its own
+  // authorization authority: pointer -> team row -> isPersonal -> an inline
+  // ACTIVE-membership read. It now hands the pointer to the canonical chain as
+  // a CANDIDATE, which additionally enforces member access expiry, workspace
+  // kind and parent-Organization lifecycle — none of which the inline version
+  // checked.
+  //
+  // That made it call `evaluateCurrentWorkspace`, which this double did not
+  // provide, so the provenance-chain cases 500'd on an undefined import. The
+  // double now supplies it with the SAME semantics as the workspaceId variant
+  // above — the only difference being where the candidate id comes from — so
+  // every existing knob (`H.memberStatus`, `H.currentWorkspaceId`) keeps
+  // driving exactly the case it drove before, including the null-pointer case.
+  evaluateCurrentWorkspace: async (_req: unknown, opts: { permission: string }) => {
+    H.seenPermissions.push(opts.permission);
+    if (!H.currentWorkspaceId) {
+      return { allowed: false, reasonCode: "missing_team_id", httpStatus: 404 };
+    }
+    if (!H.memberStatus) {
+      return { allowed: false, reasonCode: "no_actor", httpStatus: 404 };
+    }
+    if (H.memberStatus !== "ACTIVE") {
+      return {
+        allowed: false,
+        reasonCode: "member_not_active",
+        httpStatus: 403,
+      };
+    }
+    return {
+      allowed: true,
+      context: {
+        userId: H.actorUserId,
+        workspaceId: H.currentWorkspaceId,
+        workspaceKind: "OWNED",
+        workspaceRole: "OWNER",
+        membershipStatus: "ACTIVE",
+        organizationId: null,
+        organizationLifecycle: null,
+        capabilities: new Set<string>(["evidence.read"]),
+      },
+    };
+  },
 }));
 
 vi.mock("../src/services/identity/access-policy.service.js", () => ({
@@ -176,7 +291,49 @@ vi.mock("../src/db.js", () => ({
       findUnique: async () => ({ id: H.actorUserId, currentWorkspaceId: H.currentWorkspaceId }),
     },
     teamMember: {
-      findUnique: async () => (H.memberStatus ? { id: "m-1", status: H.memberStatus } : null),
+      // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). INTENTIONAL CONTRACT
+      // CHANGE, transport shape only.
+      //
+      //   OLD: reviewer-ops' `requireReviewerActor` read
+      //        `{ id, status }` itself and checked `status !== "ACTIVE"`.
+      //        Four further sites in the same file then re-read the row with
+      //        `select: { role }` and NO status predicate to derive reviewer
+      //        capability and adjudicator authority.
+      //
+      //   NEW: it composes the canonical `AuthorizedWorkspaceContext`
+      //        primitive, so the row must carry the full access-policy
+      //        snapshot shape (role, capability grants, delegated admin
+      //        scopes, and the team's kind + parent-Organization status).
+      //
+      // WHY the production architecture requires it: the old gate enforced
+      // membership status ONLY, never workspace kind and never
+      // parent-Organization lifecycle, so an ORGANIZATION workspace under a
+      // SUSPENDED organization stayed readable on this surface.
+      //
+      // `H.memberStatus` keeps its exact meaning and still drives every case
+      // below: `null` → non-member (404), `"SUSPENDED"` → inactive (403),
+      // `"ACTIVE"` → admitted. Role OWNER preserves the reviewer-capable
+      // actor the positive cases assume.
+      findUnique: async () =>
+        H.memberStatus
+          ? {
+              id: "m-1",
+              teamId: TEAM,
+              userId: "u-1",
+              role: "OWNER",
+              status: H.memberStatus,
+              accessExpiresAtUtc: null,
+              team: {
+                isPersonal: false,
+                workspaceKind: "OWNED",
+                billingPlan: "TEAM",
+                organizationId: null,
+                organization: null,
+              },
+              capabilityGrants: [],
+              delegatedAdminScopes: [],
+            }
+          : null,
       findMany: async () => (H.memberStatus === "ACTIVE" ? [{ teamId: TEAM }] : []),
       findFirst: async () => (H.memberStatus ? { id: "m-1", status: H.memberStatus } : null),
     },

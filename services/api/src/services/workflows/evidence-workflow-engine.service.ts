@@ -467,8 +467,14 @@ export async function assignReviewer(
 ): Promise<prismaPkg.EvidenceWorkflowInstance> {
   const instance = await loadInstance(client, input.teamId, input.workflowInstanceId);
   // Reviewer must be a current team member.
+  // PHASE 12 REMEDIATION (2026-08-06) — assignment TARGET validity: a
+  // reviewer who cannot enter the workspace cannot be assigned its work.
   const member = await client.teamMember.findFirst({
-    where: { teamId: input.teamId, userId: input.reviewerUserId },
+    where: {
+      teamId: input.teamId,
+      userId: input.reviewerUserId,
+      status: "ACTIVE",
+    },
     select: { id: true },
   });
   if (!member) throw new WorkflowEngineError("WORKFLOW_ACTOR_NOT_PERMITTED");

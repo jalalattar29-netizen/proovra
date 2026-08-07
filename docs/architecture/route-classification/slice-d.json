@@ -270,5 +270,19 @@
     "proofSuite": "services/api/test/phase-12-coverage-manifest.test.ts",
     "owner": "platform-ops",
     "productReason": "machine-triggered invite-delivery retry sweep; never operator-invoked"
+  },
+  {
+    "route": "/v1/automation/runs/process",
+    "methods": [
+      "POST"
+    ],
+    "registeringFile": "services/api/src/routes/automation.routes.ts",
+    "class": "WORKER_OR_MACHINE_CONSUMER",
+    "consumer": "worker interval scheduler (services/worker/src/automation-dispatch.ts)",
+    "authMode": "requireIntegrationCronSecret",
+    "evidence": "ARCH-005. The machine entry point for AutomationDispatchSweep, and the ONLY thing that executes an automation run. Cron-secret guarded, with no session path. It accepts NO tenant: the body is {batchSize?, deliveryBatchSize?} bounded 1..100 by zod and clamped again by the services, and every run carries its own already-authorized tenant on the durable row — so there is nothing for a caller to forge. Processing is idempotent because every transition is a fenced conditional update on a monotonic claim generation, which is what makes an overlapping tick execute nothing twice. It cannot bypass the Worker lifecycle because it IS that lifecycle: the worker holds only the timer, the same worker→API pattern as /v1/org-invite-deliveries/process, and for the same reason — the eight bounded action handlers reach notification, reviewer-assignment and comment authorities that live API-side.",
+    "proofSuite": "services/api/test/phase-12-arch-005-automation-runtime.integration.test.ts",
+    "owner": "platform-ops",
+    "productReason": "machine-triggered automation dispatch + delivery sweep; never operator-invoked"
   }
 ]

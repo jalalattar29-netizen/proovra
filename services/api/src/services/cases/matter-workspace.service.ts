@@ -40,7 +40,7 @@ export type SectionStatus =
   | "unavailable"
   | "not_applicable";
 
-export type CaseScope = "PERSONAL" | "TEAM";
+export type CaseScope = "SINGLE_OCCUPANT" | "SHARED";
 
 const SECTION_EVIDENCE_LIMIT = 50;
 const SECTION_TIMELINE_LIMIT = 100;
@@ -393,7 +393,7 @@ export type MatterWorkspaceEnvelope = {
 };
 
 function classifyCaseScope(teamId: string | null): CaseScope {
-  return teamId ? "TEAM" : "PERSONAL";
+  return teamId ? "SHARED" : "SINGLE_OCCUPANT";
 }
 
 export async function buildMatterWorkspace(input: {

@@ -73,6 +73,13 @@ export type MemberAccessSnapshot = {
   // production always loads the org.
   workspaceKind: ResolvedWorkspaceKind;
   organizationStatus: string | null;
+  // PHASE 12 REMEDIATION (2026-08-06) — the parent Organization's IDENTITY,
+  // additive alongside its lifecycle `organizationStatus`. Required so the
+  // canonical `AuthorizedWorkspaceContext` (middleware/authorize.ts) can
+  // expose the Organization a workspace belongs to WITHOUT any caller
+  // re-reading Team.organizationId for itself. Never used in the deny path —
+  // lifecycle enforcement continues to key off `organizationStatus`.
+  organizationId: string | null;
   // Active (non-revoked, non-expired) per-member capability grants.
   capabilityGrants: ReadonlyArray<{
     id: string;
@@ -337,6 +344,7 @@ export async function loadMemberAccessSnapshot(
           isPersonal: true,
           workspaceKind: true,
           billingPlan: true,
+          organizationId: true,
           organization: { select: { status: true } },
         },
       },
@@ -364,6 +372,7 @@ export async function loadMemberAccessSnapshot(
       isPersonal?: boolean;
       workspaceKind?: string | null;
       billingPlan?: string | null;
+      organizationId?: string | null;
       organization?: { status?: string | null } | null;
     } | null;
   }).team;
@@ -381,6 +390,7 @@ export async function loadMemberAccessSnapshot(
       teamLoaded: team != null,
     }),
     organizationStatus: team?.organization?.status ?? null,
+    organizationId: team?.organizationId ?? null,
     capabilityGrants: row.capabilityGrants.map((g) => ({
       id: g.id,
       permission: g.permission,
@@ -507,6 +517,37 @@ export async function evaluateMemberAccess(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<AccessDecision> {
+  const { decision } = await evaluateMemberAccessWithSnapshot(input, client);
+  return decision;
+}
+
+/**
+ * PHASE 12 REMEDIATION (2026-08-06) — the same one-shot, additionally
+ * returning the SNAPSHOT the decision was made from.
+ *
+ * Why it exists: the canonical `AuthorizedWorkspaceContext`
+ * (middleware/authorize.ts) must report the actor's proven role, workspace
+ * kind, Organization identity and effective capability set. Those are all
+ * facts of the very snapshot this function already loads. Without this
+ * variant the middleware would have to re-implement the load/evaluate/audit
+ * composition itself — and, in doing so, would become a SECOND site that
+ * emits `recordPermissionDecision`, risking a duplicate audit row for one
+ * decision.
+ *
+ * Audit emission therefore stays HERE, in the policy engine, exactly once
+ * per decision. `evaluateMemberAccess` is now a thin projection of this
+ * function, so the two can never diverge or double-emit.
+ */
+export async function evaluateMemberAccessWithSnapshot(
+  input: {
+    teamId: string;
+    userId: string;
+    permission: Permission;
+    resourceKind?: string;
+    resourceId?: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ decision: AccessDecision; snapshot: MemberAccessSnapshot | null }> {
   const snapshot = await loadMemberAccessSnapshot(
     { teamId: input.teamId, userId: input.userId },
     client,
@@ -529,7 +570,7 @@ export async function evaluateMemberAccess(
     },
     client,
   );
-  return decision;
+  return { decision, snapshot };
 }
 
 // Mirror of the prismaPkg.TeamMemberStatus enum so other modules can

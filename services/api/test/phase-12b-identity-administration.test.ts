@@ -135,6 +135,43 @@ function makeDb(seed: { members: MemberRow[]; users: UserRow[] }) {
 
   const model = {
     user: {
+      // CORRECTIVE PASS (2026-08-06) — TEST INFRASTRUCTURE ADAPTS TO PRODUCTION.
+      //
+      // The canonical `currentWorkspaceId` pointer repair now REQUIRES a
+      // client exposing `user.updateMany` and throws if it is absent. The
+      // previous pass instead made an absent delegate a silent no-op inside
+      // PRODUCTION so partial transports like this one would not crash — a
+      // test-driven weakening of production failure handling, which the
+      // corrective mandate rejects.
+      //
+      // This transport therefore models the delegate. It is faithful, not a
+      // stub: it honours the exact predicate the repair issues (clear the
+      // pointer only where it names EXACTLY the withdrawn workspace), so the
+      // suite exercises real hygiene instead of merely tolerating the call.
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        const clauses = Array.isArray((args.where as { OR?: unknown[] }).OR)
+          ? (args.where as { OR: Array<Record<string, unknown>> }).OR
+          : [args.where];
+        let count = 0;
+        for (const u of state.users as Array<Record<string, unknown>>) {
+          const hit = clauses.some((c) => {
+            if ("id" in c && c.id !== u.id) return false;
+            if ("currentWorkspaceId" in c && u.currentWorkspaceId !== c.currentWorkspaceId) {
+              return false;
+            }
+            return true;
+          });
+          if (!hit) continue;
+          if ("currentWorkspaceId" in args.data) {
+            u.currentWorkspaceId = args.data.currentWorkspaceId as string | null;
+          }
+          count += 1;
+        }
+        return { count };
+      },
       findUnique: async (args: { where: { id: string } }) => {
         if (H.identityModeThrows) {
           const err = new Error("column does not exist") as Error & {

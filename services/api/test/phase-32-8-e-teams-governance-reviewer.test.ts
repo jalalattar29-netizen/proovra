@@ -160,7 +160,7 @@ describe("Phase 32.8E — workspace-admin aggregator service contract", () => {
 
   it("personal vs team scope detected via memberCount", () => {
     expect(WORKSPACE_ADMIN_SVC).toMatch(
-      /scope:\s*WorkspaceScope\s*=\s*memberCount\s*<=\s*1\s*\?\s*"PERSONAL"\s*:\s*"TEAM"/,
+      /scope:\s*WorkspaceScope\s*=\s*memberCount\s*<=\s*1\s*\?\s*"SINGLE_OCCUPANT"\s*:\s*"SHARED"/,
     );
   });
 
@@ -180,7 +180,7 @@ describe("Phase 32.8E — workspace-admin aggregator service contract", () => {
   });
 
   it("operational accountability skips reviewer workload on PERSONAL scope", () => {
-    expect(WORKSPACE_ADMIN_SVC).toMatch(/scope === "TEAM"/);
+    expect(WORKSPACE_ADMIN_SVC).toMatch(/scope === "SHARED"/);
   });
 });
 

@@ -360,6 +360,121 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
       "ALTER_TABLE_DROP_COLUMN",
       "DROP_TABLE",
     ]),
+    // PHASE 12 CORRECTIVE PASS §2 (2026-08-06) — INV-001. The external-review
+    // invitation gets ONE lifecycle authority.
+    //
+    // Destructive by design, and every destructive statement is preceded IN
+    // THE SAME FILE by the readiness check that authorises it — five checks
+    // that RAISE: orphan role assignments, orphan deliveries, any non-default
+    // value in the five columns being dropped, missing intent keys, and
+    // conflicting logical intents. A refusal aborts inside the transaction and
+    // leaves the database exactly as it was, which was OBSERVED: three of the
+    // five were driven to refuse in `migration-rehearsal.mjs B-REFUSE`, with
+    // all five columns still present afterwards.
+    //
+    //   ALTER_TABLE_DROP_COLUMN  the five duplicate lifecycle columns
+    //                            (grant_state, raw_token, token_hash,
+    //                            expires_at_utc, revoked_at_utc). No writer has
+    //                            ever populated them; one reader trusted them
+    //                            and therefore reported every grant as PENDING.
+    //   DROP_INDEX               the (team_id, grant_id, attempt) uniqueness,
+    //                            which encoded the WRONG invariant and would
+    //                            forbid a legitimate second physical attempt of
+    //                            one intent.
+    //   INDEX_COLUMN_RISK        the replacement unique indexes reference
+    //                            content_version / resend_seq / intent_key,
+    //                            added by 20271120000000 and backfilled by
+    //                            20271121000000, both of which precede this
+    //                            file in the same release chain.
+    "20271122000000_external_review_invitation_authority_contract": new Set([
+      "ALTER_TABLE_DROP_COLUMN",
+      "DROP_INDEX",
+      "INDEX_COLUMN_RISK",
+    ]),
+    // PHASE 12 CORRECTIVE PASS §5.2 (2026-08-06) — ARCH-002. The workspace kind
+    // becomes mandatory and stops being derivable from a commercial plan.
+    //
+    //   SET_NOT_NULL_NO_READINESS  the readiness IS in this file, immediately
+    //                              above the ALTER, as five counting queries
+    //                              that RAISE. The scanner looks for a comment
+    //                              marker in the surrounding raw SQL and does
+    //                              not recognise an executable guard — which is
+    //                              a stronger form of the same assurance, and
+    //                              two of the five were observed refusing.
+    //   DROP_INDEX                 the partial helper index the EXPAND created
+    //                              purely to keep the readiness query off a full
+    //                              table scan. It has done its job by this
+    //                              point and indexes nothing once the column is
+    //                              NOT NULL.
+    //   INDEX_COLUMN_RISK          the one-Personal-Space-per-identity partial
+    //                              unique index references owner_user_id and
+    //                              workspace_kind, both long-standing columns
+    //                              on `teams`.
+    "20271125000000_workspace_kind_authority_contract": new Set([
+      "SET_NOT_NULL_NO_READINESS",
+      "DROP_INDEX",
+      "INDEX_COLUMN_RISK",
+    ]),
+    // PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — ARCH-004. Organization
+    // membership gains ACTIVE / SUSPENDED / REVOKED so ordinary revocation
+    // stops being a physical DELETE.
+    //
+    //   INDEX_COLUMN_RISK  the two read indexes reference `status`, which the
+    //                      SAME migration adds a few statements earlier, inside
+    //                      an information_schema guard. The scanner looks for a
+    //                      guard in the window immediately preceding each
+    //                      CREATE INDEX; here the guard sits in its own DO
+    //                      block one step up, which is the shape the rest of
+    //                      this file already uses.
+    "20271126000000_org_membership_lifecycle_expand": new Set([
+      "INDEX_COLUMN_RISK",
+    ]),
+    //   SET_NOT_NULL_NO_READINESS  the readiness IS in this file, immediately
+    //                      above the ALTER, as four counting queries that
+    //                      RAISE. The scanner recognises only a comment marker
+    //                      in the surrounding raw SQL, not an executable guard
+    //                      — which is a stronger form of the same assurance,
+    //                      and it is observed refusing in `migration-rehearsal
+    //                      .mjs B-REFUSE`.
+    "20271128000000_org_membership_lifecycle_contract": new Set([
+      "SET_NOT_NULL_NO_READINESS",
+    ]),
+    // PHASE 12 CORRECTIVE PASS §2 CONTINUATION (2026-08-07) — ARCH-005. The
+    // Automation runtime gains a lease, a monotonic claim fence, an attempt
+    // counter, a retry schedule and a dead-letter state.
+    //
+    //   INDEX_COLUMN_RISK  the three indexes reference next_attempt_at_utc,
+    //                      lease_expires_at_utc and source_event_id, all of
+    //                      which the SAME migration adds a few statements
+    //                      earlier — and each CREATE INDEX sits inside its own
+    //                      information_schema.columns guard for exactly that
+    //                      column. The scanner looks for a guard in the window
+    //                      immediately preceding each CREATE INDEX; here the
+    //                      guard opens the enclosing DO block, which is the
+    //                      shape 20271126000000 already uses.
+    "20271129000000_automation_runtime_durability_expand": new Set([
+      "INDEX_COLUMN_RISK",
+    ]),
+    //   SET_NOT_NULL_NO_READINESS  the readiness IS in this file, above the
+    //                      ALTERs, as SIX counting queries that RAISE — a
+    //                      refusal aborts inside the transaction and leaves the
+    //                      database exactly as it was. The scanner recognises
+    //                      only a comment marker in the raw SQL, not an
+    //                      executable guard, which is a stronger form of the
+    //                      same assurance.
+    //   DROP_INDEX         the partial helper index the EXPAND created purely
+    //                      to keep this file's own readiness scan off a full
+    //                      table scan. It has done its job by this point.
+    //   INDEX_COLUMN_RISK  the (team_id, rule_id, source_event_id) partial
+    //                      unique index references source_event_id, added by
+    //                      20271129000000 and populated by the producer, both
+    //                      of which precede this file in the same release
+    //                      chain.
+    "20271131000000_automation_runtime_durability_contract": new Set([
+      "SET_NOT_NULL_NO_READINESS",
+      "DROP_INDEX",
+      "INDEX_COLUMN_RISK",
+    ]),
     // Wave 2 — adds `duplicate_decisions` to persist reviewer decisions
     // (CONFIRMED / DISMISSED / MARKED_DERIVATIVE) on duplicate-class
     // graph edges (SAME_HASH_AS / SIMILAR_TO / POSSIBLE_DERIVATIVE_OF).

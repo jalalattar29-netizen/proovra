@@ -74,7 +74,53 @@ Every one is backward-compatible with the currently deployed build.
 | `20271113000000_point5_report_generation_authority` | EXPAND | yes |
 | `20271114000000_point5_media_intelligence_kind_catalog` | REPAIR | yes |
 | `20271119000000_search_document_embedding_after_extension` | EXPAND | yes — idempotent; a no-op wherever the objects already exist |
+| `20271120000000_external_review_invitation_authority_expand` | EXPAND | yes — nullable/defaulted columns only; nothing reads them until the code deploys |
+| `20271121000000_external_review_invitation_authority_backfill` | BACKFILL | yes — deterministic, re-runnable, touches no business-visible counter and invents no delivery outcome |
+| `20271123000000_workspace_kind_authority_expand` | EXPAND | yes — a partial index and a column comment |
+| `20271124000000_workspace_kind_authority_backfill` | BACKFILL | yes — classifies from structural authority only; conditioned on `workspace_kind IS NULL` |
+| `20271126000000_org_membership_lifecycle_expand` | EXPAND | yes — nullable/defaulted lifecycle columns, attribution FKs and read indexes only |
+| `20271127000000_org_membership_lifecycle_backfill` | BACKFILL | yes — states ACTIVE explicitly; invents no suspension, revocation or actor |
+| `20271129000000_automation_runtime_durability_expand` | EXPAND | yes — widens two VARCHAR(20) status columns to (32), adds nullable/defaulted fence + ambiguity columns and partial indexes, and WIDENS two status CHECKs. Widening a CHECK or a VARCHAR can never invalidate an existing row |
+| `20271130000000_automation_runtime_durability_backfill` | BACKFILL | yes — deterministic, re-runnable; leaves historical source-event ids NULL and historical RUNNING runs unresolved rather than inventing either |
 | `email_password_auth` | EXPAND | yes — proven byte-identical no-op twin |
+
+> **PHASE 12 CORRECTIVE PASS §2/§3/§5.2 (2026-08-06).**
+> `20271120000000_external_review_delivery_intent_idempotency` was REPLACED. It
+> was classified EXPAND / "rewrites no history" while its first statement
+> re-numbered every historical `attempt` value; renumbering a business-visible
+> counter is a rewrite. It had never been committed and never applied outside a
+> disposable database, so the replacement rewrites no deployed history. The two
+> CONTRACT migrations that complete the work —
+> `20271122000000_external_review_invitation_authority_contract` and
+> `20271125000000_workspace_kind_authority_contract` — are Release D, listed in
+> the contract table below.
+
+> **PHASE 12 CORRECTIVE PASS §1/§2 CONTINUATION (ARCH-005, 2026-08-07).**
+> The Automation runtime had a schema, an API and a UI and NO runtime: its
+> dispatcher had zero production callers and its delivery path was an
+> in-process `setImmediate`. `20271129000000` adds the durability the feature
+> never had — a lease, a monotonic claim fence, an attempt counter, a retry
+> schedule, a dead-letter, and the AMBIGUITY pair.
+>
+> Two things in it deserve a deployment note. First, it WIDENS
+> `automation_runs.status` and `automation_webhook_deliveries.status` from
+> VARCHAR(20) to VARCHAR(32): `DEAD_LETTERED_UNKNOWN` is 21 characters, and at
+> (20) the widened CHECK accepted a value the COLUMN then refused — a rejection
+> that surfaces as a write matching no rows, which is indistinguishable from
+> ordinary fence contention, so a reconciler would revisit the same row forever
+> without ever terminating it. Second, it is EXPAND despite touching a CHECK
+> and a column type, because both changes are WIDENINGS: every value that was
+> legal before is legal after, no row is rewritten, and no reader changes
+> behaviour until the code deploys.
+>
+> `20271130000000` is a genuine BACKFILL and is scheduled as one — it is not
+> folded into the expand, because it writes to every existing row. It invents
+> nothing: a historical run keeps a NULL source event id, and a historical
+> RUNNING run is left RUNNING with an expired lease for the reconciler rather
+> than being assigned an outcome nobody observed.
+>
+> `20271131000000` is CONTRACT and is in Release D only, behind six readiness
+> counts that RAISE in the same file.
 
 Prerequisites: a restorable backup/checkpoint; `CREATE EXTENSION IF NOT EXISTS
 vector`; PostgreSQL ≥ 13 for `gen_random_uuid()` — the uuid repair RAISEs rather
@@ -203,7 +249,7 @@ Minimum evidence before Release D:
 
 ## 6. Release D — Contract/Drop · `CONTRACT_DROP_LATER`
 
-6 migrations. **These files must not be present in the deployment artifact for
+10 migrations. **These files must not be present in the deployment artifact for
 Release A, B or C** — every one of them RAISEs when its readiness is not zero,
 and a raise inside `prisma migrate deploy` leaves a FAILED row that blocks all
 subsequent migrations. Stage them into the artifact only for Release D.
@@ -216,6 +262,10 @@ subsequent migrations. Stage them into the artifact only for Release D.
 | `20271108000000_legal_hold_legacy_removal` | `case_legal_holds`, `legal_holds`, `CaseLegalHoldStatus` | 6 in-database counts at zero + canonical columns + idempotency index present |
 | `20271117000000_point4_schema_authority_contract` | 5 duplicate columns, 3 superseded singular audit tables | zero divergent non-null duplicates, zero rows in the singular tables |
 | `20271118000000_legal_hold_strict_scope_target` | nothing (tightens a CHECK) | `EVIDENCE_WITH_CASE_TAG = 0` |
+| `20271122000000_external_review_invitation_authority_contract` | 5 duplicate lifecycle columns on `external_reviewer_role_assignments` (`grant_state`, `raw_token`, `token_hash`, `expires_at_utc`, `revoked_at_utc`) | every one still holding its creation value + zero orphan role assignments/deliveries + zero missing intent keys + zero conflicting logical intents. All checks are IN THE MIGRATION and RAISE; two of them observed refusing in `migration-rehearsal.mjs B-REFUSE`. |
+| `20271125000000_workspace_kind_authority_contract` | nothing (adds NOT NULL, a CHECK and a partial unique index; drops the expand's helper index) | zero NULL `workspace_kind` + zero PERSONAL under a CUSTOMER Organization + zero ORGANIZATION without one + zero OWNED under one + zero duplicate Personal Spaces. All checks are IN THE MIGRATION and RAISE; two observed refusing in `migration-rehearsal.mjs B-REFUSE`. |
+| `20271128000000_org_membership_lifecycle_contract` | nothing (adds NOT NULL status, the status/timestamp CHECK and the generation check) | zero memberships without a status + zero status/timestamp contradictions + zero rows both suspended and revoked + zero duplicate ACTIVE memberships. All checks are IN THE MIGRATION and RAISE. |
+| `20271131000000_automation_runtime_durability_contract` | the expand migration's own readiness helper index (nothing holding data) | six counts, all IN THE MIGRATION and all RAISE: zero runs without an action idempotency key + zero null/negative fences + zero duplicate (team, rule, source_event_id) groups + zero terminal runs holding a live lease + zero rows both dead-lettered and SUCCEEDED + zero null/negative delivery fences. Then NOT NULLs, the non-negative fence CHECK, the dead-lettered/SUCCEEDED contradiction CHECK, and the partial unique index that collapses a replayed source event onto one run. |
 
 Adapter removal condition: `docs/architecture/compatibility-adapter-registry.json`
 entries bound to `20271105000000_evidence_case_id_removal` and

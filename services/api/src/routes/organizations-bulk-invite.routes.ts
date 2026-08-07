@@ -431,9 +431,13 @@ async function planRows(input: {
   const memberUserIds = userIdsByEmail.size
     ? new Set(
         (
+          // ARCH-004 — only an ACTIVE membership makes an address a
+          // duplicate. The row now survives revocation, so an existence test
+          // would permanently bar a revoked person from being re-invited.
           await prisma.organizationMembership.findMany({
             where: {
               organizationId: orgId,
+              status: "ACTIVE",
               userId: { in: Array.from(userIdsByEmail.values()) },
             },
             select: { userId: true },
@@ -603,8 +607,13 @@ async function executeBatch(input: {
           select: { id: true },
         });
         if (userWithEmail) {
+          // ARCH-004 — see above: ACTIVE only, so re-invitation works.
           const alreadyMember = await tx.organizationMembership.findFirst({
-            where: { organizationId: input.orgId, userId: userWithEmail.id },
+            where: {
+              organizationId: input.orgId,
+              userId: userWithEmail.id,
+              status: "ACTIVE",
+            },
             select: { id: true },
           });
           if (alreadyMember) return { kind: "member" as const };

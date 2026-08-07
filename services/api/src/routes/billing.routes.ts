@@ -280,7 +280,7 @@ async function assertStorageAddonAllowed(params: {
     ).scope;
     const caps = getPlanCapabilities(scope.plan);
 
-    if (definition.workspaceType !== "TEAM") {
+    if (definition.billingShape !== "SHARED") {
       const err: Error & { statusCode?: number } = new Error(
         "This storage add-on is not valid for team workspaces"
       );
@@ -298,12 +298,12 @@ async function assertStorageAddonAllowed(params: {
      * - the effective workspace plan must support team workspaces
      * - not specifically `scope.plan === TEAM`
      */
-    if (!caps.allowsTeamWorkspace) {
+    if (!caps.allowsSharedWorkspace) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
         "This workspace does not currently support team storage add-ons"
       );
       err.statusCode = 409;
-      err.code = "TEAM_WORKSPACE_PLAN_REQUIRED";
+      err.code = "SHARED_WORKSPACE_PLAN_REQUIRED";
       throw err;
     }
 
@@ -325,7 +325,7 @@ async function assertStorageAddonAllowed(params: {
     await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: params.userId })
   ).scope;
 
-  if (definition.workspaceType !== "PERSONAL") {
+  if (definition.billingShape !== "SINGLE_OCCUPANT") {
     const err: Error & { statusCode?: number } = new Error(
       "This storage add-on is not valid for personal workspaces"
     );

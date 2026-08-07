@@ -28,7 +28,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { canPlanUseTeams } from "../src/services/plan-catalog.service.js";
+import { canPlanOperateSharedWorkspace } from "../src/services/plan-catalog.service.js";
 
 /** Every write the service could attempt. A denial must leave these empty. */
 const writes: string[] = [];
@@ -236,7 +236,7 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     state.workspaceKind = "PERSONAL";
     state.ownerPlan = "PAYG";
     await expectDenied("TEAM_INVITES_NOT_INCLUDED");
-    expect(canPlanUseTeams("PAYG")).toBe(false);
+    expect(canPlanOperateSharedWorkspace("PAYG")).toBe(false);
   });
 
   it("PRO is allowed within its limits", async () => {
@@ -275,7 +275,7 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     await expect(invite()).resolves.toMatchObject({ id: "guest-1" });
     // Guards the exact regression: the old browser rule was
     // `plan === "PRO" || plan === "TEAM"`, which locked out ENTERPRISE.
-    expect(canPlanUseTeams("ENTERPRISE")).toBe(true);
+    expect(canPlanOperateSharedWorkspace("ENTERPRISE")).toBe(true);
   });
 
   it("a SUSPENDED organization is denied even though the plan string says ENTERPRISE", async () => {
@@ -325,10 +325,10 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
 
   it("the catalog — not a plan-name list — is the authority", () => {
     // If the catalog changes, enforcement follows automatically.
-    expect(canPlanUseTeams("FREE")).toBe(false);
-    expect(canPlanUseTeams("PAYG")).toBe(false);
-    expect(canPlanUseTeams("PRO")).toBe(true);
-    expect(canPlanUseTeams("TEAM")).toBe(true);
-    expect(canPlanUseTeams("ENTERPRISE")).toBe(true);
+    expect(canPlanOperateSharedWorkspace("FREE")).toBe(false);
+    expect(canPlanOperateSharedWorkspace("PAYG")).toBe(false);
+    expect(canPlanOperateSharedWorkspace("PRO")).toBe(true);
+    expect(canPlanOperateSharedWorkspace("TEAM")).toBe(true);
+    expect(canPlanOperateSharedWorkspace("ENTERPRISE")).toBe(true);
   });
 });

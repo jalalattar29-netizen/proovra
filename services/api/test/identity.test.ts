@@ -80,6 +80,11 @@ function memberActor(overrides: Partial<{
         overrides.organizationStatus === undefined
           ? "ACTIVE"
           : overrides.organizationStatus,
+      // PHASE 12 REMEDIATION (2026-08-06) — snapshot fixture keeps pace with
+      // the additive `organizationId` identity field. Informational only: it
+      // is never consulted by `evaluateAccess`, so every assertion below is
+      // unchanged in meaning.
+      organizationId: "44444444-4444-4444-8444-444444444444",
       capabilityGrants: overrides.capabilityGrants ?? [],
       delegatedAdminScopes: overrides.delegatedAdminScopes ?? [],
     },

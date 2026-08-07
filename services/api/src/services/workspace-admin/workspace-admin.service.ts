@@ -24,7 +24,7 @@ import { prisma } from "../../db.js";
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
 /**
- * @deprecated PHASE 3 — Inline `"PERSONAL" | "TEAM"` declaration.
+ * @deprecated PHASE 3 — Inline `"SINGLE_OCCUPANT" | "SHARED"` declaration.
  *   Prefer the canonical `WorkspaceScope` from
  *   `services/api/src/services/platform-context/types.ts`, or — for
  *   new code that speaks in the Target Domain Blueprint vocabulary —
@@ -34,7 +34,7 @@ export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable"
  *   MUST consume the canonical type.
  *   See docs/architecture/domain-debt-register.md (DBT-WS-04).
  */
-export type WorkspaceScope = "PERSONAL" | "TEAM";
+export type WorkspaceScope = "SINGLE_OCCUPANT" | "SHARED";
 
 export type WorkspaceAdminEnvelope = {
   generatedAt: string;
@@ -181,7 +181,7 @@ export async function buildWorkspaceAdmin(input: {
       },
     }),
   ]);
-  const scope: WorkspaceScope = memberCount <= 1 ? "PERSONAL" : "TEAM";
+  const scope: WorkspaceScope = memberCount <= 1 ? "SINGLE_OCCUPANT" : "SHARED";
 
   // ----------- Overview -----------
   let overview: WorkspaceAdminEnvelope["sections"]["overview"] = {
@@ -434,7 +434,7 @@ export async function buildWorkspaceAdmin(input: {
   } catch {
     opsAnyFailed = true;
   }
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const now = new Date();
       const [queuedCount, assignedCount, overdueCount, openEscalationsCount] =

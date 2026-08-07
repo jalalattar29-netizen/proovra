@@ -43,6 +43,7 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
 
 import { verifyDeviceAttestation } from "../services/capture-trust/attestation-verifier.service.js";
 import {
@@ -507,41 +508,41 @@ async function resolveTeamIdOrDeny(
   req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<string | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
+  // PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — ONE AUTHORITY, NOT A
+  // PARALLEL ONE.
+  //
+  // The P0 remediation of 2026-07-21 was right about the defect (a stale
+  // pointer must not authorize) and built its own four-step check to fix it:
+  // pointer -> team row -> isPersonal -> ACTIVE membership. That closed the
+  // status hole but left this surface as a SECOND authorization authority,
+  // and a second authority is a second place to forget something. It did
+  // forget three things the canonical chain enforces:
+  //
+  //   * member ACCESS EXPIRY   — an ACTIVE row past `accessExpiresAtUtc`
+  //                              still passed;
+  //   * WORKSPACE KIND         — an unprovable kind was treated as fine;
+  //   * ORGANIZATION LIFECYCLE — capture ingest continued to work inside a
+  //                              SUSPENDED or ARCHIVED customer Organization.
+  //
+  // All three are now enforced because this resolver no longer decides
+  // anything itself: it hands the pointer to the canonical primitive as a
+  // CANDIDATE and reads the proven context back.
+  //
+  // The ONE surface-specific rule is retained verbatim: capture ingest is not
+  // a Personal-Space surface. It is now expressed against the PROVEN canonical
+  // kind rather than against a re-read `isPersonal` column.
+  const outcome = await evaluateCurrentWorkspace(req, {
+    permission: "evidence.read",
   });
-  if (!user?.currentWorkspaceId) {
+  if (!outcome.allowed) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  const team = await prisma.team.findUnique({
-    where: { id: user.currentWorkspaceId },
-    select: { id: true, isPersonal: true },
-  });
-  if (!team) {
+  if (outcome.context.workspaceKind === "PERSONAL") {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  if (team.isPersonal) {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
-    return null;
-  }
-  // P0 remediation (2026-07-21) — `currentWorkspaceId` is a navigation
-  // pointer, NOT authorization. It was validated at switch time, but the
-  // membership may since have been suspended/revoked; re-check ACTIVE
-  // membership at request time so a deprovisioned user cannot keep
-  // operating device/ingest/provenance surfaces off a stale pointer.
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId: team.id, userId } },
-    select: { status: true },
-  });
-  if (membership?.status !== "ACTIVE") {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
-    return null;
-  }
-  return team.id;
+  return outcome.context.workspaceId;
 }
 
 function denyIngest(

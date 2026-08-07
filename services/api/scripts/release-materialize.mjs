@@ -66,7 +66,61 @@ export const PROPOSED_ADDITIONS = {
   "20271118000000_legal_hold_strict_scope_target": "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT_DROP, self-guarded.",
   "20271119000000_search_document_embedding_after_extension":
     "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Creates the column and ANN index that 20260620100000 could never create, because its pgvector guard is evaluated a year before CREATE EXTENSION vector.",
+  // PHASE 12 CORRECTIVE PASS §2/§3 (2026-08-06) — INV-001 + NEW-004.
+  //
+  // These three REPLACE `20271120000000_external_review_delivery_intent_
+  // idempotency`, whose ledger entry claimed "EXPAND, SAFE_TO_APPLY_NOW" while
+  // its first statement re-numbered every historical `attempt` value. That is a
+  // rewrite of a business-visible counter, so both the classification and the
+  // description were wrong. It was never committed and never applied outside a
+  // disposable database, so replacing it rewrites no deployed history.
+  "20271120000000_external_review_invitation_authority_expand":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Adds external_review_grants.token_version and the delivery intent columns (content_version, resend_seq, intent_key). Nullable/defaulted columns only: no constraint, no index, no data change, no history rewrite. Fully information_schema-guarded.",
+  "20271121000000_external_review_invitation_authority_backfill":
+    "REQUIRED_RELEASE_MIGRATION — BACKFILL, deterministic and re-runnable. Assigns content_version=1 and a dense resend_seq rank per (team, grant) ordered by queued_at, then derives intent_key from the durable triple. `attempt` is NOT touched, no row is deleted, and no delivery outcome is invented.",
+  "20271122000000_external_review_invitation_authority_contract":
+    "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT_DROP, self-guarded. Every destructive statement is preceded IN THIS SAME FILE by the readiness check that authorises it: orphan sidecars/deliveries, non-default values in the five duplicate lifecycle columns, missing intent keys, and conflicting logical intents each RAISE and abort. Then it enforces the intent uniqueness, binds the role assignment to its grant by FK, and drops the duplicate authority (grant_state, raw_token, token_hash, expires_at_utc, revoked_at_utc).",
+  // PHASE 12 CORRECTIVE PASS §5.2 (2026-08-06) — ARCH-002.
+  "20271123000000_workspace_kind_authority_expand":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. A partial index over rows with a NULL workspace_kind (so the contract migration's readiness query does not scan the table) and a COLUMN COMMENT recording the classification authority. No constraint, no data change.",
+  "20271124000000_workspace_kind_authority_backfill":
+    "REQUIRED_RELEASE_MIGRATION — BACKFILL, deterministic and re-runnable. Classifies every NULL workspace_kind from STRUCTURAL authority only: the personal-space ownership invariant, the CUSTOMER-organization provisioning relation, and account ownership inside a SYSTEM container. It never reads a plan, a subscription, a role name or a display name — inferring tenancy from a commercial fact is the defect ARCH-002 removes.",
+  // PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — ARCH-004.
+  "20271126000000_org_membership_lifecycle_expand":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Adds the OrganizationMembershipStatus enum and eleven nullable/defaulted lifecycle columns, the attribution FKs (SET NULL, so removing an administrator never erases what they did) and two status read indexes. Ordinary revocation was a physical DELETE, so the system could not say who removed a member or why, and there was no reversible pause at all.",
+  "20271127000000_org_membership_lifecycle_backfill":
+    "REQUIRED_RELEASE_MIGRATION — BACKFILL, deterministic and re-runnable. States ACTIVE explicitly and stamps the timeline from created_at. It invents NO suspension, NO revocation and NO actor: historically deleted memberships cannot be reconstructed, and this migration does not pretend otherwise.",
+  "20271128000000_org_membership_lifecycle_contract":
+    "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT, self-guarded. NOT NULL status plus the status/timestamp CHECK and the generation check, behind four readiness counts that RAISE in this same file before the constraints they authorise.",
+  // PHASE 12 CORRECTIVE PASS §2 CONTINUATION (2026-08-07) — ARCH-005.
+  "20271129000000_automation_runtime_durability_expand":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Ten nullable/defaulted fence columns on automation_runs (source event id, action idempotency key, lease, monotonic claim generation, attempt counter, retry schedule, failure/dead-letter timestamps, bounded failure code), the same lease/generation pair on automation_webhook_deliveries, two partial read indexes, and a WIDENED status CHECK admitting RETRY_SCHEDULED and DEAD_LETTERED. Widening can never invalidate an existing row. Automation had no fence at all: two workers could claim one run, a stalled worker could overwrite a newer attempt's terminal state, and an interrupted run stayed RUNNING forever.",
+  "20271130000000_automation_runtime_durability_backfill":
+    "REQUIRED_RELEASE_MIGRATION — BACKFILL, deterministic and re-runnable. States the counters explicitly, moves the failure timestamp into the column that now owns it, and derives action_idempotency_key from the run's own id. It INVENTS NOTHING: a historical run keeps a NULL source event id because none was ever produced, and a historical RUNNING run is left RUNNING with an expired lease for the reconciler rather than being assigned an outcome nobody observed. No row is deleted and no attempt counter is renumbered.",
+  "20271131000000_automation_runtime_durability_contract":
+    "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT, self-guarded. Six readiness counts RAISE in this same file before the constraints they authorise: missing action key, null/negative fence, duplicate (team, rule, source event), terminal run holding a live lease, dead-lettered-and-SUCCEEDED, and the delivery-side fence. Then NOT NULLs, the non-negative fence CHECK, the contradiction CHECK, and the partial unique index that makes a replayed source event collapse to one run. The only DROP is the expand migration's own readiness helper index.",
+  "20271125000000_workspace_kind_authority_contract":
+    "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT, self-guarded. Makes teams.workspace_kind NOT NULL, adds the PERSONAL/is_personal equivalence CHECK and the one-Personal-Space-per-identity unique index. Five readiness conditions are checked in this same file, before the constraints they authorise, and each RAISEs; two were observed refusing (a Personal Space under a CUSTOMER Organization, a duplicate Personal Space) with the database left intact.",
 };
+
+/**
+ * REBASELINED (2026-08-06, corrective pass 3 §1.1).
+ *
+ * This map is a LEDGER, not a snapshot. It records every addition this
+ * programme has justified, and entries are NEVER removed when they land: the
+ * justification is still the reason the migration belongs in the artifact.
+ *
+ * The landed/proposed split is DERIVED at evaluation time by
+ * `buildViews`/`partitionAdditions` from HEAD and the worktree:
+ *
+ *     LANDED    = ledger ∩ HEAD          (baseline; the eighteen Point-8 entries)
+ *     PROPOSED  = ledger ∩ (disk \ HEAD) (what a release would still add)
+ *
+ * so committing a migration moves it between the two with no edit here, and the
+ * "release landed partially" failure the previous pass reported as unfixable
+ * without a commit cannot recur — that check was measuring the staleness of a
+ * hand-maintained snapshot, not a property of the migrations.
+ */
 
 /** Nothing is excluded. Recorded explicitly so conservation is provable. */
 export const PROPOSED_EXCLUSIONS = {};

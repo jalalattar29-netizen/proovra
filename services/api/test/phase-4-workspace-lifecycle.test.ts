@@ -216,8 +216,15 @@ describe("Phase 4 §7.4 — transferWorkspaceOwnership", () => {
       }),
     ).rejects.toMatchObject({ code: "ORG_WORKSPACE_OWNERSHIP_IS_ORG_GOVERNED" });
 
-    // NULL kind + ENTERPRISE billing → compatibility classifier says
-    // ORGANIZATION (never silently OWNED).
+    // PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06).
+    //
+    // This case used to assert that a NULL kind with ENTERPRISE billing
+    // resolved to ORGANIZATION, and called that "never silently OWNED". It was
+    // silently something either way: the plan decided the tenancy. The kind is
+    // now NOT NULL and the classifier fails closed, so an unprovable row
+    // refuses with the ambiguity code rather than being classified from what
+    // the account happens to pay. The refusal is stronger, not weaker — the
+    // transfer is still denied, and now for a reason that is true.
     H.team = { ...OWNED_TEAM, workspaceKind: null, billingPlan: "ENTERPRISE" };
     await expect(
       transferWorkspaceOwnership({
@@ -225,7 +232,7 @@ describe("Phase 4 §7.4 — transferWorkspaceOwnership", () => {
         actorUserId: "owner-1",
         newOwnerUserId: "user-2",
       }),
-    ).rejects.toMatchObject({ code: "ORG_WORKSPACE_OWNERSHIP_IS_ORG_GOVERNED" });
+    ).rejects.toMatchObject({ code: "WORKSPACE_KIND_UNKNOWN" });
   });
 
   it("non-owner actor 403; self-transfer and inactive target refused; no partial writes", async () => {

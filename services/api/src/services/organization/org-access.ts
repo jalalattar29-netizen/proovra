@@ -24,6 +24,11 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+
+// ARCH-004 — the ONE predicate deciding which membership statuses grant
+// anything. Imported rather than re-spelled, so this gate cannot drift from
+// the context builder or the seat counter.
+import { organizationMembershipGrantsAccess } from "../identity/org-membership-lifecycle.service.js";
 import type { OrgRole } from "./organization-resolver.service.js";
 
 /** Precedence — `ORG_OWNER` is highest, `ORG_MEMBER` is lowest. */
@@ -75,11 +80,38 @@ export async function checkOrgAccess(
     return { kind: "forbidden" };
   }
 
+  /**
+   * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — EXISTENCE IS NOT
+   * ENTITLEMENT.
+   *
+   * This read used to ask only whether a membership ROW existed. That was
+   * adequate while removal was a physical DELETE — a row existed if and only
+   * if the person was still a member — and it becomes a hole the moment
+   * SUSPENDED and REVOKED exist, because both leave the row in place. It is
+   * the same shape as NEW-005: grant EXISTENCE mistaken for grant VALIDITY.
+   *
+   * The status is read and handed to `organizationMembershipGrantsAccess`,
+   * which is the ONE predicate deciding which statuses grant anything, so this
+   * module cannot drift from the context builder or the seat counter.
+   * `validUntilUtc` is included because a contract-bounded membership that has
+   * lapsed is not an active one, and expiring it here means no caller has to
+   * remember to.
+   */
   const membership = await prisma.organizationMembership.findFirst({
     where: { organizationId: input.orgId, userId: input.userId },
-    select: { role: true },
+    select: { role: true, status: true, validUntilUtc: true },
   });
   if (!membership) return { kind: "forbidden" };
+  if (
+    !organizationMembershipGrantsAccess({
+      status: membership.status,
+      validUntilUtc: membership.validUntilUtc,
+    })
+  ) {
+    // Indistinguishable from "not a member". A suspended operator must not be
+    // able to tell a suspension apart from a removal by the response.
+    return { kind: "forbidden" };
+  }
 
   const actualRole = membership.role as OrgRole;
   const actualRank = ORG_ROLE_PRECEDENCE[actualRole];

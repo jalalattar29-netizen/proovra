@@ -40,7 +40,7 @@ import { resolveCommercialContext } from "../src/services/billing/commercial-con
 
 beforeEach(() => {
   H.scope = {
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
     ownerUserId: "u1",
     teamId: "t1",
     organizationId: "org-1",
@@ -55,7 +55,7 @@ describe("Phase 9 §12.1 — commercial-context composition", () => {
   it("unifies plan, capabilities, seats, billing owner, and enterprise contract", async () => {
     const ctx = await resolveCommercialContext({ ownerUserId: "u1", teamId: "t1" });
     expect(ctx).toMatchObject({
-      workspaceType: "TEAM",
+      billingShape: "SHARED",
       plan: "TEAM",
       organizationId: "org-1",
       billingOwnerUserId: "billing-owner",
@@ -73,7 +73,7 @@ describe("Phase 9 §12.1 — commercial-context composition", () => {
 
   it("personal scope bills the owner and carries no enterprise contract", async () => {
     H.scope = {
-      workspaceType: "PERSONAL",
+      billingShape: "SINGLE_OCCUPANT",
       ownerUserId: "u1",
       teamId: null,
       organizationId: null,
@@ -83,7 +83,7 @@ describe("Phase 9 §12.1 — commercial-context composition", () => {
     const ctx = await resolveCommercialContext({ ownerUserId: "u1" });
     expect(ctx.billingOwnerUserId).toBe("u1");
     expect(ctx.enterpriseContract).toBeNull();
-    expect(ctx.workspaceType).toBe("PERSONAL");
+    expect(ctx.billingShape).toBe("SINGLE_OCCUPANT");
   });
 
   it("falls back to team owner when no explicit billing owner", async () => {

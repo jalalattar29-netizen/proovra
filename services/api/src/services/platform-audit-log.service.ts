@@ -182,7 +182,57 @@ export async function appendPlatformAuditLog(
   const resourceId = truncateString(params.resourceId, MAX_RESOURCE_ID_LEN);
   const requestId = truncateString(params.requestId, MAX_REQUEST_ID_LEN);
 
-  await db.$transaction(async (tx) => {
+  /**
+   * PHASE 12 CORRECTIVE PASS — NEW-001 (2026-08-06). NESTED-TRANSACTION FIX.
+   *
+   * FOUND BY RUNTIME PROBING, NOT BY TESTS. Driving `revokeMember` against a
+   * REAL PostgreSQL threw `db.$transaction is not a function`, which means
+   * WORKSPACE MEMBER REVOCATION AND SUSPENSION COULD NOT COMPLETE AT ALL:
+   *
+   *     rbac.revokeMember/suspendMember
+   *       -> runAtomically(client, tx => …)              // interactive tx
+   *         -> emitMemberAudit(tx, …)
+   *           -> emitTenantAudit(env, tx)
+   *             -> appendPlatformAuditLog({ …, db: tx }) // db IS the tx
+   *               -> db.$transaction(…)                  // TypeError
+   *
+   * A Prisma interactive-transaction client deliberately exposes no
+   * `$transaction` — nesting is not a thing it can do. The entire unit-test
+   * estate missed this because those suites inject in-memory fakes whose
+   * "transaction" is a plain function call, so the nested call succeeded
+   * there and only there.
+   *
+   * The defect is PRE-EXISTING: the identical chain is present unchanged at
+   * `a7863bec`, the audited revision. It is recorded as a new finding rather
+   * than folded into SEC-001.
+   *
+   * THE CORRECTION. When this function is already inside a caller's
+   * transaction, it must USE that transaction instead of opening another.
+   * That is not merely a workaround — it is the stronger semantic: the audit
+   * row now commits ATOMICALLY with the membership change that caused it, so
+   * a rolled-back revocation can no longer leave an audit row claiming it
+   * happened.
+   *
+   * `pg_advisory_xact_lock` keeps working identically: it is scoped to the
+   * enclosing transaction either way, which is exactly what serialises the
+   * hash-chain append. The lock is simply held for the remainder of the
+   * caller's transaction rather than for a short nested one — correct, and
+   * the reason the chain stays consistent under concurrency.
+   */
+  const canOpenTransaction =
+    typeof (db as { $transaction?: unknown }).$transaction === "function";
+  const runInTransaction = async (
+    body: (tx: Prisma.TransactionClient) => Promise<void>,
+  ): Promise<void> => {
+    if (canOpenTransaction) {
+      await (db as PrismaClient).$transaction(body);
+      return;
+    }
+    // Already inside one: `db` IS the transaction client.
+    await body(db as unknown as Prisma.TransactionClient);
+  };
+
+  await runInTransaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
 
     const last = await tx.adminAuditLog.findFirst({

@@ -62,7 +62,7 @@ describe("Phase 2 — TEAM is not enterprise (plan capabilities)", () => {
     // TEAM is a real paid collaboration plan — these stay true.
     expect(team.reportsIncluded).toBe(true);
     expect(team.verificationPackageIncluded).toBe(true);
-    expect(team.allowsTeamWorkspace).toBe(true);
+    expect(team.allowsSharedWorkspace).toBe(true);
     expect(team.includedSeats).toBe(5);
     expect(team.maxMembersPerTeam).toBe(5);
     // ...but never governance/SSO/SCIM.

@@ -208,7 +208,7 @@ export async function readBillingOverview(userId: string) {
       return {
         id: team.id,
         name: team.name,
-        workspaceType: "TEAM" as const,
+        billingShape: "SHARED" as const,
         plan: team.billingPlan,
         effectivePlan: scope.plan,
         billingStatus: team.billingStatus,
@@ -354,7 +354,7 @@ export async function readBillingOverview(userId: string) {
     },
     workspaces: {
       personal: {
-        workspaceType: "PERSONAL" as const,
+        billingShape: "SINGLE_OCCUPANT" as const,
         plan: personalScope.plan,
         credits: personalScope.credits,
         teamSeats: personalScope.teamSeats,

@@ -33,6 +33,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { triggerReviewAssigned } from "../automation/automation-triggers.js";
 import {
   notifyReviewAssigned,
   notifyReviewEscalated,
@@ -87,6 +88,10 @@ function slaStatusToDb(s: ReviewSlaStatus): EvidenceReviewSlaStatus {
 // -----------------------------------------------------------------------------
 
 export async function ensureReviewWorkflow(
+  // ARCH-001 — `workspaceType` here is the PERSISTED column on
+  // EvidenceReviewWorkflow, classified PERSISTENCE and deliberately not
+  // renamed. It is written once and read back as a display label; it
+  // authorizes nothing.
   input: { evidenceId: string; teamId: string | null; workspaceType?: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbWorkflow> {
@@ -377,6 +382,26 @@ export async function assignReviewer(
     { assignedToUserId: input.assignedToUserId, stage: targetStage },
     client,
   );
+  /**
+   * ARCH-005 (2026-08-07) — REVIEW_ASSIGNED.
+   *
+   * The source identity carries the assignment timestamp, so a REASSIGNMENT is
+   * a new occurrence (a rule that notifies the assignee must fire for the new
+   * one) while a repeated dispatch of the same assignment is not. The no-op
+   * guard above already returns early when the assignee is unchanged, so this
+   * line is only reached when something actually moved.
+   */
+  await triggerReviewAssigned(client, {
+    teamId: updated.teamId ?? workflow.teamId ?? "",
+    workflowId: updated.id,
+    assignedAtUtc: isReassignment ? now : (updated.assignedAtUtc ?? now),
+    context: {
+      stage: targetStage,
+      isReassignment: String(isReassignment),
+      priority: String(updated.priority),
+    },
+  });
+
   // Phase 13.5 — notify the new assignee. Safe wrapper: failure of
   // notification dispatch MUST NOT undo the assignment.
   notifyReviewAssigned(
@@ -1067,7 +1092,7 @@ export function projectReviewWorkflow(row: DbWorkflow): {
     rejectionReason: row.rejectionReason,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    // Deliberately NOT projected: internal `workspaceType`, raw `status`
+    // Deliberately NOT projected: internal `billingShape`, raw `status`
     // (use `stage` instead).
   };
 }

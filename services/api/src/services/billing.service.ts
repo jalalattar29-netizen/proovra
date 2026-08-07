@@ -1,4 +1,8 @@
 import { prisma } from "../db.js";
+// PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat-OCCUPANCY authority,
+// shared with the worker. The seat-CEILING comparison stays
+// `computeOverSeatLimit` in this file — one quantity, one comparison.
+import { countActiveSeatOccupancy } from "@proovra/shared-runtime";
 import * as prismaPkg from "@prisma/client";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
@@ -7,7 +11,7 @@ const GB = 1024n * 1024n * 1024n;
 
 type StorageAddonDefinition = {
   key: prismaPkg.StorageAddonKey;
-  workspaceType: "PERSONAL" | "TEAM";
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
   storageBytes: bigint;
   priceCents: number;
   currency: string;
@@ -17,7 +21,7 @@ type StorageAddonDefinition = {
 const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
   {
     key: prismaPkg.StorageAddonKey.PERSONAL_10_GB,
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     storageBytes: 10n * GB,
     priceCents: 299,
     currency: "EUR",
@@ -25,7 +29,7 @@ const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
   },
   {
     key: prismaPkg.StorageAddonKey.PERSONAL_50_GB,
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     storageBytes: 50n * GB,
     priceCents: 799,
     currency: "EUR",
@@ -33,7 +37,7 @@ const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
   },
   {
     key: prismaPkg.StorageAddonKey.PERSONAL_200_GB,
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     storageBytes: 200n * GB,
     priceCents: 1999,
     currency: "EUR",
@@ -41,7 +45,7 @@ const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
   },
   {
     key: prismaPkg.StorageAddonKey.TEAM_100_GB,
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
     storageBytes: 100n * GB,
     priceCents: 999,
     currency: "EUR",
@@ -49,7 +53,7 @@ const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
   },
   {
     key: prismaPkg.StorageAddonKey.TEAM_500_GB,
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
     storageBytes: 500n * GB,
     priceCents: 3499,
     currency: "EUR",
@@ -57,7 +61,7 @@ const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
   },
   {
     key: prismaPkg.StorageAddonKey.TEAM_1_TB,
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
     storageBytes: 1024n * GB,
     priceCents: 5999,
     currency: "EUR",
@@ -196,7 +200,7 @@ export async function setPersonalPlan(
     userId,
     plan,
     metadata: {
-      workspaceType: "PERSONAL",
+      billingShape: "SINGLE_OCCUPANT",
       credits: next.credits ?? 0,
       teamSeats: next.teamSeats ?? 0,
     },
@@ -325,9 +329,30 @@ export async function cancelTeamPlan(params: {
     throw err;
   }
 
-  const memberCount = await prisma.teamMember.count({
-    where: { teamId: params.teamId },
-  });
+  // PHASE 12 REMEDIATION — COMM-001 (2026-08-06). TWO defects, one fix.
+  //
+  //  1. COUNTING. This was `teamMember.count({ where: { teamId } })` with no
+  //     status predicate, so SUSPENDED and REVOKED members occupied seats in
+  //     the arithmetic. Occupancy now comes from the ONE shared authority
+  //     (`countActiveSeatOccupancy`), which counts only memberships that
+  //     currently grant access — the same predicate the access-policy engine
+  //     and `rbac.service.ts` (the invite-time enforcer) already use, and the
+  //     same one the worker's reconciliation now uses.
+  //
+  //  2. DUPLICATE CEILING RULE. The comparison here was the inline
+  //     `memberCount > 0`, a SECOND seat-ceiling rule that contradicted the
+  //     canonical `computeOverSeatLimit` below — under which `includedSeats:
+  //     0` means NO CEILING. The two disagreed about the very row this
+  //     function writes: `refreshTeamSeatState`, running afterwards over the
+  //     same workspace, would compute `false` where this wrote `true`. The
+  //     inline rule is deleted; there is now one comparison authority, and
+  //     the value this function persists is the value the canonical
+  //     refresher will agree with.
+  const activeSeats = await countActiveSeatOccupancy(
+    { teamId: params.teamId },
+    prisma,
+  );
+  const canceledIncludedSeats = 0;
 
   const updated = await prisma.team.update({
     where: { id: params.teamId },
@@ -335,8 +360,11 @@ export async function cancelTeamPlan(params: {
       billingOwnerUserId: null,
       billingPlan: prismaPkg.PlanType.FREE,
       billingStatus: prismaPkg.TeamBillingStatus.CANCELED,
-      includedSeats: 0,
-      overSeatLimit: memberCount > 0,
+      includedSeats: canceledIncludedSeats,
+      overSeatLimit: computeOverSeatLimit({
+        activeMemberCount: activeSeats,
+        includedSeats: canceledIncludedSeats,
+      }),
       billingCanceledAt: new Date(),
     },
   });
@@ -347,7 +375,8 @@ export async function cancelTeamPlan(params: {
     teamId: params.teamId,
     plan: prismaPkg.PlanType.FREE,
     metadata: {
-      memberCount,
+      // COMM-001 — reported quantity now matches the enforced one.
+      activeSeats,
       overSeatLimit: updated.overSeatLimit,
       billingStatus: updated.billingStatus,
     },

@@ -1,0 +1,77 @@
+{
+  "finding": "INV-001",
+  "question": "Is an external-review invitation two legitimate bounded aggregates, or one duplicated authority that can drift?",
+  "decidedOn": "2026-08-06",
+  "decision": "ONE logical invitation. The sidecar has no identity of its own — issueInvitation creates ExternalReviewerRoleAssignment with `id` set to the ExternalReviewGrant's id, so the pair is 1:1 by construction and nothing creates one without the other. Option A (two legitimate aggregates) is therefore false. What made it a DUPLICATE AUTHORITY was five lifecycle columns on the sidecar that a model catch-up migration added and that no writer has ever populated. Option B applies to those columns: ExternalReviewGrant is selected as canonical, the one reader that trusted the sidecar is migrated, and the columns are dropped behind readiness checks.",
+  "canonicalAggregate": "ExternalReviewGrant",
+  "authorityMatrix": [
+    { "field": "logical invitation identity", "authority": "ExternalReviewGrant.id", "note": "The sidecar shares this id; the delivery ledger references the sidecar, which is now FK-bound to the grant." },
+    { "field": "recipient", "authority": "ExternalReviewGrant.reviewerEmail", "note": "ExternalReviewerRoleAssignment.inviteEmail/externalEmail are console display copies written at issue time." },
+    { "field": "workspace", "authority": "ExternalReviewGrant.teamId" },
+    { "field": "organization", "authority": "Team.organizationId, derived", "note": "The invitation is workspace-anchored; the Organization is a property of the workspace, never stored twice." },
+    { "field": "role", "authority": "ExternalReviewerRoleAssignment.role", "note": "The one thing the sidecar genuinely owns, together with mfaRequired, watermarkPolicy and the SSO/federation binding." },
+    { "field": "token hash", "authority": "ExternalReviewGrant.tokenHash", "note": "external_reviewer_role_assignments.token_hash was a second UNIQUE column nothing wrote. Dropped." },
+    { "field": "token version", "authority": "ExternalReviewGrant.tokenVersion", "note": "NEW. Incremented inside the same guarded UPDATE that rotates the hash." },
+    { "field": "issue time", "authority": "ExternalReviewGrant.createdAtUtc" },
+    { "field": "expiry", "authority": "ExternalReviewGrant.expiresAtUtc", "note": "external_reviewer_role_assignments.expires_at_utc was always NULL. Dropped." },
+    { "field": "revocation", "authority": "ExternalReviewGrant.state + revokedAtUtc", "note": "external_reviewer_role_assignments.revoked_at_utc was always NULL. Dropped." },
+    { "field": "rotation", "authority": "ExternalReviewGrant.tokenHash + tokenVersion", "note": "Atomic supersede: one UPDATE guarded on live state." },
+    { "field": "acceptance", "authority": "ExternalReviewGrant.acceptedAtUtc", "note": "ExternalReviewerRoleAssignment.inviteAcceptedAtUtc remains as the console's convenience copy and is used only as a fallback when the grant row is unreadable." },
+    { "field": "accepted account", "authority": "ExternalReviewGrant + portal session", "note": "External reviewers are not platform accounts; the portal session binds the acceptance." },
+    { "field": "invitation status", "authority": "ExternalReviewGrant.state", "note": "external_reviewer_role_assignments.grant_state was NOT NULL DEFAULT 'PENDING' and never written. Dropped." },
+    { "field": "delivery intent", "authority": "ExternalReviewInvitationDelivery (grantId, contentVersion, resendSeq) / intentKey" },
+    { "field": "provider idempotency", "authority": "mintEmailIdempotencyKey(kind, intentKey)", "note": "Derived from the DURABLE intent, never from a surrogate row id." },
+    { "field": "audit identity", "authority": "ExternalReviewActivity.grantId + SecurityEvent", "note": "Unchanged; both key on the shared id." }
+  ],
+  "defectsFound": [
+    {
+      "id": "INV-001-a",
+      "severity": "MEDIUM",
+      "summary": "The organization external-access CSV export read grantState, expiresAtUtc and revokedAtUtc from the sidecar. Those columns are never written, so the export reported every external-review grant as PENDING, never expiring and never revoked — including grants that were ACTIVE, EXPIRED or REVOKED.",
+      "surface": "GET /v1/orgs/:id/reports/external-access.csv",
+      "fix": "services/api/src/routes/organizations-reports.routes.ts — the lifecycle is joined from ExternalReviewGrant; a sidecar with no grant reports UNKNOWN_NO_GRANT rather than a default that reads like a real state.",
+      "provenBy": "phase-12-inv-001-invitation-authority.integration.test.ts A6"
+    },
+    {
+      "id": "INV-001-b",
+      "severity": "MEDIUM",
+      "summary": "external_reviewer_role_assignments.raw_token was a plaintext token column. Nothing wrote it, but its existence was a standing invitation to.",
+      "fix": "Dropped by 20271122000000, behind a readiness check that refuses if any row ever carried a value.",
+      "provenBy": "phase-12-inv-001-invitation-authority.integration.test.ts A1, A7"
+    },
+    {
+      "id": "INV-001-c",
+      "severity": "MEDIUM",
+      "summary": "No FK bound the sidecar to the grant, so an orphan role assignment (and therefore an orphan delivery ledger) was possible.",
+      "fix": "external_reviewer_role_assignments_grant_fk, ON DELETE CASCADE.",
+      "provenBy": "phase-12-inv-001-invitation-authority.integration.test.ts A2, A3, B7"
+    },
+    {
+      "id": "NEW-004-b",
+      "severity": "HIGH",
+      "summary": "The previous pass's de-duplication fix keyed the delivery intent on `attempt`, which is 1 for every ordinary send. A token ROTATION therefore collapsed onto the superseded message's provider idempotency key: the provider acknowledged it as a repeat and sent nothing, leaving the reviewer holding a dead link with no successor.",
+      "fix": "contentVersion, taken from ExternalReviewGrant.tokenVersion, which rotation increments in the same guarded UPDATE.",
+      "provenBy": "phase-12-inv-001-invitation-authority.integration.test.ts B4"
+    },
+    {
+      "id": "NEW-004-c",
+      "severity": "MEDIUM",
+      "summary": "deriveAttemptCounter computed the next attempt as count()+1 — a read-then-write. Two concurrent operator resends both read N, both computed N+1, and the loser adopted the winner's row: the second deliberate resend was silently never sent while its caller was told it succeeded.",
+      "fix": "resendSeq is allocated as MAX(resend_seq)+1 inside the statement, and the unique index is the arbiter; a loser is recorded as a retry of the same intent rather than vanishing.",
+      "provenBy": "phase-12-inv-001-invitation-authority.integration.test.ts B5"
+    },
+    {
+      "id": "NEW-004-d",
+      "severity": "LOW",
+      "summary": "resendInvitationEmail returned a hard-coded `attempt: 1` regardless of what was actually recorded.",
+      "fix": "Reports the delivery's real coordinates.",
+      "provenBy": "phase-12-inv-001-invitation-authority.integration.test.ts B3"
+    }
+  ],
+  "targets": {
+    "InvitationAuthorities": "1 per responsibility",
+    "InvitationAuthorityConflicts": 0,
+    "InvitationOrphans": 0,
+    "DuplicateAuthoritiesFromINV001": 0
+  }
+}

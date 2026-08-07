@@ -146,6 +146,53 @@ function makeFake() {
     },
 
     user: {
+      // CORRECTIVE PASS (2026-08-06) — TEST INFRASTRUCTURE ADAPTS TO PRODUCTION.
+      //
+      // The previous pass made an absent `user.updateMany` a silent no-op INSIDE
+      // PRODUCTION so this partial transport would not crash. That put a
+      // test-driven accommodation into production failure handling. The
+      // accommodation is removed; the transport now models the delegate.
+      //
+      // This is a FAITHFUL implementation, not a stub: it honours the exact
+      // predicate the canonical pointer repair issues — clear
+      // `currentWorkspaceId` only for a user whose pointer names EXACTLY the
+      // workspace they were withdrawn from — so the suite can observe real
+      // pointer hygiene rather than merely tolerate the call.
+      async updateMany({
+        where,
+        data,
+      }: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) {
+        const clauses = Array.isArray((where as { OR?: unknown[] }).OR)
+          ? ((where as { OR: Array<Record<string, unknown>> }).OR)
+          : [where];
+        let count = 0;
+        for (const u of users) {
+          const matches = clauses.some((c) => {
+            if ("id" in c && c.id !== u.id) return false;
+            if ("currentWorkspaceId" in c) {
+              const want = c.currentWorkspaceId as unknown;
+              const have = (u as unknown as { currentWorkspaceId?: string | null })
+                .currentWorkspaceId ?? null;
+              if (want && typeof want === "object" && "in" in (want as object)) {
+                if (!(want as { in: string[] }).in.includes(have as string)) return false;
+              } else if (have !== want) {
+                return false;
+              }
+            }
+            return true;
+          });
+          if (!matches) continue;
+          if ("currentWorkspaceId" in data) {
+            (u as unknown as { currentWorkspaceId?: string | null }).currentWorkspaceId =
+              data.currentWorkspaceId as string | null;
+          }
+          count += 1;
+        }
+        return { count };
+      },
       async findUnique({ where }: { where: { id: string } }) {
         return users.find((u) => u.id === where.id) ?? null;
       },

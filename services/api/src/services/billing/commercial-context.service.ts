@@ -231,7 +231,7 @@ export type SeatConsumption = {
 };
 
 export type CommercialContext = {
-  workspaceType: "PERSONAL" | "TEAM";
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
   ownerUserId: string;
   teamId: string | null;
   organizationId: string | null;
@@ -365,7 +365,7 @@ async function resolveCommercialContextLegacy(params: {
     : null;
 
   return {
-    workspaceType: scope.workspaceType,
+    billingShape: scope.billingShape,
     ownerUserId: scope.ownerUserId,
     teamId: scope.teamId,
     organizationId: scope.organizationId,

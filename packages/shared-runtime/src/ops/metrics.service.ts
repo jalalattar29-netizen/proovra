@@ -309,6 +309,11 @@ export const COUNTER_NAMES = [
   "external_review_expired_total",
   "external_review_grant_issue_failed_total",
   "external_review_grant_lookup_denied_total",
+  // PHASE 12 REMEDIATION §4.3 (2026-08-06) — a server-owned successor token
+  // was minted and the predecessor atomically superseded. Counting this
+  // separately from issuance lets operators see credential rotation volume
+  // (resend / break-glass) apart from new invitations.
+  "external_review_grant_token_rotated_total",
   // Phase 25.5 — assignment intelligence + reconciliation wiring.
   "reviewer_assignment_rank_computed_total",
   "reviewer_assignment_auto_blocked_total",
@@ -497,6 +502,10 @@ export const COUNTER_NAMES = [
   "secrets_fetch_success_total",
   "secrets_fetch_failure_total",
   "secrets_cache_refresh_total",
+  // PHASE 12 CORRECTIVE PASS 3 §8 — the refresh loop stopped because the call
+  // was UNAUTHORIZED. Distinct from a failure counter: this counts the calls
+  // deliberately NOT made, which is the signal an operator needs to see.
+  "secrets_refresh_suspended_total",
   "secrets_fallback_total",
   // Phase 26.75 — Identity runtime enforcement.
   "adaptive_auth_block_total",

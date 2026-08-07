@@ -77,17 +77,17 @@
     }
   ],
   "categoryCounts": {
-    "INDEX_DECLARATION": 198,
-    "COLUMN_TYPE_DECLARATION": 110,
     "COLUMN_DEFAULT_DECLARATION": 99,
+    "COLUMN_TYPE_DECLARATION": 110,
+    "INDEX_DECLARATION": 199,
     "FOREIGN_KEY_DECLARATION": 181,
     "INDEX_NAME_CONVENTION": 270,
-    "EXTENSION_CONDITIONAL_COLUMN": 2,
     "UNIQUE_DECLARATION": 4,
+    "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 867,
+  "totalRegisteredObjects": 868,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -1752,6 +1752,66 @@
       "category": "INDEX_NAME_CONVENTION"
     },
     {
+      "table": "evidence",
+      "sign": "+",
+      "object": "Added foreign key on columns (organization_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "+",
+      "object": "Added foreign key on columns (template_db_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed foreign key on columns (organization_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed foreign key on columns (template_db_id)",
+      "category": "FOREIGN_KEY_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (public_verify_state)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (retention_until_utc)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, department_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, organization_id)",
+      "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "*",
+      "object": "Renamed index evidence_owner_id_archived_at_idx to evidence_owner_user_id_archived_at_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence",
+      "sign": "*",
+      "object": "Renamed index evidence_retention_policy_version_idx to evidence_retention_policy_version_id_idx",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
       "table": "evidence_annotations",
       "sign": "+",
       "object": "Added foreign key on columns (parent_annotation_id)",
@@ -2083,6 +2143,18 @@
     },
     {
       "table": "evidence_search_documents",
+      "sign": "+",
+      "object": "Added column embedding",
+      "category": "EXTENSION_CONDITIONAL_COLUMN"
+    },
+    {
+      "table": "evidence_search_documents",
+      "sign": "-",
+      "object": "Removed index on columns (embedding)",
+      "category": "EXTENSION_CONDITIONAL_INDEX"
+    },
+    {
+      "table": "evidence_search_documents",
       "sign": "*",
       "object": "Renamed index evidence_search_documents_team_contributor_scoped_idx to evidence_search_documents_team_id_contributor_scoped_idx",
       "category": "INDEX_NAME_CONVENTION"
@@ -2142,16 +2214,16 @@
       "category": "EXTENSION_CONDITIONAL_COLUMN"
     },
     {
-      "table": "evidence_search_documents",
-      "sign": "+",
-      "object": "Added column embedding",
-      "category": "EXTENSION_CONDITIONAL_COLUMN"
-    },
-    {
       "table": "evidence_semantic_chunks",
       "sign": "*",
       "object": "Altered column team_id (changed from Nullable to Required)",
       "category": "COLUMN_TYPE_DECLARATION"
+    },
+    {
+      "table": "evidence_semantic_chunks",
+      "sign": "-",
+      "object": "Removed index on columns (embedding_vector)",
+      "category": "EXTENSION_CONDITIONAL_INDEX"
     },
     {
       "table": "evidence_semantic_chunks",
@@ -2319,66 +2391,6 @@
       "table": "evidence_workflow_visibility_decisions",
       "sign": "*",
       "object": "Renamed index evidence_workflow_visibility_decisions_workflow_idx to evidence_workflow_visibility_decisions_workflow_instance_id_idx",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "evidence",
-      "sign": "+",
-      "object": "Added foreign key on columns (organization_id)",
-      "category": "FOREIGN_KEY_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "+",
-      "object": "Added foreign key on columns (template_db_id)",
-      "category": "FOREIGN_KEY_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed foreign key on columns (organization_id)",
-      "category": "FOREIGN_KEY_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed foreign key on columns (template_db_id)",
-      "category": "FOREIGN_KEY_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed index on columns (public_verify_state)",
-      "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed index on columns (retention_until_utc)",
-      "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed index on columns (team_id, department_id)",
-      "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed index on columns (team_id, organization_id)",
-      "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "*",
-      "object": "Renamed index evidence_owner_id_archived_at_idx to evidence_owner_user_id_archived_at_idx",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "evidence",
-      "sign": "*",
-      "object": "Renamed index evidence_retention_policy_version_idx to evidence_retention_policy_version_id_idx",
       "category": "INDEX_NAME_CONVENTION"
     },
     {
@@ -3154,6 +3166,13 @@
       "sign": "*",
       "object": "Renamed index membership_grants_organization_membership_id_revoked_at_ut_idx to membership_grants_organization_membership_id_revoked_at_utc_idx",
       "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "mfa_recovery_request_status (enum)",
+      "sign": "-",
+      "object": "Removed variant PENDING",
+      "category": "ENUM_LABEL_RESIDUAL",
+      "removalCondition": "SELECT count(*) FROM mfa_recovery_requests WHERE status::text = 'PENDING' returns 0 in EVERY environment, including production. Only then may a forward migration recreate the type without it. PHASE 12 POINT 6 discovered this residual: the verifier parsed only table scopes, so the AlterEnum block that migrate diff --script emits was invisible to it."
     },
     {
       "table": "notification_deliveries",
@@ -4206,6 +4225,12 @@
       "category": "INDEX_DECLARATION"
     },
     {
+      "table": "reviewer_criteria",
+      "sign": "*",
+      "object": "Renamed index reviewer_criteria_version_key_key to reviewer_criteria_criteria_version_id_key_key",
+      "category": "INDEX_NAME_CONVENTION"
+    },
+    {
       "table": "reviewer_criteria_sets",
       "sign": "*",
       "object": "Altered column updated_at (default changed from Some(Now) to None)",
@@ -4215,12 +4240,6 @@
       "table": "reviewer_criteria_versions",
       "sign": "*",
       "object": "Renamed index reviewer_criteria_versions_set_version_key to reviewer_criteria_versions_criteria_set_id_version_key",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "reviewer_criteria",
-      "sign": "*",
-      "object": "Renamed index reviewer_criteria_version_key_key to reviewer_criteria_criteria_version_id_key_key",
       "category": "INDEX_NAME_CONVENTION"
     },
     {
@@ -4800,6 +4819,13 @@
       "category": "INDEX_NAME_CONVENTION"
     },
     {
+      "table": "teams",
+      "sign": "-",
+      "object": "Removed unique index on columns (owner_user_id)",
+      "category": "INDEX_DECLARATION",
+      "note": "PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — teams_one_personal_space_per_owner_uk, a PARTIAL unique index (WHERE workspace_kind = 'PERSONAL') created by 20271125000000. Prisma cannot express a partial index in the datamodel, so the introspection diff reports the whole index as unregistered. It enforces the one-Personal-Space-per-identity invariant the workspace-kind backfill classifies from, which is why it is a constraint and not a convention. Owned by the migration; never drop it without also removing the backfill rule that depends on it."
+    },
+    {
       "table": "trust_center_article_versions",
       "sign": "+",
       "object": "Added foreign key on columns (article_id)",
@@ -5272,25 +5298,6 @@
       "sign": "*",
       "object": "Renamed index workspace_notification_preferences_user_id_team_id_preferenc_ke to workspace_notification_preferences_user_id_team_id_preferen_key",
       "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "evidence_semantic_chunks",
-      "sign": "-",
-      "object": "Removed index on columns (embedding_vector)",
-      "category": "EXTENSION_CONDITIONAL_INDEX"
-    },
-    {
-      "table": "evidence_search_documents",
-      "sign": "-",
-      "object": "Removed index on columns (embedding)",
-      "category": "EXTENSION_CONDITIONAL_INDEX"
-    },
-    {
-      "table": "mfa_recovery_request_status (enum)",
-      "sign": "-",
-      "object": "Removed variant PENDING",
-      "category": "ENUM_LABEL_RESIDUAL",
-      "removalCondition": "SELECT count(*) FROM mfa_recovery_requests WHERE status::text = 'PENDING' returns 0 in EVERY environment, including production. Only then may a forward migration recreate the type without it. PHASE 12 POINT 6 discovered this residual: the verifier parsed only table scopes, so the AlterEnum block that migrate diff --script emits was invisible to it."
     }
   ]
 }

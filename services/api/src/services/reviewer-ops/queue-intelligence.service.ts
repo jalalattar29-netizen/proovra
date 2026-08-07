@@ -199,8 +199,12 @@ async function loadReviewerCandidates(
     role: string;
   }> = [];
   try {
+    // PHASE 12 REMEDIATION (2026-08-06) — `suspendedAtUtc: null` was a PROXY
+    // for liveness that a REVOKED row also satisfies (revocation stamps
+    // `revokedAtUtc`, not `suspendedAtUtc`), so revoked members were offered
+    // as assignment candidates. The canonical status is authoritative.
     memberships = await client.teamMember.findMany({
-      where: { teamId, suspendedAtUtc: null },
+      where: { teamId, status: "ACTIVE" },
       orderBy: { createdAt: "asc" },
       take: MAX_CANDIDATES_PER_WORKFLOW,
       select: { userId: true, role: true },

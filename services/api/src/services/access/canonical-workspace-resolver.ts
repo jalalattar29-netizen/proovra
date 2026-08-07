@@ -58,7 +58,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // ActiveOperationalWorkspace — bounded read shape
 // =============================================================================
 
-export type ActiveOperationalWorkspaceKind = "PERSONAL" | "TEAM";
+export type ActiveOperationalWorkspaceKind = "SINGLE_OCCUPANT" | "SHARED";
 
 /**
  * Bounded read shape for the canonical "what workspace are we
@@ -163,7 +163,7 @@ export async function resolveActiveOperationalWorkspace(
       if (!membership) return null;
       return {
         teamId: membership.teamId,
-        kind: membership.team?.isPersonal ? "PERSONAL" : "TEAM",
+        kind: membership.team?.isPersonal ? "SINGLE_OCCUPANT" : "SHARED",
         source: "header",
       };
     } catch {
@@ -186,7 +186,7 @@ export async function resolveActiveOperationalWorkspace(
     if (personal) {
       return {
         teamId: personal.teamId,
-        kind: "PERSONAL",
+        kind: "SINGLE_OCCUPANT",
         source: "personal-default",
       };
     }
@@ -205,7 +205,7 @@ export async function resolveActiveOperationalWorkspace(
       const m = memberships[0]!;
       return {
         teamId: m.teamId,
-        kind: m.team?.isPersonal ? "PERSONAL" : "TEAM",
+        kind: m.team?.isPersonal ? "SINGLE_OCCUPANT" : "SHARED",
         source: "single-membership",
       };
     }

@@ -106,10 +106,33 @@ vi.mock("../src/db.js", () => {
         capabilityGrants: [],
         delegatedAdminScopes: [],
       }),
-      findMany: async ({ select }: { select?: Record<string, unknown> }) =>
-        select && "team" in select
-          ? [{ team: { id: H.teamId, name: "Workspace A" } }]
-          : [{ teamId: H.teamId, role: H.role }],
+      // PHASE 12 REMEDIATION — AUTH-002 (2026-08-06). INTENTIONAL CONTRACT
+      // CHANGE, transport shape only. `/v1/me/inbox` no longer derives the
+      // caller's workspace set from two separate status-blind `findMany`
+      // queries; it asks the ONE canonical accessible-workspace resolver,
+      // which selects `{ teamId, role, status, accessExpiresAtUtc, team }`
+      // and requires ACTIVE membership plus a live parent Organization.
+      // The row below mirrors this suite's `findUnique` fixture exactly, so
+      // every assertion keeps describing the same reachable workspace.
+      findMany: async () => [
+        {
+          teamId: H.teamId,
+          role: H.role,
+          status: "ACTIVE",
+          accessExpiresAtUtc: null,
+          team: {
+            id: H.teamId,
+            name: "Workspace A",
+            isPersonal: H.isPersonal,
+            workspaceKind: H.isPersonal ? "PERSONAL" : "ORGANIZATION",
+            billingPlan: H.isPersonal ? "PRO" : "ENTERPRISE",
+            organizationId: H.isPersonal
+              ? null
+              : "55555555-5555-4555-8555-555555555555",
+            organization: H.isPersonal ? null : { status: "ACTIVE" },
+          },
+        },
+      ],
     },
     collaborationTeamNotification: {
       findMany: async () => H.collabRows,

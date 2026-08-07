@@ -182,8 +182,10 @@ export async function projectGovernanceDashboard(input: {
     activeScimTokens,
     orgSecurityPolicy,
   ] = await Promise.all([
+    // PHASE 12 REMEDIATION (2026-08-06) — MFA-coverage denominator counts
+    // members who can actually sign in to the workspace.
     prisma.teamMember
-      .count({ where: { teamId: input.teamId } })
+      .count({ where: { teamId: input.teamId, status: "ACTIVE" } })
       .catch(() => 0),
     prisma.mfaFactor
       .findMany({

@@ -96,7 +96,10 @@ async function gateAnalyticsRead(
     where: { id: teamId },
     select: { isPersonal: true },
   });
-  const scope: AnalyticsScope = team?.isPersonal ? "PERSONAL" : "TEAM";
+  // ARCH-001 — the analytics scope names the OCCUPANCY shape, not a tenancy
+  // kind. `isPersonal` is the structural fact; SINGLE_OCCUPANT vs SHARED is
+  // what the aggregation actually branches on.
+  const scope: AnalyticsScope = team?.isPersonal ? "SINGLE_OCCUPANT" : "SHARED";
   return { ok: true, scope, userId: outcome.actorUserId };
 }
 

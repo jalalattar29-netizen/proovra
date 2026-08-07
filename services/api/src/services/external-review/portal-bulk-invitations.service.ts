@@ -49,6 +49,7 @@ import {
 import {
   annotateLatestDeliveryStatus,
   sendInvitationEmail,
+  deliverInvitationEmail,
 } from "./portal-invitation-email.service.js";
 import { emitPortalActivity } from "./portal-activity.service.js";
 
@@ -401,21 +402,35 @@ export type ResendInvitationInput = {
   prisma?: PrismaClient;
   teamId: string;
   grantId: string;
+  /**
+   * PHASE 12 REMEDIATION §4.3 — the AUTHORIZED operator. Recorded on the
+   * token-rotation security event so the trail names who caused the
+   * predecessor token to be superseded. Required: a resend is a credential
+   * mutation, never an anonymous one.
+   */
+  actorUserId: string;
   inviterDisplayName: string;
   workspaceName: string;
   bulkBatchId?: string;
 };
 
 /**
- * Resend a single invitation. Rotates the raw token via the grant
- * primitive, then composes + sends a fresh invitation email. The
- * delivery row attempt counter is incremented automatically.
+ * Resend a single invitation.
  *
- * NOTE: The grant primitive's `transitionExternalReviewGrant` does
- * NOT mint a new token on resend in Phase 2B — token rotation is
- * a future enterprise pass. For Phase 2B Closure we reuse the
- * existing token by reading it back through the email-only path.
- * If the operator wants a new token they revoke + re-issue.
+ * PHASE 12 REMEDIATION §4.3 (2026-08-06) — this used to mail the literal
+ * string `"RESEND_PLACEHOLDER_TOKEN"`. The reviewer received a link that
+ * could never authenticate, the delivery row recorded SENT, and the operator
+ * was told the resend succeeded. The stated reason — "we do not have the raw
+ * token here (the grant primitive hashed it)" — is exactly right, and is
+ * exactly why the canonical answer is to MINT A SUCCESSOR rather than to
+ * mail a sentinel.
+ *
+ * It now delegates in full to `deliverInvitationEmail`, the ONE server-owned
+ * delivery authority: load -> verify workspace + live state -> mint successor
+ * server-side -> persist hash only -> build the URL server-side -> durable
+ * delivery intent -> canonical transport -> bounded outcome. Invitation
+ * history is preserved; the predecessor token stops working the instant the
+ * rotation commits.
  */
 export async function resendInvitationEmail(
   input: ResendInvitationInput,
@@ -432,71 +447,20 @@ export async function resendInvitationEmail(
 > {
   const prisma = input.prisma ?? defaultPrisma;
 
-  const role = await prisma.externalReviewerRoleAssignment.findFirst({
-    where: { teamId: input.teamId, id: input.grantId },
-    select: {
-      role: true,
-      mfaRequired: true,
-      inviteEmail: true,
-      externalEmail: true,
-      ssoConnectionId: true,
-    },
-  });
-  if (!role) {
-    return { ok: false, denial: "INVITE_NOT_FOUND" };
-  }
-
-  // We do not have the raw token here (the grant primitive hashed it).
-  // To respect "manual token reveal is admin-only", the resend path
-  // mints a NEW raw token via grant rotation. The grant service
-  // exposes this via `transitionExternalReviewGrant` to ROTATED in
-  // a future pass; for Phase 2B Closure we honestly emit a resend
-  // event and rely on the operator's manual reveal as the break-glass
-  // path. The delivery row still increments so the audit reflects
-  // the operator's action.
-  const rows = await prisma.$queryRaw<
-    Array<{ expires_at_utc: Date }>
-  >`
-    SELECT "expires_at_utc"
-      FROM "external_review_grants"
-     WHERE "id" = ${input.grantId}::uuid
-       AND "team_id" = ${input.teamId}::uuid
-     LIMIT 1
-  `;
-  const lastGrant = rows[0];
-  if (!lastGrant) {
-    return { ok: false, denial: "INVITE_NOT_FOUND" };
-  }
-
-  // Resend uses a sentinel placeholder token in the email body —
-  // operators must trigger the manual reveal for the actual token.
-  // The delivery row + activity still record the resend.
-  const result = await sendInvitationEmail({
+  const result = await deliverInvitationEmail({
     prisma,
     teamId: input.teamId,
     grantId: input.grantId,
-    rawToken: "RESEND_PLACEHOLDER_TOKEN",
-    recipientEmail: role.inviteEmail ?? role.externalEmail,
+    actorUserId: input.actorUserId,
     inviterDisplayName: input.inviterDisplayName,
     workspaceName: input.workspaceName,
-    role: role.role ?? "REVIEWER",
-    expiresAtUtc: lastGrant.expires_at_utc.toISOString(),
-    mfaRequired: role.mfaRequired ?? false,
-    ssoEnabled: role.ssoConnectionId !== null,
+    reason: "Operator resent the external-reviewer invitation email.",
     bulkBatchId: input.bulkBatchId ?? null,
     isResend: true,
   });
-
   if (!result.ok) {
-    return {
-      ok: false,
-      denial: "POLICY_REJECTED",
-    };
+    return { ok: false, denial: result.denial };
   }
-  await prisma.externalReviewerRoleAssignment.update({
-    where: { id: input.grantId },
-    data: { inviteResentAtUtc: new Date() },
-  });
   return {
     ok: true,
     deliveryId: result.deliveryId,

@@ -671,7 +671,7 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     const ctx = read(
       "services/api/src/services/platform-context/platform-context.service.ts",
     );
-    expect(ctx).toMatch(/canInviteGuests:\s*planCaps\.allowsTeamWorkspace/);
+    expect(ctx).toMatch(/canInviteGuests:\s*planCaps\.allowsSharedWorkspace/);
   });
 
   it("the collaboration surface no longer decides eligibility from a plan name", () => {

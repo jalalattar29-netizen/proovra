@@ -47,7 +47,26 @@ describe("Phase 9 §12.6 — billing failure/cancellation never deletes Evidence
     const billing = read("services/billing.service.ts");
     const at = billing.indexOf("export async function cancelTeamPlan");
     expect(at).toBeGreaterThan(-1);
-    const fn = billing.slice(at, at + 1600);
+    // PHASE 12 REMEDIATION — COMM-001 (2026-08-06). STALE WINDOW, not a
+    // contract change.
+    //
+    //   OLD: slice(at, at + 1600)
+    //   NEW: slice(at, at + 3200)
+    //
+    // The 1600 was never a property — it was a proxy for "the body of
+    // cancelTeamPlan". COMM-001 replaced the function's status-blind
+    // `teamMember.count({ where: { teamId } })` and its inline
+    // `memberCount > 0` seat-ceiling rule with the shared occupancy
+    // authority plus the canonical `computeOverSeatLimit`, and documented
+    // why. That pushed `billingPlan: PlanType.FREE` past character 1600, so
+    // the window stopped covering the statement it was written to check.
+    //
+    // Widening it restores the intended coverage and STRENGTHENS the three
+    // negative assertions below (`not.toMatch`), which now apply to the whole
+    // function rather than to its first 1600 characters. No asserted property
+    // is relaxed: cancellation still mutates only team billing fields, still
+    // deletes no evidence, and still purges no memberships.
+    const fn = billing.slice(at, at + 3200);
     // The only mutation is team.update with billing fields.
     expect(fn).toMatch(/billingPlan:\s*prismaPkg\.PlanType\.FREE/);
     expect(fn).toMatch(/billingStatus:\s*prismaPkg\.TeamBillingStatus\.CANCELED/);

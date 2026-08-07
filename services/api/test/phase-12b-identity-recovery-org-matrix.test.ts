@@ -1011,12 +1011,21 @@ function seed(): void {
       _count: { members: 1 },
     },
   );
+  // ARCH-004 (2026-08-07) — seeded governance memberships carry a STATUS.
+  //
+  // Every access decision, every seat count and every duplicate check now
+  // filters on ACTIVE, so a row without one models a membership that cannot
+  // exist. ACTIVE is the accurate value for a seeded live member, and stating
+  // it keeps this transport faithful to the model rather than accommodating
+  // the shape it replaced.
   rows("organizationMembership").push(
     {
       id: MEMBERSHIP_ADMIN,
       organizationId: ORG,
       userId: ACTOR,
       role: "ORG_OWNER",
+      status: "ACTIVE",
+      statusGeneration: 0,
       createdAt: now,
       organization: orgRow,
       user: { email: "admin@acme.test", displayName: "Admin One" },
@@ -1026,6 +1035,8 @@ function seed(): void {
       organizationId: ORG,
       userId: ADMIN_3,
       role: "ORG_OWNER",
+      status: "ACTIVE",
+      statusGeneration: 0,
       createdAt: now,
       organization: orgRow,
       user: { email: "owner@acme.test", displayName: "Owner" },
@@ -1035,6 +1046,8 @@ function seed(): void {
       organizationId: ORG,
       userId: SUBJECT,
       role: "ORG_MEMBER",
+      status: "ACTIVE",
+      statusGeneration: 0,
       createdAt: now,
       organization: orgRow,
       user: { email: "subject@acme.test", displayName: "Subject" },
@@ -1044,6 +1057,8 @@ function seed(): void {
       organizationId: OTHER_ORG,
       userId: OUTSIDER,
       role: "ORG_OWNER",
+      status: "ACTIVE",
+      statusGeneration: 0,
       createdAt: now,
       organization: { ...orgRow, id: OTHER_ORG },
       user: { email: "outsider@other.test", displayName: "Outsider" },
@@ -1146,7 +1161,7 @@ function seed(): void {
     samlEntityId: "https://api.proovra.com/saml/sp/" + CONN,
     samlNameIdFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     samlSignRequests: true,
-    samlSpPrivateKey: "-----BEGIN PRIVATE KEY-----SUPERSECRET-----END PRIVATE KEY-----",
+    samlSpPrivateKey: "REDACTED_SP_PRIVATE_KEY_FIXTURE",
     samlSpCertificate: null,
     samlCertNotAfter: new Date(Date.now() + 200 * 86_400_000),
     samlCertNextNotAfter: null,

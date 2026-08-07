@@ -1,0 +1,136 @@
+{
+ "sourceRevision": "a7863bec33f10549d84a839ee7ab353509626a2a",
+ "discoveryMethod": "independent runtime discovery (new Queue / safeRegisterWorker + new Worker) THEN compared against packages/shared/src/queue-integrity/registry.ts",
+ "queueObjectsDeclared": 17,
+ "queueObjects": [
+  {
+   "symbol": "reportQueue",
+   "nameSymbol": "reportQueueName"
+  },
+  {
+   "symbol": "reportDlqQueue",
+   "nameSymbol": "reportDlqQueueName"
+  },
+  {
+   "symbol": "otsUpgradeQueue",
+   "nameSymbol": "otsUpgradeQueueName"
+  },
+  {
+   "symbol": "evidencePurgeQueue",
+   "nameSymbol": "evidencePurgeQueueName"
+  },
+  {
+   "symbol": "searchIndexingQueue",
+   "nameSymbol": "searchIndexingQueueName"
+  },
+  {
+   "symbol": "mediaIntelligenceQueue",
+   "nameSymbol": "mediaIntelligenceQueueName"
+  },
+  {
+   "symbol": "mediaIntelligenceDlqQueue",
+   "nameSymbol": "mediaIntelligenceDlqQueueName"
+  },
+  {
+   "symbol": "derivedAssetsQueue",
+   "nameSymbol": "derivedAssetsQueueName"
+  },
+  {
+   "symbol": "redactionDerivativeQueue",
+   "nameSymbol": "redactionDerivativeQueueName"
+  },
+  {
+   "symbol": "exifQueue",
+   "nameSymbol": "exifQueueName"
+  },
+  {
+   "symbol": "miSearchIndexQueue",
+   "nameSymbol": "miSearchIndexQueueName"
+  },
+  {
+   "symbol": "miEmbedQueue",
+   "nameSymbol": "miEmbedQueueName"
+  },
+  {
+   "symbol": "graphReconcileQueue",
+   "nameSymbol": "graphReconcileQueueName"
+  },
+  {
+   "symbol": "graphDomainSyncQueue",
+   "nameSymbol": "graphDomainSyncQueueName"
+  },
+  {
+   "symbol": "graphTimelineSyncQueue",
+   "nameSymbol": "graphTimelineSyncQueueName"
+  },
+  {
+   "symbol": "graphSearchProjectionQueue",
+   "nameSymbol": "graphSearchProjectionQueueName"
+  },
+  {
+   "symbol": "orgHealthRefreshQueue",
+   "nameSymbol": "orgHealthRefreshQueueName"
+  }
+ ],
+ "workerRegistrations": 15,
+ "workers": [
+  "report",
+  "ots-upgrade",
+  "evidence-purge",
+  "search-indexing",
+  "media-intelligence",
+  "derived-assets",
+  "redaction-derivative",
+  "mi-exif",
+  "mi-search-index",
+  "graph-reconcile",
+  "mi-embed",
+  "graph-domain-sync",
+  "graph-timeline-sync",
+  "graph-search-projection",
+  "org-health-refresh"
+ ],
+ "deadLetterQueuesWithNoProcessorByDesign": [
+  "reportDlqQueue",
+  "mediaIntelligenceDlqQueue"
+ ],
+ "producerWithoutProcessor": 0,
+ "processorWithoutProducer": 0,
+ "registryQueueNames": 17,
+ "registryVsRuntime": "PROVEN_MATCH — the 17 QUEUE_NAMES entries in packages/shared/src/queue-integrity/names.ts correspond 1:1 to the 17 runtime Queue objects; 15 non-DLQ queues each have exactly one registered Worker",
+ "apiSideProducers": [
+  "services/api/src/queue/canonical-queue-client.ts",
+  "services/api/src/queue/search-queue.ts",
+  "services/api/src/queue/redaction-derivative-queue.ts",
+  "services/api/src/queue/derived-assets-queue.ts",
+  "services/api/src/queue/graph-reconcile-queue.ts",
+  "services/api/src/queue/media-intelligence-queue.ts",
+  "services/api/src/queue/mi-embed-queue.ts"
+ ],
+ "note": "API-side producers construct queues by the SAME shared QUEUE_NAMES constants, so no name drift is possible between producer and processor.",
+ "pass": "FOCUSED_REACHABILITY_CLOSURE",
+ "revalidated": true,
+ "reachabilityCheck": "All 17 Queue objects and all 15 Worker registrations live in services/worker/src/{queue,index}.ts, both inside the REACHABLE_WORKER set (111 files) reached from services/worker/src/index.ts. The 7 API-side producer modules are inside REACHABLE_API.",
+ "workerUnitsDiscovered": 15,
+ "workerUnitsMapped": 15,
+ "orphanQueueUnits": 0,
+ "deadLetterNote": "reportDlqQueue and mediaIntelligenceDlqQueue are Queue objects with no Worker BY DESIGN (documented in services/worker/src/queue.ts:263-270); giving a DLQ a processor would convert it into a retry loop.",
+ "nonQueueBackgroundUnits": [
+  {
+   "unit": "capture-draft expiry sweeper",
+   "site": "services/api/src/server.ts (CAPTURE_DRAFT_SWEEP_INPROCESS=true)",
+   "mechanism": "setInterval in the API process, unref()ed, cleared onClose",
+   "verdict": "REACHABLE, guarded by env flag; multi-replica guidance is to use the CLI instead"
+  },
+  {
+   "unit": "reviewer-ops reconcile",
+   "site": "POST /v1/reviewer-ops/reconcile (cron-secret)",
+   "verdict": "REACHABLE"
+  },
+  {
+   "unit": "automation dispatcher",
+   "site": "services/api/src/services/automation/automation-dispatcher.service.ts",
+   "verdict": "DEAD_UNREACHABLE — no producer, no scheduler, no route reaches it"
+  }
+ ]
+}

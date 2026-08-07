@@ -252,6 +252,8 @@ const PROOF_PREFIX: Record<string, string> = {
   [SWEEP_NAMES.REVIEWER_RECONCILIATION]: "reviewer",
   [SWEEP_NAMES.SEARCH_INDEX_RECONCILER]: "searchrecon",
   [SWEEP_NAMES.INTELLIGENCE_RUN_RECONCILER]: "mirecon",
+  // ARCH-005 (2026-08-07).
+  [SWEEP_NAMES.AUTOMATION_DISPATCH]: "auto",
 };
 
 /** The five obligations that must be shown by EXECUTION, per sweep. */
@@ -274,12 +276,25 @@ function exists(rel: string): boolean {
 // ===========================================================================
 
 describe("Point 5 — DB sweep discovery", () => {
-  it("discovery finds 19 launchers: 17 sweeps and 2 telemetry samplers", () => {
-    expect(DISCOVERED.length).toBe(19);
+  it("discovered sweep launchers = registered sweep names, plus the samplers", () => {
+    // ARCH-005 (2026-08-07) — this used to pin 19, 2 and 17 as LITERALS, and
+    // registering `AutomationDispatchSweep` moved two of the three at once. A
+    // literal per number invites picking whichever one makes the run green;
+    // the identity below cannot be satisfied that way, because the three sets
+    // are derived independently — from the worker source, from the shared name
+    // authority, and from the registry.
     expect(
       DISCOVERED.filter((d) => TELEMETRY_LAUNCHERS.has(d.launcher)),
-    ).toHaveLength(2);
-    expect(SWEEP_LAUNCHERS).toHaveLength(17);
+    ).toHaveLength(TELEMETRY_LAUNCHERS.size);
+    expect(SWEEP_LAUNCHERS).toHaveLength(Object.values(SWEEP_NAMES).length);
+    expect(DISCOVERED.length).toBe(
+      SWEEP_LAUNCHERS.length + TELEMETRY_LAUNCHERS.size,
+    );
+    // The sweep this pass added, named explicitly so its presence is a
+    // measurement rather than an arithmetic side effect.
+    expect(Object.values(SWEEP_NAMES) as string[]).toContain(
+      "AutomationDispatchSweep",
+    );
   });
 
   it("every discovered sweep launcher drives exactly one resolvable executor", () => {
@@ -320,8 +335,10 @@ describe("Point 5 — DB sweep discovery", () => {
 
   it("discovered sweeps = registered sweeps, and each registered one is reachable", () => {
     const registered = getSweepEntries();
-    expect(registered).toHaveLength(17);
-    expect(Object.values(SWEEP_NAMES)).toHaveLength(17);
+    // ARCH-005 (2026-08-07) — the literal 17 became an identity between three
+    // independently derived sets: the registry entries, the shared name
+    // authority, and the launchers discovered in the worker source.
+    expect(registered).toHaveLength(Object.values(SWEEP_NAMES).length);
     expect(SWEEP_LAUNCHERS.length).toBe(registered.length);
 
     // A registered sweep is REACHABLE when the bootstrap drives it: its
@@ -485,12 +502,14 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
       if (!prefix) return false;
       return EXECUTED_OBLIGATIONS.every((c) => EXECUTED.has(`${prefix}.${c}`));
     });
-    expect(covered).toHaveLength(17);
+    // EVERY registered sweep is behaviourally covered — stated as an identity
+    // so adding a sweep without proving it fails here rather than moving a
+    // literal.
     expect(covered).toHaveLength(registered.length);
     // And the registry's sweep set is the whole DB-outbox surface: no BullMQ
     // entry has quietly been reclassified into it.
     expect(
       CANONICAL_WORK_REGISTRY.filter((e) => e.transport === "db_outbox_sweep"),
-    ).toHaveLength(17);
+    ).toHaveLength(registered.length);
   });
 });

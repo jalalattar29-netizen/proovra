@@ -12,7 +12,7 @@
  *             onto a single `DenialReason`.
  *   Stage 4 — Canonical TOM persona projection in `@proovra/shared`
  *             returns one of 8 constitutional personas.
- *   Stage 5 — Inline `WorkspaceScope = "PERSONAL" | "TEAM"`
+ *   Stage 5 — Inline `WorkspaceScope = "SINGLE_OCCUPANT" | "SHARED"`
  *             duplicates carry @deprecated.
  *   Stage 6 — Dead PERSONAL_* + ORG_* capability keys carry
  *             @deprecated. The grants in the capability registry
@@ -425,7 +425,7 @@ describe("Phase R12 — Stage 5: WorkspaceScope inline duplicates carry @depreca
     it(`marks the inline WorkspaceScope in ${site} as @deprecated`, () => {
       const body = read(site);
       const block = body.match(
-        /@deprecated[\s\S]{0,800}export type WorkspaceScope = "PERSONAL" \| "TEAM"/,
+        /@deprecated[\s\S]{0,800}export type WorkspaceScope = "SINGLE_OCCUPANT" \| "SHARED"/,
       );
       expect(block).not.toBeNull();
     });

@@ -218,7 +218,7 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
 
       // The same creation, addressed EXPLICITLY at the personal workspace id,
       // must behave identically. Before Point 7 it did not: reaching the scope
-      // by team id stamped it `workspaceType: "TEAM"`, and the evidence gate
+      // by team id stamped it `billingShape: "SHARED"`, and the evidence gate
       // refuses TEAM scope on a plan without `allowsTeamWorkspace` — so a FREE
       // user creating evidence in their OWN Personal Space was told their plan
       // did not include "team workspace evidence creation".
@@ -344,7 +344,7 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
         userId: t.owner.userId,
       });
       expect(ctx.plan).toBe("PAYG");
-      expect(ctx.workspaceType).toBe("PERSONAL");
+      expect(ctx.billingShape).toBe("SINGLE_OCCUPANT");
       // The personal Team row itself is NOT promoted to a recurring plan.
       const team = await prisma.team.findUniqueOrThrow({
         where: { id: t.personalTeamId },
@@ -357,7 +357,7 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       // POINT 7 — the commercial surface RESOLVES for a PAYG account.
       //
       // It did not. `getTeamWorkspaceScope` stamped every scope reached by
-      // team id `workspaceType: "TEAM"`, including the user's own Personal
+      // team id `billingShape: "SHARED"`, including the user's own Personal
       // Space, and the structural assert in the billing package rejects PAYG
       // on a TEAM scope because PAYG is an operation entitlement rather than a
       // workspace plan. Since the effective-plan policy returns PAYG for

@@ -79,8 +79,10 @@ export async function meOperationalPrioritiesRoutes(app: FastifyInstance) {
       // -----------------------------------------------------------------
       // Account-level org context.
       // -----------------------------------------------------------------
+      // ARCH-004 — operational priorities are work the caller can do. A
+      // suspended or revoked membership produces none.
       const membershipRows = await prisma.organizationMembership.findMany({
-        where: { userId },
+        where: { userId, status: "ACTIVE" },
         select: {
           role: true,
           createdAt: true,

@@ -17,7 +17,7 @@
  */
 
 /**
- * @deprecated PHASE 3 — Inline `"PERSONAL" | "TEAM"` declaration.
+ * @deprecated PHASE 3 — Inline `"SINGLE_OCCUPANT" | "SHARED"` declaration.
  *   Prefer the canonical `WorkspaceScope` from
  *   `services/api/src/services/platform-context/types.ts`, or — for
  *   new code that speaks in the Target Domain Blueprint vocabulary —
@@ -27,7 +27,7 @@
  *   MUST consume the canonical type.
  *   See docs/architecture/domain-debt-register.md (DBT-WS-04).
  */
-export type WorkspaceScope = "PERSONAL" | "TEAM";
+export type WorkspaceScope = "SINGLE_OCCUPANT" | "SHARED";
 
 export type Persona =
   | "OWNER_ADMIN"
@@ -38,7 +38,7 @@ export type Persona =
   | "VIEWER";
 
 export type CapabilityMatrix = {
-  workspaceType: WorkspaceScope;
+  billingShape: WorkspaceScope;
   role: string;
   persona: Persona;
   capabilities: {
@@ -169,14 +169,14 @@ export function resolveCapabilityMatrix(input: {
 }): CapabilityMatrix {
   const persona = resolvePersona(input.role);
   const isAdmin = persona === "OWNER_ADMIN";
-  const isTeam = input.scope === "TEAM";
+  const isTeam = input.scope === "SHARED";
   // Read access is universal except for raw mutations.
   const reviewerOpsRead = true;
   const governanceRead = true;
   // Mutation gates: team workspace + non-viewer persona.
   const canMutate = isTeam && persona !== "VIEWER";
   return {
-    workspaceType: input.scope,
+    billingShape: input.scope,
     role: input.role,
     persona,
     capabilities: {

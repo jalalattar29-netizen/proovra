@@ -29,6 +29,12 @@
  *   5. VIEWER never mutates.
  */
 
+// PHASE 12 REMEDIATION — AUTH-003 (2026-08-06). The canonical
+// membership-status predicate, shared with the access-policy engine and the
+// destructive-action gate. This service enforces it ITSELF rather than
+// relying on each caller to duplicate a `status === "ACTIVE"` comparison.
+import { teamMemberStatusGrantsAccess } from "@proovra/shared";
+
 import { prisma } from "../../db.js";
 
 /**
@@ -306,11 +312,35 @@ export async function resolveCaseDestructiveGate(input: {
     };
   }
 
-  // Team case: look up the caller's workspace role.
+  // Team case: resolve the caller's workspace role.
+  //
+  // PHASE 12 REMEDIATION — AUTH-003 (2026-08-06).
+  //
+  // This lookup used to be `prisma.teamMember.findUnique(...)` with the row's
+  // EXISTENCE as the only test: `if (!member) deny`, then
+  // `accessRole = member.role` verbatim. The full row was loaded and
+  // `member.status` was never read, so a SUSPENDED or REVOKED membership
+  // yielded its stored role and this SHARED authority granted case-mutation
+  // rights to an inactive member.
+  //
+  // The reachable HTTP surface happened to be defended: seven call sites in
+  // routes/cases.routes.ts independently compared `member?.status ===
+  // "ACTIVE"` before calling in. That is precisely the shape the remediation
+  // forbids — a shared decision authority whose correctness depends on every
+  // caller remembering to duplicate a check. The check now lives HERE, once,
+  // so it cannot be forgotten by a new caller.
+  //
+  // `teamMemberStatusGrantsAccess` is the SAME predicate the canonical access
+  // policy engine uses (`evaluateMember`) and the same one
+  // `destructive-action-gate.service.ts` already applies at its equivalent
+  // lookup. No new status rule is introduced here.
   const member = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId: caseRow.teamId, userId } },
   });
-  if (!member) {
+  if (!member || !teamMemberStatusGrantsAccess(member.status)) {
+    // An inactive membership is reported IDENTICALLY to no membership: a
+    // suspended member learns nothing more about the case than an outsider,
+    // and no stored role escapes this branch.
     return {
       allowed: false,
       reason: "Caller is not a member of the case's workspace.",

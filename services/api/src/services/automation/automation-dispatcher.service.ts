@@ -1,97 +1,45 @@
 /**
- * Phase E3.1 — Automation execution runtime.
+ * Automation — the PURE half.
  *
- * This module is the bounded execution layer that closes DEF-021. It:
+ * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07) rewrote what
+ * this module is. It was the in-process dispatcher: match, create a run,
+ * execute the action synchronously inside whatever request called it. Nothing
+ * ever did call it, so the whole feature was inert — and the shape itself was
+ * unsound, because an in-request executor has no lease, no fence, no attempt
+ * counter and no retry that survives a restart.
  *
- *   1. Receives explicit trigger events from internal services via
- *      `dispatchAutomationTrigger()`.
- *   2. Matches enabled `AutomationRule` rows by `teamId + triggerType`.
- *   3. Evaluates each rule's `conditionJson` against the trigger context
- *      using the bounded operator set (`evaluateCondition`).
- *   4. Computes the deterministic idempotency key, creates a PENDING
- *      `AutomationRun`, then synchronously transitions it through
- *      RUNNING → SUCCEEDED / FAILED / SKIPPED.
- *   5. Executes the action through one of the 7 bounded handlers in
- *      `automation-actions.service.ts`.
- *   6. Emits the corresponding `automation_*` security event at every
- *      lifecycle transition.
+ * What remains here is everything that touches neither the database nor the
+ * outside world:
  *
- * Design choices (matter; documented for future reviewers):
+ *   * `evaluateCondition` — a pure descent through the bounded operator set
+ *     (`equals` / `not_equals` / `greater_than` / `less_than` / `in` /
+ *     `not_in` / `due_within_hours` / `older_than_days` leaves, `all` / `any`
+ *     composites). There is no `eval`, no `vm`, no `new Function`, and keeping
+ *     it in ONE module is what makes that claim checkable. Unknown shapes and
+ *     unknown operators fail CLOSED.
  *
- *   - **Synchronous in-process execution.** The dispatcher does NOT
- *     enqueue to BullMQ. Action handlers are short, bounded, fully
- *     idempotent, and read-only against the trigger target (they only
- *     write to safe surfaces like notifications / comments). A separate
- *     queue would add operational complexity (worker, retry, dead-letter)
- *     unjustified at this phase. If trigger volume ever warrants async
- *     processing, a follow-up phase can split the executor without
- *     changing the public dispatcher signature.
+ *   * The operator-safe lifecycle emitters, shared by the producer and the
+ *     processor so both describe a run the same way. IDs, enum values and a
+ *     sanitised reason only — never raw evidence content, secrets, tokens or
+ *     external payloads.
  *
- *   - **Idempotency is enforced at the DB layer.** The
- *     `automation_runs_team_rule_idempotency_uniq` unique index catches
- *     duplicate dispatch attempts; the dispatcher catches `P2002` and
- *     records a SKIPPED run reason of "duplicate_trigger".
- *
- *   - **Conditions are evaluated, not executed.** The condition tree
- *     is a pure descent through `equals` / `not_equals` / `greater_than`
- *     / `less_than` / `in` / `not_in` / `due_within_hours` /
- *     `older_than_days` leaves and `all` / `any` composites. There is
- *     no `eval`, no `vm`, no `new Function`. Pinned by `phase-e3-1-*`
- *     and `phase-e3-*` test suites.
- *
- *   - **Action failures DO NOT throw out of the dispatcher.** Every
- *     handler is wrapped; failures land as `FAILED` runs with a
- *     `sanitiseReason()`-bounded reason string. The caller of
- *     `dispatchAutomationTrigger()` (internal service code) never has
- *     its own flow broken by an automation failure.
- *
- * Hard rules (also pinned by `phase-e3-1-automation-execution.test.ts`):
- *   - Team-scoped: a trigger for team A never matches a rule on team B.
- *   - Disabled rules never execute.
- *   - No webhook execution (DEF-022 remains open).
- *   - No evidence / custody / report / package mutation.
- *   - No `eval` / `vm` / `new Function` in this file.
+ * The two halves that DO touch state:
+ *   PRODUCER   automation-outbox.service.ts
+ *   PROCESSOR  automation-dispatch-runtime.service.ts
  */
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import { prisma as defaultPrisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import {
-  AUTOMATION_ACTION_TYPES,
-  AUTOMATION_TRIGGER_TYPES,
-  computeIdempotencyKey,
-  sanitiseReason,
-  type AutomationActionType,
-  type AutomationTriggerType,
+import type {
+  AutomationActionType,
+  AutomationTriggerType,
 } from "./automation.service.js";
-import { executeAutomationAction } from "./automation-actions.service.js";
 
-// ---------------------------------------------------------------------------
-// Public dispatcher input
-// ---------------------------------------------------------------------------
-
-/**
- * Bounded trigger payload. `context` carries the minimum operator-safe
- * metadata the action handlers + condition evaluator need (IDs +
- * status enums + small numbers). NEVER pass raw evidence content,
- * secrets, tokens, file paths, or large blobs.
- */
-export type AutomationTriggerInput = {
-  teamId: string;
-  triggerType: AutomationTriggerType;
-  targetType: string;
-  targetId: string;
-  context?: Readonly<Record<string, unknown>>;
-};
-
-export type DispatchOutcome = {
-  considered: number;
-  created: number;
-  succeeded: number;
-  failed: number;
-  skipped: number;
-};
+// The trigger payload shape lives with the PRODUCER
+// (`automation-outbox.service.ts#EnqueueAutomationTriggerInput`). It used to be
+// declared here as well, which is how a payload contract comes to have two
+// definitions that drift.
 
 // ---------------------------------------------------------------------------
 // Condition evaluator (pure; no eval; bounded operators only)
@@ -205,246 +153,33 @@ function olderThanDays(actual: unknown, expected: unknown): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Dispatcher
+// WHERE THE DISPATCHER WENT
+//
+// PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07).
+//
+// `dispatchAutomationTrigger` used to live here: it matched rules, created a
+// run, and then executed the action SYNCHRONOUSLY, in whatever API request
+// happened to call it — except that nothing ever did. It had zero production
+// callers, so the feature was configurable and inert; and had anything called
+// it, an in-request executor with no lease, no fence, no attempt counter and
+// no retry that survives a restart would have lost work on every deploy.
+//
+// It is split in two, and neither half is here by accident:
+//
+//   PRODUCER   automation-outbox.service.ts#enqueueAutomationTrigger
+//              writes PENDING runs INSIDE the source domain transaction, so a
+//              rolled-back change leaves no run and a committed one cannot be
+//              lost between commit and dispatch.
+//
+//   PROCESSOR  automation-dispatch-runtime.service.ts
+//              claims a due run under a lease + monotonic generation, executes
+//              the bounded action, and writes exactly one terminal state.
+//
+// What stays in THIS file is the pure part: the condition evaluator, which
+// touches no database and no clock beyond `Date.now()`, and the operator-safe
+// lifecycle emitters both halves share. Keeping the evaluator here keeps its
+// no-eval guarantee in one place.
 // ---------------------------------------------------------------------------
-
-/**
- * Public entry point. Internal service code calls this when a domain
- * event happens (e.g. a reviewer is reassigned, an SLA is due). The
- * dispatcher MUST NOT throw — failures inside automation never break
- * the calling flow.
- *
- * Returns a small outcome summary the caller can log if useful. The
- * dispatcher itself emits the canonical security events for run
- * lifecycle transitions.
- */
-export async function dispatchAutomationTrigger(
-  input: AutomationTriggerInput,
-  prisma: PrismaClient = defaultPrisma,
-): Promise<DispatchOutcome> {
-  const outcome: DispatchOutcome = {
-    considered: 0,
-    created: 0,
-    succeeded: 0,
-    failed: 0,
-    skipped: 0,
-  };
-
-  // Guard: only accept allowlisted trigger types.
-  if (!(AUTOMATION_TRIGGER_TYPES as readonly string[]).includes(input.triggerType)) {
-    return outcome;
-  }
-
-  let rules;
-  try {
-    rules = await prisma.automationRule.findMany({
-      where: {
-        teamId: input.teamId,
-        triggerType: input.triggerType,
-        enabled: true,
-      },
-    });
-  } catch {
-    // DB error — dispatcher never throws.
-    return outcome;
-  }
-
-  outcome.considered = rules.length;
-  const safeCtx = (input.context ?? {}) as Readonly<Record<string, unknown>>;
-
-  for (const rule of rules) {
-    // Allowlist defence-in-depth at the executor too.
-    if (!(AUTOMATION_ACTION_TYPES as readonly string[]).includes(rule.actionType)) {
-      outcome.skipped += 1;
-      continue;
-    }
-
-    // Condition evaluation. Match decides whether we create a run.
-    const matched = evaluateCondition(rule.conditionJson, safeCtx);
-    if (!matched) {
-      // E3 documented decision: condition mismatch records a SKIPPED
-      // run so operators can see the rule was considered. The DB
-      // unique index still applies — multiple mismatched evaluations
-      // for the same target collapse to one row.
-      const key = computeIdempotencyKey({
-        ruleId: rule.id,
-        triggerType: input.triggerType,
-        targetType: input.targetType,
-        targetId: input.targetId,
-      });
-      try {
-        await prisma.automationRun.create({
-          data: {
-            teamId: rule.teamId,
-            ruleId: rule.id,
-            triggerType: input.triggerType,
-            targetType: input.targetType,
-            targetId: input.targetId,
-            idempotencyKey: key,
-            status: "SKIPPED",
-            reason: "condition_not_matched",
-            startedAt: new Date(),
-            completedAt: new Date(),
-          },
-        });
-        outcome.skipped += 1;
-        emitLifecycle("automation_run_skipped", {
-          teamId: rule.teamId,
-          ruleId: rule.id,
-          triggerType: input.triggerType,
-          actionType: rule.actionType as AutomationActionType,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          reason: "condition_not_matched",
-        });
-      } catch (err) {
-        // Likely P2002 duplicate (we've already recorded a SKIP for
-        // this trigger+target). That's the intended behavior.
-        if (!isUniqueConflict(err)) {
-          // Unexpected error — record nothing extra, dispatcher
-          // continues with other rules.
-        }
-      }
-      continue;
-    }
-
-    // Matched — create a PENDING run + execute.
-    const key = computeIdempotencyKey({
-      ruleId: rule.id,
-      triggerType: input.triggerType,
-      targetType: input.targetType,
-      targetId: input.targetId,
-    });
-
-    let run;
-    try {
-      run = await prisma.automationRun.create({
-        data: {
-          teamId: rule.teamId,
-          ruleId: rule.id,
-          triggerType: input.triggerType,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          idempotencyKey: key,
-          status: "PENDING",
-        },
-      });
-      outcome.created += 1;
-    } catch (err) {
-      if (isUniqueConflict(err)) {
-        // Duplicate trigger for the same target — DO NOT execute again.
-        outcome.skipped += 1;
-        emitLifecycle("automation_run_skipped", {
-          teamId: rule.teamId,
-          ruleId: rule.id,
-          triggerType: input.triggerType,
-          actionType: rule.actionType as AutomationActionType,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          reason: "duplicate_trigger",
-        });
-        continue;
-      }
-      // Unexpected DB failure — skip this rule, keep going.
-      outcome.failed += 1;
-      continue;
-    }
-
-    // Transition PENDING → RUNNING and emit start event.
-    try {
-      await prisma.automationRun.update({
-        where: { id: run.id },
-        data: { status: "RUNNING", startedAt: new Date() },
-      });
-    } catch {
-      // Best-effort transition — continue.
-    }
-    emitLifecycle("automation_run_started", {
-      teamId: rule.teamId,
-      ruleId: rule.id,
-      runId: run.id,
-      triggerType: input.triggerType,
-      actionType: rule.actionType as AutomationActionType,
-      targetType: input.targetType,
-      targetId: input.targetId,
-    });
-
-    // Execute the action via the bounded handler dispatcher.
-    let actionError: unknown = null;
-    try {
-      await executeAutomationAction(
-        {
-          teamId: rule.teamId,
-          ruleId: rule.id,
-          runId: run.id,
-          actionType: rule.actionType as AutomationActionType,
-          actionConfig: rule.actionConfigJson as Record<string, unknown>,
-          triggerType: input.triggerType,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          context: safeCtx,
-        },
-        prisma,
-      );
-    } catch (e) {
-      actionError = e;
-    }
-
-    if (actionError) {
-      const reason = sanitiseReason(
-        actionError instanceof Error
-          ? actionError.message
-          : "action_handler_failed",
-      );
-      try {
-        await prisma.automationRun.update({
-          where: { id: run.id },
-          data: {
-            status: "FAILED",
-            reason: reason || "action_handler_failed",
-            completedAt: new Date(),
-          },
-        });
-      } catch {
-        /* swallow — best-effort completion */
-      }
-      outcome.failed += 1;
-      emitLifecycle("automation_run_failed", {
-        teamId: rule.teamId,
-        ruleId: rule.id,
-        runId: run.id,
-        triggerType: input.triggerType,
-        actionType: rule.actionType as AutomationActionType,
-        targetType: input.targetType,
-        targetId: input.targetId,
-        reason: reason || "action_handler_failed",
-      });
-      continue;
-    }
-
-    // Success.
-    try {
-      await prisma.automationRun.update({
-        where: { id: run.id },
-        data: { status: "SUCCEEDED", completedAt: new Date() },
-      });
-    } catch {
-      /* swallow */
-    }
-    outcome.succeeded += 1;
-    emitLifecycle("automation_run_succeeded", {
-      teamId: rule.teamId,
-      ruleId: rule.id,
-      runId: run.id,
-      triggerType: input.triggerType,
-      actionType: rule.actionType as AutomationActionType,
-      targetType: input.targetType,
-      targetId: input.targetId,
-    });
-  }
-
-  return outcome;
-}
 
 // ---------------------------------------------------------------------------
 // Lifecycle event emission
@@ -461,12 +196,17 @@ type LifecyclePayload = {
   reason?: string;
 };
 
-function emitLifecycle(
+export function emitRunLifecycle(
   eventType:
     | "automation_run_started"
     | "automation_run_succeeded"
     | "automation_run_failed"
     | "automation_run_skipped"
+    // ARCH-005 §1 (2026-08-07) — an outcome the system cannot determine is
+    // audited AS unknown. Folding it into `_failed` would put a refusal in
+    // the trail that nobody observed.
+    | "automation_run_ambiguous"
+    | "automation_run_dead_lettered_unknown"
     | "automation_action_executed",
   payload: LifecyclePayload,
 ): void {
@@ -477,7 +217,10 @@ function emitLifecycle(
     teamId: payload.teamId,
     eventType,
     severity:
-      eventType === "automation_run_failed" ? "WARNING" : "INFO",
+      eventType === "automation_run_failed" ||
+      eventType === "automation_run_dead_lettered_unknown"
+        ? "WARNING"
+        : "INFO",
     details: {
       ruleId: payload.ruleId,
       ...(payload.runId ? { runId: payload.runId } : {}),
@@ -492,17 +235,11 @@ function emitLifecycle(
 
 // Re-export for the action handlers to call when they execute.
 export function emitActionExecuted(payload: LifecyclePayload): void {
-  emitLifecycle("automation_action_executed", payload);
+  emitRunLifecycle("automation_action_executed", payload);
 }
 
-// ---------------------------------------------------------------------------
-// Prisma error helpers
-// ---------------------------------------------------------------------------
-
-function isUniqueConflict(err: unknown): boolean {
-  const e = err as { code?: string; meta?: { target?: string[] } };
-  return e?.code === "P2002";
-}
+/** The lifecycle payload shape, exported for the processor. */
+export type AutomationLifecyclePayload = LifecyclePayload;
 
 // Type re-exports for consumers of the runtime.
 export type AutomationDispatcherClient = Prisma.TransactionClient | PrismaClient;

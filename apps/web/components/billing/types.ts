@@ -54,7 +54,8 @@ export type BillingPaymentSummary = {
 
 export type StorageAddonCatalogItem = {
   key: string;
-  workspaceType: "PERSONAL" | "TEAM";
+  /** ARCH-001 — the COMMERCIAL shape, as the server now names it. */
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
   label: string;
   storageBytes: string;
   priceCents: number;
@@ -97,7 +98,7 @@ export type WorkspaceCapabilityLimits = {
 };
 
 export type PersonalWorkspaceSummary = {
-  workspaceType: "PERSONAL";
+  billingShape: "SINGLE_OCCUPANT";
   plan?: string | null;
   credits?: number | null;
   teamSeats?: number | null;
@@ -119,7 +120,7 @@ export type PersonalWorkspaceSummary = {
 export type TeamWorkspaceSummary = {
   id: string;
   name: string;
-  workspaceType: "TEAM";
+  billingShape: "SHARED";
   plan?: string | null;
   effectivePlan?: string | null;
   billingStatus?: string | null;

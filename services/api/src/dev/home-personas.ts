@@ -29,7 +29,7 @@ export type HomePersona = {
   /** The workspace the user lands in. */
   workspaceId: string;
   /** PERSONAL → Team.isPersonal=true; ORGANIZATION → a team workspace. */
-  workspaceType: "PERSONAL" | "ORGANIZATION";
+  workspaceKind: "PERSONAL" | "ORGANIZATION";
   workspaceName: string;
 };
 
@@ -40,7 +40,7 @@ export const HOME_PERSONAS: Record<HomePersonaKey, HomePersona> = {
     email: "pro-empty@home-personas.local",
     plan: "PRO",
     workspaceId: "0e000000-0000-4000-8000-0000000000a1",
-    workspaceType: "PERSONAL",
+    workspaceKind: "PERSONAL",
     workspaceName: "Personal Space",
   },
   "pro-populated": {
@@ -49,7 +49,7 @@ export const HOME_PERSONAS: Record<HomePersonaKey, HomePersona> = {
     email: "pro-populated@home-personas.local",
     plan: "PRO",
     workspaceId: "0e000000-0000-4000-8000-0000000000a2",
-    workspaceType: "PERSONAL",
+    workspaceKind: "PERSONAL",
     workspaceName: "Personal Space",
   },
   // Phase HOME-PROOF — the "issues" acceptance persona: every
@@ -63,7 +63,7 @@ export const HOME_PERSONAS: Record<HomePersonaKey, HomePersona> = {
     email: "pro-issues@home-personas.local",
     plan: "PRO",
     workspaceId: "0e000000-0000-4000-8000-0000000000a4",
-    workspaceType: "PERSONAL",
+    workspaceKind: "PERSONAL",
     workspaceName: "Personal Space",
   },
   "team-org": {
@@ -72,7 +72,7 @@ export const HOME_PERSONAS: Record<HomePersonaKey, HomePersona> = {
     email: "team-org@home-personas.local",
     plan: "TEAM",
     workspaceId: "0e000000-0000-4000-8000-0000000000a3",
-    workspaceType: "ORGANIZATION",
+    workspaceKind: "ORGANIZATION",
     workspaceName: "Acme Investigations",
   },
 };

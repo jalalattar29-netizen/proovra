@@ -3944,7 +3944,7 @@ type BillingOverviewSnapshot = Awaited<ReturnType<typeof readBillingOverview>>;
 // Discussion tab. The handler loads these alongside `overview` so the
 // snapshot can return a fully-resolved `discussionEnabled` /
 // `discussionReadOnly` pair, and the frontend never has to infer
-// visibility from `workspaceType` or `teamId` (both of which are
+// visibility from `billingShape` or `teamId` (both of which are
 // brittle now that personal workspaces carry a synthetic personal-team
 // UUID — see memory: home-zero-data-root-cause).
 type DiscussionCapabilityInputs = {
@@ -4480,13 +4480,13 @@ async function buildStorageLimitPayload(params: {
       : overview.workspaces.personal;
 
   const upgradeSuggestion =
-    workspace && workspace.workspaceType === "PERSONAL"
+    workspace && workspace.billingShape === "SINGLE_OCCUPANT"
       ? workspace.plan === prismaPkg.PlanType.PAYG
         ? "Upgrading to PRO may be more cost-effective if you need recurring storage."
         : workspace.plan === prismaPkg.PlanType.PRO
           ? "If you need much larger storage, upgrading to TEAM may be more cost-effective."
           : "Upgrade your base plan to unlock more storage options."
-      : workspace && workspace.workspaceType === "TEAM"
+      : workspace && workspace.billingShape === "SHARED"
         ? "If your team keeps growing, a larger recurring storage add-on may be more cost-effective."
         : null;
 
@@ -9387,7 +9387,7 @@ const timestampDigestMatches: boolean | null =
                       evidence.intakePlanJson as Record<string, unknown>
                     ).selectedPlanId ?? null
                   : null,
-              workspaceType: workspaceCapabilitySnapshot.workspaceType,
+              billingShape: workspaceCapabilitySnapshot.workspaceType,
               workspaceName: workspaceCapabilitySnapshot.workspaceName,
               matterType: caseItem?.name ?? null,
             },

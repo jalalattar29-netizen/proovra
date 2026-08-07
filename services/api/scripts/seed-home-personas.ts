@@ -212,7 +212,13 @@ async function createUserWorkspace(personaKey: keyof typeof HOME_PERSONAS): Prom
       name: p.workspaceName,
       ownerUserId: p.userId,
       organizationId,
-      isPersonal: p.workspaceType === "PERSONAL",
+      isPersonal: p.workspaceKind === "PERSONAL",
+      // ARCH-002 (2026-08-06) — the kind is STATED, from the persona's declared
+      // tenancy, never inferred from `p.plan`. A persona on the TEAM plan in an
+      // OWNED workspace is a legitimate combination, and the removed fallback
+      // would have silently called it an ORGANIZATION.
+      workspaceKind:
+        p.workspaceKind === "PERSONAL" ? "PERSONAL" : "ORGANIZATION",
       billingPlan: p.plan,
       billingStatus: "ACTIVE",
       evidenceWorkspaceLabel: p.workspaceName,
@@ -994,7 +1000,7 @@ async function main(): Promise<void> {
   console.log("Done. Personas:");
   for (const p of Object.values(HOME_PERSONAS)) {
     // eslint-disable-next-line no-console
-    console.log(`  ${p.key.padEnd(14)} user=${p.userId} workspace=${p.workspaceId} (${p.workspaceType}, ${p.plan})`);
+    console.log(`  ${p.key.padEnd(14)} user=${p.userId} workspace=${p.workspaceId} (${p.workspaceKind}, ${p.plan})`);
   }
 
   // Phase CAPTURE-DETAIL-WIRING — backfill signing-key metadata on

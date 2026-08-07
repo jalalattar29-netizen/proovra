@@ -28,6 +28,9 @@ import {
   useTerminology,
   useWorkspaceId,
 } from "../../../lib/platform-context";
+// PHASE 12 REMEDIATION — WEB-002 (2026-08-06). The ONE tenant-storage
+// namespace authority; see the recent-searches block below.
+import { tenantStorageKey } from "../../../lib/platform-context/tenantStorage";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // Phase 7C — full shared design-system migration of the /search console.
 // PageShell supplies the token-driven content plane; PageHeader renders
@@ -705,12 +708,41 @@ function SearchInner() {
   // first. Surfaced under the focused empty-query search box and
   // pushed on every successful submit. No backend round-trip; the
   // backend search audit log keeps the real history for ops.
-  const recentKey = `proovra:search:recent:${teamId}`;
+  //
+  // PHASE 12 REMEDIATION — WEB-002 (2026-08-06). The key used to be
+  // `proovra:search:recent:${teamId}` — its OWN namespace. It was correctly
+  // workspace-scoped, so there was never a cross-tenant leak, but it sat
+  // outside the canonical `proovra:tenant:<workspaceId>:<key>` namespace.
+  // That meant a tenant-scoped purge, which iterates the canonical
+  // namespace, walked straight past it: switching or leaving a workspace
+  // cleared every other tenant-scoped draft and left this workspace's search
+  // history behind on the device.
+  //
+  // It now uses `tenantStorageKey`, the ONE storage-namespace authority, so
+  // the value is purged by the same sweep as everything else. Prior-key
+  // migration is handled in the load effect below: the legacy entry is read
+  // once, rewritten under the canonical key, and removed — so an existing
+  // user keeps their history AND the stray key stops surviving purges.
+  const recentKey = tenantStorageKey(teamId ?? null, "search:recent");
+  const legacyRecentKey = `proovra:search:recent:${teamId}`;
   const [recent, setRecent] = useState<string[]>([]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(recentKey);
+      let raw = window.localStorage.getItem(recentKey);
+      if (raw === null) {
+        // One-time migration off the pre-canonical namespace.
+        const legacy = window.localStorage.getItem(legacyRecentKey);
+        if (legacy !== null) {
+          window.localStorage.setItem(recentKey, legacy);
+          window.localStorage.removeItem(legacyRecentKey);
+          raw = legacy;
+        }
+      } else {
+        // Canonical value already present — drop any stale legacy twin so it
+        // cannot outlive a tenant purge.
+        window.localStorage.removeItem(legacyRecentKey);
+      }
       const parsed = raw ? (JSON.parse(raw) as unknown) : [];
       if (
         Array.isArray(parsed) &&
@@ -721,7 +753,7 @@ function SearchInner() {
     } catch {
       /* localStorage may be disabled; fall back to no recents */
     }
-  }, [recentKey]);
+  }, [recentKey, legacyRecentKey]);
   const pushRecent = useCallback(
     (q: string) => {
       if (typeof window === "undefined") return;

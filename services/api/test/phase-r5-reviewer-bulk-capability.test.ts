@@ -45,13 +45,46 @@ describe("Phase R5 — reviewer bulk capability consolidation (F38)", () => {
     expect(REVIEWER_ROLE_CAPABILITIES.REVIEW_ADMIN).toContain("review.bulk");
   });
 
-  it("reviewer-ops bulk route enforces the granular review.bulk gate", () => {
-    // The helper exists and checks review.bulk...
+  it("reviewer-ops bulk route enforces the granular bulk gate", () => {
+    // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). INTENTIONAL CONTRACT
+    // CHANGE, same admission set.
+    //
+    //   OLD: `requireReviewerBulkCapable` issued its OWN `teamMember`
+    //        + `user` queries — the teamMember read carrying `select:
+    //        { role: true }` and NO status predicate — then fed the bare
+    //        role to `resolveReviewerRole` and asserted
+    //        `callerHasCapability(resolution, "review.bulk")`.
+    //
+    //   NEW: it reads the PROVEN `AuthorizedWorkspaceContext` that
+    //        `requireReviewerActor` already established, whose construction
+    //        required ACTIVE membership, unexpired access, a provable
+    //        workspace kind and an ACTIVE parent Organization.
+    //
+    // WHY: this file had FOUR status-blind secondary role reads (audit
+    // AUTH-005). A SUSPENDED or REVOKED OWNER/ADMIN could satisfy them.
+    //
+    // THE ADMISSION SET IS IDENTICAL. The reviewer matrix granted
+    // `review.bulk` to SUPERVISOR + REVIEW_ADMIN — i.e. workspace ADMIN +
+    // OWNER — and that is exactly what the administrative-tier floor below
+    // expresses, combined with the canonical `review.escalate` permission
+    // that both roles hold. No role gains bulk access; inactive members lose
+    // it.
     expect(reviewerOpsSrc).toContain("requireReviewerBulkCapable");
+    // PHASE 12 CORRECTIVE PASS 3 §2.1 — the administrative-tier floor is
+    // unchanged (OWNER or ADMIN). The ROLE it reads is now obtained through
+    // `provenRole`, which re-binds the handed-in context to the `teamId` and
+    // `actorUserId` sitting beside it in the bundle — a pairing that
+    // provenance alone could not vouch for. The old assertion pinned the raw
+    // field read this replaced.
     expect(reviewerOpsSrc).toMatch(
-      /callerHasCapability\(resolution,\s*"review\.bulk"\)/,
+      /const role = provenRole\(ctx\);[\s\S]*?role === "OWNER" \|\| role === "ADMIN"/,
     );
-    // ...and the bulk handler invokes it.
+    expect(reviewerOpsSrc).toMatch(
+      /contextHasCapability\(ctx\.authorized,\s*"review\.escalate"\)/,
+    );
+    // The second capability vocabulary is no longer consulted here.
+    expect(reviewerOpsSrc).not.toMatch(/callerHasCapability\(resolution,/);
+    // ...and the bulk handler still invokes the gate.
     const bulkIdx = reviewerOpsSrc.indexOf('"/v1/reviewer-ops/reviews/bulk"');
     expect(bulkIdx).toBeGreaterThan(-1);
     const handler = reviewerOpsSrc.slice(bulkIdx, bulkIdx + 900);

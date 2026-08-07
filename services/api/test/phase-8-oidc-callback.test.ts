@@ -79,6 +79,15 @@ function jsonRes(body: unknown, status = 200): Response {
 const dbState = vi.hoisted(() => ({
   mapping: { userId: "user-1", teamId: "team-1" } as unknown,
   orgKind: "CUSTOMER" as string,
+  // PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — STATED, not inferred.
+  //
+  // This fixture used to omit the kind and rely on the classifier deriving
+  // ORGANIZATION from billingPlan === "ENTERPRISE". That derivation is exactly
+  // the defect ARCH-002 removed, and its absence is why these cases began
+  // failing with SSO_NOT_ENTERPRISE: the workspace resolved UNKNOWN, so the
+  // chain failed closed. The workspace under a CUSTOMER Organization IS an
+  // ORGANIZATION workspace; saying so is what the production writers do.
+  workspaceKind: "ORGANIZATION" as string,
   billingPlan: "ENTERPRISE" as string,
   billingStatus: "ACTIVE" as string,
 }));
@@ -119,6 +128,7 @@ function fakePrisma() {
                     id: "team-1",
                     ownerUserId: "user-1",
                     isPersonal: false,
+                    workspaceKind: dbState.workspaceKind,
                     billingPlan: dbState.billingPlan,
                     billingStatus: dbState.billingStatus,
                     organizationId: "org-1",
@@ -207,6 +217,7 @@ beforeEach(() => {
   writes.length = 0;
   dbState.mapping = { userId: "user-1", teamId: "team-1" };
   dbState.orgKind = "CUSTOMER";
+  dbState.workspaceKind = "ORGANIZATION";
   dbState.billingPlan = "ENTERPRISE";
   dbState.billingStatus = "ACTIVE";
   netState.userinfo = { sub: "idp-sub-1", email: "user@enterprise.com" };

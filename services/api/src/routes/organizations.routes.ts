@@ -36,7 +36,7 @@
  *     Stages 4-6. They do not require any new migration — Stage 1
  *     shipped the schema and Stage 2 the backfill.
  */
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -51,6 +51,11 @@ import {
 } from "../services/organization/org-access.js";
 // P0 remediation (2026-07-21) — admin org-member removal revokes sessions.
 import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
+// ARCH-004 — governance-membership transitions have ONE orchestrator.
+import {
+  restoreOrganizationMembership,
+  suspendOrganizationMembership,
+} from "../services/identity/org-membership-lifecycle.service.js";
 // P2 domain remediation (2026-07-21) — canonical membership provisioning
 // (governance + explicit workspace assignments).
 import {
@@ -200,7 +205,25 @@ async function requireAuthAndLegal(
   reply: Parameters<typeof requireAuth>[1],
 ) {
   await requireAuth(req, reply);
-  // requireAuth replies on failure; if we reach here auth succeeded.
+  /**
+   * PHASE 12 CORRECTIVE PASS §2 (2026-08-07) — FOUND BY DRIVING, NOT BY
+   * READING. A clean 401 was being turned into a 500.
+   *
+   * The comment that used to sit on the next line said "requireAuth replies on
+   * failure; if we reach here auth succeeded", which is not what the code did:
+   * `requireAuth` SENDS a 401 and returns normally, so control DID reach here,
+   * `requireLegalAcceptance` sent its own reply on top, and Fastify raised
+   * FST_ERR_REP_ALREADY_SENT — surfacing to the caller as a 500.
+   *
+   * It shows up the moment a token stops being valid mid-session, which is
+   * exactly what an Organization suspension now causes (it revokes its
+   * members' sessions). A client that should have been told "reauthenticate"
+   * was instead told "the server broke".
+   *
+   * `reply.sent` is the honest check: if a reply has already gone out, this
+   * composite's job is done.
+   */
+  if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
 }
 
@@ -237,8 +260,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
       // containers (the internal 1:1 backing rows for Personal / Owned
       // workspaces) must NEVER surface as customer Enterprise
       // Organizations on any product surface.
+      // ARCH-004 — the caller's Organization list is a list of places they
+      // may enter. A suspended or revoked membership must not appear and then
+      // refuse on arrival.
       const rows = await prisma.organizationMembership.findMany({
-        where: { userId, organization: { kind: "CUSTOMER" } },
+        where: { userId, status: "ACTIVE", organization: { kind: "CUSTOMER" } },
         select: {
           role: true,
           createdAt: true,
@@ -263,9 +289,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         orgIds.length === 0
           ? [[], [], []]
           : await Promise.all([
+              // ARCH-004 — a member count is a SEAT count. Revoked members
+              // occupy no seat, so counting them would bill for people who
+              // cannot sign in.
               prisma.organizationMembership.groupBy({
                 by: ["organizationId"],
-                where: { organizationId: { in: orgIds } },
+                where: { organizationId: { in: orgIds }, status: "ACTIVE" },
                 _count: { id: true },
               }),
               prisma.team.groupBy({
@@ -375,8 +404,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
       // None reveals workspace-internal data (evidence/case/reviewer).
       const [memberCount, workspaceCount, pendingInviteCount] =
         await Promise.all([
+          // ARCH-004 — seat occupancy, so ACTIVE only.
           prisma.organizationMembership.count({
-            where: { organizationId: orgId },
+            where: { organizationId: orgId, status: "ACTIVE" },
           }),
           prisma.team.count({ where: { organizationId: orgId } }),
           prisma.organizationInvite.count({
@@ -460,6 +490,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      // ARCH-004 — the ADMINISTRATION roster deliberately shows every
+      // membership, including suspended and revoked ones: an administrator
+      // cannot restore what the console will not show them. The status travels
+      // with each row so the surface can render it, and nothing here grants
+      // access — the leaf endpoints gate on `checkOrgAccess`, which is
+      // ACTIVE-only.
       const memberships = await prisma.organizationMembership.findMany({
         where: { organizationId: orgId },
         select: {
@@ -467,6 +503,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
           userId: true,
           role: true,
           createdAt: true,
+          status: true,
+          statusChangedAtUtc: true,
+          suspendedAtUtc: true,
+          suspensionReason: true,
+          revokedAtUtc: true,
+          revocationReason: true,
           user: { select: { email: true, displayName: true } },
         },
         orderBy: [{ role: "asc" }, { createdAt: "asc" }],
@@ -814,8 +856,17 @@ export async function organizationsRoutes(app: FastifyInstance) {
           select: { id: true },
         });
         if (userWithEmail) {
+          // ARCH-004 — only an ACTIVE membership is a duplicate. Inviting
+          // somebody whose membership was revoked is a legitimate re-invite,
+          // and refusing it as "already_member" would strand them: the row
+          // survives revocation now, so the old existence check would have
+          // made re-invitation impossible.
           const alreadyMember = await tx.organizationMembership.findFirst({
-            where: { organizationId: orgId, userId: userWithEmail.id },
+            where: {
+              organizationId: orgId,
+              userId: userWithEmail.id,
+              status: "ACTIVE",
+            },
             select: { id: true },
           });
           if (alreadyMember) {
@@ -1410,8 +1461,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
         // Cannot demote the last ORG_OWNER.
         if (target.role === "ORG_OWNER" && newRole !== "ORG_OWNER") {
+          // ARCH-004 — a REVOKED owner protects nothing. Counting them
+          // would let the last LIVE owner be demoted, leaving the
+          // Organization with no one who can administer it.
           const ownerCount = await tx.organizationMembership.count({
-            where: { organizationId: orgId, role: "ORG_OWNER" },
+            where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
           });
           if (ownerCount <= 1) {
             return { kind: "last_owner_protected" as const };
@@ -1524,8 +1578,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return { kind: "owner_remove_requires_owner" as const };
         }
         if (target.role === "ORG_OWNER") {
+          // ARCH-004 — as above: only a LIVE owner counts toward the
+          // last-owner protection.
           const ownerCount = await tx.organizationMembership.count({
-            where: { organizationId: orgId, role: "ORG_OWNER" },
+            where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
           });
           if (ownerCount <= 1) {
             return { kind: "last_owner_protected" as const };
@@ -1638,6 +1694,179 @@ export async function organizationsRoutes(app: FastifyInstance) {
             .send({ membershipId: result.membershipId, removed: true });
       }
     },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/orgs/:id/members/:memberId/suspend
+  // POST /v1/orgs/:id/members/:memberId/restore
+  //
+  // PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — THE REVERSIBLE HALF.
+  //
+  // Before this, an administrator who wanted to pause somebody's governance
+  // access had exactly one option: removal, which was a physical DELETE. So
+  // "pause" was performed as "delete and re-invite later", which destroyed the
+  // history and produced an invitation the person had to accept again.
+  //
+  // These two routes are the reversible half the model was missing. Both go
+  // through the ONE lifecycle orchestrator, which stamps actor/time/reason,
+  // emits the audit event, and fences the transition against a concurrent one
+  // — so a simultaneous suspend and restore produces one deterministic winner
+  // instead of last-writer-wins.
+  //
+  // Guarded exactly like the role-change and removal routes: ORG_ADMIN+, no
+  // acting on yourself, and an ORG_OWNER may only be acted on by an ORG_OWNER.
+  // -------------------------------------------------------------------------
+  const LifecycleBody = z.object({
+    reason: z.string().min(1).max(400).optional(),
+    /**
+     * Optimistic concurrency. A console that read the roster and then acted
+     * echoes the generation it saw; a stale one loses and is told so, rather
+     * than silently overwriting a transition somebody else made in between.
+     */
+    expectedGeneration: z.number().int().min(0).optional(),
+  });
+
+  /**
+   * Registered EXPLICITLY, twice, rather than in a loop over the two actions.
+   *
+   * A loop reads better and produced exactly one problem: the route inventory
+   * that keeps the capability map honest scans this file for registration
+   * literals, and a template literal gave it
+   * `POST /v1/orgs/:id/members/:memberId/` — a path that exists in no
+   * router. A route table that cannot be read by the thing auditing it is a
+   * route table with a blind spot, and the audit is worth more than the four
+   * saved lines.
+   */
+  const membershipLifecycleHandler =
+    (action: "suspend" | "restore") =>
+      async (req: FastifyRequest, reply: FastifyReply) => {
+        const orgId = UuidParam.parse((req.params as { id: string }).id);
+        const memberId = UuidParam.parse(
+          (req.params as { memberId: string }).memberId,
+        );
+        const userId = getAuthUserId(req);
+        const body = LifecycleBody.parse(req.body ?? {});
+
+        const access = await checkOrgAccess(prisma, {
+          orgId,
+          userId,
+          minRole: "ORG_ADMIN",
+        });
+        if (access.kind !== "ok") {
+          // Same shape the sibling member-administration routes use.
+          return reply.code(403).send({ message: "Forbidden" });
+        }
+
+        const target = await prisma.organizationMembership.findFirst({
+          where: { id: memberId, organizationId: orgId },
+          select: { id: true, userId: true, role: true, status: true },
+        });
+        if (!target) {
+          return reply.code(404).send({ message: "Membership not found." });
+        }
+        if (target.userId === userId) {
+          return reply
+            .code(409)
+            .send({ message: "Cannot change your own membership status." });
+        }
+        if (target.role === "ORG_OWNER" && access.role !== "ORG_OWNER") {
+          return reply
+            .code(403)
+            .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
+        }
+        // Suspending the last live owner would leave the Organization with
+        // nobody able to administer it — the same protection removal has.
+        if (action === "suspend" && target.role === "ORG_OWNER") {
+          const liveOwners = await prisma.organizationMembership.count({
+            where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
+          });
+          if (liveOwners <= 1) {
+            return reply
+              .code(409)
+              .send({ message: "Cannot suspend the last ORG_OWNER." });
+          }
+        }
+
+        const outcome =
+          action === "suspend"
+            ? await suspendOrganizationMembership({
+                organizationId: orgId,
+                membershipId: target.id,
+                actorUserId: userId,
+                source: "MANUAL",
+                reason: body.reason ?? null,
+                ...(body.expectedGeneration !== undefined
+                  ? { expectedGeneration: body.expectedGeneration }
+                  : {}),
+              })
+            : await restoreOrganizationMembership({
+                organizationId: orgId,
+                membershipId: target.id,
+                actorUserId: userId,
+                source: "MANUAL",
+                reason: body.reason ?? null,
+                ...(body.expectedGeneration !== undefined
+                  ? { expectedGeneration: body.expectedGeneration }
+                  : {}),
+              });
+
+        if (!outcome.ok) {
+          switch (outcome.reason) {
+            case "not_found":
+              return reply.code(404).send({ message: "Membership not found." });
+            case "stale_generation":
+              return reply.code(409).send({
+                message:
+                  "This membership changed while you were looking at it. Reload and try again.",
+                code: "STALE_MEMBERSHIP_GENERATION",
+                currentGeneration: outcome.currentGeneration,
+              });
+            case "illegal_transition":
+              return reply.code(409).send({
+                message: `A ${outcome.from.toLowerCase()} membership cannot be ${action}d.`,
+                code: "ILLEGAL_MEMBERSHIP_TRANSITION",
+              });
+          }
+        }
+
+        // A SUSPENDED member's live sessions must stop being useful now, not
+        // at token expiry. Best-effort AFTER the durable transition — access is
+        // already denied server-side even if this write fails.
+        if (action === "suspend") {
+          try {
+            await revokeAllSessionsForUser(
+              {
+                teamId: null,
+                userId: target.userId,
+                // The canonical revocation vocabulary already has this reason; a
+                // new ORG_-prefixed twin would be a second name for one fact.
+                reason: "MEMBER_SUSPENDED",
+                actorUserId: userId,
+              },
+              prisma,
+            );
+          } catch {
+            /* deny-list write is best-effort; the membership is already SUSPENDED */
+          }
+        }
+
+        return reply.code(200).send({
+          membershipId: target.id,
+          status: outcome.status,
+          generation: outcome.generation,
+          changed: outcome.changed,
+        });
+      };
+
+  app.post(
+    "/v1/orgs/:id/members/:memberId/suspend",
+    { preHandler: requireAuthAndLegal },
+    membershipLifecycleHandler("suspend"),
+  );
+  app.post(
+    "/v1/orgs/:id/members/:memberId/restore",
+    { preHandler: requireAuthAndLegal },
+    membershipLifecycleHandler("restore"),
   );
 
   // -------------------------------------------------------------------------

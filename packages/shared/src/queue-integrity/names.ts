@@ -13,7 +13,10 @@
  *   17 BullMQ Queue objects = 15 PROCESSED queues + 2 DLQ sinks
  *   15 job names            = one per processed queue, 1:1
  *   15 worker registrations = one per processed queue, 1:1
- *   17 DB-outbox sweeps     = scheduler + processor pairs
+ *   18 DB-outbox sweeps     = scheduler + processor pairs
+ *                             (17 until ARCH-005 added AutomationDispatchSweep
+ *                             on 2026-08-07; see SWEEP_NAMES for why Automation
+ *                             is an outbox sweep and not a BullMQ queue)
  *    2 telemetry samplers    (observability heartbeat, queue-health sampler —
  *                             they process no durable work and own no state,
  *                             so they are not Point-5 processors)
@@ -165,6 +168,32 @@ export const SWEEP_NAMES = {
   ORG_INVITE_DELIVERY: "OrgInviteDeliverySweep",
   SEARCH_INDEX_RECONCILER: "SearchIndexStrandedReconciler",
   INTELLIGENCE_RUN_RECONCILER: "IntelligenceRunStrandedReconciler",
+  /**
+   * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07).
+   *
+   * THE ONE AUTOMATION EXECUTION AUTHORITY.
+   *
+   * WHY A DB-OUTBOX SWEEP AND NOT A BULLMQ QUEUE
+   * -----------------------------------------------------------------------
+   * Automation's producer runs INSIDE the source domain transaction: the
+   * `AutomationRun` row is committed atomically with the evidence, review or
+   * hold change that caused it. That is the whole point — the previous design
+   * lost the event whenever the process died between commit and dispatch.
+   *
+   * A BullMQ enqueue cannot participate in that transaction. Enqueuing before
+   * commit produces a job for a change that may roll back; enqueuing after
+   * commit reopens the exact crash window this closes. The only way to have
+   * both is outbox row + sweep, or outbox row + sweep + a BullMQ "hint" — and
+   * the hint is a SECOND execution path for the same row, which is the
+   * duplicate-authority shape this programme exists to remove.
+   *
+   * `db_outbox_sweep` is a first-class transport in this registry precisely
+   * for this case; the integrity contract (durable authority, atomic claim,
+   * idempotent side effect, one terminal writer, a reconciler) is identical
+   * either way, and the topology gate, the registry and the queue-health
+   * projection all address a sweep exactly as they address a job.
+   */
+  AUTOMATION_DISPATCH: "AutomationDispatchSweep",
 } as const;
 
 export type SweepName = (typeof SWEEP_NAMES)[keyof typeof SWEEP_NAMES];

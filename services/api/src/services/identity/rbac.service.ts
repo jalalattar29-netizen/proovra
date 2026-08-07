@@ -34,6 +34,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// PHASE 12 REMEDIATION §4.4 (2026-08-06) — pointer hygiene at the membership
+// mutation boundary. HYGIENE ONLY: authorization never depends on it having
+// run (see middleware/authorize.ts `authorizeCurrentWorkspaceOrFail`).
+import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 // PHASE 3 (2026-07-21) — grant provenance (rbac IS the MANUAL-intent
@@ -248,6 +252,18 @@ export async function suspendMember(
         suspensionReason: input.reason ?? null,
       },
     });
+    // §4.4 — the operator can no longer enter this workspace, so a pointer
+    // naming it must not survive the transaction that withdrew the access.
+    // Cleared to NULL only: choosing a replacement context belongs to
+    // context RESTORATION, which revalidates DB authority when it runs.
+    await repairStaleCurrentWorkspacePointers(
+      {
+        memberships: [
+          { userId: target.userId, workspaceId: input.teamId },
+        ],
+      },
+      tx as never,
+    );
     await emitMemberAudit(tx, {
       teamId: input.teamId,
       actorUserId: input.actorUserId,
@@ -314,6 +330,15 @@ export async function revokeMember(
       teamMemberId: target.id,
       actorUserId: input.actorUserId,
     });
+    // §4.4 — same hygiene on the revocation leg.
+    await repairStaleCurrentWorkspacePointers(
+      {
+        memberships: [
+          { userId: target.userId, workspaceId: input.teamId },
+        ],
+      },
+      tx as never,
+    );
     await emitMemberAudit(tx, {
       teamId: input.teamId,
       actorUserId: input.actorUserId,

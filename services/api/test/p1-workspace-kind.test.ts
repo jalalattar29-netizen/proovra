@@ -33,7 +33,14 @@ describe("P1 — schema discriminators", () => {
     expect(SCHEMA).toMatch(
       /enum WorkspaceKind \{\s*PERSONAL\s*OWNED\s*ORGANIZATION\s*\}/,
     );
-    expect(SCHEMA).toMatch(/workspaceKind\s+WorkspaceKind\?\s+@map\("workspace_kind"\)/);
+    // PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — MANDATORY.
+    //
+    // This pinned the NULLABLE form, which is what forced the plan-derived
+    // fallback in `normalizeWorkspaceKind` — the fallback that turned a
+    // commercial upgrade into a silent tenancy change. The column is NOT NULL
+    // from 20271125000000, after a backfill from structural authority only.
+    expect(SCHEMA).toMatch(/workspaceKind\s+WorkspaceKind\s+@map\("workspace_kind"\)/);
+    expect(SCHEMA).not.toMatch(/workspaceKind\s+WorkspaceKind\?/);
     expect(SCHEMA).toMatch(/@@index\(\[workspaceKind\]\)/);
   });
 

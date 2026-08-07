@@ -1,0 +1,121 @@
+{
+ "sourceRevision": "a7863bec33f10549d84a839ee7ab353509626a2a",
+ "method": "Each authority was reconstructed from production source by locating every writer/reader and reading the owning code. Tests were neither read nor used as evidence.",
+ "authorities": [
+  {
+   "authority": "Identity (global account)",
+   "canonicalWriter": "services/api/src/routes/auth.routes.ts (email/password, Google, Apple) + services/api/src/routes/sso-auth.routes.ts + saml-auth.routes.ts + services/api/src/services/access-control/scim.service.ts",
+   "databaseModel": "User (users)",
+   "secondaryWriters": ["services/api/src/services/identity/identity-mode.service.ts (UserIdentityMode/ManagedIdentitySource)", "services/api/src/services/access-control/scim.service.ts (SCIM-provisioned users)"],
+   "readers": "repo-wide via getAuthUserId(req) (services/api/src/auth.ts)",
+   "inputTrustBoundary": "JWT verified in services/api/src/middleware/auth.ts; userId is never read from body/query/header",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "One User row per account. Organization membership is a separate row (OrganizationMembership) and never mints a second identity — no code path creates a User as a side effect of joining an Organization."
+  },
+  {
+   "authority": "Workspace (the tenant container)",
+   "canonicalWriter": "EXACTLY 4 creation sites: routes/teams.routes.ts:452 (OWNED), services/enterprise-provisioning.service.ts:565 and :857 (ORGANIZATION), services/platform-context/workspace-bootstrap.service.ts:222 (PERSONAL)",
+   "databaseModel": "Team (teams) — @@map(\"teams\") is the storage-level legacy name for the canonical Workspace",
+   "transactionBoundary": "routes/teams.routes.ts wraps org-create + membership-grant + team-create in one prisma.$transaction with pg_advisory_xact_lock",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "All 4 writers set workspaceKind explicitly. No fifth writer exists."
+  },
+  {
+   "authority": "Workspace kind (PERSONAL / OWNED / ORGANIZATION)",
+   "canonicalWriter": "packages/shared/src/workspace-kind.ts:normalizeWorkspaceKind — ONE implementation",
+   "adapters": ["services/api/src/services/identity/workspace-kind.ts:resolveWorkspaceKind (delegates, zero duplicated logic)", "services/worker/src/workspace-billing.ts (imports the shared normalizer)"],
+   "databaseModel": "Team.workspaceKind (enum WorkspaceKind, NULLABLE) + legacy Team.isPersonal boolean",
+   "validation": "Fail-closed: teamLoaded=false -> UNKNOWN; isPersonal unprovable -> UNKNOWN; UNKNOWN denies in access-policy and is excluded from the context switcher",
+   "verdict": "PARTIAL_IMPLEMENTATION",
+   "defect": "The DB does not enforce the discriminator (column is nullable, no CHECK, no NOT NULL). A NULL row falls back to a plan-derived rule (billingPlan==='ENTERPRISE' -> ORGANIZATION), which is plan-inferring-kind. Bounded to the migration window only; all 4 live writers set it explicitly. See ARCH-002."
+  },
+  {
+   "authority": "Organization (Enterprise governance container)",
+   "canonicalWriter": "services/api/src/services/enterprise-provisioning.service.ts (kind: CUSTOMER) + routes/teams.routes.ts:433 (kind: SYSTEM, the internal 1:1 bootstrap container)",
+   "databaseModel": "Organization (organizations), Organization.kind SYSTEM|CUSTOMER, Organization.status ACTIVE|SUSPENDED|ARCHIVED",
+   "readers": "services/api/src/services/organization/org-access.ts:checkOrgAccess is the ONE org-level authorization decision",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "checkOrgAccess denies on ARCHIVED and SUSPENDED before reading membership; only CUSTOMER orgs are governance boundaries (resolveEnterpriseContract returns null for SYSTEM)."
+  },
+  {
+   "authority": "Workspace membership + lifecycle",
+   "canonicalWriter": "services/api/src/services/identity/membership-provisioning.service.ts (grant / suspend / reactivate / revoke / mass-*), provenance-normalized via MembershipGrant",
+   "databaseModel": "TeamMember (team_members) with status TeamMemberStatus ACTIVE|SUSPENDED|REVOKED",
+   "canonicalReader": "services/api/src/services/identity/access-policy.service.ts:evaluateMemberAccess",
+   "verdict": "PARTIAL_IMPLEMENTATION",
+   "defect": "The canonical reader is correct and status-aware. 54 production reads of teamMember.* neither constrain nor consume status; most are secondary or non-authorizing, but a confirmed subset act as the PRIMARY access gate. See AUTH-001, AUTH-002, AUTH-003."
+  },
+  {
+   "authority": "Organization membership",
+   "canonicalWriter": "services/api/src/services/identity/membership-provisioning.service.ts:grantOrganizationMembership / removeOrganizationMembership / removeAllOrganizationMembershipsForUser",
+   "databaseModel": "OrganizationMembership (organization_memberships) — NO status column",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "Revocation is a physical DELETE (membership-provisioning.service.ts:908, :989), so 'inactive membership' is modelled as absence and checkOrgAccess denies correctly. Asymmetric with TeamMember (no SUSPEND state at org level) — see ARCH-004."
+  },
+  {
+   "authority": "Request authorization (the one decision point)",
+   "canonicalWriter": "services/api/src/middleware/authorize.ts:evaluateAuthorize -> services/api/src/services/identity/access-policy.service.ts:evaluateAccess",
+   "gatesApplied": ["TeamMember.status must be ACTIVE", "accessExpiresAtUtc not elapsed", "workspaceKind !== UNKNOWN (fail closed)", "ORGANIZATION workspaces require Organization.status === ACTIVE", "role floor -> capability grant -> delegated admin scope", "support-context token: server-verified, actor-bound, session-bound, session-liveness-checked"],
+   "errorBehavior": "Bounded reason-code vocabulary only; never a Prisma message; 503 on evaluation failure (fail closed); optional antiEnumeration converts membership failures to 404",
+   "auditEvent": "recordPermissionDecision -> SecurityEvent permission_denied on every deny",
+   "verdict": "PROVEN_MATCH",
+   "adoption": "101 of 1,081 routes call it directly; many more reach it through per-file requireXActor helpers that delegate to it."
+  },
+  {
+   "authority": "Active context / workspace switching",
+   "canonicalWriter": "services/api/src/services/platform-context/platform-context.service.ts (envelope) + routes/platform-context.routes.ts:104 (POST /v1/platform/context/switch-workspace)",
+   "databaseModel": "User.currentWorkspaceId (a hint, revalidated on every envelope build)",
+   "validation": "Available contexts derived from teamMember.findMany({ where: { userId, status: 'ACTIVE' } }); parent Organization must be ACTIVE; UNKNOWN workspaceKind rows are excluded; a stale currentWorkspaceId pointing at a deleted team or a non-ACTIVE membership is cleared and NOT healed into Personal when noPersonalSpace applies",
+   "clientMirror": "apps/web/lib/platform-context/PlatformContextProvider.tsx + tenantStorage.ts (tenant-generation stamping, isStale predicate, tenant-namespaced localStorage keys)",
+   "verdict": "PROVEN_MATCH",
+   "note": "The envelope field named `organizations` actually carries Team (workspace) ids — see ARCH-003."
+  },
+  {
+   "authority": "Plan / commercial state",
+   "canonicalWriter": "packages/shared-billing/src/plan-catalog.ts:PLAN_CAPABILITIES (single catalog) + resolveWorkspaceEffectivePlan (single decision)",
+   "apiEntryPoint": "services/api/src/services/billing/commercial-context.service.ts:resolveCommercialContext with an explicit discriminated CommercialSubject; declared-kind mismatch throws 409 COMMERCIAL_SUBJECT_MISMATCH (fail closed)",
+   "databaseModel": "Team.billingPlan/billingStatus/includedSeats (workspace commercial state) + Entitlement(userId, plan) which is the PERSONAL_ACCOUNT subject only",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "Direction of inference is kind -> plan, never plan -> kind. PERSONAL resolves from the owner entitlement; OWNED honours only a live TEAM workspace subscription and fails closed on a legacy ENTERPRISE string; ORGANIZATION resolves from the CUSTOMER org contract; UNKNOWN -> FREE. PAYG is never promoted to a recurring workspace plan."
+  },
+  {
+   "authority": "Owned-workspace creation limit",
+   "canonicalWriter": "services/api/src/routes/teams.routes.ts:307 (pre-flight) and :409 (authoritative, inside the transaction)",
+   "concurrencyControl": "SELECT pg_advisory_xact_lock(hashtext('owned-workspace-create:<ownerUserId>')) then re-count inside the same transaction",
+   "countPredicate": "ownerUserId AND isPersonal=false AND NOT organization.kind='CUSTOMER' — Personal Space and provisioned Organization workspaces are both excluded",
+   "verdict": "PROVEN_MATCH"
+  },
+  {
+   "authority": "Queue / job",
+   "canonicalWriter": "services/worker/src/queue.ts (17 Queue objects) + packages/shared/src/queue-integrity/ (names, registry, enqueue, job-id, payload decoder, retry policy)",
+   "processors": "services/worker/src/index.ts — 15 safeRegisterWorker registrations, one per non-DLQ queue",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "Runtime wiring was discovered independently and then compared with the registry: 17 registry QUEUE_NAMES == 17 runtime Queue objects; 2 DLQs intentionally have no processor; producer-without-processor = 0; processor-without-producer = 0. API-side producers construct queues from the same shared name constants, so producer/processor name drift is structurally impossible."
+  },
+  {
+   "authority": "Evidence tenant",
+   "canonicalWriter": "services/api/src/services/evidence.service.ts + routes/evidence.routes.ts",
+   "databaseModel": "Evidence.teamId (+ Evidence.organizationId relation EvidenceOrganization, onDelete Restrict)",
+   "guestIdentity": "GuestIdentity is an association only (guest_identities.user_id unique); it is never used as tenant authority — Evidence still carries teamId",
+   "verdict": "PROVEN_MATCH"
+  },
+  {
+   "authority": "Case tenant + cross-tenant attach",
+   "canonicalWriter": "services/api/src/services/cases/case-lifecycle.service.ts; cross-tenant guard services/api/src/services/cases/case-permission.service.ts:evaluateCrossTeamAttach",
+   "verdict": "PARTIAL_IMPLEMENTATION",
+   "defect": "evaluateCrossTeamAttach correctly refuses case.teamId != evidence.teamId. But case-permission.service.ts:310 resolves the caller's workspace role without consulting TeamMember.status. See AUTH-003."
+  },
+  {
+   "authority": "Browser storage / client cache",
+   "canonicalWriter": "apps/web/lib/platform-context/tenantStorage.ts:tenantStorageKey (namespace `proovra:tenant:<workspaceId>:<key>`) + useTenantGuard/isStale for in-flight isolation",
+   "verdict": "PARTIAL_IMPLEMENTATION",
+   "defect": "The canonical helper exists and is correct. apps/web/app/(app)/search/page.tsx:708 keys recent searches by teamId but with its own ad-hoc prefix instead of tenantStorageKey — correct isolation, duplicate convention. See WEB-002. All other raw localStorage use is non-tenant (consent, i18n, dismissal flags, auth token removal)."
+  },
+  {
+   "authority": "Content-Security-Policy / render mode",
+   "canonicalWriter": "apps/web/middleware.ts (mints a per-request nonce, sets it on BOTH the request headers Next reads and the response header) + apps/web/app/layout.tsx (export const dynamic = \"force-dynamic\")",
+   "verdict": "PROVEN_MATCH",
+   "evidence": "The nonce-CSP-vs-prerender hazard is closed at this revision: the root layout forces per-request rendering so no page is emitted with nonce=$undefined, and the middleware matcher /((?!_next|favicon.ico).*) covers every page."
+  }
+ ]
+}

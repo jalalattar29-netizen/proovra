@@ -470,7 +470,7 @@ export async function assertCanInviteCollaborationTeamMember(
  *
  * Before this guard, `inviteGuest` resolved its own commercial state by
  * reading the raw `Team.billingPlan` COLUMN and passing it to
- * `canPlanUseTeams`. That was a second commercial authority, and it
+ * `canPlanOperateSharedWorkspace`. That was a second commercial authority, and it
  * disagreed with the canonical one in three ways that matter in
  * production:
  *

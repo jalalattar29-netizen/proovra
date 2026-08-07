@@ -149,11 +149,27 @@ describe("Phase RW3-2 — route source contract", () => {
   });
 
   it("gates on the review.assign capability", () => {
-    // The reviewer-roles resolver checks review.assign. The route
-    // surfaces REVIEW_PERMISSION_DENIED with a bounded reason when
-    // the caller does not have the cap.
+    // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). INTENTIONAL CONTRACT
+    // CHANGE, same permission, same admission set.
+    //
+    //   OLD: the route re-read the TeamMember row with `select: { role: true }`
+    //        and NO status predicate, fed the bare role to
+    //        `resolveReviewerRole`, and asserted
+    //        `callerHasCapability(resolution, "review.assign")`.
+    //
+    //   NEW: it reads `review.assign` from the PROVEN capability set on the
+    //        `AuthorizedWorkspaceContext` that `requireReviewerActor`
+    //        established — a context that cannot exist without ACTIVE
+    //        membership, unexpired access, a provable workspace kind and an
+    //        ACTIVE parent Organization.
+    //
+    // WHY: this was one of the four status-blind secondary role reads the
+    // audit recorded as AUTH-005; a SUSPENDED or REVOKED member holding
+    // OWNER/ADMIN satisfied it. The capability asserted is UNCHANGED, so the
+    // picker still surfaces only to callers who can actually assign; what
+    // changed is that an inactive member can no longer be one of them.
     expect(ROUTE_SRC).toMatch(
-      /\/v1\/reviewer-ops\/assignable-reviewers[\s\S]{0,4000}?callerHasCapability\(resolution,\s*"review\.assign"\)/,
+      /\/v1\/reviewer-ops\/assignable-reviewers[\s\S]{0,4000}?contextHasCapability\(ctx\.authorized,\s*"review\.assign"\)/,
     );
     expect(ROUTE_SRC).toMatch(
       /\/v1\/reviewer-ops\/assignable-reviewers[\s\S]{0,4000}?code:\s*"REVIEW_PERMISSION_DENIED"[\s\S]{0,200}?reason:\s*"review_assign_required"/,

@@ -63,6 +63,13 @@ import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+// PHASE 12 REMEDIATION — AUTH-002 (2026-08-06). The ONE canonical answer to
+// "which workspaces may this caller see?", replacing four independent
+// status-blind derivations in this file.
+import {
+  listAccessibleWorkspaces,
+  resolveAccessibleWorkspace,
+} from "../services/access/accessible-workspaces.js";
 import {
   isPreferenceEnabled,
   OPTIONAL_INAPP_CATEGORY_TO_TYPE,
@@ -850,8 +857,10 @@ export async function buildInboxAggregation(
       // -----------------------------------------------------------------
       // Caller's org memberships (for admin-pending-invite rollup).
       // -----------------------------------------------------------------
+      // ARCH-004 — the caller's own inbox reflects Organizations they may
+      // actually act in. A suspended or revoked membership contributes nothing.
       const orgMemberships = await prisma.organizationMembership.findMany({
-        where: { userId },
+        where: { userId, status: "ACTIVE" },
         select: {
           role: true,
           organization: {
@@ -867,34 +876,27 @@ export async function buildInboxAggregation(
       );
 
       // -----------------------------------------------------------------
-      // Caller's team memberships (for governance-notification scope).
+      // Caller's ACCESSIBLE workspaces (scopes every inbox source below).
       // -----------------------------------------------------------------
-      // The team table carries `ownerUserId` for personal teams and
-      // explicit TeamMember rows for collaborative teams. To capture
-      // both we query TeamMember + the personal-owner fallback.
-      const teamMemberships = await prisma.teamMember.findMany({
-        where: { userId },
-        select: {
-          team: { select: { id: true, name: true } },
-        },
-      });
-      const teamIdSet = new Set<string>(
-        teamMemberships.map((tm) => tm.team.id),
+      // PHASE 12 REMEDIATION — AUTH-002 (2026-08-06).
+      //
+      // This block used to be `prisma.teamMember.findMany({ where: { userId }})`
+      // with NO status predicate, plus a `team.findMany({ ownerUserId })`
+      // fallback that swept in OWNED workspaces as well as Personal ones.
+      // A SUSPENDED or REVOKED member therefore kept receiving that
+      // workspace's governance notifications, workflow items and reviewer
+      // work on the primary operator landing surface.
+      //
+      // It is now the ONE canonical accessible-workspace resolver, which
+      // requires ACTIVE membership, honours member access expiry, applies
+      // parent-Organization lifecycle to ORGANIZATION-provisioned
+      // workspaces, fails closed on an unprovable workspace kind, and
+      // restricts the ownership fallback to PERSONAL Space (identity mode).
+      const accessibleWorkspaces = await listAccessibleWorkspaces({ userId });
+      const teamIds = accessibleWorkspaces.map((w) => w.workspaceId);
+      const teamNameById = new Map<string, string>(
+        accessibleWorkspaces.map((w) => [w.workspaceId, w.name] as [string, string]),
       );
-      // Also include personal teams the caller owns. These may not
-      // have a TeamMember row in some seeding paths.
-      const ownedPersonalTeams = await prisma.team.findMany({
-        where: { ownerUserId: userId },
-        select: { id: true, name: true },
-      });
-      for (const t of ownedPersonalTeams) teamIdSet.add(t.id);
-      const teamIds = Array.from(teamIdSet);
-      const teamNameById = new Map<string, string>([
-        ...teamMemberships.map(
-          (tm) => [tm.team.id, tm.team.name] as [string, string],
-        ),
-        ...ownedPersonalTeams.map((t) => [t.id, t.name] as [string, string]),
-      ]);
 
       // -----------------------------------------------------------------
       // Source 1: pending org invites addressed to the caller.
@@ -936,20 +938,17 @@ export async function buildInboxAggregation(
               _max: { createdAt: true },
             });
 
-      // Caller's per-team role lookup for the adjudicator subset.
-      const teamRoles =
-        teamIds.length === 0
-          ? []
-          : await prisma.teamMember.findMany({
-              where: {
-                userId,
-                teamId: { in: teamIds },
-              },
-              select: { teamId: true, role: true },
-            });
-      const adjudicatorTeamIds = teamRoles
-        .filter((r) => r.role === "OWNER" || r.role === "ADMIN")
-        .map((r) => r.teamId);
+      // Adjudicator subset.
+      //
+      // AUTH-002 — this used to re-query TeamMember with no status
+      // predicate, so a SUSPENDED or REVOKED OWNER/ADMIN was still treated
+      // as an adjudicator. The role now comes from the resolver, which only
+      // reports roles held by ACTIVE members of live workspaces.
+      // `role` here is CANONICAL (DB MEMBER maps to REVIEWER), so the
+      // OWNER/ADMIN test selects exactly the same tier as before.
+      const adjudicatorTeamIds = accessibleWorkspaces
+        .filter((w) => w.role === "OWNER" || w.role === "ADMIN")
+        .map((w) => w.workspaceId);
 
       // (a) Conflict-detected workflows where caller is adjudicator.
       //
@@ -2556,13 +2555,16 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // they belong to (anti-enumeration 403 otherwise). Validated up
       // front so BOTH the live view and the history view honor it.
       if (requestedWorkspaceId) {
-        const wsMembership = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: { teamId: requestedWorkspaceId, userId },
-          },
-          select: { teamId: true },
+        // AUTH-002 — this used `findUnique` with `select: { teamId }` and no
+        // status predicate, so a REVOKED member could still narrow the inbox
+        // to a workspace they had been removed from. It now asks the
+        // canonical resolver, which requires ACTIVE membership and a live
+        // parent Organization.
+        const accessible = await resolveAccessibleWorkspace({
+          userId,
+          workspaceId: requestedWorkspaceId,
         });
-        if (!wsMembership) {
+        if (!accessible) {
           return reply.code(403).send({ error: { code: "not_a_member" } });
         }
       }
@@ -2617,12 +2619,19 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // caller can no longer access keep ONLY safe personal-state
         // metadata; tenant-sensitive content and deep links are
         // withheld. Organization-side audit trails are unaffected.
-        const currentMemberships = await prisma.teamMember.findMany({
-          where: { userId },
-          select: { teamId: true },
-        });
+        // AUTH-002 — THE defect this redaction existed to prevent. The set
+        // was rebuilt from `teamMember.findMany({ where: { userId } })` with
+        // no status predicate, so a REVOKED row satisfied the "can still
+        // access" test and the redaction was inert: historical snapshots
+        // from a workspace the caller had been removed from rendered in
+        // full, deep links included. It now derives from the canonical
+        // accessible-workspace resolver, so losing access — by revocation,
+        // suspension, access expiry, or the parent Organization being
+        // suspended — actually redacts.
         const currentTeamIds = new Set(
-          currentMemberships.map((m) => m.teamId),
+          (await listAccessibleWorkspaces({ userId })).map(
+            (w) => w.workspaceId,
+          ),
         );
         const items = rows.map((s) => {
           const accessible = s.teamId == null || currentTeamIds.has(s.teamId);

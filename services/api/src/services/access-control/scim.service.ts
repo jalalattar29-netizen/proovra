@@ -53,6 +53,20 @@ import {
   organizationIdForPolicy,
   resolveOrganizationPolicy,
 } from "../identity/org-security-policy.service.js";
+// ARCH-004 — governance-membership transitions have ONE orchestrator.
+import {
+  restoreOrganizationMembership,
+  suspendOrganizationMembership,
+} from "../identity/org-membership-lifecycle.service.js";
+
+/**
+ * The marker a SCIM deactivation writes on the governance membership it
+ * suspends, so reactivation restores EXACTLY that set. A membership a human
+ * administrator suspended carries a different reason and is never reinstated
+ * by a directory push.
+ */
+export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
+  "scim_deactivated:governance_membership_paused";
 // P0 remediation (2026-07-21) — canonical guard for linking a directory-
 // asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
@@ -1067,6 +1081,48 @@ export async function scimDeactivateUser(
       where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
       data: { unlinkedAtUtc: new Date() },
     });
+
+    /**
+     * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — THE GOVERNANCE
+     * MEMBERSHIP IS SUSPENDED TOO, IN THE SAME TRANSACTION.
+     *
+     * SCIM deactivation suspended the WORKSPACE membership and left the
+     * ORGANIZATION membership ACTIVE. That was invisible while governance
+     * membership had no lifecycle — there was nothing to set — and it becomes
+     * a real gap the moment there is: a directory that has deprovisioned
+     * somebody would still have shown them as a live governance member, in the
+     * roster, in the seat count, and in their own context envelope.
+     *
+     * SUSPENDED, not REVOKED, deliberately: a directory push is reversible by
+     * the next directory push, and `scimReactivateUser` restores it. Terminal
+     * removal stays a human decision.
+     */
+    // The SCIM context is workspace-scoped, so the Organization is derived
+    // from the workspace rather than trusted from the caller.
+    const team = await txc.team.findUnique({
+      where: { id: ctx.teamId },
+      select: { organizationId: true },
+    });
+    const orgMembership = team
+      ? await txc.organizationMembership.findFirst({
+          where: {
+            organizationId: team.organizationId,
+            userId,
+            status: "ACTIVE",
+          },
+          select: { id: true },
+        })
+      : null;
+    if (team && orgMembership) {
+      await suspendOrganizationMembership({
+        prisma: txc as never,
+        organizationId: team.organizationId,
+        membershipId: orgMembership.id,
+        actorUserId: null, // directory-driven
+        source: "SCIM",
+        reason: SCIM_DEACTIVATION_MEMBERSHIP_MARKER,
+      });
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -1178,6 +1234,37 @@ export async function scimReactivateUser(
       }
     });
   }
+
+  /**
+   * ARCH-004 — restore EXACTLY the governance membership SCIM deactivation
+   * suspended, matched on the marker reason.
+   *
+   * Marker-matched for the same reason the Organization resume leg is: a
+   * membership a human administrator suspended must NOT be reinstated by a
+   * directory push. A directory can undo its own action and nothing else.
+   */
+  const reactivateOrg = await organizationIdForPolicy(ctx.teamId, client);
+  if (reactivateOrg) {
+    const suspendedByScim = await client.organizationMembership.findFirst({
+      where: {
+        organizationId: reactivateOrg,
+        userId,
+        status: "SUSPENDED",
+        suspensionReason: SCIM_DEACTIVATION_MEMBERSHIP_MARKER,
+      },
+      select: { id: true },
+    });
+    if (suspendedByScim) {
+      await restoreOrganizationMembership({
+        organizationId: reactivateOrg,
+        membershipId: suspendedByScim.id,
+        actorUserId: null, // directory-driven
+        source: "SCIM",
+        reason: "SCIM reactivation",
+      });
+    }
+  }
+
   // Re-link the most recent external mapping so the resource is
   // resolvable again. We only re-link, never create a duplicate.
   const mapping = await client.externalIdentityMapping.findFirst({

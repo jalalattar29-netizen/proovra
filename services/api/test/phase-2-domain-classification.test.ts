@@ -53,16 +53,36 @@ describe("Phase 2 — one canonical workspace-kind classifier", () => {
     }
   });
 
-  it("NULL kind → deterministic compatibility rule (isPersonal → PERSONAL; ENTERPRISE → ORGANIZATION; else OWNED)", () => {
+  /**
+   * PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — THIS PIN WAS
+   * PINNING THE DEFECT.
+   *
+   * The old expectations were `ENTERPRISE → ORGANIZATION` and `else → OWNED`
+   * for a NULL kind. That rule reads a TENANCY fact off a COMMERCIAL one: an
+   * Owned workspace whose account was upgraded to ENTERPRISE silently became
+   * an ORGANIZATION workspace to the authorization chain, which then enforced
+   * customer-Organization lifecycle against a workspace with no customer
+   * Organization — and the same workspace downgraded silently stopped having
+   * it enforced. Neither transition was anyone's decision and neither was
+   * audited.
+   *
+   * `teams.workspace_kind` is now NOT NULL (20271125000000), backfilled from
+   * structural authority only, and every writer supplies it. The classifier
+   * fails closed instead. The personal-space invariant survives because
+   * `is_personal` is structural, not commercial — the same authority the
+   * backfill uses, and the database now makes the two equivalent by CHECK
+   * constraint.
+   */
+  it("NULL kind → the personal-space invariant only; commercial facts decide nothing", () => {
     expect(
       resolveWorkspaceKind({ workspaceKind: null, isPersonal: true, billingPlan: "FREE", teamLoaded: true }),
     ).toBe("PERSONAL");
     expect(
       resolveWorkspaceKind({ workspaceKind: null, isPersonal: false, billingPlan: "ENTERPRISE", teamLoaded: true }),
-    ).toBe("ORGANIZATION");
+    ).toBe("UNKNOWN");
     expect(
       resolveWorkspaceKind({ workspaceKind: null, isPersonal: false, billingPlan: "TEAM", teamLoaded: true }),
-    ).toBe("OWNED");
+    ).toBe("UNKNOWN");
   });
 
   it("unprovable rows fail closed (UNKNOWN) and org lifecycle applies only to ORGANIZATION", () => {

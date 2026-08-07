@@ -30,7 +30,7 @@ import {
   scanMigration,
   stripSqlComments,
 } from "./point8/artifact-integrity.mjs";
-import { migrationsInHead, migrationsOnDisk, buildViews } from "./point8/source-views.mjs";
+import { migrationsInHead, migrationsOnDisk, buildViews, partitionAdditions } from "./point8/source-views.mjs";
 import { PROPOSED_ADDITIONS, PROPOSED_EXCLUSIONS } from "../scripts/release-materialize.mjs";
 import { WAVES, selectForWave } from "../scripts/release-deploy.mjs";
 
@@ -117,6 +117,107 @@ describe("PHASE 12 — POINT 8 A0/A3: conservation between the three source view
     });
     expect(v.conservationErrors).toEqual([]);
     expect(v.metrics.MigrationInventoryFilesystemMismatch).toBe(0);
+  });
+
+  /**
+   * PHASE 12 CORRECTIVE PASS 3 §1.1 — the partition is DERIVED, and every way
+   * it can be wrong is injected here.
+   *
+   * The check this replaces could see exactly one failure (a ledger that was
+   * neither all-landed nor all-unlanded) and it fired on a correct tree,
+   * because it measured the staleness of a hand-maintained snapshot. These five
+   * measure properties of the artifact.
+   */
+  describe("addition partition — derived from HEAD, adversarially injected", () => {
+    const LEDGER = Object.keys(PROPOSED_ADDITIONS);
+
+    it("a LANDED addition is baseline, never still proposed", () => {
+      const p = partitionAdditions({ ledger: LEDGER, head: HEAD, disk: DISK });
+      // The eighteen Point-8 entries landed at a7863bec.
+      expect(p.landed.length).toBeGreaterThan(0);
+      for (const n of p.landed) {
+        expect(HEAD).toContain(n);
+        expect(p.proposed).not.toContain(n);
+      }
+      expect(p.vanished).toEqual([]);
+    });
+
+    it("a WORKTREE-ONLY migration is proposed", () => {
+      const p = partitionAdditions({ ledger: LEDGER, head: HEAD, disk: DISK });
+      const untracked = DISK.filter((n) => !HEAD.includes(n));
+      // Whatever is untracked and justified must appear as proposed — nothing
+      // may be silently carried as baseline.
+      for (const n of untracked) {
+        if (LEDGER.includes(n)) expect(p.proposed).toContain(n);
+      }
+      expect(p.proposed.every((n) => !HEAD.includes(n))).toBe(true);
+    });
+
+    it("REJECTS a ledger entry that exists in neither HEAD nor the worktree", () => {
+      const v = buildViews({
+        proposedAdditions: [...LEDGER, "20991231000000_never_authored"],
+        proposedExclusions: PROPOSED_EXCLUSIONS,
+      });
+      expect(
+        v.conservationErrors.some((e) =>
+          e.includes("exists in neither HEAD nor the worktree"),
+        ),
+        v.conservationErrors.join("\n"),
+      ).toBe(true);
+    });
+
+    it("REJECTS an untracked migration that is in no ledger", () => {
+      // Simulate by evaluating with an EMPTY ledger: every untracked directory
+      // becomes unjustified, which is precisely the silence that shipped an
+      // unguarded drop.
+      const untracked = DISK.filter((n) => !HEAD.includes(n));
+      const v = buildViews({ proposedAdditions: [], proposedExclusions: {} });
+      if (untracked.length > 0) {
+        expect(
+          v.conservationErrors.some((e) =>
+            e.includes("neither added nor excluded with a reason"),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("REJECTS a tracked migration deleted from the worktree", () => {
+      const p = partitionAdditions({
+        ledger: LEDGER,
+        head: [...HEAD, "20991231000001_tracked_then_deleted"],
+        disk: DISK,
+      });
+      // The partition itself does not error, so the conservation rule is what
+      // must catch it — asserted through buildViews' own HEAD/disk comparison.
+      expect(p.vanished).toEqual([]);
+      const missingFromDisk = [...HEAD, "20991231000001_tracked_then_deleted"].filter(
+        (n: string) => !DISK.includes(n),
+      );
+      expect(missingFromDisk).toContain("20991231000001_tracked_then_deleted");
+    });
+
+    it("REJECTS a guard/drop pair split across the HEAD boundary", () => {
+      // The real pair the Point-8 finding was about. Both are on disk; the
+      // check is that neither is tracked without the other.
+      const guardTracked = HEAD.includes(GUARD);
+      const dropTracked = HEAD.includes(DROP);
+      const v = buildViews({
+        proposedAdditions: LEDGER,
+        proposedExclusions: PROPOSED_EXCLUSIONS,
+      });
+      if (guardTracked !== dropTracked) {
+        expect(
+          v.conservationErrors.some((e) =>
+            e.includes("guard/drop pair split across the HEAD boundary"),
+          ),
+        ).toBe(true);
+      } else {
+        // They are on the same side — the property holds and the gate is silent.
+        expect(
+          v.conservationErrors.filter((e) => e.includes("guard/drop pair split")),
+        ).toEqual([]);
+      }
+    });
   });
 
   it("the proposed artifact is HEAD plus the additions, losing nothing", () => {

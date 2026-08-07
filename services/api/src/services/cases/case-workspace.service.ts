@@ -23,7 +23,7 @@ import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
-export type CaseScope = "PERSONAL" | "TEAM";
+export type CaseScope = "SINGLE_OCCUPANT" | "SHARED";
 
 export type CaseSummaryItem = {
   id: string;
@@ -179,7 +179,7 @@ const CASE_ACTIVITY_LIMIT = 25;
 // =============================================================================
 
 function classifyCaseScope(caseTeamId: string | null): CaseScope {
-  return caseTeamId ? "TEAM" : "PERSONAL";
+  return caseTeamId ? "SHARED" : "SINGLE_OCCUPANT";
 }
 
 // =============================================================================
@@ -201,7 +201,7 @@ export async function buildCasesSummary(input: {
   const memberCount = await prisma.teamMember.count({
     where: { teamId: input.teamId, status: "ACTIVE" },
   });
-  const workspaceScope: CaseScope = memberCount <= 1 ? "PERSONAL" : "TEAM";
+  const workspaceScope: CaseScope = memberCount <= 1 ? "SINGLE_OCCUPANT" : "SHARED";
 
   // Cases the user can see in this workspace. Same access model as
   // /v1/cases: cases the user owns, has direct access to, or whose
@@ -670,10 +670,10 @@ export async function buildCaseWorkspace(input: {
 
   // ----------- Review Coordination -----------
   let reviewCoordination: CaseWorkspaceEnvelope["sections"]["reviewCoordination"] =
-    scope === "PERSONAL"
+    scope === "SINGLE_OCCUPANT"
       ? { status: "not_applicable", data: null }
       : { status: "unavailable", data: null };
-  if (scope === "TEAM") {
+  if (scope === "SHARED") {
     try {
       const now = new Date();
       const [

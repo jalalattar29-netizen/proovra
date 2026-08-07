@@ -10,9 +10,16 @@
  * ---------------------------------------------------------------------------
  *   15 BullMQ jobs   (one per processed queue, 1:1 with worker registrations)
  *    2 DLQ sinks     (queues with no job and no worker, by design)
- *   17 DB sweeps     (scheduler + processor pairs)
+ *   18 DB sweeps     (scheduler + processor pairs)
  *   ──
- *   34 registry entries; 32 of them process work.
+ *   35 registry entries; 33 of them process work.
+ *
+ * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07) — 34 -> 35
+ * when `AutomationDispatchSweep` was registered. Automation had a schema, an
+ * API and a UI and NO runtime: its dispatcher had zero production callers and
+ * its delivery path was an in-process `setImmediate`. It is a sweep rather
+ * than a BullMQ job because its producer runs inside the source domain
+ * transaction; see the `AUTOMATION_DISPATCH` note in `names.ts`.
  *
  * PHASE 12 POINT 5 — recomputed from the settled tree when `ExtractOcr` and
  * `ExtractTranscript` were removed as duplicate authorities (17 -> 15 BullMQ
@@ -1032,6 +1039,70 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
   },
 
   // ---- FAMILY 5: WEBHOOKS AND PROVIDERS ------------------------------------
+  {
+    /**
+     * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07).
+     *
+     * The ONE Automation execution authority. Before it, `AutomationRun` rows
+     * were created and executed synchronously inside an API request by a
+     * dispatcher with zero production callers, and webhook delivery rode an
+     * in-process `setImmediate`. There was no producer, no claim, no fence, no
+     * retry that survived a restart and no reconciler.
+     *
+     * The run row IS the outbox row: `enqueueAutomationTrigger` writes it
+     * inside the caller's source transaction, so a rolled-back domain change
+     * leaves no run and a committed one can never be lost. Everything after
+     * that — claim, execute, retry, dead-letter, reconcile — belongs to this
+     * sweep and to nothing else.
+     */
+    workName: SWEEP_NAMES.AUTOMATION_DISPATCH,
+    family: "webhooks_providers",
+    familyReason:
+      "Claims committed AutomationRun rows under a lease/fence and executes their bounded action, whose external boundary is the signed outbound webhook; retries, dead-letters and reconciles stranded runs.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    durableAuthority: {
+      model: "AutomationRun",
+      // The tenant is never taken from a job payload — there is no payload.
+      // The row itself carries `team_id`, written from the source
+      // transaction's own already-authorized tenant.
+      tenantSource: "AutomationRun.teamId",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer:
+      "services/api/src/services/automation/automation-outbox.service.ts",
+    /**
+     * The processor lives API-side and the worker only SCHEDULES it, over the
+     * cron-secret machine endpoint — the same worker→API pattern as
+     * `OrgInviteDeliverySweep` and `ReviewerReconciliationSweep`, and for the
+     * same reason: the seven bounded action handlers reach the notification,
+     * reviewer-assignment and comment authorities, which live in the API. A
+     * worker-side copy of them would be a second authority for every one.
+     */
+    canonicalProcessor:
+      "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
+    workerRegistration: WORKER_INDEX,
+    claim: {
+      from: "PENDING",
+      to: "RUNNING",
+      mechanism: "conditional_update_many",
+      leaseField: "leaseExpiresAtUtc",
+      leaseMs: 5 * 60 * 1000,
+    },
+    terminalWriter:
+      "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
+    idempotency: ["conditional_state_claim", "unique_constraint"],
+    reconciler:
+      "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
+    retry: RETRY_POLICIES.EXTERNAL_DELIVERY,
+    recovery: RECOVERY_POLICIES.EXTERNAL_DELIVERY,
+    externalBoundary: "webhook_http",
+    auditFamily: "automation.run_execution",
+    projection: "GET /v1/teams/:teamId/automation/runs",
+  },
   {
     workName: SWEEP_NAMES.WEBHOOK_DISPATCHER,
     family: "webhooks_providers",

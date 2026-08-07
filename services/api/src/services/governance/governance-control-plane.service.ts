@@ -28,7 +28,7 @@ export type GovernanceControlPlaneEnvelope = {
   workspace: {
     id: string;
     role: string;
-    scope: "PERSONAL" | "TEAM";
+    scope: "SINGLE_OCCUPANT" | "SHARED";
   };
   sections: {
     posture: {
@@ -156,7 +156,7 @@ export async function buildGovernanceControlPlane(input: {
   const memberCount = await prisma.teamMember.count({
     where: { teamId: input.teamId, status: "ACTIVE" },
   });
-  const scope = memberCount <= 1 ? "PERSONAL" : "TEAM";
+  const scope = memberCount <= 1 ? "SINGLE_OCCUPANT" : "SHARED";
 
   // ----------- Posture (high-level counts) -----------
   let posture: GovernanceControlPlaneEnvelope["sections"]["posture"] = {

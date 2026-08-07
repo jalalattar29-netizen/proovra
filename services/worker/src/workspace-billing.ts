@@ -7,9 +7,12 @@ import {
 } from "@proovra/shared-billing";
 // Domain classifier — single implementation in the general domain package.
 import { normalizeWorkspaceKind } from "@proovra/shared";
+// PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat-occupancy authority,
+// shared with the API so their arithmetic cannot diverge.
+import { countActiveSeatOccupancy } from "@proovra/shared-runtime";
 
 export type WorkerWorkspaceScope = {
-  workspaceType: "PERSONAL" | "TEAM";
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
   ownerUserId: string;
   teamId: string | null;
   plan: prismaPkg.PlanType;
@@ -101,7 +104,7 @@ export async function getPersonalWorkspaceScope(
   const personalPlan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
 
   return {
-    workspaceType: "PERSONAL",
+    billingShape: "SINGLE_OCCUPANT",
     ownerUserId,
     teamId: null,
     plan: personalPlan,
@@ -166,7 +169,7 @@ export async function getTeamWorkspaceScope(
   });
 
   return {
-    workspaceType: "TEAM",
+    billingShape: "SHARED",
     ownerUserId: team.ownerUserId,
     teamId: team.id,
     plan: effectivePlan,
@@ -264,10 +267,14 @@ export async function getWorkspaceUsage(
     prisma.evidence.count({
       where: evidenceWhere,
     }),
+    // PHASE 12 REMEDIATION — COMM-001 (2026-08-06). This counted EVERY
+    // TeamMember row regardless of status, so worker-side seat
+    // reconciliation overstated occupancy by every suspended and revoked
+    // member. It now uses the ONE shared occupancy authority, identical to
+    // the API's — the two can no longer report different numbers for the
+    // same workspace.
     scope.teamId
-      ? prisma.teamMember.count({
-          where: { teamId: scope.teamId },
-        })
+      ? countActiveSeatOccupancy({ teamId: scope.teamId }, prisma)
       : Promise.resolve(0),
   ]);
 
@@ -337,7 +344,7 @@ export async function assertWorkspaceStorageAvailable(params: {
     err.statusCode = 409;
     err.code = "STORAGE_LIMIT_REACHED";
     err.details = {
-      workspaceType: params.scope.workspaceType,
+      billingShape: params.scope.billingShape,
       teamId: params.scope.teamId,
       ownerUserId: params.scope.ownerUserId,
       plan: params.scope.plan,

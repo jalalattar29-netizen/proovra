@@ -41,7 +41,7 @@ export const ANALYTICS_DEFAULT_WINDOW_DAYS = 30;
 export const ANALYTICS_MAX_WINDOW_DAYS = 180;
 export const ANALYTICS_MIN_WINDOW_DAYS = 1;
 
-export type AnalyticsScope = "PERSONAL" | "TEAM";
+export type AnalyticsScope = "SINGLE_OCCUPANT" | "SHARED";
 
 export type AnalyticsInput = {
   teamId: string;
@@ -194,12 +194,15 @@ export async function getOperationsOverview(
       "ReviewEscalation",
       degraded,
     ),
-    input.scope === "PERSONAL"
+    input.scope === "SINGLE_OCCUPANT"
       ? Promise.resolve(null)
       : safe(
           prisma.teamMember.count({
             where: {
               teamId: input.teamId,
+              // PHASE 12 REMEDIATION (2026-08-06) — "can act on reviews"
+              // requires ACTIVE membership, not merely a stored role.
+              status: "ACTIVE",
               // Members who can act on reviews — VIEWER cannot.
               role: { in: ["OWNER", "ADMIN", "MEMBER"] as never[] },
             },

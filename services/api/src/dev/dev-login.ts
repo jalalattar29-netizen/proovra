@@ -103,7 +103,7 @@ export async function devLoginRoutes(app: FastifyInstance): Promise<void> {
         token,
         persona: p.key,
         user: { id: p.userId, email: p.email, provider: "DEV_IMPERSONATION" },
-        workspace: { id: p.workspaceId, type: p.workspaceType },
+        workspace: { id: p.workspaceId, type: p.workspaceKind },
       });
     },
   );

@@ -1,0 +1,7175 @@
+{
+ "sourceRevision": "a7863bec33f10549d84a839ee7ab353509626a2a",
+ "method": "Module import graph built from runtime entrypoints only (side-effect imports, from-imports, dynamic import(), require()); BFS closure per entrypoint class. Every UNREACHABLE_CANDIDATE was then re-verified by exact import-path grep.",
+ "entrypointClasses": {
+  "API": {
+   "seeds": [
+    "services/api/src/index.ts"
+   ],
+   "count": 1
+  },
+  "WORKER": {
+   "seeds": [
+    "services/worker/src/index.ts"
+   ],
+   "count": 1
+  },
+  "WEB": {
+   "count": 242,
+   "note": "Next.js page/layout/route/template/error/loading/not-found/middleware/providers files"
+  },
+  "MOBILE": {
+   "count": 18
+  },
+  "SCRIPT": {
+   "count": 52
+  }
+ },
+ "codeFilesNonTest": 1767,
+ "reachableProductionFiles": 1658,
+ "classification": {
+  "UNREACHABLE_CANDIDATE": 41,
+  "REACHABLE_MOBILE": 48,
+  "BUILD_ONLY": 11,
+  "TYPE_ONLY": 5,
+  "REACHABLE_WEB": 723,
+  "REACHABLE_API": 776,
+  "SCRIPT_ONLY": 52,
+  "REACHABLE_WORKER": 111
+ },
+ "unclassifiedReachableNodes": 0,
+ "confirmedDeadUnreachable": [
+  {
+   "file": "services/api/src/services/automation/automation-dispatcher.service.ts",
+   "cls": "DEAD_UNREACHABLE",
+   "note": "mutual-import cluster; sole writer of AutomationRun"
+  },
+  {
+   "file": "services/api/src/services/automation/automation-actions.service.ts",
+   "cls": "DEAD_UNREACHABLE",
+   "note": "mutual-import cluster; sole writer of AutomationWebhookDelivery(create)"
+  },
+  {
+   "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
+   "cls": "DEAD_UNREACHABLE",
+   "note": "imported only by automation-actions"
+  },
+  {
+   "file": "services/api/src/services/identity/authorization-allowlist.ts",
+   "cls": "DEAD_UNREACHABLE",
+   "note": "governance ledger; zero production importers"
+  },
+  {
+   "file": "services/api/src/middleware/require-enterprise-feature.ts",
+   "cls": "DEAD_UNREACHABLE",
+   "note": "duplicate of the live billing-enforcement gate"
+  },
+  {
+   "file": "services/api/src/services/organization/tenancy-resolver.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/access/tenant-access.helpers.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/ops-health/projection-health.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-verification-manifest.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/redaction/policy-verification-manifest.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/redaction/video/video-verification-manifest.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/search/transcript-foundations.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  },
+  {
+   "file": "services/api/src/services/search/ocr-foundations.service.ts",
+   "cls": "DEAD_UNREACHABLE",
+   "note": "only importer is transcript-foundations, itself dead"
+  },
+  {
+   "file": "services/api/src/services/intelligence/search.service.ts",
+   "cls": "DEAD_UNREACHABLE"
+  }
+ ],
+ "files": [
+  {
+   "file": ".eslintrc.cjs",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": ".runtime-verify/probe.mjs",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "apps/mobile/App.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(stack)/auth.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(stack)/billing.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(stack)/capture.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(stack)/case/[id].tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(stack)/evidence/[id].tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/_layout.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/archive.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/cases.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/deleted.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/index.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/locked.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/reports.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/settings.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/(tabs)/teams.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/_layout.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/index.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/app/verify.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/components/ui.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/react-native.config.js",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "apps/mobile/src/DeepLinkGate.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/api.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/app-theme.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/auth-context.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/deep-link.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/env.d.ts",
+   "cls": "TYPE_ONLY"
+  },
+  {
+   "file": "apps/mobile/src/error-boundary.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/i18n.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/images.d.ts",
+   "cls": "TYPE_ONLY"
+  },
+  {
+   "file": "apps/mobile/src/lib/date.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/locale-context.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/personal-space.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/sentry.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/toast-context.tsx",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/attestation.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/device-key.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/device-registration.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/ed25519.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/envelope.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/index.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/sha256.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/trust/upload-queue.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/upload-queue.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/upload-utils.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/mobile/src/usePersonalSpaceAllowed.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "apps/web/.eslintrc.cjs",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/adoption/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/alerts/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/audit/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/billing/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/costs/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/dashboard/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/evidence-ops/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/executive/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/_sections/ExternalMappingsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/_sections/MembersSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/_sections/identity-admin-shared.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/access-reviews/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/permission-matrix/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/providers/_sections/FederationReadinessSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/providers/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/scim/_sections/ManagedMembershipSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/sessions/_sections/SessionPolicyImpactSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/sessions/_sections/SessionTimelineDrawer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/sessions/_sections/UserRiskSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/sessions/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/timeline/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/identity/ui-tokens.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/organizations/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/organizations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/platform-health/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/provisioning/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/search/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/_sections/section-state.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/security/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/support-access/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/timeline/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/admin/users/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/audit-transparency/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/audit-transparency/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/billing/_sections/PaymentsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/billing/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/budget-center/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/budget-center/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/captureEnvironmentClient.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useCaptureAudioRecorder.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useCaptureCamera.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useIntakeTemplates.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useResumableUploads.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/CaptureOperationalSummary.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/CaptureReadinessPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/CaptureWorkflowGuidance.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/capture-errors.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/captureIntakeStages.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/captureReadiness.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/captureSuggestions.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/file-utils.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/folder-utils.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/hash-utils.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/session-readiness.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/session-workflow.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/templates.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/workflow-context.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/workflowGuidance.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/_lib/workflowTemplateOrder.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/capture/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/cases/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/cases/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/ActivityTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/InvitesTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration-teams/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/collaboration/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/communications/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/communications/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/error.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/_policy-violations-panel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/_shared.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/_verification-package-preview.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/archive/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/chain-transfers/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/destruction/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/error.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/loading.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/retention/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_hooks/useArtifactReadinessPoll.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidencePartMetadataTable.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/FullExifAccordion.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/IntegrityContextCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/MetadataRow.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TechnicalAppendixCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/GovernanceIndicators.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/[id]/review-workspace-types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/EvidenceLibraryHeader.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/EvidenceList.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/EvidenceMetrics.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-delete-eligibility.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-library-alerts.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-library-formatters.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-library-helpers.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-library-types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/evidence-relationships-visibility.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/lib/reviewer-status.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/evidence/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/exchange/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/exchange/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/executive/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/executive/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/access-reviews/[campaignId]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/access-reviews/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/cross-org/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/delegated-admin/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/departments/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance-platform/policies/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/analytics/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/lifecycle/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/notifications/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/policy/_sections/WorkspaceGovernancePolicySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/policy/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/governance/retention/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/home/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/inbox/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/intake-links/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/integrations/_sections/EvidenceDeliveryHistorySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/integrations/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/integrations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/intelligence-quality/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/intelligence-quality/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/intelligence/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/intelligence/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/cases/[caseId]/graph/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/duplicates/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/error.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/graph/_sections/GraphCurationPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/graph/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/relationships/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/investigation/timeline/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/not-found.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/notifications/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/notifications/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/automation/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/exports/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/media-graph/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/observability/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/queues/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/quotas/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/readiness/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/recovery/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/reliability/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/runbooks/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/operations/signers/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/_lib/SeatsCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/_lib/orgRoles.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/_lib/seatsModel.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/access-reviews/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/audit/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/billing/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/departments/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/domains/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/governance/external-reviewers/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/governance/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/integrations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/overview/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/roles/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/security/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/trust/_sections/SecurityClaimsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/trust/_sections/StatusPublicationSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/trust/_sections/TrustContentIntegritySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/trust/_sections/VerificationReferencesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/trust/_sections/_shared.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/admin/trust/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/setup/_lib/SetupChecklist.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/setup/_lib/wizardModel.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/[id]/setup/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/organizations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/packaging/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/packaging/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/redaction/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/redaction/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/redaction/policy/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reports/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/disagreements/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/external/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/metrics/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/operations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/qc/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/queues/_evidence-request-queue.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/queues/_queue-intelligence.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/queues/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/schemas/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/review/workspace/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/components/ReviewerReasonModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/components/ReviewerShortcutsHelp.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/queue/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/reviewer-ops/ui-tokens.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/search/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/sso/health/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/security-center/sso/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/BillingSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/NotificationsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/OverviewSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/PreferencesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/RolesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/_sections/SettingsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/legal/[slug]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/settings/security/saml/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/teams/[id]/components/DangerConfirmModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/teams/[id]/components/MemberRemovalDialog.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/tools/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/_drift-badge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/_section-list.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/ai-disclosure/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/methodology/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/security/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/status/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/trust-center/subprocessors/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/workflows/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/workflows/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/workflows/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/workspaces/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/(app)/workspaces/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/CookieConsentInit.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/about/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/abuse-reporting/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/api/_marketing-leads.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/api/contact-sales/route.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/api/health/route.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/api/request-demo/route.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/auth/callback/route.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/auth/callback/ui/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/auth/mfa-challenge/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/auth/mfa-recovery/verify/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/auth/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/auth/verify-email/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/contact-sales/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/data-retention/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/error.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/faq/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/fonts.google.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/fonts.system.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "apps/web/app/fonts.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/for-compliance/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/for-government/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/for-insurance/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/for-investigations/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/for-journalism/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/for-lawyers/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/forgot-password/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/global-error.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/health/route.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/intake/[token]/capture/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/intake/[token]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/invite/[token]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/layout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/legal/[slug]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/legal/legal-content.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/legal/legal-hero-meta.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/login/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/not-found.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/platform/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/portal/[token]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/portal/accept/[grantId]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/portal/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/portal/sso/callback/[grantId]/route.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/pricing/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/pricing/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/privacy/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/providers.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/register/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/request-demo/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/request-demo/success/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/reset-password/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/share/[id]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/subprocessors/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/support/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/technology/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/terms/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/trust/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/[token]/_verify-types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/[token]/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/[token]/public-verify-consistency.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/VerifyBoundariesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/VerifyFinalCta.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/VerifyHero.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/VerifyMaterialsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/VerifyOpensSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/VerifyUseCasesSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/_components/shared.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/demo/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/verify/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/app/why-proovra/page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/SilverWatermarkSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/access/AccessGate.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/admin/AdminConsoleNav.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/admin/admin-nav-config.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/CopilotCitation.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/NlSearchBox.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/OperationsIntelligencePanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/QcSamplingPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai-copilot/ReviewerCopilotPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai/CaptureAiAssistant.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ai/ProovraChatWidget.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/analytics/PublicPageView.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-primitives/AppListbox.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-primitives/AppStatusBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-primitives/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-shell-v2/AppShellV2.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-shell-v2/AppSidebarV2.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-shell-v2/SidebarStorageWidget.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/app-shell-v2/SupportAccessBanner.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/BillingHistoryCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/CheckoutPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/PersonalWorkspaceCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/PlanGateBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/PlanLimitBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/StorageAddonsPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/TeamWorkspaceCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/billing/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/capture-location/CaptureLocationMapPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/capture-v2/CaptureBottomBar.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/capture-v2/CaptureCameraOverlay.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/capture-v2/CaptureDropzone.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/capture-v2/CaptureRequirements.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/capture-v2/CaptureSessionPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/AssignmentPickerModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/ConfirmModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/Modal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/StatusChangeModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/matter-modals/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/simple-case-detail/CaseStatusSelect.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/simple-case-detail/helpers.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/cases-experience/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/command-center/AccountPrioritiesBanner.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/command-center/CommandCenter.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/command-center/CommandCenterQuickActions.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/command-center/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/contact-sales-form.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/contextual-help/ContextualHelp.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/dashboard/DashboardShell.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/dashboard/styles.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/external-portal/WatermarkOverlay.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/ProovraAlert.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/ProovraBanner.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/ProovraDenialState.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/ProovraSupportReference.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/ProovraSystemState.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/ProovraToast.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/SystemStateSymbol.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/feedback/severity.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance-experience/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/DestructionCertificate.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/DestructionImpactPreview.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/GovernanceSummary.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/GovernedExportAction.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/LifecycleStateBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/RetentionConflictAlert.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/governance/RetentionInheritanceSummary.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/HomeDashboardSections.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/HomeSections.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/SelfServeHomeDashboard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/home-theme.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/home-view-model.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/resolveHomeSurface.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/home-experience/useHomeData.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/hubs/HubQuickActionsBar.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/identity-security/StepUpModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intake-links/IntakeLinkDeliveryDrawer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intake/IntakeChecklist.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intake/IntakeCompletionProgress.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intake/IntakeReReviewBanner.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intelligence/EntityChipGroup.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/language-switcher.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/legal/LegalDocumentShell.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/legal/LegalHero.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/legal/legalArticleStyles.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/EnterpriseFooter.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/EnterpriseGovernanceSecurity.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/EnterpriseOperationsPlatform.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/EnterpriseSuccessModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/EvidenceLifecycle.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/EvidenceOperations.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/ForgotPasswordModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/HeroSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/ImportantClarification.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/IndustriesGrid.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/IntegrationsComplianceSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/MarketingHeader.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/MarketingLanguageSwitcher.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/PlatformDashboardPreview.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/PlatformDashboardShowcase.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/ProofInAction.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/RailIcons.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/SectionBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/SecurityMethodology.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/TrustedStandards.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/VerifyInstantly.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/page-shell/FAQAccordion.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/page-shell/MarketingPage.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/page-shell/PageCTA.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/marketing/tokens.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/motion/index.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/navigation/CommandPalette.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/navigation/OperationalBreadcrumb.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/navigation/PageRouteGate.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/notifications/ContactChannelVerificationCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/notifications/ContextualDeliveryStatus.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/notifications/NotificationPreferencesPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/AssignmentSuggestionRow.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/ExportPackageEligibilityBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/GlobalRuntimeIndicator.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/GovernanceSnapshotPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/OperationalEmptyState.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/OperationalTimelinePanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/PriorityChip.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/RuntimeStatusBanner.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/Sparkline.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/StuckBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/WorkloadHeatTile.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/operational/tokens.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/presence/CollisionWarning.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/presence/PresenceIndicator.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/privacy/PrivacyPreferencesLauncher.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/ApprovalPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/DetectionManifestPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/DetectionReviewPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/ImageRedactionViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/PdfRedactionViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/PolicyScopePanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/RegionListPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/VersionHistoryPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/VideoRedactionViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/VideoReviewWorkspace.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/redaction/useDerivativePolling.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reports-experience/FreeReportsLockedNotice.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reports-experience/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/request-demo-form.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/request-demo-success.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-experience/MultiStageReviewSummaryCard.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/AnnotationPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/CodingPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/SidePaneEvidence.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/SidePaneExtractedTexts.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/SidePaneReport.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/SidePaneSwitcher.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/viewers/AudioViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/viewers/ImageViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/viewers/MediaViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/viewers/PdfViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/reviewer-workspace/viewers/VideoViewer.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/search/SearchAuditLogPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/surface/EnterpriseSurfaceLayout.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/surface/SurfaceGate.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui-legacy.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/Badge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/Button.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/Card.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/ConfirmActionModal.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/DataTable.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/EmptyState.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/FilterBar.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/PageShell.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/StatusBadge.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/ui/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/uploads/UploadOperationsPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/use-case-data.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/use-case-page.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/BottomCTA.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/ExampleRecordAndOutputs.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/Hero.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/ImportantClarification.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/LifecycleTimeline.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/Walkthrough.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/WhatReviewerSees.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-demo/_shared.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-v2/VerifyRedactionSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-v2/VerifyTechnicalMetadataSection.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/verify-v2/_helpers.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/workspace-admin/WorkspaceAuditTab.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/components/workspace-admin/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/ai/aiAssistanceView.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/analytics-public-paths.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/analytics.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/api.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/api/billing-summary.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/api/collaboration-completion.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/api/collaboration-teams.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/api/deep-link.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/api/intelligence.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/auth-logger.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/citizen-capture/citizen-capture-client.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/consent.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/contact-sales-schema.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/cookieConsent.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/currency.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/dashboard/dashboardModeRules.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/dashboard/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/dashboard/resolveDashboardOnboarding.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/dashboard/resolveDashboardQuickActions.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/dashboard/resolveDashboardSections.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/dashboard/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/date.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/empty-state/classifier.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/evidence/source-display.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/external-portal/portal-client.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/feedback/notify.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/feedback/team-entitlement-copy.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/feedback/toSafeUserError.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/hubs/hubDefinitions.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/hubs/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/hubs/resolveHubContext.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/hubs/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/i18n.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/intake-links/state-model.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/legalAcceptance.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/marketing-buttons.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/media-intelligence/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/media-intelligence/useDerivedAssets.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/media-intelligence/useMediaIntelligence.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/accountMenu.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/billingWorkspaceLocator.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/canonicalNavigationGroups.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/disclosureHelp.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/disclosureModel.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/navigationDisclosureResolver.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/navigationExposureResolver.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/navigationGroupingResolver.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/phaseBOperationalGroups.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/pillarRegistry.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/routeAccessResolver.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/routeRegistry.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/navigation/useDeepLinkNavigation.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/notifications/effectiveTimezone.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/notifications/operationsFilterPolicy.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/notifications/useOperationsUiContext.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/oauth.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/passwordRules.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/phone/e164.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/CapabilityDegradedPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/PersonalSpaceUnavailablePanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/PlatformContextProvider.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/WorkspaceContextBanner.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/WorkspaceRecoveryPanel.tsx",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/dirtyWorkRegistry.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/personalSpaceGate.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/personalSpaceHealLatch.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/state-observability.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/tenantStorage.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/usePersonalSpaceGate.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/useServerProjectionGates.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/useTeamWorkspaceGate.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/useTenantModel.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/platform-context/useTerminology.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/privacy/redact.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/request-demo-schema.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/reviewer-workspace/annotation-types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/reviewer-workspace/reviewer-hotkeys.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/sales-assets.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/security/loginMethodsSummary.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/security/securityEventLabels.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/security/sessionPresentation.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/security/useAccountSecuritySummary.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/sentry.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/settings/settingsUiContext.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/surface/access.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/surface/tiers.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/surface/useSurfaceUserContext.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/feature-flag.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/multipart-uploader.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/network.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/persistence.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/recovery.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/retry.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/telemetry.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/uploads/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/useGlobalRuntimeState.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/workspace-experience/applyExperienceEmphasis.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/workspace-experience/index.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/workspace-experience/personalDemotionRules.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/workspace-experience/resolveWorkspaceExperience.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/lib/workspace-experience/types.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/middleware.ts",
+   "cls": "REACHABLE_WEB"
+  },
+  {
+   "file": "apps/web/next-env.d.ts",
+   "cls": "TYPE_ONLY"
+  },
+  {
+   "file": "apps/web/next.config.js",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "apps/web/playwright.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "apps/web/postcss.config.js",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "apps/web/scripts/run-tests.mjs",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "apps/web/tailwind.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "apps/web/types/styles.d.ts",
+   "cls": "TYPE_ONLY"
+  },
+  {
+   "file": "apps/web/vitest.render.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "packages/shared-billing/src/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-billing/src/plan-catalog.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-billing/src/workspace.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-evidence-presentation/src/ai-operational-content.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-evidence-presentation/src/claims-matrix.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-evidence-presentation/src/external-access-content.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-evidence-presentation/src/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-evidence-presentation/src/persona-content.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-evidence-presentation/src/trust-center-content.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/graph/domain-sync.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/graph/graph-catalog.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/graph/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/exif-extractor.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/exif-summary.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/ocr-transcript-indexer.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/probe-registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/producer-mode.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/report-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/media-intelligence/signal-catalog.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/notifications/delivery-state.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/notifications/email-recording-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/notifications/email-transport.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/notifications/idempotency-authority.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/notifications/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/ops/canonical-events.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/ops/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/ops/metrics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/prisma-registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/reports/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/reports/report-generation-request.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/signing/fixture-key-guard.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/signing/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/technical-metadata/acquisition.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/technical-metadata/capture-environment.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/technical-metadata/display-helpers.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/technical-metadata/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/technical-metadata/projections.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared-runtime/src/technical-metadata/types.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/anchor.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/architecture/canonical-persona.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/architecture/denial-vocabulary.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/architecture/workspace-kinds.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/billing-errors.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/canonical-decisions.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/canonical-evidence-materials.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/canonical-json.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/capture-location.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/capture-sdk-foundation.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/capture-trust.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/client-signals.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/collaboration-team-billing-codes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/collaboration-team.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/collaboration.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/communications.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/custody-hash.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/custody.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/discovery-foundation.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/evidence-digest-policy.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/evidence-intelligence.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/evidence-lifecycle-contract.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/evidence-request.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/evidence-roles.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/external-review-portal.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/external-review.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/failure-mode-audit.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/governance-lifecycle.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/governance-notification-contract.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/governance-operations.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/governance-package-eligibility.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/governance.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/i18n.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/identity-hardening.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/identity-providers.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/identity-runtime.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/identity-security.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/identity.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/insurance-siu.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/intake-link-location.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/intake-link-messaging.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/integrations.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/intelligence-closure.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/intelligence.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/media-intelligence-platform.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/notifications.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/observability-runtime.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/observability.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/operational-contracts.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/operational-hardening.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/ots.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/permissions.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/product-and-lifecycle.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/public-identifiers.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/enqueue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/integrity.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/job-id.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/legacy.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/names.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/payload.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/queue-integrity/retry-policy.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/rbac.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/records-by-type-classifier.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/redaction-elite.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/redaction.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/reliability.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/report-artifact.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/review-operations.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/reviewer-assignment.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/reviewer-evidence.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/reviewer-ops.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/reviewer-priority.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/reviewer-workspace.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/search-projection.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/search.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/security.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/stuck-workflow-detector.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/tenant-url.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/timestamp-format.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/trust-and-governance.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/trust-decision.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/verification-package-metadata.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workflow-instance.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workflow-intake-link.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workflow-policy.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workflow-resolver.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workflow-types.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workflow-visibility.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/shared/src/workspace-kind.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "packages/ui/src/index.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "packages/ui/src/tokens/colors.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "packages/ui/src/tokens/radius.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "packages/ui/src/tokens/shadows.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "packages/ui/src/tokens/spacing.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "packages/ui/src/tokens/typography.ts",
+   "cls": "REACHABLE_MOBILE"
+  },
+  {
+   "file": "playwright.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "scripts/e2e-web-smoke.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "scripts/load/runner.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "scripts/load/scenarios.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "scripts/phase0-build-catchup.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "scripts/smoke-prod.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/prisma.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "services/api/prisma/scripts/org-security-policy-readiness.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/scripts/audit-restricted-teams.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/backfill-case-evidence-links.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/backfill-organizations.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/backfill-personal-team-ownership.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/backfill-search-index.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/backfill-semantic-embeddings.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/check-org-consistency.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/db-diff-guard.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/db-host-policy.d.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/db-host-policy.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/db-preflight.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/deploy-safe.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/dev-populate-investigation.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/drift-check.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/evidence-tenancy-diagnostic.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/full-migration-audit.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/full-production-schema-audit.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/identify-integrity-survivors.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/integration-prepare.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/legal-hold-convergence-report.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/migration-inventory.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/migration-production-reconcile.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/migration-risk-scan.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/not-null-readiness.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/p6-production-migration-snapshot.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/p7-queue-incident-collector.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/point5-vector-readiness.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/prepare-local-env.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/production-column-audit.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/protected-runtime-tables.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/raw-schema-verify.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/release-deploy.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/release-materialize.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/safe-migrate.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/seed-home-personas.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/staging-deploy-cli.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/staging-deploy-guard.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/staging-preflight-cli.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/scripts/sweep-capture-drafts.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/src/auth.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/bootstrap/object-lock-verification.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/commands/audit-tenant-scope-readiness.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/config/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/config/runtime-secrets.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/config/secrets-manager.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/crypto.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/db.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/dev/dev-billing-credits.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/dev/dev-login.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/dev/home-personas.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/env.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/errors.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/http/not-found-handler.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/jobs/capture-draft-expiry.job.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/legal/legal-versioning.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/lib/admin-audit-chain.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/lib/route-classification.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/lib/text-sanitize.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/auth.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/authorize-emergency.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/authorize.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/cron-secret.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/integrations-auth.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/internal-service-auth.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/require-delegated-tier.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/require-enterprise-feature.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/middleware/require-legal-acceptance.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/middleware/require-platform-admin.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/observability/fastify-client-error.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/observability/observability-environment.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/observability/otel-bootstrap.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/observability/otel-diagnostics.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/observability/otel.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/observability/sentry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/canonical-queue-client.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/derived-assets-queue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/graph-reconcile-queue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/media-intelligence-queue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/mi-embed-queue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/redaction-derivative-queue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/queue/search-queue.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/register-shared-runtime.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/_governance-error-bound.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/_test-rate-limit.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/account-closure.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/account-data-export.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-adoption.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-alerts.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-audit.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-billing.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-contact-sales.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-costs.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-demo-requests.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-evidence-ops.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-executive.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-identity.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-organizations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-overview.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-platform-health.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-provisioning.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-search.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-security.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-timeline.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/admin-users.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ai-case.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ai-evidence.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ai-operations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ai-reviewer.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ai-search.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ai.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/analytics-operations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/analytics.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/auth.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/automation-webhooks.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/automation.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/billing.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/capture-trust.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/capture.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/case-workspace.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/cases.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/citizen-capture.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/collaboration-completion.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/collaboration-teams.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/collaboration.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/communications.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/contact-sales.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/dashboard.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/demo-requests.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/enterprise-aggregators.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/enterprise-security.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/enterprise.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/evidence-requests.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/evidence.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/evidence.saved-views.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/external-intake.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/external-portal.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/external-review.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/governance-lifecycle.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/governance-operations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/governance-snapshot.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/governance.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/graph.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/identity-links.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/identity-operations-completion.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/identity-security.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/identity.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/integrations-api.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/integrations-uploads.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/integrations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/intelligence-capabilities.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/intelligence-platform.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/intelligence.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/internal-media-intelligence-extract.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/internal-reindex.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/investigation-diagnostics.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/me-inbox.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/me-operational-priorities.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/media-intelligence.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/mfa-admin.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/mfa.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/notification-preferences.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/notifications.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/operations-exports.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/operations-queues.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/operations-readiness.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/operations-recovery.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/operations-signers.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ops-seed.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/ops.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/org-notification-policy.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/organization-domains.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/organizations-bulk-invite.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/organizations-governance.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/organizations-reports.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/organizations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/phase11-tenant.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/platform-context.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/presence.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/product-and-lifecycle.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/redaction.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/reliability.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/reports.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/review-operations.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/reviewer-console.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/reviewer-criteria.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/reviewer-ops.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/reviewer-workspace.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/runtime-otel-health.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/runtime-readiness.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/runtime-secrets-health.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/saml-auth.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/scim-admin.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/scim.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/search.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/security.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/siu.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/sso-auth.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/teams.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/trust-and-governance.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/upload-sessions.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/users.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/webhooks.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/workflow-instances.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/workflow-intake-links.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/workflow.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/workspace-ai-policy.routes.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/routes/workspace-alias.plugin.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/runtime/migration-drift.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/runtime/runtime-readiness.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/runtime/schema-validation.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/scripts/backfill-search-index.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/src/scripts/redact-leaked-intake-tokens.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/src/scripts/repair-tsa-failed-with-token.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/src/scripts/smoke-evidence-forward-path.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/src/scripts/twilio-message-recheck.ts",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/api/src/seed-signing-key.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/server.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/adaptive-auth.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/adaptive-runtime-gate.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/geo-intelligence.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/rbac-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/runtime-risk.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/scim-groups.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/scim-managed-ownership.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/scim-reconciliation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/scim.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/session-inventory.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/session-quarantine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/sso-hardening.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/sso-login-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/sso.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/suspicious-session.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access-control/trusted-device-decay.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access/canonical-workspace-resolver.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/access/tenant-access.helpers.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/admin/adoption.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/alerts.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/costs.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/customer-lifecycle.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/executive.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/overview.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/platform-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/search.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/admin/timeline.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-capability-disclosure.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-capture.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-chat.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-citation-db-resolver.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-citation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-context-resolver.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-copilot-run-store.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-copilot-schemas.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-cost-guard.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-policy.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-qc-sampling.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-rate-limit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-retention.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-suggested-action.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-types.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/ai-usage-ledger.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/case-copilot-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/case-copilot.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/chat-scope-classifier.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/copilot-orchestrator.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/nl-search-parser.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/noop-ai-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/openai-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/prohibited-claims-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/prompt-context-sanitizer.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/proovra-product-knowledge.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/provider-privacy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/reviewer-copilot-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/reviewer-copilot.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/structured-copilot-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ai/workspace-ai-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/alerts/alert.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/alerts/noop-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/alerts/provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/alerts/webhook-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/analytics-event.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/analytics/analytics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/audit/audit-tenant-backfill.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/audit/tenant-audit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/auth-test-bypass.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/auth.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/automation/automation-actions.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/automation/automation-dispatcher.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/automation/automation-webhook.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/automation/automation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/batch-analysis.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/billing-checkout.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/billing-enforcement.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/billing-overview.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/billing-pricing.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/billing.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/billing/commercial-context.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-checklist-gate.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-draft-governance.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-intake-templates.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/attestation-verifier.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/canonical-json.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/citizen-capture.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/device-identity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/provenance-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/signature-verifier.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/trust-event.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/capture-trust/verify-trust-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/case-evidence-link.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/case-lifecycle.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/case-permission.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/case-risk-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/case-workspace.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/matter-queue.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/cases/matter-workspace.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/collaboration-team/billing-guards.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/collaboration-team/collaboration-team-delivery.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/collaboration/discussion.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/communication-preference.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/communication.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/noop-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/provider-registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/twilio-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/communications/verification.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/contact-sales.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/custody-events-observability.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/custody-events.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/access-anomaly.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/case-comment.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/case-evidence-link.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/causality.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/command-center.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/incident-correlation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/integrity-snapshot.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/operational-graph.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/operational-timeline.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/org-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/persona-resolver.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/queue-telemetry.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/records-by-type.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/reviewer-capacity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/trust-summary.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/worker-telemetry.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/demo-follow-up.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/demo-lead-scoring.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/demo-request-links.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/demo-request.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/email-password-auth.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/email-verification.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/email.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/enterprise-gate-resolvers.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/enterprise-provisioning.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-artifact-status.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-certification.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-complete.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-finalization-fanout.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-intelligence.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-legacy-custody.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-request.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-review/artifact-history.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-review/governance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-review/relationship-summary.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-review/review-status-vocabulary.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-review/reviewer-audit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence-review/reviewer-workflow.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence/evidence-delete-eligibility.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence/evidence-destructive-access.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/evidence/evidence-record-access.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/exchange/chain-transfer.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/exchange/signed-delivery.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-intake-orchestration.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-intake-source-summary.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/external-review-grant.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-activity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-bulk-invitations.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-comments.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-decisions.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-invitation-email.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-invitation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-scope.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-session.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-sso.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/external-review/portal-watermark.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/export-governance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/export-lineage.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/governance-analytics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/governance-notification.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/operational-timeline.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance-lifecycle/retention-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/access-review-escalation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/access-review.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/cross-org-review.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/delegated-admin.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/department-membership.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/department-scope.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/department.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/destructive-action-gate.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/effective-legal-hold.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/governance-control-plane.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/governance-dashboard.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/governance-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/legal-hold.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/policy-evaluation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/policy-precedence.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/policy-runtime-gates.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/publication.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/retention-sweeper.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/governance/template-export-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/graph/domain-sync.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/graph/graph-builder.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/graph/graph-catalog.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/account-step-up.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/mfa-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/risk.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/session-revocation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/session-timeout-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/step-up-middleware.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/step-up.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity-security/trusted-device.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/access-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/access-review.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/account-closure.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/account-data-export.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/account-lifecycle-preflight.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/authorization-allowlist.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/identity/break-glass.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/concurrent-session.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/contributor-governance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/deep-link-resolution.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/enterprise-security-policy.policy.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/external-identity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/identity-mode.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/membership-provisioning.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/org-security-policy-readiness.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/identity/org-security-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/rbac.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/support-access.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/support-context-token.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/support-runtime.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/identity/workspace-kind.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intake-link-lifecycle.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/api-key-usage.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/api-keys.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/integration-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/secret-cleanup.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/webhook-deliveries.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/webhook-dispatcher.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/integrations/webhooks.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/audit-transparency.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/entity-extraction.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/executive-metrics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/extraction.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/intelligence-activity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/intelligence-quality.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/intelligence-verification-manifest.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/intelligence/media-intelligence.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/provider-budget.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/provider-usage.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/providers/azure-document-intelligence-adapter.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/providers/deepgram-adapter.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/providers/openai-adapter.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/providers/provider-adapter.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/providers/rekognition-adapter.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/reviewer-correction.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/search.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/intelligence/semantic.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/intelligence/similarity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/investigation-custody.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/investigation-diagnostics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/jwt.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/legal-acceptance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/archive-tier.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/capability-status.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/legal-hold.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/lifecycle-dashboard.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/lifecycle-manifest.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/policy-violation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/lifecycle/retention-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/analyzer.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/derived-assets.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/exif-extractor.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/exif-summary.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/ocr-transcript-indexer.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/probe-bootstrap.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/producer-mode.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/report-projection.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/run-tracker.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/signal-catalog.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/media-intelligence/verify-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/digest-scheduler.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/index.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/notification-preferences.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/operations-summary-cache.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/reminder-scheduler.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/resend-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/notifications/templates.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/incident.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/noop-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/redact.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/sentry-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/workflow-actions.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/observability/workflow.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/custody-attestation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/evidence-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/export-manifest.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/export-reproducibility.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/object-lock-status.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/queue-inventory.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/queue-replay-action.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/queue-replay-safety.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/readiness-posture.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/recovery-validation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/signer-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/signer-registry.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/operations/signer-rotation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ops-health/projection-health.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/ops-health/reconcile-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ops-health/security-rollup-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ops-health/telemetry-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ops-health/types.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ops/metrics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/ops/operational-seed.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/admin-organizations.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/enterprise-contract.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-access.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-audit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-closure.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-governance-control-center.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-invite-acceptance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/org-lifecycle.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/organization-domain.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/organization-resolver.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/retention-inheritance.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/organization/tenancy-resolver.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/packaging/entitlement.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/paypal-checkout-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/paypal-plan-map.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/paypal.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/plan-catalog.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-admin.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-audit-log.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-context/capability-registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-context/navigation-registry.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-context/operational-eligibility.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-context/platform-context.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-context/types.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/platform-context/workspace-bootstrap.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/presence/presence-backend.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/presence/presence-selector.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/presence/presence.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/presence/redis-presence-backend.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/public-verify-consistency.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/rate-limit.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/rbac.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/evidence-bytes.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/policy-verification-manifest.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/redaction/providers/azure-document-intelligence-client.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/providers/deepgram-client.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/providers/rekognition-client.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-activity.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-approval.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-decision-bulk.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-decision.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-derivative.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-detection-manifest.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-detection-providers.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-detection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-policy-store.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-project.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-provider-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-rbac.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-region.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/redaction-verification-manifest.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/redaction/verify-redaction-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/video/video-frame.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/video/video-timeline.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/video/video-track.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/video/video-tracking.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/redaction/video/video-verification-manifest.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/reliability/queue-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reliability/upload-limits.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reliability/upload-reconciliation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reliability/upload-session.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reporting/csv-export.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reports/report-generation-authority.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reports/reports-aggregator.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/review-operations/review-notifications.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/review-operations/review-operations.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/analytics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/bulk-triage.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/queue-intelligence.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/reminder-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/reviewer-ops-runtime-probe.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/saved-queue-views.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/sla-policy.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-ops/workload.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/annotation-workspace.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/bulk-operations.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/coding-schema-defaults.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/coding-schema.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/coding-value.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/qc-sample.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/reviewer-metrics.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/reviewer-roles.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/reviewer-workspace/reviewer-workspace.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/artifact-indexing.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/case-indexing.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/embedding-provider.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/evidence-indexing.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/evidence-search.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/ocr-foundations.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/search/reindex.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/saved-search.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/search-audit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/semantic-backfill.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/semantic-budget.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/search/transcript-foundations.service.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/security/enterprise-account-linking.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/file-security-scan.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/file-validation.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/login-mfa-enforcement.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-digest-preference.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-digest-snooze-token.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-recovery-digest-preview.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-recovery-event-feed.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-recovery.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-secret-storage.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa-totp.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/mfa.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/saml-assertion.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/saml-authn-request.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/saml-cert.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/saml-mapping.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/saml-metadata.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/saml-user-mapping.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/security-event.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/session-timeline.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/sso-health.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/security/webhook-signature-audit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/siu/siu-capabilities.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/siu/siu-export-bundle.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/siu/siu-preflight.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/siu/siu-profile.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/siu/siu-saved-views.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/siu/siu-view-query.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/stripe.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/technical-metadata/capture-environment-writer.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/technical-metadata/verify-projection.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/templates/identity-resolver.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/timestamp.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/timestamp/parse-tsa-reply.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust-decision-consistency.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/security-claim-check.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/status-page.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/status-probes.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/subprocessor.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/trust-and-governance-audit.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/trust-center.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/trust-drift.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/trust/trust-verification-manifest.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/uploads/storage-multipart.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/uploads/unified-material-manifest.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/api/src/services/uploads/upload-session.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workflow-intake-link.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workflow-intake-session.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workflow-intake-token.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workflow-template.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workflows/evidence-workflow-engine.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workspace-admin/workspace-admin.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workspace-billing.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workspace-personal-scope.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workspace-usage.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workspace/workspace-closure.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/signing/kms-signer.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/signing/signer.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/storage.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/stream-hash.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/src/types/fastify.d.ts",
+   "cls": "TYPE_ONLY"
+  },
+  {
+   "file": "services/api/src/utils/logger.ts",
+   "cls": "REACHABLE_API"
+  },
+  {
+   "file": "services/api/vitest.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "services/api/vitest.integration.config.ts",
+   "cls": "BUILD_ONLY"
+  },
+  {
+   "file": "services/worker/scripts/build-test-census.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/worker/scripts/copy-assets.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/worker/scripts/create-paypal-plans.mjs",
+   "cls": "SCRIPT_ONLY"
+  },
+  {
+   "file": "services/worker/src/analytics-events.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/api-readiness.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/canonical-job.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/capture-draft-governance.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/capture-location-map.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/capture-reaper.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/capture-trust/load-provenance-chain.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/capture-trust/provenance-projection.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/config.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/cron-lock.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/custody-events.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/db.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/derived-assets-capability.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/derived-assets.processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/env-loader.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/exchange-package-builder.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/ffmpeg-capability.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/ffmpeg-derived-assets.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/archive-tier-auto-transition.worker.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/effective-legal-hold.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/incident-emitter.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/lifecycle-legal-hold.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/governance/notification-emitter.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/package-eligibility-gate.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/reconciliation-run.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/health.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/index.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/integrity-rejection.service.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/intelligence-run-reconciler.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/internal-api-client.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/lib/admin-audit-chain.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/lifecycle-recovery.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/local-ocr-transcript-capability.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/logger.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/media-intelligence-report-bridge.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/media-intelligence.processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/mfa-challenge-gc.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/mfa-recovery-digest.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/mi-embed.processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/object-lock-bootstrap.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/observability.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/observability/queue-otel-context.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/org-invite-delivery.worker.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/orphan-scan.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/otel-bootstrap.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/otel.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/ots-state.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/ots-upgrade-output.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/ots-upgrade.processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/ots.service.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/pdf/signPdf.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/platform-audit-append.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/preview/extract.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/queue.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/redaction/redaction-derivative-writer.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/redaction/redaction-derivative.processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/register-shared-runtime.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-generation-authority.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-technical-summary-bridge.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/asset-data-url.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/brand.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/build-report-pdf.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/build-view-model.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/content-model.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/custody-model.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/formatters.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/index.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/report-v2/normalizers.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/render-html.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/render-pdf.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/certifications.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/cover.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/custody-hash-chain.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/custody.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/executive-summary.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/forensic-integrity-statement.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/gallery.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/integrity-proof.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/intelligence-summary.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/legal-interpretation.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/lifecycle-summary.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/redaction-summary.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/technical-appendix.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/technical-summary.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/sections/video-intelligence.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/report-v2/technical-model.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/templates/report-shell.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/templates/report.css.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/truth-model.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/types.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/report-v2/ui.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/scripts/diagnose-ots-evidence.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/scripts/repair-ots-hybrid-state.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/scripts/smoke-ots-retry-state.ts",
+   "cls": "UNREACHABLE_CANDIDATE"
+  },
+  {
+   "file": "services/worker/src/search-index-reconciler.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/search-index/artifact-indexer.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/search-indexing.processor.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/sentry.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/storage.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/subsystem-queue-processors.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/technical-metadata/dispatch.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/technical-metadata/image-parser.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/technical-metadata/pdf-parser.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/technical-metadata/video-parser.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/telemetry.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-attestations.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-historical-material.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-intelligence-bridge.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-intelligence.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-lifecycle.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-technical-metadata.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package-trust-and-governance.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/verification-package.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/webhook-dispatcher.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/src/workspace-billing.ts",
+   "cls": "REACHABLE_WORKER"
+  },
+  {
+   "file": "services/worker/vitest.config.ts",
+   "cls": "BUILD_ONLY"
+  }
+ ]
+}

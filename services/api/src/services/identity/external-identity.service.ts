@@ -83,8 +83,10 @@ export async function linkExternalIdentity(
 ): Promise<prismaPkg.ExternalIdentityMapping> {
   // Verify the user actually belongs to the workspace — prevents an
   // operator from creating an SSO mapping for an arbitrary userId.
+  // PHASE 12 REMEDIATION (2026-08-06) — mapping SUBJECT validity. An SSO
+  // identity must not be bound to a membership that grants no access.
   const member = await client.teamMember.findFirst({
-    where: { teamId: input.teamId, userId: input.userId },
+    where: { teamId: input.teamId, userId: input.userId, status: "ACTIVE" },
     select: { id: true },
   });
   if (!member) throw new ExternalIdentityError("user_not_in_workspace");

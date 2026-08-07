@@ -115,8 +115,15 @@ export async function resolveOrgContextForTeam(
   // Org is bound. Look up the user's role if a userId was passed.
   let orgRole: OrgRole | null = null;
   if (userId) {
+    // ARCH-004 — only an ACTIVE membership confers a role. A suspended or
+    // revoked member resolves to `orgRole: null`, which every consumer already
+    // treats as "no governance authority here".
     const membership = await prisma.organizationMembership.findFirst({
-      where: { organizationId: team.organizationId, userId },
+      where: {
+        organizationId: team.organizationId,
+        userId,
+        status: "ACTIVE",
+      },
       select: { role: true },
     });
     if (membership) {
@@ -159,8 +166,11 @@ export async function listOrgMembershipsForUser(
   prisma: PrismaClient,
   userId: string,
 ): Promise<{ organizationId: string; orgName: string; role: OrgRole }[]> {
+  // ARCH-004 — the switcher lists Organizations the user may actually enter.
+  // A suspended or revoked membership must disappear from it, not appear and
+  // then refuse on arrival.
   const rows = await prisma.organizationMembership.findMany({
-    where: { userId },
+    where: { userId, status: "ACTIVE" },
     select: {
       organizationId: true,
       role: true,

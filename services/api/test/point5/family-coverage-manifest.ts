@@ -712,7 +712,12 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
   },
   {
     family: "webhooks_providers",
-    suites: ["test/point5/family-webhooks-providers.integration.test.ts"],
+    suites: [
+      "test/point5/family-webhooks-providers.integration.test.ts",
+      // ARCH-005 — the Automation unit is proven by its own runtime suite,
+      // which drives real rows against a real loopback receiver.
+      "test/phase-12-arch-005-automation-runtime.integration.test.ts",
+    ],
     units: [
       {
         workName: "WebhookDispatcherSweep",
@@ -729,6 +734,41 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
           "webhook.disabled_destination_refused",
           "webhook.provider.unknown_outcome_non_terminal",
         ],
+        inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
+      },
+      {
+        /**
+         * PHASE 12 CORRECTIVE PASS (ARCH-005, 2026-08-07) — the Automation
+         * runtime.
+         *
+         * It belongs to `webhooks_providers` for the same reason the
+         * dispatcher does: its external boundary is a signed outbound webhook,
+         * and everything this unit owes is a property of crossing that
+         * boundary safely.
+         *
+         * The three family cases beyond the common seven are the ones ARCH-005
+         * exists for. `unknown_outcome_non_terminal` and
+         * `unknown_never_projected_as_failure` are the §1 correction: a
+         * timeout means the receiver MAY have acted, so the attempt is neither
+         * retried nor reported as a refusal.
+         */
+        workName: "AutomationDispatchSweep",
+        executor:
+          "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
+        cases: [
+          "auto.durable.intent_before_work",
+          "auto.tenant.workspace_reloaded",
+          "auto.tenant.cross_workspace_denied",
+          "auto.claim.one_winner",
+          "auto.claim.active_not_stolen",
+          "auto.idempotency.duplicate_is_noop",
+          "auto.terminal.stale_cannot_overwrite",
+          "auto.provider.unknown_outcome_non_terminal",
+          "auto.provider.unknown_never_projected_as_failure",
+          "auto.reconciler.recovers_stranded_once",
+        ],
+        // There is no queue payload to reject: the durable row IS the work,
+        // and the tenant comes off the row rather than off a message.
         inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
       },
     ],

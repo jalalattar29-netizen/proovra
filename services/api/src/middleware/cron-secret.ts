@@ -75,8 +75,15 @@ async function fallbackAdminCheck(
   // ANY workspace — cron routes are workspace-agnostic.
   try {
     const userId = getAuthUserId(req);
+    // PHASE 12 REMEDIATION — AUTH-004 (2026-08-06). This ACTOR gate was
+    // status-blind: a SUSPENDED or REVOKED OWNER/ADMIN satisfied it and could
+    // drive the non-production cron fallback. ACTIVE is now required.
     const membership = await prisma.teamMember.findFirst({
-      where: { userId, role: { in: ["OWNER", "ADMIN"] } },
+      where: {
+        userId,
+        status: "ACTIVE",
+        role: { in: ["OWNER", "ADMIN"] },
+      },
     });
     if (!membership) {
       reply.code(401).send({

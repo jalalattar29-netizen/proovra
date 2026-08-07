@@ -599,6 +599,12 @@ async function seedFixtures(
           name,
           billingOwnerUserId: ownerId,
           status: "ACTIVE",
+          // ARCH-002 — a CUSTOMER Organization, so the workspace below is
+          // structurally an ORGANIZATION workspace. The default is SYSTEM (an
+          // internal container), and leaving it there while calling the
+          // workspace ORGANIZATION would be the exact owner/provisioner
+          // disagreement the contract migration refuses.
+          kind: "CUSTOMER",
         },
         select: { id: true },
       });
@@ -615,6 +621,19 @@ async function seedFixtures(
           ownerUserId: ownerId,
           isPersonal: false,
           organizationId: org.id,
+          // PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — STATED.
+          //
+          // These fixtures previously left `workspaceKind` NULL, and the
+          // classifier's plan-derived fallback then read them as OWNED (plan
+          // FREE). Every suite that thought it was exercising an ORGANIZATION
+          // workspace was in fact exercising an Owned one, so the
+          // Organization-lifecycle branch of the authorization chain was never
+          // reached — which is precisely why the NEW-005 probe had to set the
+          // kind by hand before it could test a suspended Organization.
+          //
+          // The Organization created above IS a CUSTOMER organization, so the
+          // structurally correct kind is ORGANIZATION.
+          workspaceKind: "ORGANIZATION",
         },
         select: { id: true },
       });
