@@ -9779,8 +9779,21 @@ model AutomationRun {
   /// no run; a replayed event collapses on the partial unique index.
   sourceEventId        String?   @map("source_event_id") @db.VarChar(160)
   /// Durable identity of the ACTION intent. A retry REUSES it, so a retried
-  /// email or webhook is the same intent rather than a second one.
-  actionIdempotencyKey String?   @map("action_idempotency_key") @db.VarChar(160)
+  /// email or webhook is the same intent rather than a second one, and a lease
+  /// takeover inherits it rather than minting a fresh one. A NEW intentional
+  /// run gets a NEW key.
+  ///
+  /// REQUIRED, matching the final schema: `20271129000000` introduces it
+  /// nullable, `20271130000000` populates every existing row deterministically
+  /// from the run's own id, and `20271131000000` sets NOT NULL behind a
+  /// readiness count that RAISEs if a single null remains. Declaring it
+  /// optional here made Prisma propose relaxing the constraint the migration
+  /// had just established.
+  ///
+  /// It is derived from the run id alone. No token, recipient, secret or
+  /// mutable payload value goes into it — a key that moves with the payload
+  /// cannot identify an intent across a retry.
+  actionIdempotencyKey String    @map("action_idempotency_key") @db.VarChar(160)
   claimedAtUtc         DateTime? @map("claimed_at_utc") @db.Timestamptz(6)
   leaseExpiresAtUtc    DateTime? @map("lease_expires_at_utc") @db.Timestamptz(6)
   /// Monotonic fence. Every claim increments it; every terminal write names

@@ -1351,10 +1351,29 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
 
     // Every run this pass created carries an action intent, which is the
     // contract migration's first readiness condition.
-    const noIntent = await prisma.automationRun.count({
-      where: { actionIdempotencyKey: null },
-    });
-    expect(noIntent).toBe(0);
+    //
+    // Asserted in RAW SQL, not through a Prisma `null` filter: the column is
+    // NOT NULL once the contract migration has run, so the datamodel no longer
+    // admits `actionIdempotencyKey: null` as a filter at all. Asking the
+    // database directly checks the constraint the migration established rather
+    // than a shape the client would refuse to compile.
+    const [{ null_intents: nullIntents }] = await prisma.$queryRawUnsafe<
+      Array<{ null_intents: bigint }>
+    >(`SELECT count(*)::bigint AS null_intents
+         FROM "automation_runs"
+        WHERE "action_idempotency_key" IS NULL`);
+    expect(Number(nullIntents)).toBe(0);
+
+    // …and the constraint itself is present, so a future migration cannot
+    // relax it without this failing.
+    const [{ is_nullable: isNullable }] = await prisma.$queryRawUnsafe<
+      Array<{ is_nullable: string }>
+    >(`SELECT is_nullable
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'automation_runs'
+          AND column_name = 'action_idempotency_key'`);
+    expect(isNullable).toBe("NO");
   }, 300_000);
 
   // =========================================================================
