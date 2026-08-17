@@ -159,26 +159,28 @@ describe("Client IP resolution + private/Docker suppression", () => {
     expect(maskIp("203.0.113.42")).toBe("203.0.x.x");
   });
 
-  it("getTrustedClientIp only trusts proxy headers when trustProxy is enabled", () => {
-    const headers = {
+  it("getTrustedClientIp NORMALISES the resolved ip and never re-reads proxy headers", () => {
+    // NEW-022 (proxy/client-IP authority) removed the second address-selection
+    // resolver that lived here: it read `CF-Connecting-IP` and took the
+    // LEFTMOST public `X-Forwarded-For` entry, both of which a caller supplies
+    // and can forge. Selection now belongs to Fastify's `@fastify/proxy-addr`
+    // under the declared trust policy, and `reqIp` arrives already resolved.
+    //
+    // This test asserts the fix rather than the behaviour it replaced: the
+    // headers below are deliberately hostile, and neither value may win.
+    const forged = {
       "cf-connecting-ip": "203.0.113.7",
       "x-forwarded-for": "198.51.100.9, 172.18.0.1",
     };
-    // Untrusted deployment → direct socket IP only.
     expect(
-      getTrustedClientIp({ reqIp: "172.18.0.1", headers, trustProxy: false }),
+      getTrustedClientIp({ reqIp: "172.18.0.1", headers: forged, trustProxy: false }),
     ).toBe("172.18.0.1");
-    // Trusted proxy → CF-Connecting-IP public wins.
     expect(
-      getTrustedClientIp({ reqIp: "172.18.0.1", headers, trustProxy: true }),
-    ).toBe("203.0.113.7");
-    // Trusted proxy, no CF header → first PUBLIC X-Forwarded-For.
+      getTrustedClientIp({ reqIp: "172.18.0.1", headers: forged, trustProxy: true }),
+    ).toBe("172.18.0.1");
+    // The resolved address passes through whatever the headers claim.
     expect(
-      getTrustedClientIp({
-        reqIp: "172.18.0.1",
-        headers: { "x-forwarded-for": "198.51.100.9, 172.18.0.1" },
-        trustProxy: true,
-      }),
+      getTrustedClientIp({ reqIp: "198.51.100.9", headers: forged, trustProxy: true }),
     ).toBe("198.51.100.9");
   });
 

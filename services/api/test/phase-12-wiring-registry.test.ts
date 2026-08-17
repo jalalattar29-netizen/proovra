@@ -10,11 +10,12 @@
  * This suite machine-checks the tracker's integrity and keeps it consistent with
  * the registry slices (slice-e = the live MISSING set the closure gate reads).
  */
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const REPO = resolve(__dirname, "../../..");
+import { REPO, assertCanonicalFactsFresh, registeredRoutePaths } from "./_canonical-facts";
+
 const read = (f: string) => readFileSync(f, "utf8").replace(/\r\n/g, "\n");
 const CLASS_DIR = resolve(REPO, "docs/architecture/route-classification");
 
@@ -27,15 +28,16 @@ type Entry = {
 };
 const registry = JSON.parse(read(join(CLASS_DIR, "wiring-registry.json"))) as Entry[];
 
-// live registered routes
-const registered = new Set<string>();
-for (const f of readdirSync(resolve(REPO, "services/api/src/routes"))) {
-  if (!f.endsWith(".ts")) continue;
-  for (const m of read(resolve(REPO, "services/api/src/routes", f)).matchAll(
-    /app\.(get|post|patch|put|delete)(?:<[^>]*>)?\(\s*\n?\s*[`"']([^`"']+)[`"']/g,
-  ))
-    registered.add(m[2]);
-}
+// Live registered routes, from the canonical AST inventory.
+//
+// PHASE 0 §9. The regex this replaces walked only the TOP LEVEL of
+// `src/routes/`, so every route registered in a subdirectory was absent from
+// "live registered routes" — in a suite whose job is to assert that registry
+// entries correspond to real registrations. It also could not resolve a path
+// held in a constant. Both are silent under-reports, which is the direction
+// that makes a gate look green.
+assertCanonicalFactsFresh();
+const registered = registeredRoutePaths();
 // slice-e = live MISSING set
 const sliceE = new Set((JSON.parse(read(join(CLASS_DIR, "slice-e.json"))) as Array<{ route: string }>).map((e) => e.route));
 

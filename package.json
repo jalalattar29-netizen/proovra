@@ -15,6 +15,8 @@
     "build:web": "pnpm run build:shared && pnpm --filter proovra-web build",
     "build:api": "pnpm run build:shared && pnpm --filter proovra-api build",
     "build:worker": "pnpm run build:shared && pnpm --filter proovra-worker build",
+    "_audit_notes": "PHASE 0 — `audit:architecture` is the ONE current-audit command. Default regenerates every current artifact then checks the engine. `--engine-check` asks whether the measuring instrument is sound and exits 0 even while product work is open. `--closure-check` asks whether the PRODUCT is closed and exits non-zero while it is not. Keeping those apart is deliberate: a permanent red that means 'open work' teaches everyone to ignore a red that means 'every number here is a guess'.",
+    "audit:architecture": "node services/api/scripts/audit/index.mjs",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

@@ -150,7 +150,11 @@ function BatchAnalysisPageInner() {
 
   const handleExportResults = async (jobId: string) => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || "https://api.proovra.com";
+      // AUDIT-003 (2026-08-15): this re-derived the API origin inline, which
+      // duplicated the production default and meant changing it required
+      // finding every copy. It now reads the ONE authority in lib/api.
+      const { apiBaseUrl } = await import("../../../../lib/api");
+      const apiBase = apiBaseUrl();
 
       // Authentication carried by the HttpOnly `proovra_session` cookie.
       // The in-memory token (if present, e.g. immediately after OAuth) is

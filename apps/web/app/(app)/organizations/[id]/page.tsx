@@ -19,6 +19,8 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  *                 POST /v1/orgs/:id/invites/:iid/resend
  *                 DELETE /v1/orgs/:id/invites/:iid
  *   6. Workspaces → GET /v1/orgs/:id/workspaces    (member+)
+ *                 POST /v1/orgs/:id/workspaces/:teamId/suspend (admin+)
+ *                 POST /v1/orgs/:id/workspaces/:teamId/resume  (admin+)
  *   7. Audit    → GET  /v1/orgs/:id/audit-events?cursor=&take=&type=
  *                 (auditor+)
  *
@@ -46,6 +48,7 @@ import { apiFetch } from "../../../../lib/api";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { usePlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OrgWorkspaceLifecycleControls } from "../../../../components/organizations/OrgWorkspaceLifecycleControls";
 import {
   formatUserDate,
   formatUserTime,
@@ -266,13 +269,42 @@ function OrganizationDetailInner() {
     [],
   );
 
+  /**
+   * PHASE 13 (NEW-064) — REVALIDATE WITHOUT UNMOUNTING WHAT ALREADY RENDERED.
+   *
+   * `fetchAll` used to reset every section to `{ kind: "loading" }`
+   * unconditionally. Each section renders its list ONLY while `kind === "ready"`
+   * (`{workspaces.kind === "loading" && <RowLoading />}`), so a refresh tore the
+   * whole `<ul>` down and built it again from scratch.
+   *
+   * That destroyed component state the user had just produced. `fetchAll` is the
+   * `onChanged` callback every lifecycle control calls after a SUCCESSFUL
+   * mutation, and `OrgWorkspaceLifecycleControls` announces that success from its
+   * own `notice` state inside a `role="status"` region — inside the list. So the
+   * sequence was: mutate, set the announcement, refresh, unmount the
+   * announcement. The region came back mounted and EMPTY, which means a screen
+   * reader was told nothing at all about an action that suspended a workspace
+   * and locked its members out.
+   *
+   * Keeping the previous `ready` data while revalidating fixes that for every
+   * child at once, and removes the flash of skeleton a sighted user saw on each
+   * refresh. A section that has NEVER loaded still shows its loading state — the
+   * only thing that changes is that a reload of already-present data stops being
+   * a teardown.
+   */
+  const revalidate = useCallback(
+    <T,>(prev: Loadable<T>): Loadable<T> =>
+      prev.kind === "ready" ? prev : { kind: "loading" },
+    [],
+  );
+
   const fetchAll = useCallback(async () => {
     if (!orgId) return;
-    setOrg({ kind: "loading" });
-    setMembers({ kind: "loading" });
-    setWorkspaces({ kind: "loading" });
-    setAudit({ kind: "loading" });
-    setPendingInvites({ kind: "loading" });
+    setOrg(revalidate);
+    setMembers(revalidate);
+    setWorkspaces(revalidate);
+    setAudit(revalidate);
+    setPendingInvites(revalidate);
 
     // Audit is read here for the summary tile + deep-link count only; the
     // filterable timeline + CSV export live on the canonical admin/audit tab.
@@ -297,7 +329,7 @@ function OrganizationDetailInner() {
       setSettingsTimezone(o.data.timezone ?? "");
       setSettingsLogoUrl(o.data.logoUrl ?? "");
     }
-  }, [orgId, safeFetch]);
+  }, [orgId, safeFetch, revalidate]);
 
   useEffect(() => {
     void fetchAll();
@@ -1036,7 +1068,7 @@ function OrganizationDetailInner() {
                       : ""}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", flexWrap: "wrap" }}>
                   <Link
                     href={`/teams/${w.workspaceId}`}
                     data-action="open-workspace"
@@ -1047,6 +1079,15 @@ function OrganizationDetailInner() {
                       Open workspace
                     </Button>
                   </Link>
+                  {/* Phase 4 §7.5 — reversible org-workspace suspension. */}
+                  <OrgWorkspaceLifecycleControls
+                    orgId={orgId}
+                    workspaceId={w.workspaceId}
+                    workspaceName={w.name}
+                    isPersonal={w.isPersonal}
+                    canManage={canMutate}
+                    onChanged={fetchAll}
+                  />
                 </div>
               </li>
             ))}

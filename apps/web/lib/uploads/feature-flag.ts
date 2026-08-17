@@ -73,15 +73,37 @@ export type UploadRouting = (typeof UPLOAD_ROUTING)[number];
  * — to avoid `"1"`, `"yes"`, `"on"`, accidental whitespace, etc.,
  * leaking through.
  *
- * Server-side note: this reads `process.env`. On the client side
- * (Next.js), `NEXT_PUBLIC_*` env vars are inlined at build time, so
- * `process.env.NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED` works in
- * browser bundles.
+ * PHASE 13 (NEW-066) — THE MEMBER EXPRESSION MUST BE WRITTEN OUT IN FULL, OR
+ * THIS FLAG CAN NEVER BE ON IN A BROWSER.
+ *
+ * The docblock above was right about the mechanism and the code defeated it.
+ * Next inlines a `NEXT_PUBLIC_*` read only when it can see the LITERAL
+ * `process.env.NEXT_PUBLIC_…` member expression at the call site. The previous
+ * body hoisted `process.env` into a local first:
+ *
+ *   const env = (typeof process !== "undefined" ? process.env : {}) as any;
+ *   return env.NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED === "true";
+ *
+ * There is no literal to substitute there, so webpack instead supplied its
+ * browser `process` shim — whose `env` is `{}`. The compiled bundle read:
+ *
+ *   function eM(){ return "true" === (void 0 !== eL ? eL.env : {})
+ *                    .NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED }
+ *
+ * i.e. `undefined === "true"`. So `isResumableEnabled()` returned FALSE in every
+ * browser, for every build, whatever the environment said — and since
+ * `routeFile()` returns "legacy" whenever the flag is off, "even gigabyte files
+ * go legacy" was not the documented default, it was the ONLY behaviour. The
+ * whole resumable path — multipart upload, `UploadOperationsPanel`, the Cancel
+ * control and the recovery scan — was unreachable in the shipped product, and
+ * setting the env var in production would not have changed that.
+ *
+ * The `typeof process` guard is unnecessary as well as harmful: after inlining
+ * there is no `process` reference left to guard, and Next's own contract is that
+ * this expression is a build-time constant.
  */
 export function isResumableEnabled(): boolean {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const env = (typeof process !== "undefined" ? process.env : {}) as any;
-  return env.NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED === "true";
+  return process.env.NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED === "true";
 }
 
 // =============================================================================

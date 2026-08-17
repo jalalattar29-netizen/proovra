@@ -32,6 +32,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// PHASE 13 §1.5 — the alias RULE is exercised, not its source text.
+import { rewriteWorkspaceAliasUrl } from "../src/routes/workspace-alias.plugin.js";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   // Normalize CRLF→LF so byte-exact source-contract matches are robust to
@@ -59,42 +62,66 @@ const NAV_REGISTRY = readSource(
   "../src/services/platform-context/navigation-registry.ts",
 );
 
+/**
+ * PHASE 13 §1.5 — these assertions were REWRITTEN, and why matters.
+ *
+ * They used to pin the alias's SOURCE STRINGS: that the file contained
+ * `app.addHook("onRequest"`, that it assigned `request.raw.url = rewritten`,
+ * and that `app.register(workspaceAliasPlugin)` appeared before
+ * `app.register(teamsRoutes)`. Every one of those passed for the plugin's
+ * entire life — while the alias rewrote NOTHING, because Fastify routes before
+ * it runs `onRequest`, so every `/v1/workspaces/*` request 404'd.
+ *
+ * That is the failure mode a source-string assertion cannot see: it pinned the
+ * mechanism instead of the outcome, and then vouched for the mechanism being
+ * wrong. So the rule is now exercised as a FUNCTION, and the wiring is
+ * asserted at the place that actually decides it — the Fastify option that
+ * runs before routing.
+ */
 describe("Phase B0 — workspace URL alias", () => {
-  it("plugin registers an onRequest hook that rewrites /v1/workspaces → /v1/teams", () => {
-    expect(ALIAS_PLUGIN).toContain("workspaceAliasPlugin");
-    expect(ALIAS_PLUGIN).toContain('"/v1/workspaces"');
-    expect(ALIAS_PLUGIN).toContain('"/v1/teams"');
-    expect(ALIAS_PLUGIN).toMatch(/app\.addHook\("onRequest"/);
-    expect(ALIAS_PLUGIN).toMatch(/request\.raw\.url\s*=\s*rewritten/);
+  it("rewrites /v1/workspaces → /v1/teams", () => {
+    expect(rewriteWorkspaceAliasUrl("/v1/workspaces")).toBe("/v1/teams");
+    expect(rewriteWorkspaceAliasUrl("/v1/workspaces/ai-policy")).toBe(
+      "/v1/teams/ai-policy",
+    );
+    expect(rewriteWorkspaceAliasUrl("/v1/workspaces?teamId=x")).toBe(
+      "/v1/teams?teamId=x",
+    );
   });
 
   it("rewrite is one-way (workspaces → teams; teams is not rewritten)", () => {
-    // Plugin never references /v1/teams as the SOURCE of a rewrite.
-    // The teams path is the target only.
-    const lines = ALIAS_PLUGIN.split("\n");
-    const sourceLines = lines.filter((l) =>
-      l.includes("startsWith(") || l.includes("rawUrl.startsWith"),
+    // Applying the rule twice must be identical to applying it once — which is
+    // the property that makes a rewrite loop impossible.
+    const once = rewriteWorkspaceAliasUrl("/v1/workspaces/ai-policy");
+    expect(rewriteWorkspaceAliasUrl(once)).toBe(once);
+    expect(rewriteWorkspaceAliasUrl("/v1/teams")).toBe("/v1/teams");
+    expect(rewriteWorkspaceAliasUrl("/v1/teams/ai-policy")).toBe(
+      "/v1/teams/ai-policy",
     );
-    for (const line of sourceLines) {
-      expect(line).toContain("ALIAS_PREFIX");
-      expect(line).not.toContain('"/v1/teams"');
-    }
   });
 
   it("rewrite is path-prefix-safe (rejects /v1/workspacesfoo)", () => {
-    // The plugin checks `nextChar` after the prefix and only
-    // rewrites when it's `/`, `?`, or end-of-string.
-    expect(ALIAS_PLUGIN).toMatch(
-      /nextChar !== "" && nextChar !== "\/" && nextChar !== "\?"/,
+    expect(rewriteWorkspaceAliasUrl("/v1/workspacesfoo")).toBe(
+      "/v1/workspacesfoo",
+    );
+    expect(rewriteWorkspaceAliasUrl("/v1/workspaces-archive")).toBe(
+      "/v1/workspaces-archive",
+    );
+    expect(rewriteWorkspaceAliasUrl("/v1/teams-collaboration")).toBe(
+      "/v1/teams-collaboration",
     );
   });
 
-  it("server registers the alias plugin BEFORE any team-aware route", () => {
-    const aliasIdx = SERVER_SRC.indexOf("app.register(workspaceAliasPlugin)");
-    const teamsIdx = SERVER_SRC.indexOf("app.register(teamsRoutes)");
-    expect(aliasIdx).toBeGreaterThan(0);
-    expect(teamsIdx).toBeGreaterThan(0);
-    expect(aliasIdx).toBeLessThan(teamsIdx);
+  it("the alias is installed where it runs BEFORE routing, not as an onRequest hook", () => {
+    // Fastify's `rewriteUrl` server option is the only place a URL change can
+    // affect which route matches. An `onRequest` hook is too late — that was
+    // the defect. This asserts the wiring exists AND that the old, ineffective
+    // mechanism has not come back.
+    expect(SERVER_SRC).toMatch(
+      /rewriteUrl:\s*\(req\)\s*=>\s*rewriteWorkspaceAliasUrl\(req\.url\)/,
+    );
+    expect(ALIAS_PLUGIN).not.toContain('addHook("onRequest"');
+    expect(SERVER_SRC).not.toContain("app.register(workspaceAliasPlugin)");
   });
 });
 

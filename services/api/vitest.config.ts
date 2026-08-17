@@ -1,4 +1,30 @@
+import { availableParallelism } from "node:os";
+
 import { defineConfig } from "vitest/config";
+
+/**
+ * A CEILING on workers, because several suites spawn their own CPU-heavy children.
+ *
+ * `phase-0-audit-engine-governance` and `phase-12-capability-analyzer-adversarial`
+ * shell out to the audit engine and the capability analyzer, each of which walks
+ * the whole repository and saturates several cores on its own — one of those
+ * tests blocks its worker for ~36s in a single `spawnSync`.
+ *
+ * Let vitest open one worker per core on top of that and the machine is badly
+ * oversubscribed: the MAIN thread stops being scheduled promptly, a worker's
+ * `onTaskUpdate` call exceeds birpc's FIXED 60s timeout, and vitest reports
+ * `[vitest-worker]: Timeout calling "onTaskUpdate"` as an unhandled error. The
+ * run then exits 1 with every single test passing — the worst possible signal,
+ * and one this repository carried through four consecutive full runs while a
+ * genuine gate failure masked it.
+ *
+ * The timeout is not configurable, so the fix is the contention, not the clock.
+ * This is a bound and not a reduction: `Math.min` leaves CI's smaller runners
+ * completely untouched (4 cores still gets 4 workers) and only binds on large
+ * developer machines, where it also happens to be FASTER — on a 24-core host it
+ * cut collect time from 245s to 121s by not thrashing.
+ */
+const MAX_TEST_WORKERS = Math.max(1, Math.min(availableParallelism(), 8));
 
 /**
  * PHASE 12 — POINT 7: the canonical bootstrap is a --import PRELOAD.
@@ -43,5 +69,13 @@ export default defineConfig({
     setupFiles: ["./test/setup/safe-environment.ts"],
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**", "test/**/*.integration.test.ts"],
+    // See MAX_TEST_WORKERS above. Applied to both pools so the bound survives a
+    // change of `pool`, and `maxForks`/`maxThreads` are the only knobs that
+    // reach the oversubscription; the RPC timeout itself cannot be configured.
+    maxWorkers: MAX_TEST_WORKERS,
+    poolOptions: {
+      threads: { maxThreads: MAX_TEST_WORKERS },
+      forks: { maxForks: MAX_TEST_WORKERS },
+    },
   },
 });

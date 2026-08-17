@@ -9,49 +9,40 @@
  * Hard rules:
  *   * Tokens are bounded base64url, time-limited, never log-leaked.
  *   * Verification is constant-time on the HMAC compare path.
- *   * Audit emission ("verifyTransfer") is forward-declared via the
- *     webhook platform — never blocks the operational path.
+ *   * This module emits nothing. Audit emission was once described here as
+ *     "forward-declared via the webhook platform"; the only emitter was the
+ *     verification event, which no code path ever fired (Phase 13 §4,
+ *     2026-08-17). Signing, verification and the delivery projection are all
+ *     it does.
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
-import type { WebhookEventKind } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
 // ---------------------------------------------------------------------------
-// Forward-declared webhook emitter (see evidence-exchange.service.ts).
+// PHASE 13 §4 (2026-08-17) — the forward-declared webhook emitter was REMOVED
+// here, with the only thing that used it.
+//
+// `tryEmitWebhookEvent` and its `WebhookEmitter` type existed for exactly one
+// caller: `emitTransferVerificationEvent`, which fired an `EVIDENCE_VERIFIED`
+// webhook when a recipient verified a signed delivery. That writer is gone —
+// there is no verify endpoint, nothing ever called it, and the note below the
+// projection helper records why — so the "forward declaration" was forward to
+// nothing. The lint error it left (`tryEmitWebhookEvent is defined but never
+// used`) was the accurate report of a half-applied removal, and the answer is
+// to finish the removal rather than to silence the import.
+//
+// The module docblock's line about audit emission being "forward-declared via
+// the webhook platform" is corrected with it: this file signs and verifies
+// manifests and projects deliveries. It emits nothing.
+//
+// If recipient-side verification is built (BACKLOG-13-3 in
+// docs/architecture/program-ledger.md), the emitter comes back WITH the route
+// that needs it, in one piece, rather than waiting here for a caller.
 // ---------------------------------------------------------------------------
-
-type WebhookEmitter = (input: {
-  prisma?: PrismaClient;
-  teamId: string;
-  eventKind: WebhookEventKind;
-  payload: Record<string, unknown>;
-}) => Promise<unknown> | unknown;
-
-async function tryEmitWebhookEvent(
-  eventKind: WebhookEventKind,
-  payload: Record<string, unknown>,
-  ctx: { prisma?: PrismaClient; teamId: string },
-): Promise<void> {
-  try {
-    const mod = (await import(
-      "../packaging/webhooks/webhook-platform.service.js"
-    ).catch(() => ({}))) as { emitWebhookEvent?: WebhookEmitter };
-    if (typeof mod.emitWebhookEvent === "function") {
-      await mod.emitWebhookEvent({
-        prisma: ctx.prisma,
-        teamId: ctx.teamId,
-        eventKind,
-        payload,
-      });
-    }
-  } catch {
-    // Audit fan-out failure MUST never break the operational path.
-  }
-}
 
 // ---------------------------------------------------------------------------
 // HMAC primitives
@@ -205,8 +196,18 @@ export type DeliveryActivityRow = {
    * PHASE 12 VERTICAL C — bounded delivery state derived SERVER-SIDE from the
    * recorded timestamps. The console never re-derives it, so "authorized"
    * (a recipient recorded) can never be rendered as "completed".
+   *
+   * PHASE 13 §4 (2026-08-17) — TWO members, not three. The union carried
+   * "VERIFIED", derived from `verifiedAtUtc`, and no code path in this system has
+   * ever written that column: recipient-side verification is unbuilt and its
+   * only writer was removed above. A state a delivery cannot reach must not be
+   * part of the vocabulary the operator console reads, and a type that offers it
+   * invites a consumer to render a lifecycle this product does not implement.
+   * The COLUMN is retained on the row below — dropping it needs a migration for
+   * storage nothing is spending — and BACKLOG-13-3 records what restoring the
+   * rung would require.
    */
-  state: "RECORDED" | "DOWNLOADED" | "VERIFIED";
+  state: "RECORDED" | "DOWNLOADED";
 };
 
 export type ListDeliveryActivityPage = {
@@ -251,54 +252,44 @@ export async function listDeliveryActivity(
       deliveredAtUtc: (r.deliveredAtUtc ?? r.deliveredAt).toISOString(),
       downloadedAtUtc: r.downloadedAtUtc?.toISOString() ?? null,
       verifiedAtUtc: r.verifiedAtUtc?.toISOString() ?? null,
-      state: r.verifiedAtUtc
-        ? ("VERIFIED" as const)
-        : r.downloadedAtUtc
-          ? ("DOWNLOADED" as const)
-          : ("RECORDED" as const),
+      // PHASE 13 §4 (2026-08-17) — two rungs, not three. The `VERIFIED` rung
+      // was derived from `verifiedAtUtc`, and no code path in this system has
+      // ever written that column: recipient-side verification is unbuilt (see
+      // the note where its writer used to live). A state a delivery cannot
+      // reach must not be part of the vocabulary the operator console reads.
+      state: r.downloadedAtUtc
+        ? ("DOWNLOADED" as const)
+        : ("RECORDED" as const),
     })),
     nextCursor: rows.length > limit ? (page[page.length - 1]?.id ?? null) : null,
   };
 }
 
 // ---------------------------------------------------------------------------
-// emitTransferVerificationEvent — helper used when a recipient hits
-// the verify endpoint with a signed token and we want to advertise it
-// as a webhook + stamp the verified-at marker.
+// PHASE 13 §4 (2026-08-17) — `emitTransferVerificationEvent` was REMOVED here,
+// and the `VERIFIED` rung was removed from the ladder above with it.
+//
+// Its docblock described "a recipient hits the verify endpoint with a signed
+// token". There is no verify endpoint. The exchange lifecycle stops at
+// DOWNLOADED: the routes are record-delivery, download, revoke, accept-transfer
+// and complete-transfer, and none of them is recipient-facing verification. The
+// token verifier that such an endpoint would need — `verifySignedManifestToken`
+// in this same module — has no caller either, so what existed was not a wiring
+// gap in one function but an entire unbuilt half of the module, of which this
+// was the writer.
+//
+// The claim in PHASE_4B_PRODUCT_PACKAGING_AND_LIFECYCLE_FINAL_REPORT.md that
+// "every transition is mirrored ... via emitTransferVerificationEvent" was false
+// twice over: the transitions it names call `emitTransferCustodyEvents`, a
+// different helper, and this one was called by nothing. That line has been
+// corrected rather than left to be read as a description of behaviour.
+//
+// The `verifiedAtUtc` COLUMN stays — dropping it needs a migration for storage
+// nothing is spending — but nothing now derives a customer-visible "VERIFIED"
+// state from a column no code path can write. A ladder whose top rung is
+// unreachable reports a lifecycle this product does not implement.
+//
+// If recipient-side verification is built, it is one unit of work: the verify
+// route, `verifySignedManifestToken`, the `verifiedAtUtc` stamp, the ladder rung
+// and the exchange page's rendering of it. Half of it is not worth keeping warm.
 // ---------------------------------------------------------------------------
-
-export type EmitTransferVerificationEventInput = {
-  prisma?: PrismaClient;
-  teamId: string;
-  packageId: string;
-  deliveryId?: string;
-  outcome: "VERIFIED" | "REJECTED";
-  reason?: string;
-};
-
-export async function emitTransferVerificationEvent(
-  input: EmitTransferVerificationEventInput,
-): Promise<{ ok: boolean }> {
-  const prisma = input.prisma ?? defaultPrisma;
-  if (input.deliveryId && input.outcome === "VERIFIED") {
-    try {
-      await prisma.evidenceExchangePackageDelivery.update({
-        where: { id: input.deliveryId },
-        data: { verifiedAtUtc: new Date() },
-      });
-    } catch {
-      // No-op — the audit emission below still fires.
-    }
-  }
-  void tryEmitWebhookEvent(
-    "EVIDENCE_VERIFIED",
-    {
-      packageId: input.packageId,
-      deliveryId: input.deliveryId ?? null,
-      outcome: input.outcome,
-      reason: input.reason?.slice(0, 200) ?? null,
-    },
-    { prisma, teamId: input.teamId },
-  );
-  return { ok: true };
-}

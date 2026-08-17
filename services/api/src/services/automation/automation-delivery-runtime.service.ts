@@ -678,6 +678,7 @@ export async function reconcileAmbiguousDeliveries(input: {
   let due: Array<{
     id: string;
     teamId: string;
+    runId: string;
     destinationId: string;
     reconciliationAttempts: number;
     claimGeneration: number;
@@ -692,6 +693,12 @@ export async function reconcileAmbiguousDeliveries(input: {
       select: {
         id: true,
         teamId: true,
+        // PHASE 13 §4 (2026-08-17) — the run this delivery belongs to. The
+        // exhaustion branch below emits a dead-letter event, and it emitted
+        // `runId: ""` because the column was never read: an operator following
+        // the event back to the automation run that produced the delivery had
+        // nothing to follow. One extra column on a bounded batch.
+        runId: true,
         destinationId: true,
         reconciliationAttempts: true,
         claimGeneration: true,
@@ -738,7 +745,7 @@ export async function reconcileAmbiguousDeliveries(input: {
         resolved += 1;
         emitDeliveryEvent("automation_webhook_delivery_ambiguity_resolved", {
           teamId: d.teamId,
-          runId: "",
+          runId: d.runId,
           deliveryId: d.id,
           destinationId: d.destinationId,
           attemptCount: d.reconciliationAttempts,
@@ -907,58 +914,31 @@ async function finaliseAmbiguous(
   };
 }
 
-/**
- * ARCH-005 (2026-08-07) — reconciliation is exhausted and the outcome is
- * STILL unknown.
- *
- * Deliberately NOT `FAILED`. Projecting an unknown as a refusal would tell an
- * operator the receiver rejected the event, and they would resend it — which
- * is exactly the duplicate this whole branch exists to prevent. The row says
- * "we do not know", carries how many times we asked, and waits for a human.
- */
-async function finaliseDeadLetteredUnknown(
-  prisma: PrismaClient,
-  deliveryId: string,
-  reason: string,
-  nowMs: number,
-): Promise<ProcessDeliveryOutcome> {
-  let row: {
-    teamId: string;
-    runId: string;
-    destinationId: string;
-    attemptCount: number;
-  } | null = null;
-  try {
-    row = await prisma.automationWebhookDelivery.update({
-      where: { id: deliveryId },
-      data: {
-        status: "DEAD_LETTERED_UNKNOWN",
-        failureReason: reason.slice(0, 400),
-        nextAttemptAt: null,
-        leaseExpiresAtUtc: null,
-      },
-      select: { teamId: true, runId: true, destinationId: true, attemptCount: true },
-    });
-  } catch {
-    /* best-effort */
-  }
-  if (row) {
-    emitDeliveryEvent("automation_webhook_delivery_dead_lettered_unknown", {
-      teamId: row.teamId,
-      runId: row.runId,
-      deliveryId,
-      destinationId: row.destinationId,
-      attemptCount: row.attemptCount,
-      reason,
-    });
-  }
-  return {
-    deliveryId,
-    status: "DEAD_LETTERED_UNKNOWN",
-    attemptCount: row?.attemptCount ?? 0,
-    reason,
-  };
-}
+// ---------------------------------------------------------------------------
+// PHASE 13 §4 (2026-08-17) — `finaliseDeadLetteredUnknown` was REMOVED here.
+//
+// The preservation manifest recorded it as "the reconciliation loop never calls
+// it, so an exhausted ambiguous delivery has no terminal row". The second half
+// of that sentence is false. `reconcileAmbiguousDeliveries` above DOES write the
+// terminal row when `reconciliationAttempts` reaches
+// `AMBIGUITY_MAX_RECONCILIATIONS` — status `DEAD_LETTERED_UNKNOWN`, cleared
+// `nextAttemptAt` and `leaseExpiresAtUtc`, and the same
+// `automation_webhook_delivery_dead_lettered_unknown` event. ARCH-005 is
+// implemented; this was its second implementation.
+//
+// It was also the WEAKER of the two, which is why the resolution is removal
+// rather than delegation. The loop writes through `fencedDeliveryUpdate`, so its
+// update is conditional on `claimGeneration` and bumps it — the optimistic fence
+// every other transition in this module is built on. This helper issued a plain
+// `update` by id: called from the loop it would have dropped the fence, so a
+// concurrent reconciler could clobber a delivery mid-transition, and it would
+// also have lost `reconciliationAttempts`, which is the number that makes the
+// row say how many times we asked.
+//
+// The one thing it had that the loop did not was the real `runId` on the emitted
+// event; the loop emitted an empty string because it never read the column. That
+// has been fixed in the loop, so nothing is lost by this removal.
+// ---------------------------------------------------------------------------
 
 async function finaliseRetryExhausted(
   prisma: PrismaClient,

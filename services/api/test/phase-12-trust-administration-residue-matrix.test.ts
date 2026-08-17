@@ -370,7 +370,10 @@ vi.mock("../src/services/exchange/evidence-exchange.service.js", () => ({
 
 vi.mock("../src/services/exchange/signed-delivery.service.js", () => ({
   listDeliveryActivity: async () => ({ deliveries: [], nextCursor: null }),
-  emitTransferVerificationEvent: async () => ({ ok: true }),
+  // PHASE 13 §4 (2026-08-17) — the emitTransferVerificationEvent stub was
+  // removed with the function it stubbed. It never asserted anything; it existed
+  // only to keep this module mock shape-complete, and the v1 preservation
+  // manifest cited it as evidence that the writer was covered by tests.
   verifySignedDeliveryToken: async () => ({ ok: true }),
 }));
 

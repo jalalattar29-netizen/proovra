@@ -370,6 +370,59 @@ export async function runExtractionInline(
     }
   }
 
+  // PHASE 13 §4 (2026-08-17) — SEMANTIC INDEXING TRIGGER.
+  //
+  // `indexEvidenceText` writes the semantic chunk index and is the ENTIRE input
+  // side of semantic search. It had no caller, which meant
+  // `evidence_semantic_chunks` had no producer, which meant every one of the ten
+  // reader sites downstream — the pgvector hybrid re-ranker in
+  // `evidence-search.service.ts`, the `mi-embed` worker and its registered
+  // BullMQ queue, the operator backfill route, the search page's semantic status
+  // chip, the admin embedding-spend panel — read or waited on a table that
+  // nothing ever inserted into. With `SEMANTIC_SEARCH_ENABLED=true` the search
+  // page defaults to hybrid mode and tells the user "Hybrid semantic search
+  // active" over a permanently empty index.
+  //
+  // WHY HERE. This is the moment derived text first exists: `completed` is the
+  // COMPLETED `EvidenceExtractedText` row for an OCR or transcript run, and the
+  // two triggers above it (keyword re-index, entity extraction) are the same
+  // shape of downstream consumer. Semantic indexing is the third, and its
+  // absence was the only missing link in a chain that is otherwise complete and
+  // integration-tested end to end.
+  //
+  // THREE GATES, IN THIS ORDER:
+  //   1. `input.teamId` — the chunk table is tenant-anchored; a legacy row with
+  //      no team is never indexed.
+  //   2. `isSemanticSearchEnabled()` — the deployment-level switch. Chunk text
+  //      is a SECOND copy of derived content, and a deployment that has not
+  //      turned semantic search on should not be storing one.
+  //   3. The workspace AI policy, applied inside `indexEvidenceText` before the
+  //      embed job is enqueued (SEMANTIC_SEARCH / DERIVED_CONTENT), so a
+  //      workspace that disabled semantic search never has its text sent to a
+  //      provider.
+  //
+  // Best-effort, like its two siblings: a failure to index for search must never
+  // fail the extraction write that produced the text.
+  if (input.teamId && truncated && truncated.length > 0) {
+    try {
+      const { indexEvidenceText, isSemanticSearchEnabled } = await import(
+        "./semantic.service.js"
+      );
+      if (isSemanticSearchEnabled()) {
+        await indexEvidenceText(
+          {
+            evidenceId: input.evidenceId,
+            teamId: input.teamId,
+            text: truncated,
+          },
+          client,
+        );
+      }
+    } catch {
+      /* semantic indexing is best-effort; never blocks the COMPLETED write */
+    }
+  }
+
   return completed;
 }
 

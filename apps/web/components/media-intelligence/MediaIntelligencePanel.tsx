@@ -281,7 +281,24 @@ function DerivedAssetThumbnail({
             <img
               src={asset.bytesUrl}
               alt=""
-              loading="lazy"
+              /**
+               * PHASE 13 (NEW-037) — deliberately NOT `loading="lazy"`.
+               *
+               * While `imageState === "loading"` this element carries
+               * `display: none`, which removes its layout box — and an element
+               * with no box can never intersect the viewport, so whether a lazy
+               * image in that state is ever fetched is a browser implementation
+               * detail. Where a browser defers it, the card sits on "Loading…"
+               * forever and presents exactly as the missing-asset defect
+               * NEW-028 fixed: the URL was right and nothing appeared.
+               *
+               * The asset list for one evidence item is small and bounded, so
+               * the deferral was buying almost nothing against a failure mode
+               * that is indistinguishable from a broken URL.
+               */
+              // The bytes route is authenticated and cross-origin; without this the
+              // browser omits the session cookie and the image 401s.
+              crossOrigin="use-credentials"
               style={imageState === "loaded" ? thumbImageStyle : thumbImageHiddenStyle}
               onLoad={() => setImageState("loaded")}
               onError={() => setImageState("failed")}
@@ -356,6 +373,8 @@ function DerivedAssetPreviewModal({
               <img
                 src={asset.bytesUrl}
                 alt=""
+                // Same authenticated cross-origin route as the thumbnail above.
+                crossOrigin="use-credentials"
                 style={
                   imageState === "loaded"
                     ? modalImageStyle

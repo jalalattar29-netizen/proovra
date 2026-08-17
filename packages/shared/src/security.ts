@@ -402,6 +402,19 @@ export const SECURITY_EVENT_TYPES = [
   "mfa_factor_removed",
   "mfa_verification_succeeded",
   "mfa_verification_failed",
+  // PHASE 13 (NEW-058) — VERIFIED CONTACT FACTORS.
+  //
+  // The enterprise step-up gate used to take its destination from the request
+  // body, so an approved challenge proved possession of a handset the CALLER
+  // chose. The destination is now an enrolled, verified, revocable factor
+  // owned by the account, and these are the three moments that change what an
+  // account can elevate with — each one has to be answerable from the audit
+  // log, because "who added the phone that approved this?" is the first
+  // question an incident asks. The payload carries the MASK and the
+  // generation, never the destination.
+  "mfa_contact_factor_enrollment_started",
+  "mfa_contact_factor_enrolled",
+  "mfa_contact_factor_revoked",
   // Phase 2.4 — user-self password change events. Emitted by
   // `/v1/users/me/password/change`. Payload carries NEVER the
   // password itself; only `actorUserId` + a coarse `reason` /

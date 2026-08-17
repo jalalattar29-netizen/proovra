@@ -66,7 +66,13 @@ describe("PLAN_CAPABILITIES", () => {
     expect(t.aiAdvisoryMonthlyOperations).toBe(500);
     expect(t.monthlyPriceCents).toBe(7900);
     expect(t.allowsSharedWorkspace).toBe(true);
-    expect(t.teamWorkspaceRequired).toBe(true);
+    // AUDIT-001 (2026-08-15): this asserted `teamWorkspaceRequired === true`.
+    // That field was the exact inverse of `allowsPersonalWorkspacePurchase`,
+    // was read by nothing in production, and carried the retired
+    // "Team Workspace" vocabulary. The RULE it pinned — TEAM is bought for a
+    // team, not for yourself — is unchanged, so the assertion is re-pointed at
+    // the field that actually enforces it rather than deleted.
+    expect(t.allowsPersonalWorkspacePurchase).toBe(false);
   });
 
   it("ENTERPRISE: no record cap, custom AI, all governance features enabled", () => {

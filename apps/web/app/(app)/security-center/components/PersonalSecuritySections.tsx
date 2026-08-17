@@ -57,6 +57,8 @@ import {
   type LoginMethodsState,
 } from "../../../../lib/security/loginMethodsSummary";
 import { useAuth } from "../../../providers";
+import { useTeamId } from "../../../../lib/platform-context";
+import { ContactFactorEnrollmentPanel } from "../../../../components/identity-security/ContactFactorEnrollmentPanel";
 
 // -----------------------------------------------------------------------------
 // Shared styles — canonical LIGHT tokens (no dark-theme constants).
@@ -2014,6 +2016,11 @@ function SecurityEventsCard() {
 // -----------------------------------------------------------------------------
 
 export function PersonalSecuritySections() {
+  // The FACTOR is account-owned, but the verification attempt that proves it
+  // is tenant-scoped (its rate limit and audit trail are), so the enrolment
+  // routes require a workspace the caller belongs to. Null while the platform
+  // context resolves — the panel renders its own reason rather than guessing.
+  const contactFactorTeamId = useTeamId();
   const {
     mfa,
     mfaError,
@@ -2038,6 +2045,20 @@ export function PersonalSecuritySections() {
         passwordConfigured={loginMethods?.passwordConfigured ?? null}
       />
       <MfaCard mfa={mfa} mfaError={mfaError} reloadMfa={reloadMfa} />
+      {/*
+       * PHASE 13 (NEW-058) — the account-bound contact factor.
+       *
+       * It sits HERE, in the CORE-tier personal security module reached at
+       * `/settings#security`, and NOT in `/security-center`. The surface-tier
+       * table gates `/security-center` at ENTERPRISE with `directAccessPolicy:
+       * "notFound"`, and its own entry says so: "Personal security lives in
+       * /settings#security (CORE)". A contact factor is account-owned — one
+       * enrolment serves every workspace the user can act in — so putting the
+       * only enrolment surface behind an enterprise 404 would rebuild exactly
+       * the unreachability NEW-058 exists to close, just for a different set
+       * of users.
+       */}
+      <ContactFactorEnrollmentPanel teamId={contactFactorTeamId} />
       <ActiveSessionsCard
         sessions={sessions}
         sessionsError={sessionsError}

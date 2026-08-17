@@ -242,21 +242,3 @@ export async function renameSavedView(
   );
   return projectView(updated);
 }
-
-/**
- * Best-effort: touch `lastUsedAtUtc` so operators can prune stale
- * views via reconcile. Never throws to the caller.
- */
-export async function touchSavedView(
-  id: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  try {
-    await client.savedSearchView.update({
-      where: { id },
-      data: { lastUsedAtUtc: new Date() },
-    });
-  } catch {
-    /* best-effort */
-  }
-}

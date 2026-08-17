@@ -186,11 +186,22 @@ describe("Phase 25.5 — reminder engine", () => {
     expect(src).toMatch(/Math\.min\(Math\.max\(input\.batchSize/);
   });
 
-  it("delivery success and failure update status (insert-only otherwise)", () => {
-    expect(src).toMatch(/markReminderDelivered/);
-    expect(src).toMatch(/markReminderFailed/);
-    expect(src).toMatch(/reviewer_reminder_delivered_total/);
-    expect(src).toMatch(/reviewer_reminder_failed_total/);
+  // PHASE 13 §4 (2026-08-17) — the assertion was inverted, on purpose.
+  //
+  // It asserted that the two outcome transitions were DECLARED. They were, and
+  // nothing called them, and no dispatcher existed to call them: the engine
+  // schedules and stops. Asserting the declaration therefore pinned executable
+  // writers in place on behalf of a delivery path that had not been built, which
+  // is how a source-text assertion becomes evidence for the wrong claim. What
+  // must hold is that the engine does not pretend to deliver.
+  it("the reminder engine schedules only — it declares no delivery outcome it cannot produce", () => {
+    expect(src).toMatch(/scheduleReminder/);
+    expect(src).not.toMatch(/function markReminderDelivered/);
+    expect(src).not.toMatch(/function markReminderFailed/);
+    expect(src).not.toMatch(/reviewer_reminder_delivered_total/);
+    // `reviewer_reminder_failed_total` deliberately survives: it counts a failed
+    // SCHEDULING insert in the `scheduleReminder` catch, which is a thing that
+    // really happens here. It never counted a failed delivery.
   });
 });
 

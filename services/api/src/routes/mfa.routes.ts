@@ -39,6 +39,7 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
+import { trustedClientIp } from "../middleware/client-ip.js";
 import {
   verifyAccountStepUp,
   type AccountStepUpProof,
@@ -72,11 +73,12 @@ function isRateLimited(key: string): boolean {
 }
 
 function requestIp(req: FastifyRequest): string | null {
-  const xf = req.headers["x-forwarded-for"];
-  if (typeof xf === "string" && xf.length > 0) {
-    return xf.split(",")[0]?.trim() ?? null;
-  }
-  return req.ip ?? null;
+  // PHASE 13 §1 (NEW-022) — SECURITY_BOUND: this keys the MFA attempt throttle
+  // (brute-force protection). It used to take the LEFTMOST X-Forwarded-For
+  // entry unconditionally — the caller's own value — so the throttle was
+  // bypassable by rotating one header. Delegated to the canonical authority,
+  // whose selection is Fastify's policy-driven @fastify/proxy-addr.
+  return trustedClientIp(req);
 }
 
 async function readAccountName(userId: string): Promise<string> {

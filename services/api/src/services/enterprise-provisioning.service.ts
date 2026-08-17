@@ -313,7 +313,6 @@ export async function provisionEnterpriseCustomerIdempotent(
   // provisioning implementation below.
   deps: { provision?: typeof provisionEnterpriseCustomer } = {},
 ): Promise<ProvisionEnterpriseCustomerIdempotentResult> {
-  const provision = deps.provision ?? provisionEnterpriseCustomer;
   const payloadHash = provisioningPayloadHash(input);
 
   // ---- claim or load the request row (DB-unique on the key) -------------
@@ -392,16 +391,29 @@ export async function provisionEnterpriseCustomerIdempotent(
 
   // ---- run the (single-transaction) provisioning ------------------------
   try {
-    const result = await provision(
-      {
-        organizationName: input.organizationName,
-        ownerEmail: input.ownerEmail,
-        seats: input.seats,
-        workspaceName: input.workspaceName,
-        actorUserId: input.actorUserId,
-      },
-      client,
-    );
+    // PHASE 13 §4 (2026-08-17) — the production call is now written OUT, and the
+    // test injection is a branch rather than a default.
+    //
+    // This read `const provision = deps.provision ?? provisionEnterpriseCustomer`
+    // and then called `provision(...)`. Behaviourally identical; as a statement
+    // about the system, not identical at all. The only call expression in the
+    // file named a local variable, so no static reader — the capability
+    // analyzer, a reviewer, an IDE's "find usages" — could see that
+    // `POST /v1/admin/enterprise/provision` reaches `provisionEnterpriseCustomer`,
+    // and the writer-preservation manifest recorded it as reached by "no
+    // platform-admin route or CLI", which was simply false: this route has
+    // reached it since Phase 2. The seam is worth keeping and was worth costing
+    // nothing to state plainly.
+    const args = {
+      organizationName: input.organizationName,
+      ownerEmail: input.ownerEmail,
+      seats: input.seats,
+      workspaceName: input.workspaceName,
+      actorUserId: input.actorUserId,
+    };
+    const result = deps.provision
+      ? await deps.provision(args, client)
+      : await provisionEnterpriseCustomer(args, client);
 
     // Region is contract state (§7.2) — record it on the contract row.
     if (input.region) {

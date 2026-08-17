@@ -27,6 +27,14 @@ import {
 } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+// PHASE 13 — the two write legs this workspace had no control for. Without
+// registered frames there is nothing to group, and without grouped tracks
+// the merge / split / decide controls below have nothing to act on.
+import {
+  VideoFrameBatchPanel,
+  VideoTrackGroupingPanel,
+} from "./VideoFrameTrackPanels";
 
 type TrackRow = {
   id: string;
@@ -65,12 +73,46 @@ type Timeline = {
   tracks: TrackRow[];
 };
 
+/**
+ * PHASE 13 (NEW-052) — read the refusal from the envelope the client actually
+ * produces.
+ *
+ * Every catch here rendered ``Refused: ${(err as any)?.denial ?? "POLICY_REJECTED"}``.
+ * `apiFetch` has never set a top-level `denial` property — the bounded reason
+ * lives at `body.error.code` — so the left side was ALWAYS undefined and every
+ * refusal on this surface, whatever the server said, rendered the same four
+ * words: "Refused: POLICY_REJECTED". A permission failure, a locked version and
+ * an over-cap batch were indistinguishable to the reviewer looking at them.
+ *
+ * The bounded code is used when the server sent one, and `toSafeUserError` —
+ * the sanctioned display path — otherwise. Neither branch can leak a raw
+ * message.
+ */
+function refusalBanner(err: unknown): string {
+  const envelope = err as { body?: { error?: { code?: string } } };
+  const code = envelope?.body?.error?.code;
+  if (typeof code === "string" && code.trim()) return `Refused: ${code}`;
+  return toSafeUserError(err, { message: "Refused: POLICY_REJECTED" }).message;
+}
+
 export function VideoReviewWorkspace({
   evidenceId,
+  versionId,
   versionLocked,
   onChanged,
 }: {
   evidenceId: string;
+  /**
+   * PHASE 13 (NEW-051) — the version a track belongs to.
+   *
+   * This component neither accepted nor forwarded it, even though the page has
+   * `version.id` in hand and passes it to the sibling viewer. The grouping
+   * panel already had the prop and the server already stored the column, so
+   * every track authored from the UI was written with `version_id = NULL`:
+   * not an error anywhere, just a redaction decision that cannot be attributed
+   * to the version it was made against.
+   */
+  versionId: string | null;
   versionLocked: boolean;
   onChanged: () => void;
 }) {
@@ -82,6 +124,9 @@ export function VideoReviewWorkspace({
   const [rangeEnd, setRangeEnd] = useState<number>(0);
   const [splitFrame, setSplitFrame] = useState<number>(0);
   const [banner, setBanner] = useState<string | null>(null);
+  // Bumped whenever the registered frame set may have changed, so the
+  // grouping panel re-reads it instead of authoring against a stale list.
+  const [framesToken, setFramesToken] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -116,8 +161,7 @@ export function VideoReviewWorkspace({
         await refresh();
         onChanged();
       } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+        setBanner(refusalBanner(err));
       }
     },
     [refresh, onChanged],
@@ -144,8 +188,7 @@ export function VideoReviewWorkspace({
         await refresh();
         onChanged();
       } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+        setBanner(refusalBanner(err));
       }
     },
     [evidenceId, rangeStart, rangeEnd, refresh, onChanged],
@@ -164,8 +207,7 @@ export function VideoReviewWorkspace({
       await refresh();
       onChanged();
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+      setBanner(refusalBanner(err));
     }
   }, [selectedTrackIds, refresh, onChanged]);
 
@@ -180,8 +222,7 @@ export function VideoReviewWorkspace({
         await refresh();
         onChanged();
       } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+        setBanner(refusalBanner(err));
       }
     },
     [splitFrame, refresh, onChanged],
@@ -313,6 +354,27 @@ export function VideoReviewWorkspace({
           Merge selected ({selectedTrackIds.size})
         </button>
       </div>
+
+      <VideoFrameBatchPanel
+        evidenceId={evidenceId}
+        versionLocked={versionLocked}
+        onRegistered={async () => {
+          setFramesToken((n) => n + 1);
+          await refresh();
+          onChanged();
+        }}
+      />
+
+      <VideoTrackGroupingPanel
+        evidenceId={evidenceId}
+        versionId={versionId}
+        versionLocked={versionLocked}
+        reloadToken={framesToken}
+        onGrouped={async () => {
+          await refresh();
+          onChanged();
+        }}
+      />
 
       <TimelineCanvas
         timeline={timeline}

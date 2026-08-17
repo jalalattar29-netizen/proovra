@@ -78,8 +78,44 @@ const HARNESS_OWNED = new Set([
   "E2E_AUTH_BYPASS_SECRET",
 ]);
 
+/**
+ * PHASE 13 (NEW-073) — KEYS THE HARNESS OWNS *ONLY* IN THE POINT-7 API PROCESS.
+ *
+ * `HARNESS_OWNED` above is unconditional: those keys are the mechanism, in every
+ * process. This is a second, narrower category — a key that must be scrubbed
+ * everywhere EXCEPT the one long-lived API process the Point-7 browser runner
+ * spawns, identified by the `P7_PROCESS=api` marker the runner sets and
+ * `HARNESS_OWNED` already protects.
+ *
+ * `WORKFLOW_INTAKE_TOKEN_SECRET` is the case. It is deliberately unconfigured
+ * for in-process suites — a harness-supplied secret made `issueIntakeToken()` /
+ * `hmacForIntake()` return live values in runs where the intake feature is off,
+ * silently changing what those suites measure, and they mint their own through
+ * `__testing.withSecret` when they need one. But it is caught twice on the way
+ * out: the generic credential scrub matches it on BOTH the `SECRET` and `TOKEN`
+ * fragments, and it is also listed in `EXPLICITLY_UNCONFIGURED`.
+ *
+ * The browser layer has no in-process seam — its API is a separate process — and
+ * with the secret gone `workflowIntakeFeatureDisabledReason()` answers
+ * `"secret_missing"`, so `GET /v1/workflow/intake-links` returns 503 to the
+ * authenticated shell, which reads that list on every page. That 503 is correct
+ * behaviour for an unconfigured feature and it was landing inside browser
+ * scenarios' "no console errors" assertions.
+ *
+ * Gating on the process marker keeps every vitest worker, every other spawned
+ * process and every non-Point-7 run hermetic and fail-closed. Production never
+ * loads this module at all. The VALUE is supplied by the focused runner and is
+ * never read, logged or asserted on here.
+ */
+const POINT7_API_OWNED = new Set(["WORKFLOW_INTAKE_TOKEN_SECRET"]);
+
+function isPoint7ApiOwned(key) {
+  return process.env.P7_PROCESS === "api" && POINT7_API_OWNED.has(key);
+}
+
 function isCredentialKey(key) {
   if (HARNESS_OWNED.has(key)) return false;
+  if (isPoint7ApiOwned(key)) return false;
   const upper = key.toUpperCase();
   return CREDENTIAL_KEY_FRAGMENTS.some((f) => upper.includes(f));
 }
@@ -160,6 +196,42 @@ const LOCAL_FAKES = {
   RESEND_API_KEY: "re_point7_local_fake_not_a_credential",
   EMAIL_FROM: "point7-local@test.proovra.local",
   EMAIL_FROM_NAME: "Proovra Point7 Local",
+  // PHASE 13 — the MESSAGING boundary, on exactly the same terms as email.
+  //
+  // The SMS/WhatsApp boundary was in a worse state than the email one, because
+  // containment there was not even reachable. `requireStepUpForSensitiveAction`
+  // — the gate on publishing and unpublishing evidence to public verify — is
+  // satisfied only by an APPROVED challenge, and a challenge is approved only
+  // by a one-time code that Twilio Verify GENERATES ON ITS OWN SIDE and never
+  // returns. So there was nothing local to read back: the send was refused at
+  // the socket by the outbound guard, the challenge stayed PENDING, and the
+  // journey was skipped rather than exercised. A refused socket is containment,
+  // not a provider proof — the same lesson as the eighteen blocked Resend
+  // attempts above, one step further along, because here even the fake credential
+  // could not have produced a completable journey.
+  //
+  // NOTE that the scrub in section 1 removes every key containing "TWILIO", so
+  // in this run the Twilio provider reads as UNCONFIGURED by construction and
+  // `readTwilioConfigFromEnv()` returns a reason rather than a config. That is
+  // deliberate and it is also why `MESSAGING_TRANSPORT` is the only thing that
+  // can put a working provider in that slot.
+  //
+  // `MESSAGING_TRANSPORT=recording` selects a REAL implementation of the
+  // messaging contract that accepts, stores what it accepted, collapses a
+  // duplicate on the caller's `externalId`, and — the part Twilio cannot do —
+  // mints the one-time code locally and writes it to `MESSAGING_RECORDER_FILE`
+  // so the separate browser process can read it back and complete the challenge
+  // the way a user does. It CANNOT be selected in production: the resolver and
+  // the class both refuse under NODE_ENV=production.
+  //
+  // Naming the transport is SUFFICIENT, on exactly the terms `EMAIL_TRANSPORT`
+  // established: `COMMUNICATIONS_ENABLED` says whether a VENDOR boundary is
+  // wired for a deployment, and naming the recorder is the stronger and more
+  // specific statement that this process's messaging boundary IS the local
+  // recorder. A suite that means to assert on the Twilio/Noop table names the
+  // transport it wants — see `communications.test.ts`.
+  MESSAGING_TRANSPORT: "recording",
+  MESSAGING_RECORDER_FILE: ".p7tmp/recorded-messages.jsonl",
 };
 
 /**
@@ -345,6 +417,7 @@ export function applySafeTestEnvironment() {
   const inheritedDatabaseUrl = process.env.DATABASE_URL;
   const inheritedDirectUrl = process.env.DIRECT_URL;
   const inheritedDriftCheckUrl = process.env.DRIFT_CHECK_DATABASE_URL;
+  const inheritedInternalApiBase = process.env.INTERNAL_API_BASE_URL;
 
   for (const key of Object.keys(process.env)) {
     if (isCredentialKey(key)) {
@@ -358,9 +431,41 @@ export function applySafeTestEnvironment() {
   process.env.DOTENV_CONFIG_QUIET = "true";
 
   for (const [k, v] of Object.entries(REQUIRED_CORE)) process.env[k] = v;
-  for (const [k, v] of Object.entries(LOCAL_FAKES)) process.env[k] = v;
+  /**
+   * PHASE 13 (NEW-076) — THE RECORDER PATHS ARE THE RUNNER'S TO CHOOSE.
+   *
+   * `LOCAL_FAKES` selects the RECORDING transports, which is exactly right — a
+   * real implementation of the same contract, never a remote one — and it also
+   * pinned WHERE they write. Pinning the destination is a different decision from
+   * pinning the transport, and it broke the seam it exists to create: the Point-7
+   * runner passed its own absolute recorder paths to the API process, the
+   * bootstrap silently replaced them with relative defaults, and the browser
+   * fixture then polled the runner's path — an empty file. The step-up journeys
+   * reported "no verification_start entry for that recipient" while the API was
+   * dutifully recording every code somewhere else.
+   *
+   * A silent override of a caller-supplied path can only ever produce that class
+   * of bug, so an explicitly-supplied path now wins. The default is unchanged for
+   * every process that does not supply one, and the TRANSPORT choice stays
+   * non-negotiable: only the destination is the caller's.
+   */
+  const RUNNER_OWNED_PATHS = new Set([
+    "EMAIL_RECORDER_FILE",
+    "MESSAGING_RECORDER_FILE",
+  ]);
+  for (const [k, v] of Object.entries(LOCAL_FAKES)) {
+    if (RUNNER_OWNED_PATHS.has(k) && (process.env[k] ?? "").trim().length > 0) {
+      continue;
+    }
+    process.env[k] = v;
+  }
   for (const [k, v] of Object.entries(DISABLED_SUBSYSTEMS)) process.env[k] = v;
-  for (const k of EXPLICITLY_UNCONFIGURED) delete process.env[k];
+  // The same one-process exception as the credential scrub above, expressed
+  // through the same predicate so the intent lives in exactly one place.
+  for (const k of EXPLICITLY_UNCONFIGURED) {
+    if (isPoint7ApiOwned(k)) continue;
+    delete process.env[k];
+  }
 
   // Disposable infrastructure. `P7_TEST_*` is how an operator points the run at
   // the containers they started; never inherited from the machine.
@@ -382,6 +487,25 @@ export function applySafeTestEnvironment() {
     process.env.P7_TEST_DATABASE_URL ??
     "postgresql://point7:point7@127.0.0.1:1/point7_no_such_database";
   process.env.DIRECT_URL = keepIfLocal(inheritedDirectUrl) ?? process.env.DATABASE_URL;
+
+  /**
+   * THE WORKER'S VIEW OF THE API — loopback, or nothing at all.
+   *
+   * `INTERNAL_API_BASE_URL` matches the `API_BASE` credential fragment, so the
+   * scrub removed it and the worker fell back to its compose default,
+   * `http://proovra-api:8080`. The outbound guard did its job and refused the
+   * connection twenty-three times — and every refusal was written into the
+   * PRODUCT ledger as an attempt on an unknown external host, which is exactly
+   * the shape of record the closure gate must treat as a real egress attempt.
+   * A harness-caused entry in the evidence the harness produces is worse than
+   * useless: it either fails a clean run or teaches the reader to ignore the
+   * one line that matters.
+   *
+   * Same rule as the database and Redis above: a REMOTE value is always
+   * discarded, a LOOPBACK one the caller supplied is the caller's business.
+   */
+  const localInternalApi = keepIfLocal(inheritedInternalApiBase);
+  if (localInternalApi) process.env.INTERNAL_API_BASE_URL = localInternalApi;
   if (inheritedDriftCheckUrl && keepIfLocal(inheritedDriftCheckUrl)) {
     process.env.DRIFT_CHECK_DATABASE_URL = inheritedDriftCheckUrl;
   }

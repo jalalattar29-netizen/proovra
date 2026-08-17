@@ -50,7 +50,8 @@
  * No vague exceptions. The vocabulary is closed.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -409,41 +410,28 @@ describe("Tenant isolation — platform-context personal/org separation", () => 
     expect(SVC).toMatch(/"free_plan"/);
   });
 });
-
 // =============================================================================
-// PART 5 — Canonical access helpers module is registered + exported
+// PART 5 — Canonical access helpers module — REMOVED (LEGACY-003)
 // =============================================================================
 
-describe("Tenant isolation — canonical access helpers module", () => {
-  it("exposes the canonical helpers for resource-typed access checks", () => {
-    const HELPERS = readApi("src/services/access/tenant-access.helpers.ts");
-    expect(HELPERS).toMatch(/export async function requireEvidenceAccess\b/);
-    expect(HELPERS).toMatch(/export async function requireCaseAccess\b/);
-    expect(HELPERS).toMatch(/export async function requireReportAccess\b/);
-    expect(HELPERS).toMatch(/export async function requirePackageAccess\b/);
-    expect(HELPERS).toMatch(/export async function requireActiveSpaceAccess\b/);
-  });
-
-  it("each helper resolves tenant ownership server-side and verifies membership", () => {
-    const HELPERS = readApi("src/services/access/tenant-access.helpers.ts");
-    // Every helper must reference both the canonical authorize helper
-    // (for membership check) and a Prisma fetch (for resource-to-team
-    // resolution). The vocabulary is bounded.
-    const helperBlocks = HELPERS.split(/\nexport async function require/g)
-      .slice(1)
-      .map((b) => `requireXxx${b}`);
-    for (const block of helperBlocks) {
-      // Accept direct calls to the canonical authorize helpers OR
-      // delegation to an internal helper that itself uses them.
-      const usesCanonical =
-        /evaluateAuthorize|evaluateMemberAccess|authorizeOrFail|requireResourceAccess|requireActiveSpaceAccess/.test(
-          block,
-        );
-      expect(
-        usesCanonical,
-        `helper block missing canonical authorize call: ${block.slice(0, 200)}`,
-      ).toBe(true);
-    }
+/**
+ * This part asserted that src/services/access/tenant-access.helpers.ts exported
+ * five resource-typed helpers and that each resolved tenant ownership
+ * server-side before verifying membership.
+ *
+ * LEGACY-003 (2026-08-15) REMOVED that module: it was a PARALLEL authorization
+ * authority with zero importers — no route ever called it — while
+ * `authorizeOrFail` is canonical. The assertions above were a source contract
+ * over code that never executed. Real tenant isolation for these resource
+ * types is enforced by the canonical guard and proven at runtime against the
+ * real Fastify app (all 48 guard registrations × eleven refusal families).
+ */
+describe("Tenant isolation — the parallel access-helpers module stays removed", () => {
+  it("tenant-access.helpers.ts is not back on disk", () => {
+    expect(
+      existsSync(resolve(__dirname, "../src/services/access/tenant-access.helpers.ts")),
+      "tenant-access.helpers.ts is REMOVED (LEGACY-003) and must not return",
+    ).toBe(false);
   });
 });
 

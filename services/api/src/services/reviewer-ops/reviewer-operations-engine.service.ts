@@ -68,6 +68,8 @@ import {
 import {
   ReviewDecisionAuthorityError,
   recordReviewDecision as recordCanonicalReviewDecision,
+  // PHASE 13 §4 (2026-08-17) — projection repair, armed by this reconcile pass.
+  scanReviewDecisionProjections,
 } from "./review-decision.service.js";
 import {
   createEscalation,
@@ -1206,6 +1208,14 @@ export type ReconcileResult = {
   dueSoonRemindersScheduled: number;
   /** Phase 25.5 — inactivity reminders scheduled in this pass. */
   inactivityRemindersScheduled: number;
+  /**
+   * PHASE 13 §4 — workflow stage projections examined for drift against their
+   * immutable decision log, and how many had to be repaired. A non-zero
+   * `workflowProjectionsRepaired` is a real signal, not noise: it means the
+   * projected stage disagreed with the decisions that produced it.
+   */
+  workflowProjectionsScanned: number;
+  workflowProjectionsRepaired: number;
 };
 
 /**
@@ -1299,6 +1309,32 @@ async function runReconcileInner(
             client,
           )
         : { scanned: 0, scheduled: 0, duplicates: 0 };
+
+    // PHASE 13 §4 (2026-08-17) — repair drifted workflow stage projections.
+    //
+    // `WorkflowReviewDecision` rows are the immutable record of what reviewers
+    // decided; `EvidenceReviewWorkflow.status` is a PROJECTION of them. A
+    // projection can drift — a crash between the decision write and the status
+    // write, a lifecycle event applied out of order — and when it does the
+    // console shows a stage the decision log does not support, which is the one
+    // discrepancy this domain cannot shrug off.
+    //
+    // `scanReviewDecisionProjections` recomputes the stage deterministically
+    // from the decision log plus the lifecycle rules and repairs divergence,
+    // emitting an `EvidenceReviewWorkflowEvent` with
+    // `source: "decision_projection_reconcile"` for every repair, so a silent
+    // correction is impossible. It was exported and armed by nothing.
+    //
+    // This reconcile pass is its correct home: it is already the bounded,
+    // team-scoped, idempotent sweep for this domain, already driven by the
+    // cron-secret `POST /v1/reviewer-ops/reconcile` route from the reviewer-ops
+    // scheduler in the worker, and already isolates its own per-row failures.
+    // A second scheduler sweeping the same team would be a parallel authority
+    // for no gain.
+    const projectionScan = await scanReviewDecisionProjections(
+      { teamId: input.teamId, batchSize: input.batchSize },
+      client,
+    );
 
     // Escalation-storm detection — if a single reconcile cycle creates
     // more than ESCALATION_STORM_THRESHOLD escalations for the same
@@ -1486,6 +1522,8 @@ async function runReconcileInner(
         workloadReviewersComputed: workload.reviewersComputed,
         dueSoonRemindersScheduled: dueSoonReminders.scheduled,
         inactivityRemindersScheduled: inactivityResult.scheduled,
+        workflowProjectionsScanned: projectionScan.scanned,
+        workflowProjectionsRepaired: projectionScan.repaired,
         stuckDetected,
         stuckEscalated,
       },
@@ -1499,6 +1537,8 @@ async function runReconcileInner(
       workloadReviewersComputed: workload.reviewersComputed,
       dueSoonRemindersScheduled: dueSoonReminders.scheduled,
       inactivityRemindersScheduled: inactivityResult.scheduled,
+      workflowProjectionsScanned: projectionScan.scanned,
+      workflowProjectionsRepaired: projectionScan.repaired,
     };
   } catch (err) {
     bump("reviewer_reconcile_failed_total");

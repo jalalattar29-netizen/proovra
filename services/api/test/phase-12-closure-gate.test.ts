@@ -18,40 +18,31 @@
  * of: WIRED_PRODUCT_SURFACE | PROVEN_EXTERNAL_OR_MACHINE_SURFACE |
  * SUPERSEDED_WITH_FULL_PARITY (then deleted) | INTENTIONALLY_INTERNAL_CAPABILITY.
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const REPO = resolve(__dirname, "../../..");
+import {
+  REPO,
+  assertCanonicalFactsFresh,
+  registeredRoutePaths,
+  unmatchedClientCalls,
+} from "./_canonical-facts";
+
 const read = (f: string) => readFileSync(f, "utf8").replace(/\r\n/g, "\n");
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const f = join(dir, e.name);
-    if (e.isDirectory()) {
-      if (/node_modules|\.next|dist|\.expo/.test(e.name)) continue;
-      walk(f, out);
-    } else out.push(f);
-  }
-  return out;
-}
-
 // ── registered product routes ───────────────────────────────────────────────
-const routes = new Set<string>();
-for (const f of walk(resolve(REPO, "services/api/src/routes"))) {
-  if (!f.endsWith(".ts")) continue;
-  for (const m of read(f).matchAll(
-    /app\.(get|post|patch|put|delete)(?:<[^>]*>)?\(\s*\n?\s*[`"']([^`"']+)[`"']/g,
-  ))
-    routes.add(m[2]);
-}
+//
+// PHASE 0 §9 (FINAL-001 follow-through). This set used to be built by a regex
+// over `src/routes/*.ts` — a second opinion about what is registered, living
+// inside the gate that checks whether the FIRST opinion is honest. It now reads
+// the canonical AST inventory, so "MISSING = 0" is measured against the same
+// tree the capability map describes rather than against a private parse of it.
+assertCanonicalFactsFresh();
+const routes = registeredRoutePaths();
 
 // ── registry ────────────────────────────────────────────────────────────────
-type ClassEntry = { route: string; class: string };
 const CLASS_DIR = resolve(REPO, "docs/architecture/route-classification");
-const classified: ClassEntry[] = [];
-for (const slice of ["slice-a.json", "slice-b.json", "slice-c.json", "slice-d.json", "slice-e.json"])
-  classified.push(...(JSON.parse(read(join(CLASS_DIR, slice))) as ClassEntry[]));
 
 describe("Phase 12 — CLOSURE GATE (may be red during execution; blocks completion while red)", () => {
   it("MISSING_PRODUCT_CONSUMER = 0 (HTTP method+path operations, not path strings)", () => {
@@ -110,42 +101,22 @@ describe("Phase 12 — CLOSURE GATE (may be red during execution; blocks complet
     ).toBe(0);
   });
 
-  it("disconnected product operations = 0 (every apiFetch path matches a registered route)", () => {
-    const clientCorpus: string[] = [];
-    for (const root of ["apps/web", "apps/mobile/src", "apps/mobile/app"]) {
-      for (const f of walk(resolve(REPO, root))) {
-        if (!/\.(ts|tsx)$/.test(f) || /__tests__|\.test\.|\.render\./.test(f)) continue;
-        clientCorpus.push(read(f));
-      }
-    }
-    const corpus = clientCorpus.join("\n");
-    const calls = new Set<string>();
-    for (const m of corpus.matchAll(/apiFetch\(\s*[`"']([^`"']+)/g)) {
-      let raw = m[1].split(/[?\s]/)[0].replace(/\$\{[^}]*\}/g, ":p");
-      let prefixOnly = false;
-      const tpl = raw.indexOf("${");
-      if (tpl >= 0) { raw = raw.slice(0, tpl); prefixOnly = true; }
-      const glued = raw.search(/[^/:]:p/);
-      if (glued >= 0) { raw = raw.slice(0, glued + 1); prefixOnly = true; }
-      raw = raw.replace(/\/$/, "");
-      if (raw.length > 3 && raw.startsWith("/")) calls.add(prefixOnly ? raw + "/*" : raw);
-    }
-    const matches = (path: string): boolean => {
-      const prefixOnly = path.endsWith("/*");
-      const cseg = path.replace(/\/\*$/, "").split("/").filter(Boolean);
-      outer: for (const r of routes) {
-        const rseg = r.split("/").filter(Boolean);
-        if (prefixOnly ? rseg.length < cseg.length : rseg.length !== cseg.length) continue;
-        for (let i = 0; i < cseg.length; i++) {
-          const c = cseg[i], q = rseg[i];
-          if (c === ":p" || q.startsWith(":") || c === q) continue;
-          continue outer;
-        }
-        return true;
-      }
-      return false;
-    };
-    const disconnected = [...calls].filter((p) => p.startsWith("/v1") || p.startsWith("/public")).filter((p) => !matches(p));
-    expect(disconnected, `disconnected client operations:\n${disconnected.join("\n")}`).toEqual([]);
+  it("disconnected product operations = 0 (every client request site matches a registered route)", () => {
+    // PHASE 0 §9. This used to be forty lines of private path matching:
+    // parameter segments, template interpolation, query suffixes, the
+    // `${…}`-glued prefix case, and the `/v1/workspaces` → `/v1/teams` alias
+    // rewrite that the plugin performs before Fastify ever matches. Every one
+    // of those was a repair made after the check had already given a wrong
+    // answer for a while, and the same five repairs were made independently in
+    // the coverage-manifest suite. The canonical analyzer resolves request
+    // paths from the AST and publishes what it could not match, so there is one
+    // implementation of the matching rules and one place to fix them.
+    const disconnected = unmatchedClientCalls();
+    expect(
+      disconnected,
+      `client request sites with no matching registered route:\n${disconnected
+        .map((u) => `${u.site} -> ${u.method ?? "*"} ${u.path}`)
+        .join("\n")}`,
+    ).toEqual([]);
   });
 });

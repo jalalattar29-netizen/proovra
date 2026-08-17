@@ -37,15 +37,17 @@
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.removal.preserves_history"
       ],
-      "runId": "ffe7e42c-298b-4a28-a135-9d66a719d2fe",
-      "buildId": "712a4f2e981ad29bde1499cf247cfe64b3efa521567e646112fc4381ee245907",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-07T03:20:17.306Z",
-      "webRuntimeMode": "development",
-      "strictCsp": false,
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T21:58:05.458Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
       "isolation": {
         "deniedHosts": [],
-        "allowedHosts": [],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
         "observabilityErrorEvents": 0,
         "recordingTransport": true
       }
@@ -69,15 +71,17 @@
         "p7.overlimit.reducing_usage_restores_operation",
         "p7.xtenant.foreign_ids_concealed_without_side_effects"
       ],
-      "runId": "ffe7e42c-298b-4a28-a135-9d66a719d2fe",
-      "buildId": "712a4f2e981ad29bde1499cf247cfe64b3efa521567e646112fc4381ee245907",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-07T03:23:14.230Z",
-      "webRuntimeMode": "development",
-      "strictCsp": false,
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T21:58:16.742Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
       "isolation": {
         "deniedHosts": [],
-        "allowedHosts": [],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
         "observabilityErrorEvents": 0,
         "recordingTransport": true
       }
@@ -100,15 +104,17 @@
         "p7.obs.transport.staging_never_uses_production_project",
         "p7.obs.unexpected_failure_still_captured"
       ],
-      "runId": "ffe7e42c-298b-4a28-a135-9d66a719d2fe",
-      "buildId": "712a4f2e981ad29bde1499cf247cfe64b3efa521567e646112fc4381ee245907",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-07T03:22:53.502Z",
-      "webRuntimeMode": "development",
-      "strictCsp": false,
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T21:58:21.567Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
       "isolation": {
         "deniedHosts": [],
-        "allowedHosts": [],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
         "observabilityErrorEvents": 0,
         "recordingTransport": true
       }
@@ -124,15 +130,17 @@
         "p7.sem.team_plan_is_not_a_personal_purchase_target",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "ffe7e42c-298b-4a28-a135-9d66a719d2fe",
-      "buildId": "712a4f2e981ad29bde1499cf247cfe64b3efa521567e646112fc4381ee245907",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-07T03:23:54.903Z",
-      "webRuntimeMode": "development",
-      "strictCsp": false,
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T21:58:56.633Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
       "isolation": {
         "deniedHosts": [],
-        "allowedHosts": [],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
         "observabilityErrorEvents": 0,
         "recordingTransport": true
       }
@@ -152,10 +160,10 @@
         "p7.invite.resend_reuses_the_durable_idempotency_key",
         "p7.invite.revoked_link_still_fails_server_side"
       ],
-      "runId": "dc0c50b0-8a05-45c3-bbfa-5cfa3e95a1d1",
-      "buildId": "ff9b7df3fb67f16717235bb721b177d8c8d265eb659b699a61c93681c6a2c512",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-05T23:17:01.611Z",
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.493Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -179,10 +187,10 @@
         "p7.sem.no_personal_space_true_blocks_every_route",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "dc0c50b0-8a05-45c3-bbfa-5cfa3e95a1d1",
-      "buildId": "ff9b7df3fb67f16717235bb721b177d8c8d265eb659b699a61c93681c6a2c512",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-05T23:17:01.615Z",
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.496Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -198,7 +206,7 @@
       }
     },
     "e2e/point7/plan-journeys.spec.ts": {
-      "sha256": "089786e87cd0dbccbb998c4e9a1c439a06cfdd9ec415e9136ac59637fc72e05f",
+      "sha256": "bd3ad0c012ec627089992333f4aee7bc088e90dde7f94e34168dfd3f0b444984",
       "layer": "BROWSER",
       "scenarios": [
         "p7.enterprise.no_personal_space.blocks_server_fallback",
@@ -223,10 +231,322 @@
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.switch.isolates_cache_and_mutations"
       ],
-      "runId": "dc0c50b0-8a05-45c3-bbfa-5cfa3e95a1d1",
-      "buildId": "ff9b7df3fb67f16717235bb721b177d8c8d265eb659b699a61c93681c6a2c512",
-      "binding": "e27bb760137ec5f24cf25fcd8e935e6ad3165efa7f3ad491a5ca5984904b4976",
-      "recordedAtUtc": "2026-08-05T23:17:01.618Z",
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.506Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/new-027-siu-export.spec.ts": {
+      "sha256": "b601d7f49e198f92504db8506df1ec0baf2420b9bd1004b4f92daee8ed1db369",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.new027.download.cross_tenant_refusal_is_non_disclosing",
+        "p7.new027.download.signed_out_request_refused",
+        "p7.new027.download.streams_from_the_api_origin",
+        "p7.new027.download.suspended_member_refused"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.498Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/new-028-derived-assets.spec.ts": {
+      "sha256": "9bafac3e2108a51757892cc0c92eaa26e98b32855793854429179e041f8d3192",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.new028.bytes.invalidated_session_refused",
+        "p7.new028.bytes.unauthorized_reads_refused",
+        "p7.new028.thumbnail.renders_from_the_api_origin"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.499Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/org-membership-lifecycle.spec.ts": {
+      "sha256": "2894847fdac8100e93e1eeb5afbf07b51cbe08e57abdc7d4505b351d6ecabf8b",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.org.roster.cross_tenant_non_disclosing",
+        "p7.org.roster.double_click_single_transition",
+        "p7.org.roster.lifecycle_fields_projected",
+        "p7.org.roster.non_admin_refused_by_server",
+        "p7.org.roster.suspend_restore_round_trip",
+        "p7.org.roster.terminal_state_offers_no_transition"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.504Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/ui-capabilities-governance.spec.ts": {
+      "sha256": "d9fa9bd0ab5541c1eb516f0d2af68456c5779b01fa336f1d17c392fe0a2e1753",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.ui.governance.access_review_campaign_created",
+        "p7.ui.governance.cross_org_accepted",
+        "p7.ui.governance.cross_org_invited",
+        "p7.ui.governance.delegated_admin_granted",
+        "p7.ui.governance.denied_without_authority",
+        "p7.ui.governance.destruction_review_opened",
+        "p7.ui.governance.policy_created"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.513Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/ui-capabilities-automation.spec.ts": {
+      "sha256": "da00e19c7dbc6bb6e1867e9f65095e3d539a2ff881c2785ad833f9df73cc3c32",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.ui.automation.rule_created",
+        "p7.ui.automation.rule_disabled",
+        "p7.ui.automation.rule_enabled",
+        "p7.ui.automation.rule_updated",
+        "p7.ui.intelligence.provider_budget_created"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.510Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/ui-capabilities-workspace.spec.ts": {
+      "sha256": "973821fc6b3646c054d11dccbc41d3bf45068c63d498ece1ba3d2d45a932c3fa",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.ui.org.workspace_resumed",
+        "p7.ui.org.workspace_suspended",
+        "p7.ui.workspace.closure_cancelled",
+        "p7.ui.workspace.closure_requested",
+        "p7.ui.workspace.created",
+        "p7.ui.workspace.ownership_transferred",
+        "p7.ui.workspace.reopened"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.516Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/ui-capabilities-evidence.spec.ts": {
+      "sha256": "f70191f6d421acd737af1926c365e3a2ad5962be33583c55a15d33808ce35bcb",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.ui.evidence.public_verify_published",
+        "p7.ui.evidence.public_verify_unpublished",
+        "p7.ui.redaction.video_frames_and_tracks_authored"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.511Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/ui-capabilities-security.spec.ts": {
+      "sha256": "af52d30c325f20899253fa683ad6651753b4e890c44bef1ba3b77909ce66beaf",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.ui.security.capture_device_revoked",
+        "p7.ui.security.capture_devices_listed",
+        "p7.ui.security.mfa_recovery_requested"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.514Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/step-up-and-error-envelope.spec.ts": {
+      "sha256": "7a85f4cfb93ad832458248c563bfb6c3323665c325f7fe02599541a288b9644f",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.apierror.closure_blocked.specific_copy_from_message_less_code",
+        "p7.apierror.closure_request_active.stale_form_denied_with_specific_copy",
+        "p7.apierror.confirmation_mismatch.server_message_reaches_the_user",
+        "p7.apierror.org_transfer.owner_required_specific_copy",
+        "p7.apierror.org_transfer.target_not_member_specific_copy",
+        "p7.apierror.unhandled_code.bounded_fallback_without_raw_detail",
+        "p7.stepup.invalid_proof.returns_to_verification_state",
+        "p7.stepup.methods_drive_the_factor_input",
+        "p7.stepup.totp_proof.retries_original_mutation",
+        "p7.stepup.workspace_closure.panel_opens_from_server_denial",
+        "p7.stepup.workspace_closure.proof_retries_original_mutation"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.508Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/new-029-multipart-cancel.spec.ts": {
+      "sha256": "92089cad659b0a9ecd5230cd69be23ba9488bfbb43385e609616b57296a521d7",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.new029.cancel_aborts_storage_and_session",
+        "p7.new029.cancel_survives_abort_network_failure"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.501Z",
+      "webRuntimeMode": "production-build",
+      "strictCsp": true,
+      "isolation": {
+        "deniedHosts": [
+          "accounts.google.com",
+          "appleid.cdn-apple.com"
+        ],
+        "allowedHosts": [
+          "127.0.0.1"
+        ],
+        "observabilityErrorEvents": 0,
+        "recordingTransport": true
+      }
+    },
+    "e2e/point7/new-058-account-bound-step-up.spec.ts": {
+      "sha256": "4b51c9c1a2e4c4609a9fd3e23f415225f786ba1ba94a3c88595a075b58192e2e",
+      "layer": "BROWSER",
+      "scenarios": [
+        "p7.new058.enroll.journey_activates_an_account_bound_factor",
+        "p7.new058.enroll.raw_destination_never_reaches_the_client",
+        "p7.new058.stepup.approved_proof_drives_one_protected_mutation",
+        "p7.new058.stepup.caller_selected_destination_is_rejected",
+        "p7.new058.stepup.revoked_factor_kills_an_unspent_elevation",
+        "p7.new058.stepup.start_request_carries_no_destination",
+        "p7.new058.stepup.unenrolled_account_is_offered_enrolment",
+        "p7.new058.stepup.wrong_code_refused_without_elevation"
+      ],
+      "runId": "d38bbc48",
+      "buildId": "bea35a5fec7f3b2f45c31c27430ca5d4e16c69bfbb6e555840a9ac94c6828c26",
+      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
+      "recordedAtUtc": "2026-08-17T22:05:41.502Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {

@@ -10,6 +10,7 @@ import {
 } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { verifyJwt } from "../services/jwt.js";
 import {
   cleanDisplayCity,
@@ -1086,7 +1087,9 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // Rate-limit layer 1: per-IP.
-      const ipKey = `ratelimit:analytics:ip:${request.ip}`;
+      // PHASE 13 §1 (NEW-022) — SECURITY_BOUND: canonical resolved client, not
+      // raw `request.ip`, so forwarded headers cannot mint fresh buckets.
+      const ipKey = `ratelimit:analytics:ip:${trustedClientIpKey(request)}`;
       const ipRate = await enforceRateLimit({
         key: ipKey,
         max: ANALYTICS_LIMITS.RATE_LIMIT_IP_PER_MIN,

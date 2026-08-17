@@ -31,6 +31,19 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
+// FINAL-002 (2026-08-15) — the four operator-facing SAML routes below declared
+// their gate as `{ config: { requireAuth: true } }`. Fastify route `config` is
+// inert data: NOTHING in this service reads `routeOptions.config.requireAuth`,
+// and `req.user` is populated in exactly one place — `requireAuth` itself. So
+// the flag authenticated nobody, and every handler's `req.user?.sub` lookup was
+// permanently `undefined`, returning 401 to a legitimately signed-in OWNER/ADMIN.
+// The effect was not an open door but a sealed one: IdP metadata ingestion,
+// connection testing and SAML certificate rotation were unreachable in
+// production, including the rotation an operator needs when an IdP certificate
+// is about to expire. The real preHandler is the fix; the in-handler ACTIVE
+// OWNER/ADMIN check bound to the connection's own teamId stays as the tenant
+// authority.
+import { requireAuth } from "../middleware/auth.js";
 import {
   signJwt,
   signMfaPendingToken,
@@ -236,6 +249,108 @@ function buildSpEntityId(connectionId: string): string {
   const base =
     process.env["API_BASE_URL"] ?? "https://api.proovra.com";
   return `${base.replace(/\/$/, "")}/saml/sp/${connectionId}`;
+}
+
+/**
+ * PHASE 13 §1.2 — the ONE authorization decision for the four operator-facing
+ * SAML routes (ingest-metadata, test-connection, PUT/DELETE certificate-next).
+ *
+ * WHY IT EXISTS
+ * ---------------------------------------------------------------------------
+ * Driving those four routes at runtime (FINAL-002's proof suite) showed that
+ * each had written the same decision itself, and that all four ordered it the
+ * same wrong way. Two consequences, both observed as real responses:
+ *
+ *   1. EXISTENCE DISCLOSURE. An authenticated caller from an unrelated
+ *      workspace received 403 for a connection that exists and 404 for one
+ *      that does not. The status code therefore answered "does this SSO
+ *      connection exist?" for somebody with no right to ask — a cross-tenant
+ *      record-existence leak.
+ *
+ *   2. CHECKS AHEAD OF AUTHORIZATION. `resolveSamlConnectionEnterpriseGate`
+ *      ran FIRST, so an outsider also learned whether the owning workspace
+ *      holds an enterprise plan (402 vs 404). And DELETE certificate-next
+ *      answered 409 `no_next_certificate` BEFORE looking at membership at all,
+ *      so an outsider — including a SUSPENDED or REVOKED member — could read
+ *      whether a certificate rotation was pending on another tenant's
+ *      connection.
+ *
+ * THE ORDER THIS ENFORCES, AND WHY IT IS THIS ORDER
+ * ---------------------------------------------------------------------------
+ *   connection exists?  →  caller is an ACTIVE member of ITS team?  →  role?
+ *   →  commercial entitlement  →  route-specific state
+ *
+ * Everything that can disclose something about the connection now happens
+ * AFTER the caller has proven they belong to the workspace that owns it. The
+ * first two steps collapse into ONE outcome — 404 `not_found` — so "no such
+ * connection" and "not yours" are indistinguishable on the wire.
+ *
+ * A caller who IS an ACTIVE member but holds the wrong role still gets 403.
+ * That is deliberate and is not a leak: they already know the connection
+ * exists, because they are in the workspace that owns it, and collapsing their
+ * case into 404 would only make a legitimate permissions problem unreadable.
+ */
+type SamlOperatorAuthz =
+  | { ok: true; teamId: string }
+  | { ok: false; statusCode: number; body: Record<string, unknown> };
+
+async function authorizeSamlOperator(
+  req: FastifyRequest,
+  connectionId: string,
+): Promise<SamlOperatorAuthz> {
+  /** The single refusal that covers "absent" and "not yours" alike. */
+  const indistinguishable = {
+    ok: false as const,
+    statusCode: 404,
+    body: { error: { code: "not_found" } },
+  };
+
+  const actorUserId = (req as FastifyRequest & { user?: { sub?: string } }).user
+    ?.sub;
+  if (!actorUserId) {
+    return {
+      ok: false,
+      statusCode: 401,
+      body: { error: { code: "unauthorized" } },
+    };
+  }
+
+  const conn = await prisma.ssoConnection.findUnique({
+    where: { id: connectionId },
+    select: { id: true, teamId: true },
+  });
+  if (!conn) return indistinguishable;
+
+  // ACTIVE membership of ANY role first. This is the tenancy question, and it
+  // is what separates "not yours" (indistinguishable from absent) from "yours
+  // but insufficient" (a readable 403). SUSPENDED and REVOKED members are not
+  // ACTIVE members, so they take the indistinguishable branch.
+  const membership = await prisma.teamMember.findFirst({
+    where: { teamId: conn.teamId, userId: actorUserId, status: "ACTIVE" },
+    select: { role: true },
+  });
+  if (!membership) return indistinguishable;
+
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    return {
+      ok: false,
+      statusCode: 403,
+      body: { error: { code: "forbidden" } },
+    };
+  }
+
+  // Commercial entitlement is consulted only now — an outsider must never be
+  // able to read another workspace's plan from a status code.
+  const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
+  if (!gate.ok) {
+    return {
+      ok: false,
+      statusCode: gate.statusCode,
+      body: { error: { code: gate.reason, upgradeCta: "/contact-sales" } },
+    };
+  }
+
+  return { ok: true, teamId: conn.teamId };
 }
 
 /**
@@ -1051,9 +1166,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   app.post(
     "/v1/auth/saml/:connectionId/ingest-metadata",
-    {
-      config: { requireAuth: true },
-    } as never,
+    { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (!samlEnabled) {
         return reply
@@ -1065,11 +1178,12 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
 
-      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
-      if (!gate.ok) {
-        return reply
-          .code(gate.statusCode)
-          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      // PHASE 13 §1.2 — authorization BEFORE anything that can disclose the
+      // connection, its workspace's plan, or its state. See
+      // `authorizeSamlOperator`.
+      const authz = await authorizeSamlOperator(req, connectionId);
+      if (!authz.ok) {
+        return reply.code(authz.statusCode).send(authz.body);
       }
 
       // Accept raw XML body or JSON with { metadataXml, metadataUrl }
@@ -1098,32 +1212,12 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: { code: "metadata_xml_too_large" } });
       }
 
+      // Authorization already settled above by `authorizeSamlOperator`, which
+      // also established that this connection exists and belongs to a team the
+      // caller ACTIVELY administers.
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
-        .user?.sub;
-      if (!actorUserId) {
-        return reply.code(401).send({ error: { code: "unauthorized" } });
-      }
-
-      // Verify actor is OWNER/ADMIN of this connection's team
-      const conn = await prisma.ssoConnection.findUnique({
-        where: { id: connectionId },
-        select: { id: true, teamId: true, status: true },
-      });
-      if (!conn) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
-      const membership = await prisma.teamMember.findFirst({
-        where: {
-          teamId: conn.teamId,
-          userId: actorUserId,
-          role: { in: ["OWNER", "ADMIN"] },
-          status: "ACTIVE",
-        },
-      });
-      if (!membership) {
-        return reply.code(403).send({ error: { code: "forbidden" } });
-      }
+        .user?.sub as string;
+      const conn = { id: connectionId, teamId: authz.teamId };
 
       let parsed;
       try {
@@ -1213,7 +1307,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   app.post(
     "/v1/auth/saml/:connectionId/test-connection",
-    { config: { requireAuth: true } } as never,
+    { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (!samlEnabled) {
         return reply.code(503).send({ error: { code: "saml_disabled" } });
@@ -1223,18 +1317,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
 
-      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
-      if (!gate.ok) {
-        return reply
-          .code(gate.statusCode)
-          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      // PHASE 13 §1.2 — authorization first; see `authorizeSamlOperator`.
+      const authz = await authorizeSamlOperator(req, connectionId);
+      if (!authz.ok) {
+        return reply.code(authz.statusCode).send(authz.body);
       }
-
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
-        .user?.sub;
-      if (!actorUserId) {
-        return reply.code(401).send({ error: { code: "unauthorized" } });
-      }
+        .user?.sub as string;
 
       // Load connection
       const conn = await prisma.ssoConnection.findUnique({
@@ -1258,21 +1347,11 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
+      // `authorizeSamlOperator` already proved this row exists and is the
+      // caller's to administer; the reload above is for its columns, not for
+      // an access decision.
       if (!conn) {
         return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
-      // OWNER or ADMIN gate
-      const membership = await prisma.teamMember.findFirst({
-        where: {
-          teamId: conn.teamId,
-          userId: actorUserId,
-          role: { in: ["OWNER", "ADMIN"] },
-          status: "ACTIVE",
-        },
-      });
-      if (!membership) {
-        return reply.code(403).send({ error: { code: "forbidden" } });
       }
 
       bump("saml_connection_test_total");
@@ -1424,7 +1503,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   app.put(
     "/v1/auth/saml/:connectionId/certificate-next",
-    { config: { requireAuth: true } } as never,
+    { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (!samlEnabled) {
         return reply.code(503).send({ error: { code: "saml_disabled" } });
@@ -1434,12 +1513,14 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
 
-      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
-      if (!gate.ok) {
-        return reply
-          .code(gate.statusCode)
-          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      // PHASE 13 §1.2 — authorization first; see `authorizeSamlOperator`.
+      const authz = await authorizeSamlOperator(req, connectionId);
+      if (!authz.ok) {
+        return reply.code(authz.statusCode).send(authz.body);
       }
+      const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
+        .user?.sub as string;
+      const conn = { id: connectionId, teamId: authz.teamId };
 
       const body = z
         .object({
@@ -1447,32 +1528,6 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           certificate: z.string().min(100).max(8192),
         })
         .parse(req.body);
-
-      const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
-        .user?.sub;
-      if (!actorUserId) {
-        return reply.code(401).send({ error: { code: "unauthorized" } });
-      }
-
-      const conn = await prisma.ssoConnection.findUnique({
-        where: { id: connectionId },
-        select: { id: true, teamId: true },
-      });
-      if (!conn) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
-      const membership = await prisma.teamMember.findFirst({
-        where: {
-          teamId: conn.teamId,
-          userId: actorUserId,
-          role: { in: ["OWNER", "ADMIN"] },
-          status: "ACTIVE",
-        },
-      });
-      if (!membership) {
-        return reply.code(403).send({ error: { code: "forbidden" } });
-      }
 
       // Compute fingerprint for the next cert
       const cleanedNextCert = body.certificate.replace(/\s+/g, "");
@@ -1536,7 +1591,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   app.delete(
     "/v1/auth/saml/:connectionId/certificate-next",
-    { config: { requireAuth: true } } as never,
+    { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (!samlEnabled) {
         return reply.code(503).send({ error: { code: "saml_disabled" } });
@@ -1546,18 +1601,19 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
 
-      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
-      if (!gate.ok) {
-        return reply
-          .code(gate.statusCode)
-          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      // PHASE 13 §1.2 — authorization first; see `authorizeSamlOperator`.
+      //
+      // This route is where the ordering defect was most visible: the
+      // `no_next_certificate` 409 below used to run BEFORE the membership
+      // lookup, so an outsider could read whether a certificate rotation was
+      // pending on another tenant's connection. The state check now happens
+      // only after the caller has proven the connection is theirs.
+      const authz = await authorizeSamlOperator(req, connectionId);
+      if (!authz.ok) {
+        return reply.code(authz.statusCode).send(authz.body);
       }
-
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
-        .user?.sub;
-      if (!actorUserId) {
-        return reply.code(401).send({ error: { code: "unauthorized" } });
-      }
+        .user?.sub as string;
 
       const conn = await prisma.ssoConnection.findUnique({
         where: { id: connectionId },
@@ -1575,18 +1631,6 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       }
       if (!conn.samlCertificateNext) {
         return reply.code(409).send({ error: { code: "no_next_certificate" } });
-      }
-
-      const membership = await prisma.teamMember.findFirst({
-        where: {
-          teamId: conn.teamId,
-          userId: actorUserId,
-          role: { in: ["OWNER", "ADMIN"] },
-          status: "ACTIVE",
-        },
-      });
-      if (!membership) {
-        return reply.code(403).send({ error: { code: "forbidden" } });
       }
 
       // Promote: next → primary, compute new primary fingerprint

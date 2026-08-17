@@ -511,19 +511,17 @@ describe("Phase 30.12 — observability", () => {
     "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
-  it("registers the 2 new unified-manifest counters", () => {
-    expect(metricsSrc).toContain('"unified_manifest_materials_total"');
-    expect(metricsSrc).toContain('"unified_manifest_mixed_evidence_total"');
-  });
-
-  it("manifest resolver bumps the materials counter + mixed-evidence counter", () => {
-    const src = readSource(
-      "../../../services/api/src/services/uploads/unified-material-manifest.ts",
-    );
-    expect(src).toMatch(/bump\("unified_manifest_materials_total"/);
-    expect(src).toMatch(
-      /totals\.legacy > 0\s*&&\s*totals\.sessions > 0[\s\S]*?bump\("unified_manifest_mixed_evidence_total"\)/,
-    );
+  // LEGACY-003 (2026-08-15): the unified material manifest resolver was
+  // REMOVED as an unreachable module. It was the only bumper of
+  // "unified_manifest_materials_total" and
+  // "unified_manifest_mixed_evidence_total", so both counters were
+  // unregistered from the shared metrics catalog rather than left able to
+  // report only zero. These two tests asserted the registration and the
+  // bump; both subjects are gone, so what is pinned now is that the dead
+  // counters do not creep back without a bumper.
+  it("the orphaned unified-manifest counters stay unregistered", () => {
+    expect(metricsSrc).not.toContain('"unified_manifest_materials_total"');
+    expect(metricsSrc).not.toContain('"unified_manifest_mixed_evidence_total"');
   });
 });
 

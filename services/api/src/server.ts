@@ -57,7 +57,12 @@ import { collaborationCompletionRoutes } from "./routes/collaboration-completion
 // `/v1/teams/*` at the onRequest hook so the existing 2,497-line
 // `teams.routes.ts` handlers are exposed under the new canonical
 // product vocabulary without duplication.
-import { workspaceAliasPlugin } from "./routes/workspace-alias.plugin.js";
+import { rewriteWorkspaceAliasUrl } from "./routes/workspace-alias.plugin.js";
+// PHASE 13 §1 (NEW-022) — canonical proxy-trust policy → Fastify trustProxy.
+import {
+  assertProxyTrustPolicyValidOrThrow,
+  fastifyTrustProxy,
+} from "./middleware/client-ip.js";
 // Phase 2.7X Stage 3 — Organization runtime endpoints (read-only dual-read).
 import { organizationsRoutes } from "./routes/organizations.routes.js";
 // Phase B0 — Organization governance write surfaces (retention
@@ -182,6 +187,11 @@ import { identityRoutes } from "./routes/identity.routes.js";
 import { enterpriseSecurityRoutes } from "./routes/enterprise-security.routes.js";
 import { communicationsRoutes } from "./routes/communications.routes.js";
 import { identitySecurityRoutes } from "./routes/identity-security.routes.js";
+// PHASE 13 (NEW-058) — contact-factor enrolment, extracted from
+// identity-security.routes.ts so that file stays an orchestrator. Same
+// canonical session model, same factor authority; a sibling plugin, not a
+// second surface.
+import { identitySecurityContactFactorRoutes } from "./routes/identity-security-contact-factors.routes.js";
 // R8.1.1 — MFA REST surface (TOTP enroll/verify, factors, recovery
 // codes, challenge). Sub-domain of the canonical identity surface;
 // not a parallel auth system.
@@ -510,15 +520,34 @@ function readPrismaDiagnostic(
 export async function buildServer() {
   initSentry();
 
+  // PHASE 13 §1 (NEW-022) — fail closed on an invalid proxy-trust policy.
+  //
+  // A misconfigured trust policy silently corrupts every client-IP decision
+  // (rate limits, forensic capture, audit). In production this must stop the
+  // process from starting rather than run with wrong trust; the assertion
+  // throws there and warns-and-falls-closed elsewhere.
+  assertProxyTrustPolicyValidOrThrow();
+
   const app = Fastify({
-    // Trust the reverse proxy ONLY when explicitly deployed behind one
-    // (API_TRUST_PROXY). We never blindly trust arbitrary X-Forwarded-For
-    // from the public internet. Client-IP resolution is additionally scoped
-    // by resolveCaptureClientIp/getTrustedClientIp; the safe default is off.
-    trustProxy:
-      ["1", "true", "yes"].includes(
-        (process.env.API_TRUST_PROXY ?? "").trim().toLowerCase(),
-      ),
+    // PHASE 13 §1.5 — the `/v1/workspaces` → `/v1/teams` alias.
+    //
+    // This is a SERVER OPTION rather than a hook because Fastify routes before
+    // it runs any `onRequest` hook. The alias previously lived in one, so it
+    // rewrote a URL the router had already finished with and every
+    // `/v1/workspaces/*` request 404'd. See `workspace-alias.plugin.ts`.
+    rewriteUrl: (req) => rewriteWorkspaceAliasUrl(req.url),
+    // PHASE 13 §1 (NEW-022) — the trust decision is a DECLARED POLICY, resolved
+    // by Fastify's own @fastify/proxy-addr, never the boolean `true`.
+    //
+    //   off  → false        (headers ignored; req.ip = socket peer)
+    //   hop  → <N>           (req.ip = the Nth hop from the right)
+    //   cidr → <cidr[]>      (req.ip = first hop from the right outside the set)
+    //
+    // The proven production topology is one Caddy hop with the API bound to
+    // 127.0.0.1 (never directly reachable), i.e. API_TRUST_PROXY_MODE=hop,
+    // API_TRUSTED_PROXY_HOPS=1. `true` (trust every hop, leftmost wins) is no
+    // longer expressible. See middleware/client-ip.ts + proxy-trust-policy.ts.
+    trustProxy: fastifyTrustProxy(),
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       base: { service: "api" },
@@ -1071,9 +1100,9 @@ allowedHeaders: [
   await app.register(governanceSnapshotRoutes);
   await app.register(runtimeReadinessRoutes);
 
-  // Phase B0 — Workspace URL alias plugin. MUST register before any
-  // route plugin so the rewrite hook fires before routing match.
-  await app.register(workspaceAliasPlugin);
+  // Phase B0 — the `/v1/workspaces` alias is installed as the `rewriteUrl`
+  // server option above, not as a plugin registered here. Registration order
+  // was never what made it fire early enough; the Fastify lifecycle was.
 
   await app.register(authRoutes);
   await app.register(usersRoutes);
@@ -1343,6 +1372,8 @@ allowedHeaders: [
   // requireStepUpForSensitiveAction. Workspace-internal; public
   // verify NEVER touches these tables.
   await app.register(identitySecurityRoutes);
+  // NEW-058 — how an account acquires the factor the step-up gate above reads.
+  await app.register(identitySecurityContactFactorRoutes);
   // R8.1.1 — MFA endpoints registered alongside identity-security.
   // Same canonical session + auth model; no parallel auth surface.
   await app.register(mfaRoutes);

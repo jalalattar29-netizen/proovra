@@ -1344,6 +1344,16 @@ const SU_CHALLENGE = "55555555-5555-4555-8555-555555555555";
 const SU_TARGET = "66666666-6666-4666-8666-666666666666";
 const SU_PURPOSE = "DEPARTMENT_MEMBERSHIP_GRANT";
 const SU_RESOURCE_KIND = "DEPARTMENT";
+/**
+ * PHASE 13 (NEW-058) — the factor the approval is bound to.
+ *
+ * The consume path refuses a challenge whose `factorId`/`factorGeneration` is
+ * null, and refuses again if no ACTIVE, verified, unrevoked factor at that
+ * generation still exists. A fixture without both therefore fails closed, and
+ * every acceptance below would measure the refusal instead of the behaviour.
+ */
+const SU_FACTOR = "99999999-9999-4999-8999-999999999991";
+const SU_FACTOR_GENERATION = 1;
 
 type ChallengeRow = {
   id: string;
@@ -1354,6 +1364,8 @@ type ChallengeRow = {
   resourceKind: string | null;
   resourceId: string | null;
   expiresAtUtc: Date;
+  factorId: string | null;
+  factorGeneration: number | null;
 };
 
 /** Reply double capturing exactly what the middleware sent. */
@@ -1390,10 +1402,28 @@ function makeStepUpWorld(seed: Partial<ChallengeRow> = {}) {
     resourceKind: SU_RESOURCE_KIND,
     resourceId: SU_TARGET,
     expiresAtUtc: new Date(Date.now() + 10 * 60_000),
+    factorId: SU_FACTOR,
+    factorGeneration: SU_FACTOR_GENERATION,
     ...seed,
   };
   const rows: ChallengeRow[] = [row];
   const mutations: Array<Record<string, unknown>> = [];
+  /**
+   * The factor the challenge above is bound to. Held as a row and matched with
+   * the same predicate helper as everything else, so a revoked factor or a
+   * bumped generation genuinely stops matching rather than being waved through
+   * by a delegate that always answers.
+   */
+  const factors: Row[] = [
+    {
+      id: SU_FACTOR,
+      userId: USER,
+      status: "ACTIVE",
+      revokedAt: null,
+      verifiedAtUtc: new Date(Date.now() - 86_400_000),
+      generation: SU_FACTOR_GENERATION,
+    },
+  ];
 
   const client = {
     stepUpChallenge: {
@@ -1421,11 +1451,15 @@ function makeStepUpWorld(seed: Partial<ChallengeRow> = {}) {
         return { count: matched.length };
       },
     },
+    mfaFactor: {
+      findFirst: async (args: { where: Row }) =>
+        factors.find((f) => matchesWhere(f, args.where)) ?? null,
+    },
     // No risk signals => LOW risk => the gate never blocks for risk here.
     riskSignal: { findMany: async () => [] },
     securityEvent: { create: async () => ({ id: "security-event" }) },
   };
-  return { client, rows, mutations };
+  return { client, rows, mutations, factors };
 }
 
 /**

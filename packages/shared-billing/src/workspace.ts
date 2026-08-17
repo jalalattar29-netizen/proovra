@@ -108,8 +108,8 @@ export function getEffectiveSeatLimit(scope: BillingWorkspaceScope): number {
  * PURCHASE-TARGET rule, not a resolution rule.
  *
  * It answers "may this plan be bought FOR a personal workspace?" — which is
- * how the checkout surface uses it, and why TEAM (`teamWorkspaceRequired:
- * true`) is the only plan that says no. It does NOT answer "may this identity
+ * how the checkout surface uses it, and why TEAM is the only plan that says no
+ * (you buy TEAM for a team, not for yourself). It does NOT answer "may this identity
  * have a Personal Space?": that is `resolvePersonalSpaceEligibility` in
  * services/api (identity mode + the Organization's `noPersonalSpace` policy),
  * and it is deliberately plan-independent — every authenticated user is

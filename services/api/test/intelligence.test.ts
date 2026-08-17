@@ -47,38 +47,26 @@ describe("extracted text projection — privacy", () => {
   });
 });
 
-describe("search service — source-level governance scope", () => {
-  it("publishable scope adds publicVerifyState = PUBLISHED to the WHERE clause", async () => {
-    const { readFile } = await import("node:fs/promises");
+// LEGACY-003 (2026-08-15) — the "search service — source-level governance
+// scope" suite asserted the WHERE-clause construction inside
+// src/services/intelligence/search.service.ts. That module was REMOVED: it was
+// the pre-Phase-14 keyword search backend, intelligence.routes.ts records in
+// two comments that the endpoint no longer calls searchEvidence, and the live
+// surface is the global search projection. Asserting the scope filter of a
+// backend nothing calls described a control that could not fire; the scope
+// enforcement that DOES run is asserted below against the live routes.
+describe("search service — source-level governance scope (removed)", () => {
+  it("the superseded keyword search backend stays removed", async () => {
+    const { existsSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
-      fileURLToPath(
-        new URL(
-          "../src/services/intelligence/search.service.ts",
-          import.meta.url,
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL("../src/services/intelligence/search.service.ts", import.meta.url),
         ),
       ),
-      "utf8",
-    );
-    expect(src).toMatch(/publicVerifyState:\s*"PUBLISHED"/);
-    expect(src).toMatch(/deletedAt:\s*null/);
-  });
-
-  it("re-fetch path for text/entity hits also runs through baseWhere", async () => {
-    const { readFile } = await import("node:fs/promises");
-    const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
-      fileURLToPath(
-        new URL(
-          "../src/services/intelligence/search.service.ts",
-          import.meta.url,
-        ),
-      ),
-      "utf8",
-    );
-    // The extras lookup re-applies baseWhere so workspace + publication
-    // scope filter to OCR / entity hits too.
-    expect(src).toMatch(/id:\s*\{\s*in:\s*Array\.from\(extraIds\)\s*\},\s*\.\.\.baseWhere/);
+      "intelligence/search.service.ts is REMOVED (LEGACY-003) and must not return",
+    ).toBe(false);
   });
 });
 

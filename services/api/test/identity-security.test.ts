@@ -27,6 +27,7 @@ import {
   consumeApprovedChallenge,
 } from "../src/services/identity-security/step-up.service.js";
 import type { PrismaClient } from "@prisma/client";
+import { sealSecret } from "../src/services/security/mfa-secret-storage.js";
 import { projectTrustedDevice } from "../src/services/identity-security/trusted-device.service.js";
 import {
   projectRevokedSession,
@@ -181,8 +182,20 @@ describe("Identity-security routes — auth posture", () => {
     expect(src).toMatch(
       /app\.post\(\s*"\/v1\/identity-security\/step-up\/start"[\s\S]{0,200}preHandler:\s*requireAuth/,
     );
+    // PHASE 13 (NEW-058): `requireSecurityActor` moved to
+    // `identity-security-shared.ts` when the contact-factor enrolment routes
+    // were extracted into their own plugin, so BOTH route modules use one
+    // guard rather than a copy each. The route file above still proves the
+    // preHandler; the guard's own posture is read where the guard now lives.
+    const guardSrc = await readFile(
+      fileURLToPath(
+        new URL("../src/routes/identity-security-shared.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    expect(src).toMatch(/requireSecurityActor/);
     // The membership guard returns 404 not 403.
-    const guardBlock = src.match(/requireSecurityActor[\s\S]{0,1500}/);
+    const guardBlock = guardSrc.match(/requireSecurityActor[\s\S]{0,1500}/);
     expect(guardBlock).not.toBeNull();
     if (guardBlock) {
       const nonMember = guardBlock[0].match(/if \(!member\)[\s\S]{0,200}/);
@@ -504,6 +517,21 @@ describe("PHASE 12B — org security policy step-up binding matrix (real consume
   const ACTOR = "user-admin-1";
   const future = new Date(Date.now() + 5 * 60_000);
 
+  /**
+   * PHASE 13 (NEW-058) — a challenge is now BOUND TO THE FACTOR THAT
+   * AUTHORISED IT, and this fixture has to carry that binding.
+   *
+   * `consumeApprovedChallenge` refuses a row whose `factorId` /
+   * `factorGeneration` are null, because that is every challenge written
+   * before the migration and the pre-existing window must fail CLOSED. Without
+   * these two fields the three tests below stopped exercising what they are
+   * named for — org binding, single-use replay, cross-purpose reuse — and
+   * silently became three more assertions that an unbound challenge is
+   * refused, which a fourth test already makes.
+   */
+  const FACTOR_ID = "factor-1";
+  const FACTOR_GENERATION = 3;
+
   function challengeRow(overrides: Record<string, unknown> = {}) {
     return {
       id: "chal-1",
@@ -514,6 +542,8 @@ describe("PHASE 12B — org security policy step-up binding matrix (real consume
       purpose: "ORG_SECURITY_POLICY_UPDATE",
       resourceId: null,
       resourceKind: null,
+      factorId: FACTOR_ID,
+      factorGeneration: FACTOR_GENERATION,
       ...overrides,
     };
   }
@@ -537,6 +567,34 @@ describe("PHASE 12B — org security policy step-up binding matrix (real consume
           const row = rows.find((r) => r.id === args.where.id);
           if (!row) throw new Error("not found");
           return { ...row, status: "CANCELLED" };
+        },
+      },
+      /**
+       * The factor authority the consume path now consults twice: once to
+       * confirm the bound factor is still ACTIVE at the SAME generation, and
+       * again through `resolveStepUpDestination` to unseal the destination.
+       *
+       * The destination is sealed with the REAL `sealSecret`, not a stub, so
+       * `openSecret` genuinely round-trips — a hand-made bundle would fail the
+       * GCM auth tag and turn every test here into a decryption failure
+       * wearing an authorization failure's error code.
+       */
+      mfaFactor: {
+        findFirst: async (args: {
+          where: { id?: string; userId?: string };
+        }) => {
+          if (args.where.id !== FACTOR_ID || args.where.userId !== ACTOR) {
+            return null;
+          }
+          const sealed = sealSecret(Buffer.from("+14155550123", "utf8"));
+          return {
+            generation: FACTOR_GENERATION,
+            kind: "SMS",
+            destinationCiphertext: sealed.ciphertext,
+            destinationIv: sealed.iv,
+            destinationAuthTag: sealed.authTag,
+            destinationKekId: sealed.kekId,
+          };
         },
       },
     } as unknown as PrismaClient;

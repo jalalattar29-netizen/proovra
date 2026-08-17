@@ -7,7 +7,7 @@
  *
  *   1. Personal Space card (always present; never labeled TEAM)
  *   2. Organizations list (excludes isPersonal=true)
- *   3. Create / Join organization CTA
+ *   3. Create workspace (POST /v1/teams) / Join organization CTA
  *   4. Invitations (placeholder — wired in a follow-up phase)
  *   5. Legacy duplicate-personal-row diagnostic (admin guidance only)
  *
@@ -34,6 +34,7 @@ import {
   usePersonalSpace,
 } from "../../lib/platform-context";
 import { WorkspaceAdminPanel } from "./WorkspaceAdminPanel";
+import { CreateWorkspaceCard } from "./CreateWorkspaceCard";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 
 export function WorkspaceAdministrationHome() {
@@ -132,16 +133,10 @@ export function WorkspaceAdministrationHome() {
           <div className="cases-empty" data-organizations-empty>
             <strong>You're not in any organizations yet.</strong>
             <p>
-              Create an organization for collaborative investigations — members,
-              roles, governance, reviewer ops, and team billing.
+              Create a workspace for collaborative investigations — members,
+              roles, governance, reviewer ops, and billing live in it.
             </p>
-            <Link
-              href="/teams?action=create"
-              className="cc-quick-action"
-              data-workspace-action="create_organization"
-            >
-              Create organization
-            </Link>
+            <CreateWorkspaceCard />
           </div>
         ) : (
           <ul className="cases-list" data-organizations-list>
@@ -206,14 +201,10 @@ export function WorkspaceAdministrationHome() {
         <header className="cc-section-header">
           <h2 className="cc-section-title">Actions</h2>
         </header>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link
-            href="/teams?action=create"
-            className="cc-quick-action"
-            data-workspace-action="create_organization"
-          >
-            Create organization
-          </Link>
+        {/* PHASE 13 — the create control itself, not a link to a page that
+            never had one. POST /v1/teams creates an OWNED workspace. */}
+        <CreateWorkspaceCard />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
           <Link
             href="/teams?action=join"
             className="cc-quick-action"

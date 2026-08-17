@@ -46,6 +46,33 @@ jobs:
       - name: Install
         run: pnpm install
 
+      # ---------------------------------------------------------------
+      # PHASE 0 — Audit Engine integrity.
+      #
+      # Asks ONE question: is the measuring instrument sound? That the
+      # analyzers run, that the generated artifacts on disk match what
+      # the engine recomputes from this tree, that every conservation
+      # identity holds, that no subject has two authorities, and that
+      # the findings ledger is admissible to its own validator.
+      #
+      # It runs HERE — right after install, before lint, typecheck and
+      # every product suite — because it is seconds long and because a
+      # tree whose audit artifacts are stale should be reported as such
+      # before twenty minutes of downstream work, not after.
+      #
+      # It is deliberately NOT `--closure-check`. That gate asks whether
+      # the PRODUCT is finished, and it correctly exits non-zero while
+      # FINAL-001 is open, so putting it in ordinary CI would make every
+      # build red for a reason no PR can fix — which is how a red build
+      # stops being read, taking this check down with it. Closure belongs
+      # to release certification.
+      #
+      # No database, no Redis, no S3, no provider, no credential: it is
+      # pure static analysis over the checked-out source, so it cannot
+      # fail for an environmental reason and cannot leak anything.
+      - name: Audit engine integrity
+        run: pnpm audit:architecture --engine-check
+
       - name: Lint
         run: pnpm -r lint
 

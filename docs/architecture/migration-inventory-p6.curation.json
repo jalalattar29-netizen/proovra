@@ -2804,6 +2804,15 @@
       "removalCondition": "None — this IS the contract. Apply in the final wave, after the code that writes source_event_id and action_idempotency_key has deployed.",
       "rollbackDisposition": "ROLL_FORWARD — ALTER COLUMN DROP NOT NULL, DROP CONSTRAINT and DROP INDEX would restore the looser shape by hand if an older build must be restored.",
       "ownerAction": "Apply in Release D only, after the API deploy."
+    },
+    "20271201000000_new058_verified_contact_factors": {
+      "classification": "EXPAND",
+      "releaseWave": "WAIT_FOR_RUNTIME_CUTOVER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": false,
+      "evidence": "PHASE 13 (NEW-058) — ACCOUNT-BOUND STEP-UP. Adds the contact-channel values to MfaFactorKind, the six sealed destination columns plus verified_at_utc and generation to mfa_factors, and factor_id/factor_generation to step_up_challenges; every ADD is IF NOT EXISTS and no historical migration is touched. It widens the four TOTP secret columns to nullable and immediately restores the invariant AT THE CONTRACT with mfa_factors_kind_payload_chk, so a TOTP row still cannot exist without its sealed secret and a contact row cannot exist without its sealed destination, hash and mask. The only UPDATE copies COALESCE(enrolled_at, created_at) into verified_at_utc for rows that are ALREADY ACTIVE — a TOTP factor reaches ACTIVE only by completing its enrolment round-trip, so this records the instant it was proven rather than inventing one. NO destination is backfilled: a number that was once typed into a step-up request body was never proven to belong to the account, so every existing user is left UNENROLLED and every step-up-dependent mutation fails closed for them with the stable STEP_UP_ENROLLMENT_REQUIRED denial until they enrol through the Settings -> Security surface.",
+      "rollbackDisposition": "ROLL_FORWARD — the added columns are nullable or defaulted and the added constraints/indexes are DROPpable by hand, so an older build could be restored without data loss. The enum values cannot be removed, which is inert: no old code reads them.",
+      "ownerAction": "Apply WITH the API deploy, not before it. mfa_factors_active_is_verified_chk requires verified_at_utc on any ACTIVE row, and the currently deployed build does not stamp it — a TOTP enrolment completing against the old code after this migration lands would be refused by the constraint."
     }
   }
 }

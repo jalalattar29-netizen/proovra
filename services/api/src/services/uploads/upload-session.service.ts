@@ -867,11 +867,67 @@ export type AbortSessionInput = {
   reason: string;
 };
 
+/** Readability shim — an empty result set is the only failure this read has. */
+function rows0Empty(rows: unknown[]): boolean {
+  return rows.length === 0;
+}
+
 export async function abortUploadSession(
   input: AbortSessionInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<{ ok: true; session: UploadSessionRow } | { ok: false; reason: UploadSessionDenialCode }> {
   try {
+    // PHASE 13 §4 (2026-08-17) — A SESSION ABORT NOW CANCELS THE STORAGE
+    // MULTIPART TOO, so it is sufficient on its own.
+    //
+    // The web client cancels in two legs — `multipart/abort` then
+    // `sessions/:id/abort` — and the server was relying on the client to send
+    // both. It does not always: the capture page initiates the multipart itself,
+    // outside the uploader, and the uploader's "did I initiate" flag tracks only
+    // its own call, so a cancel inside that window skipped the multipart leg
+    // entirely. The S3 upload then stayed live, holding — and billing for — its
+    // uploaded parts, with the session row marked ABORTED.
+    //
+    // A server-side lifecycle must not depend on a client remembering the order
+    // of its own requests. When the session row records an upload id and storage
+    // has not already been settled, this delegates to `abortStorageMultipart`,
+    // which is the ONE implementation of "cancel at storage, then close the row"
+    // and emits the single audit event for the cancel. Its result is re-read and
+    // projected below.
+    const withMultipart = await loadSessionWithMultipart(
+      client,
+      input.teamId,
+      input.sessionId,
+    );
+    if (
+      withMultipart &&
+      withMultipart.multipart_upload_id &&
+      !withMultipart.aborted_at_storage_utc &&
+      withMultipart.state !== "COMPLETED"
+    ) {
+      const storage = await abortStorageMultipart(input, client);
+      if (!storage.ok) {
+        // Storage refused. The row is deliberately left non-terminal: a session
+        // marked ABORTED over a multipart that is still live is exactly the
+        // orphan this change exists to prevent, and the caller may retry.
+        return { ok: false, reason: "service_unavailable" };
+      }
+      const after = (await client.$queryRawUnsafe(
+        `SELECT "id", "team_id", "evidence_id", "actor_user_id", "state",
+                "expected_part_count", "expected_total_bytes", "expected_sha256",
+                "safe_note", "idempotency_key", "expires_at_utc",
+                "completed_at_utc", "aborted_at_utc", "aborted_by_user_id",
+                "abort_reason", "created_at_utc", "updated_at_utc"
+           FROM "evidence_upload_sessions"
+          WHERE "id" = $1 AND "team_id" = $2
+          LIMIT 1`,
+        input.sessionId,
+        input.teamId,
+      )) as RawSession[];
+      if (rows0Empty(after)) return { ok: false, reason: "session_already_terminal" };
+      return { ok: true, session: projectSession(after[0]!) };
+    }
+
     const rows = (await client.$queryRawUnsafe(
       `UPDATE "evidence_upload_sessions"
          SET "state" = 'ABORTED',
@@ -893,6 +949,43 @@ export async function abortUploadSession(
       input.reason.slice(0, 120),
     )) as RawSession[];
     if (rows.length === 0) {
+      /**
+       * PHASE 13 (NEW-079) — EXISTENCE BEFORE STATE. TWO CAUSES, TWO ANSWERS.
+       *
+       * The conditional UPDATE above affects zero rows for two entirely
+       * different reasons, and this branch used to collapse them into one:
+       *
+       *   (a) there is no such session FOR THIS TENANT — it belongs to somebody
+       *       else, or it does not exist at all;
+       *   (b) the session is this tenant's and is already terminal.
+       *
+       * Answering `session_already_terminal` (409) in case (a) asserts the
+       * LIFECYCLE STATE of a row the caller is not allowed to know exists. A
+       * stranger who guessed or copied a session id learned that it is real and
+       * that it has reached a terminal state — from a route that had already
+       * refused them nothing, because `authorizeOrFail` only established their
+       * rights over the team id THEY supplied, never over the session.
+       *
+       * The sibling route gets this right and is the contract to match:
+       * `/multipart/abort` resolves the session through
+       * `loadSessionWithMultipart(client, teamId, sessionId)` and answers
+       * `session_not_found` → 404 with `sendDenial`'s bounded anti-enumeration
+       * body, so "not yours" and "no such thing" are indistinguishable. This now
+       * does the same, using the same tenant-scoped lookup.
+       *
+       * Case (b) still answers 409, because for the legitimate owner "already
+       * terminal" is the honest and useful answer — and it is what makes a
+       * repeated cancellation idempotent rather than a 404. No other denial
+       * mapping changes.
+       */
+      const existsForTenant = await loadSessionWithMultipart(
+        client,
+        input.teamId,
+        input.sessionId,
+      );
+      if (!existsForTenant) {
+        return { ok: false, reason: "session_not_found" };
+      }
       return { ok: false, reason: "session_already_terminal" };
     }
     bump("upload_session_aborted_total");
@@ -917,19 +1010,47 @@ export async function abortUploadSession(
 // =============================================================================
 
 /**
- * Mark sessions that have expired without completing. Returns the
- * count of rows flipped. Best-effort — failures bump a metric.
+ * Mark sessions that have expired without completing. Returns the count of rows
+ * flipped. Best-effort — failures bump a metric.
+ *
+ * PHASE 13 §4 (2026-08-17) — BOUNDED, and armed.
+ *
+ * It is now called from `runMasterReconcile` (POST /v1/ops/reconcile), which
+ * already runs its sibling `reapStaleMultipartUploads` from this same module:
+ * that one releases the S3-side multipart uploads, this one closes the
+ * database-side session rows, and having one of the pair armed and the other not
+ * is how a session ends up with its storage released and its row still claiming
+ * to be UPLOADING.
+ *
+ * The statement was previously unbounded — a single UPDATE over every expired
+ * row in the table. Every other sweep on that reconcile tick takes a bounded
+ * batch, and for good reason: the first tick after an outage is exactly when the
+ * backlog is largest and exactly when a long-running write over a hot table is
+ * least affordable. It now updates at most `limit` rows per call, selected by
+ * the oldest expiry first, and the caller ticks again. The state predicate is
+ * unchanged and stays in the WHERE, so a session that completed between the
+ * select and the update is not clobbered.
  */
+export const UPLOAD_SESSION_REAP_BATCH = 200;
+
 export async function reapStaleUploadSessions(
   client: PrismaClient = defaultPrisma,
+  limit: number = UPLOAD_SESSION_REAP_BATCH,
 ): Promise<{ reaped: number }> {
   try {
+    const bounded = Math.max(1, Math.min(limit, 1000));
     const result = await client.$executeRawUnsafe(
       `UPDATE "evidence_upload_sessions"
          SET "state" = 'EXPIRED',
              "updated_at_utc" = NOW()
-         WHERE "state" IN ('INITIATED', 'UPLOADING', 'VERIFYING')
-           AND "expires_at_utc" < NOW()`,
+       WHERE "id" IN (
+         SELECT "id" FROM "evidence_upload_sessions"
+          WHERE "state" IN ('INITIATED', 'UPLOADING', 'VERIFYING')
+            AND "expires_at_utc" < NOW()
+          ORDER BY "expires_at_utc" ASC
+          LIMIT ${bounded}
+       )
+         AND "state" IN ('INITIATED', 'UPLOADING', 'VERIFYING')`,
     );
     bump("upload_session_expired_total");
     return { reaped: typeof result === "number" ? result : 0 };
@@ -1277,10 +1398,22 @@ export type InitiateStorageMultipartResult =
     };
 
 /**
- * Bind a Phase 30 session to a real S3 multipart upload. Idempotent:
- * a session that already has `multipart_upload_id` set returns
- * `multipart_already_initiated` so the caller knows not to create a
- * second S3 transaction.
+ * Bind a Phase 30 session to a real S3 multipart upload.
+ *
+ * IDEMPOTENT, AND IT SUCCEEDS ON THE RE-CALL. A session that already has a
+ * `multipart_upload_id` returns `{ ok: true, ... }` carrying the EXISTING
+ * storage location — it does not create a second S3 transaction, and it does not
+ * refuse.
+ *
+ * PHASE 13 §4 (2026-08-17) — this docblock previously said the re-call returned
+ * `multipart_already_initiated`. It never did, and the difference is not
+ * cosmetic: the capture page initiates the multipart itself and then hands the
+ * session to an uploader that initiates again, so the second call happens on the
+ * ordinary path. Returning ok with the existing location is what makes that
+ * harmless — the caller resumes part presigns against the upload that already
+ * exists. A denial would have broken the capture flow, and a reader trusting the
+ * old comment would have "fixed" the caller to handle a code the function does
+ * not emit.
  */
 export async function initiateStorageMultipart(
   input: InitiateStorageMultipartInput,
@@ -1816,10 +1949,28 @@ export type AbortStorageMultipartResult =
     };
 
 /**
- * Cancel a multipart upload at the storage layer and mark the
- * session ABORTED. Idempotent: a session that is already ABORTED
- * just calls S3 abort once more (S3 NoSuchUpload → success) and
- * returns the existing terminal state.
+ * Cancel a multipart upload at the storage layer and mark the session ABORTED.
+ * Idempotent: a session that is already ABORTED just calls S3 abort once more
+ * (S3 NoSuchUpload → success) and returns the existing terminal state.
+ *
+ * PHASE 13 §4 (2026-08-17) — IT NOW EMITS THE CANCEL AUDIT EVENT WHEN IT IS THE
+ * LEG THAT CLOSES THE SESSION.
+ *
+ * The two cancel legs ran in a fixed order — `multipart/abort` first, then
+ * `sessions/:id/abort` — and only the second one emitted
+ * `upload_session_aborted`. But the first one had already written
+ * `state = 'ABORTED'`, and the second leg's guarded UPDATE excludes ABORTED, so
+ * it matched no row, returned `session_already_terminal`, and never reached its
+ * audit emission or its metric. The consequence in an evidence-custody product
+ * was that "who cancelled this upload, and when" could not be answered from the
+ * audit log for ANY multipart cancel, and `upload_session_aborted_total`
+ * under-counted every one of them.
+ *
+ * The emission is bound to the CLAIM rather than to the leg: the transition to
+ * ABORTED is a guarded UPDATE that excludes ABORTED and returns its affected
+ * row, so whichever leg wins performs the write and emits, the loser writes and
+ * emits nothing, and a repeated cancel produces no second event. Exactly one
+ * audit row and one metric increment per cancel, on every path.
  */
 export async function abortStorageMultipart(
   input: AbortStorageMultipartInput,
@@ -1857,7 +2008,10 @@ export async function abortStorageMultipart(
     }
     alreadyAbsent = result.alreadyAbsent;
   }
-  await client.$executeRawUnsafe(
+  // THE CLAIM. `state NOT IN ('COMPLETED','EXPIRED','ABORTED')` is what makes
+  // this a claim rather than an overwrite: exactly one caller can move the
+  // session into ABORTED, and only that caller emits below.
+  const claimed = (await client.$queryRawUnsafe(
     `UPDATE "evidence_upload_sessions"
        SET "state" = 'ABORTED',
            "aborted_at_utc" = COALESCE("aborted_at_utc", NOW()),
@@ -1866,12 +2020,39 @@ export async function abortStorageMultipart(
            "aborted_at_storage_utc" = NOW(),
            "updated_at_utc" = NOW()
        WHERE "id" = $1 AND "team_id" = $2
-         AND "state" NOT IN ('COMPLETED', 'EXPIRED')`,
+         AND "state" NOT IN ('COMPLETED', 'EXPIRED', 'ABORTED')
+       RETURNING "id"`,
     input.sessionId,
     input.teamId,
     input.actorUserId,
     input.reason.slice(0, 120),
-  );
+  )) as Array<{ id: string }>;
+
+  if (claimed.length > 0) {
+    bump("upload_session_aborted_total");
+    safeEmitSecurityEvent({
+      teamId: input.teamId,
+      eventType: "upload_session_aborted",
+      severity: "INFO",
+      details: {
+        sessionId: input.sessionId,
+        actorUserId: input.actorUserId,
+        reason: input.reason.slice(0, 120),
+      },
+    });
+  } else {
+    // Already ABORTED by the other leg or an earlier attempt. No second audit
+    // row — but the storage settlement stamp must still land, or the reaper
+    // will keep re-selecting a multipart that is already gone.
+    await client.$executeRawUnsafe(
+      `UPDATE "evidence_upload_sessions"
+         SET "aborted_at_storage_utc" = COALESCE("aborted_at_storage_utc", NOW()),
+             "updated_at_utc" = NOW()
+         WHERE "id" = $1 AND "team_id" = $2 AND "state" = 'ABORTED'`,
+      input.sessionId,
+      input.teamId,
+    );
+  }
   bump("multipart_aborted_total");
   return { ok: true, alreadyAbsent };
 }
@@ -1887,11 +2068,27 @@ export type ReapStaleMultipartResult = {
 };
 
 /**
- * Sweep sessions that have a live S3 multipart upload but have
- * expired without reaching storage-complete or storage-abort. For
- * each, call S3 AbortMultipartUpload + mark the session EXPIRED.
- * Tolerant of S3 NoSuchUpload (already gone) — that's the idempotent
- * success case.
+ * Sweep sessions that hold a live S3 multipart upload which was never settled —
+ * neither storage-completed nor storage-aborted. For each, call S3
+ * AbortMultipartUpload and stamp the settlement. Tolerant of S3 NoSuchUpload
+ * (already gone) — that is the idempotent success case.
+ *
+ * PHASE 13 §4 (2026-08-17) — TWO CORRECTIONS, both about which rows it can see
+ * and what it is allowed to do to them.
+ *
+ *   1. It selected only sessions past `expires_at_utc`. A session ABORTED with a
+ *      live multipart is not expired and never becomes so — the abort is
+ *      terminal — so an orphaned upload created by a cancel that missed the
+ *      storage leg was invisible to the only thing that could collect it, and
+ *      stayed billed indefinitely. The predicate now also admits ABORTED rows
+ *      whose storage settlement is missing, which is precisely that case.
+ *
+ *   2. It wrote `state = 'EXPIRED'` unconditionally. Applied to the rows just
+ *      admitted that would REWRITE a deliberate operator cancel as an expiry,
+ *      destroying `aborted_by_user_id` and `abort_reason` as the account of what
+ *      happened. The state is now advanced only for a row that has not already
+ *      reached a terminal state; a terminal row keeps its own, and only the
+ *      storage settlement stamp is written.
  */
 export async function reapStaleMultipartUploads(
   client: PrismaClient = defaultPrisma,
@@ -1913,7 +2110,7 @@ export async function reapStaleMultipartUploads(
          WHERE "multipart_upload_id" IS NOT NULL
            AND "completed_at_storage_utc" IS NULL
            AND "aborted_at_storage_utc" IS NULL
-           AND "expires_at_utc" < NOW()
+           AND ("expires_at_utc" < NOW() OR "state" = 'ABORTED')
          LIMIT 100`,
     )) as Array<{
       id: string;
@@ -1940,7 +2137,10 @@ export async function reapStaleMultipartUploads(
     try {
       await client.$executeRawUnsafe(
         `UPDATE "evidence_upload_sessions"
-           SET "state" = 'EXPIRED',
+           SET "state" = CASE
+                 WHEN "state" IN ('ABORTED', 'COMPLETED', 'EXPIRED') THEN "state"
+                 ELSE 'EXPIRED'
+               END,
                "aborted_at_storage_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE "id" = $1 AND "team_id" = $2`,

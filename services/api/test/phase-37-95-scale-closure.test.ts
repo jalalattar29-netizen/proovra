@@ -281,7 +281,11 @@ describe("Phase 37.95 — legacy context field non-regression", () => {
       for (const file of all) {
         const normalized = file.replace(/\\/g, "/");
         if (ALLOW.some((re) => re.test(normalized))) continue;
-        const src = readFileSync(file, "utf8");
+        // A legacy field NAMED in a doc comment is not a consumer of it.
+        // `SurfaceGate.tsx` documents the NEW-070 refresh rule by writing the
+        // expression the rule is about, and counting that sentence as new code
+        // would send a future PR to rewrite a comment instead of a call site.
+        const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
         if (pattern.test(src)) {
           offenders.push(normalized);
         }

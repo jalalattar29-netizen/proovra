@@ -39,6 +39,12 @@ import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// PHASE1-001 — the ONE shared-secret authority (constant-time compare plus the
+// 16-character floor). See `assertSeedingSecret` below.
+import {
+  cronSecretMatches,
+  readCronSecretFromEnvs,
+} from "../../middleware/cron-secret.js";
 import { bump } from "./metrics.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { ensureReviewWorkflow } from "../review-operations/review-operations.service.js";
@@ -164,13 +170,35 @@ export function assertSeedingEnabled(): void {
   }
 }
 
+/**
+ * PHASE1-001 (2026-08-16) — a fourth machine-secret authority, found by
+ * searching for siblings of FINAL-003.
+ *
+ * FINAL-003 was two reconcile endpoints each comparing `x-cron-secret` with a
+ * raw `!==` on the untrimmed string and accepting a secret of any length. This
+ * was the same defect in a third place: `OPERATIONAL_SEEDING_SECRET` compared
+ * with `!==`, and — the part that actually matters — with NO minimum length, so
+ * a two-character seeding secret was honoured here while the canonical
+ * authority would have refused it as unusable.
+ *
+ * It is behind five other gates (session auth, team membership,
+ * `identity.member.admin`, `OPERATIONAL_SEEDING_ENABLED`, and a separate
+ * production opt-in), and the surface is not even mounted unless seeding is
+ * enabled — so this is defence-in-depth rather than an open door. It is fixed
+ * anyway, because "the other four gates held" is the argument that stops being
+ * true exactly once.
+ *
+ * The comparison and the 16-character floor are now the canonical primitive's,
+ * so this function decides only WHICH variable names the secret. A secret below
+ * the floor now reports NOT_CONFIGURED rather than being accepted: refusing to
+ * run on a secret too weak to protect anything is the fail-closed answer.
+ */
 export function assertSeedingSecret(presented: string | null | undefined): void {
-  const expected = (process.env.OPERATIONAL_SEEDING_SECRET ?? "").trim();
-  if (!expected) {
+  const expected = readCronSecretFromEnvs(["OPERATIONAL_SEEDING_SECRET"]);
+  if (expected === null) {
     throw new OperationalSeedError("SEEDING_SECRET_NOT_CONFIGURED");
   }
-  const got = typeof presented === "string" ? presented.trim() : "";
-  if (got !== expected) {
+  if (!cronSecretMatches(expected, presented)) {
     throw new OperationalSeedError("SEEDING_SECRET_INVALID");
   }
 }

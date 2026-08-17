@@ -517,6 +517,19 @@ export async function organizationsRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         organizationId: orgId,
         summary: { totalMembers: memberships.length },
+        // PHASE 13 §1 — NEW-031. The query above selects the whole lifecycle
+        // and the comment beside it says "the status travels with each row so
+        // the surface can render it" — but the projection dropped all six
+        // fields. The roster therefore could not tell an ACTIVE member from a
+        // SUSPENDED or REVOKED one, and the console's own lifecycle controls
+        // had to offer BOTH Suspend and Restore on every row and let the server
+        // answer 409 to discover which one applied. A 409 is not a way to find
+        // out what a button does.
+        //
+        // Only the fields the authorized administrator needs to act are
+        // projected: the state, when it changed, and the operator-supplied
+        // reason. No internal audit object is exposed, and dates use the same
+        // ISO-8601 convention as `memberSince` directly above.
         members: memberships.map((m) => ({
           membershipId: m.id,
           userId: m.userId,
@@ -524,6 +537,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
           displayName: m.user.displayName,
           role: m.role,
           memberSince: m.createdAt.toISOString(),
+          status: m.status,
+          statusChangedAtUtc: m.statusChangedAtUtc?.toISOString() ?? null,
+          suspendedAtUtc: m.suspendedAtUtc?.toISOString() ?? null,
+          suspensionReason: m.suspensionReason ?? null,
+          revokedAtUtc: m.revokedAtUtc?.toISOString() ?? null,
+          revocationReason: m.revocationReason ?? null,
         })),
       });
     },
@@ -2088,8 +2107,22 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
+        // PHASE 13 §1.4 (NEW-024) — the caller lookup was STATUS-BLIND.
+        //
+        // It matched on `organizationId + userId + role: "ORG_OWNER"` only, so
+        // a SUSPENDED or REVOKED organization owner kept the ability to
+        // transfer ORGANIZATION OWNERSHIP — the single most consequential
+        // membership mutation there is, and the one action that would let a
+        // revoked owner re-establish control through another account.
+        //
+        // Every sibling org-admin lookup in this file already carries
+        // `status: "ACTIVE"` (the ORG_OWNER checks guarding member removal and
+        // role changes), so this was an inconsistency rather than a deliberate
+        // exemption. The step-up proof above is a SECOND FACTOR, not a
+        // lifecycle check: a suspended owner still holds their own credentials
+        // and passes it.
         const caller = await tx.organizationMembership.findFirst({
-          where: { organizationId: orgId, userId, role: "ORG_OWNER" },
+          where: { organizationId: orgId, userId, role: "ORG_OWNER", status: "ACTIVE" },
           select: { id: true },
         });
         if (!caller) return { kind: "owner_required" as const };

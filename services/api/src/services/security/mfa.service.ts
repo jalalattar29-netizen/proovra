@@ -64,6 +64,46 @@ function sanitizeLabel(raw: string | null | undefined): string {
  * persists an ENROLLING factor with the sealed secret, and returns
  * the otpauth URI + Base32 secret for one-time display.
  */
+/**
+ * PHASE 13 (NEW-058) — the TOTP payload, asserted rather than assumed.
+ *
+ * The secret columns became NULLABLE when `mfa_factors` grew contact-factor
+ * kinds (SMS / WHATSAPP), which have no shared secret. The database CHECK
+ * `mfa_factors_kind_payload_chk` still guarantees that a TOTP row carries all
+ * four — so this is not a possibility the runtime has to handle, it is an
+ * invariant the compiler can no longer see.
+ *
+ * It is a THROW rather than a fallback on purpose: a TOTP factor with no
+ * secret cannot verify anything, and silently treating it as a failed code
+ * would report "wrong code" for a corrupted row and send the user round a
+ * loop they cannot exit.
+ */
+function requireTotpSecret(factor: {
+  id: string;
+  secretCiphertext: Uint8Array | null;
+  secretIv: Uint8Array | null;
+  secretAuthTag: Uint8Array | null;
+  secretKekId: string | null;
+}): { ciphertext: Uint8Array; iv: Uint8Array; authTag: Uint8Array; kekId: string } {
+  if (
+    !factor.secretCiphertext ||
+    !factor.secretIv ||
+    !factor.secretAuthTag ||
+    !factor.secretKekId
+  ) {
+    throw new Error(
+      `mfa: TOTP factor ${factor.id} carries no sealed secret — the ` +
+        "kind/payload invariant is broken",
+    );
+  }
+  return {
+    ciphertext: factor.secretCiphertext,
+    iv: factor.secretIv,
+    authTag: factor.secretAuthTag,
+    kekId: factor.secretKekId,
+  };
+}
+
 export async function beginTotpEnrollment(input: {
   userId: string;
   accountName: string;
@@ -154,12 +194,7 @@ export async function verifyAndActivateEnrollment(input: {
     return { ok: false, reason: "factor_not_enrolling" };
   }
 
-  const secret = openSecret({
-    ciphertext: factor.secretCiphertext,
-    iv: factor.secretIv,
-    authTag: factor.secretAuthTag,
-    kekId: factor.secretKekId,
-  });
+  const secret = openSecret(requireTotpSecret(factor));
 
   if (!verifyTotpCode(secret, input.code)) {
     safeEmitSecurityEvent({
@@ -195,7 +230,40 @@ export async function verifyAndActivateEnrollment(input: {
   await prisma.$transaction([
     prisma.mfaFactor.update({
       where: { id: factor.id },
-      data: { status: "ACTIVE", enrolledAt: now, lastUsedAt: now },
+      /**
+       * PHASE 13 (NEW-072) — STAMP `verifiedAtUtc` WITH THE ACTIVATION.
+       *
+       * NEW-058 added a database CHECK on `mfa_factors`:
+       *
+       *   status <> 'ACTIVE' OR verified_at_utc IS NOT NULL
+       *
+       * — "`status = ACTIVE` with a null `verified_at_utc` is the contradiction
+       * that would let an unverified enrolment authorise an elevation. The
+       * database refuses it rather than relying on every writer to remember."
+       * The CONTACT-factor writer was taught to stamp it; this one, the TOTP
+       * enrolment writer, was not. So the database did exactly what it promised
+       * and refused the row, and `POST /v1/identity/mfa/enroll/verify` answered
+       * `500 INTERNAL_SERVER_ERROR` on EVERY call:
+       *
+       *   DriverAdapterError: new row for relation "mfa_factors" violates check
+       *   constraint "mfa_factors_active_is_verified_chk"
+       *
+       * TOTP enrolment could therefore not be completed by anyone, which means
+       * an account could not add an authenticator at all — a security feature
+       * that cannot be switched on. It also meant every step-up path depending
+       * on an enrolled TOTP factor was unreachable.
+       *
+       * `now` is the honest value: `verifyTotpCode` has just succeeded a few
+       * lines above, so this instant IS when the factor was verified. Nothing
+       * about the constraint or the activation semantics is relaxed — the
+       * missing write is supplied.
+       */
+      data: {
+        status: "ACTIVE",
+        enrolledAt: now,
+        lastUsedAt: now,
+        verifiedAtUtc: now,
+      },
     }),
     prisma.mfaRecoveryCode.createMany({ data: recoveryRows }),
   ]);
@@ -222,6 +290,30 @@ export async function verifyAndActivateEnrollment(input: {
       context: "enrollment",
     },
   });
+
+  // PHASE 13 §4 (2026-08-17) — this IS the recovery-completion path.
+  //
+  // An approved MFA recovery request does not hand the user a credential; it
+  // revokes their factors and entitles them to enrol again. Successful
+  // enrolment is therefore the exact moment the entitlement has been spent, and
+  // the request must reach its terminal state here or nowhere. `markRecovery-
+  // Completed` claims each APPROVED row conditionally, so this call is a no-op
+  // for the overwhelmingly common case (an ordinary enrolment with no recovery
+  // in flight) and is safe to repeat.
+  //
+  // Deliberately AFTER the transaction and outside it: the factor is the thing
+  // that must be durable, and a failure to close the recovery row must never
+  // roll back an enrolment the user has already been shown recovery codes for.
+  // The dynamic import keeps the dependency one-way — the recovery module
+  // already imports this one's revocation helpers.
+  try {
+    const { markRecoveryCompleted } = await import(
+      "./mfa-recovery-request.service.js"
+    );
+    await markRecoveryCompleted({ userId: input.userId });
+  } catch {
+    /* never blocks a completed enrolment */
+  }
 
   return { ok: true, factorId: factor.id, recoveryCodes };
 }
@@ -250,12 +342,7 @@ export async function verifyActiveTotp(input: {
     });
     return { ok: false, factorId: null };
   }
-  const secret = openSecret({
-    ciphertext: factor.secretCiphertext,
-    iv: factor.secretIv,
-    authTag: factor.secretAuthTag,
-    kekId: factor.secretKekId,
-  });
+  const secret = openSecret(requireTotpSecret(factor));
   const ok = verifyTotpCode(secret, input.code);
   if (ok) {
     await prisma.mfaFactor.update({
@@ -764,28 +851,20 @@ export async function recordPendingChallengeFailure(
   }
 }
 
-/**
- * Admin-callable sweep. Returns the number of rows deleted. Bounded
- * by the same batch size as the opportunistic GC; the caller may
- * loop. Documented in `docs/security/R8_1_3_*.md`.
- */
-export async function sweepExpiredPendingChallenges(): Promise<number> {
-  const cutoff = new Date(
-    Date.now() - MFA_PENDING_CHALLENGE_RETENTION_SECONDS * 1000,
-  );
-  const stale = await prisma.mfaPendingChallenge.findMany({
-    where: {
-      OR: [
-        { consumedAt: { not: null, lt: cutoff } },
-        { expiresAt: { lt: cutoff } },
-      ],
-    },
-    select: { id: true },
-    take: MFA_PENDING_CHALLENGE_GC_BATCH,
-  });
-  if (stale.length === 0) return 0;
-  const r = await prisma.mfaPendingChallenge.deleteMany({
-    where: { id: { in: stale.map((row) => row.id) } },
-  });
-  return r.count;
-}
+// PHASE 13 §4 (2026-08-17) — `sweepExpiredPendingChallenges` was REMOVED here.
+//
+// It was described as an "admin-callable sweep" and was callable by nobody: no
+// route, no CLI, no scheduler ever reached it, and R8.1.3's own risk register
+// records the ops endpoint that would have called it as deferred. Meanwhile the
+// scheduled coverage it was waiting for had already shipped somewhere else —
+// `services/worker/src/mfa-challenge-gc.ts` runs the SAME two-step bounded
+// delete (`consumedAt < cutoff OR expiresAt < cutoff`, select ids, delete by
+// id) on the same one-hour retention, armed every fifteen minutes from
+// `services/worker/src/index.ts` via `startMfaChallengeGcScheduler`.
+//
+// So this was not an unwired capability; it was a second implementation of a
+// live one, and the two had already drifted — the worker drains 200 rows a tick
+// and this drained 50, while its comment claimed the constants matched. The
+// worker GC is the single sweep authority. `gcStalePendingChallenges` below
+// stays: that is the opportunistic in-request GC, a different mechanism, and it
+// is reached on every create/consume.

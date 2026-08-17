@@ -59,6 +59,8 @@ import {
   updateExternalEvidencePartMapping,
 } from "../services/external-intake-orchestration.service.js";
 import { prisma } from "../db.js";
+// PHASE1-003 — the one trusted-client-IP binding; see `clientIp` below.
+import { trustedClientIpKey } from "../middleware/client-ip.js";
 
 // -----------------------------------------------------------------------------
 // Schemas
@@ -154,13 +156,23 @@ const SubmitBody = z
 const PUBLIC_INTAKE_RATE_LIMIT_PER_IP_PER_MIN = 30;
 const PUBLIC_INTAKE_RATE_LIMIT_PER_TOKEN_PER_MIN = 20;
 
+/**
+ * PHASE1-003 (2026-08-16) — the sibling of PHASE1-002, on the surface whose
+ * design the citizen-intake limiter was copied FROM.
+ *
+ * This read `x-forwarded-for` unconditionally and keyed the per-IP limiter on
+ * it. `API_TRUST_PROXY` is unset by default, so on that deployment the header
+ * is attacker-supplied: a different value per request produced a different
+ * bucket per request, and the per-IP bound on this unauthenticated public
+ * intake surface did nothing. The per-token bound below still held, which is
+ * why the surface was not wide open — but the layer meant to stop a single
+ * client hammering every intake link was absent in effect while present in
+ * source.
+ *
+ * Both intake surfaces now derive the address from the one canonical authority.
+ */
 function clientIp(req: FastifyRequest): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  const value = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.split(",")[0]?.trim() ?? req.ip;
-  }
-  return req.ip ?? "unknown";
+  return trustedClientIpKey(req);
 }
 
 async function applyRateLimits(

@@ -250,14 +250,19 @@ describe("billing-enforcement guards (API)", () => {
 // ──────────────────────────────────────────────────────────────────────
 // 5. Enterprise gate Fastify preHandler exists
 // ──────────────────────────────────────────────────────────────────────
-describe("enterprise feature gate middleware (API)", () => {
-  const text = read(API_ENTERPRISE_MIDDLEWARE);
-  it("exports requireEnterpriseFeature(feature)", () => {
-    expect(text).toContain("export function requireEnterpriseFeature");
-  });
-  it("returns 402 ENTERPRISE_FEATURE_REQUIRED on denial", () => {
-    expect(text).toContain("ENTERPRISE_FEATURE_REQUIRED");
-    expect(text).toContain("402");
+// LEGACY-003 (2026-08-15) — `src/middleware/require-enterprise-feature.ts` was
+// REMOVED and these two assertions retired with it. It was a SECOND
+// enterprise-entitlement gate with zero importers: `billing-enforcement.service`
+// is the live one and every route uses it. Asserting the export shape and the
+// 402 code of a middleware no route installs described a control that could not
+// fire; the entitlement denials that DO fire are asserted elsewhere in this
+// file against the live enforcement path.
+describe("enterprise feature gate middleware (API) — removed", () => {
+  it("the parallel enterprise gate stays removed", () => {
+    expect(
+      existsSync(API_ENTERPRISE_MIDDLEWARE),
+      "require-enterprise-feature.ts is REMOVED (LEGACY-003) and must not return",
+    ).toBe(false);
   });
 });
 
@@ -422,11 +427,36 @@ describe("enterprise feature route gates", () => {
   it("SAML admin routes gate via the shared connection resolver", () => {
     const text = read(API_SAML_ROUTES);
     expect(text).toContain("resolveSamlConnectionEnterpriseGate");
-    // Each of the 4 admin handlers must call the gate.
-    const callMatches =
-      text.match(/await resolveSamlConnectionEnterpriseGate\(connectionId\)/g) ??
-      [];
-    expect(callMatches.length).toBeGreaterThanOrEqual(4);
+
+    // PHASE 13 §1.2 — this used to require FOUR inline `await
+    // resolveSamlConnectionEnterpriseGate(connectionId)` calls, one per admin
+    // handler. That was counting COPIES of a decision, and the copies were the
+    // problem: each handler also ordered the gate ahead of its authorization
+    // check, so an outsider could read another workspace's plan (402) and tell
+    // it apart from an absent connection (404).
+    //
+    // The four copies are now ONE call inside `authorizeSamlOperator`, which
+    // every admin handler routes through. So the property to assert is that all
+    // four handlers reach the gate — not that they each write it out.
+    const gateCalls =
+      text.match(/await resolveSamlConnectionEnterpriseGate\(connectionId\)/g) ?? [];
+    expect(gateCalls.length).toBeGreaterThanOrEqual(1);
+    const authzCalls =
+      text.match(/await authorizeSamlOperator\(req, connectionId\)/g) ?? [];
+    expect(
+      authzCalls.length,
+      "each of the four SAML admin handlers must route through the single authority",
+    ).toBeGreaterThanOrEqual(4);
+    // And the authority must consult the gate AFTER establishing membership,
+    // so the plan is never readable by someone outside the workspace.
+    const authorityBody = text.slice(
+      text.indexOf("async function authorizeSamlOperator"),
+      text.indexOf("Builds the ACS (AssertionConsumerService) URL"),
+    );
+    expect(authorityBody.indexOf("teamMember.findFirst")).toBeGreaterThan(0);
+    expect(authorityBody.indexOf("resolveSamlConnectionEnterpriseGate")).toBeGreaterThan(
+      authorityBody.indexOf("teamMember.findFirst"),
+    );
     // The gate definition lives in the shared service, NOT in saml-auth.routes.ts.
     const sharedResolver = read(
       resolve(API_ROOT, "src/services/enterprise-gate-resolvers.service.ts"),

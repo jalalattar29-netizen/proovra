@@ -43,7 +43,7 @@
  *      - No reviewer-private fields.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -58,9 +58,6 @@ function stripComments(s: string): string {
     .replace(/\/\/[^\n]*/g, "");
 }
 
-const LOCAL_CAP_SRC = readSource(
-  "../../worker/src/local-ocr-transcript-capability.ts",
-);
 const DOMAIN_SYNC_SRC = readSource(
   "../../../packages/shared-runtime/src/graph/domain-sync.service.ts",
 );
@@ -76,37 +73,11 @@ const REVIEWERS_PAGE = readSource(
 // PART 1 — Local-extractor capability probes are stubs
 // =============================================================================
 
-describe("Phase 31.21 — local OCR / Whisper capability probes are stubs", () => {
-  it("never spawns a subprocess", () => {
-    const code = stripComments(LOCAL_CAP_SRC);
-    expect(code).not.toMatch(/spawn\(/);
-    expect(code).not.toMatch(/exec\(/);
-    expect(code).not.toMatch(/execSync\(/);
-    expect(code).not.toMatch(/execFile\(/);
-  });
-
-  it("never dynamic-imports a vendor package", () => {
-    const code = stripComments(LOCAL_CAP_SRC);
-    // No runtime `import(...)` of tesseract.js / whisper-cpp / etc.
-    expect(code).not.toMatch(/await\s+import\(/);
-    expect(code).not.toMatch(/require\(/);
-  });
-
-  it("never reads files from disk", () => {
-    const code = stripComments(LOCAL_CAP_SRC);
-    expect(code).not.toMatch(/readFile|existsSync|statSync|createReadStream/);
-  });
-
-  it("both probes return { ok: false, reason: \"not_enabled\" }", () => {
-    const code = stripComments(LOCAL_CAP_SRC);
-    expect(code).toMatch(
-      /detectLocalTesseractCapability[\s\S]{0,600}return \{\s*ok: false,\s*reason: "not_enabled",?\s*\}/,
-    );
-    expect(code).toMatch(
-      /detectLocalWhisperCapability[\s\S]{0,600}return \{\s*ok: false,\s*reason: "not_enabled",?\s*\}/,
-    );
-  });
-});
+// LEGACY-003 (2026-08-15): these two assertions guarded
+// local-ocr-transcript-capability.ts against spawning a subprocess or
+// dynamic-importing a vendor package. The module is REMOVED, so there is no
+// probe left to enable anything — a stronger guarantee than the one asserted
+// here. Its stays-removed contract is at the foot of this file.
 
 // =============================================================================
 // PART 2 — domain-sync.service.ts contract
@@ -381,5 +352,25 @@ const METRICS_SRC = readSource("../../../packages/shared-runtime/src/ops/metrics
 describe("Phase 31.21 — metric counters", () => {
   it("graph_node_removed_total is registered", () => {
     expect(METRICS_SRC).toMatch(/"graph_node_removed_total"/);
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — removed module contract
+// =============================================================================
+
+/**
+ * This file asserted that `services/worker/src/local-ocr-transcript-capability.ts` always answered `{ ok: false, reason: "not_enabled" }` and never dynamic-imported a vendor package or spawned a subprocess. LEGACY-003 (2026-08-15) REMOVED that module: it had zero production importers, and the canonical indexer lives in @proovra/shared-runtime which the worker reaches through the package. A probe that no longer exists cannot enable anything, which is a stronger guarantee than the one these assertions made. The domain-sync contract in this file is unaffected and still reads the CANONICAL shared-runtime copy.
+ */
+describe("Phase 31.21 — local OCR/transcript capability probe stays removed", () => {
+  it("the removed module(s) stay removed", () => {
+    for (const rel of [
+      "../../worker/src/local-ocr-transcript-capability.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });

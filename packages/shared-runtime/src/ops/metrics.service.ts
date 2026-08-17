@@ -205,10 +205,16 @@ export const COUNTER_NAMES = [
   "capture_resumable_completed_total",
   "capture_resumable_failed_total",
   "capture_resumable_recovered_total",
-  // Phase 30.12 — unified manifest observability. Bumped by
-  // consumers that resolve materials via buildUnifiedEvidenceManifest.
-  "unified_manifest_materials_total",
-  "unified_manifest_mixed_evidence_total",
+  // Phase 30.12 registered two unified-manifest counters here (materials
+  // and mixed-evidence), bumped by the unified
+  // material manifest resolver. LEGACY-003 (2026-08-15) removed that
+  // resolver as an unreachable module, leaving these two as the only
+  // catalog entries with no bumper anywhere in the tree. A registered
+  // counter that can only ever report zero is worse than an absent one:
+  // it reads as "no mixed-evidence uploads occurred" rather than "nothing
+  // measures this". They are unregistered rather than left at a
+  // permanent zero. Nothing else referenced them — no dashboard, no
+  // route, no doc.
   // Phase 31 — Media intelligence advisory layer. The 6 counters
   // below carry the brief's full media-intelligence catalog. The
   // graph / timeline / derived-asset / lineage / similarity

@@ -1,0 +1,243 @@
+{
+  "$schema": "capability-authority/ui-capabilities@1",
+  "why": [
+    "The twenty-four product capabilities this programme BUILT a user surface",
+    "for, each bound to the browser scenario that proves a real Chromium",
+    "issued its request.",
+    "",
+    "It exists so that `BrowserVerifiedUiCapabilities` is a DERIVED number and",
+    "not a count of whatever happened to run. Without the binding, a journey",
+    "could be deleted and the total would simply get smaller; with it, the",
+    "denominator is fixed by what was built and the numerator is fixed by what",
+    "the Point-7 proof artifact actually recorded, so the two can disagree —",
+    "which is the only way the gate can fail.",
+    "",
+    "A row here is NOT a claim that the capability works. It names where the",
+    "capability lives and which scenario would have to have executed for it to",
+    "be credited. The credit itself comes from",
+    "`docs/architecture/point7-proven-scenarios.json`, written by the runner",
+    "and re-derived by the closure gate.",
+    "",
+    "Adding a UI capability means adding a row AND a scenario. Adding a row",
+    "alone lowers the verified fraction, which is the correct direction: the",
+    "capability exists and has not been proven."
+  ],
+  "entries": [
+    {
+      "capabilityId": "governance.policy_created",
+      "page": "/governance-platform/policies",
+      "control": "[data-governance-policy-submit]",
+      "method": "POST",
+      "path": "/v1/governance/policies",
+      "consumer": "apps/web/components/governance/GovernancePolicyForm.tsx",
+      "provingScenario": "p7.ui.governance.policy_created"
+    },
+    {
+      "capabilityId": "governance.access_review_campaign_created",
+      "page": "/governance-platform/access-reviews",
+      "control": "[data-access-review-campaign-submit]",
+      "method": "POST",
+      "path": "/v1/governance/access-reviews/campaigns",
+      "consumer": "apps/web/components/governance/AccessReviewCampaignForm.tsx",
+      "provingScenario": "p7.ui.governance.access_review_campaign_created"
+    },
+    {
+      "capabilityId": "governance.cross_org_invited",
+      "page": "/governance-platform/cross-org",
+      "control": "[data-cross-org-invite-submit]",
+      "method": "POST",
+      "path": "/v1/governance/cross-org-review",
+      "consumer": "apps/web/components/governance/CrossOrgReviewForms.tsx",
+      "provingScenario": "p7.ui.governance.cross_org_invited"
+    },
+    {
+      "capabilityId": "governance.cross_org_accepted",
+      "page": "/governance-platform/cross-org",
+      "control": "[data-cross-org-accept-submit]",
+      "method": "POST",
+      "path": "/v1/governance/cross-org-review/:id/accept",
+      "consumer": "apps/web/components/governance/CrossOrgReviewForms.tsx",
+      "provingScenario": "p7.ui.governance.cross_org_accepted"
+    },
+    {
+      "capabilityId": "governance.delegated_admin_granted",
+      "page": "/governance-platform/delegated-admin",
+      "control": "[data-delegated-admin-grant-submit]",
+      "method": "POST",
+      "path": "/v1/governance/delegated-admin",
+      "consumer": "apps/web/components/governance/DelegatedAdminGrantForm.tsx",
+      "provingScenario": "p7.ui.governance.delegated_admin_granted"
+    },
+    {
+      "capabilityId": "governance.destruction_review_opened",
+      "page": "/governance/destruction",
+      "control": "[data-destruction-review-submit]",
+      "method": "POST",
+      "path": "/v1/governance/destruction-reviews",
+      "consumer": "apps/web/components/governance/DestructionReviewForm.tsx",
+      "provingScenario": "p7.ui.governance.destruction_review_opened"
+    },
+    {
+      "capabilityId": "workspace.created",
+      "page": "/workspaces",
+      "control": "[data-testid=\"create-workspace-submit\"]",
+      "method": "POST",
+      "path": "/v1/teams",
+      "consumer": "apps/web/components/workspace-admin/CreateWorkspaceCard.tsx",
+      "provingScenario": "p7.ui.workspace.created"
+    },
+    {
+      "capabilityId": "workspace.closure_requested",
+      "page": "/teams/:id",
+      "control": "[data-action=\"request-workspace-closure\"]",
+      "method": "POST",
+      "path": "/v1/teams/:id/closure",
+      "consumer": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+      "provingScenario": "p7.ui.workspace.closure_requested"
+    },
+    {
+      "capabilityId": "workspace.closure_cancelled",
+      "page": "/teams/:id",
+      "control": "[data-action=\"cancel-workspace-closure\"]",
+      "method": "POST",
+      "path": "/v1/teams/:id/closure/:requestId/cancel",
+      "consumer": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+      "provingScenario": "p7.ui.workspace.closure_cancelled"
+    },
+    {
+      "capabilityId": "workspace.reopened",
+      "page": "/teams/:id",
+      "control": "[data-action=\"reopen-workspace\"]",
+      "method": "POST",
+      "path": "/v1/teams/:id/reopen",
+      "consumer": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+      "provingScenario": "p7.ui.workspace.reopened"
+    },
+    {
+      "capabilityId": "workspace.ownership_transferred",
+      "page": "/teams/:id",
+      "control": "[data-action=\"transfer-workspace-ownership\"]",
+      "method": "POST",
+      "path": "/v1/teams/:id/transfer-ownership",
+      "consumer": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
+      "provingScenario": "p7.ui.workspace.ownership_transferred"
+    },
+    {
+      "capabilityId": "org.workspace_suspended",
+      "page": "/organizations/:id",
+      "control": "[data-testid^=\"workspace-suspend-confirm-\"]",
+      "method": "POST",
+      "path": "/v1/orgs/:id/workspaces/:teamId/suspend",
+      "consumer": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx",
+      "provingScenario": "p7.ui.org.workspace_suspended"
+    },
+    {
+      "capabilityId": "org.workspace_resumed",
+      "page": "/organizations/:id",
+      "control": "[data-testid^=\"workspace-resume-\"]",
+      "method": "POST",
+      "path": "/v1/orgs/:id/workspaces/:teamId/resume",
+      "consumer": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx",
+      "provingScenario": "p7.ui.org.workspace_resumed"
+    },
+    {
+      "capabilityId": "security.capture_devices_listed",
+      "page": "/security-center",
+      "control": "[data-cc-capture-devices-card]",
+      "method": "GET",
+      "path": "/v1/capture/devices",
+      "consumer": "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx",
+      "provingScenario": "p7.ui.security.capture_devices_listed"
+    },
+    {
+      "capabilityId": "security.capture_device_revoked",
+      "page": "/security-center",
+      "control": "[data-confirm-action-modal=\"capture-device-revoke\"] [data-confirm-action-submit]",
+      "method": "POST",
+      "path": "/v1/capture/devices/:id/revoke",
+      "consumer": "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx",
+      "provingScenario": "p7.ui.security.capture_device_revoked"
+    },
+    {
+      "capabilityId": "security.mfa_recovery_requested",
+      "page": "/security-center",
+      "control": "[data-cc-mfa-recovery-request-submit]",
+      "method": "POST",
+      "path": "/v1/identity/mfa-admin/recovery-requests",
+      "consumer": "apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx",
+      "provingScenario": "p7.ui.security.mfa_recovery_requested"
+    },
+    {
+      "capabilityId": "automation.rule_created",
+      "page": "/operations/automation",
+      "control": "[data-automation-form-submit=\"create\"]",
+      "method": "POST",
+      "path": "/v1/automation/rules",
+      "consumer": "apps/web/components/automation/AutomationRuleForm.tsx",
+      "provingScenario": "p7.ui.automation.rule_created"
+    },
+    {
+      "capabilityId": "automation.rule_updated",
+      "page": "/operations/automation",
+      "control": "[data-automation-form-submit=\"edit\"]",
+      "method": "PATCH",
+      "path": "/v1/automation/rules/:id",
+      "consumer": "apps/web/components/automation/AutomationRuleForm.tsx",
+      "provingScenario": "p7.ui.automation.rule_updated"
+    },
+    {
+      "capabilityId": "automation.rule_enabled",
+      "page": "/operations/automation",
+      "control": "[data-automation-rule-toggle=\"enable\"]",
+      "method": "POST",
+      "path": "/v1/automation/rules/:id/enable",
+      "consumer": "apps/web/components/automation/AutomationRuleToggle.tsx",
+      "provingScenario": "p7.ui.automation.rule_enabled"
+    },
+    {
+      "capabilityId": "automation.rule_disabled",
+      "page": "/operations/automation",
+      "control": "[data-automation-rule-toggle=\"disable\"]",
+      "method": "POST",
+      "path": "/v1/automation/rules/:id/disable",
+      "consumer": "apps/web/components/automation/AutomationRuleToggle.tsx",
+      "provingScenario": "p7.ui.automation.rule_disabled"
+    },
+    {
+      "capabilityId": "intelligence.provider_budget_created",
+      "page": "/intelligence",
+      "control": "[data-intelligence-budget-submit]",
+      "method": "POST",
+      "path": "/v1/intelligence/providers/budgets",
+      "consumer": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+      "provingScenario": "p7.ui.intelligence.provider_budget_created"
+    },
+    {
+      "capabilityId": "evidence.public_verify_published",
+      "page": "/evidence/:id",
+      "control": "[data-cc-public-verify-publish]",
+      "method": "POST",
+      "path": "/v1/governance/evidence/:id/publish",
+      "consumer": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx",
+      "provingScenario": "p7.ui.evidence.public_verify_published"
+    },
+    {
+      "capabilityId": "evidence.public_verify_unpublished",
+      "page": "/evidence/:id",
+      "control": "[data-cc-public-verify-unpublish]",
+      "method": "POST",
+      "path": "/v1/governance/evidence/:id/unpublish",
+      "consumer": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx",
+      "provingScenario": "p7.ui.evidence.public_verify_unpublished"
+    },
+    {
+      "capabilityId": "redaction.video_frames_and_tracks_authored",
+      "page": "/redaction/:projectId",
+      "control": "[data-redaction-video-frame-batch-submit] + [data-redaction-video-track-group-submit]",
+      "method": "POST",
+      "path": "/v1/redaction/videos/:evidenceId/frames/batch",
+      "consumer": "apps/web/components/redaction/VideoFrameTrackPanels.tsx",
+      "provingScenario": "p7.ui.redaction.video_frames_and_tracks_authored"
+    }
+  ]
+}

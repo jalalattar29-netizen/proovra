@@ -1,0 +1,236 @@
+{
+  "$schema": "capability-authority/origin-resolutions@1",
+  "why": [
+    "A request written `${base}/v1/…` is only a call on THIS API when `base` holds",
+    "this API's origin. PayPal versions its REST API under /v1/ too, and it has a",
+    "/v1/billing/subscriptions of its own — so reading the path alone imported six",
+    "of PayPal's endpoints into this system's inventory as callers of routes that",
+    "do not exist here. The analyzer therefore recognises only the two canonical",
+    "base expressions on sight, and every other origin is answered ONCE, here, by",
+    "a human who read the binding.",
+    "",
+    "OURS     — the binding resolves to this API's origin; the call is a consumer.",
+    "EXTERNAL — a third party's origin; not a route of ours at all.",
+    "PLUMBING — our own client wrapper, whose path is supplied by its callers and",
+    "           is therefore already counted at those call sites."
+  ],
+  "entries": [
+    {
+      "site": "apps/web/app/portal/sso/callback/[grantId]/route.ts:88",
+      "verdict": "OURS",
+      "originBinding": "const apiUrl = `${apiBase()}/v1/portal/sso/callback`",
+      "evidence": "Next.js route handler forwarding the portal SSO callback to the API; apiBase() is the web app's own API origin helper.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/auth/callback/ui/page.tsx:175",
+      "verdict": "OURS",
+      "originBinding": "const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? (localhost ? http://localhost:8081 : https://api.proovra.com)",
+      "evidence": "apps/web/app/auth/callback/ui/page.tsx:148 — the binding is NEXT_PUBLIC_API_BASE with this API's production host as the fallback.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/auth/callback/ui/page.tsx:221",
+      "verdict": "OURS",
+      "originBinding": "same NEXT_PUBLIC_API_BASE binding at line 148",
+      "evidence": "apps/web/app/auth/callback/ui/page.tsx:148",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/auth/callback/ui/page.tsx:250",
+      "verdict": "OURS",
+      "originBinding": "same NEXT_PUBLIC_API_BASE binding at line 148",
+      "evidence": "apps/web/app/auth/callback/ui/page.tsx:148",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/api/_marketing-leads.ts:314",
+      "verdict": "OURS",
+      "originBinding": "apiBase — the web app's API origin",
+      "evidence": "Server-side marketing-lead forwarder in the web app; the path segment is interpolated, so it contributes an origin but no resolvable route and is not credited to any route.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/operations/batch-analysis/page.tsx:167",
+      "verdict": "OURS",
+      "originBinding": "apiBase — the web app's API origin",
+      "evidence": "Batch-analysis export download built against the canonical API origin.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/lib/api.ts:182",
+      "verdict": "PLUMBING",
+      "originBinding": "url — the fully-composed URL handed to fetchWithAuthRetry",
+      "evidence": "apps/web/lib/api.ts — apiFetch composes the URL from API_BASE plus the path and passes it down; the PATH is named by apiFetch's callers, which are counted individually. | Re-anchored :134 -> :145 on 2026-08-17 (NEW-032 nested-code branch), then :145 -> :182 on 2026-08-17. The second move is the in-flight safe-feedback work on apps/web/lib/api.ts, not a new call: the site READ at :182 is still fetchWithAuthRetry's FIRST attempt — await fetch(url, { ...init, headers: makeHeaders(), credentials include, cache no-store }) — over the same url composed inside apiFetch at :233 from API_BASE and the normalized path. Not statically resolvable because the path is the caller's, not this wrapper's.",
+      "reviewedAtUtc": "2026-08-17"
+    },
+    {
+      "site": "apps/web/lib/api.ts:217",
+      "verdict": "PLUMBING",
+      "originBinding": "url — same wrapper",
+      "evidence": "apps/web/lib/api.ts — auth-retry second attempt on the same composed URL. | Re-anchored :145 -> :156 on 2026-08-17 (NEW-032 nested-code branch), then :156 -> :217 on 2026-08-17. The site READ at :217 is still the SECOND attempt, const second = await fetch(url, ...), guarded by namesADeliberateDenial immediately above it — the same call, the same url, the same wrapper.",
+      "reviewedAtUtc": "2026-08-17"
+    },
+    {
+      "site": "apps/web/lib/api.ts:242",
+      "verdict": "PLUMBING",
+      "originBinding": "url — same wrapper",
+      "evidence": "apps/web/lib/api.ts — apiFetch's own call into the retry wrapper. | Re-anchored :170 -> :181 on 2026-08-17 (NEW-032 nested-code branch), then :181 -> :242 on 2026-08-17. The site READ at :242 is still res = await fetchWithAuthRetry(url, init, finalOpts), with url composed from API_BASE and the normalized path at :233. PLUMBING for the same reason as before: the PATH is supplied by apiFetch's callers and is already counted at each of them, so crediting a route here would double-count every request the web app makes.",
+      "reviewedAtUtc": "2026-08-17"
+    },
+    {
+      "site": "apps/mobile/src/api.ts:34",
+      "verdict": "PLUMBING",
+      "originBinding": "base = process.env.EXPO_PUBLIC_API_BASE",
+      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/src/automation-dispatch.ts:123",
+      "verdict": "OURS",
+      "originBinding": "const base = apiBaseUrl()",
+      "evidence": "services/worker/src/automation-dispatch.ts:98 — worker dispatching automation runs to POST /v1/automation/runs/process.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/src/index.ts:408",
+      "verdict": "OURS",
+      "originBinding": "url built from the worker's apiBaseUrl()",
+      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/src/internal-api-client.ts:143",
+      "verdict": "OURS",
+      "originBinding": "const url = `${baseUrl}${INTERNAL_API_EXTRACT_PATH}`, baseUrl = apiBaseUrl()",
+      "evidence": "services/worker/src/internal-api-client.ts:105,134 — the worker's internal-service client for POST /v1/internal/media-intelligence/extract.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/src/org-invite-delivery.worker.ts:107",
+      "verdict": "OURS",
+      "originBinding": "const baseUrl = apiBaseUrl()",
+      "evidence": "services/worker/src/org-invite-delivery.worker.ts:88,107 — worker tick calling POST /v1/org-invite-deliveries/process.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:127",
+      "verdict": "OURS",
+      "originBinding": "const baseUrl = apiBaseUrl()",
+      "evidence": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:84,127 — this is the intended machine caller of POST /v1/reviewer-ops/reconcile, the route whose authorization FINAL-003 investigated.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:84",
+      "verdict": "EXTERNAL",
+      "originBinding": "function apiBase() { return process.env.PAYPAL_API_BASE || \"https://api-m.paypal.com\" }",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal's own REST origin. Its /v1/oauth2/token is PayPal's, not ours.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:137",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:156",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:172",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/plans/:id.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:189",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/subscriptions/:id.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:249",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:324",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal subscription cancel.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:355",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal webhook-signature verification API.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:386",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal /v2/checkout/orders capture.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/stripe.service.ts:32",
+      "verdict": "EXTERNAL",
+      "originBinding": "stripeApiBase()",
+      "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/stripe.service.ts:54",
+      "verdict": "EXTERNAL",
+      "originBinding": "stripeApiBase()",
+      "evidence": "services/api/src/services/stripe.service.ts",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/stripe.service.ts:175",
+      "verdict": "EXTERNAL",
+      "originBinding": "stripeApiBase()",
+      "evidence": "services/api/src/services/stripe.service.ts",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/scripts/create-paypal-plans.mjs:20",
+      "verdict": "EXTERNAL",
+      "originBinding": "BASE — PayPal API base in an operator provisioning script",
+      "evidence": "services/worker/scripts/create-paypal-plans.mjs — creates PayPal billing plans via PayPal's own API.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/scripts/create-paypal-plans.mjs:46",
+      "verdict": "EXTERNAL",
+      "originBinding": "BASE — PayPal API base",
+      "evidence": "services/worker/scripts/create-paypal-plans.mjs",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/scripts/create-paypal-plans.mjs:74",
+      "verdict": "EXTERNAL",
+      "originBinding": "BASE — PayPal API base",
+      "evidence": "services/worker/scripts/create-paypal-plans.mjs",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "scripts/e2e-web-smoke.mjs:7",
+      "verdict": "PLUMBING",
+      "originBinding": "base — the smoke script's target origin, supplied per run",
+      "evidence": "scripts/e2e-web-smoke.mjs — an operator smoke script; its path is interpolated per scenario and it is not a product consumer.",
+      "reviewedAtUtc": "2026-08-15"
+    }
+  ]
+}

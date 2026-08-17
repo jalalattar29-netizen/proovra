@@ -11,6 +11,12 @@ import {
   isSessionRevoked,
 } from "../services/identity-security/session-revocation.service.js";
 import { recordHeartbeat } from "../services/access-control/session-inventory.service.js";
+// PHASE 13 §4 (2026-08-17) — the members roster's "Last seen" column. Imported
+// through the canonical membership orchestrator, NOT from rbac.service directly:
+// the program architecture registry locks the rbac engine to a single importer,
+// and a middleware that reaches past it is exactly the second authority that
+// lock exists to prevent.
+import { touchMemberLastSeen } from "../services/identity/membership-provisioning.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { prisma } from "../db.js";
 import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
@@ -146,6 +152,12 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     // SECURITY policies and the actual authentication path. Skipped for
     // sessions without a resolvable teamId (personal-space tokens have no
     // workspace policies to evaluate, so the gate is a no-op there by design).
+    // PHASE 13 §4 (2026-08-17) — hoisted out of the `if (sid)` block so the
+    // membership heartbeat at the end of a SUCCESSFUL authentication can bind
+    // the correct tenant. It is the session row's own anchor, never a
+    // caller-supplied header, so a request cannot nominate the workspace whose
+    // membership it refreshes.
+    let sessionTeamId: string | null = null;
     if (sid) {
       // Single session-row read reused by BOTH the Phase 4A security
       // gate and the Phase 3 session-timeout policy enforcement below,
@@ -179,6 +191,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       }
 
       const teamId = sessionRow?.teamId ?? null;
+      sessionTeamId = teamId;
       // Only workspace-bound sessions carry Organization security policy.
       // Personal / teamless sessions have no OrganizationSecurityPolicy to
       // evaluate (§1: Personal/OWNED never require Organization policy).
@@ -331,7 +344,35 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     // switch + a defensive catch so a heartbeat failure NEVER fails
     // an authenticated request.
     if (sid && process.env["SESSION_HEARTBEAT_ENABLED"] !== "false") {
-      void recordHeartbeat({ userId: payload.sub, sid }).catch(() => null);
+      void recordHeartbeat({ userId: payload.sub, sid })
+        .then((res) => {
+          // PHASE 13 §4 (2026-08-17) — membership heartbeat, chained off the
+          // SESSION heartbeat's own sample decision.
+          //
+          // `TeamMember.lastSeenAtUtc` is the "Last seen" column of the members
+          // roster and had no writer at all, so it rendered blank for every
+          // member of every workspace. It is written here and only here.
+          //
+          // Three properties this placement buys, none of them accidental:
+          //
+          //   - It is past every gate. Reaching this line means the token
+          //     verified, the session was not revoked, the security policy
+          //     allowed the request and the session-timeout policy did not
+          //     expire it. A FAILED authentication returns long before here, so
+          //     a rejected request can never advance a member's last-seen.
+          //   - The tenant is the session row's anchor (`sessionTeamId`), so the
+          //     write lands on the membership the caller is actually acting
+          //     under.
+          //   - Gating on `res.written` inherits the session heartbeat's sample
+          //     window, so the membership row is written at most once per
+          //     session per window rather than once per request.
+          if (!res.written || !sessionTeamId) return null;
+          return touchMemberLastSeen({
+            teamId: sessionTeamId,
+            userId: payload.sub,
+          });
+        })
+        .catch(() => null);
     }
   } catch (err) {
     req.log.warn(

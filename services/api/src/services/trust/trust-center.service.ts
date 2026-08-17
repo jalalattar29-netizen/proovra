@@ -877,7 +877,6 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
       "services/api/src/services/intelligence/audit-transparency.service.ts",
       "services/api/src/services/intelligence/provider-usage.service.ts",
       "services/api/src/services/intelligence/intelligence-activity.service.ts",
-      "services/api/src/services/intelligence/intelligence-verification-manifest.service.ts",
     ],
     policyTags: ["AI_TRANSPARENCY"],
   },

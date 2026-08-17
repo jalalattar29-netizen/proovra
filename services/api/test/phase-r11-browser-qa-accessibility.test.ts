@@ -129,7 +129,9 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   });
   it("CR1.6 byte-exact pin on capture.routes.ts holds", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22331);
+  // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 — ACTIVE-membership check on
+  // the caller-supplied `body.teamId` before the CaptureSession row is written.
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23490);
   });
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
     // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14)
@@ -330,12 +332,30 @@ describe("R11 Group 4 — form-label heuristic", () => {
 // Group 5 — Image alt heuristic
 // ---------------------------------------------------------------------------
 
+/**
+ * Markup written INSIDE a comment is documentation, not something a browser
+ * ever renders, so it cannot carry an accessibility obligation.
+ *
+ * `middleware.ts` explains the CSP `img-src` rule by naming the tag the bytes
+ * are rendered into, and the raw-text scan below read that prose as a real tag
+ * with no `alt`. This is the same hazard the step-up suite anchors around when
+ * it says the prose documenting a rule must not be mistaken for a call site;
+ * the fix belongs in the scanner, not in the sentence.
+ *
+ * Block comments only, deliberately: stripping `//` would have to reason about
+ * `https://` and about `//` inside string literals, and every occurrence this
+ * guard has ever had to tolerate has been in a doc block.
+ */
+function withoutBlockComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
 describe("R11 Group 5 — image-alt discipline", () => {
   // Every <img> tag must carry alt="" (decorative) or non-empty alt.
   // SVG <Icon /> components and Next.js <Image /> components are
   // separately handled; we focus on raw <img>.
   for (const file of APP_FILES) {
-    const imgs = file.text.match(/<img\s[^>]*>/g) ?? [];
+    const imgs = withoutBlockComments(file.text).match(/<img\s[^>]*>/g) ?? [];
     if (imgs.length === 0) continue;
     it(`${file.label} :: every <img> carries an alt attribute`, () => {
       const missing = imgs.filter((tag) => !/\balt\s*=/.test(tag));

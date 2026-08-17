@@ -3518,3 +3518,115 @@ Canonical `pnpm --filter proovra-api test` run TWICE: **651/651 files,
 test 10/10 with no Redis and green with a disposable one; both files together
 10/10. Typecheck 0, lint 0, Prisma validate OK, raw-schema-verify OK (865),
 drift-check OK, IsolationCanary 12/12. Nothing committed, pushed or deployed.
+
+## PHASE 13 §4 — WRITER DISPOSITION BACKLOG (2026-08-17)
+
+Four capabilities were REMOVED from the tree in the Phase 13 §4 writer-closure
+pass and are recorded here, and only here, as contracts. They are backlog, not
+code: the rule the pass enforced is that a release may not carry executable
+production writers that nothing reaches, because such a writer passes review on
+the strength of being "accounted for" and then runs for the first time on the day
+somebody finally wires it, against data nobody has re-checked since it was
+written. Every item below is what that writer would have to satisfy if it is ever
+built, written down at the moment the person who read it still knew.
+
+The full record — all twenty-three declarations, their dispositions and their
+evidence — is
+`services/api/scripts/capability-authority/manifests/writer-preservations.json`,
+enforced by `services/api/test/phase-13-writer-preservation-gate.test.ts`.
+
+### BACKLOG-13-1 — reviewer-ops reminder DELIVERY
+
+`markReminderDelivered` / `markReminderFailed` were removed from
+`services/api/src/services/reviewer-ops/reminder-engine.service.ts`.
+
+The engine SCHEDULES and stops. `sweepDueSoonReminders` and
+`sweepInactivityReminders` create `ReviewerOpsReminder` rows with status
+SCHEDULED through `scheduleReminder`, genuinely driven by the cron-secret
+`POST /v1/reviewer-ops/reconcile` route, and the row is never touched again:
+nothing selects due reminders, nothing sends one, nothing consumes
+`communicationMessageId`, and `listReminders` has no route. DELIVERED, FAILED and
+SUPPRESSED are unreachable in production and the reviewer-ops runtime probe's
+status `groupBy` will report a 100% SCHEDULED distribution for as long as that is
+true.
+
+Contract if built — one unit of work, not two functions:
+  1. a bounded, team-scoped selector for reminders that are due and unsent;
+  2. a send through the ONE canonical email authority (`deliverEmail` in
+     shared-runtime, with a durable-derived idempotency key — a reminder must not
+     be sent twice because a tick was retried);
+  3. an outcome transition claimed conditionally on the row's current status and
+     credited from the affected count, never read-then-write;
+  4. a read surface, because a reminder nobody can see is not a reminder.
+
+The metric `reviewer_reminder_failed_total` is NOT part of this backlog and was
+deliberately kept: it counts a failed scheduling insert in the `scheduleReminder`
+catch arm, which really happens. It never counted a failed delivery.
+
+### BACKLOG-13-2 — source-scoped membership revocation (§6.2)
+
+`revokeWorkspaceMembershipSource` was removed from
+`services/api/src/services/identity/membership-provisioning.service.ts`.
+
+Multi-source grant provenance IS written today — `recordMembershipGrant` is the
+single producer and the members projection reads it — but nothing revokes ONE
+source. No route touches `membershipGrant` rows; SCIM deprovisioning and
+administrative revocation both run through `massRevokeWorkspaceMemberships` /
+`revokeAllMembershipGrants`, which close every source at once; membership removal
+is all-or-nothing everywhere it is exposed.
+
+Contract if built:
+  - revoking a source removes that source's grants ONLY, and the membership
+    survives while any other unrevoked grant remains;
+  - a membership with ZERO grant rows has unprovable provenance and must be
+    SUSPENDED (reversible), never REVOKED — access stops immediately and an
+    operator can review;
+  - a `LEGACY_UNKNOWN` grant is never source-revocable and counts as "another
+    source remains"; only explicit manual revocation removes it;
+  - both write legs must repair stale `currentWorkspaceId` pointers in the same
+    transaction, since a suspended or revoked membership is an inaccessible
+    context;
+  - it needs a route and an authorization decision before it needs an
+    implementation. A revocation primitive with no caller is the worst thing to
+    keep loaded, because its first real execution will be during an incident.
+
+### BACKLOG-13-3 — recipient-side exchange verification
+
+`emitTransferVerificationEvent` was removed from
+`services/api/src/services/exchange/signed-delivery.service.ts`, and the
+unreachable `VERIFIED` rung was removed from the delivery state ladder in
+`listDeliveryActivity`.
+
+The exchange lifecycle stops at DOWNLOADED. There is no verify endpoint, and the
+token verifier such an endpoint would need — `verifySignedManifestToken`, still
+present and still uncalled — is the other half of the same unbuilt surface.
+
+Contract if built — all of it or none of it:
+  - a recipient-facing route that authenticates by the SIGNED MANIFEST TOKEN
+    rather than by session, verified in constant time;
+  - the `verifiedAtUtc` stamp written from that route and nowhere else;
+  - the `VERIFIED` rung restored to the ladder at the same time;
+  - the exchange page rendering it, since `DeliveryRow.verifiedAtUtc` is already
+    a typed field the page fetches and never displays.
+  Do NOT stamp it from the download route: `recordPackageDownload` refuses to
+  stamp `downloadedAtUtc` for the explicit reason that a download is not a
+  transfer-completion signal, and reintroducing that inference is the dishonesty
+  its docblock was written to remove.
+
+### BACKLOG-13-4 — admin audit chain-version relabel
+
+`repairAdminAuditChainVersions` was removed from
+`services/api/src/services/platform-audit-log.service.ts`.
+
+It repaired a LABEL, not a chain: it recomputed each row's hash under chain
+versions 1 and 2 and corrected the stored `chainVersion` when one matched, and
+returned early on an actual break. It was the v1→v2 migration's one-time
+backfill, and the chain is now on version 3 — run today it would meet the first
+v3 row, match neither recomputation, and report a healthy chain as broken.
+
+Contract if ever needed again: a chain-version relabel is a MIGRATION written
+against the version in force at that time, not a standing callable primitive.
+Rewriting audit rows to make a verifier pass must not be a capability the running
+system carries. The remedy for a reported break is unchanged and deliberately not
+automated — `verifyAdminAuditChain`, reachable at `GET /v1/admin/audit-log/verify`
+behind `requirePlatformAdmin`, names the row where the chain stops.

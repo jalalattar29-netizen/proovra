@@ -231,7 +231,8 @@ export async function captureTrustRoutes(app: FastifyInstance) {
     "/v1/capture/devices/:id/revoke",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const teamId = await resolveTeamIdOrDeny(req, reply);
+      // NEW-050: revocation is destructive and irreversible — it is not a read.
+      const teamId = await resolveTeamIdOrDeny(req, reply, "evidence.archive");
       if (!teamId) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = RevokeDeviceBody.parse(req.body);
@@ -507,6 +508,21 @@ export async function captureTrustRoutes(app: FastifyInstance) {
 async function resolveTeamIdOrDeny(
   req: FastifyRequest,
   reply: FastifyReply,
+  /**
+   * PHASE 13 (NEW-050) — the permission the CALLER needs, not one permission
+   * for every operation on the surface.
+   *
+   * `evidence.read` is the right answer for reading the device registry and
+   * the wrong answer for REVOKING a device: revocation burns an evidence
+   * signing key, it cannot be undone, and every future capture from that
+   * device is refused. Any ordinary member could do it, because the resolver
+   * asked the same question for a list and for a destruction.
+   *
+   * The default stays `evidence.read` so the read surfaces are unchanged; the
+   * destructive leg names what it actually needs. This RAISES the bar on one
+   * route and lowers it on none.
+   */
+  permission: "evidence.read" | "evidence.archive" = "evidence.read",
 ): Promise<string | null> {
   // PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — ONE AUTHORITY, NOT A
   // PARALLEL ONE.
@@ -531,9 +547,7 @@ async function resolveTeamIdOrDeny(
   // The ONE surface-specific rule is retained verbatim: capture ingest is not
   // a Personal-Space surface. It is now expressed against the PROVEN canonical
   // kind rather than against a re-read `isPersonal` column.
-  const outcome = await evaluateCurrentWorkspace(req, {
-    permission: "evidence.read",
-  });
+  const outcome = await evaluateCurrentWorkspace(req, { permission });
   if (!outcome.allowed) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;

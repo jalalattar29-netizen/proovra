@@ -1,0 +1,216 @@
+{
+  "$schema": "capability-authority/consumer-resolutions@1",
+  "why": [
+    "A path whose ACTION segment is interpolated is a real call to real routes, but",
+    "WHICH ones cannot be read from syntax. The matcher refuses to let `<interp>`",
+    "satisfy a literal route segment, and that refusal is correct — the alternative",
+    "credits `POST /v1/cases/${id}` as a caller of every POST under /v1/cases, which",
+    "is exactly the false 'this endpoint is wired' claim the whole exercise exists to",
+    "prevent.",
+    "",
+    "Where the interpolation is a literal-union TYPE the analyzer expands it itself.",
+    "What is left is the shape it cannot read: a helper taking `path: string` that",
+    "many call sites fill in. Those are answered here, once, from the call sites —",
+    "each entry names the file and line whose arguments were read.",
+    "",
+    "The generator refuses an entry whose site no longer exists and an entry naming a",
+    "route that is no longer registered, so a refactor cannot leave a stale credit",
+    "behind."
+  ],
+  "entries": [
+    {
+      "site": "apps/mobile/app/(stack)/case/[id].tsx:93",
+      "helper": "mobile case screen downloads the export ZIP with an absolute origin + bearer token",
+      "callSitesRead": [
+        "apps/mobile/app/(stack)/case/[id].tsx:93",
+        "apps/mobile/app/(stack)/case/[id].tsx:95"
+      ],
+      "routes": [
+        "GET /v1/cases/:id/export"
+      ],
+      "evidence": "reg services/api/src/routes/cases.routes.ts:752 app.get(\"/v1/cases/:id/export\", { preHandler: requireAuthAndLegal }); apps/mobile/app/(stack)/case/[id].tsx:92 const base = process.env.EXPO_PUBLIC_API_BASE ?? \"http://localhost:8080\"; :93 const url = `${base}/v1/cases/${params.id}/export`; :95 await FileSystem.downloadAsync(url, dest, { headers: { Authorization: `Bearer ${token}` } })",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx:154",
+      "helper": "admin identity console posts to the disable leg of a ternary-built path",
+      "callSitesRead": [
+        "apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx:154"
+      ],
+      "routes": [
+        "POST /v1/identity/service-accounts/:id/disable"
+      ],
+      "evidence": "reg services/api/src/routes/identity.routes.ts:915 app.post(\"/v1/identity/service-accounts/:id/disable\", { preHandler: requireAuth }); apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx:154 `/v1/identity/service-accounts/${account.id}/${enabled ? \"enable\" : \"disable\"}` inside the confirm-gated mutate helper; :361 data-identity-service-account-disable={a.id} button; docs/architecture/route-classification/wiring-registry.json \"POST /v1/identity/service-accounts/:id/disable\" finalState WIRED_PRODUCT targetSurface apps/web/app/(app)/admin/identity/page.tsx",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx:212",
+      "helper": "download(report) -> `${API_BASE}/v1/orgs/${orgId}/reports/${report.file}`",
+      "callSitesRead": [
+        "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx:77-132"
+      ],
+      "routes": [
+        "GET /v1/orgs/:id/reports/members.csv",
+        "GET /v1/orgs/:id/reports/seats.csv",
+        "GET /v1/orgs/:id/reports/audit.csv",
+        "GET /v1/orgs/:id/reports/governance.csv",
+        "GET /v1/orgs/:id/reports/external-access.csv",
+        "GET /v1/orgs/:id/reports/download-audit.csv"
+      ],
+      "evidence": "The ReportDef table in the same file pins `file` to exactly these six CSV names, and each is a separately registered route in organizations-reports.routes.ts.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:201",
+      "helper": "post(label, path, body) -> `/v1/reviewer-ops/reviews/${workflowId}/${path}`",
+      "callSitesRead": [
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:262",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:268",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:623",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:650",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:710",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:712",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:714"
+      ],
+      "routes": [
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/start",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/pause"
+      ],
+      "evidence": "The seven call sites pass exactly these five literals: \"approve\", \"start\", \"request-info\", \"reject\", \"pause\".",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
+      "helper": "act(label, id, path, body) -> `/v1/reviewer-ops/escalations/${id}/${path}`",
+      "callSitesRead": [
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:304",
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:375",
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:379",
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:383"
+      ],
+      "routes": [
+        "POST /v1/reviewer-ops/escalations/:id/acknowledge",
+        "POST /v1/reviewer-ops/escalations/:id/reassign",
+        "POST /v1/reviewer-ops/escalations/:id/resolve",
+        "POST /v1/reviewer-ops/escalations/:id/suppress"
+      ],
+      "evidence": "The four call sites pass \"acknowledge\", \"reassign\", \"resolve\", \"suppress\".",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/workflows/[id]/page.tsx:226",
+      "helper": "performAction(path, body, confirmMessage) -> `/v1/workflows/instances/${instanceId}${path}`",
+      "callSitesRead": [
+        "apps/web/app/(app)/workflows/[id]/page.tsx:499"
+      ],
+      "routes": [
+        "POST /v1/workflows/instances/:id/steps/:stepKey/waive"
+      ],
+      "evidence": "The single call site passes `/steps/${encodeURIComponent(s.stepKey)}/waive`.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/api/_marketing-leads.ts:314",
+      "helper": "handleLeadSubmission -> fetch(`${apiBase}${config.upstreamPath}`)",
+      "callSitesRead": [
+        "apps/web/app/api/_marketing-leads.ts:25-28"
+      ],
+      "routes": [
+        "POST /v1/contact-sales",
+        "POST /v1/demo-requests"
+      ],
+      "evidence": "The LeadConfig table in the same file pins upstreamPath to exactly these two API routes, one per sourcePage (\"contact-sales\" and \"request-demo\"). This is the SERVER half of the two public marketing forms: the browser posts to the Next.js route handler, which forwards to the API, so the API routes are product-reachable even though no browser code names their paths.",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/components/automation/AutomationRuleToggle.tsx:70",
+      "helper": "one toggle whose leg is the inverse of the rule's current state",
+      "callSitesRead": [
+        "apps/web/components/automation/AutomationRuleToggle.tsx:65",
+        "apps/web/components/automation/AutomationRuleToggle.tsx:70"
+      ],
+      "routes": [
+        "POST /v1/automation/rules/:id/enable",
+        "POST /v1/automation/rules/:id/disable"
+      ],
+      "evidence": "AutomationRuleToggle.tsx:65 `const leg = rule.enabled ? \"disable\" : \"enable\"` and :70 `apiFetch(`/v1/automation/rules/${encodeURIComponent(rule.id)}/${leg}`, { method: \"POST\" })`. The path is built from a ternary over two literals, so BOTH legs are reachable from this single control — a rule that is enabled shows Disable and vice versa. The analyzer resolved one branch; this records the other so the pair is not split between PRODUCT_CONNECTED and MISSING_UI when they are the same button. Pinned by apps/web/__tests__/phase13-automation-budgets-ui.test.ts.",
+      "reviewedAtUtc": "2026-08-17"
+    },
+    {
+      "site": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:344",
+      "helper": "`/v1/ops/workflows/${workflow.id}/${availability.action}` where action: WorkflowActionKey",
+      "callSitesRead": [
+        "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:50-58"
+      ],
+      "routes": [
+        "POST /v1/ops/workflows/:id/start",
+        "POST /v1/ops/workflows/:id/assign",
+        "POST /v1/ops/workflows/:id/escalate",
+        "POST /v1/ops/workflows/:id/mitigation",
+        "POST /v1/ops/workflows/:id/resolve",
+        "POST /v1/ops/workflows/:id/suppress",
+        "POST /v1/ops/workflows/:id/reopen",
+        "POST /v1/ops/workflows/:id/schedule-retry"
+      ],
+      "evidence": "`type WorkflowActionKey` at line 50 enumerates these eight keys; the interpolation is a PROPERTY access (`availability.action`) rather than a plain identifier, which is why the analyzer's own union expansion does not reach it.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx:601",
+      "helper": "Archive/unarchive row action in the shipped Intake Links Operations Console resolves to this path.",
+      "callSitesRead": [
+        "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx:601",
+        "apps/web/app/(app)/intake-links/page.tsx:729"
+      ],
+      "routes": [
+        "POST /v1/workflow/intake-links/:id/archive"
+      ],
+      "evidence": "reg services/api/src/routes/workflow-intake-links.routes.ts:800. Consumer apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx:596-603 `const path = archived ? \"unarchive\" : \"archive\"; await apiFetch(\\`/v1/workflow/intake-links/${encodeURIComponent(linkId)}/${path}\\`, { method: \"POST\" })`; declared at :33-34 \"Archive / Unarchive action (POST /v1/workflow/intake-links/:id/archive | /unarchive)\". Mounted at apps/web/app/(app)/intake-links/page.tsx:729 <IntakeLinksOperationsConsole …>.",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:282",
+      "helper": "<img src={asset.bytesUrl}> — the browser issues the GET when the element mounts",
+      "callSitesRead": [
+        "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:282",
+        "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:360"
+      ],
+      "routes": [
+        "GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes"
+      ],
+      "evidence": "The URL is not a literal at the element: the API returns `bytesUrl` per asset and apps/web/lib/media-intelligence/useDerivedAssets.ts:118 normalises it through `normalizeAssetUrls`, which prepends `apiBaseUrl()` to any leading-slash path (useDerivedAssets.ts:32-37) — so the element addresses the API origin, not the Next origin. Both elements set `crossOrigin=\"use-credentials\"` (MediaIntelligencePanel.tsx:285, :362), which is what makes the authenticated bytes route answer 200 rather than 401. The bytes route itself is the server-side proxy that streams from storage (services/api/src/routes/media-intelligence.routes.ts:1276) and never projects a storage key or signed URL. All three facts are pinned by an EXECUTED guard: apps/web/__tests__/phase13-disconnected-ui-actions.test.ts (NEW-028). Recorded as a reviewed resolution because a runtime-valued `src` is not statically resolvable — the analyzer's own JSX resource-element detection covers only literal and constant-resolvable URLs.",
+      "reviewedAtUtc": "2026-08-17"
+    },
+    {
+      "site": "apps/web/lib/uploads/recovery.ts:141",
+      "helper": "Called by the web crash-recovery scanner through apiFetch on capture boot.",
+      "callSitesRead": [
+        "apps/web/lib/uploads/recovery.ts:141",
+        "apps/web/app/(app)/capture/_hooks/useResumableUploads.ts:189",
+        "apps/web/app/(app)/capture/page.tsx:536"
+      ],
+      "routes": [
+        "GET /v1/uploads/sessions/:sessionId/status"
+      ],
+      "evidence": "reg services/api/src/routes/upload-sessions.routes.ts:405. Consumer apps/web/lib/uploads/recovery.ts:139-144 `await fetcher(\\`/v1/uploads/sessions/${row.sessionId}/status?teamId=${encodeURIComponent(row.teamId)}\\`, { method: \"GET\" })` where fetcher defaults to apiFetch (recovery.ts:21 `import { apiFetch } from \"../api\"`, :91 `const fetcher = input.fetcher ?? apiFetch`). Reached from apps/web/app/(app)/capture/_hooks/useResumableUploads.ts:189 `await runUploadRecovery({ persistence })`, mounted at apps/web/app/(app)/capture/page.tsx:536 <UploadOperationsPanel recovery={resumable.recovery} …>.",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/lib/useGlobalRuntimeState.ts:230",
+      "helper": "three web surfaces poll the readiness aggregator through apiFetch",
+      "callSitesRead": [
+        "apps/web/lib/useGlobalRuntimeState.ts:230",
+        "apps/web/components/operational/RuntimeStatusBanner.tsx:111",
+        "apps/web/app/(app)/operations/observability/page.tsx:324"
+      ],
+      "routes": [
+        "GET /admin/runtime/readiness"
+      ],
+      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts:92 app.get(\"/admin/runtime/readiness\", ...); apps/web/lib/useGlobalRuntimeState.ts:229-230 const r = (await apiFetch(`/admin/runtime/readiness?teamId=${enc}`)); apps/web/components/operational/RuntimeStatusBanner.tsx:110-111 apiFetch(`/admin/runtime/readiness?teamId=${encodeURIComponent(teamId)}`); apps/web/app/(app)/operations/observability/page.tsx:323-325 apiFetch(`/admin/runtime/readiness?teamId=...`, { method: \"GET\" })",
+      "reviewedAtUtc": "2026-08-16"
+    }
+  ]
+}

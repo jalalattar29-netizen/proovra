@@ -40,14 +40,42 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../..");
 
-/** Waves, in application order. Each wave INCLUDES every earlier one. */
+/**
+ * Waves, in application order. Each wave INCLUDES every earlier one.
+ *
+ * PHASE 13 (NEW-058) — `WAIT_FOR_RUNTIME_CUTOVER` joins wave C.
+ *
+ * It was ALREADY a legal wave everywhere else: `migration-inventory.mjs`
+ * accepts it, `phase-12-point6-migration-closure.test.ts` recognises it,
+ * `docs/architecture/migration-deployment-plan.md` §4 defines it, and
+ * `docs/operations/point6-migration-runbook.md` maps it to Release C in the
+ * wave→owner-action table. It was missing HERE alone, because until now no
+ * migration occupied it — Release C was "No migrations", a code-only cutover.
+ *
+ * Omitting it from this map was therefore not a policy that runtime-cutover
+ * migrations are forbidden; it was a map that had never been asked the
+ * question. Left unfixed, the first migration in that wave would be silently
+ * deferred out of EVERY wave — including D — so no release could ever apply it
+ * while the deploy tool still reported success. That is the quiet-drop failure
+ * mode this whole tool exists to prevent, and it is worse than a refusal.
+ *
+ * It sits in C and not in A_B for the reason that defines the wave: such a
+ * migration is not safe ahead of its image (`safeBeforeCodeDeployment: false`),
+ * so it must land WITH the cutover, never before it.
+ */
 export const WAVES = {
   A_B: ["HISTORICAL_PRESERVE_NEVER_REWRITE", "SAFE_TO_APPLY_NOW"],
-  C: ["HISTORICAL_PRESERVE_NEVER_REWRITE", "SAFE_TO_APPLY_NOW", "WAIT_FOR_BACKFILL_READINESS"],
+  C: [
+    "HISTORICAL_PRESERVE_NEVER_REWRITE",
+    "SAFE_TO_APPLY_NOW",
+    "WAIT_FOR_BACKFILL_READINESS",
+    "WAIT_FOR_RUNTIME_CUTOVER",
+  ],
   D: [
     "HISTORICAL_PRESERVE_NEVER_REWRITE",
     "SAFE_TO_APPLY_NOW",
     "WAIT_FOR_BACKFILL_READINESS",
+    "WAIT_FOR_RUNTIME_CUTOVER",
     "CONTRACT_DROP_LATER",
   ],
 };

@@ -48,6 +48,8 @@ import {
 } from "../services/security/mfa.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
+// PHASE 13 §1.4 — the canonical trusted-client-IP binding; see `readClientIp`.
+import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-limit.js";
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
@@ -80,10 +82,34 @@ const AUTH_EMAIL_AVAILABILITY_RATE_LIMIT_PER_IP_PER_MIN = 30;
 const AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN = 10;
 const AUTH_EMAIL_RESEND_RATE_LIMIT_PER_IP_PER_MIN = 3;
 
+/**
+ * PHASE 13 §1.4 — the sixth copy of the client-IP decision, on the surface
+ * where getting it wrong matters most.
+ *
+ * This keyed every public auth limiter — registration, LOGIN, password-reset
+ * request, email verification and resend — on `req.ip`. That reads as the
+ * caller's address and is one on a deployment with no proxy declared. It is
+ * NOT one when `API_TRUST_PROXY` is set, which is what every deployment behind
+ * a load balancer sets: Fastify then DERIVES `req.ip` from `X-Forwarded-For`,
+ * taking the leftmost entry, which the caller supplies.
+ *
+ * Measured on a trusting instance:
+ *
+ *     X-Forwarded-For: 10.0.0.1, 192.168.1.5, 127.0.0.1
+ *     req.ip → "10.0.0.1"   (the caller's own bytes, not the peer)
+ *
+ * So on production the per-IP bound on LOGIN and on PASSWORD-RESET REQUEST was
+ * defeated by rotating one header — the same defect PHASE1-002 and PHASE1-003
+ * recorded on the public intake surfaces, on a surface where the bound is
+ * brute-force protection rather than spam control.
+ *
+ * `trustedClientIpKey` is the canonical binding those two rows converged on.
+ * Using it here means this file no longer decides who the caller is; it asks
+ * the one authority that does, and inherits its private-hop skipping, its
+ * CF-Connecting-IP precedence, and its socket fallback.
+ */
 function readClientIp(req: FastifyRequest): string {
-  // `req.ip` is normalised by Fastify; fall back to "unknown" so the
-  // rate-limit key is always non-empty (the limiter throws otherwise).
-  return (req.ip && req.ip.length > 0 ? req.ip : "unknown").slice(0, 200);
+  return trustedClientIpKey(req).slice(0, 200);
 }
 
 // Shared 429 reply — every public auth route returns this exact

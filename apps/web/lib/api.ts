@@ -2,6 +2,25 @@ const DEFAULT_API_BASE = "https://api.proovra.com";
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_API_BASE;
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
+/**
+ * THE API ORIGIN — one authority.
+ *
+ * AUDIT-002/AUDIT-003 (2026-08-15): this used to be module-private, so callers
+ * that cannot use `apiFetch` (binary downloads, the unauthenticated citizen
+ * capture flow) either re-derived the base inline — duplicating the production
+ * default, which then has to be changed in two places — or, worse, issued a
+ * RELATIVE `fetch("/v1/…")`.
+ *
+ * A relative call is not a style preference: the browser resolves it against the WEB
+ * origin, and there is no `/v1` rewrite in next.config, so it 404s against Next
+ * and never reaches the API at all. Three call sites were doing exactly that.
+ *
+ * Callers that need the raw origin must read it HERE.
+ */
+export function apiBaseUrl(): string {
+  return API_BASE;
+}
+
 export interface ApiErrorResponse {
   error: {
     code: string;
@@ -9,6 +28,17 @@ export interface ApiErrorResponse {
     requestId?: string;
     timestamp: string;
     details?: Record<string, unknown>;
+    /**
+     * PHASE 13 §2 — NEW-032. Routes attach ACTIONABLE fields beside the code
+     * that no fixed shape can enumerate: `methods` on a step-up challenge,
+     * `plan` on a billing wall, `blockers` on a refused closure. Dropping
+     * them left the component with a code it could not act on — a step-up
+     * panel that knows it must re-prompt but not with which factor.
+     *
+     * Whatever the server sent alongside the code is preserved verbatim; the
+     * named fields above stay authoritative where both exist.
+     */
+    [extra: string]: unknown;
   };
 }
 
@@ -17,6 +47,22 @@ export class ApiError extends Error {
   statusCode: number;
   requestId?: string;
   details?: Record<string, unknown>;
+  /**
+   * The normalized error envelope this error was built from.
+   *
+   * PHASE 13 §2 — NEW-030. Sixteen call sites across the app branch on
+   * `err.body?.error?.code` — the settings privacy panel's
+   * `export_request_active`, the workspace-closure card's confirmation-phrase
+   * message, the reviewer-ops and workflows consoles, the SIU worklist, and the
+   * SHARED `extractStepUp()` that every step-up flow re-drives on. `body` was
+   * never assigned, so `err.body` was `undefined` at every one of them: the
+   * specific, actionable message was silently replaced by the generic fallback,
+   * and a step-up challenge that should have re-prompted simply failed.
+   *
+   * It is the SAME object the code/message/details fields are read from, so
+   * there is no second shape to keep in sync.
+   */
+  body: ApiErrorResponse;
 
   constructor(response: ApiErrorResponse, statusCode: number) {
     super(response.error.message);
@@ -24,6 +70,7 @@ export class ApiError extends Error {
     this.statusCode = statusCode;
     this.requestId = response.error.requestId;
     this.details = response.error.details;
+    this.body = response;
     this.name = "ApiError";
   }
 }
@@ -69,6 +116,43 @@ function readToken(): string | null {
   return inMemoryToken;
 }
 
+/**
+ * Does this 401 carry a code the server chose, rather than "no credential"?
+ *
+ * Read from a CLONE so the caller still owns an unconsumed body. A body that
+ * is absent, unparseable or carries the generic `UNAUTHORIZED` code is the
+ * credential-in-flight case the retry was written for; anything else is a
+ * decision.
+ */
+async function namesADeliberateDenial(res: Response): Promise<boolean> {
+  let text = "";
+  try {
+    text = await res.clone().text();
+  } catch {
+    // A body that cannot be read tells us nothing; fall back to the historical
+    // behaviour rather than suppressing a retry that may be legitimate.
+    return false;
+  }
+  if (!text.trim()) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  const envelope = parsed as
+    | { error?: { code?: unknown }; code?: unknown }
+    | null;
+  const code =
+    typeof envelope?.error?.code === "string"
+      ? envelope.error.code
+      : typeof envelope?.code === "string"
+        ? envelope.code
+        : null;
+  if (!code) return false;
+  return code !== "UNAUTHORIZED";
+}
+
 async function fetchWithAuthRetry(
   url: string,
   init: RequestInit,
@@ -103,6 +187,30 @@ async function fetchWithAuthRetry(
   });
 
   if (first.status !== 401 || !opts.retryAuthOnce) {
+    return first;
+  }
+
+  /**
+   * PHASE 13 (NEW-035) — a 401 that NAMES a decision is not replayed.
+   *
+   * This retry exists for exactly one situation: the credential had not
+   * arrived yet (the post-OAuth window where the `proovra_session` cookie is
+   * still in flight), which the server answers with the generic `UNAUTHORIZED`
+   * envelope. Re-issuing then is harmless, because the first request was
+   * refused before it did anything.
+   *
+   * It was replaying EVERY 401, and step-up denials are 401s. So every
+   * sensitive mutation the step-up gate challenged — workspace closure,
+   * ownership transfer, publication — was SENT TWICE with no user intent: two
+   * of the five-per-minute step-up attempts consumed, two `step_up_denied`
+   * audit events for one click, and a second POST at a boundary where the
+   * server had already stated its decision.
+   *
+   * A code other than `UNAUTHORIZED` means the server evaluated the request
+   * and refused it deliberately. Repeating it cannot change the answer, so the
+   * only thing a replay can produce is a duplicate side effect.
+   */
+  if (await namesADeliberateDenial(first)) {
     return first;
   }
 
@@ -161,12 +269,24 @@ export async function apiFetch(
     const obj = asObject(parsed);
     const errObj = obj ? asObject(obj["error"]) : null;
 
-    const hasStandardShape =
-      !!errObj &&
-      typeof errObj["code"] === "string" &&
-      typeof errObj["message"] === "string";
+    /**
+     * A NESTED CODE IS THE STANDARD SHAPE, message or not.
+     *
+     * PHASE 13 §2 — NEW-032. This required BOTH `code` and `message` to be
+     * strings, so `{ error: { code: "STEP_UP_REQUIRED", methods: ["totp"] } }`
+     * — a real response from the step-up gate — failed the test and fell to the
+     * generic branch below, which throws a plain Error carrying NO `body` and
+     * a code of "API_ERROR". Every `err.body?.error?.code` branch therefore
+     * missed it, the step-up panel never reopened, and `methods` never reached
+     * the component. NEW-030 gave `ApiError` a `body`; this is the other half
+     * — making sure the error becomes an `ApiError` in the first place.
+     *
+     * The message is now optional and falls back to a bounded, user-safe
+     * sentence rather than to a raw response body.
+     */
+    const hasNestedCode = !!errObj && typeof errObj["code"] === "string";
 
-    if (hasStandardShape) {
+    if (hasNestedCode) {
       const requestIdFromBody =
         typeof errObj["requestId"] === "string"
           ? (errObj["requestId"] as string)
@@ -183,10 +303,18 @@ export async function apiFetch(
           ? (detailsFromBodyRaw as Record<string, unknown>)
           : undefined;
 
+      const nestedMessage =
+        typeof errObj["message"] === "string" && errObj["message"].trim().length > 0
+          ? (errObj["message"] as string)
+          : `HTTP ${res.status}: API error`;
+
       const normalized: ApiErrorResponse = {
         error: {
+          // Everything the server sent beside the code survives — `methods`,
+          // `blockers`, `plan` — then the normalized fields win.
+          ...(errObj as Record<string, unknown>),
           code: String(errObj["code"]),
-          message: String(errObj["message"]),
+          message: nestedMessage,
           requestId: requestIdFromBody ?? headerReqId,
           timestamp: timestampFromBody ?? new Date().toISOString(),
           details: detailsFromBody,

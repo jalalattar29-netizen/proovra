@@ -38,13 +38,16 @@ import EvidenceRequestPanel from "../components/EvidenceRequestPanel";
 import { GovernanceSummary } from "../../../../../components/governance/GovernanceSummary";
 import { GovernanceSnapshotPanel } from "../../../../../components/operational";
 import GovernanceIndicators from "../components/GovernanceIndicators";
+import PublicVerifyPublicationPanel from "../components/PublicVerifyPublicationPanel";
 import { EntityChipGroup } from "../../../../../components/intelligence/EntityChipGroup";
 
 export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
     workspace,
+    workspaceCaps,
     evidence,
     evidenceId,
+    loadWorkspace,
     canSeeGovernance,
     canSeeIntelligence,
     canSeeIntakeLinks,
@@ -70,6 +73,50 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               teamId={workspace.reviewWorkflow.teamId}
             />
           ) : null}
+          {/* PHASE 13 — the publication write leg. Everything else on this
+              page reads publication posture; these are the only controls
+              that change it (POST /v1/governance/evidence/:id/publish and
+              .../unpublish). */}
+          {/*
+            PHASE 13 (NEW-074) — THE TENANT COMES FROM THE RECORD, NOT FROM AN
+            OPTIONAL REVIEWER WORKFLOW.
+
+            This passed `workspace.reviewWorkflow?.teamId`, which only exists
+            when an EvidenceReviewWorkflow row exists: with none, the API sends
+            `reviewWorkflow: { available: false, … }` carrying no `teamId` at
+            all (`evidence.routes.ts` → `toWorkflowSummary`). The panel treats a
+            null tenant as "not in a workspace" and renders the hard block
+            "Open this record inside a workspace to change its public
+            verification."
+
+            So public-verify publication was unreachable for every evidence
+            record that had never been put through reviewer workflow — even
+            though the record IS in a workspace and the operator IS authorized.
+            The reviewer workflow is a downstream feature, not the tenancy
+            authority.
+
+            `evidence.teamId` IS that authority — the workspace binding the
+            write path computed and the column every server-side tenant check
+            reads. It is already projected (`toSafeEvidence`) and already typed
+            (`EvidenceRecord.teamId`). The workflow value is kept only as a
+            fallback, so nothing that worked before can stop working.
+
+            No gate is weakened: `POST /v1/governance/evidence/:id/publish`
+            re-checks tenancy, entitlement and step-up server-side, and the
+            panel's other three preconditions (plan inclusion, policy enabled,
+            a configured verification surface) are untouched.
+          */}
+          <PublicVerifyPublicationPanel
+            evidenceId={evidenceId}
+            teamId={
+              workspace.evidence.teamId ??
+              workspace.reviewWorkflow?.teamId ??
+              null
+            }
+            summary={workspace.publicVerificationSummary}
+            publicVerifyIncluded={workspaceCaps?.publicVerifyIncluded ?? false}
+            onChanged={loadWorkspace}
+          />
         </>
       ) : null}
       <ExternalIntakeSourceCard evidenceId={evidenceId} />

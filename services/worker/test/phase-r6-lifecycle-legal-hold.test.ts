@@ -14,119 +14,23 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { hasActiveLifecycleLegalHold } from "../src/governance/lifecycle-legal-hold.js";
 
-function makePrisma(findFirst: ReturnType<typeof vi.fn>) {
-  // PHASE 12 POINT 3 — ONE canonical delegate.
-  return { evidenceLegalHold: { findFirst } } as never;
-}
-
-describe("Phase R6 — hasActiveLifecycleLegalHold (F39)", () => {
-  let findFirst: ReturnType<typeof vi.fn>;
-  beforeEach(() => {
-    findFirst = vi.fn();
-  });
-
-  it("returns true when an active 4B hold matches (EVIDENCE/WORKSPACE/ORG/CASE)", async () => {
-    findFirst.mockResolvedValue({ id: "hold-1" });
-    const held = await hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-      evidenceId: "ev-1",
-      teamId: "team-1",
-      caseIds: ["case-1"],
-    });
-    expect(held).toBe(true);
-    const where = findFirst.mock.calls[0][0].where;
-    expect(where.teamId).toBe("team-1");
-    expect(where.status).toBe("ACTIVE");
-    // Every scope must be covered when a case is linked. A canonical WORKSPACE
-    // row carries no target columns (the query is already teamId-anchored),
-    // and the historical clause is what makes an unresolvable ACTIVE hold fail
-    // closed instead of silently missing.
-    const scopes = (where.OR as Array<{ scope?: string; historical?: boolean }>).map(
-      (c) => c.scope ?? (c.historical ? "HISTORICAL" : "?"),
-    );
-    expect(scopes).toEqual(
-      expect.arrayContaining(["EVIDENCE", "WORKSPACE", "CASE", "HISTORICAL"]),
-    );
-  });
-
-  it("returns false when no matching 4B hold exists", async () => {
-    findFirst.mockResolvedValue(null);
-    expect(
-      await hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-        evidenceId: "ev-1",
-        teamId: "team-1",
-        caseIds: [],
-      }),
-    ).toBe(false);
-  });
-
-  it("short-circuits for personal-scope evidence (no teamId) without querying", async () => {
-    const held = await hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-      evidenceId: "ev-1",
-      teamId: null,
-      caseIds: [],
-    });
-    expect(held).toBe(false);
-    expect(findFirst).not.toHaveBeenCalled();
-  });
-
-  it("omits the CASE clause when the evidence has no case", async () => {
-    findFirst.mockResolvedValue(null);
-    await hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-      evidenceId: "ev-1",
-      teamId: "team-1",
-      caseIds: [],
-    });
-    const scopes = (
-      findFirst.mock.calls[0][0].where.OR as Array<{ scope?: string }>
-    ).map((c) => c.scope);
-    expect(scopes).not.toContain("CASE");
-  });
-
-  it("FAILS CLOSED when the canonical hold table cannot be read", async () => {
-    // The optional-store allowance is gone with the store. One table means a
-    // read failure can never be reported as "nothing is held".
-    findFirst.mockRejectedValue(new Error("relation evidence_legal_holds does not exist"));
-    await expect(
-      hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-        evidenceId: "ev-1",
-        teamId: "team-1",
-        caseIds: [],
-      }),
-    ).rejects.toThrow();
-  });
-
-  it("PHASE 12B WAVE 0.3 — a TRANSIENT DB error FAILS CLOSED (rethrows; destruction run aborts)", async () => {
-    // A connection loss / timeout during the 4B query must NEVER be read as
-    // "no hold" — that would destroy evidence under an active legal hold.
-    findFirst.mockRejectedValue(
-      Object.assign(new Error("connection reset"), { code: "P1001" }),
-    );
-    await expect(
-      hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-        evidenceId: "ev-1",
-        teamId: "team-1",
-        caseIds: [],
-      }),
-    ).rejects.toThrow("connection reset");
-  });
-
-  it("PHASE 12 POINT 3 — Prisma P2021 on the canonical table FAILS CLOSED", async () => {
-    findFirst.mockRejectedValue(
-      Object.assign(new Error("prisma table missing"), { code: "P2021" }),
-    );
-    await expect(
-      hasActiveLifecycleLegalHold(makePrisma(findFirst), {
-        evidenceId: "ev-1",
-        teamId: "team-1",
-        caseIds: [],
-      }),
-    ).rejects.toThrow();
-  });
-});
+// LEGACY-003 (2026-08-15) — the behavioural suite that stood here exercised
+// `hasActiveLifecycleLegalHold` from src/governance/lifecycle-legal-hold.ts.
+// That module was REMOVED: it had zero production importers, and its own
+// successor says why — src/governance/effective-legal-hold.ts records that the
+// worker lifecycle gate read ONLY `legal_holds`, while the canonical union
+// evaluator reads the evidence-direct, workspace and case stores together.
+//
+// Nothing that runs in production lost a check. The destruction orchestrator
+// calls `evaluateEffectiveLegalHold`, which is a STRICT SUPERSET of the removed
+// predicate and carries the same fail-closed rule, and it is covered
+// behaviourally by the API family suites (including the live
+// point5/family-retention-destruction integration). The source contract below
+// — that BOTH worker destruction stages consult that evaluator — is the
+// load-bearing assertion in this file and is deliberately left untouched.
 
 // PHASE 12B CLUSTER 8 — both stages now consult the 4B store through THE ONE
 // union evaluator (src/governance/effective-legal-hold.ts) instead of calling

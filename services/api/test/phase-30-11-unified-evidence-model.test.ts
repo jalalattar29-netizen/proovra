@@ -32,7 +32,7 @@
  *      No EvidencePart semantics changed.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -42,12 +42,6 @@ import {
   evaluateUploadSessionFinalizeGate,
   type UploadSessionFinalizeGateCode,
 } from "../src/services/uploads/upload-session.service.js";
-import {
-  UNIFIED_MATERIAL_KINDS,
-  UNIFIED_MATERIAL_VERIFICATION_STATES,
-  projectForPublic,
-  type UnifiedEvidenceManifest,
-} from "../src/services/uploads/unified-material-manifest.js";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -321,178 +315,39 @@ describe("Phase 30.11 — ALL-sessions finalize gate", () => {
 });
 
 // =============================================================================
-// PART 3 — Unified material manifest source contract
+// PARTS 3 & 4 — Unified material manifest — REMOVED (LEGACY-003)
 // =============================================================================
 
-describe("Phase 30.11 — unified material manifest", () => {
-  const src = readSource(
-    "../../../services/api/src/services/uploads/unified-material-manifest.ts",
-  );
-  const noComments = src
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/[^\n]*/g, "");
-
-  it("UNIFIED_MATERIAL_KINDS catalogues LEGACY_PART + UPLOAD_SESSION", () => {
-    expect([...UNIFIED_MATERIAL_KINDS]).toEqual([
-      "LEGACY_PART",
-      "UPLOAD_SESSION",
-    ]);
-  });
-
-  it("UNIFIED_MATERIAL_VERIFICATION_STATES is bounded UPPER_SNAKE_CASE", () => {
-    for (const s of UNIFIED_MATERIAL_VERIFICATION_STATES) {
-      expect(s).toMatch(/^[A-Z][A-Z_]+$/);
-    }
-    expect([...UNIFIED_MATERIAL_VERIFICATION_STATES]).toEqual([
-      "PENDING",
-      "VERIFIED",
-      "FAILED",
-      "MISSING",
-    ]);
-  });
-
-  it("manifest NEVER projects storage_key / storage_bucket / multipart_upload_id / signed URLs", () => {
-    for (const banned of [
-      "storageBucket",
-      "storage_bucket",
-      "storageKey",
-      "storage_key",
-      "multipartUploadId",
-      "multipart_upload_id",
-      "signed_url",
-      "signedUrl",
-      "presignedUrl",
-      "uploadUrl",
-    ]) {
-      expect(noComments, `manifest leaks ${banned}`).not.toContain(banned);
-    }
-  });
-
-  it("manifest NEVER projects private notes / legal notes / raw GPS", () => {
-    for (const banned of [
-      "privateReviewerNote",
-      "legalNoteBody",
-      "raw_gps",
-      "gpsCoordinates",
-      "privateNote",
-    ]) {
-      expect(noComments, `manifest leaks ${banned}`).not.toContain(banned);
-    }
-  });
-
-  it("manifest helper is read-only (no writes / no S3 calls)", () => {
-    expect(noComments).not.toMatch(/\$executeRaw/);
-    expect(noComments).not.toMatch(/\.create\(/);
-    expect(noComments).not.toMatch(/\.update\(/);
-    expect(noComments).not.toMatch(/\.delete\(/);
-    expect(noComments).not.toMatch(/CreateMultipartUploadCommand/);
-    expect(noComments).not.toMatch(/UploadPartCommand/);
-  });
-
-  it("ETag stored only inside session storageMetadata — never on legacy parts", () => {
-    // Confirm there's exactly one mention of ETag in the source,
-    // inside the UnifiedSessionMaterial shape's storageMetadata.
-    const etagRefs = noComments.match(/etag/g) ?? [];
-    // At least one occurrence in the UPLOAD_SESSION shape; legacy
-    // shape has none.
-    expect(etagRefs.length).toBeGreaterThan(0);
-    expect(noComments).toMatch(
-      /UnifiedSessionMaterial[\s\S]*?storageMetadata[\s\S]*?etag/,
-    );
-    // The LEGACY_PART projection helper must not include any etag
-    // assignment.
-    const legacyFn = src.match(
-      /async function loadLegacyMaterials\([\s\S]*?^\}/m,
-    )?.[0];
-    expect(legacyFn).toBeTruthy();
-    expect(legacyFn!).not.toMatch(/etag/i);
-  });
-
-  it("ETag is never assigned to a sha256-named variable (custody-safety)", () => {
-    expect(noComments).not.toMatch(/sha256\w*\s*[:=]\s*\w*etag/i);
-    expect(noComments).not.toMatch(/serverSha256\s*[:=]\s*\w*etag/i);
-  });
-
-  it("session verification states map to bounded vocabulary", () => {
-    const fn = src.match(
-      /function sessionVerificationState\([\s\S]*?\n\}/,
-    )?.[0];
-    expect(fn).toBeTruthy();
-    // COMPLETED → VERIFIED is the load-bearing assertion.
-    expect(fn!).toMatch(/case "COMPLETED":[\s\S]*?return "VERIFIED"/);
-    // Terminal failure states → FAILED.
-    expect(fn!).toMatch(
-      /case "ABORTED":[\s\S]*?case "EXPIRED":[\s\S]*?case "FAILED":[\s\S]*?return "FAILED"/,
-    );
-  });
-});
-
-// =============================================================================
-// PART 4 — projectForPublic strips internal storage metadata
-// =============================================================================
-
-describe("Phase 30.11 — projectForPublic", () => {
-  it("strips storageMetadata from session materials; legacy parts untouched", () => {
-    const manifest: UnifiedEvidenceManifest = {
-      evidenceId: EVIDENCE,
-      teamId: TEAM,
-      totals: {
-        materials: 2,
-        legacy: 1,
-        sessions: 1,
-        verified: 1,
-        pending: 1,
-        failed: 0,
-        missing: 0,
-      },
-      materials: [
-        {
-          kind: "LEGACY_PART",
-          materialId: "part-1",
-          partIndex: 0,
-          filename: "evidence.jpg",
-          mimeType: "image/jpeg",
-          sizeBytes: 1024,
-          sha256: "a".repeat(64),
-          uploadedAtUtc: "2026-05-19T12:00:00Z",
-          verification: "VERIFIED",
-        },
-        {
-          kind: "UPLOAD_SESSION",
-          materialId: "session-1",
-          safeNote: null,
-          filename: null,
-          mimeType: null,
-          sizeBytes: 500_000_000,
-          expectedSha256: "b".repeat(64),
-          serverSha256: null,
-          completedAtUtc: null,
-          verification: "PENDING",
-          storageMetadata: {
-            etag: "etag-secret",
-            contentLengthBytes: 500_000_000,
-            completedAtStorageUtc: null,
-          },
-        },
-      ],
-    };
-    const projected = projectForPublic(manifest);
-    expect(projected.materials).toHaveLength(2);
-    const legacy = projected.materials[0];
-    const session = projected.materials[1];
-    expect(legacy.kind).toBe("LEGACY_PART");
-    expect(session.kind).toBe("UPLOAD_SESSION");
-    if (session.kind === "UPLOAD_SESSION") {
-      expect(session.storageMetadata).toBeNull();
-    }
-    // The legacy material's sha256 (public-safe custody hash) is
-    // preserved.
-    if (legacy.kind === "LEGACY_PART") {
-      expect(legacy.sha256).toBe("a".repeat(64));
-    }
-    // Defensive: serialising the projection must not contain the
-    // private etag string anywhere.
-    expect(JSON.stringify(projected)).not.toContain("etag-secret");
+/**
+ * Phase 30.11 introduced `unified-material-manifest.ts` and this file asserted
+ * its bounded kind/verification catalogs and proved that `projectForPublic()`
+ * strips storage metadata (etag, bucket, key, multipart id) from the public
+ * projection.
+ *
+ * LEGACY-003 (2026-08-15) REMOVED that module: zero production importers, zero
+ * DB writes, zero queue or event ownership — only these tests read it. The
+ * unified material model it described is served by the canonical
+ * `packages/shared/src/canonical-evidence-materials.ts`.
+ *
+ * The stripping assertions are NOT re-homed onto the canonical module, and that
+ * is deliberate rather than an omission: the canonical module has its own
+ * vocabulary and its own projection, so re-pointing these expectations at it
+ * would assert a contract it never agreed to and would read as coverage that
+ * was never written. What remains is the invariant the removal creates.
+ */
+describe("Phase 30.11 — unified material manifest stays removed", () => {
+  it("the manifest module is not back on disk", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../../../services/api/src/services/uploads/unified-material-manifest.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+      "unified-material-manifest.ts is REMOVED (LEGACY-003) and must not return",
+    ).toBe(false);
   });
 });
 

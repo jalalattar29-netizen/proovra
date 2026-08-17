@@ -39,7 +39,12 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 11 — canonical internal URL builder.
-import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
+import {
+  absoluteInternalUrl,
+  internalNavPath,
+  // PHASE 13 §1.4 (NEW-023) — the canonical membership-status predicate.
+  teamMemberStatusGrantsAccess,
+} from "@proovra/shared";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
@@ -48,6 +53,9 @@ import { emitTenantAudit, emitPlatformAudit } from "../services/audit/tenant-aud
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
+// PHASE 13 §4 (2026-08-17) — tenant destruction must take the AI rows with it;
+// none of those tables carries a foreign key back to Team, so nothing else will.
+import { purgeWorkspaceAiRecords } from "../services/ai/ai-retention.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
   grantOrganizationMembership,
@@ -112,8 +120,36 @@ function buildInviteUrl(token: string): string {
   );
 }
 
+/**
+ * PHASE 13 §1.4 (NEW-023) — STATUS-BLIND MEMBERSHIP.
+ *
+ * This loaded the `TeamMember` row with no status predicate and returned it
+ * whole. All twelve call sites then tested only `!actor` and `actor.role` —
+ * `status` was never read anywhere in this file. A SUSPENDED or REVOKED member
+ * therefore kept the role stored on their row and retained workspace
+ * administration across:
+ *
+ *   GET    /v1/teams/:id/cases                       PATCH  /v1/teams/:id
+ *   GET    /v1/teams/:id/invites                     POST   /v1/teams/:id/invites
+ *   DELETE /v1/teams/:id/invites/:inviteId           GET    /v1/teams/:id/activity
+ *   PATCH  /v1/teams/:id/members/:memberId           DELETE /v1/teams/:id/members/:memberId
+ *   GET    /v1/teams/:id/members/:memberId/removal-impact
+ *   POST   /v1/teams/:id/cases/link                  DELETE /v1/teams/:id/cases/:caseId
+ *
+ * Revoking a member did not remove their ability to administer the workspace —
+ * including deleting invitations, changing other members' roles, and unlinking
+ * cases. This is the same defect class AUTH-003 and SEC-001 closed elsewhere;
+ * `teams.routes.ts` was missed because its check is inline rather than routed
+ * through a shared authority.
+ *
+ * FIXED AT THE CHOKE POINT. Every call site already treats a falsy result as
+ * "forbidden", so refusing here fixes all twelve at once and cannot be
+ * forgotten at a thirteenth. The decision delegates to
+ * `teamMemberStatusGrantsAccess` — the canonical predicate the rest of the
+ * system uses — rather than re-encoding which statuses count.
+ */
 async function getActorMembership(teamId: string, userId: string) {
-  return prisma.teamMember.findUnique({
+  const member = await prisma.teamMember.findUnique({
     where: {
       teamId_userId: {
         teamId,
@@ -121,6 +157,8 @@ async function getActorMembership(teamId: string, userId: string) {
       },
     },
   });
+  if (!member || !teamMemberStatusGrantsAccess(member.status)) return null;
+  return member;
 }
 
 async function getTeamMemberByMemberId(teamId: string, memberId: string) {
@@ -1007,6 +1045,17 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { teamId },
         data: { teamId: null },
       });
+
+      // PHASE 13 §4 (2026-08-17) — AI advisory + AI spend rows for this tenant.
+      //
+      // ORDERING IS THE WHOLE POINT. These tables key on a bare `workspace_id` /
+      // `team_id` UUID with no foreign key, so `team.delete` below does NOT take
+      // them, and once the Team row is gone nothing can find them again. Running
+      // the purge FIRST means a failure here throws out of the handler with the
+      // Team — and therefore every one of its AI rows — still present and still
+      // reachable by a retry. Deleting the Team first and purging afterwards
+      // would convert any failure into permanent orphans.
+      await purgeWorkspaceAiRecords(teamId, prisma);
 
       await prisma.team.delete({
         where: { id: teamId },

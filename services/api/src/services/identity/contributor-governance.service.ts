@@ -119,24 +119,23 @@ export async function revokeContributorSession(
   return updated;
 }
 
-/**
- * Best-effort: touch the lastSeenAtUtc on a contributor session. Called
- * from the intake-session middleware on every successful contributor
- * request. Failures NEVER break the request path.
- */
-export async function touchContributorSessionLastSeen(
-  intakeSessionId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  try {
-    await client.workflowIntakeSession.updateMany({
-      where: { id: intakeSessionId, revokedAtUtc: null },
-      data: { lastSeenAtUtc: new Date() },
-    });
-  } catch {
-    // best-effort
-  }
-}
+// PHASE 13 §4 (2026-08-17) — `touchContributorSessionLastSeen` was REMOVED here.
+//
+// Its docblock claimed it was "Called from the intake-session middleware on
+// every successful contributor request". No intake-session middleware called it,
+// and the claim was the only reason to believe the column meant anything.
+//
+// Before removing it the question that actually decides the disposition was
+// asked: does anything DISPLAY or DECIDE on
+// `workflow_intake_sessions.last_seen_at_utc`? It does not. Neither projection
+// over this table exposes it — `loadSessionAggregateByLink` selects the status
+// and the five lifecycle timestamps, `loadIntakeLinkSubmissions` maps the row to
+// a payload that has no such field — no report or verification package reads it,
+// and the reviewer/contributor session-timeout policy is evaluated against
+// `AuthenticatedSession`, not this table. Wiring it would have created a
+// per-request write on an external-contributor hot path to feed a column with no
+// reader. The column itself is left in place: dropping it needs a migration to
+// remove storage nothing is spending.
 
 /**
  * Verify an already-resolved contributor session is still usable.

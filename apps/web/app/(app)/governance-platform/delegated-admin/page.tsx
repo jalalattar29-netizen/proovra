@@ -13,6 +13,7 @@ import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { DelegatedAdminGrantForm } from "../../../../components/governance/DelegatedAdminGrantForm";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 
@@ -61,9 +62,25 @@ function Shell() {
       key: "grantee",
       header: "Grantee",
       render: (g) => (
+        /*
+          PHASE 13 (NEW-068) — ONE ATTRIBUTE NAME, ONE MEANING.
+
+          This row used `data-delegated-admin-tier` for the tier a grant HOLDS,
+          while `DelegatedAdminGrantForm` uses the identical name for the tier
+          `<select>` an operator is CHOOSING. Both live on this page, so the
+          moment the first grant appeared in the table the name resolved to two
+          different kinds of element and any consumer addressing it became
+          ambiguous — which is exactly what happened: selecting a tier failed
+          with "resolved to 2 elements", so issuing a SECOND grant was
+          impossible from the console once a first one existed.
+
+          The row's attribute is renamed to be row-scoped. `data-delegated-
+          admin-row` and `data-delegated-admin-state` are untouched, so the row
+          is still addressable by identity and by state.
+        */
         <span
           data-delegated-admin-row={g.id}
-          data-delegated-admin-tier={g.tier}
+          data-delegated-admin-row-tier={g.tier}
           data-delegated-admin-state={g.state}
         >
           <code>{g.granteeUserId.slice(0, 8)}…</code>
@@ -116,6 +133,12 @@ function Shell() {
         />
       }
     >
+      {/* PHASE 13 — POST /v1/governance/delegated-admin. The console could
+          only revoke these grants; nothing in the product could issue one, so
+          the tier ladder could never be bootstrapped past the implicit
+          workspace-owner grant. */}
+      <DelegatedAdminGrantForm onGranted={refresh} />
+
       <div data-delegated-admin-table>
         <DataTable<DelegatedAdminGrantProjection>
           ariaLabel="Delegated admin grants"

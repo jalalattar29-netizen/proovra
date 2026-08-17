@@ -885,7 +885,28 @@ function EvidenceDetailPageInner() {
     }
   };
 
-  if (loading) {
+  /**
+   * PHASE 13 (NEW-078) — THE FULL-PAGE LOADING STATE IS FOR THE FIRST LOAD ONLY.
+   *
+   * `loadWorkspace()` sets `loading` unconditionally, and this branch replaced the
+   * WHOLE page while it ran. `loadWorkspace` is also the `onChanged` callback
+   * every mutating panel on this page calls after a SUCCESSFUL write — so each
+   * success unmounted the panel that had just been given something to say.
+   *
+   * `PublicVerifyPublicationPanel` is the case that exposed it: it announces
+   * "This record is now published to public verification." from its own
+   * `role="status"` / `aria-live="polite"` region and then calls `onChanged()`.
+   * The region came back mounted and EMPTY, so a screen-reader user published
+   * evidence to a PUBLIC surface — or withdrew it — and was told nothing. It also
+   * discarded the panel's transient state (the reason field, step-up progress)
+   * and flashed a full-page spinner over a page the user was reading.
+   *
+   * Gating on "no workspace yet" keeps the first load exactly as it was and makes
+   * a revalidation of already-rendered data non-destructive. Same defect and same
+   * remedy as NEW-064 (the organization pages' `fetchAll`) and NEW-070
+   * (`SurfaceGate` holding through a same-workspace refresh).
+   */
+  if (loading && !workspace) {
     return (
       <div className="evidence-detail-page">
         <div className="evidence-detail-shell">

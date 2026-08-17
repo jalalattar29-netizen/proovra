@@ -46,7 +46,7 @@ import {
 import { randomBytes } from "node:crypto";
 
 import { getAuthUserId } from "../auth.js";
-import { emitPlatformAudit, emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
@@ -54,7 +54,6 @@ import {
   INTEGRATION_CRON_HEADER,
   requireIntegrationCronSecret,
 } from "../middleware/cron-secret.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import {
   StepUpError,
   checkStepUpChallenge,
@@ -93,95 +92,22 @@ import {
   isPasswordPolicyCompliant,
 } from "../services/email-password-auth.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+/**
+ * PHASE 13 (NEW-058) — the enrolment routes that give an account a factor live
+ * in `identity-security-contact-factors.routes.ts`, registered alongside this
+ * plugin. The step-up routes below no longer accept a destination; they resolve
+ * it from the factor authority, which is the only thing that writes one.
+ */
+import {
+  auditIdentitySecurityEvent,
+  requestIp,
+  requestUa,
+  requireSecurityActor,
+} from "./identity-security-shared.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ParamsId = z.object({ id: z.string().uuid() });
 
-/**
- * PHASE 11 §3 Batch B — D-5 personal Security Center surfaces carry NO
- * teamId (operator's own account scope; see the section comment above) →
- * genuinely GLOBAL platform events, routed through `emitPlatformAudit`.
- */
-function auditIdentitySecurityEvent(
-  req: FastifyRequest,
-  params: {
-    userId: string;
-    action: string;
-    outcome: "success" | "failure" | "blocked";
-    resourceType: string;
-    resourceId: string;
-    metadata?: Record<string, unknown>;
-    ip: string | null;
-    ua: string | null;
-  },
-): void {
-  const outcome =
-    params.outcome === "failure" ? "error" : params.outcome === "blocked" ? "denied" : "success";
-  const reason = params.metadata?.["reason"];
-  void emitPlatformAudit({
-    action: params.action,
-    outcome,
-    denialReason: outcome !== "success" ? (typeof reason === "string" ? reason : params.action) : null,
-    sourceApp: "API",
-    actorUserId: params.userId,
-    resourceType: params.resourceType,
-    resourceId: params.resourceId,
-    correlationId: req.id,
-    metadata: { ...(params.metadata ?? {}), ipAddress: params.ip, userAgent: params.ua },
-  }).catch(() => null);
-}
-
-function requestIp(req: FastifyRequest): string | null {
-  const raw = (req.ip ?? "").trim();
-  return raw.length > 0 ? raw : null;
-}
-
-function requestUa(req: FastifyRequest): string | null {
-  const raw = req.headers["user-agent"];
-  if (typeof raw !== "string") return null;
-  return raw.trim().slice(0, 512) || null;
-}
-
-/**
- * Anti-enumeration: 404 for non-members. Then permission gate against
- * the supplied identity.* permission via Phase 17 access-policy.
- */
-async function requireSecurityActor(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-  permission:
-    | "identity.org_policy.read"
-    | "identity.org_policy.manage"
-    | "identity.member.read"
-    | "identity.access_review.action",
-): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission,
-  });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
-}
 
 function handleStepUpError(reply: FastifyReply, err: unknown): boolean {
   if (err instanceof StepUpError) {
@@ -195,6 +121,30 @@ function handleStepUpError(reply: FastifyReply, err: unknown): boolean {
     }
     if (err.code === "rate_limited") {
       reply.code(429).send({ error: { code: "rate_limited" } });
+      return true;
+    }
+    /**
+     * PHASE 13 (NEW-058) — a STABLE, actionable denial, deliberately outside
+     * the generic bucket below.
+     *
+     * "There is nothing to send a code to" and "that code was wrong" are
+     * different facts and lead to different user actions: one is "enrol a
+     * device", the other is "try again". Collapsing them would leave every
+     * step-up-gated feature looking broken for an unenrolled account, with no
+     * way for the surface to offer the one thing that would fix it.
+     *
+     * It discloses nothing an authenticated caller does not already know about
+     * their OWN account: the request is already authenticated and already
+     * scoped to the caller's user id.
+     */
+    if (err.code === "enrollment_required") {
+      reply.code(403).send({
+        error: {
+          code: "STEP_UP_ENROLLMENT_REQUIRED",
+          message:
+            "This action needs a verified second factor. Enrol a device in Security settings, then try again.",
+        },
+      });
       return true;
     }
     if (err.code === "denied" || err.code === "challenge_expired" || err.code === "challenge_not_found") {
@@ -219,10 +169,25 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     purpose: z.enum(STEP_UP_PURPOSES as unknown as [string, ...string[]]),
     resourceKind: z.string().min(1).max(64).optional(),
     resourceId: z.string().min(1).max(128).optional(),
-    phone: z.string().min(3).max(32),
-    channel: z.enum(["SMS", "WHATSAPP"]).default("SMS"),
+    /**
+     * PHASE 13 (NEW-058) — `phone` IS GONE, AND ITS ABSENCE IS THE FIX.
+     *
+     * This body used to carry the destination, which meant an approved
+     * challenge proved possession of a handset the CALLER chose rather than of
+     * a factor the ACCOUNT enrolled: a stolen session supplied the attacker's
+     * own number and approved its own challenge.
+     *
+     * A caller may now only NAME one of its own enrolled factors. The server
+     * resolves the destination from the factor authority, and a `factorId`
+     * that is not an ACTIVE, VERIFIED factor belonging to this user does not
+     * resolve at all. `.strict()` below makes a lingering `phone` a 400 rather
+     * than a silently ignored field — a client that still sends one must be
+     * fixed, not tolerated.
+     */
+    factorId: z.string().uuid().optional(),
+    channel: z.enum(["SMS", "WHATSAPP"]).optional(),
     reason: z.string().min(1).max(400).optional(),
-  });
+  }).strict();
 
   app.post(
     "/v1/identity-security/step-up/start",
@@ -238,8 +203,9 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           purpose: body.purpose as StepUpPurpose,
           resourceKind: body.resourceKind ?? null,
           resourceId: body.resourceId ?? null,
-          phoneE164OrRaw: body.phone,
-          channel: body.channel,
+          // NEW-058: a NAME, not a destination. The server resolves the rest.
+          factorId: body.factorId ?? null,
+          channel: body.channel ?? null,
           reason: body.reason ?? null,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
@@ -260,9 +226,11 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
   const CheckBody = z.object({
     teamId: z.string().uuid(),
     challengeId: z.string().uuid(),
-    phone: z.string().min(3).max(32),
+    // NEW-058: no `phone`. The destination is re-resolved from the factor the
+    // challenge was minted against, so a caller cannot verify against a
+    // different number than the one that was sent to.
     code: z.string().min(3).max(16),
-  });
+  }).strict();
 
   app.post(
     "/v1/identity-security/step-up/check",
@@ -276,7 +244,6 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           teamId: body.teamId,
           userId: actor.userId,
           challengeId: body.challengeId,
-          phoneE164OrRaw: body.phone,
           code: body.code,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),

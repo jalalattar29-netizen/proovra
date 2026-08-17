@@ -26,7 +26,7 @@
  * every phase contract suite from A0 onward.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import Fastify from "fastify";
@@ -66,9 +66,6 @@ function stripComments(source: string): string {
 const EVIDENCE_ROUTES = readSource("../src/routes/evidence.routes.ts");
 const EVIDENCE_SAVED_VIEWS = readSource(
   "../src/routes/evidence.saved-views.routes.ts",
-);
-const TENANCY_RESOLVER = readSource(
-  "../src/services/organization/tenancy-resolver.service.ts",
 );
 // Phase Final-Closure-Remediation — the classic redirect page was
 // deleted. Its behaviour now lives as a permanent redirect rule in
@@ -168,63 +165,20 @@ describe("Phase G4.6 — A0 integrity hard-gate intact", () => {
 // 5. Workspace/org isolation (A1 Stage 6).
 // ---------------------------------------------------------------------------
 
-describe("Phase G4.6 — Workspace/org isolation invariants preserved", () => {
-  it("tenancy resolver still throws on team_org_missing (Stage 6 invariant)", () => {
-    expect(TENANCY_RESOLVER).toContain('"team_org_missing"');
-  });
-
-  it("tenancy resolver still blocks cross-org disagreements", () => {
-    expect(TENANCY_RESOLVER).toContain('"tenancy_disagreement"');
-    expect(TENANCY_RESOLVER).toContain("cross_org_resolution_blocked_total");
-  });
-
-  it("evidence write paths still use resolveTenancyForWrite", () => {
-    // The resolver is the canonical authority — services call it
-    // from the write paths. We don't assert every caller (long), only
-    // that the resolver still EXPORTS the function so callers can.
-    expect(TENANCY_RESOLVER).toContain(
-      "export async function resolveTenancyForWrite",
-    );
-  });
-});
+// LEGACY-003 (2026-08-15): every isolation invariant this suite held was
+// asserted against the REMOVED tenancy resolver's source. The suite is retired
+// rather than left as an empty describe that reads like passing coverage —
+// workspace/org isolation is enforced by authorizeOrFail and proven at runtime
+// against the real Fastify app. The stays-removed contract is at the foot of
+// this file.
 
 // ---------------------------------------------------------------------------
 // 6. G4.1 personal-mode evidence resolves deterministically.
 // ---------------------------------------------------------------------------
 
-describe("Phase G4.6 — Personal-mode evidence resolves deterministically (G4.1)", () => {
-  it("read-side compatibility helper is shipped and exported", () => {
-    expect(TENANCY_RESOLVER).toContain(
-      "export async function resolveEvidenceTenancyForRead",
-    );
-  });
-
-  it("legacy null-teamId rows project through the personal team", () => {
-    expect(TENANCY_RESOLVER).toContain('"legacy_personal_fallback"');
-    expect(TENANCY_RESOLVER).toContain("isPersonal: true");
-  });
-
-  it("orphan rows (no team, no personal workspace) are explicitly modelled", () => {
-    expect(TENANCY_RESOLVER).toContain('"orphan"');
-  });
-
-  it("the helper is READ-ONLY — never mutates evidence", () => {
-    // Anchor the assertion: between the function start and a
-    // recognisable trailing block, no .evidence.update / .upsert.
-    const startIdx = TENANCY_RESOLVER.indexOf(
-      "export async function resolveEvidenceTenancyForRead",
-    );
-    expect(startIdx).toBeGreaterThan(0);
-    const endIdx = TENANCY_RESOLVER.indexOf(
-      "export async function checkEvidenceTenancyInvariant",
-    );
-    expect(endIdx).toBeGreaterThan(startIdx);
-    const slice = TENANCY_RESOLVER.slice(startIdx, endIdx);
-    expect(slice).not.toMatch(/\.evidence\.update\(/);
-    expect(slice).not.toMatch(/\.evidence\.upsert\(/);
-    expect(slice).not.toMatch(/\.evidence\.create\(/);
-  });
-});
+// LEGACY-003 (2026-08-15): this asserted that the REMOVED tenancy resolver's
+// read-side projection never mutated evidence. The module is gone; its
+// stays-removed contract is at the foot of this file.
 
 // ---------------------------------------------------------------------------
 // 7. Classic matter retirement (G4.2).
@@ -391,5 +345,25 @@ describe("Phase G4.6 — Governance export eligibility unchanged", () => {
 
   it("legal hold / lifecycle gates on the public verify handler intact", () => {
     expect(EVIDENCE_ROUTES).toContain("legalHold");
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — removed module contract
+// =============================================================================
+
+/**
+ * LEGACY-003 (2026-08-15) REMOVED `src/services/organization/tenancy-resolver.service.ts` as a caller-less second tenancy authority; see the Phase A1 suite for the full reasoning.
+ */
+describe("Phase G4 — tenancy resolver stays removed", () => {
+  it("the removed module(s) stay removed", () => {
+    for (const rel of [
+      "../src/services/organization/tenancy-resolver.service.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });

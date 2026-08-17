@@ -385,7 +385,14 @@ describe("Provider registry — feature flag + Twilio env gating", () => {
   }
 
   it("returns Noop when COMMUNICATIONS_ENABLED is not true", () => {
-    process.env = { ...ORIGINAL_ENV, COMMUNICATIONS_ENABLED: "false" };
+    // PHASE 13 — see the note on the next case. `ORIGINAL_ENV` carries the
+    // Point-7 bootstrap's `MESSAGING_TRANSPORT=recording`, and this case is
+    // about the TWILIO/NOOP table, so it says so.
+    process.env = {
+      ...ORIGINAL_ENV,
+      COMMUNICATIONS_ENABLED: "false",
+      MESSAGING_TRANSPORT: "",
+    };
     setMessagingProviderForTests(null);
     const p = getMessagingProvider();
     expect(p.provider).toBe("NOOP");
@@ -398,6 +405,17 @@ describe("Provider registry — feature flag + Twilio env gating", () => {
       ...ORIGINAL_ENV,
       COMMUNICATIONS_ENABLED: "true",
       TWILIO_ACCOUNT_SID: "",
+      // PHASE 13 — this case is about the TWILIO slot, so it must say that it
+      // wants the Twilio transport. `ORIGINAL_ENV` is captured after the
+      // Point-7 bootstrap has run, and the bootstrap selects the local
+      // recording provider (`MESSAGING_TRANSPORT=recording`) for the whole
+      // run. Without this line the copy carries that selection in, the
+      // recorder serves, and the assertion below would be testing a transport
+      // the case never meant to choose. Blanking it restores the intent: no
+      // recorder, Twilio incomplete, therefore Noop. The recorder's own
+      // resolution paths are pinned in
+      // `phase-13-messaging-recording-provider.test.ts` (D01–D06).
+      MESSAGING_TRANSPORT: "",
     };
     setMessagingProviderForTests(null);
     const p = getMessagingProvider();
@@ -407,7 +425,13 @@ describe("Provider registry — feature flag + Twilio env gating", () => {
   });
 
   it("buildProviderHealthSnapshot reports configured=false without leaking secrets", () => {
-    process.env = { ...ORIGINAL_ENV, COMMUNICATIONS_ENABLED: "false" };
+    // PHASE 13 — same note as the two cases above: name the transport this
+    // case means, or it inherits the bootstrap's recorder selection.
+    process.env = {
+      ...ORIGINAL_ENV,
+      COMMUNICATIONS_ENABLED: "false",
+      MESSAGING_TRANSPORT: "",
+    };
     setMessagingProviderForTests(null);
     const snap = buildProviderHealthSnapshot();
     expect(snap.configured).toBe(false);

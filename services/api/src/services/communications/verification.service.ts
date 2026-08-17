@@ -82,13 +82,26 @@ export async function startVerification(
   const recipientHash = hashRecipientPhone(phone);
   const recipientPreview = maskPhonePreview(phone);
 
-  // Per-recipient rate limit (per hour).
+  /**
+   * Per-recipient rate limit (per hour).
+   *
+   * PHASE 13 (NEW-056) — the limiter does NOT count its own refusals.
+   *
+   * Every refusal below writes a `FAILED` / `rate_limited` row, and this count
+   * had no predicate excluding them — so the rows the limiter created were
+   * counted by the next call. Once the limit tripped, each further attempt
+   * pushed the window forward by another hour: a user who briefly exceeded the
+   * limit stayed locked out for as long as they kept trying, which is the
+   * opposite of a limit that decays. A rate limit must measure the thing being
+   * limited — verification STARTS — and a refusal is not a start.
+   */
   const sinceHour = new Date(Date.now() - 3600 * 1000);
   const recentStarts = await client.verificationAttempt.count({
     where: {
       teamId: input.teamId,
       recipientHash,
       createdAt: { gte: sinceHour },
+      NOT: { errorCode: "rate_limited" },
     },
   });
   if (recentStarts >= STARTS_PER_HOUR) {
@@ -244,6 +257,22 @@ export type CheckVerificationInput = {
   initiatedByUserId?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  /**
+   * PHASE 13 (NEW-055) — check THIS attempt, not merely the newest one.
+   *
+   * A caller that already owns a verification attempt — the step-up challenge
+   * does, it persists `verificationAttemptId` at start — must be able to say
+   * so. Without it, the lookup below takes the most recent STARTED attempt for
+   * the recipient, so two concurrent challenges on one number let the code
+   * minted for the second approve the FIRST. The binding was written and never
+   * enforced.
+   *
+   * Optional, because callers that do NOT own a specific attempt (a bare
+   * verification with no challenge behind it) still legitimately want "the one
+   * in flight". Supplying it narrows; omitting it is exactly today's
+   * behaviour.
+   */
+  verificationAttemptId?: string | null;
 };
 
 export type CheckVerificationResult = {
@@ -264,13 +293,20 @@ export async function checkVerification(
     throw new VerificationError("feature_disabled");
   }
 
-  // Find the most recent STARTED attempt for this recipient. Bounded
-  // check-attempt count protects against brute force.
+  // Find the STARTED attempt this check is FOR. Bounded check-attempt count
+  // protects against brute force.
+  //
+  // NEW-055: when the caller names its own attempt, that id is part of the
+  // predicate — so a code minted for one challenge cannot approve another that
+  // happens to share the recipient. The recipient and tenant predicates are
+  // kept alongside it rather than replaced by it: an id supplied by a caller is
+  // still checked against the tenant and number it must belong to.
   const open = await client.verificationAttempt.findFirst({
     where: {
       teamId: input.teamId,
       recipientHash,
       status: prismaPkg.VerificationAttemptStatus.STARTED,
+      ...(input.verificationAttemptId ? { id: input.verificationAttemptId } : {}),
     },
     orderBy: { createdAt: "desc" },
   });

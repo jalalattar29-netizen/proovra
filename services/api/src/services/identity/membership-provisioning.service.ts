@@ -50,6 +50,19 @@ export type TxClient = Prisma.TransactionClient | PrismaClient;
 // in the engine). The program architecture registry locks the
 // `identity/rbac.service` import path to THIS module, so a new direct
 // production importer fails the suite.
+//
+// PHASE 13 §4 (2026-08-17) — `touchMemberLastSeen` joins the list. The auth
+// middleware writes the members roster's last-seen column through the
+// orchestrator rather than importing the rbac engine directly, which is exactly
+// what the lock above is for.
+//
+// KEEP THE EXPORT STATEMENT SHORT, AND KEEP COMMENTARY OUT OF IT. The module
+// reachability verifier (scripts/verify-module-reachability.mjs) matches
+// `export … from "…"` with a bounded 400-character lookahead. A six-line
+// comment INSIDE this brace list pushed the statement past that bound, the edge
+// to rbac.service.ts stopped being followed, and a 940-line RBAC lifecycle
+// authority was reported as an unreachable production module. Nothing about the
+// runtime had changed. The comment belongs here.
 // ─────────────────────────────────────────────────────────────────────────────
 export {
   RbacError,
@@ -62,6 +75,7 @@ export {
   grantDelegatedAdminScope,
   revokeDelegatedAdminScope,
   listTeamMembersWithAccess,
+  touchMemberLastSeen,
 } from "./rbac.service.js";
 
 // =============================================================================
@@ -188,122 +202,29 @@ export async function recordMembershipGrant(
   }
 }
 
-/**
- * Source-aware revocation (§6.2). Revokes the grant rows for `source` on
- * the given workspace membership; the membership itself is REVOKED only
- * when no other active grant remains.
- *
- * LEGACY / MIGRATION-WINDOW POLICY (explicit — never guess provenance):
- *   * Memberships with ZERO grant rows (pre-provenance, backfill not yet
- *     applied) have UNKNOWN historical sources. Source-scoped revocation
- *     must NOT permanently delete access whose provenance is unprovable —
- *     the membership is SUSPENDED instead (access stops immediately, the
- *     row is reversible, and an operator can review), and
- *     `legacyProvenanceUnknown: true` is returned.
- *   * After the 20270920250000_membership_grant_legacy_backfill backfill every such row carries one
- *     LEGACY_UNKNOWN grant, which this function treats as "another source
- *     remains" — removable only by explicit manual revocation
- *     (`revokeAllMembershipGrants` via the rbac revoke path).
- */
-export async function revokeWorkspaceMembershipSource(
-  tx: TxClient,
-  input: {
-    teamMemberId: string;
-    source: MembershipGrantSourceValue;
-    actorUserId?: string | null;
-    reason: string;
-  },
-): Promise<{
-  membershipRevoked: boolean;
-  otherSourcesRemain: boolean;
-  legacyProvenanceUnknown?: boolean;
-}> {
-  let hadGrantRows = false;
-  let othersRemain = false;
-  const grantDelegateR = (tx as { membershipGrant?: unknown }).membershipGrant;
-  try {
-    if (!grantDelegateR) throw Object.assign(new Error("no delegate"), { code: "P2021" });
-    const grants = await tx.membershipGrant.findMany({
-      where: { teamMemberId: input.teamMemberId, revokedAtUtc: null },
-      select: { id: true, source: true },
-    });
-    hadGrantRows = grants.length > 0;
-    // A LEGACY_UNKNOWN grant can never be source-revoked.
-    const toRevoke = grants.filter(
-      (g) => g.source === input.source && g.source !== "LEGACY_UNKNOWN",
-    );
-    othersRemain = grants.some((g) => g.source !== input.source);
-    if (toRevoke.length > 0) {
-      await tx.membershipGrant.updateMany({
-        where: { id: { in: toRevoke.map((g) => g.id) } },
-        data: {
-          revokedAtUtc: new Date(),
-          revokedByUserId: input.actorUserId ?? null,
-        },
-      });
-    }
-  } catch (err) {
-    const code = (err as { code?: string })?.code;
-    if (code !== "P2021" && code !== "P2022") throw err;
-    // Provenance table not applied yet — fall through to the zero-grant
-    // (unknown-provenance) branch below.
-  }
-  if (hadGrantRows && othersRemain) {
-    // Another valid source still grants this access — membership stays.
-    return { membershipRevoked: false, otherSourcesRemain: true };
-  }
-  if (!hadGrantRows) {
-    // UNKNOWN historical provenance: suspend (reversible), never revoke.
-    const suspendedRow = await tx.teamMember.update({
-      where: { id: input.teamMemberId },
-      data: {
-        status: "SUSPENDED",
-        suspendedAtUtc: new Date(),
-        suspendedByUserId: input.actorUserId ?? null,
-        suspensionReason:
-          `${input.reason} (legacy provenance unknown — suspended, not revoked)`.slice(0, 400),
-      },
-    });
-    // §4.4 — a SUSPENDED membership is an inaccessible context; clear a
-    // pointer that names it (same transaction, NULL only).
-    await repairStaleCurrentWorkspacePointers(
-      {
-        memberships: [
-          {
-            userId: suspendedRow.userId,
-            workspaceId: suspendedRow.teamId,
-          },
-        ],
-      },
-      tx as never,
-    );
-    return {
-      membershipRevoked: false,
-      otherSourcesRemain: false,
-      legacyProvenanceUnknown: true,
-    };
-  }
-  const revokedRow = await tx.teamMember.update({
-    where: { id: input.teamMemberId },
-    data: {
-      status: "REVOKED",
-      revokedAtUtc: new Date(),
-      revokedByUserId: input.actorUserId ?? null,
-      revocationReason: input.reason.slice(0, 400),
-    },
-  });
-  // §4.4 — same hygiene on the revocation leg. The updated row already
-  // carries the pair, so no extra read is issued.
-  await repairStaleCurrentWorkspacePointers(
-    {
-      memberships: [
-        { userId: revokedRow.userId, workspaceId: revokedRow.teamId },
-      ],
-    },
-    tx as never,
-  );
-  return { membershipRevoked: true, otherSourcesRemain: false };
-}
+// ---------------------------------------------------------------------------
+// PHASE 13 §4 (2026-08-17) — `revokeWorkspaceMembershipSource` was REMOVED here.
+//
+// §6.2 source-aware revocation — revoke ONE grant source and let the remaining
+// sources decide what access survives — is a real governance idea and is not a
+// current product behaviour. Nothing in this system offers it: no route touches
+// `membershipGrant` rows, SCIM deprovisioning and administrative revocation both
+// go through `massRevokeWorkspaceMemberships` / `revokeAllMembershipGrants`
+// which close EVERY source at once, and membership removal is deliberately
+// all-or-nothing everywhere it is exposed.
+//
+// What stood here was therefore an executable revocation path, complete with a
+// legacy-provenance policy branch, that no caller had ever exercised against
+// real data. A revocation primitive is the wrong thing to keep dormant: the
+// first time it runs it will run in an incident, against rows whose provenance
+// backfill state nobody has re-checked since it was written.
+//
+// The multi-source grant model it implements is written down in
+// `docs/architecture/program-ledger.md`, and the source-scoped revocation leg is
+// recorded there as backlog with the contract it must satisfy. `recordMembership-
+// Grant` (the producer) stays: grant provenance IS written today and IS read by
+// the members projection.
+// ---------------------------------------------------------------------------
 
 export const WORKSPACE_ASSIGNMENT_ROLES = [
   "OWNER",
@@ -537,40 +458,27 @@ export async function suspendWorkspaceMembership(
   );
 }
 
-/**
- * Reactivate a suspended membership. The HELD role is restored implicitly —
- * suspension never rewrote it — and revocation bookkeeping is cleared only
- * for a SUSPENDED row (a REVOKED row requires an explicit re-grant through
- * a provisioning intent, never a silent reactivation).
- */
-export async function reactivateWorkspaceMembership(
-  tx: TxClient,
-  input: { teamMemberId: string; actorUserId?: string | null },
-): Promise<{ ok: boolean; reason?: "not_suspended" }> {
-  const row = await tx.teamMember.findUnique({
-    where: { id: input.teamMemberId },
-    select: { status: true },
-  });
-  if (!row || row.status !== "SUSPENDED") {
-    return { ok: false, reason: "not_suspended" };
-  }
-  await tx.teamMember.update({
-    where: { id: input.teamMemberId },
-    data: {
-      status: "ACTIVE",
-      suspendedAtUtc: null,
-      suspendedByUserId: null,
-      suspensionReason: null,
-    },
-  });
-  await recordMembershipGrant(tx, {
-    teamMemberId: input.teamMemberId,
-    source: "MANUAL",
-    intent: "MEMBER_REACTIVATION",
-    grantedByUserId: input.actorUserId ?? null,
-  });
-  return { ok: true };
-}
+// ---------------------------------------------------------------------------
+// PHASE 13 §4 (2026-08-17) — `reactivateWorkspaceMembership` was REMOVED here.
+//
+// It was preserved as "single-membership reactivation, as opposed to the bulk
+// workspace-wide leg", on the reading that only the per-member leg was unwired.
+// Per-member reactivation is not unwired: `POST /v1/identity/members/:id/restore`
+// has offered it since Phase 17, through `restoreMember` in `rbac.service.ts`,
+// behind the four-layer identity guard (actor membership → `authorizeOrFail` →
+// managed-identity refusal → `MEMBER_RESTORE` step-up). That path performs the
+// same transition — SUSPENDED → ACTIVE, suspension bookkeeping cleared, a MANUAL
+// provenance grant recorded — and additionally emits the member audit and
+// security event this one did not.
+//
+// So the two were not a pair of legs, one wired and one not; they were two
+// implementations of one transition, and the wired one is the more complete.
+// `restoreMember` is the single per-member reactivation authority.
+// `massReactivateSuspendedWorkspaceMemberships` remains the workspace-wide leg,
+// reached from the organization workspace-resume route, and is deliberately
+// narrower: it restores only memberships suspended with the workspace-suspension
+// marker reason, so an individually suspended member is never swept back in.
+// ---------------------------------------------------------------------------
 
 /**
  * PHASE 3 — the canonical provisioning entry point. Dispatches per intent;

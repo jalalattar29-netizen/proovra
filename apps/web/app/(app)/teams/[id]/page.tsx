@@ -40,6 +40,7 @@ import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
 import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
 import { DangerConfirmModal } from "./components/DangerConfirmModal";
 import { WorkspaceClosureCard } from "./components/WorkspaceClosureCard";
+import { WorkspaceOwnershipTransferCard } from "./components/WorkspaceOwnershipTransferCard";
 import { TeamAccessReviewCard } from "./components/TeamAccessReviewCard";
 // Closure verification Part C — the per-team detail page (workspace
 // admin: members, invites, danger actions) must use the canonical
@@ -496,6 +497,14 @@ function TeamDetailPageBody() {
 
   const [showAddCase, setShowAddCase] = useState(false);
   const [availableCases, setAvailableCases] = useState<AvailableCaseItem[]>([]);
+  /**
+   * PHASE 13 (NEW-049) — the ownership-transfer outcome, held at PAGE level.
+   *
+   * The transfer card is owner-gated and a successful transfer demotes the
+   * actor, so the card unmounts on the refresh that follows its own success.
+   * The sentence has to outlive it.
+   */
+  const [ownershipNotice, setOwnershipNotice] = useState<string | null>(null);
   const [loadingAvailableCases, setLoadingAvailableCases] = useState(false);
   const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
   const [unlinkingCaseId, setUnlinkingCaseId] = useState<string | null>(null);
@@ -604,6 +613,28 @@ function TeamDetailPageBody() {
     member.user?.displayName || member.label || member.user?.email || member.userId;
 
   const displayMemberEmail = (member: TeamMember) => member.user?.email || "";
+
+  // PHASE 13 — POST /v1/teams/:id/transfer-ownership can only target an
+  // ACTIVE member who is not already the owner; the roster the page already
+  // read is the source, so the control never offers an ineligible target.
+  const ownershipTransferCandidates = useMemo(
+    () =>
+      (team?.members ?? [])
+        .filter(
+          (member) =>
+            member.userId !== team?.ownerUserId &&
+            member.userId !== currentUserId,
+        )
+        .map((member) => ({
+          userId: member.userId,
+          label:
+            member.user?.displayName ||
+            member.label ||
+            member.user?.email ||
+            member.userId,
+        })),
+    [team?.members, team?.ownerUserId, currentUserId],
+  );
 
   const handleStartEditName = () => {
     setTeamName(team?.name ?? "");
@@ -1710,8 +1741,26 @@ function TeamDetailPageBody() {
         }}
       >
         <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          {/*
+            PHASE 13 (NEW-071) — DANGLING ASSET REFERENCE.
+
+            `/images/landing-network-bg.png` was DELETED from `public/images` in
+            commit c0057941 and two `src` references were left behind (here and
+            `app/request-demo/success/page.tsx`). It is not in HEAD, not on disk
+            and not gitignored, so every load of this page fired a request that
+            404'd — a wasted round trip and a console error on a surface that is
+            otherwise clean. It surfaced as an unexplained 404 inside the
+            ownership-transfer journey's "no console errors" assertion.
+
+            Repointed to `site-velvet-bg.webp.png`, the asset that DOES exist and
+            that `operations/batch-analysis` and `operations/quotas` already use
+            in exactly this decorative-overlay role. The element is
+            `aria-hidden`/`alt=""` and purely decorative, so nothing about the
+            page's meaning changes — but pointing at a real file is the fix, not
+            deleting the treatment.
+          */}
           <img
-            src="/images/landing-network-bg.png"
+            src="/images/site-velvet-bg.webp.png"
             alt=""
             className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
           />
@@ -2566,6 +2615,38 @@ function TeamDetailPageBody() {
               </div>
             </Card>
           )}
+
+          {/* PHASE 4 §7.4 / Phase 13 — hand this workspace to another member.
+              Owner-only affordance; the route re-checks ownership + step-up. */}
+          {/*
+            PHASE 13 (NEW-049) — the transfer outcome lives HERE, not in the
+            card. A successful transfer demotes the actor out of ownership, so
+            the card below unmounts on the very refresh that follows it; a
+            notice inside it is announced for about as long as one render.
+          */}
+          {ownershipNotice ? (
+            <div
+              role="status"
+              aria-live="polite"
+              data-workspace-ownership-notice
+              className="team-card-copy"
+              style={{ marginBottom: 12 }}
+            >
+              {ownershipNotice}
+            </div>
+          ) : null}
+
+          {isOwner && teamId ? (
+            <WorkspaceOwnershipTransferCard
+              teamId={teamId}
+              teamName={team?.name ?? "this workspace"}
+              candidates={ownershipTransferCandidates}
+              onTransferred={async (notice) => {
+                setOwnershipNotice(notice);
+                await loadData();
+              }}
+            />
+          ) : null}
 
           {/* Lifecycle Phase 7 — workspace closure (owner-only; the card
               also self-hides when the backend returns 403). */}

@@ -99,8 +99,20 @@ type ModalState =
       details: StepUpRequiredDetails;
       teamId: string | null;
       challengeId: string;
-      phone: string | null;
+      /**
+       * PHASE 13 (NEW-058) — the MASK of the enrolled factor the code went to,
+       * replacing the `phone` this state used to carry.
+       *
+       * The old field was the destination the OPERATOR typed, and it was sent
+       * back to `/step-up/check` as if it were authoritative. It never was:
+       * the whole defect NEW-058 closes is that a caller-chosen destination
+       * proves possession of nothing. This is display-only — the server
+       * re-resolves the destination from the factor the challenge was minted
+       * against, and there is no route that would return the full value.
+       */
+      destinationMask: string | null;
     }
+  | { kind: "enrollment_required" }
   | { kind: "failed"; reason: string }
   | { kind: "retrying" };
 
@@ -159,11 +171,44 @@ export function useStepUpAction({
   }, []);
 
   const startChallenge = useCallback(
-    async (phone: string) => {
+    async () => {
       if (state.kind !== "starting") return;
       if (!teamId) {
         setState({ kind: "failed", reason: "Workspace context required." });
         return;
+      }
+      /**
+       * PHASE 13 (NEW-058) — resolve the enrolled factor BEFORE minting a
+       * challenge, for two reasons.
+       *
+       * The mask is the only thing this modal can honestly tell the operator
+       * about where the code went, and an account with no ACTIVE factor cannot
+       * elevate at all — so asking the server for a challenge it must refuse
+       * would spend a rate-limit slot to reach a denial we can already name.
+       * The server's own `STEP_UP_ENROLLMENT_REQUIRED` remains the authority;
+       * this is the same answer, one round-trip earlier.
+       */
+      let destinationMask: string | null = null;
+      try {
+        const roster = (await apiFetch(
+          "/v1/identity-security/contact-factors",
+          { method: "GET" },
+        )) as { factors?: Array<{ status?: string; destinationMask?: string }> };
+        const active = Array.isArray(roster?.factors)
+          ? roster.factors.find((f) => f?.status === "ACTIVE")
+          : undefined;
+        if (!active) {
+          setState({ kind: "enrollment_required" });
+          return;
+        }
+        destinationMask =
+          typeof active.destinationMask === "string"
+            ? active.destinationMask
+            : null;
+      } catch {
+        // A roster we could not read is NOT proof of "no factor" — fall
+        // through and let the server decide, which is the authority anyway.
+        destinationMask = null;
       }
       try {
         // `apiFetch` returns the PARSED body and throws on non-2xx. It has no
@@ -179,8 +224,35 @@ export function useStepUpAction({
               purpose: state.details.purpose,
               resourceKind: state.details.resourceKind,
               resourceId: state.details.resourceId,
-              phone,
-              channel: "sms",
+              /**
+               * PHASE 13 (NEW-058) — `phone` IS GONE FROM THIS BODY, AND ITS
+               * ABSENCE IS THE FIX.
+               *
+               * `StartBody` is `.strict()` and no longer declares the field, so
+               * a request that still carried it was rejected at validation —
+               * which meant the step-up gate was unreachable from the product
+               * for a SECOND reason on top of the one NEW-057 fixed. The
+               * destination is now resolved server-side from the account's
+               * ACTIVE, verified factor; there is nothing for a caller to
+               * choose, which is exactly the property that makes an approved
+               * challenge mean something.
+               *
+               * PHASE 13 (NEW-057) — the server's enum is UPPERCASE.
+               *
+               * This sent `"sms"`. `StartBody` declares
+               * `z.enum(["SMS", "WHATSAPP"])`, and Zod does not case-fold an
+               * enum, so every start request was rejected at validation and
+               * this modal dropped straight to its failed state with "Could
+               * not start step-up challenge."
+               *
+               * The blast radius is the whole step-up gate, not one surface:
+               * evidence publication and withdrawal, reviewer approve/reject,
+               * escalation resolve, bulk reviewer operations, evidence
+               * destruction approve and execute, governance policy update, and
+               * department membership grant/revoke are ALL reached through this
+               * modal. Every one of them was unreachable.
+               */
+              channel: "SMS",
             }),
           },
         )) as { challenge: { id: string } };
@@ -189,10 +261,19 @@ export function useStepUpAction({
           details: state.details,
           teamId,
           challengeId: json.challenge.id,
-          phone,
+          destinationMask,
         });
       } catch (err) {
-        const e = err as { message?: string };
+        const e = err as ApiErrorLike;
+        // The server's stable, actionable denial for an account with nothing
+        // to send a code to. It is deliberately NOT bucketed with "that code
+        // was wrong": one means "enrol a device", the other means "try again",
+        // and collapsing them leaves every gated feature looking broken with
+        // no way for this modal to offer the one thing that fixes it.
+        if (e?.code === "STEP_UP_ENROLLMENT_REQUIRED" || e?.statusCode === 403) {
+          setState({ kind: "enrollment_required" });
+          return;
+        }
         setState({
           kind: "failed",
           reason: toSafeUserError(e, { message: "Could not start step-up challenge." }).message,
@@ -213,9 +294,12 @@ export function useStepUpAction({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              // PHASE 13 (NEW-058) — no `phone`. `CheckBody` is `.strict()`
+              // and the destination is re-resolved from the factor the
+              // challenge was minted against, so a caller cannot verify
+              // against a different number than the one that was sent to.
               teamId: state.teamId,
               challengeId: state.challengeId,
-              phone: state.phone,
               code,
             }),
           },
@@ -304,19 +388,31 @@ export function StepUpModal({
   control: ReturnType<typeof useStepUpAction>;
 }) {
   const { state, cancel, startChallenge, verifyAndRetry } = control;
-  const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  const phoneRef = useRef<HTMLInputElement | null>(null);
   const codeRef = useRef<HTMLInputElement | null>(null);
+  /**
+   * The challenge is started exactly once per entry into `starting`.
+   *
+   * `startChallenge` closes over `state`, so it changes identity on every
+   * render — putting it in the dependency array would re-fire the effect and
+   * mint a second challenge, burning the account's rate limit on a modal the
+   * operator has not touched. The guard keys on the transition, not the
+   * callback.
+   */
+  const startedRef = useRef(false);
 
   useEffect(() => {
     if (state.kind === "starting") {
-      setPhone("");
       setCode("");
-      setTimeout(() => phoneRef.current?.focus(), 0);
+      if (!startedRef.current) {
+        startedRef.current = true;
+        void startChallenge();
+      }
     } else if (state.kind === "verifying") {
       setTimeout(() => codeRef.current?.focus(), 0);
     }
+    if (state.kind === "idle") startedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.kind]);
 
   useEffect(() => {
@@ -381,37 +477,21 @@ export function StepUpModal({
           </p>
         </header>
 
+        {/*
+         * PHASE 13 (NEW-058) — THERE IS NO DESTINATION FIELD HERE ANY MORE.
+         *
+         * This step used to ask the operator to type the number the code
+         * should go to, which is the defect in one control: a challenge
+         * answered on a handset the caller named proves possession of nothing,
+         * so a stolen session supplied its own number and approved its own
+         * elevation. The destination now comes from the account's enrolled
+         * factor and the step is purely informational.
+         */}
         {state.kind === "starting" ? (
-          <form
-            data-step-up-form="phone"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (phone.trim().length > 0) void startChallenge(phone.trim());
-            }}
-          >
-            <label
-              htmlFor="step-up-phone"
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "#475569",
-                marginBottom: 4,
-              }}
-            >
-              Phone number (E.164, e.g. +14155551234)
-            </label>
-            <input
-              id="step-up-phone"
-              ref={phoneRef}
-              data-step-up-phone-input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              autoComplete="tel"
-              placeholder="+14155551234"
-              style={inputStyle}
-            />
+          <div data-step-up-form="sending" role="status" aria-live="polite">
+            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+              Sending a one-time code to your enrolled device…
+            </p>
             <div style={actionsRow}>
               <button
                 type="button"
@@ -421,16 +501,37 @@ export function StepUpModal({
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/*
+         * The one denial that names its own remedy. Without this branch an
+         * account with no enrolled factor sees a generic failure on every
+         * step-up-gated operation and has no way to discover that enrolling a
+         * device is what unblocks it.
+         */}
+        {state.kind === "enrollment_required" ? (
+          <div data-step-up-enrollment-required>
+            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+              This action needs a verified device, and this account does not
+              have one yet. Enrol a phone under{" "}
+              <a href="/settings#security" data-step-up-enroll-link>
+                Settings → Security
+              </a>
+              , then start this action again.
+            </p>
+            <div style={actionsRow}>
               <button
-                type="submit"
-                data-step-up-send-code
-                style={primaryButtonStyle}
-                disabled={phone.trim().length === 0}
+                type="button"
+                onClick={cancel}
+                data-step-up-cancel
+                style={secondaryButtonStyle}
               >
-                Send code
+                Close
               </button>
             </div>
-          </form>
+          </div>
         ) : null}
 
         {state.kind === "verifying" ? (
@@ -450,7 +551,9 @@ export function StepUpModal({
                 marginBottom: 4,
               }}
             >
-              Verification code (sent via SMS)
+              {state.destinationMask
+                ? `Verification code (sent to ${state.destinationMask})`
+                : "Verification code (sent to your enrolled device)"}
             </label>
             <input
               id="step-up-code"

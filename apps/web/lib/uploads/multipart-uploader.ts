@@ -73,6 +73,21 @@ export type MultipartUploaderConfig = {
   /** Hook to persist progress snapshots (e.g. IndexedDB). Called
    *  on every state transition so a refresh restores progress. */
   onPersist?: (snapshot: UploadProgressSnapshot) => void | Promise<void>;
+  /**
+   * PHASE 13 (NEW-036) — the caller already ran `multipart/initiate`.
+   *
+   * The uploader only aborts the S3 multipart when IT performed the initiate,
+   * which is right when the uploader owns the whole lifecycle and wrong when
+   * the caller does not. The capture orchestration initiates the multipart
+   * itself and THEN constructs the uploader, so a cancel between those two
+   * points skipped the multipart abort entirely and left a live upload whose
+   * parts stay stored and billed.
+   *
+   * A caller that has already initiated says so here. It is not a default:
+   * assuming an initiate that did not happen would issue a pointless 4xx on
+   * every small single-part cancel, which is the reason the flag exists.
+   */
+  multipartAlreadyInitiated?: boolean;
 };
 
 export type MultipartUploaderListener = (
@@ -92,8 +107,18 @@ type InternalPart = {
 };
 
 export class MultipartUploader {
+  /**
+   * `multipartAlreadyInitiated` is omitted here because it is not carried in
+   * the config at all: it is an INITIAL VALUE for `multipartInitiated`, which
+   * the uploader then owns and updates. Keeping a second copy in `cfg` would
+   * leave two answers to "does an S3 multipart exist?" — the exact ambiguity
+   * that produced the orphaned upload this flag fixes.
+   */
   private readonly cfg: Required<
-    Omit<MultipartUploaderConfig, "onPersist" | "contentType">
+    Omit<
+      MultipartUploaderConfig,
+      "onPersist" | "contentType" | "multipartAlreadyInitiated"
+    >
   > & {
     onPersist: MultipartUploaderConfig["onPersist"];
     contentType: string | null;
@@ -106,6 +131,16 @@ export class MultipartUploader {
   private paused = false;
   private cancelled = false;
   private inFlightCount = 0;
+  /**
+   * True once `multipart/initiate` has succeeded — i.e. an S3 multipart
+   * upload actually exists on the server and must be aborted if the user
+   * cancels. Aborting one that was never initiated would be a pointless 4xx
+   * on every small single-part cancel.
+   *
+   * Seeded from `multipartAlreadyInitiated` so a caller that ran the initiate
+   * itself is not treated as one that never initiated at all.
+   */
+  private multipartInitiated: boolean;
   /** Resolves when the run loop has fully stopped (all in-flight
    *  parts settled). */
   private idleResolvers: Array<() => void> = [];
@@ -127,6 +162,7 @@ export class MultipartUploader {
       onPersist: config.onPersist,
       contentType: config.contentType ?? config.file.type ?? null,
     };
+    this.multipartInitiated = config.multipartAlreadyInitiated === true;
     const plan = planChunks(config.file.size, chunkSize);
     this.parts = plan.map((p) => ({
       plan: p,
@@ -203,10 +239,51 @@ export class MultipartUploader {
     return Promise.resolve(this.snapshot());
   }
 
+  /**
+   * PHASE 13 §C — NEW-029.
+   *
+   * Cancel used to be entirely CLIENT-SIDE: it set three local flags and
+   * returned. The server was never told, so the UploadSession row stayed open
+   * and — once `multipart/initiate` had run — the S3 multipart upload was
+   * abandoned mid-flight with its parts still billed and its state still held.
+   * Two registered routes exist for exactly this, `…/abort` and
+   * `…/multipart/abort`, and nothing in the product called either.
+   *
+   * The local transition happens FIRST and unconditionally: a user who presses
+   * Cancel must see it stop whatever the network does. The server calls are
+   * best-effort and idempotent (the route treats S3 `NoSuchUpload` as success),
+   * and the multipart leg is only attempted when multipart was actually
+   * initiated, so a small single-part upload does not call it.
+   */
   cancel(): void {
     this.cancelled = true;
     this.paused = true;
     this.transitionTo("CANCELLED");
+    void this.abortServerSide();
+  }
+
+  private async abortServerSide(): Promise<void> {
+    const body = JSON.stringify({ teamId: this.cfg.teamId, reason: "cancelled_by_user" });
+    if (this.multipartInitiated) {
+      try {
+        await apiFetch(`/v1/uploads/sessions/${this.cfg.sessionId}/multipart/abort`, {
+          method: "POST",
+          body,
+        });
+      } catch {
+        // The session abort below is the authority on the session's state; a
+        // failed multipart abort is reconciled by the server-side sweeper.
+      }
+    }
+    try {
+      await apiFetch(`/v1/uploads/sessions/${this.cfg.sessionId}/abort`, {
+        method: "POST",
+        body,
+      });
+    } catch {
+      // Cancelling is not allowed to fail in front of the user. The row is
+      // reaped by the capture/upload expiry sweep if this never lands.
+    }
   }
 
   snapshot(): UploadProgressSnapshot {
@@ -456,6 +533,7 @@ export class MultipartUploader {
         },
       );
       this.lastServerContactMs = Date.now();
+      this.multipartInitiated = true;
       return { ok: true };
     } catch (err) {
       const status =

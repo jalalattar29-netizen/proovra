@@ -1,0 +1,161 @@
+{
+  "$schema": "capability-authority/dynamic-resolutions@1",
+  "why": [
+    "A request whose target cannot be read from syntax is published, never dropped —",
+    "dropping it turns an unknown into a false certainty in the direction that makes",
+    "the report look better. But not every unresolvable request is an unresolved",
+    "ROUTE: a presigned PUT to object storage and an outbound webhook to a customer's",
+    "endpoint are requests with no route of ours behind them at all.",
+    "",
+    "So each site is read once and recorded here with what it actually calls. The",
+    "generator refuses an entry whose site no longer exists, so a deleted or moved",
+    "call cannot leave a stale exemption behind.",
+    "",
+    "OBJECT_STORE          — presigned upload/download against the storage provider.",
+    "EXTERNAL_DESTINATION  — an outbound call to a third party or a customer endpoint.",
+    "PROP_CALLBACK         — a handler passed as a prop; the path lives where the",
+    "                        handler is defined and is counted there.",
+    "LOCAL_NEXT_ROUTE      — a Next.js route handler in the web app, not an API route.",
+    "OPERATOR_TOOL         — a script whose target origin is supplied per run."
+  ],
+  "entries": [
+    {
+      "site": "apps/web/app/intake/[token]/page.tsx:583",
+      "class": "OBJECT_STORE",
+      "evidence": "fetch(res.upload.putUrl, { method: \"PUT\" }) — the presigned URL returned by the intake upload-session response; the storage provider, not this API.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/intake/[token]/capture/page.tsx:78",
+      "class": "PROP_CALLBACK",
+      "evidence": "captureAndSubmit({ session, file }) — the citizen-capture client helper; its own request is recorded in apps/web/lib/citizen-capture/citizen-capture-client.ts.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:591",
+      "class": "OBJECT_STORE",
+      "evidence": "tryDownloadFile(url, …) where url is the signed download URL from the API response — the storage provider serves it.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:645",
+      "class": "OBJECT_STORE",
+      "evidence": "tryDownloadFile(data.url, …) — signed verification-package URL from the API response.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/components/contact-sales-form.tsx:70",
+      "class": "LOCAL_NEXT_ROUTE",
+      "evidence": "apps/web/components/contact-sales-form.tsx:30 — `submitUrl = \"/api/contact-sales\"` is a defaulted prop naming a Next.js route handler in the web app.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/components/request-demo-form.tsx:185",
+      "class": "LOCAL_NEXT_ROUTE",
+      "evidence": "Same shape as contact-sales-form: a defaulted `submitUrl` prop naming a Next.js route handler.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/lib/uploads/multipart-uploader.ts:411",
+      "class": "OBJECT_STORE",
+      "evidence": "fetch(presign!.uploadUrl, { method: \"PUT\" }) — a presigned multipart part upload. | Site moved from :334 to :382 by the NEW-029 cancel fix (2026-08-16); the call itself is unchanged. | Re-anchored :382 -> :411 on 2026-08-17: the in-flight NEW-027 multipart-cancel work shifted apps/web/lib/uploads/multipart-uploader.ts again. Verified BY READING the site, not by matching the line: uploadPart still performs `const response = await fetch(presign!.uploadUrl, { method: \"PUT\", body: slice })` under the comment explaining that the global fetch is used so apiFetch does not re-attach an auth header to a presigned URL. Same call, same target, same reason it is not statically resolvable — the URL is a property of a value returned by the API at run time.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/contact-sales.service.ts:209",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "sendWebhookIfConfigured — outbound lead notification to an operator-configured CRM endpoint.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/demo-request.service.ts:264",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "sendWebhookIfConfigured — outbound demo-request notification to an operator-configured endpoint.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/trust/status-probes.service.ts:810",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "probeHttpHead against the configured Azure Document Intelligence endpoint — a provider health probe.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:335",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetch(delivery.endpoint.url) — delivery to a customer-registered webhook endpoint.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/integrations/webhook-dispatcher.ts:99",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "defaultHttpClient — the integration webhook dispatcher's outbound POST to a customer endpoint.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/automation/automation-delivery-runtime.service.ts:385",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "deliverWebhookOnce({ url: destination.url }) — automation delivery to a customer-configured destination.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/alerts/webhook-provider.ts:85",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetch(this.url) — the operational alert webhook provider posting to the configured alert sink.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/access-control/sso.service.ts:622",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetchOidcDiscovery(conn.issuerUrl) — the customer's OIDC identity provider discovery document.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/access-control/sso.service.ts:769",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetchOidcDiscovery(conn.issuerUrl) on the callback path.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/access-control/sso.service.ts:806",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetch(discovery.token_endpoint) — the IdP's token endpoint.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/access-control/sso.service.ts:883",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetch(discovery.userinfo_endpoint) — the IdP's userinfo endpoint.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "scripts/smoke-prod.mjs:48",
+      "class": "OBJECT_STORE",
+      "evidence": "fetch(created.upload.putUrl, { method: \"PUT\" }) — presigned upload in the production smoke script.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "scripts/load/runner.mjs:287",
+      "class": "OPERATOR_TOOL",
+      "evidence": "lib.request(url, { method: scenario.method }) — the load runner drives a scenario table against a target origin supplied per run; it is not a product consumer.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/communications/twilio-provider.ts:467",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "postForm(url, …) posting to Twilio's REST API with HTTP Basic credentials — an outbound provider call, not a route of ours.",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "services/api/src/scripts/twilio-message-recheck.ts:143",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "Operator recheck script reading a message back from Twilio's REST API.",
+      "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "scripts/smoke-prod.mjs:16",
+      "class": "OPERATOR_TOOL",
+      "evidence": "The smoke script's own api() wrapper: `${API_BASE}${path}` where path is supplied per call by the script. It drives the API but is not a product consumer.",
+      "reviewedAtUtc": "2026-08-16"
+    }
+  ]
+}

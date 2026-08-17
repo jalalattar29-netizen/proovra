@@ -5902,6 +5902,24 @@ model StepUpChallenge {
   // every challenge requires a verification round-trip.
   verificationAttemptId String? @map("verification_attempt_id") @db.Uuid
 
+  /**
+   * PHASE 13 (NEW-058) — the ENROLLED FACTOR this challenge was minted for.
+   *
+   * Before this the destination came from the request body, so an approved
+   * challenge proved possession of a handset the caller had chosen. Recording
+   * the factor makes the approval attributable to something the ACCOUNT owns,
+   * and recording its generation makes the approval expire the moment that
+   * enrolment is replaced — a challenge issued against generation 3 cannot be
+   * spent once the user re-enrols and the factor moves to generation 4.
+   *
+   * NULLABLE for rows written before this migration; the consume path treats a
+   * null factor as UNSPENDABLE rather than as "unbound", so the pre-existing
+   * window fails closed instead of open and closes entirely as those rows
+   * expire (max TTL 1h).
+   */
+  factorId         String? @map("factor_id") @db.Uuid
+  factorGeneration Int?    @map("factor_generation")
+
   // TTL for the approval. Defaults to STEP_UP_TTL_DEFAULT_SECONDS.
   expiresAtUtc  DateTime  @map("expires_at_utc") @db.Timestamptz(6)
   approvedAtUtc DateTime? @map("approved_at_utc") @db.Timestamptz(6)
@@ -5920,6 +5938,13 @@ model StepUpChallenge {
   @@index([initiatedByUserId, status])
   @@index([expiresAtUtc])
   @@index([teamId, purpose, resourceId])
+  // NEW-058 created `step_up_challenges_factor_id_idx` in SQL but never
+  // declared it here, so the applied database carried an index the datamodel
+  // did not know about and `db:raw-schema-verify` reported it as an
+  // unregistered divergence. Prisma derives exactly that name from this
+  // declaration (`<@@map table>_<@map column>_idx`), so the two now agree
+  // without touching the migration.
+  @@index([factorId])
   @@map("step_up_challenges")
 }
 
@@ -6005,6 +6030,20 @@ enum MfaFactorStatus {
 
 enum MfaFactorKind {
   TOTP
+
+  // PHASE 13 (NEW-058) — VERIFIED CONTACT FACTORS.
+  //
+  // The enterprise step-up gate delivers its one-time code to a phone, and
+  // took that phone FROM THE REQUEST BODY: it proved possession of a handset
+  // the CALLER chose, not of a factor the account had enrolled. A stolen
+  // session supplied the attacker's own number and approved its own challenge.
+  //
+  // These kinds exist so the destination is resolved from an enrolled,
+  // verified, revocable factor OWNED BY THE USER — the same authority TOTP
+  // already lives in, rather than a second identity table that could disagree
+  // with it about who holds what.
+  SMS
+  WHATSAPP
 }
 
 model MfaFactor {
@@ -6023,10 +6062,46 @@ model MfaFactor {
   // is recorded so we can rotate keys without touching the ciphertext
   // column. The IV is 12 bytes; the auth tag is 16 bytes. NEVER stores
   // the plaintext secret.
-  secretCiphertext Bytes  @map("secret_ciphertext")
-  secretIv         Bytes  @map("secret_iv")
-  secretAuthTag    Bytes  @map("secret_auth_tag")
-  secretKekId      String @map("secret_kek_id") @db.VarChar(64)
+  // NULLABLE only for CONTACT factors (SMS / WHATSAPP), which have no shared
+  // secret. A database CHECK — `mfa_factors_kind_payload_chk` — restores the
+  // invariant precisely: a TOTP row must carry all four, a contact row must
+  // carry none of them and all four destination columns instead. Nullability
+  // widened the column; the CHECK is what keeps the contract exact.
+  secretCiphertext Bytes?  @map("secret_ciphertext")
+  secretIv         Bytes?  @map("secret_iv")
+  secretAuthTag    Bytes?  @map("secret_auth_tag")
+  secretKekId      String? @map("secret_kek_id") @db.VarChar(64)
+
+  // PHASE 13 (NEW-058) — the enrolled DESTINATION, for contact factors.
+  //
+  // Sealed with the same envelope scheme as the TOTP secret above, because it
+  // is PII that the product must be able to send to and must never be able to
+  // display back. `destinationHash` is the deterministic lookup/dedupe key —
+  // it is what makes "this number is already enrolled for this user" answerable
+  // without the plaintext. `destinationMask` is the ONLY thing any surface may
+  // render.
+  destinationCiphertext Bytes?  @map("destination_ciphertext")
+  destinationIv         Bytes?  @map("destination_iv")
+  destinationAuthTag    Bytes?  @map("destination_auth_tag")
+  destinationKekId      String? @map("destination_kek_id") @db.VarChar(64)
+  destinationHash       String? @map("destination_hash") @db.VarChar(64)
+  destinationMask       String? @map("destination_mask") @db.VarChar(32)
+
+  // When the enrollment was PROVEN, not when the row was written. A row with
+  // `status = ACTIVE` and a null `verifiedAtUtc` is a contradiction the
+  // service refuses to create and the step-up resolver refuses to trust.
+  verifiedAtUtc DateTime? @map("verified_at_utc") @db.Timestamptz(6)
+
+  /**
+   * Monotonic generation, bumped whenever the factor's destination changes.
+   *
+   * A step-up challenge records the generation it was minted against. If the
+   * user re-enrols a different handset between issuing a challenge and
+   * spending it, the generation moves and the pending challenge stops being
+   * spendable — which is the whole point: an approval must not survive the
+   * factor that authorised it being replaced.
+   */
+  generation Int @default(1)
 
   // RFC 6238 parameters. We pin SHA-1 + 6 digits + 30s period at the
   // service layer to match every mainstream authenticator app; the
@@ -6051,6 +6126,12 @@ model MfaFactor {
   // enforce one-ACTIVE-per-label at the service layer.
   @@index([userId, status])
   @@index([status])
+  // PHASE 13 (NEW-058) — one enrolled destination per user per channel. The
+  // hash is the key because the plaintext is sealed; without this a caller
+  // could enrol the same number repeatedly and leave several ACTIVE rows for
+  // the resolver to choose between.
+  @@unique([userId, kind, destinationHash], map: "mfa_factors_user_kind_destination_key")
+  @@index([userId, kind, status])
   @@map("mfa_factors")
 }
 

@@ -420,13 +420,41 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
     app,
     fixtures,
     cleanup: async () => {
+      let poolLeak: string | null = null;
       try {
         await cleanupFixtures(
           prisma as unknown as import("@prisma/client").PrismaClient,
           fixtures,
         );
       } finally {
+        // PHASE 13 §4 — TEARDOWN ORDER. Every resource that holds a connection
+        // must be closed BEFORE the container that serves it is stopped:
+        //
+        //   1. the Fastify app (stops accepting and finishes in-flight work)
+        //   2. Prisma + the pg pool it was handed (releases every connection)
+        //   3. only then the container
+        //
+        // Stopping the container first is what produced `57P01` after the last
+        // assertion: PostgreSQL terminated the still-borrowed connections and
+        // `pg` raised asynchronously, failing the process on a suite where
+        // every test had passed.
         await app.close().catch(() => undefined);
+
+        const { closeDatabasePool } = await import("../src/db.js");
+        const poolState = await closeDatabasePool();
+        // A guard, not a formality: if anything is still borrowed here, the
+        // container stop below WILL raise 57P01 again, and the run should say
+        // which resource held on rather than reporting a mystery error.
+        // Recorded here, raised AFTER the teardown completes. Throwing from a
+        // `finally` replaces whatever exception was already propagating, so a
+        // leaked connection would have erased the real failure that caused it —
+        // and the rest of the teardown below would never run either.
+        if (poolState.totalCount !== 0 || poolState.waitingCount !== 0) {
+          poolLeak =
+            `integration teardown: the database pool was not fully released before the container stop ` +
+            `(total=${poolState.totalCount}, idle=${poolState.idleCount}, waiting=${poolState.waitingCount})`;
+        }
+
         if (originalDatabaseUrl !== undefined) {
           process.env.DATABASE_URL = originalDatabaseUrl;
         } else {
@@ -434,6 +462,9 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
         }
         await database.release();
       }
+      // Reached only when the teardown itself did not throw, which is the
+      // point: a leaked connection is reported, never used to mask a failure.
+      if (poolLeak !== null) throw new Error(poolLeak);
     },
   };
 }

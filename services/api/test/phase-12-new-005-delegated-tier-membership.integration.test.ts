@@ -289,10 +289,37 @@ describe("§1 — NEW-005: delegated-tier admission requires a LIVE membership",
     return changed;
   };
 
+  /**
+   * Records in the outbound ledger that represent an ACTUAL reach for the
+   * network — the thing a refused request must never do.
+   *
+   * The ledger file is SHARED by every integration suite in the run, and every
+   * suite's own disposable PostgreSQL and Redis connections are written to it
+   * with `category: "loopback-disposable"`. Counting raw lines therefore
+   * counted other suites' database pool connections as this request's external
+   * side effect: the assertion failed on `8276 vs 8275`, and the extra line was
+   * `BoundPool.newClient` connecting to a container this test never touched.
+   *
+   * Filtering to non-loopback categories makes the count ATTRIBUTABLE rather
+   * than merely smaller — a genuine outbound call still fails this, and a
+   * neighbouring suite's loopback no longer can.
+   */
   const outboundLedgerLines = (): number => {
     const file = process.env.P7_NETWORK_LEDGER;
     if (!file || !existsSync(file)) return 0;
-    return readFileSync(file, "utf8").split("\n").filter((l) => l.trim()).length;
+    return readFileSync(file, "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .filter((l) => {
+        try {
+          const rec = JSON.parse(l) as { category?: string };
+          return !String(rec.category ?? "").startsWith("loopback");
+        } catch {
+          // An unparseable line is not evidence of anything; counting it would
+          // make the assertion depend on the writer's formatting.
+          return false;
+        }
+      }).length;
   };
 
   // ---------------------------------------------------------------------------

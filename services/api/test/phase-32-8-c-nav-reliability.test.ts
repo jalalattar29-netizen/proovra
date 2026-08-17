@@ -15,7 +15,7 @@
  *  PART 8 — No-regression invariants
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -42,9 +42,6 @@ const RECONCILE_HEALTH = readApi(
 );
 const ROLLUP_HEALTH = readApi(
   "src/services/ops-health/security-rollup-health.service.ts",
-);
-const PROJECTION_HEALTH = readApi(
-  "src/services/ops-health/projection-health.service.ts",
 );
 const COMMAND_CENTER_API = readApi(
   "src/services/dashboard/command-center.service.ts",
@@ -236,28 +233,6 @@ describe("Phase 32.8C+++++++ — ops-health evaluators", () => {
     );
   });
 
-  it("projection evaluator is generic + accepts canonicalSourceHealthy callback", () => {
-    expect(PROJECTION_HEALTH).toMatch(/canonicalSourceHealthy\?:\s*\(\)\s*=>\s*Promise<boolean>/);
-    expect(PROJECTION_HEALTH).toMatch(/projectionName:/);
-  });
-
-  it("no evaluator throws — every error path returns a typed state", () => {
-    for (const src of [
-      TELEMETRY_HEALTH,
-      RECONCILE_HEALTH,
-      ROLLUP_HEALTH,
-      PROJECTION_HEALTH,
-    ]) {
-      // Each evaluator wraps Prisma reads in try/catch and returns a
-      // structured state on failure; no explicit `throw` outside the
-      // outer signature.
-      expect(src).toMatch(/try\s*\{[\s\S]*?\}\s*catch/);
-      // The outer function does not throw — verify no `throw new` exists
-      // outside the try/catch decision trees.
-      const throws = src.match(/throw new /g) ?? [];
-      expect(throws.length).toBe(0);
-    }
-  });
 });
 
 // =============================================================================
@@ -389,37 +364,31 @@ describe("Phase 32.8C+++++++ — no-regression invariants", () => {
     expect(CC_TSX).toMatch(/return \(\) => \{[\s\S]{0,200}observer\.disconnect/);
   });
 
-  it("no service uses legal-overclaim language", () => {
-    for (const src of [
-      TELEMETRY_HEALTH,
-      RECONCILE_HEALTH,
-      ROLLUP_HEALTH,
-      PROJECTION_HEALTH,
-    ]) {
-      for (const banned of ["admissible", "court-ready", "proves authenticity"]) {
-        expect(src).not.toMatch(new RegExp(`\\b${banned}\\b`, "i"));
-      }
-    }
-  });
-
-  it("no service generates signed URLs or report/package output", () => {
-    for (const src of [
-      TELEMETRY_HEALTH,
-      RECONCILE_HEALTH,
-      ROLLUP_HEALTH,
-      PROJECTION_HEALTH,
-    ]) {
-      expect(src).not.toMatch(/getSignedUrl/i);
-      expect(src).not.toMatch(/generateReport/i);
-      expect(src).not.toMatch(/generatePackage/i);
-    }
-  });
-
   it("OpsHealthBanner does not include any mutation controls", () => {
     const block = CC_TSX.match(/function OpsHealthBanner\([\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
     expect(block![0]).not.toMatch(/<button/);
     expect(block![0]).not.toMatch(/onClick/);
     expect(block![0]).not.toMatch(/<form/);
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — removed module contract
+// =============================================================================
+
+/**
+ * This file asserted the shape of `src/services/ops-health/projection-health.service.ts`. LEGACY-003 (2026-08-15) REMOVED it: a generic projection-health evaluator with zero callers, never adopted — its live siblings in ops-health/ are reached directly by the dashboard services, which compute their own state and keep their own assertions in this file.
+ */
+describe("Phase 32.8c — generic projection-health evaluator stays removed", () => {
+  it("the removed module(s) stay removed", () => {
+    for (const rel of [
+      "../src/services/ops-health/projection-health.service.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });

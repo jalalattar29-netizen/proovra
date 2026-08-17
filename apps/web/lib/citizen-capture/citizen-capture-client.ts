@@ -28,6 +28,12 @@ import {
   type CaptureSignaturePayload,
 } from "@proovra/shared";
 
+// AUDIT-002 (2026-08-15): these calls were RELATIVE (`/v1/...`), so the
+// browser resolved them against the WEB origin. There is no `/v1` rewrite in
+// next.config, so the citizen capture flow 404'd against Next and never
+// reached the API. The origin now comes from the ONE authority in lib/api.
+import { apiBaseUrl } from "../api";
+
 // Inject SHA-512 (noble/ed25519 dependency).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ed: any = ed25519;
@@ -82,7 +88,7 @@ export async function openCitizenSession(
   const pub = await ed25519.getPublicKeyAsync(priv);
   const pubHex = bytesToHex(pub);
 
-  const res = await fetch("/v1/intake/citizen/sessions", {
+  const res = await fetch(`${apiBaseUrl()}/v1/intake/citizen/sessions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -178,7 +184,7 @@ export async function captureAndSubmit(
   const assetBase64 = await fileToBase64(input.file);
 
   const res = await fetch(
-    `/v1/intake/citizen/sessions/${input.session.descriptor.captureSessionId}/capture`,
+    `${apiBaseUrl()}/v1/intake/citizen/sessions/${input.session.descriptor.captureSessionId}/capture`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },

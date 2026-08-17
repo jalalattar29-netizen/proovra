@@ -80,8 +80,13 @@ export default function RequestDemoSuccessPage() {
         style={{ paddingTop: 48, paddingBottom: 56 }}
       >
         <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          {/*
+            PHASE 13 (NEW-071) — the second of the two dangling references left
+            behind when `/images/landing-network-bg.png` was deleted in commit
+            c0057941. See `app/(app)/teams/[id]/page.tsx` for the full note.
+          */}
           <img
-            src="/images/landing-network-bg.png"
+            src="/images/site-velvet-bg.webp.png"
             alt=""
             className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
           />

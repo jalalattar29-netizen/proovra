@@ -436,7 +436,12 @@ describe("ENTERPRISE TENANT MODEL — /teams page", () => {
   it("WorkspaceAdministrationHome renders Personal Space card + Organizations + Actions", () => {
     expect(WEB_TEAMS_HOME).toMatch(/data-personal-space-card/);
     expect(WEB_TEAMS_HOME).toMatch(/data-workspace-admin-section="organizations"/);
-    expect(WEB_TEAMS_HOME).toMatch(/data-workspace-action="create_organization"/);
+    // Rebaselined 2026-08-17 — PHASE 13 §2. The Actions block used to carry a
+    // `create_organization` LINK to `/teams?action=create`, a query the page
+    // never handled: the control existed and did nothing. It is now the real
+    // create control — `CreateWorkspaceCard`, which POSTs /v1/teams — so the
+    // assertion follows the working control rather than the dead link.
+    expect(WEB_TEAMS_HOME).toMatch(/<CreateWorkspaceCard\s*\/>/);
     expect(WEB_TEAMS_HOME).toMatch(/data-workspace-action="join_organization"/);
   });
 

@@ -19,54 +19,32 @@
  *   4. No legacy `ctx.workspace.*` / `ctx.team.*` reads remain.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-function readSource(rel: string): string {
-  const url = new URL(rel, import.meta.url);
-  return readFileSync(fileURLToPath(url), "utf8");
+/**
+ * A tenancy read written inside a COMMENT is documentation, not a consumer.
+ *
+ * `SurfaceGate.tsx` documents the NEW-070 refresh rule by writing out the very
+ * expression the rule is about (`prev.envelope.workspace.id`), and the raw scan
+ * below counted that sentence as a direct read to migrate. The offender list is
+ * meant to tell a future PR exactly what to change, so a false entry in it is
+ * worse than noise — it sends someone to rewrite a comment.
+ *
+ * Block comments are blanked rather than removed so LINE NUMBERS in the
+ * offender list stay accurate. `//` is left alone deliberately: stripping it
+ * would have to reason about `https://` and about `//` inside string literals.
+ */
+function blankBlockComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
 }
 
-const TENANCY_RESOLVER = readSource(
-  "../src/services/organization/tenancy-resolver.service.ts",
-);
-
-describe("Phase G4.3 — Backend tenancy resolver is centralized", () => {
-  it("exposes the canonical write-path resolver", () => {
-    expect(TENANCY_RESOLVER).toContain("export async function resolveTenancyForWrite");
-  });
-
-  it("exposes the G4.1 read-side compatibility projection", () => {
-    expect(TENANCY_RESOLVER).toContain(
-      "export async function resolveEvidenceTenancyForRead",
-    );
-    expect(TENANCY_RESOLVER).toContain('source: "legacy_personal_fallback"');
-    expect(TENANCY_RESOLVER).toContain('source: "explicit_team"');
-    expect(TENANCY_RESOLVER).toContain('source: "orphan"');
-  });
-
-  it("preserves the Stage-6 invariant — team without org throws", () => {
-    expect(TENANCY_RESOLVER).toContain('"team_org_missing"');
-    expect(TENANCY_RESOLVER).toContain('"team_not_found"');
-    expect(TENANCY_RESOLVER).toContain('"tenancy_disagreement"');
-  });
-
-  it("never CREATES an organization implicitly", () => {
-    // The resolver only reads. No `.organization.create(` calls in
-    // this module — bootstrap lives in `workspace-bootstrap.service`.
-    expect(TENANCY_RESOLVER).not.toMatch(/\.organization\.create\(/);
-  });
-
-  it("emits the four tenancy observability counters", () => {
-    expect(TENANCY_RESOLVER).toContain("tenancy_resolution_failure_total");
-    expect(TENANCY_RESOLVER).toContain("orphan_governance_object_total");
-    expect(TENANCY_RESOLVER).toContain("tenancy_disagreement_total");
-    expect(TENANCY_RESOLVER).toContain("cross_org_resolution_blocked_total");
-  });
-});
+// LEGACY-003 (2026-08-15): the "never creates an organization implicitly"
+// guarantee belonged to the REMOVED tenancy resolver. Its stays-removed
+// contract is at the foot of this file.
 
 // ---------------------------------------------------------------------------
 // Frontend: no ad-hoc envelope.workspace reads outside platform-context.
@@ -134,7 +112,7 @@ describe("Phase G4.3 — Frontend tenancy reads are centralized", () => {
     const offenders: Array<{ file: string; line: number; match: string }> = [];
     const re = /\bctx\.(workspace|team)\.[a-zA-Z_]/g;
     for (const f of files) {
-      const src = readFileSync(f, "utf8");
+      const src = blankBlockComments(readFileSync(f, "utf8"));
       const lines = src.split("\n");
       for (let i = 0; i < lines.length; i++) {
         const m = lines[i].match(re);
@@ -157,7 +135,7 @@ describe("Phase G4.3 — Frontend tenancy reads are centralized", () => {
     for (const f of files) {
       if (f.startsWith(PLATFORM_CONTEXT_DIR)) continue; // canonical reader
       if (TENANCY_TELEMETRY_ALLOWLIST.has(f)) continue;
-      const src = readFileSync(f, "utf8");
+      const src = blankBlockComments(readFileSync(f, "utf8"));
       const lines = src.split("\n");
       for (let i = 0; i < lines.length; i++) {
         const m = lines[i].match(re);
@@ -184,5 +162,25 @@ describe("Phase G4.3 — Frontend tenancy reads are centralized", () => {
       );
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — removed module contract
+// =============================================================================
+
+/**
+ * LEGACY-003 (2026-08-15) REMOVED `src/services/organization/tenancy-resolver.service.ts` as a caller-less second tenancy authority; see the Phase A1 suite for the full reasoning.
+ */
+describe("Phase G4.3 — tenancy resolver stays removed", () => {
+  it("the removed module(s) stay removed", () => {
+    for (const rel of [
+      "../src/services/organization/tenancy-resolver.service.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });

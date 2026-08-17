@@ -78,6 +78,8 @@ export type StartResumableInput = {
   file: File;
   /** Optional content type override (falls back to file.type). */
   contentType?: string | null;
+  /** NEW-036 — caller already ran `multipart/initiate`; see MultipartUploaderConfig. */
+  multipartAlreadyInitiated?: boolean;
 };
 
 export type ReviewSignBlocker =
@@ -217,6 +219,7 @@ export function useResumableUploads(): UseResumableUploadsApi {
         teamId: input.teamId,
         file: input.file,
         contentType: input.contentType ?? input.file.type ?? null,
+        multipartAlreadyInitiated: input.multipartAlreadyInitiated === true,
         isOnline: () => networkRef.current.isOnline(),
         onPersist: async (snapshot) => {
           const projected = persistence.project(snapshot, {

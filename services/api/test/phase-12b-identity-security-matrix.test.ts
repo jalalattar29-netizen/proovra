@@ -320,6 +320,17 @@ const SU_SESSION = "session-hash-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SU_OTHER_SESSION = "session-hash-bbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const SU_CHAL = "eeeeeeee-4444-4444-8444-444444444444";
 const SU_TARGET = "ffffffff-5555-4555-8555-555555555555";
+/**
+ * PHASE 13 (NEW-058) — the ENROLLED FACTOR the challenge was minted against.
+ *
+ * Before this, a challenge carried no factor: its destination came from the
+ * request body, so an approved elevation proved possession of a handset the
+ * CALLER chose. Both the approval and the SPEND paths now re-read the factor,
+ * so the world has to hold one — and holding one is what lets the two new
+ * negative cases below (revoked factor, superseded generation) exist at all.
+ */
+const SU_FACTOR = "aaaaaaaa-6666-4666-8666-666666666666";
+const SU_FACTOR_GENERATION = 3;
 
 type ChalRow = {
   id: string;
@@ -334,6 +345,8 @@ type ChalRow = {
   expiresAtUtc: Date;
   approvedAtUtc: Date | null;
   verificationAttemptId: string | null;
+  factorId: string | null;
+  factorGeneration: number | null;
 };
 
 function makeStepUpWorld(overrides: Partial<ChalRow> = {}) {
@@ -350,6 +363,8 @@ function makeStepUpWorld(overrides: Partial<ChalRow> = {}) {
     expiresAtUtc: new Date(Date.now() + 10 * 60_000),
     approvedAtUtc: new Date(),
     verificationAttemptId: null,
+    factorId: SU_FACTOR,
+    factorGeneration: SU_FACTOR_GENERATION,
     ...overrides,
   };
   const rows: ChalRow[] = [row];
@@ -360,6 +375,23 @@ function makeStepUpWorld(overrides: Partial<ChalRow> = {}) {
   ];
   /** Mutations the CALLER performed past the gate. */
   const mutations: string[] = [];
+
+  /** The enrolled factor this challenge was minted against. */
+  let factor: {
+    id: string;
+    userId: string;
+    status: string;
+    revokedAt: Date | null;
+    verifiedAtUtc: Date | null;
+    generation: number;
+  } | null = {
+    id: SU_FACTOR,
+    userId: SU_USER,
+    status: "ACTIVE",
+    revokedAt: null,
+    verifiedAtUtc: new Date(),
+    generation: SU_FACTOR_GENERATION,
+  };
 
   const client = {
     stepUpChallenge: {
@@ -397,10 +429,36 @@ function makeStepUpWorld(overrides: Partial<ChalRow> = {}) {
       findUnique: async (args: { where: { id: string } }) =>
         teams.find((t) => t.id === args.where.id) ?? null,
     },
+    /**
+     * The enrolled factor, as the consume path re-reads it.
+     *
+     * `factor` is mutable so a case can revoke it or move its generation
+     * BETWEEN approval and spend — which is the window NEW-058 closes and the
+     * reason the check lives on the consume path rather than only on approval.
+     */
+    mfaFactor: {
+      findFirst: async (args: {
+        where: {
+          id: string;
+          userId: string;
+          status?: string;
+          revokedAt?: unknown;
+          verifiedAtUtc?: unknown;
+        };
+      }) => {
+        if (factor === null) return null;
+        if (args.where.id !== factor.id) return null;
+        if (args.where.userId !== factor.userId) return null;
+        if (factor.status !== "ACTIVE") return null;
+        if (factor.revokedAt !== null) return null;
+        if (factor.verifiedAtUtc === null) return null;
+        return { generation: factor.generation };
+      },
+    },
     riskSignal: { findMany: async () => [] },
     securityEvent: { create: async () => ({ id: "sec" }) },
   };
-  return { rows, mutations, client };
+  return { rows, mutations, client, factorRef: () => factor, setFactor: (f: typeof factor) => { factor = f; } };
 }
 
 /** The canonical route shape: gate, THEN mutate. */
@@ -575,7 +633,10 @@ describe("PHASE 12B B3 — target-bound step-up", () => {
           userId: SU_USER,
           challengeId: SU_CHAL,
           code: "123456",
-          phoneE164OrRaw: "+14155551234",
+          // PHASE 13 (NEW-058): the destination is no longer an input. It is
+          // re-resolved from the factor the challenge was minted against, so a
+          // caller cannot verify against a different number than the one the
+          // code was sent to.
           sessionIdHash: SU_OTHER_SESSION,
         },
         w.client as never,
@@ -765,6 +826,8 @@ async function buildSupportApp(): Promise<FastifyInstance> {
 }
 
 /** The step-up challenge the break-glass success path spends. */
+/** PHASE 13 (NEW-058) — the enrolled factor the break-glass challenge binds to. */
+const BG_FACTOR = "bbbbbbbb-7777-4777-8777-777777777777";
 const BG_CHALLENGE = "22222222-aaaa-4aaa-8aaa-222222222222";
 
 /**
@@ -786,6 +849,12 @@ function installSupportTransport(opts: { seedApprovedChallenge: boolean }) {
           resourceKind: null,
           resourceId: null,
           expiresAtUtc: new Date(Date.now() + 10 * 60_000),
+          // PHASE 13 (NEW-058): the consume path re-reads the enrolled factor
+          // this challenge was minted against, so a challenge with none is
+          // unspendable. That is the fix, not an inconvenience — before it, an
+          // elevation survived the enrolment being revoked.
+          factorId: BG_FACTOR,
+          factorGeneration: 1,
         },
       ]
     : [];
@@ -819,6 +888,15 @@ function installSupportTransport(opts: { seedApprovedChallenge: boolean }) {
         for (const m of matched) Object.assign(m, args.data);
         return { count: matched.length };
       },
+    },
+    // NEW-058: the enrolled factor, ACTIVE and at the generation the challenge
+    // records. A case that wanted to prove the revoked-factor refusal would
+    // return null here.
+    mfaFactor: {
+      findFirst: async (args: { where: { id: string; userId: string } }) =>
+        args.where.id === BG_FACTOR && args.where.userId === S.actorUserId
+          ? { generation: 1 }
+          : null,
     },
     team: { findUnique: async () => ({ id: WS, organizationId: ORG }) },
     riskSignal: { findMany: async () => [] },

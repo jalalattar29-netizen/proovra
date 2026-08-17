@@ -42,8 +42,88 @@ import {
   buildCitizenSessionDescriptor,
 } from "../services/capture-trust/citizen-capture.service.js";
 import { registerDevice } from "../services/capture-trust/device-identity.service.js";
+// PHASE1-002 — the one trusted-client-IP binding; see `clientIp` below.
+import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 
 const CITIZEN_INGEST_MAX_BYTES = 32 * 1024 * 1024; // 32 MiB raw
+
+// ---------------------------------------------------------------------------
+// FINAL-004 (2026-08-15) — the anti-abuse control this file's own header
+// promised ("rate-limited by IP + bounded asset size") existed only as prose.
+// The size bound was real; the rate limit was never written. Both routes are
+// unauthenticated and both WRITE: opening a session inserts a Device row, and
+// capture ingests up to 32 MiB and creates evidence. Anyone holding an intake
+// link id could therefore drive unbounded row and object creation into the
+// workspace anchored on it, at whatever rate they could issue requests.
+//
+// The shape is deliberately the same two-layer bound the sibling public intake
+// surface uses in `external-intake.routes.ts` — per-IP and per-capability —
+// because "the other public intake surface does it differently" is how one of
+// the two ends up forgotten again.
+// ---------------------------------------------------------------------------
+const CITIZEN_INTAKE_RATE_LIMIT_PER_IP_PER_MIN = 30;
+const CITIZEN_INTAKE_RATE_LIMIT_PER_TOKEN_PER_MIN = 20;
+
+/**
+ * PHASE1-002 (2026-08-16) — the per-IP bound MUST NOT trust a header the
+ * caller controls.
+ *
+ * The first version of this read `x-forwarded-for` unconditionally and keyed
+ * the limiter on its first value. On a deployment where `API_TRUST_PROXY` is
+ * unset — which is this service's documented safe default — that header is
+ * attacker-supplied, so sending a different `X-Forwarded-For` on every request
+ * yielded a fresh bucket every time. The per-IP limit was defeated by one
+ * header, on the exact surface the limit was added to protect, while reading in
+ * review as though the surface were bounded.
+ *
+ * `getTrustedClientIp` is the authority that already answers this question for
+ * capture-environment recording: it returns the socket IP unless the deployment
+ * has explicitly declared itself to be behind a proxy, and only then consults
+ * CF-Connecting-IP / the first PUBLIC forwarded hop. Using it here means the
+ * limiter and the evidence metadata agree about who the caller is, and the
+ * trust decision lives in one place instead of two.
+ *
+ * The per-token layer below is deliberately kept as well: a distributed
+ * attacker with many real source addresses defeats any per-IP bound, and the
+ * intake-link id is the thing that identifies which surface is being driven.
+ */
+function clientIp(req: FastifyRequest): string {
+  return trustedClientIpKey(req);
+}
+
+/**
+ * Two-layer public-intake bound. `capabilityKey` is the intake-link id for the
+ * open-session call and the capture-session id for ingest — the value that
+ * identifies WHICH citizen surface is being driven, never a secret worth
+ * storing whole, so only a bounded prefix reaches the limiter key.
+ */
+async function applyCitizenRateLimits(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  capabilityKey: string,
+): Promise<boolean> {
+  const ipResult = await enforceRateLimit({
+    key: `citizen-intake:ip:${clientIp(req)}`,
+    max: CITIZEN_INTAKE_RATE_LIMIT_PER_IP_PER_MIN,
+    windowSec: 60,
+  });
+  if (!ipResult.allowed) {
+    reply.code(429).send({ error: { code: "RATE_LIMITED", scope: "ip" } });
+    return false;
+  }
+
+  const tokenResult = await enforceRateLimit({
+    key: `citizen-intake:token:${capabilityKey.slice(0, 32)}`,
+    max: CITIZEN_INTAKE_RATE_LIMIT_PER_TOKEN_PER_MIN,
+    windowSec: 60,
+  });
+  if (!tokenResult.allowed) {
+    reply.code(429).send({ error: { code: "RATE_LIMITED", scope: "token" } });
+    return false;
+  }
+  return true;
+}
 
 const OpenSessionBody = z.object({
   /** Workflow intake token id — proves the citizen reached us via a real intake link. */
@@ -101,6 +181,9 @@ export async function citizenCaptureRoutes(app: FastifyInstance) {
     "/v1/intake/citizen/sessions",
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = OpenSessionBody.parse(req.body);
+      if (!(await applyCitizenRateLimits(req, reply, body.intakeTokenId))) {
+        return;
+      }
 
       // Validate intake link + resolve teamId. The citizen passes the
       // intake link id (workflow_intake_links.id); we honour the
@@ -168,6 +251,7 @@ export async function citizenCaptureRoutes(app: FastifyInstance) {
     "/v1/intake/citizen/sessions/:id/capture",
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await applyCitizenRateLimits(req, reply, id))) return;
       const body = CitizenCaptureBody.parse(req.body);
 
       // Decode bytes — bounded size.

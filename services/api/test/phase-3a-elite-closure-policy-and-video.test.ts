@@ -23,7 +23,7 @@
  *     precedence, track-grouping IoU helper, timeline emitter.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -66,10 +66,6 @@ const POLICY_STORE = readSource(
 const POLICY_SHIM = readSource(
   "../../../services/api/src/services/redaction/redaction-policy.service.ts",
 );
-const POLICY_MANIFEST = readSource(
-  "../../../services/api/src/services/redaction/policy-verification-manifest.service.ts",
-);
-
 const VIDEO_FRAME = readSource(
   "../../../services/api/src/services/redaction/video/video-frame.service.ts",
 );
@@ -82,17 +78,9 @@ const VIDEO_TIMELINE = readSource(
 const VIDEO_TRACKING = readSource(
   "../../../services/api/src/services/redaction/video/video-tracking.service.ts",
 );
-const VIDEO_VERIFICATION = readSource(
-  "../../../services/api/src/services/redaction/video/video-verification-manifest.service.ts",
-);
-
 const ROUTES = readSource(
   "../../../services/api/src/routes/redaction.routes.ts",
 );
-const REPORT_SECTION = readSource(
-  "../../../services/worker/src/report-v2/sections/video-intelligence.ts",
-);
-
 const UI_POLICY = readSource(
   "../../../apps/web/app/(app)/redaction/policy/page.tsx",
 );
@@ -362,10 +350,6 @@ describe("Phase 3A Elite — Prisma-backed policy store", () => {
     expect(POLICY_SHIM).toMatch(/no-op — policy now lives in Prisma/);
   });
 
-  it("policy verification manifest writer returns only PUBLISHED versions", () => {
-    expect(POLICY_MANIFEST).toMatch(/state !== "PUBLISHED"/);
-    expect(POLICY_MANIFEST).toMatch(/PolicyVerificationManifestEntry/);
-  });
 });
 
 // =============================================================================
@@ -475,11 +459,6 @@ describe("Phase 3A Elite — video intelligence services", () => {
     expect(VIDEO_TRACKING).toMatch(/groupDetectionsIntoTracks/);
   });
 
-  it("video verification manifest never includes geometry", () => {
-    expect(VIDEO_VERIFICATION).toMatch(/totalTracks/);
-    expect(VIDEO_VERIFICATION).toMatch(/perTrackKind/);
-    expect(VIDEO_VERIFICATION).not.toMatch(/bbox/);
-  });
 });
 
 // =============================================================================
@@ -564,23 +543,6 @@ describe("Phase 3A Elite — cross-surface integrations", () => {
     expect(ROUTES).toMatch(/videoProvenance/);
   });
 
-  it("report builder ships a video-intelligence section", () => {
-    expect(REPORT_SECTION).toMatch(
-      /export function renderVideoIntelligenceSection/,
-    );
-    expect(REPORT_SECTION).toMatch(/Tracking-assisted redaction/);
-    expect(REPORT_SECTION).toMatch(/NEVER published in this report/);
-  });
-
-  it("video verification manifest writer surfaces bounded counts only", () => {
-    expect(VIDEO_VERIFICATION).toMatch(
-      /export async function buildVideoTrackingVerificationEntry/,
-    );
-  });
-
-  it("policy verification manifest writer surfaces only PUBLISHED policy versions", () => {
-    expect(POLICY_MANIFEST).toMatch(/state !== "PUBLISHED"/);
-  });
 });
 
 // =============================================================================
@@ -621,5 +583,38 @@ describe("Phase 3A Elite — runtime helpers", () => {
     expect(POLICY_ASSIGNMENT_PRECEDENCE.WORKSPACE).toBe(1);
     expect(POLICY_ASSIGNMENT_PRECEDENCE.CASE).toBe(2);
     expect(POLICY_ASSIGNMENT_PRECEDENCE.PROJECT).toBe(3);
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — unwired Phase-3A manifest builders REMOVED
+// =============================================================================
+
+/**
+ * This file used to assert the source contract of three modules that no
+ * runtime path ever reached: the policy and video verification-manifest
+ * builders, and the report-v2 video-intelligence section (reachable only
+ * through a barrel that production does not import — processor.ts names the
+ * concrete modules directly).
+ *
+ * LEGACY-003 (2026-08-15) removed all three. Their assertions are not
+ * re-homed: each was a pure reader with zero importers, zero DB writes and no
+ * queue or event ownership, so there is no surviving code that owes those
+ * contracts. The shared TYPES they produced are retained in @proovra/shared,
+ * so wiring a verification manifest later is a deliberate act rather than an
+ * archaeology exercise.
+ */
+describe("Phase 3A Elite — removed manifest builders stay removed", () => {
+  it("neither manifest builder nor the orphaned report section returns", () => {
+    for (const rel of [
+      "../../../services/api/src/services/redaction/policy-verification-manifest.service.ts",
+      "../../../services/api/src/services/redaction/video/video-verification-manifest.service.ts",
+      "../../../services/worker/src/report-v2/sections/video-intelligence.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });

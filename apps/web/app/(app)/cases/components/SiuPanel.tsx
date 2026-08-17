@@ -269,11 +269,26 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
     setBusy(true);
     setErr(null);
     try {
-      // POST returns binary ZIP; we trigger a browser download.
-      const res = await fetch(`/v1/cases/${caseId}/siu-export`, {
+      // POST returns binary ZIP; we trigger a browser download, so this cannot
+      // go through `apiFetch` (which is shaped for JSON).
+      //
+      // AUDIT-002 (2026-08-15): this called a RELATIVE `/v1/...`, which the
+      // browser resolved against the WEB origin. There is no `/v1` rewrite in
+      // next.config, so every SIU export 404'd against Next and never reached
+      // the API — and it carried no Authorization header either. It now uses
+      // the ONE API origin and attaches the same bearer fallback the other
+      // binary-download call sites use.
+      const { apiBaseUrl, readApiToken } = await import("../../../../lib/api");
+      const memToken = readApiToken();
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      };
+      if (memToken) headers["Authorization"] = `Bearer ${memToken}`;
+
+      const res = await fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`, {
         method: "POST",
         credentials: "include",
-        headers: { "content-type": "application/json" },
+        headers,
         body: JSON.stringify({
           warningExportReason:
             preflight.readiness === "ready_with_warnings"
@@ -309,6 +324,60 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       setBusy(false);
     }
   }, [caseId, exportReason, preflight]);
+
+  /**
+   * PHASE 13 §C — NEW-027. The history row's Download control was an
+   * `<a href="/v1/cases/…/download">`, a RELATIVE path that resolves against
+   * the Next origin, not the API's. The API is a different origin
+   * (`apiBaseUrl()`), so the link 404'd every time it was clicked — and it also
+   * carried no bearer token, which the sibling export call two hundred lines
+   * above already knew to attach.
+   *
+   * It now uses the same binary-download idiom as that sibling: absolute API
+   * origin, credentials, bearer header, blob, revoke. The failure states are
+   * the ones the caller can act on rather than a raw status code.
+   */
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const downloadExport = useCallback(
+    async (exportId: string) => {
+      setErr(null);
+      setDownloadingId(exportId);
+      try {
+        const { apiBaseUrl, readApiToken } = await import("../../../../lib/api");
+        const memToken = readApiToken();
+        const headers: Record<string, string> = {};
+        if (memToken) headers["Authorization"] = `Bearer ${memToken}`;
+        const res = await fetch(
+          `${apiBaseUrl()}/v1/cases/${caseId}/siu-exports/${exportId}/download`,
+          { method: "GET", credentials: "include", headers },
+        );
+        if (!res.ok) {
+          await res.text().catch(() => "");
+          setErr(
+            res.status === 403
+              ? "Download refused — you don't have permission to download this export."
+              : res.status === 404
+                ? "That export is no longer available."
+                : `Download refused (HTTP ${res.status}).`,
+          );
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `siu-export-${caseId}-${exportId}.zip`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        setErr("Couldn't download that export right now. Try again or contact support.");
+      } finally {
+        setDownloadingId(null);
+      }
+    },
+    [caseId],
+  );
 
   const summary = useMemo(() => {
     if (!profile) return null;
@@ -561,14 +630,24 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                         </td>
                         <td style={td}>
                           {downloadable ? (
-                            <a
-                              href={`/v1/cases/${caseId}/siu-exports/${h.id}/download`}
-                              download
+                            <button
+                              type="button"
+                              onClick={() => void downloadExport(h.id)}
+                              disabled={downloadingId === h.id}
+                              aria-busy={downloadingId === h.id}
                               data-testid="siu-export-download-link"
-                              style={{ color: "#0f172a", textDecoration: "underline" }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                font: "inherit",
+                                color: "#0f172a",
+                                textDecoration: "underline",
+                                cursor: downloadingId === h.id ? "wait" : "pointer",
+                              }}
                             >
-                              Download
-                            </a>
+                              {downloadingId === h.id ? "Downloading…" : "Download"}
+                            </button>
                           ) : (
                             <span style={{ color: "#94a3b8" }}>—</span>
                           )}

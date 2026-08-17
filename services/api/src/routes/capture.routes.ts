@@ -255,6 +255,30 @@ export async function captureRoutes(app: FastifyInstance) {
         }
       }
 
+      // PHASE 13 §A4 — NEW-026. A TEAM draft stamps `teamId` straight from the
+      // request body, and nothing checked that the caller belongs to that
+      // workspace: any authenticated user could create a CaptureSession
+      // claiming any workspace id, carrying their own item snapshots and
+      // internal notes. The comment above says team drafts' "membership + plan
+      // gates apply downstream" — downstream is the wrong place for the
+      // question of whose workspace a row is written into, and the row is
+      // written here.
+      //
+      // Same gate `POST /v1/cases` already applies to its own `body.teamId`:
+      // the membership must exist and be ACTIVE.
+      if (body.teamId) {
+        const member = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: body.teamId, userId: ownerUserId } },
+          select: { status: true },
+        });
+        if (!member || member.status !== "ACTIVE") {
+          return reply.code(403).send({
+            code: "WORKSPACE_MEMBERSHIP_REQUIRED",
+            message: "You are not an active member of this workspace.",
+          });
+        }
+      }
+
       let templateSnapshot: ReturnType<typeof snapshotIntakeTemplate> | null =
         null;
       let templateVersion: number | null = null;

@@ -23,7 +23,7 @@
  * pieces — pure string + structure assertions, no DB, no Fastify.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -176,97 +176,36 @@ describe("Phase 24-J — search-audit service", () => {
 });
 
 // =============================================================================
-// OCR foundations
+// OCR + Transcript foundations — REMOVED (LEGACY-003)
 // =============================================================================
 
-describe("Phase 24-J — OCR foundations", () => {
-  const src = readSource(
-    "../../../services/api/src/services/search/ocr-foundations.service.ts",
-  );
-
-  it("bounds visibility scope to the documented catalog", () => {
-    expect(src).toMatch(
-      /OCR_VISIBILITY_SCOPES = \[\s*"TEAM",\s*"REVIEWER_RESTRICTED",\s*"CONTRIBUTOR_PRIVATE",\s*"BLOCKED",\s*\]/,
-    );
-    expect(src).toMatch(/OCR_VISIBILITY_SCOPE_SET\.has\(input\.visibilityScope\)/);
-  });
-
-  it("bounds individual chunk text length (no gargantuan rows)", () => {
-    expect(src).toMatch(/MAX_TEXT_CHARS = 64 \* 1024/);
-    expect(src).toMatch(/text_exceeds_chunk_bound/);
-  });
-
-  it("scrubs forbidden-overclaim phrases at write time + marks the row redacted", () => {
-    expect(src).toMatch(/stringContainsForbiddenOverclaim/);
-    expect(src).toMatch(/SEARCH_FORBIDDEN_OVERCLAIM_PHRASES/);
-    expect(src).toMatch(/redacted = input\.redacted \|\| scrubbed/);
-    expect(src).toMatch(/search_ocr_text_redacted/);
-  });
-
-  it("upsert uses ON CONFLICT on (evidence_id, COALESCE(part_id, …), chunk_index)", () => {
-    expect(src).toMatch(
-      /ON CONFLICT \(\s*"evidence_id",\s*COALESCE\("part_id",\s*'00000000-0000-0000-0000-000000000000'\),\s*"chunk_index"\s*\) DO UPDATE/i,
-    );
-    // Upsert resets indexed_at_utc = NULL so the lag-pointer rises.
-    expect(src).toMatch(/"indexed_at_utc" = NULL/);
-  });
-
-  it("indexer-facing read enforces TEAM scope + non-redacted + lifecycle gate (fail-closed)", () => {
-    expect(src).toMatch(
-      /WHERE "team_id" = \$1[\s\S]*?"evidence_id" = \$2[\s\S]*?"visibility_scope" = 'TEAM'[\s\S]*?"redacted" = FALSE/i,
-    );
-    expect(src).toMatch(/sourceEvidenceIsIndexable/);
-    expect(src).toMatch(
-      /!input\.sourceEvidenceIsIndexable[\s\S]*?return \[\]/,
-    );
-    expect(src).toMatch(/search_fail_closed_engaged/);
-  });
-
-  it("indexing-lag helper supports the readiness probe (real lag, not fake)", () => {
-    expect(src).toMatch(/getOcrIndexingLagSeconds/);
-    expect(src).toMatch(/MIN\("extracted_at_utc"\)/);
-    expect(src).toMatch(/"indexed_at_utc" IS NULL/);
-  });
-
-  it("never references the raw OCR engine secret / API key / model version", () => {
-    expect(src).not.toMatch(/OCR_API_KEY|TEXTRACT|VISION_API_KEY/);
-  });
-});
-
-// =============================================================================
-// Transcript foundations
-// =============================================================================
-
-describe("Phase 24-J — Transcript foundations", () => {
-  const src = readSource(
-    "../../../services/api/src/services/search/transcript-foundations.service.ts",
-  );
-
-  it("bounds visibility scope to the documented catalog", () => {
-    expect(src).toMatch(
-      /TRANSCRIPT_VISIBILITY_SCOPES = \[\s*"TEAM",\s*"REVIEWER_RESTRICTED",\s*"CONTRIBUTOR_PRIVATE",\s*"BLOCKED",\s*\]/,
-    );
-  });
-
-  it("requires non-negative start_ms + end_ms >= start_ms at write time", () => {
-    expect(src).toMatch(/startMs < 0 \|\| input\.endMs < input\.startMs/);
-    expect(src).toMatch(/segment_offsets_invalid/);
-  });
-
-  it("scrubs forbidden-overclaim phrases at write time", () => {
-    expect(src).toMatch(/stringContainsForbiddenOverclaim/);
-    expect(src).toMatch(/search_transcript_segment_redacted/);
-  });
-
-  it("indexer-facing read enforces TEAM scope + non-redacted + lifecycle gate", () => {
-    expect(src).toMatch(
-      /WHERE "team_id" = \$1[\s\S]*?"evidence_id" = \$2[\s\S]*?"visibility_scope" = 'TEAM'[\s\S]*?"redacted" = FALSE/i,
-    );
-    expect(src).toMatch(/sourceEvidenceIsIndexable/);
-  });
-
-  it("indexing-lag helper supports the readiness probe", () => {
-    expect(src).toMatch(/getTranscriptIndexingLagSeconds/);
+/**
+ * Phase 24-J shipped `ocr-foundations.service.ts` and
+ * `transcript-foundations.service.ts`, and this file asserted their bounded
+ * visibility catalog, chunk limits, TEAM-scoped reads and lag helpers.
+ *
+ * LEGACY-003 (2026-08-15) REMOVED both. They were unreachable from every
+ * runtime entrypoint while still being the ONLY inserters into
+ * `evidence_ocr_text` and `evidence_transcript_segments` — an unreachable
+ * writer, which is the exact shape the reachability gate exists to eliminate.
+ * The canonical extracted-text surface is `evidence_extracted_texts`.
+ *
+ * Their contract assertions are not re-homed, because there is no longer any
+ * code to hold to them. What replaces them is the invariant that survives the
+ * removal: the modules stay gone. The tables themselves are NOT dropped here —
+ * that is a contract-wave decision with its own readiness gate.
+ */
+describe("Phase 24-J — OCR + transcript foundations stay removed", () => {
+  it("neither foundations module is back on disk", () => {
+    for (const rel of [
+    // LEGACY-003: both foundations modules were REMOVED; a scan list naming
+    // a deleted file asserts nothing.
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });
 
@@ -575,8 +514,8 @@ describe("Phase 24-J — /v1/search/audit route", () => {
 describe("Phase 24-J — cross-surface invariants", () => {
   const SURFACE_FILES = [
     "../../../services/api/src/services/search/search-audit.service.ts",
-    "../../../services/api/src/services/search/ocr-foundations.service.ts",
-    "../../../services/api/src/services/search/transcript-foundations.service.ts",
+    // LEGACY-003: both foundations modules were REMOVED; a scan list naming
+    // a deleted file asserts nothing.
     "../../../services/api/src/queue/search-queue.ts",
     "../../../services/worker/src/search-indexing.processor.ts",
   ];
@@ -619,8 +558,8 @@ describe("Phase 24-J — cross-surface invariants", () => {
     // in its WHERE clause.
     for (const rel of [
       "../../../services/api/src/services/search/search-audit.service.ts",
-      "../../../services/api/src/services/search/ocr-foundations.service.ts",
-      "../../../services/api/src/services/search/transcript-foundations.service.ts",
+    // LEGACY-003: both foundations modules were REMOVED; a scan list naming
+    // a deleted file asserts nothing.
     ]) {
       const src = readSource(rel);
       const selectMatches = src.match(/FROM "[^"]+"/g) ?? [];

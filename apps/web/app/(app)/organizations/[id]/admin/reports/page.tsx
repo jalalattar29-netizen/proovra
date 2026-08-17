@@ -32,7 +32,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError, readApiToken } from "../../../../../../lib/api";
+import { apiFetch, ApiError, apiBaseUrl, readApiToken } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { notifyApiError } from "../../../../../../lib/feedback/notify";
 import { useToast } from "../../../../../../components/ui-legacy";
@@ -147,9 +147,11 @@ type Loadable<T> =
   | { kind: "ready"; data: T }
   | { kind: "error"; message: string; status: number; requestId?: string };
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE ?? "https://api.proovra.com"
-).replace(/\/+$/, "");
+// AUDIT-003 (2026-08-15): this was a third copy of the API-origin derivation,
+// complete with its own production default and its own trailing-slash trim.
+// The origin is ONE authority; re-deriving it means a change has to find every
+// copy, and a copy that drifts points a whole page at the wrong host.
+const API_BASE = apiBaseUrl();
 
 export default function OrganizationAdminReportsPage() {
   return (

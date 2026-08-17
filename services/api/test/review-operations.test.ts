@@ -200,9 +200,17 @@ describe("anti-enumeration — review-operations routes", () => {
       "utf8",
     );
     expect(src).toMatch(/recordReviewDecision\(/);
-    expect(src).toMatch(/assignReviewer\(/);
     expect(src).toMatch(/claimReviewerWorkflow\(/);
     expect(src).toMatch(/bulkReviewAction\(/);
+    // Rebaselined 2026-08-17 — PHASE 13 §3. `POST /v1/review-operations/evidence/
+    // :evidenceId/assign` and `…/sla` were removed: no caller existed on any
+    // surface (web, mobile, worker, cron, CLI, runbook, SDK, webhook, import
+    // graph, or the /v1/workspaces alias) and no test referenced them. The
+    // service functions survive — `assignReviewer` and `updateReviewSla` are
+    // still the canonical writers, now reached only through
+    // workflow-instances.routes.ts — so this file must NOT import them again.
+    expect(src).not.toMatch(/assignReviewer\(/);
+    expect(src).not.toMatch(/updateReviewSla\(/);
   });
 });
 

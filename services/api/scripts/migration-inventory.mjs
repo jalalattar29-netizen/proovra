@@ -39,6 +39,13 @@ const REPO = resolve(API, "../..");
 const MIGRATIONS_DIR = join(API, "prisma", "migrations");
 const INVENTORY_PATH = join(REPO, "docs", "architecture", "migration-inventory-p6.json");
 const CURATION_PATH = join(REPO, "docs", "architecture", "migration-inventory-p6.curation.json");
+/** Written by migration-production-reconcile.mjs — a separate authority, read here as an input. */
+const RECONCILIATION_PATH = join(
+  REPO,
+  "docs",
+  "architecture",
+  "migration-production-reconciliation.json",
+);
 
 const CLASSIFICATIONS = new Set([
   "EXPAND",
@@ -467,7 +474,23 @@ function gitTracked() {
 // Build
 // ---------------------------------------------------------------------------
 
-export function buildInventory({ withGit = false, previous = null } = {}) {
+/**
+ * PHASE 0 §3/§8 — `previous` is a GIT MEMO, never a fact source.
+ *
+ * This generator used to read its own last output for two different reasons,
+ * and only one of them was defensible. Carrying `gitIntroductionCommit` forward
+ * when the caller did not ask for the (expensive) git walk is memoisation of a
+ * derivation this program owns. Carrying `productionSnapshot` forward was
+ * something else: that block is written by the RECONCILER, so the inventory was
+ * republishing another authority's measurement out of its own stale copy —
+ * which is how an artifact ends up with two producers and a number nobody can
+ * re-derive. The reconciliation now arrives from its own artifact, read as an
+ * input, and `previous` is confined to the two git provenance fields below.
+ *
+ * `reconciliation` is the parsed sidecar, or null when no production snapshot
+ * has been collected in this environment.
+ */
+export function buildInventory({ withGit = false, previous = null, reconciliation = null } = {}) {
   const curation = JSON.parse(readFileSync(CURATION_PATH, "utf8"));
   const disk = discover();
   const tracked = gitTracked();
@@ -567,9 +590,9 @@ export function buildInventory({ withGit = false, previous = null } = {}) {
       guardRaises: a.guardCount,
       destructiveGuarded: a.destructive.length === 0 ? null : a.guardCount > 0,
       guardedByPrecedingMigration: cur?.guardedByPrecedingMigration ?? null,
-      prodApplied: "UNKNOWN_AWAITING_SNAPSHOT",
-      prodChecksum: null,
-      prodStatus: null,
+      prodApplied: reconciliation?.perMigration?.[d.name]?.prodApplied ?? "UNKNOWN_AWAITING_SNAPSHOT",
+      prodChecksum: reconciliation?.perMigration?.[d.name]?.prodChecksum ?? null,
+      prodStatus: reconciliation?.perMigration?.[d.name]?.prodStatus ?? null,
       believedProductionState: cur?.believedProductionState ?? null,
       believedProductionEvidence: cur?.believedProductionEvidence ?? null,
       safeBeforeCodeDeployment: cur?.safeBeforeCodeDeployment ?? null,
@@ -750,7 +773,10 @@ function main() {
   const asJson = argv.includes("--json");
 
   const previous = existsSync(INVENTORY_PATH) ? JSON.parse(readFileSync(INVENTORY_PATH, "utf8")) : null;
-  const { curation, migrations } = buildInventory({ withGit, previous });
+  const reconciliation = existsSync(RECONCILIATION_PATH)
+    ? JSON.parse(readFileSync(RECONCILIATION_PATH, "utf8"))
+    : null;
+  const { curation, migrations } = buildInventory({ withGit, previous, reconciliation });
   const failures = validate(migrations, curation);
   const metrics = metricsOf(migrations);
   metrics.MigrationInventoryDuplicates = failures.filter((f) => f.startsWith("INVENTORY_DUPLICATE")).length;
@@ -760,7 +786,11 @@ function main() {
     generatedBy: "services/api/scripts/migration-inventory.mjs",
     authority:
       "CANONICAL migration inventory for PHASE 12 POINT 6. Supersedes the migration half of docs/architecture/schema-migration-classification.json (which remains the MODEL-level authority). One record per migration directory on disk.",
-    productionSnapshot: previous?.productionSnapshot ?? {
+    // From the reconciler's artifact, never from this file's previous copy of
+    // it. When no snapshot has been collected there is nothing to publish, and
+    // saying so is the honest answer — a carried-forward block would report a
+    // reconciliation that this run has no evidence for.
+    productionSnapshot: reconciliation?.productionSnapshot ?? {
       state: "AWAITING_OWNER_PRODUCTION_MIGRATION_SNAPSHOT",
       reason:
         "P6_PRODUCTION_READONLY_DATABASE_URL is not present in this environment. No production database was contacted. Collect with scripts/p6-production-migration-snapshot.mjs and reconcile with scripts/migration-production-reconcile.mjs.",

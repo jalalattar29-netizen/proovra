@@ -182,7 +182,38 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // delegated admin, access reviews) is reserved for the sales-led
   // enterprise plan. Direct URL returns 404 — no upsell, the surface
   // simply does not exist for self-serve plans.
-  { pathPrefix: "/organizations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "Organizations entity (ENTERPRISE_ONLY)" },
+  // PHASE 13 (NEW-063) — the tier stays ENTERPRISE; the DIRECT-ACCESS answer
+  // does not.
+  //
+  // The `notFound` policy above contradicted a later correction the product
+  // made in two other places and never propagated here:
+  //
+  //   * `routeRegistry.ts` (12B correction, above ENTERPRISE_ONLY_ROUTE_IDS):
+  //     "the organizations LIST + member-safe DETAIL are MEMBERSHIP-gated, not
+  //     enterprise-workspace-gated — a FREE-plan personal user with an ACTIVE
+  //     org membership must reach their org list even while their ACTIVE
+  //     workspace is personal". `account.organizations` accordingly declares
+  //     `requiredCapabilities: []`.
+  //   * `lib/navigation/accountMenu.ts` (account-menu refactor 2026-07-21):
+  //     "Organization settings" is offered when `activeOrganizations.length > 0
+  //     && routeLoads("account.organizations")` — membership, never plan.
+  //
+  // `isEnterpriseWorkspace` is derived from the ACTIVE WORKSPACE's plan, so an
+  // ORG_OWNER whose active space is their Personal Space is out of tier — and
+  // `SurfaceGate` 404'd them on the very link the account menu had just shown
+  // them. Same shape as NEW-033: a working navigation item that always lands on
+  // a dead end.
+  //
+  // `allow` is the narrowest correction available. The tier is UNCHANGED, so
+  // nothing about visibility moves: `canAccessSurface("/organizations")` still
+  // answers false for self-serve plans and the surface stays out of nav, the
+  // command palette and All Tools, exactly as the pricing intent requires. Only
+  // the direct-URL denial is withdrawn, and what replaces it is stronger than a
+  // client-side guess: `PageRouteGate` still resolves `account.organizations` /
+  // `account.organization-detail`, every ADMIN surface beneath the detail stays
+  // in ENTERPRISE_ONLY_ROUTE_IDS, and the org routes themselves refuse a
+  // non-member server-side. A user with no membership reaches an empty list.
+  { pathPrefix: "/organizations", tier: "ENTERPRISE", directAccessPolicy: "allow", reason: "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE" },
   { pathPrefix: "/dashboard/batch-analysis", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "batch analysis (PRO upsell)" },
   { pathPrefix: "/dashboard/quotas", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "quota dashboard (PRO upsell)" },
 

@@ -229,8 +229,10 @@ describe("CR4 Group 1 — file-size guards", () => {
   it("capture.routes.ts pin (CR1.6 — Phase-10 no-personal guard rebaseline)", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 added the managed-identity
     // NO-PERSONAL guard (assertPersonalSpaceAllowed) on personal capture drafts.
+    // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 added the ACTIVE-membership
+    // check on the caller-supplied `body.teamId`.
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
-    expect(sz).toBe(22331);
+    expect(sz).toBe(23490);
   });
 });
 

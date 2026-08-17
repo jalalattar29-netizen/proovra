@@ -29,8 +29,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildReportViewModel } from "../src/report-v2";
-import type { ReportV2Input } from "../src/report-v2";
+// LEGACY-003: the report-v2 barrel was removed — production
+// (src/processor.ts) imports the concrete modules directly, so these tests
+// now exercise the same paths production does.
+import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
+import type { ReportV2Input } from "../src/report-v2/types.js";
 
 const FULL_HASH_A =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

@@ -217,11 +217,23 @@ export const PRE_CR5_PAGE_BYTES = 52520;
 // dependency of its unmount cleanup instead of omitting it. One useCallback
 // plus its rationale; no capture behaviour change.
 export const PRE_CR5_ORCH_BYTES = 36645;
-const PRE_CR5_RESUMABLE_BYTES = 13423;
+// PHASE 13 rebaseline (2026-08-17): 13,423 → 13,630 — NEW-036. `StartResumableInput`
+// gained one optional pass-through flag, `multipartAlreadyInitiated`, and the one
+// line that forwards it to `MultipartUploader`. The capture orchestration runs
+// `multipart/initiate` ITSELF and then constructs the uploader, whose abort leg
+// only fired when IT had performed the initiate — so a cancel in that window
+// skipped the multipart abort and left a live S3 upload whose parts stay stored
+// and billed. This ratchet exists to stop the hook re-accreting BACKEND TRUTH;
+// a declared prop that is forwarded verbatim and decided nowhere in this file is
+// the opposite of that, and the rationale lives with the flag's definition in
+// `multipart-uploader.ts` rather than being duplicated here.
+const PRE_CR5_RESUMABLE_BYTES = 13630;
 const HASH_UTILS_BYTES_EXACT = 3181;
 const SESSION_READINESS_BYTES_EXACT = 9559;
 // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
-const CAPTURE_ROUTES_BYTES_EXACT = 22331;
+  // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 — ACTIVE-membership check on
+  // the caller-supplied `body.teamId` before the CaptureSession row is written.
+const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.

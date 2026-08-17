@@ -76,6 +76,7 @@ import {
 import { z } from "zod";
 import { AppError, ErrorCode, isDomainError } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 // Phase G4.5 — extracted saved-view CRUD module.
@@ -8177,38 +8178,6 @@ await appendCustodyEvent({
   );
 
   app.get(
-    "/v1/evidence/:id/reviewer-audit",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const id = z.string().uuid().parse((req.params as ParamsId).id);
-      await getEvidenceWithReadAccess(userId, id);
-
-      const items = await listReviewerAuditEvents(id);
-      return reply.code(200).send({
-        items: items.map((item) => ({
-          id: item.id,
-          eventType: item.eventType,
-          metadata: toJsonSafe(item.metadata ?? null),
-          createdAt: item.createdAt.toISOString(),
-          actor: item.actor ? mapCollaborativeAuthor(item.actor) : null,
-        })),
-      });
-    }
-  );
-
-  app.get(
-    "/v1/evidence/:id/artifacts",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const id = z.string().uuid().parse((req.params as ParamsId).id);
-      await getEvidenceWithReadAccess(userId, id);
-      return reply.code(200).send(await listEvidenceArtifacts(id));
-    }
-  );
-
-  app.get(
     "/v1/evidence/:id/ai-categorization",
     { preHandler: requireAuth },
     async (req, reply) => {
@@ -11543,7 +11512,10 @@ action: "evidence.certification_requested",
     // audit + the new `public_verify.rate_limited` warn log so an
     // operator can detect coordinated abuse.
     const limit = getVerifyLimit();
-    const ipKey = `ratelimit:verify:ip:${req.ip}`;
+    // PHASE 13 §1 (NEW-022) — SECURITY_BOUND: key on the canonical resolved
+    // client, not raw `req.ip`, so a forwarded header cannot mint fresh buckets
+    // for this public verify surface.
+    const ipKey = `ratelimit:verify:ip:${trustedClientIpKey(req)}`;
     const ipRate = await enforceRateLimit({
       key: ipKey,
       max: limit.max,

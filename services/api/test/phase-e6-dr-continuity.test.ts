@@ -326,7 +326,8 @@ describe("E6 Test 6 — existing safe surfaces stay free of fake-infra wording",
     { label: "Verify token page", path: "app/verify/[token]/page.tsx", read: readWeb },
     { label: "Verify demo page", path: "app/verify/demo/page.tsx", read: readWeb },
     { label: "report-v2 cover", path: "src/report-v2/sections/cover.ts", read: readWorker },
-    { label: "report-v2 integrity-proof", path: "src/report-v2/sections/integrity-proof.ts", read: readWorker },
+    // LEGACY-003 (2026-08-15): "report-v2 integrity-proof" was REMOVED — reachable
+    // only through a barrel production does not import, so it never rendered.
     { label: "ai-policy service", path: "src/services/ai/ai-policy.ts", read: readApi },
   ];
 

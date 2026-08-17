@@ -1,16 +1,19 @@
 /**
- * Phase 32.8C+++++ — WorkerTelemetrySnapshot writer + reader.
+ * Phase 32.8C+++++ — WorkerTelemetrySnapshot READER.
  *
- * Persists durable worker heartbeat/status samples. Writers may live
- * either in the worker package (real heartbeat) or in the API (synthetic
- * "we just ran a reconcile" stamps). The dashboard reads the latest
- * snapshot per workerKind.
+ * The dashboard reads the latest snapshot per workerKind. Rows are written by
+ * the worker's own sampler (`services/worker/src/telemetry.ts`), which is armed
+ * at boot by `startTelemetrySampler` and is the ONE writer of this table.
+ *
+ * PHASE 13 §4 — this module also carried a second writer,
+ * `recordWorkerTelemetrySnapshot`, for "synthetic API-side stamps". Nothing in
+ * the tree ever called it: it was a parallel authority over the same table with
+ * no caller, and it was removed rather than wired, because the sampler already
+ * records every field it wrote.
  *
  * Hard rules:
- *   - ADVISORY operational data. Writer failures NEVER block evidence /
+ *   - ADVISORY operational data. Reader failures NEVER block evidence /
  *     report / package / verify core flows.
- *   - Bounded lastErrorMessage (≤ 400 chars). No raw stack traces.
- *   - No raw payloads, signed URLs, or storage keys.
  *   - Reader returns latest row per workerKind (bounded fan-out).
  */
 
@@ -31,51 +34,6 @@ export type WorkerTelemetryStatus =
   | "DEGRADED"
   | "CRITICAL"
   | "UNKNOWN";
-
-export type WorkerTelemetrySample = {
-  workerId: string;
-  workerKind: WorkerTelemetryKind;
-  status: WorkerTelemetryStatus;
-  lastSuccessfulRunAtUtc?: Date | null;
-  lastFailedRunAtUtc?: Date | null;
-  lastErrorCode?: string | null;
-  /** Bounded operator-safe — truncated to 400 chars at write. */
-  lastErrorMessage?: string | null;
-  processedCount?: number | null;
-  failedCount?: number | null;
-  durationMs?: number | null;
-};
-
-/**
- * Persist a worker heartbeat snapshot. Never throws. Failures swallowed
- * so a telemetry hiccup never blocks the worker itself.
- */
-export async function recordWorkerTelemetrySnapshot(
-  sample: WorkerTelemetrySample,
-): Promise<void> {
-  try {
-    await prisma.workerTelemetrySnapshot.create({
-      data: {
-        workerId: sample.workerId.slice(0, 120),
-        workerKind: sample.workerKind,
-        status: sample.status,
-        lastSuccessfulRunAtUtc: sample.lastSuccessfulRunAtUtc ?? null,
-        lastFailedRunAtUtc: sample.lastFailedRunAtUtc ?? null,
-        lastErrorCode: sample.lastErrorCode
-          ? sample.lastErrorCode.slice(0, 80)
-          : null,
-        lastErrorMessage: sample.lastErrorMessage
-          ? sample.lastErrorMessage.slice(0, 400)
-          : null,
-        processedCount: sample.processedCount ?? null,
-        failedCount: sample.failedCount ?? null,
-        durationMs: sample.durationMs ?? null,
-      },
-    });
-  } catch {
-    /* Advisory write — never throws. */
-  }
-}
 
 /**
  * Dashboard reader: returns one row per workerKind (latest heartbeat).

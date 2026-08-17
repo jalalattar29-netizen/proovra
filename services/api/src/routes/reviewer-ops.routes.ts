@@ -47,6 +47,10 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  cronSecretMatches,
+  readCronSecretFromEnvs,
+} from "../middleware/cron-secret.js";
 // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). The ONE authorization
 // authority for this surface; see `requireReviewerActor` below.
 import {
@@ -1823,21 +1827,20 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
   app.post(
     "/v1/reviewer-ops/reconcile",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const headerSecret = req.headers["x-cron-secret"];
-      const expected =
-        process.env["REVIEWER_OPS_CRON_SECRET"] ||
-        process.env["INTEGRATION_CRON_SECRET"] ||
-        "";
-      if (!expected) {
+      // FINAL-003 — the shared-secret decision belongs to the canonical
+      // cron-secret authority (constant-time compare, 16-character floor), not
+      // to a `!==` written inline here. Statuses are unchanged: unconfigured is
+      // still 503, wrong-or-absent is still 401.
+      const expected = readCronSecretFromEnvs([
+        "REVIEWER_OPS_CRON_SECRET",
+        "INTEGRATION_CRON_SECRET",
+      ]);
+      if (expected === null) {
         return reply.code(503).send({
           error: { code: "REVIEWER_OPS_CRON_SECRET_NOT_CONFIGURED" },
         });
       }
-      if (
-        typeof headerSecret !== "string" ||
-        headerSecret.length === 0 ||
-        headerSecret !== expected
-      ) {
+      if (!cronSecretMatches(expected, req.headers["x-cron-secret"])) {
         return reply.code(401).send({ error: { code: "unauthorized" } });
       }
       // Either single-team (legacy: { teamId }) or all-teams sweep

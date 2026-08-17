@@ -25,6 +25,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "../../../components/ui";
+import { MfaRecoveryRequestPanel } from "../../../components/mfa-recovery/MfaRecoveryRequestPanel";
 import { apiFetch, ApiError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
@@ -414,8 +415,16 @@ function MfaChallengeBody() {
             : "Use the authenticator code instead"}
         </button>
       </p>
-      <p style={{ marginTop: 24, fontSize: 14, color: "#64748b" }}>
-        Lost access to your authenticator and codes?{" "}
+      {/* PHASE 13 — lost-factor recovery, the CREATE leg.
+          This used to be a bare "Contact support" link: the verify and
+          admin-approve legs were wired, but nothing in the product could
+          file the request they act on. The panel POSTs
+          `/v1/identity/mfa-admin/recovery-requests` and, because that route
+          refuses MFA-pending tokens, renders its submit control disabled
+          with the reason spelled out when this browser has no session. */}
+      <MfaRecoveryRequestPanel compact />
+      <p style={{ marginTop: 16, fontSize: 14, color: "#64748b" }}>
+        Still stuck?{" "}
         <Link href="/support" style={{ color: "#1d4ed8" }}>
           Contact support
         </Link>

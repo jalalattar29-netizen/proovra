@@ -38,8 +38,20 @@ import { dirname, resolve } from "node:path";
 import { expect, type Page, type Request } from "@playwright/test";
 import { Client } from "pg";
 
-export const WEB_BASE = process.env.WEB_BASE ?? "http://localhost:3007";
-export const API_BASE = process.env.API_BASE ?? "http://localhost:8091";
+/**
+ * The two origins, defaulted to the ones the run actually builds against.
+ *
+ * `127.0.0.1` and `localhost` are DIFFERENT ORIGINS, and the difference is not
+ * cosmetic here. The web bundle inlines `NEXT_PUBLIC_API_BASE` at BUILD time and
+ * the served CSP `connect-src` is derived from it, so a bundle built against one
+ * and driven from the other has its fetches blocked by CSP; and once that is
+ * allowed, the session cookie is still not sent, because a cookie is per-host.
+ * The API's `CORS_ORIGINS` is likewise pinned to `http://127.0.0.1:3007` by the
+ * test bootstrap. Defaulting to `localhost` meant the correct run was the one
+ * that remembered to export two variables.
+ */
+export const WEB_BASE = process.env.WEB_BASE ?? "http://127.0.0.1:3007";
+export const API_BASE = process.env.API_BASE ?? "http://127.0.0.1:8091";
 
 /**
  * The disposable database this run drives.
@@ -376,6 +388,165 @@ export function mailboxFor(email: string, templateKind?: string): RecordedEmailE
     (m) =>
       m.recipientAlias === alias &&
       (templateKind === undefined || m.templateKind === templateKind),
+  );
+}
+
+// ===========================================================================
+// The test handset
+// ===========================================================================
+
+/**
+ * Where the API's LOCAL RECORDING messaging provider stores what it accepted.
+ *
+ * PHASE 13. The same seam as the mailbox above, for the boundary the mailbox
+ * could not cover. Publishing and unpublishing evidence to public verify are
+ * gated by `requireStepUpForSensitiveAction`, which is satisfied ONLY by an
+ * approved challenge whose one-time code arrives over SMS or WhatsApp. Twilio
+ * Verify generates that code on its own side and never returns it, so nothing
+ * local could read it back and the journey was not merely unproven — it was
+ * unreachable, and every attempt died at a refused socket with the challenge
+ * still PENDING.
+ *
+ * Reading the challenge row out of the database would NOT be equivalent, for
+ * the same reason it was not equivalent for invitations: the row holds no code
+ * (the service is explicit that the code is never persisted), so a database
+ * read could only fake an approval by writing one — which proves the gate can
+ * be written around, not that a user can pass it.
+ */
+export const RECORDED_MESSAGE_FILE =
+  process.env.MESSAGING_RECORDER_FILE ?? ".p7tmp/recorded-messages.jsonl";
+
+export type RecordedMessageEntry = {
+  kind: "message" | "verification_start" | "verification_check";
+  channel: "SMS" | "WHATSAPP";
+  recipientAlias: string;
+  idempotencyAlias: string;
+  attempt: number;
+  result:
+    | "accepted"
+    | "duplicate_collapsed"
+    | "rejected"
+    | "pending"
+    | "approved"
+    | "denied";
+  providerMessageId: string | null;
+  providerVerificationSid: string | null;
+  /** The one-time code — present ONLY on a `verification_start` entry. */
+  code: string | null;
+  body: string;
+  atUtc: string;
+};
+
+/**
+ * The recipient alias, derived exactly as the recording provider derives it.
+ *
+ * Identical formula to {@link recipientAlias} above — trim, lowercase,
+ * sha256, first 16 hex characters — so the two boundaries carry one aliasing
+ * idea. The number itself never appears in the recorder file.
+ */
+export function recipientPhoneAlias(e164: string): string {
+  return createHash("sha256")
+    .update(e164.trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/** Everything the messaging recorder has stored so far. */
+export function readMessages(): RecordedMessageEntry[] {
+  const path = resolve(process.cwd(), RECORDED_MESSAGE_FILE);
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as RecordedMessageEntry);
+}
+
+/**
+ * Wait for a one-time code sent to `recipient`, and hand it back.
+ *
+ * Polls the file rather than the database, because the question being asked is
+ * "could a user have completed this challenge?" and the database cannot answer
+ * it — the code is deliberately never persisted there.
+ *
+ * Returns the LATEST `verification_start` for the recipient, so a spec that
+ * re-renders the challenge screen gets the code the user would currently be
+ * looking at. A repeated start collapses onto the pending verification in the
+ * provider, so that is the same code, not a newer one.
+ */
+export async function waitForRecordedMessage(input: {
+  recipient: string;
+  kind?: RecordedMessageEntry["kind"];
+  timeoutMs?: number;
+}): Promise<RecordedMessageEntry> {
+  const alias = recipientPhoneAlias(input.recipient);
+  const kind = input.kind ?? "verification_start";
+  const deadline = Date.now() + (input.timeoutMs ?? 10_000);
+  let last: RecordedMessageEntry[] = [];
+  for (;;) {
+    last = readMessages().filter(
+      (m) => m.recipientAlias === alias && m.kind === kind,
+    );
+    const usable = last.filter(
+      (m) => m.result === "pending" || m.result === "accepted" || m.result === "approved",
+    );
+    if (usable.length > 0) return usable[usable.length - 1]!;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `point7: no ${kind} entry for that recipient after ` +
+          `${input.timeoutMs ?? 10_000}ms (${last.length} non-usable entries ` +
+          "for the alias). A blocked real-provider attempt is NOT a delivery, " +
+          "and a PENDING challenge with no recorded code means the messaging " +
+          "boundary was skipped rather than exercised.",
+      );
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+/**
+ * The one-time code a user would have retyped, as a string.
+ *
+ * The thin wrapper a step-up spec actually wants. The journey is:
+ *
+ *   1. `POST /v1/identity-security/step-up/start`  { teamId, purpose,
+ *      resourceKind, resourceId, phone, channel } → { challenge.id }
+ *   2. `await waitForStepUpCode({ recipient: phone })`
+ *   3. `POST /v1/identity-security/step-up/check` { teamId, challengeId,
+ *      phone, code } → APPROVED
+ *   4. the guarded call, carrying `x-proovra-step-up-challenge-id: <challengeId>`
+ *      — e.g. `POST /v1/governance/evidence/:id/publish`
+ *
+ * Anything that reaches past step 2 into the database is asserting that a row
+ * exists, not that the gate can be passed: the challenge row deliberately holds
+ * no code, so a database read could only fake an approval by writing one.
+ */
+export async function waitForStepUpCode(input: {
+  recipient: string;
+  timeoutMs?: number;
+}): Promise<string> {
+  const entry = await waitForRecordedMessage({
+    recipient: input.recipient,
+    kind: "verification_start",
+    timeoutMs: input.timeoutMs,
+  });
+  if (!entry.code) {
+    throw new Error(
+      "point7: a verification_start was recorded with no code. The recording " +
+        "messaging provider is the only provider that mints one locally — this " +
+        "means a different provider served the request.",
+    );
+  }
+  return entry.code;
+}
+
+/** Recorder entries for one recipient, whatever their kind or outcome. */
+export function handsetFor(
+  recipient: string,
+  kind?: RecordedMessageEntry["kind"],
+): RecordedMessageEntry[] {
+  const alias = recipientPhoneAlias(recipient);
+  return readMessages().filter(
+    (m) => m.recipientAlias === alias && (kind === undefined || m.kind === kind),
   );
 }
 

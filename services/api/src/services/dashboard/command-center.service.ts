@@ -25,7 +25,10 @@
 
 import { prisma } from "../../db.js";
 // Phase 37.98 — Projection-backed dashboard reads.
-import { readLatestOrgHealthProjection } from "./projections/refresh-org-health.service.js";
+import {
+  readLatestOrgHealthProjection,
+  refreshOrgHealthProjection,
+} from "./projections/refresh-org-health.service.js";
 import {
   backfillIntegritySnapshots,
   listWorkspaceIntegritySnapshots,
@@ -6873,6 +6876,48 @@ async function runOrgIntelligenceV2(
  */
 const PROJECTION_FRESH_THRESHOLD_SEC = 90;
 
+/**
+ * PHASE 13 §4 (2026-08-17) — THIS READ REFRESHES THE PROJECTION WHEN IT IS
+ * MISSING OR STALE. That is what makes the projection a projection.
+ *
+ * `refreshOrgHealthProjection` was the only writer of `orgHealthProjection` and
+ * nothing called it, so the row read below was never written by anything: every
+ * request took the "missing" branch, reported `usedLiveFallback: true`, and
+ * returned two of the eight counters with the other six defaulted to zero. The
+ * comment further down still said "until the refresh worker populates the row";
+ * there was no refresh worker. The worker-side queue processor that would have
+ * been one has no producer either — nothing ever enqueues `org-health-refresh` —
+ * so neither half of the pair ran.
+ *
+ * Refresh-on-stale-read rather than a new scheduler, deliberately:
+ *
+ *   - freshness only matters when somebody is looking, and this IS the moment
+ *     somebody is looking;
+ *   - a per-tenant scheduler for every workspace in the system would compute
+ *     eight counters for tenants nobody has opened in months;
+ *   - the write is bounded by the sample bucket. `sampledAtUtc` is floored to
+ *     the minute and the upsert keys on it, so concurrent dashboard loads inside
+ *     one minute converge on ONE row rather than racing to append.
+ *
+ * Failure is non-fatal and falls through to the branches below: a dashboard must
+ * render when its cache cannot be written.
+ *
+ * PHASE 13 (NEW-047) — THIS CONSTRAINT NO LONGER EXISTS, AND SAYING SO MATTERS.
+ *
+ * This paragraph used to instruct future editors to keep commentary out of the
+ * body because `phase-37-98-command-center-projection-consumption.test.ts`
+ * pinned the live fallback with a 3000-CHARACTER WINDOW measured from the
+ * `buildProjectionSummary` token — so a long comment between the two could fail
+ * the assertion while the code it described was unchanged.
+ *
+ * That test now resolves this declaration through the module's import table and
+ * walks the resolved call graph, so distance in the source text decides nothing
+ * and a comment cannot break it. Write the explanation wherever it belongs.
+ *
+ * The instruction is removed rather than softened because a comment that
+ * invents a constraint is how the next reader arranges real code around a rule
+ * that is not there — the same defect class as NEW-038.
+ */
 async function buildProjectionSummary(
   teamId: string,
 ): Promise<CommandCenterEnvelope["projectionSummary"]> {
@@ -6883,6 +6928,20 @@ async function buildProjectionSummary(
     row = await readLatestOrgHealthProjection({ teamId });
   } catch {
     row = null;
+  }
+
+  // PHASE 13 §4 (2026-08-17) — refresh when the read finds the projection
+  // missing or stale. Rationale in the docblock above; the bound is the sample
+  // bucket, so concurrent loads inside a minute converge on one row.
+  const projectionStale =
+    row === null ||
+    Date.now() - row.sampledAtUtc.getTime() > PROJECTION_FRESH_THRESHOLD_SEC * 1000;
+  if (projectionStale) {
+    try {
+      row = await refreshOrgHealthProjection({ teamId });
+    } catch {
+      /* keep whatever the read returned; the branches below cope with null */
+    }
   }
 
   if (row) {

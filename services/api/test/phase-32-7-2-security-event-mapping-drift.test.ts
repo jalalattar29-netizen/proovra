@@ -1040,6 +1040,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20271129000000_automation_runtime_durability_expand",
       "20271130000000_automation_runtime_durability_backfill",
       "20271131000000_automation_runtime_durability_contract",
+      // PHASE 13 (NEW-058) — binds a step-up challenge to the enrolled contact
+      // factor it was minted against (adds the factor columns + their index and
+      // the sealed-destination columns on `mfa_factors`). Not attributable to
+      // Phase 32.7.2; permitted by name, like every entry above.
+      "20271201000000_new058_verified_contact_factors",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

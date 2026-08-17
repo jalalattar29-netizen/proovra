@@ -124,7 +124,7 @@ export type PlanCapabilities = {
    * `allowsPersonalWorkspace`, which was one boolean serving two questions.
    *
    * IT ANSWERS: "may this plan be PURCHASED with a Personal Workspace as the
-   * target?" TEAM says no because `teamWorkspaceRequired` is true — you buy
+   * target?" TEAM says no — you buy
    * TEAM for a team, not for yourself.
    *
    * IT DOES NOT ANSWER: "may this identity HAVE a Personal Space?" That is
@@ -148,7 +148,18 @@ export type PlanCapabilities = {
    * statement about a workspace KIND called "team" that has never existed.
    */
   allowsSharedWorkspace: boolean;
-  teamWorkspaceRequired: boolean;
+  /*
+   * AUDIT-001 (2026-08-15) — `teamWorkspaceRequired` was REMOVED from here.
+   *
+   * It was the exact inverse of `allowsPersonalWorkspacePurchase` on all five
+   * plans, so it encoded one decision twice, and NOTHING in production read it
+   * — the purchase rule is enforced by `allowsPersonalWorkspacePurchase` in
+   * workspace.ts. Two fields for one fact in the canonical commercial registry
+   * is a duplicate authority waiting for the day they disagree, and this one
+   * additionally carried the retired "Team Workspace" vocabulary that ARCH-001
+   * and LEGACY-001 removed everywhere else: TEAM is a PLAN, never a workspace
+   * KIND. The rule it documented is unchanged and still enforced.
+   */
 
   /**
    * Business limits:
@@ -246,7 +257,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 0,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
-    teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
     maxPendingInvitesPerTeam: 0,
@@ -275,7 +285,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 50,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
-    teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
     maxPendingInvitesPerTeam: 0,
@@ -304,7 +313,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 100,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
-    teamWorkspaceRequired: false,
     maxOwnedTeams: 2,
     maxMembersPerTeam: 5,
     maxPendingInvitesPerTeam: 10,
@@ -333,7 +341,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 500,
     allowsPersonalWorkspacePurchase: false,
     allowsSharedWorkspace: true,
-    teamWorkspaceRequired: true,
     maxOwnedTeams: 5,
     maxMembersPerTeam: 5,
     maxPendingInvitesPerTeam: 25,
@@ -362,7 +369,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: null,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
-    teamWorkspaceRequired: false,
     maxOwnedTeams: 1000,
     maxMembersPerTeam: 500,
     maxPendingInvitesPerTeam: 1000,

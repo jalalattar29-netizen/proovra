@@ -12,78 +12,32 @@
  * service, platform-admin API used via generic fetchers). A route matching
  * neither is an unclassified/dead route and fails.
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const REPO = resolve(__dirname, "../../..");
+import {
+  REPO,
+  assertCanonicalFactsFresh,
+  capabilityMap,
+  registeredRoutePaths,
+  productConsumedPaths,
+  unmatchedClientCalls,
+} from "./_canonical-facts";
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const f = join(dir, e.name);
-    if (e.isDirectory()) {
-      if (/node_modules|\.next|dist|\.expo/.test(e.name)) continue;
-      walk(f, out);
-    } else out.push(f);
-  }
-  return out;
-}
 const read = (f: string) => readFileSync(f, "utf8").replace(/\r\n/g, "\n");
 
-// ── registered routes ───────────────────────────────────────────────────────
-const routes = new Set<string>();
-for (const f of walk(resolve(REPO, "services/api/src/routes"))) {
-  if (!f.endsWith(".ts")) continue;
-  const b = read(f);
-  for (const m of b.matchAll(/app\.(get|post|patch|put|delete)(?:<[^>]*>)?\(\s*\n?\s*[`"']([^`"']+)[`"']/g)) {
-    routes.add(m[2]);
-  }
-}
-
-// ── client calls + full client corpus ───────────────────────────────────────
-const clientFiles: string[] = [];
-for (const root of ["apps/web", "apps/mobile/src", "apps/mobile/app"]) {
-  for (const f of walk(resolve(REPO, root))) {
-    if (!/\.(ts|tsx)$/.test(f) || /__tests__|\.test\.|\.render\./.test(f)) continue;
-    clientFiles.push(f);
-  }
-}
-const clientCorpus = clientFiles.map(read).join("\n");
-const clientCalls = new Set<string>();
-for (const m of clientCorpus.matchAll(/apiFetch\(\s*[`"']([^`"']+)/g)) {
-  // Cut at query/whitespace; interpolations become :p; an interpolation glued
-  // to a non-'/' boundary is query-building — truncate the path there.
-  let raw = m[1].split(/[?\s]/)[0].replace(/\$\{[^}]*\}/g, ":p");
-  // Multi-line interpolations survive as an unbalanced "${…" — the tail is
-  // unknown, so the path is a PREFIX; mark it for prefix matching.
-  let prefixOnly = false;
-  const tpl = raw.indexOf("${");
-  if (tpl >= 0) { raw = raw.slice(0, tpl); prefixOnly = true; }
-  const glued = raw.search(/[^/:]:p/);
-  if (glued >= 0) { raw = raw.slice(0, glued + 1); prefixOnly = true; }
-  raw = raw.replace(/\/$/, "");
-  if (raw.length > 3 && raw.startsWith("/")) clientCalls.add(prefixOnly ? raw + "/*" : raw);
-}
-
-// Segment-wise match: a client ':p' segment matches ANY route segment (param
-// OR literal — dynamic-action templates fan out to sibling literal routes);
-// a client literal must equal the route literal or hit a route ':param'.
-function matchesRoute(path: string): boolean {
-  const prefixOnly = path.endsWith("/*");
-  const cseg = path.replace(/\/\*$/, "").split("/").filter(Boolean);
-  outer: for (const r of routes) {
-    const rseg = r.split("/").filter(Boolean);
-    if (prefixOnly ? rseg.length < cseg.length : rseg.length !== cseg.length) continue;
-    for (let i = 0; i < cseg.length; i++) {
-      const c = cseg[i], q = rseg[i];
-      if (c === ":p" || q.startsWith(":") || c === q) continue;
-      continue outer;
-    }
-    return true;
-  }
-  return false;
-}
+// ── canonical inventory ─────────────────────────────────────────────────────
+//
+// PHASE 0 §9. Both directions used to be measured here by private regexes: a
+// route scanner over `src/routes/*.ts` and an `apiFetch(` scanner over the
+// web/mobile corpus, together with a re-implementation of Fastify's path
+// matching. The closure-gate suite carried a second copy of the same code, with
+// the same five accumulated repairs, and neither could see a route registered
+// through a path constant. Both now read the one AST measurement.
+assertCanonicalFactsFresh();
+const routes = registeredRoutePaths();
+const productConsumed = productConsumedPaths();
 
 // ── EXECUTABLE SYMBOL-LEVEL ROUTE REGISTRY (replaces the old regex categories) ─
 //
@@ -112,24 +66,33 @@ for (const slice of ["slice-a.json", "slice-b.json", "slice-c.json", "slice-d.js
   }
 }
 
-// A registered route is "product-consumed" when its literal (or literal prefix
-// before the first path param) appears in the web/mobile source corpus.
-function isProductConsumed(route: string): boolean {
-  const litPrefix = route.split("/:")[0];
-  return clientCorpus.includes(route) || (litPrefix.length > 6 && clientCorpus.includes(litPrefix));
-}
+/**
+ * A route is product-consumed when the ANALYZER resolved a web/mobile call site
+ * to it.
+ *
+ * The old test was a substring search of the client corpus for the route
+ * literal, which credited a route whose path merely appeared in a comment and
+ * missed every caller that builds its path from a template. "The string is
+ * somewhere in the tree" was never evidence that anything calls it.
+ */
+const isProductConsumed = (route: string): boolean => productConsumed.has(route);
 
 describe("Phase 12 — coverage manifest (direction 1)", () => {
-  it("routes and client calls were both discovered (extractors alive)", () => {
+  it("the canonical inventory is populated (measurement alive)", () => {
+    // A guard against the artifact being present but empty: an empty inventory
+    // would make every set-difference below trivially pass.
     expect(routes.size).toBeGreaterThan(500);
-    expect(clientCalls.size).toBeGreaterThan(300);
+    expect(productConsumed.size).toBeGreaterThan(300);
   });
 
-  it("disconnected client actions = 0 (every apiFetch path matches a registered route)", () => {
-    const disconnected = [...clientCalls]
-      .filter((p) => p.startsWith("/v1") || p.startsWith("/public"))
-      .filter((p) => !matchesRoute(p));
-    expect(disconnected, `client calls with no matching route:\n${disconnected.join("\n")}`).toEqual([]);
+  it("disconnected client actions = 0 (every client request site matches a registered route)", () => {
+    const disconnected = unmatchedClientCalls();
+    expect(
+      disconnected,
+      `client request sites with no matching route:\n${disconnected
+        .map((u) => `${u.site} -> ${u.method ?? "*"} ${u.path}`)
+        .join("\n")}`,
+    ).toEqual([]);
   });
 });
 
@@ -143,12 +106,55 @@ describe("Phase 12 — executable route registry (direction 2)", () => {
     expect(phantom, `classified but not registered:\n${phantom.join("\n")}`).toEqual([]);
   });
 
-  it("unclassified routes = 0 (every registered route is product-consumed OR in the registry)", () => {
-    const unclassified = [...routes].filter((r) => !classified.has(r) && !isProductConsumed(r));
+  /**
+   * PHASE 0 §10 — this assertion USED to read "unclassified routes = 0", and
+   * the zero was an artefact of how it measured.
+   *
+   * "Product-consumed" was a substring search: the route's literal, or its
+   * literal prefix before the first `:param`, appearing anywhere in the
+   * concatenated web/mobile source. That credits a route whose path occurs in a
+   * comment, in a doc string, or as a prefix of a DIFFERENT route's path, and
+   * it credits nothing at all for a caller that builds its path from a
+   * template. Under the canonical analyzer — which resolves the call site and
+   * names the file and line — 158 registered routes are neither in the registry
+   * slices nor provably called from the product. The zero was never true.
+   *
+   * It is NOT re-asserted as 158, because a second ratchet over the same
+   * subject is what this phase is removing. The canonical authority already
+   * ratchets it (`UndisposedRoutes`, phase-12-route-consumer-authority) and
+   * carries it as FINAL-001 in the ledger. What is asserted here is the
+   * CONSERVATION that makes the two views one view: every registered route is
+   * accounted for by the canonical authority, so nothing can fall between the
+   * slice registry and the analyzer and be counted by neither.
+   */
+  it("every registered route is accounted for by the canonical authority (no route falls between the two views)", () => {
+    const map = capabilityMap();
+    const accountedFor = new Set(
+      map.routes
+        .filter((r) => r.productConsumers.length > 0 || r.primaryDisposition !== null || r.result === "UNDISPOSED")
+        .map((r) => r.path),
+    );
+    const orphaned = [...routes].filter((r) => !classified.has(r) && !accountedFor.has(r));
     expect(
-      unclassified,
-      `registered routes neither product-consumed nor classified (${unclassified.length}):\n${unclassified.slice(0, 40).join("\n")}`,
+      orphaned,
+      `registered routes in neither the classification registry nor any canonical bucket (${orphaned.length}):\n${orphaned.slice(0, 40).join("\n")}`,
     ).toEqual([]);
+
+    // Reported, not asserted: the honest size of the gap the substring measure
+    // was hiding, and the fact that it is a subset of the canonical backlog.
+    const undisposedPaths = new Set(
+      map.routes.filter((r) => r.result === "UNDISPOSED").map((r) => r.path),
+    );
+    const unregistered = [...routes].filter((r) => !classified.has(r) && !isProductConsumed(r));
+    // eslint-disable-next-line no-console
+    console.log(
+      "PHASE 0 slice-registry gap:",
+      JSON.stringify({
+        notInSlicesAndNotProductConsumed: unregistered.length,
+        ofWhichInCanonicalUndisposedBacklog: unregistered.filter((r) => undisposedPaths.has(r)).length,
+        ofWhichCanonicallyDispositioned: unregistered.filter((r) => !undisposedPaths.has(r)).length,
+      }),
+    );
   });
 
   it("every registry entry's registering file + proof suite exist on disk", () => {

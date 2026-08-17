@@ -40,7 +40,7 @@
  *            the green "all indexed" pill.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -81,12 +81,6 @@ const REVIEWERS_PAGE = readSource(
 );
 const INDEXER_SRC = readSource(
   "../../../packages/shared-runtime/src/media-intelligence/ocr-transcript-indexer.service.ts",
-);
-const OCR_FOUNDATIONS_SRC = readSource(
-  "../src/services/search/ocr-foundations.service.ts",
-);
-const TRANSCRIPT_FOUNDATIONS_SRC = readSource(
-  "../src/services/search/transcript-foundations.service.ts",
 );
 
 // =============================================================================
@@ -211,12 +205,22 @@ describe("Phase Repair Task B — indexed counts read canonical EvidenceExtracte
     expect(INDEXER_SRC).toMatch(/evidence_extracted_texts|EvidenceExtractedText/);
   });
 
-  it("the orphan ocr-foundations writer carries a cleanup TODO", () => {
-    expect(OCR_FOUNDATIONS_SRC).toMatch(/TODO\(phase-repair-cleanup\)[\s\S]*?ORPHAN/);
-  });
-
-  it("the orphan transcript-foundations writer carries a cleanup TODO", () => {
-    expect(TRANSCRIPT_FOUNDATIONS_SRC).toMatch(/TODO\(phase-repair-cleanup\)[\s\S]*?ORPHAN/);
+  // LEGACY-003 (2026-08-15): these two tests asserted that the orphan
+  // ocr-foundations / transcript-foundations writers carried a
+  // TODO(phase-repair-cleanup) ORPHAN marker. That cleanup has now been
+  // PERFORMED — both modules were removed as unreachable writers into tables
+  // superseded by evidence_extracted_texts — so the assertion becomes the
+  // cleanup's outcome rather than its reminder.
+  it("the orphan foundations writers were cleaned up, not just marked", () => {
+    for (const rel of [
+      "../src/services/search/ocr-foundations.service.ts",
+      "../src/services/search/transcript-foundations.service.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });
 

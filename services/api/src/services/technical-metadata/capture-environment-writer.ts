@@ -19,32 +19,23 @@ import { getTrustedClientIp } from "@proovra/shared-runtime/technical-metadata";
 import { prisma as defaultPrisma } from "../../db.js";
 
 /**
- * Whether the API is deployed behind a trusted reverse proxy / Cloudflare.
- * Only when this is true do we consult CF-Connecting-IP / X-Forwarded-For —
- * otherwise arbitrary public-internet forwarded headers are NOT trusted and
- * the direct socket IP (req.ip) is used. Default false (safe).
- */
-function trustProxyEnabled(): boolean {
-  const v = (process.env.API_TRUST_PROXY ?? "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
-}
-
 /**
- * Resolve the trusted client IP for capture-environment recording from a
- * Fastify-like request. Prefers CF-Connecting-IP / first public
- * X-Forwarded-For ONLY under a trusted-proxy deployment; otherwise req.ip.
- * The result is masked (and private/Docker addresses suppressed) downstream
- * by `maskIp`, so a Docker bridge IP never becomes network metadata.
+ * Resolve the client IP for capture-environment RECORDING (FORENSIC_METADATA).
+ *
+ * PHASE 13 §1 (NEW-022) — this now uses the SAME resolved identity as the
+ * security bounds. `req.ip` is computed by Fastify under the declared
+ * proxy-trust policy (see middleware/client-ip.ts + proxy-trust-policy.ts), so
+ * the forensic address and the rate-limit key can never disagree about who the
+ * caller is. `getTrustedClientIp` here only normalises that resolved value; it
+ * no longer walks forwarded headers itself, which is what let a caller forge
+ * the recorded address. The result is masked downstream by `maskIp`, so a
+ * Docker/LAN address is never surfaced as network metadata.
  */
 export function resolveCaptureClientIp(req: {
   ip?: string | null;
   headers?: Record<string, string | string[] | undefined> | null;
 }): string | null {
-  return getTrustedClientIp({
-    reqIp: req.ip ?? null,
-    headers: req.headers ?? null,
-    trustProxy: trustProxyEnabled(),
-  });
+  return getTrustedClientIp({ reqIp: req.ip ?? null });
 }
 
 export type RecordCaptureEnvironmentInput = {

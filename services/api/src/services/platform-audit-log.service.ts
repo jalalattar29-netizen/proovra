@@ -456,76 +456,37 @@ export async function verifyAdminAuditChain(options?: {
   return { valid: true, partial: true, verifiedCount: rows.length };
 }
 
-export async function repairAdminAuditChainVersions(options?: {
-  db?: PrismaClient;
-  dryRun?: boolean;
-}): Promise<{
-  totalRows: number;
-  updatedRows: number;
-  brokenAt: string | null;
-}> {
-  const db = options?.db ?? prisma;
-  const dryRun = options?.dryRun === true;
-
-  const rows = await db.adminAuditLog.findMany({
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-      userId: true,
-      action: true,
-      category: true,
-      severity: true,
-      source: true,
-      outcome: true,
-      resourceType: true,
-      resourceId: true,
-      organizationId: true,
-      workspaceId: true,
-      requestId: true,
-      metadata: true,
-      hash: true,
-      prevHash: true,
-      chainVersion: true,
-      createdAt: true,
-    },
-  });
-
-  let previousHash: string | null = null;
-  let updatedRows = 0;
-
-  for (const row of rows) {
-    if (row.prevHash !== previousHash) {
-      return { totalRows: rows.length, updatedRows, brokenAt: row.id };
-    }
-
-    const expectedV1 = computeExpectedHashForRow(row, previousHash, 1);
-    const expectedV2 = computeExpectedHashForRow(row, previousHash, 2);
-
-    let resolvedVersion: 1 | 2 | null = null;
-
-    if (expectedV2 === row.hash) resolvedVersion = 2;
-    else if (expectedV1 === row.hash) resolvedVersion = 1;
-
-    if (resolvedVersion === null) {
-      return { totalRows: rows.length, updatedRows, brokenAt: row.id };
-    }
-
-    if (row.chainVersion !== resolvedVersion) {
-      updatedRows += 1;
-
-      if (!dryRun) {
-        await db.adminAuditLog.update({
-          where: { id: row.id },
-          data: { chainVersion: resolvedVersion },
-        });
-      }
-    }
-
-    previousHash = row.hash;
-  }
-
-  return { totalRows: rows.length, updatedRows, brokenAt: null };
-}
+// ---------------------------------------------------------------------------
+// PHASE 13 §4 (2026-08-17) — `repairAdminAuditChainVersions` was REMOVED here.
+//
+// It was preserved as "incident-response repair of the platform admin audit
+// hash chain, with a dry-run mode ... the module's own chain-verification reader
+// has no other remedy to offer when it reports a break". Reading what it
+// actually did shows it was never that remedy.
+//
+// It repaired a LABEL, not a chain. For each row it recomputed the expected hash
+// under chain version 1 and under chain version 2, and when one of them matched
+// the STORED hash it corrected the row's `chainVersion` column to say so. A row
+// whose `prevHash` did not follow, or whose hash matched neither recomputation
+// — that is, an actual break — made it RETURN EARLY with `brokenAt`, repairing
+// nothing. It was the v1→v2 migration's one-time backfill of `chain_version`,
+// which is why it only knows those two versions.
+//
+// And that is now the reason it must not be kept: the chain is on version 3.
+// `computeExpectedHashForRow` has taken a version-3 branch since v3 shipped and
+// `verifyOrderedRows` verifies against it, but this function still tried only 1
+// and 2. Run against any current database it would meet the first v3 row, match
+// neither recomputation, and report a healthy chain as `brokenAt` — an
+// incident-response tool whose failure mode is to manufacture an incident.
+//
+// The genuine remedy for a reported break is unchanged and is deliberately not
+// automated: `verifyAdminAuditChain`, reachable at
+// `GET /v1/admin/audit-log/verify` behind `requirePlatformAdmin`, names the row
+// where the chain stops. Rewriting audit rows to make a verifier pass is not a
+// capability this system should keep loaded; if a chain-version relabel is ever
+// needed again it belongs in a migration written against the version in force at
+// that time, and that contract is recorded in `docs/architecture/program-ledger.md`.
+// ---------------------------------------------------------------------------
 
 export async function listAdminAuditLogs(params: {
   limit: number;

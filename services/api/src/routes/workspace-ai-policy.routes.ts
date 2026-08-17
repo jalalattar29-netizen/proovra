@@ -76,10 +76,31 @@ const PatchBody = z.object({
   retentionDays: z.number().int().min(1).max(3650).nullable().optional(),
 });
 
+// -----------------------------------------------------------------------------
+// FINAL-005 (2026-08-15) — these three routes were registered under the ALIAS
+// prefix, which makes them unreachable.
+//
+// `workspace-alias.plugin.ts` rewrites every incoming `/v1/workspaces…` URL to
+// `/v1/teams…` in an `onRequest` hook that runs BEFORE Fastify matches a route.
+// So a request to `/v1/workspaces/ai-policy` arrives at routing as
+// `/v1/teams/ai-policy` — which nothing registered — and a request written
+// `/v1/teams/ai-policy` never matched either. Both spellings 404. The Settings →
+// AI section, the AI capability status table and the policy write were all dead
+// in production, and nothing said so because the routes exist in the source and
+// the callers exist in the web app; only the rewrite in between was missing.
+//
+// The canonical path is the POST-rewrite one. Clients keep calling
+// `/v1/workspaces/ai-policy` unchanged — the plugin turns it into this — and the
+// legacy `/v1/teams` spelling now works too, which is the same contract every
+// other route in this system has.
+// -----------------------------------------------------------------------------
+const AI_POLICY_PATH = "/v1/teams/ai-policy";
+const AI_USAGE_PATH = "/v1/teams/ai-usage";
+
 export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
   // GET effective policy + capability disclosure (member read).
   app.get(
-    "/v1/workspaces/ai-policy",
+    AI_POLICY_PATH,
     { preHandler: requireAuth },
     async (req, reply) => {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
@@ -102,7 +123,7 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
 
   // Phase C8 — workspace AI usage & governance summary (member read).
   app.get(
-    "/v1/workspaces/ai-usage",
+    AI_USAGE_PATH,
     { preHandler: requireAuth },
     async (req, reply) => {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
@@ -179,7 +200,7 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
 
   // PUT upsert (OWNER / ADMIN only) — optimistic concurrency + audit.
   app.put(
-    "/v1/workspaces/ai-policy",
+    AI_POLICY_PATH,
     { preHandler: requireAuth },
     async (req, reply) => {
       const body = PatchBody.parse(req.body ?? {});

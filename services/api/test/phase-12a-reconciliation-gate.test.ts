@@ -8,7 +8,7 @@
  * from the actual code (phantom or missing entries), which would make the
  * baseline dishonest.
  */
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -16,14 +16,26 @@ const REPO = resolve(__dirname, "../../..");
 const read = (f: string) => readFileSync(f, "utf8").replace(/\r\n/g, "\n");
 const ARCH = resolve(REPO, "docs/architecture");
 
-// live registered routes (method+path)
+// Live registered routes (method+path), from the CANONICAL analyzer.
+//
+// FINAL-001 (2026-08-15). This set used to be built by a regex over the route
+// files, which made it a third independent opinion about what is registered —
+// and it was wrong in both directions. It could not see a path held in a
+// constant (`app.get(AI_POLICY_PATH, …)`), so those routes were simply absent;
+// and it recorded a loop-generated `app.post(`/v1/admin/orgs/:id/${leg}`)` as one
+// route at a path containing a literal `${leg}`, rather than the two real ones.
+// A gate that asserts "the map equals the truth" is worth nothing when its idea
+// of the truth is a fourth parser. It now reads the same AST inventory the map
+// is generated from, so the assertion below means what it says: the artifact on
+// disk is a current measurement, not a stale one.
 const registered = new Set<string>();
-for (const f of readdirSync(resolve(REPO, "services/api/src/routes"))) {
-  if (!f.endsWith(".ts")) continue;
-  for (const m of read(resolve(REPO, "services/api/src/routes", f)).matchAll(
-    /app\.(get|post|patch|put|delete)(?:<[^>]*>)?\(\s*\n?\s*[`"']([^`"']+)[`"']/g,
-  ))
-    registered.add(`${m[1].toUpperCase()} ${m[2]}`);
+{
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { indexApiFunctions, extractRoutes } = require("../scripts/capability-authority/routes.mjs");
+  const { routes } = extractRoutes(indexApiFunctions()) as {
+    routes: Array<{ route: string; methods: string[] }>;
+  };
+  for (const r of routes) for (const m of r.methods) registered.add(`${m.toUpperCase()} ${r.route}`);
 }
 
 type Cap = { method: string; route: string; classification: string; vertical: string };

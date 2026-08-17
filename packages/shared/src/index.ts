@@ -1,3 +1,15 @@
+/**
+ * PHASE 13 (NEW-060) — MUST STAY THE FIRST IMPORT IN THIS FILE.
+ *
+ * It configures Zod before any schema is constructed. Zod reads its
+ * eval-capability probe (`new Function("")`) while BUILDING an object schema,
+ * and this file builds one at module scope a few lines below — so an import
+ * placed after `import { z }` would still let the probe fire and re-open the
+ * strict-CSP `script-src` violation on every page that loads a shared schema.
+ * See `./zod-runtime-config.ts`.
+ */
+import "./zod-runtime-config.js";
+
 import { z } from "zod";
 
 export const PROOVRA_BRAND = {

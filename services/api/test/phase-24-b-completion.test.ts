@@ -23,7 +23,8 @@
  * Pure source-contract. No DB. No Fastify.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -31,6 +32,27 @@ import { describe, expect, it } from "vitest";
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
+
+/**
+ * Every production source file in the API and Worker. Enumerated from disk
+ * rather than listed, so a new module cannot dodge the writer invariant below
+ * simply by not being named here.
+ */
+const PRODUCTION_SOURCES: string[] = (() => {
+  const repo = resolve(__dirname, "../../..");
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (full.endsWith(".ts")) out.push(full);
+    }
+  };
+  walk(join(repo, "services/api/src"));
+  walk(join(repo, "services/worker/src"));
+  return out;
+})();
 
 // =============================================================================
 // Audit wiring inside executeSearch
@@ -285,8 +307,9 @@ describe("Phase 24-B — privacy + governance invariants across Discovery surfac
     "../../../services/api/src/services/search/evidence-search.service.ts",
     "../../../services/api/src/services/search/evidence-indexing.service.ts",
     "../../../services/api/src/services/search/search-audit.service.ts",
-    "../../../services/api/src/services/search/ocr-foundations.service.ts",
-    "../../../services/api/src/services/search/transcript-foundations.service.ts",
+    // LEGACY-003: ocr-foundations / transcript-foundations were REMOVED as
+    // unreachable writers. A scan list naming a deleted file proves nothing —
+    // their final disposition is asserted below instead.
     "../../../services/api/src/queue/search-queue.ts",
     "../../../services/worker/src/search-indexing.processor.ts",
     "../../../services/api/src/runtime/runtime-readiness.ts",
@@ -344,16 +367,35 @@ describe("Phase 24-B — privacy + governance invariants across Discovery surfac
     );
   });
 
-  it("OCR + transcript indexer-facing read enforces TEAM scope + non-redacted (fail-closed)", () => {
+  // LEGACY-003 (2026-08-15) — this test used to assert that the OCR and
+  // transcript foundations read fail-closed (TEAM scope + non-redacted).
+  // Both modules were REMOVED: they were the ONLY inserters into
+  // `evidence_ocr_text` / `evidence_transcript_segments`, they were
+  // unreachable from every runtime entrypoint, and the canonical text surface
+  // is `evidence_extracted_texts`. Asserting a fail-closed predicate inside a
+  // deleted file would be a control over nothing, so the assertion is replaced
+  // by the invariant that actually protects those tables now: nothing writes
+  // them. If a future change re-introduces a writer, it must come with its own
+  // fail-closed proof rather than inheriting this one.
+  it("the superseded OCR/transcript foundations stay removed and unwritten", () => {
     for (const rel of [
       "../../../services/api/src/services/search/ocr-foundations.service.ts",
       "../../../services/api/src/services/search/transcript-foundations.service.ts",
     ]) {
-      const src = readSource(rel);
-      expect(src).toMatch(
-        /WHERE "team_id" = \$1[\s\S]*?"evidence_id" = \$2[\s\S]*?"visibility_scope" = 'TEAM'[\s\S]*?"redacted" = FALSE/i,
-      );
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
     }
+
+    // The worker still stamps `indexed_at_utc` on any rows that exist — that
+    // is a lag pointer, not a writer, and it tolerates matching none.
+    const inserters = PRODUCTION_SOURCES.filter((file) =>
+      /INSERT\s+INTO\s+"(evidence_ocr_text|evidence_transcript_segments)"/i.test(
+        readFileSync(file, "utf8"),
+      ),
+    );
+    expect(inserters).toEqual([]);
   });
 
   it("Discovery surfaces never use banned wording (tamper / forged / altered content)", () => {

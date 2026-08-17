@@ -10,6 +10,8 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  *   - GET    /v1/orgs/:id/members
  *   - PATCH  /v1/orgs/:id/members/:membershipId   (ORG_ADMIN+)
  *   - DELETE /v1/orgs/:id/members/:membershipId   (ORG_ADMIN+)
+ *   - POST   /v1/orgs/:id/members/:memberId/suspend  (ORG_ADMIN+, Phase 13)
+ *   - POST   /v1/orgs/:id/members/:memberId/restore  (ORG_ADMIN+, Phase 13)
  *   - GET    /v1/orgs/:id/invites
  *   - POST   /v1/orgs/:id/invites                 (ORG_ADMIN+)
  *   - POST   /v1/orgs/:id/invites/:inviteId/resend
@@ -38,7 +40,9 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
+import { OrgMemberLifecycleControls } from "../../../../../../components/organizations/OrgMemberLifecycleControls";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { usePlatformContext } from "../../../../../../lib/platform-context";
 import { formatUserDate, formatUserDateTime } from "../../../../../../lib/date";
 import { SeatsCard } from "../_lib/SeatsCard";
 import { Card } from "../../../../../../components/ui/Card";
@@ -57,6 +61,14 @@ interface OrgResponse {
   callerRole: OrgRole;
 }
 
+/**
+ * PHASE 13 §1 — NEW-031. The lifecycle fields are part of the roster contract
+ * now. Before they were projected, this surface could not tell an ACTIVE member
+ * from a SUSPENDED one, so both lifecycle buttons were offered on every row and
+ * the server's 409 was the only way to find out which one applied.
+ */
+type OrgMembershipStatus = "ACTIVE" | "SUSPENDED" | "REVOKED";
+
 interface MemberRow {
   membershipId: string;
   userId: string;
@@ -64,7 +76,19 @@ interface MemberRow {
   displayName: string | null;
   role: OrgRole;
   memberSince: string;
+  status: OrgMembershipStatus;
+  statusChangedAtUtc: string | null;
+  suspendedAtUtc: string | null;
+  suspensionReason: string | null;
+  revokedAtUtc: string | null;
+  revocationReason: string | null;
 }
+
+const MEMBER_STATUS_LABEL: Record<OrgMembershipStatus, string> = {
+  ACTIVE: "Active",
+  SUSPENDED: "Suspended",
+  REVOKED: "Revoked",
+};
 
 interface MembersResponse {
   organizationId: string;
@@ -167,6 +191,9 @@ function MembersTab() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
   const { confirm } = useConfirmAction();
+  // The suspend/restore routes refuse self-action with a 409; the canonical
+  // envelope is the only identity source used here (no parallel /me fetch).
+  const currentUserId = usePlatformContext().envelope?.user?.id ?? "";
 
   const [org, setOrg] = useState<Loadable<OrgResponse>>({ kind: "loading" });
   const [members, setMembers] = useState<Loadable<MembersResponse>>({
@@ -209,11 +236,33 @@ function MembersTab() {
     }
   }, []);
 
+  /**
+   * PHASE 13 (NEW-064) — REVALIDATE WITHOUT UNMOUNTING WHAT ALREADY RENDERED.
+   *
+   * Identical defect and identical fix to `organizations/[id]/page.tsx`. The
+   * roster renders only while `members.kind === "ready"`, and `refresh` is the
+   * `onChanged` callback `OrgMemberLifecycleControls` calls after a SUCCESSFUL
+   * suspend / restore / revoke — a control that announces the outcome from its
+   * own `role="status"` region inside the row it just changed.
+   *
+   * Resetting to `loading` therefore tore that region down before a screen
+   * reader could read it: the roster round-trip left the user with a silently
+   * changed membership. Keeping the previous `ready` data while revalidating
+   * preserves the announcement (and stops the roster flashing a skeleton on
+   * every transition). A section that has never loaded still shows its loading
+   * state.
+   */
+  const revalidate = useCallback(
+    <T,>(prev: Loadable<T>): Loadable<T> =>
+      prev.kind === "ready" ? prev : { kind: "loading" },
+    [],
+  );
+
   const refresh = useCallback(async () => {
     if (!orgId) return;
-    setOrg({ kind: "loading" });
-    setMembers({ kind: "loading" });
-    setInvites({ kind: "loading" });
+    setOrg(revalidate);
+    setMembers(revalidate);
+    setInvites(revalidate);
     const [o, m, i] = await Promise.all([
       fetchOne<OrgResponse>(`/v1/orgs/${orgId}`),
       fetchOne<MembersResponse>(`/v1/orgs/${orgId}/members`),
@@ -222,7 +271,7 @@ function MembersTab() {
     setOrg(o);
     setMembers(m);
     setInvites(i);
-  }, [orgId, fetchOne]);
+  }, [orgId, fetchOne, revalidate]);
 
   useEffect(() => {
     void refresh();
@@ -593,6 +642,23 @@ function MembersTab() {
                     <span style={subtleText}>
                       since {formatUserDate(m.memberSince)}
                     </span>
+                    {/* The membership's own lifecycle state, rendered as text
+                        (never colour alone) so it is legible to a screen
+                        reader and to anyone who cannot distinguish the hues. */}
+                    <Badge
+                      tone={
+                        m.status === "ACTIVE"
+                          ? "verified"
+                          : m.status === "SUSPENDED"
+                            ? "pending"
+                            : "risk"
+                      }
+                      dot
+                      data-testid={`member-status-${m.membershipId}`}
+                      data-member-status={m.status}
+                    >
+                      {MEMBER_STATUS_LABEL[m.status]}
+                    </Badge>
                     {canMutate ? (
                       <Button
                         type="button"
@@ -605,6 +671,21 @@ function MembersTab() {
                         Remove
                       </Button>
                     ) : null}
+                    {/* Phase 13 — the reversible half: suspend / restore.
+                        The row's real status decides which leg is offered. */}
+                    <OrgMemberLifecycleControls
+                      orgId={orgId}
+                      membershipId={m.membershipId}
+                      memberLabel={m.displayName ?? m.email ?? "this member"}
+                      canManage={canMutate}
+                      isSelf={m.userId === currentUserId}
+                      status={m.status}
+                      suspendedAtUtc={m.suspendedAtUtc}
+                      suspensionReason={m.suspensionReason}
+                      revokedAtUtc={m.revokedAtUtc}
+                      revocationReason={m.revocationReason}
+                      onChanged={refresh}
+                    />
                   </div>
                 </li>
               );

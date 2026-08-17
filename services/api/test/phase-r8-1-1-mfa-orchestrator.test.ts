@@ -394,6 +394,29 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     );
   });
 
+  /**
+   * PHASE 13 (NEW-058) — THE PIN STANDS, AND IT IS NO LONGER THE PRIMARY CHECK.
+   *
+   * NEW-058's enrolment routes were written inside this file and pushed it to
+   * 58,452 bytes against a 50,951 ceiling. The pin was RIGHT that the
+   * orchestration boundary had been crossed and had no way to say so usefully:
+   * it reports a number, not an architecture.
+   *
+   * It was resolved by EXTRACTION, not by rebaselining. The four contact-factor
+   * routes now live in `identity-security-contact-factors.routes.ts` — a
+   * distinct capability with a distinct authority
+   * (`verified-contact-factor.service.ts`) — and this file returned to 47,247
+   * bytes, inside the baseline below, as a CONSEQUENCE. The number here has not
+   * been touched.
+   *
+   * The invariant the pin was proxying for is now asserted directly and
+   * adversarially in `phase-13-mfa-orchestrator-boundary.test.ts`:
+   * no caller-supplied destination on any step-up-bearing request, no route
+   * module writing `mfa_factors`, every enrolment handler delegating to the
+   * canonical factor service, and no elevation authority in this file. Ten
+   * refusal cases prove each of those can fail; this pin remains only as a
+   * secondary drift detector.
+   */
   it("identity-security.routes.ts size has not drifted from its canonical baseline", () => {
     const st = statSync(apiPath("src/routes/identity-security.routes.ts"));
     // Historical baselines: 18952 (R8.1.1) → 30979 (Final Closure Part D) →

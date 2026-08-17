@@ -1,364 +1,67 @@
 /**
- * PHASE 37.95 — Behavioral proof of canonical tenant access helpers.
+ * PHASE 37.95 — tenant access helpers: REMOVED (LEGACY-003, 2026-08-15).
  *
- * The Phase TENANT-ISOLATION + SCALE source-contract suite proved that
- * routes wire up the helpers. This file proves the *helpers themselves*
- * reject cross-tenant access at runtime, using mocked Prisma + a mocked
- * authorize middleware.
+ * This file used to prove, against a mocked Prisma and a mocked authorize
+ * middleware, that `requireEvidenceAccess` / `requireCaseAccess` /
+ * `requireReportAccess` / `requirePackageAccess` / `requireActiveSpaceAccess`
+ * in `src/services/access/tenant-access.helpers.ts` refused cross-tenant
+ * access: 404 for a missing resource, 404 (anti-enumeration) for a
+ * non-member, and authorization against the DB-resolved teamId rather than
+ * the client's claim.
  *
- * Hard contract under test:
- *   1. If the resource doesn't exist, the helper sends 404 not_found and
- *      returns null. Existence is never leaked.
- *   2. If the resource exists but the actor is not an ACTIVE member of
- *      its team, the helper sends 404 (anti-enumeration) and returns null.
- *   3. If the actor IS a member, the helper returns the canonical grant
- *      with actorUserId + teamId resolved server-side (NOT the client's
- *      claim).
- *   4. The DB-resolved teamId is the one authorize is called with. The
- *      client cannot cause the helper to authorize against a different
- *      team.
+ * LEGACY-003 REMOVED that module. It was a PARALLEL AUTHORIZATION AUTHORITY:
+ * it re-derived access from raw membership rows while `authorizeOrFail` is
+ * canonical (ACTIVE membership + Organization lifecycle + capability +
+ * fail-closed + anti-enumeration), and it had zero importers — no route ever
+ * called it. A second authority that nothing calls is the exact shape the
+ * Phase-1 authorization closure removed everywhere else; the danger was that
+ * one route would eventually reach for it and get a weaker answer.
+ *
+ * No production behaviour lost a check, and no coverage was silently dropped:
+ * the refusals this file asserted against mocks are proven against the REAL
+ * Fastify app on a disposable PostgreSQL by the canonical guard's own suite
+ * (NEW-005 — all 48 guard registrations × eleven refusal families, including
+ * SUSPENDED, REVOKED, deleted, expired access, expired/revoked grant,
+ * suspended workspace, suspended parent Organization, cross-workspace grant,
+ * wrong tier and stale pointer). Those are stronger than the mocked
+ * equivalents removed here, because they run the real middleware.
+ *
+ * What remains is the invariant the removal creates: the parallel authority
+ * stays gone. `scripts/verify-module-reachability.mjs` holds the general
+ * contract (see phase-12-legacy-003-module-reachability.test.ts); this file
+ * keeps the named assertion where a reader looking for these helpers will
+ * find it.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 
-// Mock Prisma BEFORE importing the helpers. The mock provides per-test
-// hook points for evidence / case / report / verificationPackage lookups.
-const mockPrisma = {
-  evidence: { findUnique: vi.fn() },
-  case: { findUnique: vi.fn() },
-  report: { findUnique: vi.fn() },
-  verificationPackage: { findUnique: vi.fn() },
-};
-vi.mock("../src/db.js", () => ({ prisma: mockPrisma }));
+import { describe, expect, it } from "vitest";
 
-// Mock the authorize middleware. It accepts an `AuthorizeOptions` object
-// and a (req, reply) and returns the canonical outcome shape.
-const authorizeOrFailMock = vi.fn();
-vi.mock("../src/middleware/authorize.js", () => ({
-  authorizeOrFail: authorizeOrFailMock,
-}));
+const API_SRC = resolve(__dirname, "../src");
 
-// Now import the helpers (mocks are bound).
-const {
-  requireEvidenceAccess,
-  requireCaseAccess,
-  requireReportAccess,
-  requirePackageAccess,
-  requireActiveSpaceAccess,
-} = await import("../src/services/access/tenant-access.helpers.js");
-
-// =============================================================================
-// Test scaffolding
-// =============================================================================
-
-type RecordedReply = {
-  statusCode: number | null;
-  payload: unknown;
-  code: (code: number) => RecordedReply;
-  send: (payload: unknown) => RecordedReply;
-};
-
-function makeReply(): RecordedReply {
-  const rec: RecordedReply = {
-    statusCode: null,
-    payload: null,
-    code(code) {
-      this.statusCode = code;
-      return this;
-    },
-    send(payload) {
-      this.payload = payload;
-      return this;
-    },
-  };
-  return rec;
-}
-
-function makeReq(): unknown {
-  // The helpers only forward `req` to authorizeOrFail (mocked); a bare
-  // object is sufficient.
-  return { user: { id: "userA" } };
-}
-
-beforeEach(() => {
-  mockPrisma.evidence.findUnique.mockReset();
-  mockPrisma.case.findUnique.mockReset();
-  mockPrisma.report.findUnique.mockReset();
-  mockPrisma.verificationPackage.findUnique.mockReset();
-  authorizeOrFailMock.mockReset();
-});
-
-// =============================================================================
-// Cross-tenant rejection — the headline behavior
-// =============================================================================
-
-describe("Phase 37.95 — requireEvidenceAccess cross-tenant rejection", () => {
-  it("returns 404 + null when the evidence does not exist (no existence leak)", async () => {
-    mockPrisma.evidence.findUnique.mockResolvedValueOnce(null);
-    const reply = makeReply();
-    const grant = await requireEvidenceAccess(
-      makeReq() as never,
-      reply as never,
-      { evidenceId: "missing", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-    expect(reply.statusCode).toBe(404);
-    expect(reply.payload).toEqual({ error: { code: "not_found" } });
-    // authorize was never called — the helper short-circuited.
-    expect(authorizeOrFailMock).not.toHaveBeenCalled();
+describe("Phase 37.95 — tenant access helpers stay removed", () => {
+  it("the parallel tenant-access authority is not back on disk", () => {
+    expect(
+      existsSync(join(API_SRC, "services/access/tenant-access.helpers.ts")),
+      "tenant-access.helpers.ts is REMOVED (LEGACY-003) and must not return",
+    ).toBe(false);
   });
 
-  it("calls authorize with the DB-resolved teamId, NOT a client-provided one", async () => {
-    // Evidence belongs to teamB. The helper must call authorize against
-    // teamB regardless of any other input.
-    mockPrisma.evidence.findUnique.mockResolvedValueOnce({ teamId: "teamB" });
-    authorizeOrFailMock.mockResolvedValueOnce({
-      actorUserId: "userA",
-      teamId: "teamB",
-    });
-    const reply = makeReply();
-    await requireEvidenceAccess(makeReq() as never, reply as never, {
-      evidenceId: "evidenceB-1",
-      permission: "evidence.read",
-    });
-    const call = authorizeOrFailMock.mock.calls[0];
-    expect(call[2].teamId).toBe("teamB");
-    expect(call[2].permission).toBe("evidence.read");
-    expect(call[2].antiEnumeration).toBe(true);
-  });
-
-  it("returns null when authorize denies (cross-tenant userA → evidenceB)", async () => {
-    // Evidence belongs to teamB; userA is not a member of teamB.
-    mockPrisma.evidence.findUnique.mockResolvedValueOnce({ teamId: "teamB" });
-    // authorizeOrFail returns null on deny (response already sent inside).
-    authorizeOrFailMock.mockResolvedValueOnce(null);
-    const reply = makeReply();
-    const grant = await requireEvidenceAccess(
-      makeReq() as never,
-      reply as never,
-      { evidenceId: "evidenceB-1", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-  });
-
-  it("returns the canonical grant when authorize allows (same-tenant userA → evidenceA)", async () => {
-    mockPrisma.evidence.findUnique.mockResolvedValueOnce({ teamId: "teamA" });
-    authorizeOrFailMock.mockResolvedValueOnce({
-      actorUserId: "userA",
-      teamId: "teamA",
-    });
-    const grant = await requireEvidenceAccess(
-      makeReq() as never,
-      makeReply() as never,
-      { evidenceId: "evidenceA-1", permission: "evidence.read" },
-    );
-    expect(grant).toEqual({
-      actorUserId: "userA",
-      teamId: "teamA",
-      resourceId: "evidenceA-1",
-    });
-  });
-
-  it("anti-enumeration: even if userA passes the wrong teamId in args, the helper resolves from the DB", async () => {
-    // The helper signature only accepts evidenceId — teamId is not even
-    // a parameter the client can influence here. We assert the call site
-    // does not pass any client teamId to authorize.
-    mockPrisma.evidence.findUnique.mockResolvedValueOnce({ teamId: "teamB" });
-    authorizeOrFailMock.mockResolvedValueOnce(null);
-    await requireEvidenceAccess(makeReq() as never, makeReply() as never, {
-      evidenceId: "evidenceB-1",
-      permission: "evidence.read",
-    });
-    const call = authorizeOrFailMock.mock.calls[0];
-    // The teamId passed to authorize is exactly what the DB returned.
-    expect(call[2].teamId).toBe("teamB");
-  });
-});
-
-// =============================================================================
-// Case / Report / Package — same contract, different table
-// =============================================================================
-
-describe("Phase 37.95 — requireCaseAccess cross-tenant rejection", () => {
-  it("404s on missing case", async () => {
-    mockPrisma.case.findUnique.mockResolvedValueOnce(null);
-    const reply = makeReply();
-    const grant = await requireCaseAccess(makeReq() as never, reply as never, {
-      caseId: "missing",
-      permission: "evidence.read",
-    });
-    expect(grant).toBeNull();
-    expect(reply.statusCode).toBe(404);
-  });
-
-  it("authorizes against the DB-resolved teamId", async () => {
-    mockPrisma.case.findUnique.mockResolvedValueOnce({ teamId: "teamA" });
-    authorizeOrFailMock.mockResolvedValueOnce({
-      actorUserId: "userA",
-      teamId: "teamA",
-    });
-    await requireCaseAccess(makeReq() as never, makeReply() as never, {
-      caseId: "caseA-1",
-      permission: "evidence.read",
-    });
-    expect(authorizeOrFailMock.mock.calls[0][2].teamId).toBe("teamA");
-  });
-
-  it("denies cross-tenant userA → caseB", async () => {
-    mockPrisma.case.findUnique.mockResolvedValueOnce({ teamId: "teamB" });
-    authorizeOrFailMock.mockResolvedValueOnce(null);
-    const grant = await requireCaseAccess(
-      makeReq() as never,
-      makeReply() as never,
-      { caseId: "caseB-1", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-  });
-});
-
-describe("Phase 37.95 — requireReportAccess resolves via parent evidence", () => {
-  it("404s when the report row does not exist", async () => {
-    mockPrisma.report.findUnique.mockResolvedValueOnce(null);
-    const reply = makeReply();
-    const grant = await requireReportAccess(
-      makeReq() as never,
-      reply as never,
-      { reportId: "missing", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-    expect(reply.statusCode).toBe(404);
-  });
-
-  it("404s when the report has no parent evidence (orphan)", async () => {
-    mockPrisma.report.findUnique.mockResolvedValueOnce({ evidence: null });
-    const reply = makeReply();
-    const grant = await requireReportAccess(
-      makeReq() as never,
-      reply as never,
-      { reportId: "orphan", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-    expect(reply.statusCode).toBe(404);
-  });
-
-  it("authorizes against the parent evidence's teamId", async () => {
-    mockPrisma.report.findUnique.mockResolvedValueOnce({
-      evidence: { teamId: "teamB" },
-    });
-    authorizeOrFailMock.mockResolvedValueOnce({
-      actorUserId: "userA",
-      teamId: "teamB",
-    });
-    await requireReportAccess(makeReq() as never, makeReply() as never, {
-      reportId: "reportB-1",
-      permission: "evidence.read",
-    });
-    expect(authorizeOrFailMock.mock.calls[0][2].teamId).toBe("teamB");
-  });
-});
-
-describe("Phase 37.95 — requirePackageAccess resolves via parent evidence", () => {
-  it("404s when the package does not exist", async () => {
-    mockPrisma.verificationPackage.findUnique.mockResolvedValueOnce(null);
-    const reply = makeReply();
-    const grant = await requirePackageAccess(
-      makeReq() as never,
-      reply as never,
-      { packageId: "missing", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-    expect(reply.statusCode).toBe(404);
-  });
-
-  it("authorizes against the parent evidence's teamId, never the package id alone", async () => {
-    mockPrisma.verificationPackage.findUnique.mockResolvedValueOnce({
-      evidence: { teamId: "teamA" },
-    });
-    authorizeOrFailMock.mockResolvedValueOnce({
-      actorUserId: "userA",
-      teamId: "teamA",
-    });
-    await requirePackageAccess(makeReq() as never, makeReply() as never, {
-      packageId: "packageA-1",
-      permission: "evidence.read",
-    });
-    expect(authorizeOrFailMock.mock.calls[0][2].teamId).toBe("teamA");
-    expect(authorizeOrFailMock.mock.calls[0][2].resourceKind).toBe(
-      "verificationPackage",
-    );
-  });
-});
-
-describe("Phase 37.95 — requireActiveSpaceAccess (team membership only)", () => {
-  it("forwards the caller-supplied teamId to authorize (no resource lookup)", async () => {
-    authorizeOrFailMock.mockResolvedValueOnce({
-      actorUserId: "userA",
-      teamId: "teamA",
-    });
-    const grant = await requireActiveSpaceAccess(
-      makeReq() as never,
-      makeReply() as never,
-      { teamId: "teamA", permission: "evidence.read" },
-    );
-    expect(grant).toEqual({
-      actorUserId: "userA",
-      teamId: "teamA",
-      resourceId: "teamA",
-    });
-    expect(authorizeOrFailMock.mock.calls[0][2].antiEnumeration).toBe(true);
-  });
-
-  it("returns null when authorize denies (cross-tenant userA → teamB)", async () => {
-    authorizeOrFailMock.mockResolvedValueOnce(null);
-    const grant = await requireActiveSpaceAccess(
-      makeReq() as never,
-      makeReply() as never,
-      { teamId: "teamB", permission: "evidence.read" },
-    );
-    expect(grant).toBeNull();
-  });
-});
-
-// =============================================================================
-// Anti-enumeration: the response code on deny is 404, not 403
-// =============================================================================
-
-describe("Phase 37.95 — anti-enumeration on every helper", () => {
-  it("every helper calls authorize with antiEnumeration: true", async () => {
-    mockPrisma.evidence.findUnique.mockResolvedValueOnce({ teamId: "teamA" });
-    mockPrisma.case.findUnique.mockResolvedValueOnce({ teamId: "teamA" });
-    mockPrisma.report.findUnique.mockResolvedValueOnce({
-      evidence: { teamId: "teamA" },
-    });
-    mockPrisma.verificationPackage.findUnique.mockResolvedValueOnce({
-      evidence: { teamId: "teamA" },
-    });
-    authorizeOrFailMock.mockResolvedValue({
-      actorUserId: "userA",
-      teamId: "teamA",
-    });
-    await requireEvidenceAccess(makeReq() as never, makeReply() as never, {
-      evidenceId: "x",
-      permission: "evidence.read",
-    });
-    await requireCaseAccess(makeReq() as never, makeReply() as never, {
-      caseId: "x",
-      permission: "evidence.read",
-    });
-    await requireReportAccess(makeReq() as never, makeReply() as never, {
-      reportId: "x",
-      permission: "evidence.read",
-    });
-    await requirePackageAccess(makeReq() as never, makeReply() as never, {
-      packageId: "x",
-      permission: "evidence.read",
-    });
-    await requireActiveSpaceAccess(makeReq() as never, makeReply() as never, {
-      teamId: "teamA",
-      permission: "evidence.read",
-    });
-    for (const call of authorizeOrFailMock.mock.calls) {
-      expect(call[2].antiEnumeration).toBe(true);
-    }
+  it("no production module imports the removed helpers", () => {
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".ts")) {
+          if (/from\s+["'][^"']*tenant-access\.helpers(\.js)?["']/.test(readFileSync(full, "utf8"))) {
+            offenders.push(full);
+          }
+        }
+      }
+    };
+    walk(API_SRC);
+    expect(offenders).toEqual([]);
   });
 });

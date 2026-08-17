@@ -29,6 +29,8 @@
 //   (gated by `requirePlatformAdmin`).
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { trustedClientIp, trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { createContactSalesRequest } from "../services/contact-sales.service.js";
 
 function readHeader(req: FastifyRequest, name: string): string | null {
@@ -37,17 +39,57 @@ function readHeader(req: FastifyRequest, name: string): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+/**
+ * PHASE1-005 — the RECORDED address must be trustworthy too, not just the
+ * limiter key.
+ *
+ * `createContactSalesRequest` counts recent rows sharing this `ipAddress` as a
+ * hammer signal. Derived from a raw `x-forwarded-for` that signal could be
+ * defeated by rotating one header, and the value an operator later reads while
+ * triaging the row was whatever the sender chose to put there.
+ */
 function readIp(req: FastifyRequest): string | null {
-  const forwarded = readHeader(req, "x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return req.ip ?? null;
+  return trustedClientIp(req);
 }
+
+/**
+ * PHASE1-005 (2026-08-16) — an unauthenticated public WRITE with no bound.
+ *
+ * FINAL-004 fixed exactly this shape on the citizen-intake routes. The public
+ * lead-capture pair was the same thing and was not looked at: no auth, no
+ * token, no rate limit, and a `prisma.contactSalesRequest.create` at the end of
+ * it. The input schema bounds each FIELD, which is why this reads as safe on a
+ * quick pass — but nothing bounded the number of REQUESTS, so anyone could
+ * insert rows into the sales pipeline for as long as they cared to.
+ *
+ * The header above lists an "IP-hammer" control in the service layer, and that
+ * is the reason this went unnoticed. It is a SPAM SCORE, not a bound: hitting
+ * it sets `isSpam`, which downgrades priority and suppresses the auto-reply.
+ * `prisma.contactSalesRequest.create` runs either way. A control that changes
+ * how a row is filed is not a control that stops the row being written, and the
+ * web-tier limit it also cites protects the Next proxy, not this route, which
+ * is reachable directly.
+ *
+ * The bound is per-IP and deliberately generous: a real prospect fills this in
+ * once, and a shared corporate NAT should never hit it.
+ */
+const CONTACT_SALES_RATE_LIMIT_PER_IP_PER_MIN = 5;
 
 export async function contactSalesRoutes(app: FastifyInstance) {
   app.post("/v1/contact-sales", async (req, reply) => {
+    const rl = await enforceRateLimit({
+      key: `contact-sales:ip:${trustedClientIpKey(req)}`,
+      max: CONTACT_SALES_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: 60,
+    });
+    if (!rl.allowed) {
+      // Refused BEFORE the write, so a rate-limited request leaves no row.
+      return reply
+        .code(429)
+        .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
+        .send({ error: { code: "RATE_LIMITED" } });
+    }
+
     const result = await createContactSalesRequest(req.body, {
       ipAddress: readIp(req),
       userAgent: readHeader(req, "user-agent"),

@@ -250,43 +250,52 @@ export function maskIp(ip: string | null | undefined): string | null {
 }
 
 /**
- * Resolve the trusted client IP from request-like headers.
+ * Resolve the trusted client IP for RECORDING.
  *
- * Only consults proxy headers when `trustProxy` is true (i.e. the API is
- * deployed behind a known Cloudflare/reverse-proxy layer). Priority:
- *   1. CF-Connecting-IP (Cloudflare, single value).
- *   2. First PUBLIC address in X-Forwarded-For (left-most client).
- *   3. reqIp fallback (direct socket).
- * When trustProxy is false, arbitrary forwarded headers from the public
- * internet are NOT trusted and reqIp is used. Returns null when nothing
- * usable is present.
+ * PHASE 13 §1 (NEW-022) — this no longer walks `X-Forwarded-For` itself.
+ *
+ * The former implementation consulted CF-Connecting-IP and took the first
+ * PUBLIC forwarded entry (the LEFTMOST address), which a caller supplies and
+ * can therefore forge. Address selection is now Fastify's, via its bundled
+ * `@fastify/proxy-addr`, configured from the declared `ProxyTrustPolicy` (see
+ * `proxy-trust-policy.ts`). By the time `reqIp` reaches this function it is
+ * already the resolved client — the rightmost hop for a single-proxy topology,
+ * or the socket peer when trust is off. This function only NORMALISES it, so
+ * there is exactly one address-selection authority in the process.
+ *
+ * `headers` and `trustProxy` are retained for signature compatibility with the
+ * capture writer but are no longer consulted: honouring them here would
+ * reintroduce the second, forgeable resolver this fix removed.
  */
 export function getTrustedClientIp(input: {
   reqIp?: string | null;
   headers?: Record<string, string | string[] | undefined> | null;
   trustProxy?: boolean;
 }): string | null {
-  const reqIp = (input.reqIp ?? "").trim() || null;
-  if (!input.trustProxy) return reqIp;
+  return normalizeTrustedIp(input.reqIp);
+}
 
-  const headers = input.headers ?? {};
-  const header = (name: string): string | null => {
-    const v = headers[name] ?? headers[name.toLowerCase()];
-    if (Array.isArray(v)) return v[0] ?? null;
-    return typeof v === "string" ? v : null;
-  };
-
-  const cf = (header("cf-connecting-ip") ?? "").trim();
-  if (cf && !isPrivateOrReservedIp(cf)) return cf;
-
-  const xff = header("x-forwarded-for");
-  if (xff) {
-    for (const part of xff.split(",")) {
-      const candidate = part.trim();
-      if (candidate && !isPrivateOrReservedIp(candidate)) return candidate;
-    }
-  }
-  return reqIp;
+/**
+ * Normalise a Fastify-resolved address to a stable form (strip IPv4-mapped
+ * prefixes / brackets / ports, reject control characters). Kept local to avoid
+ * a cross-module import cycle; `proxy-trust-policy.ts` carries the canonical
+ * `normalizeIp` used by the API binding and both agree by construction because
+ * this is the reduced case of the same rules.
+ */
+function normalizeTrustedIp(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  let v = String(raw).trim();
+  if (v.length === 0) return null;
+  // The control characters ARE the subject — see `normalizeIp`, which this is
+  // the reduced case of.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(v)) return null;
+  const bracket = /^\[([^\]]+)\](?::\d+)?$/.exec(v);
+  if (bracket) v = bracket[1] as string;
+  const v4port = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(v);
+  if (v4port) v = v4port[1] as string;
+  v = v.replace(/^::ffff:/i, "");
+  return v.length > 0 ? v : null;
 }
 
 export type BuildCaptureEnvironmentInput = {

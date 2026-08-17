@@ -166,7 +166,37 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   "account.organization_admin_billing",
   "account.organization_admin_integrations",
   // Workspace-admin tenancy + enterprise-shell surfaces.
-  "admin.teams",
+  //
+  // NOTE (PHASE 13 / NEW-062): `admin.teams` is deliberately NOT here.
+  //
+  // This one route id serves TWO paths — the `/workspaces` switcher list AND
+  // the per-workspace administration detail at `/teams/[id]` — and the two
+  // have different tiers. `/workspaces` IS enterprise, and that is enforced
+  // where it belongs: `app/(app)/workspaces/layout.tsx` applies `SurfaceGate`
+  // against the `/workspaces` rule in `lib/surface/tiers.ts`
+  // (ENTERPRISE → redirect to /collaboration-teams). Removing the id from this
+  // set therefore does not open the switcher list to self-serve plans.
+  //
+  // `/teams/[id]` is a different surface, declared PROFESSIONAL
+  // ("workspace (PRO/TEAM)") by that same tier table — and it is the ONLY
+  // surface in the product that hosts `WorkspaceClosureCard` and
+  // `WorkspaceOwnershipTransferCard`. Those capabilities are, by their own
+  // service design, valid ONLY on the OWNED workspace kind:
+  // `workspace-lifecycle.service.ts` refuses an ORGANIZATION workspace
+  // (`ORG_WORKSPACE_OWNERSHIP_IS_ORG_GOVERNED`) and equally refuses a Personal
+  // Space. An OWNED workspace is never on an ENTERPRISE plan, so
+  // `isEnterpriseWorkspace` is false for it by construction.
+  //
+  // Gating the page on an enterprise workspace therefore made the closure and
+  // ownership-transfer capabilities unreachable for exactly the owners they
+  // exist for: a PRO/TEAM owner got "Plan upgrade required", while an
+  // Enterprise operator could only reach them by administering an OWNED
+  // workspace by id while parked in a different, Enterprise workspace. Closing
+  // or handing over your own workspace is not an upsell surface.
+  //
+  // The page keeps its real gates: `requiredCapabilities: ["TEAM_VIEW"]` here,
+  // and server-side ownership plus step-up on every `/v1/teams/:id/closure`,
+  // `/cancel`, `/reopen` and transfer route.
   "workspace.notifications",
   "workspace.evidence_lifecycle",
   "workspace.exchange",

@@ -65,6 +65,10 @@ import { evaluateMemberAccess } from "../services/identity/access-policy.service
 // approximation that `requireIdentityAdmin` (still used by the SSO / SCIM /
 // session surfaces owned by other tracks) performs inline.
 import { authorizeOrFail } from "../middleware/authorize.js";
+import {
+  cronSecretMatches,
+  readCronSecretFromEnvs,
+} from "../middleware/cron-secret.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
@@ -212,18 +216,15 @@ const BoundedNote = z.string().min(1).max(400);
 // fails with the scheduler's 401 rather than a session error.
 // -----------------------------------------------------------------------------
 
+// FINAL-003 — the comparison itself is the canonical cron-secret primitive
+// (constant-time, 16-character floor). This function decides only WHICH
+// environment variables name the scheduler's secret for these two sweeps.
 function hasValidReconcileCronSecret(req: FastifyRequest): boolean {
-  const expected =
-    process.env["IDENTITY_RECONCILE_CRON_SECRET"] ||
-    process.env["INTEGRATION_CRON_SECRET"] ||
-    "";
-  const got = req.headers["x-cron-secret"];
-  return (
-    expected.length > 0 &&
-    typeof got === "string" &&
-    got.length > 0 &&
-    got === expected
-  );
+  const expected = readCronSecretFromEnvs([
+    "IDENTITY_RECONCILE_CRON_SECRET",
+    "INTEGRATION_CRON_SECRET",
+  ]);
+  return cronSecretMatches(expected, req.headers["x-cron-secret"]);
 }
 
 /**

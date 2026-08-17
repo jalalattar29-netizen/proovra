@@ -16,6 +16,7 @@ import { Badge } from "../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
+import { AccessReviewCampaignForm } from "../../../../components/governance/AccessReviewCampaignForm";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -272,6 +273,16 @@ function Shell() {
           {failure.message}
         </Card>
       ) : null}
+
+      {/* PHASE 13 — POST /v1/governance/access-reviews/campaigns. `createCampaign`
+          had one caller (the route) and no worker writes accessReviewCampaign,
+          so the empty state below could never be escaped from the product. */}
+      <AccessReviewCampaignForm
+        onCreated={async () => {
+          await refresh();
+          await loadEscalated();
+        }}
+      />
 
       <div data-access-reviews-campaigns-table>
         <DataTable<AccessReviewCampaignProjection>

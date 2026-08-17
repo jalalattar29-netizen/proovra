@@ -616,10 +616,32 @@ describe("PHASE 12 POINT 4 STEP 1 — the surface context carries no role at all
       // An entitlement override may legitimately open a rule to a paid
       // self-serve plan; the tier itself must never open on its own.
       if (rule.entitlementOverride) continue;
+      // VISIBILITY is the invariant with NO exceptions: an ENTERPRISE rule
+      // never puts its surface in nav, the command palette or All Tools for a
+      // self-serve context, however generous that context's entitlements are.
       expect(
         canAccessSurface(bestNonEnterprise, rule.pathPrefix),
         `${rule.pathPrefix} must stay closed without an enterprise workspace`,
       ).toBe(false);
+      /**
+       * PHASE 13 (NEW-063) — DIRECT access may be delegated, but only
+       * DELIBERATELY.
+       *
+       * A rule that declares `directAccessPolicy: "allow"` is stating that the
+       * PLAN is not the right authority for reaching it by URL — that something
+       * else decides, and that the something else is server-side. `/organizations`
+       * is the case: the entity is MEMBERSHIP-gated (`routeRegistry.ts`'s 12B
+       * correction, and the account-menu resolver's "membership is the ONLY
+       * input — never plan"), and because `isEnterpriseWorkspace` is derived
+       * from the ACTIVE workspace, an ORG_OWNER sitting in their Personal Space
+       * is one of these non-enterprise contexts. Denying them was 404-ing the
+       * exact link the account menu had offered.
+       *
+       * The exemption is keyed on the rule's own declared policy rather than on
+       * a path allowlist here, so it cannot be acquired by accident: a rule only
+       * gets it by saying so, and the visibility assertion above still binds.
+       */
+      if (rule.directAccessPolicy === "allow") continue;
       expect(
         getDirectAccessDecision(bestNonEnterprise, rule.pathPrefix).kind,
         `${rule.pathPrefix} must not resolve to allow on direct URL`,
@@ -751,14 +773,51 @@ describe("Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY", 
     { name: "TEAM member", ctx: SMALL_TEAM_MEMBER },
   ];
 
+  /**
+   * PHASE 13 (NEW-063) — VISIBILITY is still denied for every one of these
+   * personas. DIRECT ACCESS to the organizations ENTITY is not, and the
+   * difference is deliberate.
+   *
+   * `/organizations` (the list, and the member-safe detail beneath it) is
+   * MEMBERSHIP-gated, not plan-gated. `routeRegistry.ts` says so in its 12B
+   * correction — "a FREE-plan personal user with an ACTIVE org membership must
+   * reach their org list even while their ACTIVE workspace is personal" — and
+   * `lib/navigation/accountMenu.ts` acts on it, offering "Organization
+   * settings" whenever `activeOrganizations.length > 0`. Because
+   * `isEnterpriseWorkspace` is derived from the ACTIVE WORKSPACE, an ORG_OWNER
+   * sitting in their Personal Space is one of these non-enterprise personas —
+   * and the old `notFound` policy 404'd them on the link the account menu had
+   * just shown them.
+   *
+   * So the tier assertion below is unchanged and still exhaustive: none of
+   * these personas may SEE the surface in nav, the command palette or All
+   * Tools. What replaces the client-side 404 is stronger, not weaker —
+   * `PageRouteGate`, the ENTERPRISE_ONLY route ids covering every ADMIN
+   * surface beneath the detail, and the org routes' own server-side membership
+   * checks. A persona with no membership reaches an empty list.
+   *
+   * The ADMIN paths in `ORG_PATHS` keep their `notFound` / `redirect`
+   * treatment, so they are asserted separately rather than folded in.
+   */
+  const MEMBERSHIP_GATED_ORG_PATHS = ["/organizations"];
+
   for (const persona of NON_ENTERPRISE) {
     for (const path of ORG_PATHS) {
-      it(`${persona.name} cannot see or open ${path}`, () => {
+      const membershipGated = MEMBERSHIP_GATED_ORG_PATHS.includes(path);
+      it(`${persona.name} cannot see ${path}${
+        membershipGated ? " (direct access is membership-gated)" : " or open it"
+      }`, () => {
         expect(canAccessSurface(persona.ctx, path)).toBe(false);
-        // Per the brief: notFound or redirect — both must be acceptable.
-        // The rule table uses notFound for ENTERPRISE_ONLY.
         const d = getDirectAccessDecision(persona.ctx, path);
-        expect(["notFound", "redirect"]).toContain(d.kind);
+        if (membershipGated) {
+          // Hidden from navigation, reachable by URL; membership + the server
+          // decide what is actually returned.
+          expect(d.kind).toBe("allow");
+        } else {
+          // Per the brief: notFound or redirect — both must be acceptable.
+          // The rule table uses notFound for the ADMIN surfaces.
+          expect(["notFound", "redirect"]).toContain(d.kind);
+        }
       });
     }
   }

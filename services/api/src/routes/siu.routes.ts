@@ -46,6 +46,7 @@ import { runSiuExportPreflight } from "../services/siu/siu-preflight.service.js"
 import {
   buildSiuExportBundle,
   downloadSiuExportArtifact,
+  markSiuExportDelivered,
   listSiuExports,
 } from "../services/siu/siu-export-bundle.service.js";
 import {
@@ -1057,10 +1058,32 @@ export async function siuRoutes(app: FastifyInstance) {
           },
         });
       }
-      await emitTenantAudit({
-        action: "siu_export_downloaded",
-        outcome: "success",
-        sourceApp: "API",
+      // PHASE 13 §4 (2026-08-17) — THE AUDIT AND THE DURABLE STAMP NOW FOLLOW
+      // THE BYTES.
+      //
+      // `siu_export_downloaded` was emitted here, before `reply.send(stream)`,
+      // and the service stamped `downloaded_at_utc` earlier still — at the
+      // moment the S3 stream was opened. Between them they guaranteed a
+      // success record for every download that was ATTEMPTED, including the
+      // ones that died halfway. For an evidence product an audit trail that
+      // over-reports delivery is worse than one that reports nothing.
+      //
+      // Both are now bound to the response's own lifecycle:
+      //
+      //   'finish' — the response was fully flushed to the socket. This is the
+      //              only place a success audit and the `downloaded` stamp are
+      //              written.
+      //   'close'  — the connection ended. If `writableFinished` is false the
+      //              transfer was cut short, and that is recorded as its own
+      //              audit outcome rather than left silent: an operator who
+      //              believes they have the bundle and does not is exactly the
+      //              case the record has to be able to answer.
+      //
+      // Both handlers are best-effort and detached: an audit failure must never
+      // affect a transfer that has already happened.
+      const auditBase = {
+        action: "siu_export_downloaded" as const,
+        sourceApp: "API" as const,
         actorUserId: ctx.userId,
         workspaceId: ctx.teamId,
         resourceType: "case",
@@ -1071,7 +1094,23 @@ export async function siuRoutes(app: FastifyInstance) {
           exportRowId: outcome.exportRowId,
           artifactSha256: outcome.artifactSha256,
         },
-      }).catch(() => {});
+      };
+      reply.raw.once("finish", () => {
+        void markSiuExportDelivered({ exportRowId: outcome.exportRowId }).catch(
+          () => {},
+        );
+        void emitTenantAudit({ ...auditBase, outcome: "success" }).catch(
+          () => {},
+        );
+      });
+      reply.raw.once("close", () => {
+        if (reply.raw.writableFinished) return;
+        void emitTenantAudit({
+          ...auditBase,
+          outcome: "error",
+          denialReason: "download_stream_interrupted",
+        }).catch(() => {});
+      });
       reply
         .header("content-type", "application/zip")
         .header(

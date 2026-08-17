@@ -1085,7 +1085,23 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // one file would weaken that guard to a per-route scan, so the route ADD is
 // the safer shape (124 → 125). The pin continues to detect further unaudited
 // route adds.
-const ROUTE_COUNT_PHASE_2_BASELINE = 125;
+//
+// PHASE 13 (NEW-058) — 125 → 127, and both adds are argued here.
+//
+// `identity-security-contact-factors.routes.ts` is the enrolment surface for
+// verified contact factors. It is a separate file from
+// `identity-security.routes.ts` for the same reason the SCIM split above is a
+// separate file: the destination-bearing legs are the ones that must never
+// return plaintext to a caller, and keeping them in their own module keeps
+// that reviewable as a file-level property rather than a per-route scan.
+//
+// `identity-security-shared.ts` carries the helpers both identity-security
+// modules need (`requireSecurityActor`, the step-up error mapping). It exists
+// because the alternative was importing route module A from route module B,
+// which would have made the registration order load-bearing.
+//
+// The pin continues to detect further unaudited route adds.
+const ROUTE_COUNT_PHASE_2_BASELINE = 127;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

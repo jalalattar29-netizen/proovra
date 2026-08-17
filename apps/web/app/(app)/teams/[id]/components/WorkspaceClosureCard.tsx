@@ -8,9 +8,24 @@
  * cancellation window, honest collaboration-consequence copy (how many
  * members lose access). Frontend visibility is NOT authorization — the
  * backend re-checks team.ownerUserId + step-up on every call.
+ *
+ * PHASE 13 — the REVERSE leg is wired here too:
+ *
+ *   POST /v1/teams/:id/reopen  (services/api/src/routes/teams.routes.ts:3164)
+ *
+ * A completed closure was a one-way door in the product even though the
+ * service (reopenClosedWorkspace) has always been able to undo it. The
+ * control appears only where it can work — when this card's own read says
+ * the latest closure request COMPLETED — and states plainly what reopening
+ * does NOT bring back.
+ *
+ *   200  { reopened: { teamId } }
+ *   403  owner_required | NOT_WORKSPACE_OWNER
+ *   404  TEAM_NOT_FOUND
+ *   409  CLOSURE_IN_PROGRESS | WORKSPACE_NOT_CLOSED
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
@@ -62,6 +77,33 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
   const [stepUpOpen, setStepUpOpen] = useState(false);
   const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
   const [stepUpMsg, setStepUpMsg] = useState("");
+  /**
+   * PHASE 13 (NEW-048) — the closure legs announce their outcome.
+   *
+   * Requesting and cancelling a closure both changed durable state and told a
+   * screen-reader user nothing: the request outcome re-rendered a plain `div`
+   * with no role, and CANCELLING rendered no confirmation AT ALL — the card
+   * simply returned to its initial state, so a sighted user could not tell the
+   * cancellation had landed either. The reopen leg below already does this
+   * correctly, which is what makes the other two an omission rather than a
+   * house style.
+   */
+  const [closureNotice, setClosureNotice] = useState<string | null>(null);
+  // PHASE 13 — reopen leg.
+  const [reopenBusy, setReopenBusy] = useState(false);
+  const [reopenNotice, setReopenNotice] = useState<string | null>(null);
+  const [reopenError, setReopenError] = useState<string | null>(null);
+
+  // Stale-response protection: a response is applied only when it belongs to
+  // the newest request AND this card is still mounted.
+  const mountedRef = useRef(true);
+  const reopenSeqRef = useRef(0);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -80,6 +122,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
     async (proof?: StepUpProof) => {
       setBusy(true);
       setError(null);
+      setClosureNotice(null);
       try {
         await apiFetch(`/v1/teams/${teamId}/closure`, {
           method: "POST",
@@ -92,6 +135,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
         setStepUpOpen(false);
         setShowForm(false);
         setPhrase("");
+        setClosureNotice("Closure requested. The cancellation window is now open.");
         await reload();
       } catch (err) {
         const su = extractStepUp(err);
@@ -127,12 +171,14 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
     async (requestId: string) => {
       setBusy(true);
       setError(null);
+      setClosureNotice(null);
       try {
         await apiFetch(`/v1/teams/${teamId}/closure/${requestId}/cancel`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: "{}",
         });
+        setClosureNotice("Closure request cancelled. This workspace stays open.");
         await reload();
       } catch (err) {
         setError(
@@ -144,6 +190,48 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
     },
     [teamId, reload],
   );
+
+  const reopenWorkspace = useCallback(async () => {
+    setReopenBusy(true);
+    setReopenError(null);
+    setReopenNotice(null);
+    const seq = ++reopenSeqRef.current;
+    try {
+      await apiFetch(`/v1/teams/${teamId}/reopen`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!mountedRef.current || seq !== reopenSeqRef.current) return;
+      setReopenNotice(
+        "Workspace reopened. Your owner access is back; other members, API credentials and webhooks stay revoked until you restore them explicitly.",
+      );
+      await reload();
+    } catch (err) {
+      if (!mountedRef.current || seq !== reopenSeqRef.current) return;
+      const status = (err as { statusCode?: number }).statusCode ?? 0;
+      if (status === 403) {
+        setReopenError(
+          "You don't have permission to reopen this workspace. Only its owner can.",
+        );
+      } else if (status === 404) {
+        setReopenError("This workspace no longer exists.");
+      } else if (status === 409) {
+        setReopenError(
+          "There is nothing to reopen: either a closure request is still open — cancel that instead — or this workspace was never closed.",
+        );
+        await reload();
+      } else {
+        setReopenError(
+          toSafeUserError(err, {
+            message: "Could not reopen this workspace. Nothing was changed.",
+          }).message,
+        );
+      }
+    } finally {
+      if (mountedRef.current && seq === reopenSeqRef.current) setReopenBusy(false);
+    }
+  }, [teamId, reload]);
 
   if (state === null) return null;
 
@@ -175,6 +263,26 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
           by retention and legal-hold rules.
         </div>
       </div>
+
+      {/*
+        PHASE 13 (NEW-048) — the outcome region, rendered OUTSIDE the
+        open/closed branch below.
+        Placing it inside would have reintroduced the defect it fixes:
+        cancelling flips `open` to false, so a notice living in the open branch
+        would unmount at the exact moment it had something to say. This region
+        survives the transition, which is why a cancellation can be announced
+        at all.
+      */}
+      {closureNotice ? (
+        <div
+          role="status"
+          aria-live="polite"
+          data-workspace-closure-notice
+          style={{ ...muted, color: "#21353a", marginTop: 10 }}
+        >
+          {closureNotice}
+        </div>
+      ) : null}
 
       {open && req ? (
         <div data-workspace-closure-status={req.status} style={{ marginTop: 10 }}>
@@ -282,6 +390,51 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
         </>
       )}
 
+      {/* PHASE 13 — reopen. Rendered only when this card's own read says the
+          workspace is actually closed, so the control can always work. */}
+      {!open && req && req.status === "COMPLETED" ? (
+        <div
+          data-workspace-reopen
+          aria-busy={reopenBusy}
+          style={{ marginTop: 12, borderTop: "1px solid rgba(15,23,42,0.08)", paddingTop: 12 }}
+        >
+          <div style={{ ...muted, color: "#21353a", fontWeight: 600 }}>
+            Reopen this workspace
+          </div>
+          <p style={{ ...muted, margin: "4px 0 0" }}>
+            Restores your owner access so you can work in it again. Other
+            members, API credentials and webhooks are NOT restored — re-invite
+            people and re-issue credentials deliberately.
+          </p>
+          <div style={{ marginTop: 10 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void reopenWorkspace()}
+              loading={reopenBusy}
+              disabled={reopenBusy}
+              data-action="reopen-workspace"
+            >
+              Reopen workspace
+            </Button>
+          </div>
+          <div
+            role="status"
+            aria-live="polite"
+            data-workspace-reopen-status
+            style={{ ...muted, marginTop: 8, color: reopenError ? "#8f1d16" : "#6a777b" }}
+          >
+            {reopenBusy
+              ? "Reopening…"
+              : reopenError
+                ? reopenError
+                : reopenNotice
+                  ? reopenNotice
+                  : ""}
+          </div>
+        </div>
+      ) : null}
+
       {stepUpOpen ? (
         <StepUpVerify
           title="Confirm closing this workspace."
@@ -299,6 +452,12 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
       {error ? (
         <div
           role="alert"
+          // PHASE 13 (NEW-048): `role="alert"` carries an implicit assertive
+          // live region in most implementations, but not all announce a region
+          // that MOUNTS with content already in it. Stating it removes the
+          // dependence on that behaviour.
+          aria-live="assertive"
+          data-workspace-closure-error
           style={{
             marginTop: 10,
             borderRadius: 8,

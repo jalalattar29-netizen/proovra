@@ -43,6 +43,12 @@ import {
   startVerification,
 } from "../communications/verification.service.js";
 import { maybeFireFailedOtpBurst } from "./risk.service.js";
+// PHASE 13 (NEW-058) — the enrolled-factor authority. This is the ONLY source
+// of a step-up destination; nothing here may read one from a request.
+import {
+  resolveActiveContactFactor,
+  resolveStepUpDestination,
+} from "../security/verified-contact-factor.service.js";
 
 // -----------------------------------------------------------------------------
 // Error surface
@@ -60,6 +66,15 @@ export type StepUpErrorCode =
   | "challenge_consumed"
   | "challenge_purpose_mismatch"
   | "challenge_resource_mismatch"
+  /**
+   * PHASE 13 (NEW-058) — the account holds no enrolled contact factor.
+   *
+   * A STABLE, non-disclosing denial that the product can act on: it is the
+   * difference between "you got the code wrong" and "there is nothing to send
+   * a code to, enrol a device first". It exists because the alternative — the
+   * old behaviour — was to accept whatever destination the request carried.
+   */
+  | "enrollment_required"
   | "denied";
 
 export class StepUpError extends Error {
@@ -80,8 +95,26 @@ export type StartStepUpInput = {
   purpose: StepUpPurpose;
   resourceKind?: string | null;
   resourceId?: string | null;
-  phoneE164OrRaw: string;
-  channel: "SMS" | "WHATSAPP";
+  /**
+   * PHASE 13 (NEW-058) — the destination is RESOLVED, never supplied.
+   *
+   * This used to be `phoneE164OrRaw: string`, taken straight from the request
+   * body, which meant an approved challenge proved possession of a handset the
+   * CALLER chose rather than of a factor the ACCOUNT enrolled — a stolen
+   * session supplied the attacker's own number and approved its own challenge.
+   *
+   * A caller may now NAME one of its own enrolled factors, and that is all: the
+   * server reads the destination from the factor authority, and a `factorId`
+   * that is not an ACTIVE, VERIFIED factor belonging to this user simply does
+   * not resolve. Omitting it selects the account's active factor.
+   */
+  factorId?: string | null;
+  /**
+   * Preferred channel, honoured only if the account has an enrolled factor on
+   * it. It selects among what the user HOLDS; it can never introduce a
+   * destination.
+   */
+  channel?: "SMS" | "WHATSAPP" | null;
   reason?: string | null;
   ttlSeconds?: number | null;
   ipAddress?: string | null;
@@ -104,6 +137,34 @@ export async function startStepUpChallenge(
   input: StartStepUpInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<StartStepUpResult> {
+  /**
+   * PHASE 13 (NEW-058) — RESOLVE THE FACTOR FIRST, AND FAIL CLOSED WITHOUT ONE.
+   *
+   * Nothing downstream may see a caller-supplied destination, so the factor
+   * lookup happens before any provider call. An account with no enrolled,
+   * verified, unrevoked contact factor CANNOT elevate — it receives a stable
+   * `enrollment_required` denial and every step-up-gated mutation refuses.
+   *
+   * That is deliberately a refusal and not a fallback to the old behaviour:
+   * "no factor" used to mean "use whatever number arrived", which is the
+   * defect. It now means the gate cannot be satisfied, which is what a gate
+   * with nothing to check against should say.
+   */
+  const factor = await resolveActiveContactFactor(
+    {
+      userId: input.userId,
+      factorId: input.factorId ?? undefined,
+      kind: input.channel ?? undefined,
+    },
+    client,
+  );
+  if (!factor) throw new StepUpError("enrollment_required");
+
+  const resolved = await resolveStepUpDestination(
+    { userId: input.userId, factorId: factor.factorId },
+    client,
+  );
+
   // Translate Verify errors -> StepUpError codes so the route surface
   // is uniform.
   let verification;
@@ -111,8 +172,8 @@ export async function startStepUpChallenge(
     verification = await startVerification(
       {
         teamId: input.teamId,
-        channel: input.channel,
-        phoneE164OrRaw: input.phoneE164OrRaw,
+        channel: resolved.kind,
+        phoneE164OrRaw: resolved.destination,
         initiatedByUserId: input.userId,
         purpose: `STEP_UP:${input.purpose}`,
         ipAddress: input.ipAddress ?? null,
@@ -154,6 +215,18 @@ export async function startStepUpChallenge(
       reason: input.reason?.slice(0, 400) ?? null,
       sessionIdHash: input.sessionIdHash ?? null,
       organizationId: workspace?.organizationId ?? null,
+      /**
+       * PHASE 13 (NEW-058) — WHICH factor authorised this, and at which
+       * generation.
+       *
+       * The generation is what makes the approval perishable: re-enrolling a
+       * different handset bumps it, and a challenge minted against the old
+       * value stops being spendable at the consume path. Without it, an
+       * attacker who enrolled their own number could still spend an elevation
+       * the legitimate holder had approved moments earlier.
+       */
+      factorId: factor.factorId,
+      factorGeneration: resolved.generation,
     },
   });
   safeEmitSecurityEvent(
@@ -199,7 +272,6 @@ export type CheckStepUpInput = {
   // logged. The verify route already enforces this; we re-state it
   // here so a casual reader sees it.
   code: string;
-  phoneE164OrRaw: string;
   ipAddress?: string | null;
   userAgent?: string | null;
   /**
@@ -239,6 +311,47 @@ export async function checkStepUpChallenge(
   if (row.status !== prismaPkg.StepUpChallengeStatus.PENDING) {
     throw new StepUpError("challenge_consumed");
   }
+
+  /**
+   * PHASE 13 (NEW-058) — THE FACTOR MUST STILL BE THE ONE THAT AUTHORISED THIS.
+   *
+   * Re-read at CONSUME time, not trusted from issue time. Three things are
+   * refused here, and each was reachable before:
+   *
+   *   * a challenge with NO factor — every row written before this migration.
+   *     Treated as unspendable rather than unbound, so the pre-existing window
+   *     fails closed and empties as those rows expire (max TTL 1h).
+   *   * a factor that has since been REVOKED — the elevation must die with the
+   *     enrolment, otherwise revoking a compromised handset leaves an approved
+   *     challenge behind that still works.
+   *   * a factor whose GENERATION has moved — the user re-enrolled a different
+   *     destination between issue and spend, so the approval no longer refers
+   *     to the thing it was granted against.
+   *
+   * The denial is the same generic `challenge_not_found` the ownership and
+   * session checks use, for the same anti-enumeration reason.
+   */
+  if (row.factorId == null || row.factorGeneration == null) {
+    throw new StepUpError("challenge_not_found");
+  }
+  const boundFactor = await client.mfaFactor.findFirst({
+    where: {
+      id: row.factorId,
+      userId: input.userId,
+      status: "ACTIVE",
+      revokedAt: null,
+      verifiedAtUtc: { not: null },
+    },
+    select: { generation: true },
+  });
+  if (!boundFactor || boundFactor.generation !== row.factorGeneration) {
+    throw new StepUpError("challenge_not_found");
+  }
+
+  const resolvedDestination = await resolveStepUpDestination(
+    { userId: input.userId, factorId: row.factorId },
+    client,
+  );
   if (row.expiresAtUtc.getTime() <= Date.now()) {
     await client.stepUpChallenge.update({
       where: { id: row.id },
@@ -264,11 +377,23 @@ export async function checkStepUpChallenge(
     verifyResult = await checkVerification(
       {
         teamId: input.teamId,
-        phoneE164OrRaw: input.phoneE164OrRaw,
+        // NEW-058: the destination comes from the FACTOR that authorised this
+        // challenge, re-resolved above — never from the request.
+        phoneE164OrRaw: resolvedDestination.destination,
         code: input.code,
         initiatedByUserId: input.userId,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,
+        /**
+         * PHASE 13 (NEW-055) — the attempt THIS challenge started.
+         *
+         * `startStepUpChallenge` persists `verificationAttemptId`, and nothing
+         * read it: the verification lookup independently took the most recent
+         * STARTED attempt for the recipient, so two concurrent challenges on
+         * one number let the code minted for the second approve the first. The
+         * binding the schema records is now the binding that is enforced.
+         */
+        verificationAttemptId: row.verificationAttemptId ?? null,
       },
       client,
     );
@@ -426,6 +551,51 @@ export async function consumeApprovedChallenge(
   if (row.status !== prismaPkg.StepUpChallengeStatus.APPROVED) {
     throw new StepUpError("challenge_not_found");
   }
+
+  /**
+   * PHASE 13 (NEW-058) — FACTOR BINDING, RE-CHECKED AT SPEND TIME.
+   *
+   * This is the path every step-up-gated mutation actually takes, and it is a
+   * DIFFERENT moment from approval: a challenge is approved once and may be
+   * spent seconds or minutes later. Checking the factor only at approval would
+   * leave the window this fix exists to close — revoke a compromised handset
+   * and an already-approved elevation would still work.
+   *
+   * Three refusals, each reachable:
+   *
+   *   * NO factor on the challenge — every row written before this migration.
+   *     Unspendable rather than unbound, so the pre-existing window fails
+   *     CLOSED and empties as those rows expire (max TTL 1h). This is the
+   *     opposite of the choice made for the session and organization bindings
+   *     above, and deliberately so: those were added to rows that had already
+   *     been issued under a weaker contract, whereas a challenge with no factor
+   *     is one whose destination nobody ever proved.
+   *   * factor REVOKED or no longer ACTIVE — the elevation dies with the
+   *     enrolment.
+   *   * factor GENERATION moved — the user re-enrolled a different destination
+   *     between approval and spend, so the approval no longer refers to the
+   *     thing it was granted against.
+   *
+   * Same generic `challenge_not_found` denial as the bindings above, for the
+   * same anti-enumeration reason.
+   */
+  if (row.factorId == null || row.factorGeneration == null) {
+    throw new StepUpError("challenge_not_found");
+  }
+  const spendingFactor = await client.mfaFactor.findFirst({
+    where: {
+      id: row.factorId,
+      userId: input.userId,
+      status: "ACTIVE",
+      revokedAt: null,
+      verifiedAtUtc: { not: null },
+    },
+    select: { generation: true },
+  });
+  if (!spendingFactor || spendingFactor.generation !== row.factorGeneration) {
+    throw new StepUpError("challenge_not_found");
+  }
+
   if (row.expiresAtUtc.getTime() <= Date.now()) {
     await client.stepUpChallenge.update({
       where: { id: row.id },

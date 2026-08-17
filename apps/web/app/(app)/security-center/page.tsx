@@ -43,6 +43,11 @@ import {
   AccessAnomaliesCard,
   OrgHealthSnapshotCard,
 } from "../../../components/hidden-feature-panels/HiddenFeaturePanels";
+// PHASE 13 — capture-trust device registry (revoke) + the CREATE leg of
+// lost-factor MFA recovery. Both routes were registered with no product
+// surface at all; see the component headers for the exact contracts.
+import { CaptureDevicesSection } from "./components/CaptureDevicesSection";
+import { MfaRecoveryRequestPanel } from "../../../components/mfa-recovery/MfaRecoveryRequestPanel";
 
 type MfaPolicyLevel =
   | "OFF"
@@ -483,6 +488,11 @@ function SecurityCenterPageInner() {
               ) : (
                 <p style={{ ...mutedStyle, margin: 0 }}>Loading…</p>
               )}
+              {/* PHASE 13 — the CREATE leg of lost-factor recovery. The
+                  verify + admin approve/reject legs were already wired;
+                  nothing in the product could file the request they act
+                  on. POSTs /v1/identity/mfa-admin/recovery-requests. */}
+              <MfaRecoveryRequestPanel teamId={teamId} />
             </Card>
           </PageSection>
 
@@ -589,6 +599,13 @@ function SecurityCenterPageInner() {
               }
             />
           </PageSection>
+
+          {/* PHASE 13 — the CAPTURE trust registry. Distinct from the
+              step-up "Trusted devices" table above: these rows are the
+              signing devices behind at-source capture, addressed by
+              /v1/capture/devices and revoked by
+              POST /v1/capture/devices/:id/revoke. */}
+          <CaptureDevicesSection teamId={teamId} />
 
           <PageSection title="Recent session revocations">
             <DataTable<RevokedSession>

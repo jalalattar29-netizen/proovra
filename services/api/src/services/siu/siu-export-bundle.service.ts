@@ -551,15 +551,19 @@ export async function downloadSiuExportArtifact(input: {
     bucket: row.artifactStorageBucket,
     key: row.artifactStorageKey,
   });
-  // Mark downloaded — honest single-state transition (we keep
-  // `downloaded` so subsequent downloads still work; the timestamp is
-  // updated each time).
-  await prisma.caseSiuExport
-    .update({
-      where: { id: row.id },
-      data: { exportStatus: "downloaded", downloadedAtUtc: new Date() },
-    })
-    .catch(() => {});
+  // PHASE 13 §4 (2026-08-17) — THE DOWNLOAD STAMP MOVED OUT OF THIS FUNCTION.
+  //
+  // It used to set `exportStatus: "downloaded"` and `downloadedAtUtc: new Date()`
+  // right here — the instant the S3 stream was OPENED, before a single byte had
+  // reached the operator. A stream that failed mid-flight (S3 reset, client
+  // disconnect, proxy timeout) therefore left a durable row asserting a download
+  // that never happened, in a product whose entire value is that its records
+  // describe what actually occurred. A field named `downloaded_at_utc` may not
+  // mean "we opened a stream".
+  //
+  // The stamp is now `markSiuExportDelivered` below, called by the route from
+  // the response's own completion hook — after the bytes have been flushed. No
+  // schema change: the same two columns, written at the moment they claim.
   void input.actorUserId;
   return {
     stream,
@@ -568,6 +572,31 @@ export async function downloadSiuExportArtifact(input: {
     artifactSha256: row.artifactSha256,
     exportRowId: row.id,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Delivery stamp
+// ---------------------------------------------------------------------------
+
+/**
+ * Record that an export bundle was actually DELIVERED — every byte flushed to
+ * the caller — rather than merely opened.
+ *
+ * PHASE 13 §4 (2026-08-17). Called from the download route's response-completion
+ * hook, never from the handler body. `exportStatus` stays `downloaded` on repeat
+ * deliveries (the artifact remains retrievable) and `downloadedAtUtc` records the
+ * most recent successful delivery. Best-effort: a failure to stamp must not turn
+ * a delivered file into a 500 the operator has already received the bytes for.
+ */
+export async function markSiuExportDelivered(input: {
+  exportRowId: string;
+}): Promise<void> {
+  await prisma.caseSiuExport
+    .update({
+      where: { id: input.exportRowId },
+      data: { exportStatus: "downloaded", downloadedAtUtc: new Date() },
+    })
+    .catch(() => {});
 }
 
 // ---------------------------------------------------------------------------

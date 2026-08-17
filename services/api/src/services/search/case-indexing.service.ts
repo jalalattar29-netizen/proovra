@@ -245,24 +245,3 @@ async function upsert(
     };
   }
 }
-
-/**
- * Delete the search-index row for a case. Call on case delete or
- * unrecoverable governance failure. Best-effort: never throws.
- */
-export async function deindexCase(
-  input: IndexCaseInput,
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  try {
-    await client.evidenceSearchDocument.deleteMany({
-      where: {
-        teamId: input.teamId,
-        documentType: "CASE",
-        sourceId: input.caseId,
-      },
-    });
-  } catch {
-    /* non-fatal */
-  }
-}

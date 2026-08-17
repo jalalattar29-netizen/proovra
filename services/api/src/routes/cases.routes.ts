@@ -1742,6 +1742,40 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const targetUser = usersWithEmail[0];
 
+      // PHASE 13 §A4 — NEW-025. `share-team` was remediated on 2026-07-21 to
+      // require the TARGET to be an ACTIVE member ("granting CaseAccess confers
+      // standing access, so a suspended / revoked target member must not be
+      // shareable-to"). This route performs the identical `caseAccess.upsert`
+      // and was left behind, so the same grant could be made by email to a user
+      // who is suspended, revoked, or was never in the workspace at all — a
+      // standing grant on tenant-owned case data to a non-member.
+      //
+      // Gated on team cases only: a personal case (teamId null) has no
+      // membership to check, and sharing one is the owner acting inside their
+      // own tenant.
+      if (caseItem.teamId) {
+        const targetMember = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: caseItem.teamId, userId: targetUser.id } },
+          select: { status: true },
+        });
+        if (targetMember?.status !== "ACTIVE") {
+          auditCaseAction(req, {
+            userId: ownerUserId,
+            action: "cases.share_email",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            teamId: caseItem.teamId,
+            metadata: {
+              reason: "user_not_in_team",
+              targetUserId: targetUser.id,
+              email: body.email,
+            },
+          });
+          return reply.code(400).send({ message: "User is not in this team" });
+        }
+      }
+
       const access = await prisma.caseAccess.upsert({
         where: { caseId_userId: { caseId: id, userId: targetUser.id } },
         update: {},

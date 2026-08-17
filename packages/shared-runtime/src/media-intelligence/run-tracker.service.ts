@@ -363,6 +363,21 @@ export async function markRunFailed(
  * Operator-initiated dismissal. Stops the retry ladder for runs
  * that have been determined to be permanently failed (e.g.
  * unsupported file type).
+ *
+ * PHASE 13 §4 (2026-08-17) — `ok` now reports whether a row actually moved.
+ *
+ * It previously discarded the affected count and returned `{ ok: true }` for
+ * anything that did not throw, which made the three cases the WHERE clause
+ * exists to distinguish — run absent, run in another workspace, run already
+ * terminal — indistinguishable from a successful dismissal. Once an operator
+ * route sits in front of this (POST /v1/ops/media-intelligence/runs/:runId/
+ * dismiss) that is the difference between telling an operator the run is
+ * handled and telling them the truth, and the `media_intelligence_run_
+ * dismissed_total` counter would have counted requests rather than dismissals.
+ *
+ * Idempotency is unchanged and is the WHERE clause's doing: a second dismissal
+ * of the same run matches no row, writes nothing, and now honestly reports
+ * `ok: false` rather than claiming a second dismissal happened.
  */
 export async function dismissRun(
   runId: string,
@@ -370,7 +385,7 @@ export async function dismissRun(
   client: PrismaClient = getRegisteredPrisma(),
 ): Promise<{ ok: boolean }> {
   try {
-    await client.$executeRawUnsafe(
+    const affected = await client.$executeRawUnsafe(
       `UPDATE "media_intelligence_runs"
          SET "status" = 'DISMISSED',
              "updated_at_utc" = NOW()
@@ -379,6 +394,7 @@ export async function dismissRun(
       runId,
       teamId,
     );
+    if (typeof affected === "number" && affected === 0) return { ok: false };
     bump("media_intelligence_run_dismissed_total");
     return { ok: true };
   } catch {

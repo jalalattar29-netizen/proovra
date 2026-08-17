@@ -13,13 +13,15 @@
 
 import { describe, expect, it } from "vitest";
 
+// LEGACY-003: the api/src re-export shim this used to import was removed once
+// its migration was complete; the canonical module lives in the package.
 import {
   getOcrProducerMode,
   getTranscriptProducerMode,
   summariseProducerModes,
   OCR_PRODUCER_MODES,
   TRANSCRIPT_PRODUCER_MODES,
-} from "../src/services/media-intelligence/producer-mode.js";
+} from "@proovra/shared-runtime/media-intelligence";
 
 describe("Phase 31.19 — OCR producer mode", () => {
   it("default is NOT_CONFIGURED (no env)", () => {

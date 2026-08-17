@@ -98,6 +98,7 @@ import { recordDetectionDecision } from "../services/redaction/redaction-decisio
 import { recordRedactionApproval } from "../services/redaction/redaction-approval.service.js";
 import {
   getDerivativeForVersion,
+  quarantineDerivative,
   requestRedactionDerivative,
 } from "../services/redaction/redaction-derivative.service.js";
 import {
@@ -1528,6 +1529,50 @@ export async function redactionRoutes(app: FastifyInstance) {
           downloadCount: d.downloadCount,
         },
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PHASE 13 §4 (2026-08-17) — administrator quarantine of a derivative.
+  //
+  // `QUARANTINED` was already READ in production and produced by nothing:
+  // `requestRedactionDerivative` refuses to re-render a quarantined row
+  // (`DERIVATIVE_QUARANTINED`), and two shipped web components render copy that
+  // names the action outright — "This redacted copy was quarantined by an
+  // administrator" (`ApprovalPanel.tsx`), plus a `QUARANTINED` branch in
+  // `VersionHistoryPanel.tsx`. No administrator could perform it: there was no
+  // route, and `redaction.administer` was a declared capability with no leg
+  // behind it.
+  //
+  // WHY QUARANTINE IS NOT FAILURE. The worker's render path already has a
+  // failure sink (`markDerivativeFailedWorker` → FAILED), and FAILED is
+  // deliberately RETRYABLE: `requestRedactionDerivative` resets a FAILED row to
+  // QUEUED on the next request. That is right for a transient render fault and
+  // wrong for a derivative whose integrity cannot be established — re-rendering
+  // a corrupt source just reproduces the corruption on a loop. QUARANTINED is
+  // the terminal state that stops it, which is why the remedy is an operator
+  // decision (it carries `actorUserId`) rather than an automatic transition.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/redaction/derivatives/:id/quarantine",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (!(await gate(reply, ctx, "redaction.administer"))) return reply;
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z
+        .object({ reason: z.string().trim().min(1).max(120) })
+        .strict()
+        .parse(req.body ?? {});
+      const res = await quarantineDerivative({
+        teamId: ctx.teamId,
+        derivativeId: id,
+        reason: body.reason,
+        actorUserId: ctx.userId,
+      });
+      if (!res.ok) return reply.code(404).send({ denial: res.denial });
+      return reply.code(200).send({ derivativeId: id, quarantined: true });
     },
   );
 

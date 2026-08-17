@@ -129,8 +129,15 @@ describe("Phase 24 — saved-search service", () => {
     expect(src).toMatch(/visibility:\s*["']TEAM["']/);
   });
 
-  it("touch is best-effort (never throws to the caller)", () => {
-    expect(src).toMatch(/best-effort/i);
+  it("no touch writer survives, so nothing can throw from one", () => {
+    // PHASE 13 §4. This pinned the WORD "best-effort" in the docblock of
+    // `touchSavedView`, a `lastUsedAtUtc` bump that nothing in the tree called:
+    // no route, no sweep, no test but this string match. It was removed rather
+    // than wired, and the assertion follows — the property "a touch cannot
+    // throw to the caller" is now held by there being no touch at all, which is
+    // checkable, where a comment was not.
+    expect(src).not.toMatch(/\btouchSavedView\b/);
+    expect(src).not.toMatch(/lastUsedAtUtc:\s*new Date\(\)/);
   });
 });
 

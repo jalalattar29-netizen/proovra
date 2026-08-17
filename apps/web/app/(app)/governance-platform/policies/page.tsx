@@ -17,6 +17,7 @@ import { Badge } from "../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
+import { GovernancePolicyForm } from "../../../../components/governance/GovernancePolicyForm";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -274,6 +275,16 @@ function Shell() {
           <strong>Permission required:</strong> {denial.tier}
         </Card>
       ) : null}
+
+      {/* PHASE 13 — POST /v1/governance/policies. Activate / deprecate /
+          assign / audit all existed; the DRAFT row they act on could only be
+          authored through a REST client. */}
+      <GovernancePolicyForm
+        onCreated={async () => {
+          await refresh();
+          await loadEffective();
+        }}
+      />
 
       <div data-governance-policies-table>
         <DataTable<GovernancePolicyProjection>

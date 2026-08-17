@@ -245,7 +245,41 @@ take only `SHARE UPDATE EXCLUSIVE`), and for the destruction/archive sweeps
 
 ## RELEASE C — Runtime cutover · `WAIT_FOR_RUNTIME_CUTOVER`
 
-No migrations.
+### C.0 One migration — `20271201000000_new058_verified_contact_factors`
+
+PHASE 13 (NEW-058), account-bound step-up. This wave existed from the start and
+carried nothing; this is its first occupant, and it is here rather than in
+Release A for a reason that matters operationally:
+
+**It is not safe ahead of its image.** The migration adds
+`mfa_factors_active_is_verified_chk`, which requires `verified_at_utc` on any
+`ACTIVE` row. The **currently deployed** build never writes that column; the new
+build stamps it at activation. Apply this before the API deploy and the next
+TOTP activation on the old code violates the constraint and fails. The new build
+also *requires* the migration — it writes the sealed destination columns and
+reads `step_up_challenges.factor_id`. So it lands **with** the cutover: not
+before, not after.
+
+```bash
+DATABASE_URL="$P6_TARGET" node services/api/scripts/release-deploy.mjs \
+  --artifact "$P6_ARTIFACT" --wave C
+```
+
+| | |
+|---|---|
+| classification | `EXPAND` (derived SQL shape `BACKFILL` — one bounded UPDATE, below) |
+| destructive statements | none — no table, column, constraint or index is dropped |
+| pre-deploy check | `SELECT count(*) FROM mfa_factors WHERE status = 'ACTIVE' AND enrolled_at IS NULL AND created_at IS NULL;` — must be `0`; those rows are the only ones the backfill could not stamp |
+| what the UPDATE does | copies `COALESCE(enrolled_at, created_at)` into `verified_at_utc` for rows **already** `ACTIVE`. It records the instant a factor was proven; it invents nothing |
+| what it does NOT do | no phone or destination is backfilled. Every existing user stays **unenrolled**, and every step-up-gated mutation fails closed with `STEP_UP_ENROLLMENT_REQUIRED` until they enrol |
+| refusal behaviour | if a pre-existing row cannot satisfy either CHECK, the `ALTER TABLE … ADD CONSTRAINT` aborts the transaction and the migration fails with the constraint name. Nothing is normalised or deleted to make it pass |
+| ordering | migration, then **API**, then **worker** |
+| old-build compatibility | reads fine; **writes are constrained** — a TOTP activation on the old build is refused by the ACTIVE-is-verified CHECK |
+| new-build dependency | required; the new build cannot run without these columns |
+| rollback boundary | **application images only.** Redeploying the previous build restores service *except* for TOTP activation, which stays blocked while the constraint exists. The schema is forward-only: do not drop the constraint or the columns to un-block an old build — deploy forward instead |
+| post-deploy verification | `runtime.schema_validation.healthy` in the API log, then the queries in C.2 |
+
+### C.1 Deploy the build
 
 | | |
 |---|---|
@@ -261,7 +295,7 @@ No migrations.
 Order: **API first, then worker.** No queue pause is required — both schemas
 are readable by both builds.
 
-Verify canonical read/write after cutover:
+### C.2 Verify canonical read/write after cutover
 
 ```bash
 psql "$P6_TARGET" -c "SELECT count(*) AS canonical_links FROM case_evidence_links;"
@@ -277,6 +311,26 @@ psql "$P6_TARGET" -f services/api/prisma/migrations/20271110000000_exchange_down
 
 (That file is idempotent and guarded; running it by hand does not change
 `_prisma_migrations`.)
+
+Then verify the NEW-058 factor authority — all three must hold:
+
+```bash
+# 1. Every ACTIVE factor carries its verification instant (the CHECK's premise).
+psql "$P6_TARGET" -c "SELECT count(*) AS active_unverified FROM mfa_factors WHERE status = 'ACTIVE' AND verified_at_utc IS NULL;"
+
+# 2. NOTHING was enrolled by the migration — every contact factor must come
+#    from a user completing the Settings -> Security round-trip after cutover.
+psql "$P6_TARGET" -c "SELECT kind, count(*) FROM mfa_factors WHERE kind IN ('SMS','WHATSAPP') GROUP BY 1;"
+
+# 3. Step-up challenges now record which factor authorised them.
+psql "$P6_TARGET" -c "SELECT count(*) AS challenges_without_factor FROM step_up_challenges WHERE factor_id IS NULL AND created_at > now() - interval '1 hour';"
+```
+
+Query 1 must be `0`. Query 2 must be **empty immediately after cutover** — any
+row there would mean a destination was backfilled, which this migration
+deliberately does not do. Query 3 counts challenges minted since cutover with no
+factor; those are unspendable by design and must trend to `0` as pre-cutover
+rows expire (max TTL 1h).
 
 ---
 

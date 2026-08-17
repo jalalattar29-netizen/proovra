@@ -3646,7 +3646,15 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
     const before = connRow().samlCertificate;
     const nextCert = "MIIDdenied".padEnd(500, "C");
 
-    // A caller with no ACTIVE OWNER/ADMIN membership on the connection's team.
+    // PHASE 13 §1.2 — an OUTSIDER is refused WITHOUT learning the connection
+    // exists.
+    //
+    // OUTSIDER is an OWNER of OTHER_TEAM and holds no membership at all on this
+    // connection's team, so they are a cross-tenant caller, not an
+    // under-privileged colleague. This used to answer 403 while an absent
+    // connection answered 404 — which made the status code an existence oracle
+    // for anyone with an account. Both now answer 404 with the same body, and
+    // the pair is asserted together below so the two cannot drift apart again.
     H.actorUserId = OUTSIDER;
     const nonAdmin = await app.inject({
       method: "PUT",
@@ -3654,11 +3662,22 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
       headers: JSON_HEADERS,
       payload: { certificate: nextCert },
     });
-    expect(nonAdmin.statusCode).toBe(403);
-    expect(JSON.parse(nonAdmin.body)).toEqual({ error: { code: "forbidden" } });
+    const outsiderAbsent = await app.inject({
+      method: "PUT",
+      url: "/v1/auth/saml/" + randomUUID() + "/certificate-next",
+      headers: JSON_HEADERS,
+      payload: { certificate: nextCert },
+    });
+    expect(nonAdmin.statusCode).toBe(404);
+    expect(JSON.parse(nonAdmin.body)).toEqual({ error: { code: "not_found" } });
+    expect(
+      nonAdmin.body,
+      "an existing connection and an absent one must be indistinguishable to an outsider",
+    ).toBe(outsiderAbsent.body);
     expect(connRow().samlCertificateNext).toBeNull();
 
-    // A non-Enterprise workspace is refused with the upgrade path, before any read.
+    // A non-Enterprise workspace is refused with the upgrade path — now AFTER
+    // membership is established, so the plan is never readable by an outsider.
     H.actorUserId = ACTOR;
     H.gateOk = false;
     const gated = await app.inject({
@@ -3715,7 +3734,9 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
     expect(empty.statusCode).toBe(400);
     expect(JSON.parse(empty.body).error.code).toBe("metadata_xml_required");
 
-    // A caller with no ACTIVE OWNER/ADMIN membership cannot re-pin the issuer.
+    // PHASE 13 §1.2 — a cross-tenant caller cannot re-pin the issuer, and is
+    // refused without learning that the connection exists. See the rotation
+    // test above for why 404 rather than 403.
     H.actorUserId = OUTSIDER;
     const denied = await app.inject({
       method: "POST",
@@ -3723,8 +3744,8 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
       headers: JSON_HEADERS,
       payload: { metadataXml: "<md:EntityDescriptor/>" },
     });
-    expect(denied.statusCode).toBe(403);
-    expect(JSON.parse(denied.body)).toEqual({ error: { code: "forbidden" } });
+    expect(denied.statusCode).toBe(404);
+    expect(JSON.parse(denied.body)).toEqual({ error: { code: "not_found" } });
     expect(connRow().samlIdpEntityId).toBe("https://idp.example.com");
   });
 
@@ -3768,7 +3789,8 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
     });
     expect(connRow().samlLastTestStatus).toBe("FAILED");
 
-    // Non-admins cannot probe another workspace's connection.
+    // PHASE 13 §1.2 — a cross-tenant caller cannot probe another workspace's
+    // connection, and cannot learn from the refusal that it exists.
     H.actorUserId = OUTSIDER;
     const denied = await app.inject({
       method: "POST",
@@ -3776,6 +3798,7 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
       headers: JSON_HEADERS,
       payload: {},
     });
-    expect(denied.statusCode).toBe(403);
+    expect(denied.statusCode).toBe(404);
+    expect(JSON.parse(denied.body)).toEqual({ error: { code: "not_found" } });
   });
 });

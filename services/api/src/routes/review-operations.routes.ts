@@ -3,10 +3,8 @@
  *
  *   GET   /v1/review-operations/queue                            — list workflows
  *   GET   /v1/review-operations/queue-counts                      — counts
- *   POST  /v1/review-operations/evidence/:evidenceId/assign       — admin assign
  *   POST  /v1/review-operations/evidence/:evidenceId/claim        — self-claim
  *   POST  /v1/review-operations/evidence/:evidenceId/decision     — log decision
- *   POST  /v1/review-operations/evidence/:evidenceId/sla          — update SLA
  *   POST  /v1/review-operations/bulk                              — bulk action
  *   POST  /v1/review-operations/reconcile-slas                    — cron SLA sweep
  *
@@ -36,7 +34,6 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   ReviewOperationError,
-  assignReviewer,
   bulkReviewAction,
   claimReviewerWorkflow,
   getReviewQueueCounts,
@@ -44,7 +41,6 @@ import {
   projectReviewWorkflow,
   reconcileReviewSlas,
   recordLifecycleTransition,
-  updateReviewSla,
 } from "../services/review-operations/review-operations.service.js";
 // Track 1C — canonical review-decision authority. Reviewer VERDICTS
 // (approve / reject / request-info) append an immutable
@@ -202,44 +198,6 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
   );
 
   app.post(
-    "/v1/review-operations/evidence/:evidenceId/assign",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const { evidenceId } = ParamsEvidenceId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          assignedToUserId: z.string().uuid(),
-          note: z.string().max(1000).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireAdminMember(req, reply, body.teamId);
-      if (!ok) return;
-      // Cross-workspace probe protection.
-      const workflow = await prisma.evidenceReviewWorkflow.findUnique({
-        where: { evidenceId },
-        select: { teamId: true },
-      });
-      if (!workflow || workflow.teamId !== body.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-      try {
-        const updated = await assignReviewer({
-          evidenceId,
-          assignedToUserId: body.assignedToUserId,
-          actorUserId: ok.userId,
-          note: body.note ?? null,
-        });
-        return reply
-          .code(200)
-          .send({ workflow: projectReviewWorkflow(updated) });
-      } catch (err) {
-        return reviewErrorToReply(err, reply);
-      }
-    },
-  );
-
-  app.post(
     "/v1/review-operations/evidence/:evidenceId/claim",
     { preHandler: requireAuth },
     async (req, reply) => {
@@ -392,68 +350,6 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
             escalationReason: body.escalationReason ?? null,
           });
         }
-        return reply
-          .code(200)
-          .send({ workflow: projectReviewWorkflow(updated) });
-      } catch (err) {
-        return reviewErrorToReply(err, reply);
-      }
-    },
-  );
-
-  app.post(
-    "/v1/review-operations/evidence/:evidenceId/sla",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const { evidenceId } = ParamsEvidenceId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          dueAt: z.string().datetime().nullable().optional(),
-          firstResponseDueAtUtc: z
-            .string()
-            .datetime()
-            .nullable()
-            .optional(),
-          escalationDueAtUtc: z.string().datetime().nullable().optional(),
-          paused: z.boolean().optional(),
-          note: z.string().max(1000).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireAdminMember(req, reply, body.teamId);
-      if (!ok) return;
-      const workflow = await prisma.evidenceReviewWorkflow.findUnique({
-        where: { evidenceId },
-        select: { teamId: true },
-      });
-      if (!workflow || workflow.teamId !== body.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-      try {
-        const updated = await updateReviewSla({
-          evidenceId,
-          actorUserId: ok.userId,
-          dueAt:
-            body.dueAt === undefined
-              ? undefined
-              : body.dueAt === null
-                ? null
-                : new Date(body.dueAt),
-          firstResponseDueAtUtc:
-            body.firstResponseDueAtUtc === undefined
-              ? undefined
-              : body.firstResponseDueAtUtc === null
-                ? null
-                : new Date(body.firstResponseDueAtUtc),
-          escalationDueAtUtc:
-            body.escalationDueAtUtc === undefined
-              ? undefined
-              : body.escalationDueAtUtc === null
-                ? null
-                : new Date(body.escalationDueAtUtc),
-          paused: body.paused,
-          note: body.note ?? null,
-        });
         return reply
           .code(200)
           .send({ workflow: projectReviewWorkflow(updated) });

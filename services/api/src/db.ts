@@ -39,3 +39,36 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
 export const prisma = new PrismaClient({ adapter });
+
+/**
+ * Close the connection pool THIS module owns.
+ *
+ * PHASE 13 §4. The pool was module-private and unexported, so nothing could
+ * shut it down. In the integration run that meant the disposable PostgreSQL
+ * container was stopped while pooled connections were still checked out:
+ * PostgreSQL answered `57P01 terminating connection due to administrator
+ * command`, `pg` raised it asynchronously after the last assertion had already
+ * passed, and the runner exited 1 on a suite where 662 of 662 tests passed. A
+ * certification that reports a non-zero exit for a teardown race is worthless
+ * in both directions — it hides real failures and manufactures fake ones.
+ *
+ * `prisma.$disconnect()` alone is not enough with a driver adapter: the adapter
+ * wraps a pool the CALLER owns, so the caller has to end it. Both are done
+ * here, in order, and the pool's own counters are returned so a teardown guard
+ * can assert that nothing was still borrowed rather than trusting the call.
+ */
+export async function closeDatabasePool(): Promise<{
+  totalCount: number;
+  idleCount: number;
+  waitingCount: number;
+}> {
+  await prisma.$disconnect().catch(() => undefined);
+  // `end()` on an already-ended pool throws; ending twice is not an error worth
+  // propagating out of a teardown path.
+  await pool.end().catch(() => undefined);
+  return {
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+  };
+}

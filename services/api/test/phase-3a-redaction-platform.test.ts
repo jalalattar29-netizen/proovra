@@ -26,7 +26,7 @@
  * tests exercise the pure-logic helpers so the test stays fast.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -112,9 +112,6 @@ const SVC_DERIVATIVE = readSource(
 const SVC_PROJECTION = readSource(
   "../../../services/api/src/services/redaction/redaction-projection.service.ts",
 );
-const SVC_VERIFICATION = readSource(
-  "../../../services/api/src/services/redaction/redaction-verification-manifest.service.ts",
-);
 const ROUTES = readSource(
   "../../../services/api/src/routes/redaction.routes.ts",
 );
@@ -122,10 +119,6 @@ const SERVER = readSource("../../../services/api/src/server.ts");
 const NAV_REGISTRY = readSource(
   "../../../services/api/src/services/platform-context/navigation-registry.ts",
 );
-const REPORT_SECTION = readSource(
-  "../../../services/worker/src/report-v2/sections/redaction-summary.ts",
-);
-
 const UI_PROJECTS = readSource(
   "../../../apps/web/app/(app)/redaction/page.tsx",
 );
@@ -552,11 +545,6 @@ describe("Phase 3A — backend services", () => {
     expect(SVC_PROJECTION).toMatch(/summariseRedactionQueueForTeam/);
   });
 
-  it("verification manifest writer exposes PUBLISHED entries only", () => {
-    expect(SVC_VERIFICATION).toMatch(/state: "PUBLISHED"/);
-    expect(SVC_VERIFICATION).toMatch(/fileSha256/);
-    expect(SVC_VERIFICATION).toMatch(/buildRedactionVerificationEntries/);
-  });
 });
 
 // =============================================================================
@@ -733,19 +721,6 @@ describe("Phase 3A — integrations", () => {
     expect(ROUTES).not.toMatch(/["']\/v1\/redaction\/public\/verify/);
   });
 
-  it("report builder ships a redaction-summary section module", () => {
-    expect(REPORT_SECTION).toMatch(
-      /export function renderRedactionSummarySection/,
-    );
-    expect(REPORT_SECTION).toMatch(/Original preserved/);
-    expect(REPORT_SECTION).toMatch(/Derivative generated/);
-  });
-
-  it("verification-package manifest writer emits PUBLISHED entries with derivative hash", () => {
-    expect(SVC_VERIFICATION).toMatch(/buildRedactionVerificationEntries/);
-    expect(SVC_VERIFICATION).toMatch(/state: "PUBLISHED"/);
-    expect(SVC_VERIFICATION).toMatch(/fileSha256/);
-  });
 });
 
 // =============================================================================
@@ -990,5 +965,32 @@ describe("Phase 3A — runtime helpers", () => {
 describe("Phase 3A — Phase 2B/Phase 2B Closure preserved", () => {
   it("bulk invitation max still 100", () => {
     expect(BULK_INVITATION_MAX_ROWS).toBe(100);
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — unwired redaction manifest builder + orphaned section REMOVED
+// =============================================================================
+
+/**
+ * The redaction verification-manifest builder was a pure reader for a
+ * verification-package consumer that was never wired, and the report-v2
+ * redaction-summary section was reachable only through a barrel that
+ * production does not import. LEGACY-003 (2026-08-15) removed both; their
+ * source-contract assertions are retired rather than re-homed, because no
+ * surviving module owes those contracts. The shared TYPE
+ * (RedactionVerificationManifestEntry) is retained in @proovra/shared.
+ */
+describe("Phase 3A — removed redaction manifest surfaces stay removed", () => {
+  it("neither the manifest builder nor the orphaned report section returns", () => {
+    for (const rel of [
+      "../../../services/api/src/services/redaction/redaction-verification-manifest.service.ts",
+      "../../../services/worker/src/report-v2/sections/redaction-summary.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
   });
 });

@@ -41,7 +41,11 @@ import {
 } from "../config/index.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
+import {
+  cronSecretMatches,
+  readCronSecretFromEnvs,
+  requireIntegrationCronSecret,
+} from "../middleware/cron-secret.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import {
@@ -132,6 +136,12 @@ type ReconcileSummary = {
   staleAccessReviewsCreated: number;
   intelligenceJobsStuck: number;
   uploadsStalled: number;
+  /**
+   * PHASE 13 §4 — upload SESSION rows flipped to EXPIRED on this tick. Distinct
+   * from `uploadsStalled`, which counts evidence stuck mid-upload: this is the
+   * session state machine's own terminal transition.
+   */
+  uploadSessionsExpired: number;
 };
 
 async function runMasterReconcile(): Promise<ReconcileSummary> {
@@ -260,17 +270,33 @@ async function runMasterReconcile(): Promise<ReconcileSummary> {
   let multipartScanned = 0;
   let multipartAborted = 0;
   let multipartFailed = 0;
+  // PHASE 13 §4 (2026-08-17) — the DATABASE half of the same sweep.
+  //
+  // `reapStaleMultipartUploads` releases the S3-side parts of abandoned uploads
+  // and has run on this tick since Phase 30.8. `reapStaleUploadSessions` is its
+  // sibling in the same module and was armed by nothing, so an abandoned upload
+  // had its storage released while its `evidence_upload_sessions` row went on
+  // claiming INITIATED/UPLOADING/VERIFYING past its own `expires_at_utc` — with
+  // no terminal state, forever. Both halves now run on the same tick, in that
+  // order: release the bytes, then close the row.
+  //
+  // Bounded (200 rows per call) and independently failure-isolated, like every
+  // other step here — a reaper failure must not stop the rest of reconcile.
+  let uploadSessionsExpired = 0;
   try {
-    const { reapStaleMultipartUploads } = await import(
+    const { reapStaleMultipartUploads, reapStaleUploadSessions } = await import(
       "../services/uploads/upload-session.service.js"
     );
     const result = await reapStaleMultipartUploads();
     multipartScanned = result.scanned;
     multipartAborted = result.aborted;
     multipartFailed = result.failed;
+    const reaped = await reapStaleUploadSessions();
+    uploadSessionsExpired = reaped.reaped;
   } catch {
     /* best-effort — bumps already happened inside the helper */
   }
+
   setGauge("multipart_stale_scanned", multipartScanned);
   setGauge("multipart_stale_aborted", multipartAborted);
   setGauge("multipart_stale_failed", multipartFailed);
@@ -309,6 +335,7 @@ async function runMasterReconcile(): Promise<ReconcileSummary> {
     staleAccessReviewsCreated: 0,
     intelligenceJobsStuck: stuckJobs,
     uploadsStalled: stalledUploads,
+    uploadSessionsExpired,
   };
 }
 
@@ -507,12 +534,33 @@ export async function opsRoutes(app: FastifyInstance) {
   // version=0.0.4` content type. Includes the entire COUNTER_NAMES +
   // GAUGE_NAMES catalog plus a process uptime gauge.
   app.get("/metrics", async (req: FastifyRequest, reply: FastifyReply) => {
-    const requiredToken = process.env.METRICS_SCRAPE_TOKEN?.trim();
-    if (requiredToken) {
-      const auth = req.headers.authorization ?? "";
-      const m = /^Bearer\s+(.+)$/i.exec(auth);
-      const presented = m?.[1]?.trim();
-      if (!presented || presented !== requiredToken) {
+    // PHASE1-004 (2026-08-16) — a fifth machine-secret comparison, found by
+    // searching for siblings of FINAL-003.
+    //
+    // This compared the scrape token with a raw `!==` on the presented string:
+    // non-constant-time, and with no minimum length, so a two-character
+    // METRICS_SCRAPE_TOKEN was honoured here while the canonical authority
+    // refuses anything under sixteen.
+    //
+    // THE ORDER OF THE TWO CHECKS BELOW MATTERS, and getting it wrong would be
+    // worse than the defect. `readCronSecretFromEnvs` returns null BOTH when
+    // the variable is unset and when it is set but too short. Feeding that
+    // straight into the existing `if (requiredToken)` shape would mean a
+    // too-short token took the "no token configured" branch — and this endpoint
+    // serves the Prometheus exposition unauthenticated on that branch. A
+    // weak-secret defect would have become an open-metrics defect. So presence
+    // is established from the raw variable first, and a token that is present
+    // but unusable fails CLOSED with 503 rather than falling through.
+    const rawToken = process.env.METRICS_SCRAPE_TOKEN?.trim() ?? "";
+    if (rawToken.length > 0) {
+      const requiredToken = readCronSecretFromEnvs(["METRICS_SCRAPE_TOKEN"]);
+      if (requiredToken === null) {
+        return reply
+          .code(503)
+          .send({ error: { code: "METRICS_SCRAPE_TOKEN_TOO_WEAK" } });
+      }
+      const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "");
+      if (!cronSecretMatches(requiredToken, m?.[1])) {
         return reply.code(401).send({ error: "unauthorized" });
       }
     }
@@ -1803,6 +1851,59 @@ export async function opsRoutes(app: FastifyInstance) {
         });
       }
       return reply.code(200).send({ runId, retried: true });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PHASE 13 §4 (2026-08-17) — operator dismissal of a media-intelligence run.
+  //
+  // `DISMISSED` has been a member of the run status vocabulary, and
+  // `dismissRun` its only writer, with nothing able to call it. Two shipped
+  // surfaces already assumed otherwise: the media-graph ops console renders a
+  // "Run dismissed (operator)" counter tile over
+  // `media_intelligence_run_dismissed_total`, which no code path could ever
+  // increment, and the media-intelligence processor's own comment tells
+  // operations that a run left PENDING by an unshipped processor arm can be
+  // "dismissed manually". This is the route that makes both true.
+  //
+  // NOTE ON THE IDENTIFIER, which differs from its sibling above: the retry
+  // route's `:runId` is a BullMQ JOB id (`mi-<kind>-<evidenceId>`), because it
+  // acts on the queue. This one acts on the `media_intelligence_runs` ROW, so it
+  // takes that row's UUID. Same segment name, different namespace — hence the
+  // separate, stricter schema rather than reuse of `RetryRunParams`.
+  //
+  // `dismissRun` is idempotent and tenant-scoped in its own WHERE clause
+  // (`id = ? AND team_id = ? AND status IN ('PENDING','FAILED','PROCESSING')`),
+  // so a terminal run is untouched and a run belonging to another workspace
+  // matches nothing even before the authorization below is considered.
+  // ---------------------------------------------------------------------------
+  const DismissRunParams = z.object({ runId: z.string().uuid() });
+  const DismissRunBody = z
+    .object({ teamId: z.string().uuid(), reason: z.string().max(200).optional() })
+    .strict();
+
+  app.post(
+    "/v1/ops/media-intelligence/runs/:runId/dismiss",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { runId } = DismissRunParams.parse(req.params);
+      const body = DismissRunBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      const { dismissRun } = await import(
+        "@proovra/shared-runtime/media-intelligence"
+      );
+      const result = await dismissRun(runId, body.teamId);
+      if (!result.ok) {
+        // The run is absent, belongs to another workspace, or is already
+        // terminal. All three are reported as one code: distinguishing them
+        // would tell a caller whether a run id exists in a workspace they may
+        // not be entitled to enumerate.
+        return reply
+          .code(409)
+          .send({ error: { code: "run_not_dismissable" } });
+      }
+      return reply.code(200).send({ runId, dismissed: true });
     },
   );
 

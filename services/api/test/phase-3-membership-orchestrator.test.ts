@@ -24,9 +24,7 @@ import { describe, expect, it } from "vitest";
 import {
   MEMBERSHIP_INTENTS,
   provisionMembership,
-  reactivateWorkspaceMembership,
   resolveRolePrecedence,
-  revokeWorkspaceMembershipSource,
 } from "../src/services/identity/membership-provisioning.service.js";
 
 // ---------------------------------------------------------------------------
@@ -212,92 +210,23 @@ describe("Phase 3 — provisioning + provenance", () => {
   });
 });
 
-describe("Phase 3 — source-aware revocation (§6.2)", () => {
-  it("revoking ONE source keeps the membership when another active source remains", async () => {
-    const state = fresh();
-    state.teamMembers.set("t1:u1", { id: "m1", role: "MEMBER", status: "ACTIVE" });
-    state.grants.push(
-      { id: "g1", teamMemberId: "m1", source: "SCIM", revokedAtUtc: null },
-      { id: "g2", teamMemberId: "m1", source: "MANUAL", revokedAtUtc: null },
-    );
-    const tx = makeTx(state);
-    const res = await revokeWorkspaceMembershipSource(tx, {
-      teamMemberId: "m1",
-      source: "SCIM",
-      reason: "directory removal",
-    });
-    expect(res).toEqual({ membershipRevoked: false, otherSourcesRemain: true });
-    expect(state.teamMembers.get("t1:u1")).toMatchObject({ status: "ACTIVE" });
-    expect(state.grants.find((g) => g.id === "g1")?.revokedAtUtc).not.toBeNull();
-  });
+// PHASE 13 §4 (2026-08-17) — two describe blocks were REMOVED from here.
+//
+// They drove `revokeWorkspaceMembershipSource` and `reactivateWorkspaceMembership`
+// against an in-memory fake tx. Both functions are gone: source-scoped
+// revocation is a backlog contract with no product surface (recorded in
+// docs/architecture/program-ledger.md), and per-member reactivation is
+// `restoreMember` on `POST /v1/identity/members/:id/restore`, which is covered by
+// the rbac suites. A test that exercises a function no caller reaches proves the
+// function runs, not that the system does — and it was the only thing keeping
+// these two writers looking alive.
+//
+// Part B below is UNCHANGED and is the assertion that still matters: it walks
+// every TeamMember/OrganizationMembership write in the tree and requires each to
+// be a registered orchestrator writer, so a removal here cannot smuggle a new
+// unregistered membership writer in somewhere else.
 
-  it("revoking the LAST source revokes the membership", async () => {
-    const state = fresh();
-    state.teamMembers.set("t1:u1", { id: "m1", role: "MEMBER", status: "ACTIVE" });
-    state.grants.push({ id: "g1", teamMemberId: "m1", source: "SCIM", revokedAtUtc: null });
-    const tx = makeTx(state);
-    const res = await revokeWorkspaceMembershipSource(tx, {
-      teamMemberId: "m1",
-      source: "SCIM",
-      reason: "directory removal",
-    });
-    expect(res.membershipRevoked).toBe(true);
-    expect(state.teamMembers.get("t1:u1")).toMatchObject({ status: "REVOKED" });
-  });
-
-  it("LEGACY policy: zero-grant membership is SUSPENDED (not revoked) — unknown provenance is never deleted", async () => {
-    const state = fresh();
-    state.teamMembers.set("t1:u1", { id: "m1", role: "MEMBER", status: "ACTIVE" });
-    const tx = makeTx(state);
-    const res = await revokeWorkspaceMembershipSource(tx, {
-      teamMemberId: "m1",
-      source: "SCIM",
-      reason: "directory removal",
-    });
-    expect(res).toEqual({
-      membershipRevoked: false,
-      otherSourcesRemain: false,
-      legacyProvenanceUnknown: true,
-    });
-    // Access stops immediately but REVERSIBLY — suspended, never revoked.
-    expect(state.teamMembers.get("t1:u1")).toMatchObject({ status: "SUSPENDED" });
-  });
-
-  it("LEGACY_UNKNOWN grant survives source revocation (only manual revocation removes it)", async () => {
-    const state = fresh();
-    state.teamMembers.set("t1:u1", { id: "m1", role: "MEMBER", status: "ACTIVE" });
-    state.grants.push(
-      { id: "g1", teamMemberId: "m1", source: "LEGACY_UNKNOWN", revokedAtUtc: null },
-      { id: "g2", teamMemberId: "m1", source: "IDP_GROUP", revokedAtUtc: null },
-    );
-    const tx = makeTx(state);
-    const res = await revokeWorkspaceMembershipSource(tx, {
-      teamMemberId: "m1",
-      source: "IDP_GROUP",
-      reason: "group removal",
-    });
-    // The IdP grant is revoked, but the LEGACY_UNKNOWN grant keeps the
-    // membership alive.
-    expect(res).toEqual({ membershipRevoked: false, otherSourcesRemain: true });
-    expect(state.teamMembers.get("t1:u1")).toMatchObject({ status: "ACTIVE" });
-    expect(state.grants.find((g) => g.id === "g2")?.revokedAtUtc).not.toBeNull();
-    expect(state.grants.find((g) => g.id === "g1")?.revokedAtUtc).toBeNull();
-  });
-});
-
-describe("Phase 3 — reactivation restores held role, only from SUSPENDED", () => {
-  it("reactivates SUSPENDED; refuses REVOKED", async () => {
-    const state = fresh();
-    state.teamMembers.set("t1:u1", { id: "m1", role: "ADMIN", status: "SUSPENDED" });
-    state.teamMembers.set("t1:u2", { id: "m2", role: "MEMBER", status: "REVOKED" });
-    const tx = makeTx(state);
-    const ok = await reactivateWorkspaceMembership(tx, { teamMemberId: "m1" });
-    expect(ok.ok).toBe(true);
-    expect(state.teamMembers.get("t1:u1")).toMatchObject({ role: "ADMIN", status: "ACTIVE" });
-    const refused = await reactivateWorkspaceMembership(tx, { teamMemberId: "m2" });
-    expect(refused).toEqual({ ok: false, reason: "not_suspended" });
-  });
-
+describe("Phase 3 — membership intent vocabulary", () => {
   it("intent vocabulary is complete", () => {
     expect(MEMBERSHIP_INTENTS).toHaveLength(14);
   });

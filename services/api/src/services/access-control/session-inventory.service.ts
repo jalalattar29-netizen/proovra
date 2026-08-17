@@ -132,24 +132,20 @@ export async function recordAuthenticatedSession(
   return projectSession(row);
 }
 
-/**
- * Best-effort heartbeat — called by the auth middleware on permission
- * check to update lastSeenAtUtc. NEVER throws.
- */
-export async function touchAuthenticatedSession(
-  input: { userId: string; sid: string },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  try {
-    const sessionIdHash = hashSessionId(input.sid);
-    await client.authenticatedSession.updateMany({
-      where: { userId: input.userId, sessionIdHash },
-      data: { lastSeenAtUtc: new Date() },
-    });
-  } catch {
-    /* best-effort */
-  }
-}
+// PHASE 13 §4 (2026-08-17) — `touchAuthenticatedSession` was REMOVED here.
+//
+// Its docblock read "called by the auth middleware on permission check to
+// update lastSeenAtUtc", and the auth middleware did not call it. What the
+// middleware calls is `recordHeartbeat` below, which writes the SAME column
+// (plus `lastHeartbeatAtUtc`), is self-throttled to one write per session per
+// sample window, and is behind the `SESSION_HEARTBEAT_ENABLED` kill switch.
+//
+// So `lastSeenAtUtc` is not an unwritten field — it has a live writer, and this
+// was a second, unthrottled one that nothing reached. An unthrottled twin of a
+// hot-row heartbeat is the more dangerous half of the pair: wired as its
+// docblock described, it would have written the row on EVERY authenticated
+// request. `recordHeartbeat` is the single last-seen authority for
+// `authenticated_sessions`.
 
 // -----------------------------------------------------------------------------
 // Listing

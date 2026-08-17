@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { trustedClientIp } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   listAdminAuditLogs,
@@ -100,11 +101,11 @@ export async function adminAuditRoutes(app: FastifyInstance) {
       }
 
       const userId = req.user!.sub;
-      const ip =
-        (req as { ip?: string }).ip ??
-        (typeof req.headers["x-forwarded-for"] === "string"
-          ? req.headers["x-forwarded-for"].split(",")[0]?.trim()
-          : undefined);
+      // PHASE 13 §1 (NEW-022) — FORENSIC_METADATA: record the SAME resolved
+      // client identity the security bounds use, not the leftmost (forgeable)
+      // forwarded entry, so the audit trail cannot be poisoned with a
+      // caller-chosen address.
+      const ip = trustedClientIp(req) ?? undefined;
 
       try {
         // §2 — the ONE sanctioned passthrough (admin manual audit entry with a

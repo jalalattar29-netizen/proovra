@@ -842,24 +842,60 @@ export async function listTeamMembersWithAccess(
 }
 
 // -----------------------------------------------------------------------------
-// Last-seen touch — best-effort, called from request middleware.
+// Last-seen touch — the membership heartbeat behind the members roster.
+//
+// PHASE 13 §4 (2026-08-17). `TeamMember.lastSeenAtUtc` is not decorative: the
+// workspace administration console renders it as a "Last seen" column
+// (`apps/web/app/(app)/admin/identity/_sections/MembersSection.tsx`, fed by
+// `GET /v1/identity/members` through `listTeamMembersWithAccess`, which selects
+// the column). Nothing wrote it, so every row in that column was blank — an
+// administrator deciding whether an account is dormant was reading an empty
+// space and could not tell "never seen" from "never recorded".
+//
+// It is now called from the authenticated-request path in
+// `middleware/auth.ts`, which is the only place that knows all three facts it
+// needs at once: that authentication SUCCEEDED, which user, and which workspace
+// the session is anchored to.
+//
+// THROTTLED IN THE PREDICATE, NOT ONLY IN THE CALLER.
+// A membership row is as hot as the user is active, and a naive write turns
+// every request into an UPDATE on it. The caller applies a sample window before
+// calling at all, and this WHERE clause applies the same bound again, so two
+// concurrent requests inside one window produce at most one write regardless of
+// what either caller believed: a row whose `lastSeenAtUtc` is already newer than
+// the cutoff matches nothing.
 // -----------------------------------------------------------------------------
 
+/** Sample window for the membership heartbeat. Mirrors the session heartbeat. */
+export const MEMBER_LAST_SEEN_SAMPLE_SECONDS = 60;
+
 export async function touchMemberLastSeen(
-  input: { teamId: string; userId: string },
+  input: { teamId: string; userId: string; sampleWindowSeconds?: number },
   client: PrismaClient = defaultPrisma,
-): Promise<void> {
+): Promise<{ written: boolean }> {
   try {
-    await client.teamMember.updateMany({
+    const now = new Date();
+    const cutoff = new Date(
+      now.getTime() -
+        (input.sampleWindowSeconds ?? MEMBER_LAST_SEEN_SAMPLE_SECONDS) * 1000,
+    );
+    const res = await client.teamMember.updateMany({
       where: {
         teamId: input.teamId,
         userId: input.userId,
         status: prismaPkg.TeamMemberStatus.ACTIVE,
+        // Advance only when the stored value is older than the window, or has
+        // never been written at all. A suspended or revoked membership is
+        // excluded above: "last seen" describes live access, and a revoked row
+        // must not look like it was used after revocation.
+        OR: [{ lastSeenAtUtc: null }, { lastSeenAtUtc: { lt: cutoff } }],
       },
-      data: { lastSeenAtUtc: new Date() },
+      data: { lastSeenAtUtc: now },
     });
+    return { written: res.count > 0 };
   } catch {
     // best-effort; never break the request path
+    return { written: false };
   }
 }
 

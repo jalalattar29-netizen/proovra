@@ -97,14 +97,35 @@ describe("Operational seed [env gates]", () => {
     expect(() => assertSeedingEnabled()).not.toThrow();
   });
 
+  // PHASE1-001 — the seeding secret is now compared by the canonical
+  // machine-secret authority, which enforces a 16-character floor. The old
+  // fixture was `"real-secret"` (11 characters); under the previous raw `!==`
+  // it was accepted, which is precisely the weakness this fixes. The fixture is
+  // raised to a compliant value rather than the floor being lowered to it.
+  const SEED_SECRET = "operational-seed-secret-0123456789";
+
   it("refuses the secret check when no secret is configured (fail closed)", () => {
     expect(() => assertSeedingSecret("anything")).toThrow(
       /SEEDING_SECRET_NOT_CONFIGURED/,
     );
   });
 
+  it("PHASE1-001 — refuses a configured secret below the 16-character floor", () => {
+    // Fails CLOSED as unusable rather than being honoured. A two-character
+    // shared secret protects nothing, and accepting one is worse than having
+    // no gate because it reads as protection.
+    process.env.OPERATIONAL_SEEDING_SECRET = "short";
+    expect(() => assertSeedingSecret("short")).toThrow(
+      /SEEDING_SECRET_NOT_CONFIGURED/,
+    );
+  });
+
   it("refuses a mismatched secret with 401", () => {
-    process.env.OPERATIONAL_SEEDING_SECRET = "real-secret";
+    process.env.OPERATIONAL_SEEDING_SECRET = SEED_SECRET;
+    // `expect.assertions` matters here: without it a version of
+    // `assertSeedingSecret` that never threw would satisfy this test silently,
+    // which is the shape of a control that has never been observed refusing.
+    expect.assertions(2);
     try {
       assertSeedingSecret("wrong");
     } catch (err) {
@@ -114,15 +135,22 @@ describe("Operational seed [env gates]", () => {
   });
 
   it("accepts the correct secret", () => {
-    process.env.OPERATIONAL_SEEDING_SECRET = "real-secret";
-    expect(() => assertSeedingSecret("real-secret")).not.toThrow();
+    process.env.OPERATIONAL_SEEDING_SECRET = SEED_SECRET;
+    expect(() => assertSeedingSecret(SEED_SECRET)).not.toThrow();
   });
 
   it("rejects null / undefined / empty presented secret", () => {
-    process.env.OPERATIONAL_SEEDING_SECRET = "real-secret";
+    process.env.OPERATIONAL_SEEDING_SECRET = SEED_SECRET;
     expect(() => assertSeedingSecret(null)).toThrow();
     expect(() => assertSeedingSecret(undefined)).toThrow();
     expect(() => assertSeedingSecret("")).toThrow();
+  });
+
+  it("PHASE1-001 — a near-miss of equal length is refused (constant-time compare is real)", () => {
+    process.env.OPERATIONAL_SEEDING_SECRET = SEED_SECRET;
+    const nearMiss = `${SEED_SECRET.slice(0, -1)}X`;
+    expect(nearMiss.length).toBe(SEED_SECRET.length);
+    expect(() => assertSeedingSecret(nearMiss)).toThrow(/SEEDING_SECRET_INVALID/);
   });
 });
 

@@ -22,11 +22,14 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// LEGACY-003: the api/src re-export shim this used to import was removed once
+// its migration was complete. The canonical implementation — which this suite
+// already reads as source below — is imported directly from the package.
 import {
   computeExifVsServerGapSeconds,
   extractExifSafe,
   type ExifSafeSummary,
-} from "../src/services/media-intelligence/exif-extractor.service.js";
+} from "@proovra/shared-runtime/media-intelligence";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");

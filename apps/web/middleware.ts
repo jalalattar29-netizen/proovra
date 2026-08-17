@@ -68,6 +68,32 @@ function applySurfaceTierGate(
 // Cloudflare R2 wildcard (as host allowance)
 const R2_HOST = "https://*.r2.cloudflarestorage.com";
 
+/**
+ * PHASE 13 (NEW-075) — THE OBJECT-STORE ORIGIN IS A CSP INPUT, NOT AN ACCIDENT.
+ *
+ * Resumable capture uploads PUT part bytes DIRECTLY from the browser to the
+ * object store (`lib/uploads/multipart-uploader.ts` → plain `fetch` against a
+ * presigned URL, deliberately not through `apiFetch`). That is a `connect-src`
+ * destination, and it was never named: production reached the store only because
+ * the blanket `https:` token happens to cover `https://*.r2.cloudflarestorage.com`.
+ *
+ * The cost of leaving it unnamed showed up the moment the store was not HTTPS.
+ * Against the disposable MinIO (`http://127.0.0.1:59000`) the production CSP —
+ * `'self' https: wss: <API_BASE> <R2_HOST>` — blocked every part PUT BEFORE the
+ * browser opened a socket. There was no request to diagnose, no status code and
+ * no ETag; the uploader took its `etag_missing` path and no part was ever
+ * reported, so a multipart upload could reach UPLOADING and then never record a
+ * single part. Thirteen presigns, zero PUTs.
+ *
+ * Naming the origin is a NARROWING, not a relaxation: `https:` is untouched, no
+ * `http:` token is introduced in production, and an operator whose store is on a
+ * non-default origin now declares it instead of relying on a wildcard scheme. It
+ * also makes the requirement enforceable — a deployment whose object store is
+ * unreachable from the browser now fails on a stated input rather than on a
+ * silent upload stall.
+ */
+const STORAGE_ORIGIN = (process.env.NEXT_PUBLIC_STORAGE_ORIGIN ?? "").trim();
+
 function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: boolean) {
   // ✅ في production: ممنوع relaxed وممنوع eval نهائياً
   const effectiveRelaxed = isProd ? false : relaxed;
@@ -82,16 +108,38 @@ function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: b
     // (متوافق مع X-Frame-Options: DENY)
     "frame-ancestors 'none'",
 
-    // images/fonts/media
-    `img-src 'self' data: blob: https: ${R2_HOST}`,
-    `media-src 'self' blob: https: ${R2_HOST}`,
+    /**
+     * images/fonts/media
+     *
+     * PHASE 13 (NEW-081) — THE API ORIGIN SERVES IMAGE AND MEDIA BYTES, so it
+     * belongs here, exactly as NEW-075 named the object store in `connect-src`.
+     *
+     * Derived previews are authenticated bytes streamed by the API itself, not by
+     * storage: `GET /v1/evidence/:id/derived-assets/:assetId/bytes` is rendered
+     * straight into an `<img src>` by `MediaIntelligencePanel`. That origin was
+     * never named — production reached it only because the blanket `https:` token
+     * happens to cover an HTTPS API host.
+     *
+     * The cost of leaving it unnamed appeared the moment the API was not HTTPS.
+     * Against the local API (`http://127.0.0.1:8091`) the browser refused the
+     * image, the panel's `onError` marked it `failed`, and the surface rendered
+     * "Image preview unavailable" — a broken-asset UI state for an asset that was
+     * COMPLETED, stored and byte-identical. Indistinguishable, from the DOM, from
+     * a genuinely missing derived asset.
+     *
+     * Naming both origins is a narrowing: `https:` is untouched, no `http:` token
+     * is added in production, and a deployment whose API or object store is
+     * unreachable to the renderer now fails on a stated input.
+     */
+    `img-src 'self' data: blob: https: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""}`,
+    `media-src 'self' blob: https: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""}`,
     "font-src 'self' data: https:",
 
     // ✅ اتصالات الشبكة: شدّها في production (لا http/ws)
     // (خلي https/wss + API + R2)
     isProd
-      ? `connect-src 'self' https: wss: ${API_BASE} ${R2_HOST} https://accounts.google.com https://appleid.apple.com https://appleid.cdn-apple.com`
-      : `connect-src 'self' https: http: ws: wss: ${API_BASE} ${R2_HOST} https://accounts.google.com https://appleid.apple.com https://appleid.cdn-apple.com`,
+      ? `connect-src 'self' https: wss: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""} https://accounts.google.com https://appleid.apple.com https://appleid.cdn-apple.com`
+      : `connect-src 'self' https: http: ws: wss: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""} https://accounts.google.com https://appleid.apple.com https://appleid.cdn-apple.com`,
 
     // OAuth
     "frame-src 'self' https://accounts.google.com https://appleid.apple.com",

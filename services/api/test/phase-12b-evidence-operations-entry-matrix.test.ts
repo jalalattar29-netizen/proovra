@@ -31,25 +31,24 @@
  * authorities have their own behavioral suites.
  */
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const REPO = resolve(__dirname, "../../..");
+import { REPO, assertCanonicalFactsFresh, registeredRoutePaths } from "./_canonical-facts";
+
 const read = (f: string) => readFileSync(f, "utf8").replace(/\r\n/g, "\n");
 
-const ROUTES_DIR = resolve(REPO, "services/api/src/routes");
-
-/** Every route path registered by the API, for the "entry exists" leg. */
-const registeredRoutes = new Set<string>();
-for (const f of readdirSync(ROUTES_DIR)) {
-  if (!f.endsWith(".ts")) continue;
-  for (const m of read(join(ROUTES_DIR, f)).matchAll(
-    /app\.(get|post|patch|put|delete)(?:<[^>]*>)?\(\s*\n?\s*[`"']([^`"']+)[`"']/g,
-  )) {
-    registeredRoutes.add(m[2]);
-  }
-}
+/**
+ * Every route path registered by the API, for the "entry exists" leg.
+ *
+ * PHASE 0 §9 — from the canonical AST inventory. The regex it replaces read
+ * only the top level of `src/routes/` and could not resolve a path held in a
+ * constant, so "the entry exists" could be answered NO for an operation that
+ * does exist.
+ */
+assertCanonicalFactsFresh();
+const registeredRoutes = registeredRoutePaths();
 
 type Operation = {
   method: "GET" | "POST";

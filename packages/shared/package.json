@@ -20,6 +20,11 @@
       "types": "./dist/i18n.d.ts",
       "import": "./dist/i18n.js",
       "default": "./dist/i18n.js"
+    },
+    "./zod-runtime-config": {
+      "types": "./dist/zod-runtime-config.d.ts",
+      "import": "./dist/zod-runtime-config.js",
+      "default": "./dist/zod-runtime-config.js"
     }
   },
   "files": [

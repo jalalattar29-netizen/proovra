@@ -23,7 +23,7 @@
  *      provider adapter registry.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -108,9 +108,6 @@ const SVC_EXEC = readSource(
 );
 const SVC_AUDIT = readSource(
   "../../../services/api/src/services/intelligence/audit-transparency.service.ts",
-);
-const SVC_MANIFEST = readSource(
-  "../../../services/api/src/services/intelligence/intelligence-verification-manifest.service.ts",
 );
 const ROUTES = readSource(
   "../../../services/api/src/routes/intelligence-platform.routes.ts",
@@ -604,28 +601,6 @@ describe("Phase 3B — executive + audit aggregators", () => {
 });
 
 // ===========================================================================
-// 7. Verification manifest writers
-// ===========================================================================
-
-describe("Phase 3B — verification manifest writers", () => {
-  it("ships document + transcript + provider + confidence + correction writers", () => {
-    for (const fn of [
-      "buildDocumentIntelligenceManifestEntry",
-      "buildTranscriptIntelligenceManifestEntry",
-      "buildProviderManifestEntries",
-      "buildConfidenceManifestEntry",
-      "buildCorrectionHistoryManifestEntry",
-    ]) {
-      expect(SVC_MANIFEST).toMatch(new RegExp(`export async function ${fn}`));
-    }
-  });
-
-  it("manifests never include raw payloads", () => {
-    expect(SVC_MANIFEST).not.toMatch(/payload:\s*r\.payload/);
-  });
-});
-
-// ===========================================================================
 // 8. HTTP routes
 // ===========================================================================
 
@@ -740,5 +715,40 @@ describe("Phase 3B — runtime helpers", () => {
     ]) {
       expect(providers.has(expected as never)).toBe(true);
     }
+  });
+});
+
+// =============================================================================
+// LEGACY-003 — unwired intelligence manifest builder REMOVED
+// =============================================================================
+
+/**
+ * The intelligence verification-manifest builder had zero production importers
+ * and zero DB writes; the trust-centre surface it was written for builds its
+ * own projection. LEGACY-003 (2026-08-15) removed it, and removed the stale
+ * citation naming it in the AI-disclosure catalogue's implementationReferences
+ * — a disclosure that cites a file which does not exist is a claim the
+ * trust-drift check would have to either fail on or ignore.
+ */
+describe("Phase 3B — removed intelligence manifest builder stays removed", () => {
+  it("the manifest builder is not back on disk", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../../../services/api/src/services/intelligence/intelligence-verification-manifest.service.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+      "intelligence-verification-manifest.service.ts is REMOVED (LEGACY-003)",
+    ).toBe(false);
+  });
+
+  it("no trust article still cites the removed module", () => {
+    const trust = readSource(
+      "../../../services/api/src/services/trust/trust-center.service.ts",
+    );
+    expect(trust).not.toContain("intelligence-verification-manifest.service.ts");
   });
 });

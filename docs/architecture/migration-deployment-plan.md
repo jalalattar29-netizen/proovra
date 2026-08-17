@@ -204,8 +204,48 @@ inventory gate.
 
 ## 4. Release C — Runtime cutover · `WAIT_FOR_RUNTIME_CUTOVER`
 
-No migrations. Deploy the API, worker and web build that reads and writes the
-canonical schema:
+**One migration: `20271201000000_new058_verified_contact_factors`.**
+
+PHASE 13 (NEW-058), account-bound step-up. This wave was defined from the start
+and carried nothing until now, so Release C used to be a code-only cutover.
+Shape: `EXPAND` — it adds `SMS`/`WHATSAPP` to `MfaFactorKind`, six sealed
+destination columns plus `verified_at_utc` and `generation` to `mfa_factors`,
+and `factor_id`/`factor_generation` to `step_up_challenges`. Every `ADD` is
+`IF NOT EXISTS`; **nothing is dropped or renamed** and the inventory records
+zero destructive statements. It widens the four TOTP secret columns to nullable
+and restores the invariant in the same file with
+`mfa_factors_kind_payload_chk`.
+
+The single `UPDATE` is bounded and records rather than invents: it copies
+`COALESCE(enrolled_at, created_at)` into `verified_at_utc` for rows that are
+**already** `ACTIVE`, and a TOTP factor only reaches `ACTIVE` by completing its
+enrolment round-trip. `created_at` is `NOT NULL`, so every such row is stamped
+and `mfa_factors_active_is_verified_chk` cannot fail on pre-existing data.
+**No destination is backfilled** — a number once typed into a step-up request
+body was never proven to belong to the account — so every existing user is left
+unenrolled and every step-up-gated mutation fails closed with
+`STEP_UP_ENROLLMENT_REQUIRED` until they enrol.
+
+**Why it belongs in C and not in Release A.** It is the one wave whose meaning
+is "not safe ahead of its image". `mfa_factors_active_is_verified_chk` requires
+`verified_at_utc` on any `ACTIVE` row, and the currently deployed build never
+writes that column (`services/api/src/services/security/mfa.service.ts` at HEAD
+contains no reference to it; the new build stamps it at activation under
+NEW-072). Applying this before the API deploy would make the next TOTP
+activation on the old code violate the constraint. The new build also *requires*
+the migration, so it cannot be deferred past the cutover either: it lands with
+the deploy, migration → API → worker.
+
+**Rollback boundary.** Application images only. The schema is forward-only:
+redeploying the previous build restores service except for TOTP activation,
+which stays blocked while the constraint exists. Do **not** drop the constraint
+or the columns to unblock an old build — roll forward instead.
+
+Operator steps and the post-deploy verification queries are in
+`docs/operations/point6-migration-runbook.md` §C.0 and §C.2.
+
+Then deploy the API, worker and web build that reads and writes the canonical
+schema:
 
 * every case↔evidence association resolves through `CaseEvidenceLink`
   (`Evidence.caseId` has **zero** runtime readers and writers — the scalar is
@@ -227,7 +267,12 @@ Health checks: the API's own startup validator must log
 
 Rollback: redeploy the previous build. Every Release-A/B migration is additive,
 defaulted or idempotent, so the previous build keeps working; nothing needs to
-be un-migrated.
+be un-migrated. **One exception, stated rather than glossed:** once
+`20271201000000_new058_verified_contact_factors` has been applied, a rolled-back
+build can still read and serve everything, but a TOTP *activation* on that build
+is refused by `mfa_factors_active_is_verified_chk` because the old code does not
+stamp `verified_at_utc`. That is a degraded enrolment path, not data loss, and
+the fix is to roll forward.
 
 ---
 

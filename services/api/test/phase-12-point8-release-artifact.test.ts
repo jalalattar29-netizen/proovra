@@ -251,7 +251,7 @@ describe("PHASE 12 — POINT 8 A0/A3: conservation between the three source view
 });
 
 describe("PHASE 12 — POINT 8 B2: the wave selector bounds what a release may apply", () => {
-  it("wave A/B defers every backfill and every contract migration", () => {
+  it("wave A/B defers every backfill, runtime cutover and contract migration", () => {
     const { selected, deferred, unclassified } = selectForWave({
       artifactMigrations: PROPOSED,
       wave: "A_B",
@@ -261,9 +261,51 @@ describe("PHASE 12 — POINT 8 B2: the wave selector bounds what a release may a
     expect(deferred).toContain(DROP);
     expect(deferred).toContain(GUARD);
     for (const n of deferred) {
-      expect(["WAIT_FOR_BACKFILL_READINESS", "CONTRACT_DROP_LATER"]).toContain(waves[n]);
+      // PHASE 13 (NEW-058) — `WAIT_FOR_RUNTIME_CUTOVER` joins this list.
+      //
+      // It is not a relaxation: a runtime-cutover migration MUST be deferred
+      // out of A/B, which is what this assertion is checking. The list was
+      // written when Release C carried no migrations at all, so the wave had no
+      // occupant to enumerate. The complementary assertion — that it is
+      // SELECTED by C and D rather than silently dropped from every wave — is
+      // the test below.
+      expect([
+        "WAIT_FOR_BACKFILL_READINESS",
+        "WAIT_FOR_RUNTIME_CUTOVER",
+        "CONTRACT_DROP_LATER",
+      ]).toContain(waves[n]);
     }
     expect(selected.length + deferred.length).toBe(PROPOSED.length);
+  });
+
+  /**
+   * PHASE 13 (NEW-058) — A WAVE IN NO RELEASE IS A MIGRATION THAT NEVER SHIPS.
+   *
+   * `WAIT_FOR_RUNTIME_CUTOVER` was legal in the inventory, the closure test,
+   * the deployment plan and the runbook, and absent from `WAVES` — so the first
+   * migration to use it would have been deferred out of A_B, C and D alike
+   * while every deploy reported success. That is a silent drop, and it is
+   * strictly worse than a refusal because nothing surfaces it.
+   *
+   * This asserts the property directly: every wave an inventory row can carry
+   * is applied by SOME release.
+   */
+  it("every release wave in the inventory is applied by some wave", () => {
+    const applied = new Set(Object.values(WAVES).flat());
+    const orphaned = [...new Set(Object.values(waves))].filter((w) => !applied.has(w));
+    expect(orphaned, "a wave no release applies can never ship its migrations").toEqual([]);
+  });
+
+  it("a runtime-cutover migration is selected by C and D, not dropped", () => {
+    const cutover = PROPOSED.filter((n) => waves[n] === "WAIT_FOR_RUNTIME_CUTOVER");
+    expect(cutover.length).toBeGreaterThan(0);
+    for (const wave of ["C", "D"] as const) {
+      const { selected } = selectForWave({ artifactMigrations: PROPOSED, wave, waves });
+      for (const n of cutover) expect(selected, `wave ${wave}`).toContain(n);
+    }
+    // …and never by A_B, which is the reason it has its own wave.
+    const { selected: ab } = selectForWave({ artifactMigrations: PROPOSED, wave: "A_B", waves });
+    for (const n of cutover) expect(ab).not.toContain(n);
   });
 
   it("a destructive migration and its guard are never split across waves", () => {

@@ -42,6 +42,39 @@ function readSecret(env: string): string | null {
   return v && v.trim().length >= 16 ? v.trim() : null;
 }
 
+/**
+ * FINAL-003 (2026-08-15) — the shared-secret primitive, exported.
+ *
+ * Two reconcile entrypoints (`POST /v1/reviewer-ops/reconcile` and the dual-mode
+ * sweeps in `admin-identity.routes.ts`) each grew their OWN `x-cron-secret`
+ * check, both comparing with `!==` on the raw string and both accepting a
+ * secret of any length. That is three implementations of one security decision:
+ * the comparison leaked length and prefix through timing, and a two-character
+ * `INTEGRATION_CRON_SECRET` that this module would have refused as too weak was
+ * silently honoured there. They now call these two functions, so the constant-
+ * time compare and the 16-character floor are properties of the SYSTEM rather
+ * than of whichever call site was written most recently.
+ */
+export function readCronSecretFromEnvs(envNames: readonly string[]): string | null {
+  for (const name of envNames) {
+    const v = readSecret(name);
+    if (v !== null) return v;
+  }
+  return null;
+}
+
+/** Constant-time equality for a shared cron/internal secret. */
+export function cronSecretMatches(
+  expected: string | null,
+  provided: unknown,
+): boolean {
+  if (expected === null || expected.length === 0) return false;
+  if (typeof provided !== "string") return false;
+  const got = provided.trim();
+  if (got.length === 0) return false;
+  return constantTimeEqual(expected, got);
+}
+
 function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }

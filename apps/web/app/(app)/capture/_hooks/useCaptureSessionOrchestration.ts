@@ -105,12 +105,19 @@ async function runResumableItemUpload(input: {
     }),
   });
   // 3. Drive chunk upload via MultipartUploader.
+  //
+  // PHASE 13 (NEW-036): the initiate at step 2 is OURS, not the uploader's, and
+  // the uploader only aborts the S3 multipart when it believes one exists. Left
+  // unsaid, a cancel between step 2 and the first part upload skipped the
+  // multipart abort entirely and left a live upload whose parts stay stored and
+  // billed until an expiry sweep that never looks at aborted sessions.
   const uploader = resumable.startResumable({
     sessionId,
     teamId: evidenceTeamId,
     evidenceId,
     file: item.file,
     contentType: normalizeClientMimeType(item.mimeType),
+    multipartAlreadyInitiated: true,
   });
   await new Promise<void>((resolve, reject) => {
     const unsub = uploader.subscribe((snap) => {

@@ -196,9 +196,24 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
     );
   });
 
-  it("/organizations is ENTERPRISE notFound (ENTERPRISE_ONLY)", () => {
+  /**
+   * PHASE 13 (NEW-063) — the TIER is the pinned invariant; the direct-access
+   * policy is now `allow`.
+   *
+   * The Organizations entity stays ENTERPRISE for VISIBILITY — nav, the command
+   * palette and All Tools all read the tier — which is the pricing intent this
+   * assertion exists to protect, and it is unchanged. Direct access is
+   * membership-gated instead, per the 12B correction in `routeRegistry.ts`
+   * ("the organizations LIST + member-safe DETAIL are MEMBERSHIP-gated, not
+   * enterprise-workspace-gated") and the account-menu resolver contract
+   * ("membership is the ONLY input — never plan"). `isEnterpriseWorkspace` is
+   * derived from the ACTIVE workspace, so an ORG_OWNER whose active space is
+   * their Personal Space was out of tier and `SurfaceGate` 404'd them on the
+   * very link the account menu had just offered.
+   */
+  it("/organizations is ENTERPRISE tier with membership-gated direct access", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"notFound"/,
+      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"allow"/,
     );
   });
 
@@ -248,9 +263,12 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
     expect(TIERS).toMatch(/pathPrefix:\s*"\/inbox",\s*tier:\s*"CORE"/);
   });
 
-  it("/organizations is ENTERPRISE with notFound policy (ENTERPRISE_ONLY)", () => {
+  // PHASE 13 (NEW-063) — see the note on the equivalent assertion above. The
+  // ENTERPRISE tier, and therefore the visibility posture, is unchanged; only
+  // the direct-URL denial moved to the membership / server authority.
+  it("/organizations is ENTERPRISE tier, direct access allowed (membership-gated)", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"notFound"/,
+      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"allow"/,
     );
   });
 

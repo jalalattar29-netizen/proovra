@@ -346,6 +346,171 @@ export const SCENARIOS: ReadonlyArray<ScenarioSpec> = [
     "noPersonalSpace=true blocks creation, selection, restoration and direct API.", BOTH),
   S("p7.sem.no_owner_plan_or_silent_personal_fallback", "ENTERPRISE",
     "No owner-plan or silent-PERSONAL fallback on the stale-pointer heal.", SERVER_ONLY),
+
+  // ===========================================================================
+  // PHASE 13 — the scenarios the previous pass recorded as NOT EXECUTED.
+  //
+  // Everything below is BROWSER_ONLY, and deliberately so. Each one asserts a
+  // property only a browser holds: which ORIGIN a request went to, whether an
+  // element actually decoded, which sentence a user was shown, whether a
+  // double-click produced one mutation or two. A server suite cannot establish
+  // any of them — the previous pass's 35-scenario matrix exercised the same
+  // production build without a single `/v1/*` request reaching the web origin,
+  // which is the defect CLASS these belong to but is not proof that these code
+  // paths ran.
+  // ===========================================================================
+
+  // ----------------------------------------------- NEW-027: SIU export ---
+  S("p7.new027.download.streams_from_the_api_origin", "CROSS",
+    "Downloading a SIU export fetches the API origin with the session, returns a real archive, and hands the user the file.", BROWSER_ONLY),
+  S("p7.new027.download.signed_out_request_refused", "CROSS",
+    "A session-less browser is refused the export and consumes nothing.", BROWSER_ONLY),
+  S("p7.new027.download.suspended_member_refused", "CROSS",
+    "A member whose membership is not ACTIVE receives no archive bytes, pointer or hash.", BROWSER_ONLY),
+  S("p7.new027.download.cross_tenant_refusal_is_non_disclosing", "CROSS",
+    "An outsider's refusal for an existing export is byte-identical to one for an export that does not exist.", BROWSER_ONLY),
+
+  // -------------------------------------------- NEW-028: derived assets ---
+  S("p7.new028.thumbnail.renders_from_the_api_origin", "CROSS",
+    "The derived thumbnail loads from the API origin with credentialed CORS and actually decodes.", BROWSER_ONLY),
+  S("p7.new028.bytes.unauthorized_reads_refused", "CROSS",
+    "Signed-out and cross-tenant reads of the asset bytes are refused, and the page shows bounded copy.", BROWSER_ONLY),
+  S("p7.new028.bytes.invalidated_session_refused", "CROSS",
+    "Bytes readable before session revocation are refused after it, with the asset row untouched.", BROWSER_ONLY),
+
+  // ------------------------------------------ NEW-029: multipart cancel ---
+  S("p7.new029.cancel_aborts_storage_and_session", "CROSS",
+    "Cancelling a live multipart upload aborts it in storage, marks the session aborted, is idempotent, and does not resume.", BROWSER_ONLY),
+  S("p7.new029.cancel_survives_abort_network_failure", "CROSS",
+    "With one abort leg failed on the wire the operator still sees CANCELLED and the session still closes.", BROWSER_ONLY),
+
+  // ------------------------------ NEW-058: account-bound step-up factor ---
+  // The defect: the enterprise step-up took the handset from the REQUEST BODY,
+  // so an approved challenge proved possession of a phone the CALLER chose. A
+  // stolen session supplied the attacker's own number and approved its own
+  // challenge. The fix is an enrolled, verified, revocable factor re-checked at
+  // SPEND time.
+  //
+  // BROWSER_ONLY throughout, and for the usual reason: the server half is
+  // already proven against live PostgreSQL in
+  // `phase-13-new058-account-bound-step-up.integration.test.ts` (pending
+  // enrolments cannot elevate, a foreign factor id does not resolve, revocation
+  // moves the generation, the CHECK constraints hold). What that suite cannot
+  // establish is what a REAL CLIENT sends and shows: whether the enrolment
+  // surface exists and is reachable, whether the start request still carries a
+  // destination on the wire, whether the raw handset reaches the DOM, and
+  // whether an unenrolled user is offered the one action that would fix them.
+  S("p7.new058.enroll.journey_activates_an_account_bound_factor", "CROSS",
+    "A user with no factor enrols one from Personal Settings, proves it with the code the provider recorded, and the factor becomes ACTIVE and verified.", BROWSER_ONLY),
+  S("p7.new058.enroll.raw_destination_never_reaches_the_client", "CROSS",
+    "Only a masked destination is ever projected: the raw handset appears in no API response, no DOM node and no console line.", BROWSER_ONLY),
+  S("p7.new058.stepup.start_request_carries_no_destination", "CROSS",
+    "The challenge-start the browser actually sends contains no phone, destination or recipient; the server chooses the account's own ACTIVE factor.", BROWSER_ONLY),
+  S("p7.new058.stepup.approved_proof_drives_one_protected_mutation", "CROSS",
+    "A code read from the recording provider elevates once and performs exactly one protected mutation, with a visible result and a persisted effect.", BROWSER_ONLY),
+  S("p7.new058.stepup.unenrolled_account_is_offered_enrolment", "CROSS",
+    "An unenrolled account is refused with STEP_UP_ENROLLMENT_REQUIRED and shown an actionable route to enrolment rather than a dead end.", BROWSER_ONLY),
+  S("p7.new058.stepup.wrong_code_refused_without_elevation", "CROSS",
+    "A wrong code returns the user to verification and grants no elevation and no mutation.", BROWSER_ONLY),
+  S("p7.new058.stepup.revoked_factor_kills_an_unspent_elevation", "CROSS",
+    "An approved but unspent elevation stops working the moment the factor that authorised it is revoked.", BROWSER_ONLY),
+  S("p7.new058.stepup.caller_selected_destination_is_rejected", "CROSS",
+    "A client that still sends a destination is refused by the strict schema rather than silently ignored.", BROWSER_ONLY),
+
+  // --------------------------- NEW-031: organization membership lifecycle ---
+  S("p7.org.roster.lifecycle_fields_projected", "ENTERPRISE",
+    "The members roster projects all six lifecycle fields with the values the database holds.", BROWSER_ONLY),
+  S("p7.org.roster.suspend_restore_round_trip", "ENTERPRISE",
+    "Suspend then restore offers the right control at each state and refreshes without a manual reload.", BROWSER_ONLY),
+  S("p7.org.roster.terminal_state_offers_no_transition", "ENTERPRISE",
+    "A REVOKED row offers neither transition and says why.", BROWSER_ONLY),
+  S("p7.org.roster.double_click_single_transition", "ENTERPRISE",
+    "A double-click on a lifecycle action emits one request and advances the state exactly once.", BROWSER_ONLY),
+  S("p7.org.roster.non_admin_refused_by_server", "ENTERPRISE",
+    "An ordinary member may read the roster; the SERVER refuses the transition.", BROWSER_ONLY),
+  S("p7.org.roster.cross_tenant_non_disclosing", "ENTERPRISE",
+    "An outsider's refusal is identical whether the organization exists or not, and the tenant is untouched.", BROWSER_ONLY),
+
+  // ------------------------- NEW-030 / NEW-032: error envelope + step-up ---
+  S("p7.stepup.workspace_closure.panel_opens_from_server_denial", "CROSS",
+    "A real server step-up denial opens the verification panel with the proof methods the server offered.", BROWSER_ONLY),
+  S("p7.stepup.workspace_closure.proof_retries_original_mutation", "CROSS",
+    "A valid step-up proof retries the original mutation and its durable effect appears.", BROWSER_ONLY),
+  S("p7.stepup.invalid_proof.returns_to_verification_state", "CROSS",
+    "An invalid proof returns the user to verification with the server's reason, not to a dead end.", BROWSER_ONLY),
+  S("p7.stepup.methods_drive_the_factor_input", "CROSS",
+    "The proof methods in the denial decide which factor the user is asked for.", BROWSER_ONLY),
+  S("p7.stepup.totp_proof.retries_original_mutation", "CROSS",
+    "An authenticator code completes the mutation the step-up interrupted.", BROWSER_ONLY),
+  S("p7.apierror.closure_blocked.specific_copy_from_message_less_code", "CROSS",
+    "A denial code carrying no message still reaches its own branch and its own copy.", BROWSER_ONLY),
+  S("p7.apierror.closure_request_active.stale_form_denied_with_specific_copy", "CROSS",
+    "A closure requested while one is already open is refused with its specific copy and disturbs neither.", BROWSER_ONLY),
+  S("p7.apierror.confirmation_mismatch.server_message_reaches_the_user", "CROSS",
+    "The server's own denial message reaches the user verbatim rather than a client fallback.", BROWSER_ONLY),
+  S("p7.apierror.org_transfer.target_not_member_specific_copy", "CROSS",
+    "Transferring to a member who has left is refused with the specific copy and moves nothing.", BROWSER_ONLY),
+  S("p7.apierror.org_transfer.owner_required_specific_copy", "CROSS",
+    "Losing owner authority after render is refused before any verification is asked for.", BROWSER_ONLY),
+  S("p7.apierror.unhandled_code.bounded_fallback_without_raw_detail", "CROSS",
+    "A denial code the surface does not enumerate falls back to bounded copy with no raw detail and no crash.", BROWSER_ONLY),
+
+  // ------------------------------- the 24 implemented UI capabilities ---
+  // One scenario per capability, plus one refusal matrix per journey. The
+  // capability -> scenario mapping is held in
+  // `scripts/capability-authority/manifests/ui-capabilities.json`, which is
+  // what makes "BrowserVerifiedUiCapabilities" a derived number rather than a
+  // count of whatever happened to run.
+  S("p7.ui.governance.policy_created", "ENTERPRISE",
+    "Authoring a governance policy from the registry console writes the policy row.", BROWSER_ONLY),
+  S("p7.ui.governance.access_review_campaign_created", "ENTERPRISE",
+    "Opening an access-review campaign writes a draft campaign row.", BROWSER_ONLY),
+  S("p7.ui.governance.cross_org_invited", "ENTERPRISE",
+    "Inviting another organization writes an invited cross-org review grant.", BROWSER_ONLY),
+  S("p7.ui.governance.cross_org_accepted", "ENTERPRISE",
+    "Accepting a cross-org invitation transitions the grant to accepted.", BROWSER_ONLY),
+  S("p7.ui.governance.delegated_admin_granted", "ENTERPRISE",
+    "Issuing a delegated-admin grant writes an active grant for the chosen member.", BROWSER_ONLY),
+  S("p7.ui.governance.destruction_review_opened", "ENTERPRISE",
+    "Opening a destruction review writes a pending row and moves the evidence pointer.", BROWSER_ONLY),
+  S("p7.ui.governance.denied_without_authority", "ENTERPRISE",
+    "A non-privileged member is refused by the SERVER on every governance write.", BROWSER_ONLY),
+  S("p7.ui.workspace.created", "PRO",
+    "Creating an owned workspace from the workspace console writes the workspace row.", BROWSER_ONLY),
+  S("p7.ui.workspace.closure_requested", "PRO",
+    "Requesting workspace closure, through the step-up gate, writes the closure request.", BROWSER_ONLY),
+  S("p7.ui.workspace.closure_cancelled", "PRO",
+    "Cancelling an open closure request transitions it to cancelled.", BROWSER_ONLY),
+  S("p7.ui.workspace.reopened", "PRO",
+    "Reopening a closed workspace restores owner access.", BROWSER_ONLY),
+  S("p7.ui.workspace.ownership_transferred", "PRO",
+    "Transferring ownership of an owned workspace moves owner and billing owner.", BROWSER_ONLY),
+  S("p7.ui.org.workspace_suspended", "ENTERPRISE",
+    "Suspending an organization workspace suspends its active members.", BROWSER_ONLY),
+  S("p7.ui.org.workspace_resumed", "ENTERPRISE",
+    "Resuming an organization workspace reactivates the members it suspended.", BROWSER_ONLY),
+  S("p7.ui.security.capture_devices_listed", "ENTERPRISE",
+    "The security centre reads the capture-device registry for the active workspace.", BROWSER_ONLY),
+  S("p7.ui.security.capture_device_revoked", "ENTERPRISE",
+    "Revoking a capture device stamps the revocation with the chosen reason.", BROWSER_ONLY),
+  S("p7.ui.security.mfa_recovery_requested", "ENTERPRISE",
+    "Filing an MFA recovery request writes the recovery-request row.", BROWSER_ONLY),
+  S("p7.ui.automation.rule_created", "ENTERPRISE",
+    "Creating an automation rule writes a disabled rule row.", BROWSER_ONLY),
+  S("p7.ui.automation.rule_updated", "ENTERPRISE",
+    "Editing a rule changes what the edit allows and bumps its version.", BROWSER_ONLY),
+  S("p7.ui.automation.rule_enabled", "ENTERPRISE",
+    "Enabling a rule clears its disabled stamp.", BROWSER_ONLY),
+  S("p7.ui.automation.rule_disabled", "ENTERPRISE",
+    "Disabling a rule stamps it disabled.", BROWSER_ONLY),
+  S("p7.ui.intelligence.provider_budget_created", "ENTERPRISE",
+    "Creating a provider budget writes an active budget for the active workspace.", BROWSER_ONLY),
+  S("p7.ui.evidence.public_verify_published", "ENTERPRISE",
+    "Publishing evidence to public verify transitions its publication state.", BROWSER_ONLY),
+  S("p7.ui.evidence.public_verify_unpublished", "ENTERPRISE",
+    "Withdrawing evidence from public verify transitions it back.", BROWSER_ONLY),
+  S("p7.ui.redaction.video_frames_and_tracks_authored", "ENTERPRISE",
+    "Registering a frame batch and grouping detections into tracks both issue their requests.", BROWSER_ONLY),
 ];
 
 // ===========================================================================

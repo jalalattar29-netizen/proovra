@@ -1,3 +1,9 @@
+// PHASE 13 (NEW-060) — must precede `import { z }`: Zod's eval-capability
+// probe (`new Function("")`) fires while an object schema is being CONSTRUCTED,
+// and this module constructs one at module scope. See
+// `packages/shared/src/zod-runtime-config.ts`.
+import "@proovra/shared/zod-runtime-config";
+
 import { z } from "zod";
 
 const optionalString = (maxLength: number) =>

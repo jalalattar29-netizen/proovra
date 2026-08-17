@@ -39,6 +39,28 @@ export type OrgHealthProjectionRow = {
 const REFRESH_SOURCE = "worker_refresh_v1";
 
 /**
+ * The sample bucket. Every refresh inside the same wall-clock minute writes the
+ * SAME `sampledAtUtc`, which is the only thing that makes the upsert below an
+ * upsert.
+ *
+ * PHASE 13 §4 (2026-08-17). The unique key is `(teamId, sampledAtUtc)` and the
+ * timestamp was `new Date()` — never equal twice, so the "upsert" could only
+ * ever take its create branch. Every refresh appended a row, and the table grew
+ * without bound while `readLatestOrgHealthProjection` read the newest one. The
+ * worker-side copy of this computation had already been corrected the same way,
+ * and this is the correction the concurrency probe that found it describes.
+ */
+export const ORG_HEALTH_SAMPLE_BUCKET_MS = 60_000;
+
+/** Also the staleness bound the read path applies before refreshing. */
+export function orgHealthSampleBucket(now: Date = new Date()): Date {
+  return new Date(
+    Math.floor(now.getTime() / ORG_HEALTH_SAMPLE_BUCKET_MS) *
+      ORG_HEALTH_SAMPLE_BUCKET_MS,
+  );
+}
+
+/**
  * Refresh the org-health projection for a single tenant. Returns the
  * row that was written.
  */
@@ -50,7 +72,7 @@ export async function refreshOrgHealthProjection(
     throw new Error("refreshOrgHealthProjection requires a teamId");
   }
   const teamId = input.teamId;
-  const sampledAtUtc = new Date();
+  const sampledAtUtc = orgHealthSampleBucket();
 
   // Each count below is bounded by teamId. No cross-tenant join is
   // possible. The counts use Prisma's `.count` so the SQL is a single

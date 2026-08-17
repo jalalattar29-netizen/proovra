@@ -63,6 +63,7 @@ const H = vi.hoisted(() => {
     FACTOR_ACTIVE: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
     FACTOR_ENROLLING: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
     FOREIGN_FACTOR: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9",
+    CONTACT_FACTOR: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
     INTAKE_SESSION: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
     MAPPING: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
     CURRENT_HASH: "c".repeat(64),
@@ -268,7 +269,7 @@ const {
   DEVICE, UNKNOWN_DEVICE,
   CHALLENGE, FOREIGN_CHALLENGE, EXPIRED_CHALLENGE,
   LINK_A, FOREIGN_LINK,
-  FACTOR_ACTIVE, FACTOR_ENROLLING, FOREIGN_FACTOR,
+  FACTOR_ACTIVE, FACTOR_ENROLLING, FOREIGN_FACTOR, CONTACT_FACTOR,
   INTAKE_SESSION, MAPPING,
   CURRENT_HASH, OTHER_HASH, FOREIGN_HASH,
 } = H;
@@ -674,6 +675,12 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
 
 vi.mock("../src/db.js", () => ({ prisma: H.client }));
 
+// NOT mocked: the step-up path seals and re-opens the enrolled destination for
+// real, so the fixture below has to produce material `openSecret` can actually
+// open. Sealing it here (rather than hand-writing ciphertext) is what keeps the
+// factor binding under test instead of stubbed out.
+import { sealSecret } from "../src/services/security/mfa-secret-storage.js";
+
 import { identitySecurityRoutes } from "../src/routes/identity-security.routes.js";
 import { mfaRoutes } from "../src/routes/mfa.routes.js";
 import { identityLinksRoutes } from "../src/routes/identity-links.routes.js";
@@ -769,10 +776,38 @@ function seed(): void {
     secretCiphertext: "TOTP-CIPHERTEXT-SEED", secretIv: "TOTP-IV-SEED",
     secretAuthTag: "TOTP-AUTHTAG-SEED", secretKekId: "dev-fallback-v1",
   });
+  /**
+   * PHASE 13 (NEW-058) — the ACTOR's enrolled contact factor.
+   *
+   * Step-up no longer takes a destination from the request body: it resolves an
+   * ACTIVE, verified, unrevoked SMS/WHATSAPP factor for the caller and refuses
+   * with `enrollment_required` when there is none. The TOTP rows above cannot
+   * satisfy that — wrong `kind`, and no `verifiedAtUtc` — so without this row
+   * every start in this describe block would be a 403 about enrolment rather
+   * than the authorization outcome each case is actually asserting.
+   *
+   * The destination is the number the assertions below guard against, sealed
+   * the way the product seals it. That makes `not.toContain("+447700900123")`
+   * a STRONGER statement than it was: the number is now genuinely in the
+   * system, so the projection has something real to leak and does not.
+   */
+  const contactSecret = sealSecret(Buffer.from("+447700900123", "utf8"));
   H.tables.mfaFactor = [
     factor(FACTOR_ACTIVE, ACTOR, "ACTIVE", "Authenticator app"),
     factor(FACTOR_ENROLLING, ACTOR, "ENROLLING", "New phone"),
     factor(FOREIGN_FACTOR, OTHER, "ACTIVE", "Another account's app"),
+    {
+      ...factor(CONTACT_FACTOR, ACTOR, "ACTIVE", "Operator handset"),
+      kind: "SMS",
+      generation: 1,
+      verifiedAtUtc: past(29 * DAY),
+      revokedAt: null,
+      destinationMask: "•••• 0123",
+      destinationCiphertext: contactSecret.ciphertext,
+      destinationIv: contactSecret.iv,
+      destinationAuthTag: contactSecret.authTag,
+      destinationKekId: contactSecret.kekId,
+    },
   ];
   H.tables.mfaRecoveryCode = [
     { id: "rc-1", userId: ACTOR, codeHash: "RECOVERY-CODE-SEED", usedAt: null, batchInvalidatedAt: null },
@@ -780,11 +815,17 @@ function seed(): void {
   ];
   // PHASE 12B: challenges are bound to (team, user, purpose, resource) AND to
   // the starting session + the Organization.
+  // NEW-058 also binds a challenge to the FACTOR that authorised it, at a
+  // generation. The consume path treats a null factor as UNSPENDABLE rather
+  // than as "unbound", so a row without these columns is correctly refused —
+  // these fixtures carry them because they represent challenges minted by the
+  // current code, not the pre-migration rows that deliberately fail closed.
   const challenge = (id: string, teamId: string, userId: string, hash: string, expiresAtUtc: Date) => ({
     id, teamId, organizationId: ORG, initiatedByUserId: userId,
     purpose: "SESSION_SANITY_CHECK", resourceKind: null, resourceId: null,
     status: "PENDING", verificationAttemptId: "va-0", expiresAtUtc,
     approvedAtUtc: null, createdAt: past(60_000), reason: null, sessionIdHash: hash,
+    factorId: CONTACT_FACTOR, factorGeneration: 1,
   });
   H.tables.stepUpChallenge = [
     challenge(CHALLENGE, TEAM, ACTOR, CURRENT_HASH, future(900_000)),
@@ -848,10 +889,12 @@ const linkRow = (id: string) =>
 // ===========================================================================
 
 describe("step-up challenge lifecycle", () => {
+  // NEW-058 removed `phone` from this contract and made the body `.strict()`,
+  // so a lingering destination is a 400 rather than a silently ignored field.
+  // The destination now comes from the enrolled factor seeded in `seed()`.
   const startBody = {
     teamId: TEAM,
     purpose: "SESSION_SANITY_CHECK",
-    phone: "+447700900123",
     channel: "SMS",
     reason: "confirm operator session",
   };
@@ -859,7 +902,7 @@ describe("step-up challenge lifecycle", () => {
   it("authorized start mints a PENDING challenge bound to the SERVER-derived actor, session and Organization", async () => {
     const res = await app.inject({
       method: "POST", url: "/v1/identity-security/step-up/start",
-      payload: { ...startBody, userId: OTHER },
+      payload: startBody,
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -874,8 +917,32 @@ describe("step-up challenge lifecycle", () => {
     expect(created.status).toBe("PENDING");
     // The OTP code is never persisted on the challenge row.
     expect(Object.keys(created)).not.toContain("code");
-    // The projected challenge never echoes the phone the caller submitted.
+    // The projected challenge never echoes the enrolled destination.
     expect(res.body).not.toContain("+447700900123");
+  });
+
+  /**
+   * The subject was previously proven server-derived by DECLARING a different
+   * `userId` in the body and asserting the row still named the authenticated
+   * actor. NEW-058 made the body `.strict()`, so that field no longer reaches
+   * the handler at all — the caller cannot name a subject even to be ignored.
+   * Asserting the refusal keeps the original claim provable, and makes it a
+   * stronger one: the field is rejected rather than tolerated-and-overridden.
+   */
+  it("a caller-declared subject is refused outright, not silently overridden", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity-security/step-up/start",
+      payload: { ...startBody, userId: OTHER },
+    });
+    // The REFUSAL and its zero side effects are the product behaviour. The
+    // exact code is not pinned here because this file mounts the routes on a
+    // bare Fastify instance with no error handler, so the `.strict()` ZodError
+    // surfaces raw; the real server maps it to 400 INVALID_INPUT in
+    // `server.ts`, and `phase13-api-error-envelope` is where that mapping is
+    // asserted. Pinning 400 here would be asserting the harness, not the app.
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(called("db.stepUpChallenge.create")).toHaveLength(0);
+    expect(called("startVerification")).toHaveLength(0);
   });
 
   it("permission denial → 403, and NO challenge is minted", async () => {
@@ -915,8 +982,11 @@ describe("step-up challenge lifecycle", () => {
     expect(called("db.stepUpChallenge.create")).toHaveLength(0);
   });
 
+  // Likewise `.strict()` with no `phone`: the destination is re-resolved from
+  // the factor the challenge was minted against, so a caller cannot verify
+  // against a different number than the one that was sent to.
   const checkBody = (challengeId: string, teamId = TEAM) => ({
-    teamId, challengeId, phone: "+447700900123", code: "123456",
+    teamId, challengeId, code: "123456",
   });
 
   it("check from the SAME session approves and returns a secret-free projection", async () => {
@@ -1610,12 +1680,21 @@ describe("MFA enrolment and factor lifecycle", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.hasMfa).toBe(true);
+    // CONTACT_FACTOR is the NEW-058 enrolled handset seeded in `seed()`. The
+    // account really does hold three factors, and this surface really does
+    // list contact factors alongside TOTP.
     expect(body.factors.map((f: { id: string }) => f.id).sort())
-      .toEqual([FACTOR_ACTIVE, FACTOR_ENROLLING].sort());
+      .toEqual([FACTOR_ACTIVE, FACTOR_ENROLLING, CONTACT_FACTOR].sort());
     expect(body.recoveryCodesRemaining).toBe(2);
     for (const seedValue of ["TOTP-CIPHERTEXT-SEED", "TOTP-IV-SEED", "TOTP-AUTHTAG-SEED", "RECOVERY-CODE-SEED"]) {
       expect(res.body).not.toContain(seedValue);
     }
+    // The contact factor's destination is PII the product may send to and must
+    // never display back: neither the plaintext nor the sealed material may
+    // appear, only the mask.
+    expect(res.body).not.toContain("+447700900123");
+    expect(res.body).not.toContain(H.table("mfaFactor")
+      .find((f) => f.id === CONTACT_FACTOR)!.destinationCiphertext as string);
   });
 
   it("SELF-ONLY: GET factors is keyed on the session subject", async () => {

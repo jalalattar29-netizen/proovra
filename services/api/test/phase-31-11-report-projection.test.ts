@@ -5,8 +5,11 @@
  * makes the report-v2 "Media Intelligence Observations" section
  * actually appear in generated PDFs:
  *
- *   1. `services/api/src/services/media-intelligence/report-projection.service.ts`
- *      — the canonical projection that reads from the DB.
+ *   1. `packages/shared-runtime/src/media-intelligence/report-projection.service.ts`
+ *      — the canonical projection that reads from the DB. (LEGACY-003:
+ *      the api/src path this line used to name was a re-export shim from
+ *      the Phase 31.22 boundary refactor and was removed once its
+ *      migration completed; this suite imports the package directly.)
  *   2. `services/worker/src/media-intelligence-report-bridge.ts`
  *      — the worker-side lazy-import + try/catch isolation that the
  *      processor calls.
@@ -42,10 +45,13 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// LEGACY-003: the api/src re-export shim this used to import was removed once
+// its migration was complete. The canonical implementation — which this suite
+// already reads as source below — is imported directly from the package.
 import {
   projectMediaIntelligenceForReport,
   type ProjectedSignal,
-} from "../src/services/media-intelligence/report-projection.service.js";
+} from "@proovra/shared-runtime/media-intelligence";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");

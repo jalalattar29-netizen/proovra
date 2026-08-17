@@ -10,7 +10,10 @@
  * Scope:
  *   - List rules with enabled / trigger / action / last-run
  *   - View run history (no execution yet — dispatcher is E3.1)
- *   - Enable / Disable existing rules
+ *   - Create / Edit rules (PHASE 13 §UI — the lifecycle is now reachable
+ *     from the product; see components/automation/AutomationRuleForm.tsx)
+ *   - Enable / Disable existing rules (AutomationRuleToggle — one control,
+ *     whose leg is derived from the rule's CURRENT state)
  *   - Show the bounded trigger + action allowlists
  *
  * Hard rules (also enforced by phase-e3-automation-foundation.test.ts):
@@ -21,14 +24,13 @@
  *   - No marketplace / template gallery.
  *   - All numbers / counters trace back to real backend rows.
  *
- * Rule create + edit UI is intentionally minimal in E3 — a future
- * E3.1 phase will refine the form. For now, this page focuses on
- * VISIBILITY of existing automation state, which is the prerequisite
- * for the trigger dispatcher to land safely.
+ * PHASE 13 §UI (2026-08-16) — the deferred rule-form work is CLOSED.
+ * Create, edit, enable and disable are all reachable here; the four
+ * lifecycle routes had no product surface at all before this.
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import {
@@ -36,23 +38,10 @@ import {
   usePlatformContext,
 } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { AutomationRuleForm } from "../../../../components/automation/AutomationRuleForm";
+import { AutomationRuleToggle } from "../../../../components/automation/AutomationRuleToggle";
+import type { AutomationRule } from "../../../../components/automation/types";
 import { formatUserDateTime } from "../../../../lib/date";
-
-type AutomationRule = {
-  id: string;
-  teamId: string;
-  name: string;
-  description: string | null;
-  enabled: boolean;
-  triggerType: string;
-  conditionJson: unknown;
-  actionType: string;
-  actionConfigJson: unknown;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-  disabledAt: string | null;
-};
 
 type AutomationRun = {
   id: string;
@@ -90,7 +79,19 @@ function AutomationPageInner(): JSX.Element {
   const ctx = usePlatformContext();
   const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // PHASE 13 §UI — bumped by every successful lifecycle mutation so the rule
+  // list is refetched from the server (the projection, including `version`
+  // and `disabledAt`, is the server's to compute — never patched locally).
+  const [reloadToken, setReloadToken] = useState(0);
+  const [formMode, setFormMode] = useState<
+    { kind: "closed" } | { kind: "create" } | { kind: "edit"; ruleId: string }
+  >({ kind: "closed" });
+  const [lastAction, setLastAction] = useState<string | null>(null);
   const canManage = ctx.can("AUTOMATION_MANAGE");
+
+  const reload = useCallback(() => {
+    setReloadToken((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!teamId) {
@@ -98,7 +99,10 @@ function AutomationPageInner(): JSX.Element {
       return;
     }
     let cancelled = false;
-    setState({ status: "loading" });
+    // Keep the ready surface mounted across a post-mutation refetch — a
+    // flash back to the skeleton would unmount the very control the user
+    // just used (and its success message) mid-announcement.
+    setState((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
     (async () => {
       try {
         const [envelope, runsResp] = await Promise.all([
@@ -129,7 +133,7 @@ function AutomationPageInner(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+  }, [teamId, reloadToken]);
 
   // ----- Render branches -----
 
@@ -186,6 +190,17 @@ function AutomationPageInner(): JSX.Element {
 
   const { envelope, runs } = state;
   const enabledCount = envelope.rules.filter((r) => r.enabled).length;
+  const editingRule =
+    formMode.kind === "edit"
+      ? envelope.rules.find((r) => r.id === formMode.ruleId) ?? null
+      : null;
+
+  const closeForm = () => setFormMode({ kind: "closed" });
+  const afterSave = (message: string) => {
+    setLastAction(message);
+    setFormMode({ kind: "closed" });
+    reload();
+  };
 
   return (
     <main className="cc-page" data-automation-ready>
@@ -234,18 +249,85 @@ function AutomationPageInner(): JSX.Element {
       <section className="cc-section" data-automation-rules-list>
         <header className="cc-section-header">
           <h2 className="cc-section-title">Rules</h2>
-          {canManage ? (
-            <span
-              className="cc-section-subtitle"
-              data-automation-manage-hint
-            >
-              Owner/admin: create + edit + enable + disable via API
-              (form UI lands in E3.1)
-            </span>
-          ) : (
-            <span className="cc-section-subtitle">View-only access</span>
-          )}
+          <span
+            className="cc-section-subtitle"
+            data-automation-manage-hint
+          >
+            {/*
+              PHASE 13 (NEW-034) — both requirements, stated.
+              This console is a PLATFORM-ADMIN surface (`platform.automation`
+              declares `requiredActiveSpace: "PLATFORM_ADMIN"`), while
+              AUTOMATION_MANAGE is a WORKSPACE capability held by an owner or
+              admin. Naming only the second told a workspace owner who is not a
+              platform admin that they were one capability away from acting,
+              when in fact they cannot open this page at all.
+            */}
+            {canManage
+              ? "Owner/admin: create, edit, enable and disable rules here."
+              : "View-only access — changing a rule needs the AUTOMATION_MANAGE capability, held by a workspace owner or admin, on this platform-admin console. Both are required."}
+          </span>
+          <button
+            type="button"
+            data-automation-new-rule
+            onClick={() => {
+              setLastAction(null);
+              setFormMode({ kind: "create" });
+            }}
+            disabled={!canManage || formMode.kind === "create" || !teamId}
+            title={
+              canManage
+                ? undefined
+                : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+            }
+            style={newRuleButtonStyle(
+              !canManage || formMode.kind === "create" || !teamId,
+            )}
+          >
+            New rule
+          </button>
         </header>
+
+        {/* Page-level screen-reader status for a control that closes on
+            success (the form unmounts with its own status region). */}
+        <div
+          role="status"
+          aria-live="polite"
+          data-automation-page-status
+          style={{ minHeight: 16, fontSize: 12, color: "#166534" }}
+        >
+          {lastAction ?? ""}
+        </div>
+
+        {formMode.kind === "create" && teamId ? (
+          <AutomationRuleForm
+            mode="create"
+            teamId={teamId}
+            triggerTypes={envelope.allowlist.triggerTypes}
+            actionTypes={envelope.allowlist.actionTypes}
+            canManage={canManage}
+            onSaved={() =>
+              afterSave(
+                "Rule created. It starts disabled — review it, then enable it.",
+              )
+            }
+            onCancel={closeForm}
+          />
+        ) : null}
+
+        {formMode.kind === "edit" && editingRule && teamId ? (
+          <AutomationRuleForm
+            key={editingRule.id}
+            mode="edit"
+            teamId={teamId}
+            rule={editingRule}
+            triggerTypes={envelope.allowlist.triggerTypes}
+            actionTypes={envelope.allowlist.actionTypes}
+            canManage={canManage}
+            onSaved={() => afterSave("Rule updated.")}
+            onCancel={closeForm}
+          />
+        ) : null}
+
         {envelope.rules.length === 0 ? (
           <div className="cc-empty" data-automation-empty>
             <p>No automation rules configured yet.</p>
@@ -253,6 +335,25 @@ function AutomationPageInner(): JSX.Element {
               Allowed triggers: {envelope.allowlist.triggerTypes.length}.
               Allowed actions: {envelope.allowlist.actionTypes.length}.
             </p>
+            <button
+              type="button"
+              data-automation-empty-create
+              onClick={() => {
+                setLastAction(null);
+                setFormMode({ kind: "create" });
+              }}
+              disabled={!canManage || formMode.kind === "create" || !teamId}
+              title={
+                canManage
+                  ? undefined
+                  : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+              }
+              style={newRuleButtonStyle(
+                !canManage || formMode.kind === "create" || !teamId,
+              )}
+            >
+              Create the first rule
+            </button>
           </div>
         ) : (
           <table
@@ -267,11 +368,29 @@ function AutomationPageInner(): JSX.Element {
                 <th>Action</th>
                 <th>Enabled</th>
                 <th>Updated</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {envelope.rules.map((r) => (
-                <tr key={r.id} data-automation-rule-id={r.id}>
+                // PHASE 13 (NEW-065) — the ROW reports its own armed state.
+                //
+                // `data-automation-rule-enabled` existed only on the "Enabled"
+                // cell below. The row is the element carrying the rule's
+                // IDENTITY (`data-automation-rule-id`), so it was the one place
+                // a consumer could ask "what is rule X's state now?" and get
+                // nothing back — you had to already know which cell held the
+                // answer. Every other lifecycle row in this product states its
+                // state on the entity element itself (`member-status-{id}`,
+                // `data-org-workspace-lifecycle`, `data-cross-org-state`).
+                //
+                // Additive: the cell keeps both its copy and its attribute, so
+                // nothing that read the old position changes.
+                <tr
+                  key={r.id}
+                  data-automation-rule-id={r.id}
+                  data-automation-rule-enabled={String(r.enabled)}
+                >
                   <td>
                     <strong>{r.name}</strong>
                     {r.description ? (
@@ -291,6 +410,42 @@ function AutomationPageInner(): JSX.Element {
                   </td>
                   <td style={{ color: "#64748b", fontSize: 12 }}>
                     {formatUserDateTime(r.updatedAt)}
+                  </td>
+                  <td>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <AutomationRuleToggle
+                        rule={r}
+                        canManage={canManage}
+                        onChanged={() => {
+                          setLastAction(null);
+                          reload();
+                        }}
+                      />
+                      <button
+                        type="button"
+                        data-automation-rule-edit={r.id}
+                        onClick={() => {
+                          setLastAction(null);
+                          setFormMode({ kind: "edit", ruleId: r.id });
+                        }}
+                        disabled={!canManage || !teamId}
+                        aria-label={`Edit automation rule ${r.name}`}
+                        title={
+                          canManage
+                            ? undefined
+                            : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+                        }
+                        style={newRuleButtonStyle(!canManage || !teamId)}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -388,6 +543,20 @@ function AutomationPageInner(): JSX.Element {
       </section>
     </main>
   );
+}
+
+function newRuleButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "4px 10px",
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    color: "#0f172a",
+    fontWeight: 600,
+    fontSize: 12,
+    borderRadius: 6,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,26 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { apiFetch } from "../api";
+import { apiBaseUrl, apiFetch } from "../api";
+
+/**
+ * PHASE 13 §C — NEW-028. The API returns `bytesUrl` as a RELATIVE path
+ * (`/v1/evidence/…/derived-assets/…/bytes?teamId=…`) and this hook passed it
+ * through verbatim into an image element's source. The API is a different
+ * origin, so every
+ * derived-asset thumbnail resolved against the Next origin and 404'd — the
+ * panel’s own error handler then rendered the failed state, which is why it
+ * looked like the assets were missing rather than the URL being wrong.
+ *
+ * Normalised here, once, rather than at each render site: the two image
+ * elements are not the contract, the URL is.
+ */
+function normalizeAssetUrls<T extends { bytesUrl: string | null }>(rows: T[]): T[] {
+  const base = apiBaseUrl().replace(/\/+$/, "");
+  return rows.map((r) =>
+    r.bytesUrl && r.bytesUrl.startsWith("/") ? { ...r, bytesUrl: `${base}${r.bytesUrl}` } : r,
+  );
+}
 
 export type DerivedAssetKind =
   | "image_thumbnail"
@@ -97,7 +116,7 @@ export function useDerivedAssets(
         `/v1/evidence/${encodeURIComponent(evidenceId)}/derived-assets?teamId=${encodeURIComponent(teamId)}`,
       )) as { evidenceId: string; assets: DerivedAssetRow[] };
       if (!mountedRef.current) return;
-      setState({ loading: false, assets: res.assets ?? [], error: null });
+      setState({ loading: false, assets: normalizeAssetUrls(res.assets ?? []), error: null });
     } catch (err) {
       if (!mountedRef.current) return;
       const code =

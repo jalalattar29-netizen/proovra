@@ -925,7 +925,10 @@ export async function openAccessReview(
     );
   const activeMembers = await client.collaborationTeamMember.findMany({
     where: { teamId: input.teamId, status: "ACTIVE" },
-    select: { id: true },
+    // PHASE 13 §4 (2026-08-17) — `userId` is selected alongside `id` so the
+    // notification fan-out below needs no second read: the item rows key on the
+    // membership id, the notifications key on the user.
+    select: { id: true, userId: true },
   });
   const result = await client.$transaction(async (tx) => {
     const review = await tx.collaborationTeamAccessReview.create({
@@ -955,6 +958,32 @@ export async function openAccessReview(
       targetType: "ACCESS_REVIEW",
       targetId: review.id,
       metadata: { itemCount: activeMembers.length },
+    });
+    // PHASE 13 §4 (2026-08-17) — tell the members whose access is being
+    // reviewed.
+    //
+    // `ACCESS_REVIEW_OPENED` is one of the ten declared
+    // `CollaborationTeamNotificationType` values and was one of the nine with no
+    // producer, while two live surfaces read the table it writes: the team
+    // collaboration console's NotificationsCard and the Operations-Center
+    // unified inbox, whose own comment promises exactly this class of row.
+    // `emitTeamNotifications` existed to fan these out and was reached by
+    // nothing.
+    //
+    // Inside the transaction on purpose: an access review that exists without
+    // having told anyone is worse than one that was never opened, so the
+    // notifications commit with the review and its items or not at all. The
+    // helper filters the actor out of its own recipient list.
+    await emitTeamNotifications(tx, {
+      teamId: input.teamId,
+      workspaceId: team.workspaceId,
+      actorUserId: input.actorUserId,
+      recipientUserIds: activeMembers.map((m) => m.userId),
+      type: "ACCESS_REVIEW_OPENED",
+      title: "Access review opened",
+      body: "Your membership of this team is included in a new access review.",
+      targetType: "ACCESS_REVIEW",
+      targetId: review.id,
     });
     return { id: review.id, itemCount: activeMembers.length };
   });

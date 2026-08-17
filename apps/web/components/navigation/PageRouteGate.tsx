@@ -82,6 +82,25 @@ export function PageRouteGate({
     isPlatformAdmin: envelope?.platform?.isPlatformAdmin === true,
     capabilities: envelope?.capabilities ?? {},
     accountPlan: envelope?.account?.accountPlan ?? null,
+    /**
+     * PHASE 13 (NEW-033) — the enterprise and plan-feature inputs.
+     *
+     * These were NOT passed, and `resolveRouteAccess` is deliberately
+     * fail-closed about them: `routeRequiresEnterpriseWorkspace(route)` denies
+     * with NEEDS_UPGRADE unless `isEnterpriseWorkspace === true`, and an
+     * absent input is not `true`. So every id in `ENTERPRISE_ONLY_ROUTE_IDS`
+     * was refused AT THE PAGE for genuine ENTERPRISE workspaces — governance
+     * platform, destruction governance, intelligence, redaction review — while
+     * the sidebar, All Tools and the command palette, which DO pass both
+     * inputs, went on showing the link. The user saw a working navigation item
+     * that always landed on an upgrade panel.
+     *
+     * The same two fields, read the same way, as the four callers that were
+     * already correct: `AppSidebarV2.tsx`, `tools/page.tsx`,
+     * `CommandPalette.tsx` and `settings/page.tsx`.
+     */
+    isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
+    planFeatures: envelope?.planFeatures ?? null,
     // PERSONAL-FIRST RESCUE — pass envelope fragments so the gate
     // can fall back to workspace.id / personalSpace.id when
     // activeSpace.type is missing from the backend projection.

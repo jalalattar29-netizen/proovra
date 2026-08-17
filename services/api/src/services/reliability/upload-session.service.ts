@@ -183,26 +183,6 @@ export async function safeTransitionUploadSession(
     () => null,
   );
 }
-
-/**
- * Heartbeat — bump `lastActivityAtUtc` without changing the state.
- * Useful when the client uploads a part: we want to keep the stalled
- * sweeper from picking the row up. Self-noop transition.
- */
-export async function recordUploadActivity(
-  evidenceId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  try {
-    await client.uploadSession.updateMany({
-      where: { evidenceId },
-      data: { lastActivityAtUtc: new Date() },
-    });
-  } catch {
-    /* never fail upload on heartbeat */
-  }
-}
-
 // -----------------------------------------------------------------------------
 // Read helpers — used by the /operations/reliability UI.
 // -----------------------------------------------------------------------------

@@ -13,8 +13,11 @@
  *     "already scheduled" — bumping `reviewer_reminder_duplicate_blocked_total`.
  *   - `safeSummary` is bounded (400 chars) and scrubbed against the
  *     forbidden-overclaim phrase catalog.
- *   - Notification dispatch is best-effort; failure marks the row
- *     FAILED but does NOT throw.
+ *   - Reminders are SCHEDULED only. This engine has no dispatcher: no
+ *     notification is sent from here, and a scheduled row stays SCHEDULED.
+ *     (Corrected 2026-08-17, Phase 13 §4 — the previous wording, "notification
+ *     dispatch is best-effort; failure marks the row FAILED", described a
+ *     delivery path that was never built.)
  *   - No private reviewer note text in any field. No legal-hold
  *     reason. No raw evidence content.
  */
@@ -200,55 +203,28 @@ export async function scheduleReminder(
 }
 
 // -----------------------------------------------------------------------------
-// Public — markReminderDelivered / markReminderFailed
+// PHASE 13 §4 (2026-08-17) — `markReminderDelivered` and `markReminderFailed`
+// were REMOVED here.
+//
+// The manifest recorded them as waiting on a dispatcher that "does not report
+// delivery outcomes back to the reminder engine". Reading the tree, the gap is
+// larger than that: there is no dispatcher. Nothing selects due reminders,
+// nothing sends one, nothing consumes `communicationMessageId`. The engine
+// SCHEDULES — `sweepDueSoonReminders` and `sweepInactivityReminders` create rows
+// with status SCHEDULED through `scheduleReminder`, driven for real by the
+// cron-secret reconcile route — and the row is never touched again. Three of the
+// four values in the status vocabulary (DELIVERED, FAILED, SUPPRESSED) are
+// unreachable in production, and the reviewer-ops runtime probe’s status
+// `groupBy` will forever report a 100% SCHEDULED distribution.
+//
+// So these were not two functions one call away from being live; they were the
+// outcome half of a delivery mechanism that does not exist. Keeping executable
+// writers warm for it makes the reminder engine look like it delivers reminders.
+// The capability is recorded as a backlog item in
+// `docs/architecture/program-ledger.md` — a due-reminder selector, a
+// notification send, and an outcome callback are one unit of work, and when it
+// is built these two transitions are the smallest part of it.
 // -----------------------------------------------------------------------------
-
-export async function markReminderDelivered(
-  input: {
-    teamId: string;
-    reminderId: string;
-    communicationMessageId?: string | null;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  await client.reviewerOpsReminder.updateMany({
-    where: { id: input.reminderId, teamId: input.teamId },
-    data: {
-      status: "DELIVERED",
-      communicationMessageId: input.communicationMessageId ?? null,
-    },
-  });
-  bump("reviewer_reminder_delivered_total");
-  safeEmitSecurityEvent({
-    teamId: input.teamId,
-    eventType: "reviewer_reminder_delivered",
-    severity: "INFO",
-    details: {
-      reminderId: input.reminderId,
-      communicationMessageId: input.communicationMessageId ?? null,
-    },
-  });
-}
-
-export async function markReminderFailed(
-  input: { teamId: string; reminderId: string; reason: string },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  await client.reviewerOpsReminder.updateMany({
-    where: { id: input.reminderId, teamId: input.teamId },
-    data: { status: "FAILED" },
-  });
-  bump("reviewer_reminder_failed_total");
-  safeEmitSecurityEvent({
-    teamId: input.teamId,
-    eventType: "reviewer_reminder_failed",
-    severity: "WARNING",
-    details: {
-      reminderId: input.reminderId,
-      reason: input.reason.slice(0, 160),
-    },
-  });
-}
 
 // -----------------------------------------------------------------------------
 // Public — sweepDueSoonReminders + sweepInactivityReminders.

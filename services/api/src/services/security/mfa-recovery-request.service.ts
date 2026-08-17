@@ -886,6 +886,36 @@ export async function rejectRecoveryRequest(
 // MARK COMPLETED
 // ---------------------------------------------------------------------------
 
+/**
+ * PHASE 13 §4 (2026-08-17) — the APPROVED → COMPLETED transition, and the only
+ * terminal state an approved recovery request can reach.
+ *
+ * WHAT "COMPLETED" MEANS HERE
+ * ---------------------------------------------------------------------------
+ * Approval already did the destructive work: `approveRecoveryRequest` revokes
+ * every ACTIVE factor and batch-invalidates the outstanding recovery codes in
+ * one transaction. What APPROVED then means is "this user is entitled to walk
+ * back in through enrollment". The moment they actually do — a fresh factor
+ * verified and activated — the entitlement has been spent, and the row must say
+ * so. Left APPROVED it keeps standing as a live, admin-blessed permission to
+ * re-enroll, and every later read of the queue reports a recovery that is still
+ * in flight when it finished days ago.
+ *
+ * WHY THE CLAIM IS PER-ROW AND CONDITIONAL
+ * ---------------------------------------------------------------------------
+ * The previous revision read the APPROVED rows, then issued one blanket
+ * `updateMany`, then emitted one security event per row it had READ. Two
+ * concurrent completions therefore both read the same rows and both emitted —
+ * one closure, two "mfa_recovery_completed" events, and a `completed` count that
+ * described the read rather than the write. That is the read-then-write shape
+ * this repository has already been corrected for elsewhere.
+ *
+ * Each row is now claimed on its own with `status: "APPROVED"` in the WHERE and
+ * the AFFECTED COUNT as the authority: `count === 1` means this caller performed
+ * the transition and may emit; `count === 0` means someone else got there first
+ * and this caller does nothing. Exactly one effect per request, whatever the
+ * concurrency.
+ */
 export async function markRecoveryCompleted(input: {
   userId: string;
 }): Promise<{ completed: number }> {
@@ -894,14 +924,18 @@ export async function markRecoveryCompleted(input: {
     select: { id: true, teamId: true },
   });
   if (approved.length === 0) return { completed: 0 };
-  await prisma.mfaRecoveryRequest.updateMany({
-    where: {
-      userId: input.userId,
-      status: "APPROVED",
-    },
-    data: { status: "COMPLETED", completedAtUtc: new Date() },
-  });
+  const completedAtUtc = new Date();
+  let completed = 0;
   for (const a of approved) {
+    // The lease predicate. `status: "APPROVED"` in the WHERE is what makes this
+    // a claim rather than an overwrite — a row already COMPLETED (or EXPIRED,
+    // or CANCELLED) by a racing caller matches nothing and yields count 0.
+    const claim = await prisma.mfaRecoveryRequest.updateMany({
+      where: { id: a.id, status: "APPROVED" },
+      data: { status: "COMPLETED", completedAtUtc },
+    });
+    if (claim.count === 0) continue;
+    completed += 1;
     safeEmitSecurityEvent({
       teamId: a.teamId,
       eventType: "mfa_recovery_completed",
@@ -909,7 +943,7 @@ export async function markRecoveryCompleted(input: {
       details: { actorUserId: input.userId, requestId: a.id },
     });
   }
-  return { completed: approved.length };
+  return { completed };
 }
 
 // ---------------------------------------------------------------------------
@@ -1143,42 +1177,19 @@ export async function listRecoveryRequestApprovals(input: {
 // scheduled cleanup helper
 // ---------------------------------------------------------------------------
 
-/**
- * Bounded scheduled sweep. Flips rows whose `expiresAt` has passed
- * AND whose state is one of the in-flight preflight states to
- * EXPIRED. Also flips EMAIL_VERIFICATION_PENDING rows whose
- * `emailVerificationExpiresAt` is past — even if the overall TTL
- * has time left, an expired email link means the request is dead
- * (the user must request a fresh one).
- */
-export async function expireStaleRecoveryRequests(
-  options: { take?: number } = {},
-): Promise<{ expired: number }> {
-  const take = Math.max(1, Math.min(options.take ?? 100, 500));
-  const now = new Date();
-  const stale = await prisma.mfaRecoveryRequest.findMany({
-    where: {
-      status: { in: ["EMAIL_VERIFICATION_PENDING", "PENDING_ADMIN_REVIEW"] },
-      OR: [
-        { expiresAt: { lt: now } },
-        {
-          status: "EMAIL_VERIFICATION_PENDING",
-          emailVerificationExpiresAt: { lt: now },
-        },
-      ],
-    },
-    select: { id: true },
-    take,
-  });
-  if (stale.length === 0) return { expired: 0 };
-  const r = await prisma.mfaRecoveryRequest.updateMany({
-    where: {
-      id: { in: stale.map((s) => s.id) },
-      status: {
-        in: ["EMAIL_VERIFICATION_PENDING", "PENDING_ADMIN_REVIEW"],
-      },
-    },
-    data: { status: "EXPIRED" },
-  });
-  return { expired: r.count };
-}
+// PHASE 13 §4 (2026-08-17) — `expireStaleRecoveryRequests` was REMOVED here.
+//
+// The preservation manifest kept it on the stated ground that
+// `services/worker/src/mfa-challenge-gc.ts` "performs a DIFFERENT expiry
+// (challenges), so this is not a duplicate authority". Reading that file
+// disproves it: step 2 of `runMfaChallengeGc` selects
+// `status IN ('EMAIL_VERIFICATION_PENDING','PENDING_ADMIN_REVIEW')` with the
+// same `expiresAt < now OR emailVerificationExpiresAt < now` disjunction, then
+// re-checks the status in the WHERE of the `updateMany` to EXPIRED — the same
+// query, the same states, the same race guard, bounded at 200 rows a tick and
+// armed every fifteen minutes from the worker's boot chain.
+//
+// The expiry sweep is therefore ARMED and has been; what stood here was its
+// second copy, reachable from nothing. The worker GC is the single expiry
+// authority for this table. `markRecoveryCompleted` above is the other terminal
+// transition and is now wired to real enrolment.

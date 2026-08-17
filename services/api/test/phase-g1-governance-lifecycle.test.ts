@@ -33,9 +33,6 @@ function stripComments(src: string): string {
 const RETENTION_ENGINE = readSource(
   "../src/services/governance-lifecycle/retention-engine.service.ts",
 );
-const TENANCY_RESOLVER = readSource(
-  "../src/services/organization/tenancy-resolver.service.ts",
-);
 const EVIDENCE_ROUTES = readSource("../src/routes/evidence.routes.ts");
 const METRICS_CATALOG = readSource(
   "../../../packages/shared-runtime/src/ops/metrics.service.ts",
@@ -122,23 +119,6 @@ describe("Phase G1 — tenancy observability metrics", () => {
     expect(METRICS_CATALOG).toContain('"cross_org_resolution_blocked_total"');
   });
 
-  it("tenancy resolver bumps failure metric on team_not_found", () => {
-    expect(TENANCY_RESOLVER).toMatch(
-      /bump\(\s*"tenancy_resolution_failure_total"\s*\)[\s\S]*?team_not_found/,
-    );
-  });
-
-  it("tenancy resolver bumps orphan metric on team_org_missing", () => {
-    expect(TENANCY_RESOLVER).toMatch(
-      /bump\(\s*"orphan_governance_object_total"\s*\)[\s\S]*?team_org_missing/,
-    );
-  });
-
-  it("tenancy resolver bumps disagreement + cross_org_blocked on tenancy_disagreement", () => {
-    expect(TENANCY_RESOLVER).toMatch(
-      /bump\(\s*"tenancy_disagreement_total"\s*\);\s*\n\s*bump\(\s*"cross_org_resolution_blocked_total"\s*\)/,
-    );
-  });
 });
 
 // ===========================================================================
@@ -412,4 +392,24 @@ describe("Phase G1 — vocabulary discipline", () => {
       });
     }
   }
+});
+
+// =============================================================================
+// LEGACY-003 — removed module contract
+// =============================================================================
+
+/**
+ * LEGACY-003 (2026-08-15) REMOVED `src/services/organization/tenancy-resolver.service.ts` as a caller-less second tenancy authority; see the Phase A1 suite for the full reasoning.
+ */
+describe("Phase G1 — tenancy resolver stays removed", () => {
+  it("the removed module(s) stay removed", () => {
+    for (const rel of [
+      "../src/services/organization/tenancy-resolver.service.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
+    }
+  });
 });

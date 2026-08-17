@@ -34,11 +34,36 @@
  * computed specifier cannot be followed by any static tool, so the entrypoint
  * list below includes every module that owns one — recorded as data, not
  * inferred, so the blind spot is visible rather than silent.
+ *
+ * PHASE 13 (NEW-047, 2026-08-17) — THE EDGES ARE READ FROM THE SYNTAX TREE.
+ * ---------------------------------------------------------------------------
+ * They used to be read by a regular expression with a 400-CHARACTER WINDOW
+ * between the `import`/`export` keyword and its `from "…"`:
+ *
+ *     /(?:^|\n)\s*(?:import|export)[\s\S]{0,400}?from\s*["']([^"']+)["']/g
+ *
+ * A six-line comment written INSIDE a re-export brace list pushed one statement
+ * past that window. The edge to `rbac.service.ts` stopped being followed and a
+ * 940-line RBAC lifecycle authority was reported as an unreachable production
+ * module — a finding produced entirely by the shape of a comment, with nothing
+ * about the runtime changed. Widening the window would only move the cliff.
+ *
+ * The edges now come from `moduleSpecifiersOf`, which reads the real
+ * `ImportDeclaration` / `ExportDeclaration` / `ImportEqualsDeclaration` /
+ * `import()` / `require()` nodes. A specifier inside a COMMENT produces no node
+ * at all, a specifier inside a STRING LITERAL is an ordinary expression and
+ * never a module specifier, and the distance between a keyword and its
+ * specifier is not a quantity this file can observe. Every computed specifier
+ * that a static tool genuinely cannot follow is COUNTED and REPORTED by
+ * `evaluate()` — the blind spot is a number in the output, never a silent
+ * assumption in either direction.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { moduleSpecifiersOf } from "./capability-authority/structural-reach.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const API_ROOT = path.resolve(HERE, "..");
@@ -149,28 +174,44 @@ const CORE_DISPOSITIONS = Object.freeze({
 });
 
 /**
- * PHASE 12 §3 CONTINUATION (LEGACY-003, 2026-08-07) — ANALYSED, NOT EXECUTED.
+ * PHASE 12 §3 CONTINUATION (LEGACY-003) — ANALYSED **AND EXECUTED** (closed
+ * 2026-08-15).
  *
- * The deletion was attempted in this session and REVERTED: removing these
- * twenty-four broke twenty-two source-contract suites that read them at load
- * time, and repairing all of those was beyond the remaining budget. Restoring
- * them was the honest choice over leaving a red tree.
+ * A previous pass analysed these twenty-four to a decision but reverted the
+ * deletion, because removing them broke the source-contract suites that read
+ * them at load time. They were parked in a separate `ANALYSED_PENDING_REMOVAL`
+ * constant for the reason `DISPOSITIONS` exists: a `REMOVED` row whose file is
+ * still on disk is a false statement, and the verifier would have been the
+ * thing telling it.
  *
- * They stay OUT of `DISPOSITIONS` for the reason that constant exists: a
- * `REMOVED` row whose file is still on disk is a false statement, and the
- * verifier would then be the thing telling it.
+ * The files are now gone and the dependent suites assert the truthful final
+ * disposition instead of reading a deleted module, so these rows have been
+ * merged into `DISPOSITIONS`. That merge is what ARMS the verifier's own
+ * "REMOVED but still on disk" refusal against them: if anyone restores one of
+ * these files without also retiring its row, this gate fails.
  *
- * Every entry below has had the five checks run before deletion: exact
- * importers, exported symbols, DB writes, queue/event ownership, and
- * route/UI/script/deployment references. All were zero.
+ * Every entry below had the five checks run before deletion — exact importers,
+ * exported symbols, DB writes, queue/event ownership, and
+ * route/UI/script/deployment references — and they were re-run mechanically at
+ * execution time. Two results are worth recording because they corrected the
+ * earlier analysis rather than confirming it:
  *
- * They were previously held in a separate `ANALYSED_PENDING_REMOVAL` constant
- * precisely because a `REMOVED` row whose file is still on disk is a false
- * statement. The files are gone, so the rows belong here now — and the
- * verifier's own "REMOVED but still on disk" refusal is what keeps that
- * honest.
+ *   - The six `media-intelligence`/`graph` entries are NOT duplicate
+ *     authorities. Each is a SIX-LINE re-export shim left by the Phase 31.22
+ *     boundary refactor, forwarding to the canonical implementation in
+ *     `@proovra/shared-runtime`. A shim that re-exports its canonical cannot
+ *     diverge from it, so the "two copies waiting to disagree" reading the
+ *     earlier pass recorded was wrong. They are removed because the migration
+ *     they scaffolded is COMPLETE — every importer now names the package.
+ *
+ *   - `transcript-foundations` and `ocr-foundations` really are unreachable
+ *     WRITERS (`$queryRawUnsafe` INSERTs, which a `prisma.create` scan misses),
+ *     and they are the ONLY inserters of their two tables. Removing them is
+ *     behaviour-neutral because an unreachable module never ran: the worker's
+ *     `search-indexing.processor` only stamps `indexed_at_utc` on existing rows
+ *     and is written to tolerate matching none.
  */
-export const ANALYSED_PENDING_REMOVAL = Object.freeze({
+export const EXECUTED_REMOVALS = Object.freeze({
   "services/api/src/middleware/require-enterprise-feature.ts": {
     disposition: "REMOVED",
     reason:
@@ -234,37 +275,37 @@ export const ANALYSED_PENDING_REMOVAL = Object.freeze({
   "services/api/src/services/graph/domain-sync.service.ts": {
     disposition: "REMOVED",
     reason:
-      "STALE TWIN. The canonical copy is `packages/shared-runtime/src/graph/domain-sync.service.ts`, which its own siblings import by RELATIVE path — so the package never reached this file, and neither did anything else. Zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. Two copies of one module is a duplicate authority waiting for the day they disagree.",
+      "COMPLETED-MIGRATION SHIM, not a duplicate authority. This file was six lines: a doc comment plus `export * from \"@proovra/shared-runtime/graph\"`, left by the Phase 31.22 boundary refactor to preserve the old api/src import path for the domain-sync graph projection while callers moved. Because it RE-EXPORTED `packages/shared-runtime/src/graph/domain-sync.service.ts` rather than copying it, the two could never disagree — the earlier pass recorded this as a stale twin and that reading was wrong. It is removed because the migration it scaffolded is COMPLETE: zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. The remaining test importers were migrated onto the package in the same pass.",
   },
   "services/api/src/services/media-intelligence/exif-extractor.service.ts": {
     disposition: "REMOVED",
     reason:
-      "STALE TWIN. The canonical copy is `packages/shared-runtime/src/media-intelligence/exif-extractor.service.ts`, which its own siblings import by RELATIVE path — so the package never reached this file, and neither did anything else. Zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. Two copies of one module is a duplicate authority waiting for the day they disagree.",
+      "COMPLETED-MIGRATION SHIM, not a duplicate authority. This file was six lines: a doc comment plus `export * from \"@proovra/shared-runtime/media-intelligence\"`, left by the Phase 31.22 boundary refactor to preserve the old api/src import path for the EXIF extractor while callers moved. Because it RE-EXPORTED `packages/shared-runtime/src/media-intelligence/exif-extractor.service.ts` rather than copying it, the two could never disagree — the earlier pass recorded this as a stale twin and that reading was wrong. It is removed because the migration it scaffolded is COMPLETE: zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. The remaining test importers were migrated onto the package in the same pass.",
   },
   "services/api/src/services/media-intelligence/exif-summary.service.ts": {
     disposition: "REMOVED",
     reason:
-      "STALE TWIN. The canonical copy is `packages/shared-runtime/src/media-intelligence/exif-summary.service.ts`, which its own siblings import by RELATIVE path — so the package never reached this file, and neither did anything else. Zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. Two copies of one module is a duplicate authority waiting for the day they disagree.",
+      "COMPLETED-MIGRATION SHIM, not a duplicate authority. This file was six lines: a doc comment plus `export * from \"@proovra/shared-runtime/media-intelligence\"`, left by the Phase 31.22 boundary refactor to preserve the old api/src import path for the EXIF summary reader while callers moved. Because it RE-EXPORTED `packages/shared-runtime/src/media-intelligence/exif-summary.service.ts` rather than copying it, the two could never disagree — the earlier pass recorded this as a stale twin and that reading was wrong. It is removed because the migration it scaffolded is COMPLETE: zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. The remaining test importers were migrated onto the package in the same pass.",
   },
   "services/api/src/services/media-intelligence/ocr-transcript-indexer.service.ts": {
     disposition: "REMOVED",
     reason:
-      "STALE TWIN. The canonical copy is `packages/shared-runtime/src/media-intelligence/ocr-transcript-indexer.service.ts`, which its own siblings import by RELATIVE path — so the package never reached this file, and neither did anything else. Zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. Two copies of one module is a duplicate authority waiting for the day they disagree.",
+      "COMPLETED-MIGRATION SHIM, not a duplicate authority. This file was six lines: a doc comment plus `export * from \"@proovra/shared-runtime/media-intelligence\"`, left by the Phase 31.22 boundary refactor to preserve the old api/src import path for the OCR/transcript indexer while callers moved. Because it RE-EXPORTED `packages/shared-runtime/src/media-intelligence/ocr-transcript-indexer.service.ts` rather than copying it, the two could never disagree — the earlier pass recorded this as a stale twin and that reading was wrong. It is removed because the migration it scaffolded is COMPLETE: zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. The remaining test importers were migrated onto the package in the same pass.",
   },
   "services/api/src/services/media-intelligence/producer-mode.ts": {
     disposition: "REMOVED",
     reason:
-      "STALE TWIN. The canonical copy is `packages/shared-runtime/src/media-intelligence/producer-mode.ts`, which its own siblings import by RELATIVE path — so the package never reached this file, and neither did anything else. Zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. Two copies of one module is a duplicate authority waiting for the day they disagree.",
+      "COMPLETED-MIGRATION SHIM, not a duplicate authority. This file was six lines: a doc comment plus `export * from \"@proovra/shared-runtime/media-intelligence\"`, left by the Phase 31.22 boundary refactor to preserve the old api/src import path for the producer-mode resolver while callers moved. Because it RE-EXPORTED `packages/shared-runtime/src/media-intelligence/producer-mode.ts` rather than copying it, the two could never disagree — the earlier pass recorded this as a stale twin and that reading was wrong. It is removed because the migration it scaffolded is COMPLETE: zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. The remaining test importers were migrated onto the package in the same pass.",
   },
   "services/api/src/services/media-intelligence/report-projection.service.ts": {
     disposition: "REMOVED",
     reason:
-      "STALE TWIN. The canonical copy is `packages/shared-runtime/src/media-intelligence/report-projection.service.ts`, which its own siblings import by RELATIVE path — so the package never reached this file, and neither did anything else. Zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. Two copies of one module is a duplicate authority waiting for the day they disagree.",
+      "COMPLETED-MIGRATION SHIM, not a duplicate authority. This file was six lines: a doc comment plus `export * from \"@proovra/shared-runtime/media-intelligence\"`, left by the Phase 31.22 boundary refactor to preserve the old api/src import path for the media report projection while callers moved. Because it RE-EXPORTED `packages/shared-runtime/src/media-intelligence/report-projection.service.ts` rather than copying it, the two could never disagree — the earlier pass recorded this as a stale twin and that reading was wrong. It is removed because the migration it scaffolded is COMPLETE: zero production importers, zero DB writes, zero queue or event ownership, no route/UI caller, no package script, no deployment reference. The remaining test importers were migrated onto the package in the same pass.",
   },
   "services/worker/src/report-v2/index.ts": {
     disposition: "REMOVED",
     reason:
-      "A barrel nothing imported. `services/worker/src/processor.ts` imports the CONCRETE report-v2 modules by path (`./report-v2/types.js`, `./report-v2/truth-model.js`, `./report-v2/build-report-pdf.js`), so the barrel re-exported a surface no caller used. Zero writes, zero queue ownership.",
+      "A barrel no PRODUCTION module imported. `services/worker/src/processor.ts` imports the CONCRETE report-v2 modules by path (`./report-v2/types.js`, `./report-v2/truth-model.js`, `./report-v2/build-report-pdf.js`), so the barrel re-exported a surface the runtime never used. Zero writes, zero queue ownership. CORRECTION at execution time: the earlier analysis recorded this as 'a barrel nothing imported', which was wrong — three worker TESTS imported it as the directory specifier `../src/report-v2`, a form a path-based grep for `report-v2/index` does not match. They were migrated onto the concrete modules, which is strictly better: they now exercise the same import paths production does.",
   },
   "services/worker/src/report-v2/sections/integrity-proof.ts": {
     disposition: "REMOVED",
@@ -293,8 +334,17 @@ export const ANALYSED_PENDING_REMOVAL = Object.freeze({
   },
 });
 
-/** The one manifest the evaluator reads. */
-export const DISPOSITIONS = CORE_DISPOSITIONS;
+/**
+ * The one manifest the evaluator reads.
+ *
+ * LEGACY-003 closure: the executed removals are merged in, so guard 3
+ * ("REMOVED but still on disk") now covers them. A restored file with a live
+ * REMOVED row fails this gate rather than quietly reappearing.
+ */
+export const DISPOSITIONS = Object.freeze({
+  ...CORE_DISPOSITIONS,
+  ...EXECUTED_REMOVALS,
+});
 
 const VALID = new Set(["CONNECTED", "REMOVED", "REGISTERED_CLI", "QUARANTINED"]);
 
@@ -362,29 +412,33 @@ function resolveSpecifier(fromAbs, spec) {
   return null;
 }
 
-const SPEC_PATTERNS = [
-  // import … from "x" / export … from "x" / import "x"
-  /(?:^|\n)\s*(?:import|export)[\s\S]{0,400}?from\s*["']([^"']+)["']/g,
-  /(?:^|\n)\s*import\s*["']([^"']+)["']/g,
-  // dynamic import with a LITERAL specifier only
-  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
-  /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
-];
+/**
+ * Per-file edge cache.
+ *
+ * The BFS visits a hub module once per entrypoint CLASS, and the production
+ * sweep visits every module again to collect unfollowable specifiers. Parsing
+ * `services/api/src` four times is seconds this gate does not need to spend,
+ * and — more importantly — a cache guarantees the reachability walk and the
+ * unresolved report are reading the SAME tree rather than two parses that could
+ * in principle disagree.
+ */
+const EDGE_CACHE = new Map();
 
-function specifiersOf(fileAbs) {
+function edgesOf(fileAbs) {
+  const key = rel(fileAbs);
+  const cached = EDGE_CACHE.get(key);
+  if (cached) return cached;
   let src;
   try {
     src = readFileSync(fileAbs, "utf8");
   } catch {
-    return [];
+    const empty = { edges: [], unresolved: [] };
+    EDGE_CACHE.set(key, empty);
+    return empty;
   }
-  const out = new Set();
-  for (const re of SPEC_PATTERNS) {
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(src)) !== null) out.add(m[1]);
-  }
-  return [...out];
+  const parsed = moduleSpecifiersOf(key, src);
+  EDGE_CACHE.set(key, parsed);
+  return parsed;
 }
 
 export function computeReachability() {
@@ -400,7 +454,7 @@ export function computeReachability() {
       if (seen.has(r)) continue;
       seen.add(r);
       reachable.add(r);
-      for (const spec of specifiersOf(cur)) {
+      for (const { spec } of edgesOf(cur).edges) {
         const next = resolveSpecifier(cur, spec);
         if (next) queue.push(next);
       }
@@ -410,7 +464,29 @@ export function computeReachability() {
 
   const production = PRODUCTION_ROOTS.flatMap((root) => walk(abs(root))).map(rel).sort();
   const unreachable = production.filter((p) => !reachable.has(p));
-  return { production, reachable, unreachable, reachableByClass };
+
+  /**
+   * The specifiers no static tool can follow, from every module this gate has
+   * an opinion about: everything the BFS reached, plus every production module
+   * (a computed import in a module nothing reaches is still a fact about the
+   * tree, and hiding it would let a blind spot arrive unnoticed).
+   *
+   * Reported as DATA. A gate that silently treats an unfollowable edge as
+   * "followed" over-reports reachability; one that treats it as "absent"
+   * under-reports it. Neither is a measurement, so the count is published and
+   * `evaluate()` refuses on every entry — there is no exemption list.
+   */
+  const unresolvedSpecifiers = [];
+  const inspected = new Set([...reachable, ...production]);
+  for (const file of [...inspected].sort()) {
+    const p = abs(file);
+    if (!existsSync(p)) continue;
+    for (const u of edgesOf(p).unresolved) {
+      unresolvedSpecifiers.push({ file, ...u });
+    }
+  }
+
+  return { production, reachable, unreachable, reachableByClass, unresolvedSpecifiers };
 }
 
 // ===========================================================================
@@ -418,8 +494,32 @@ export function computeReachability() {
 // ===========================================================================
 
 export function evaluate() {
-  const { production, reachable, unreachable, reachableByClass } = computeReachability();
+  const { production, reachable, unreachable, reachableByClass, unresolvedSpecifiers } =
+    computeReachability();
   const problems = [];
+
+  /**
+   * 0. AN EDGE THIS TOOL CANNOT FOLLOW IS A REFUSAL, NOT A ROUNDING ERROR.
+   *
+   * Every other verdict below rests on the graph being complete. A computed
+   * specifier is the one place completeness can fail, and there is no safe
+   * default: treating it as followed over-reports reachability, treating it as
+   * absent under-reports it, and treating it as "probably fine" is how a
+   * 940-line authority came to be reported dead in the first place.
+   *
+   * There is deliberately NO exemption list here. The tree currently has none
+   * of these — the two optional-dependency imports that look computed are
+   * `const` bindings the parser can fold — so the honest arming of this gate is
+   * an unconditional refusal. If a genuinely dynamic specifier is introduced,
+   * this fails and someone has to decide what it means, in writing.
+   */
+  for (const u of unresolvedSpecifiers) {
+    problems.push(
+      `UNFOLLOWABLE module specifier (${u.kind}) at ${u.file}:${u.line} — \`${u.expression}\`. ` +
+        "The import graph cannot be complete while this edge is unknown; either make the specifier " +
+        "statically readable or add the owning module to ENTRYPOINTS as a declared blind spot.",
+    );
+  }
 
   // Structural: every disposition names a valid class.
   for (const [file, d] of Object.entries(DISPOSITIONS)) {
@@ -463,8 +563,8 @@ export function evaluate() {
 
   // 3. A REMOVED module must be gone. `DISPOSITIONS` holds only EXECUTED
   //    dispositions, so any REMOVED row here that still exists is a lie the
-  //    manifest is telling; the analysed-but-unexecuted plan lives in
-  //    `ANALYSED_PENDING_REMOVAL` and is counted as unclassified instead.
+  //    manifest is telling — including the LEGACY-003 removals, which are
+  //    merged in precisely so this refusal covers them.
   const stillPresent = [];
   for (const [file, d] of Object.entries(DISPOSITIONS)) {
     if (d.disposition !== "REMOVED") continue;
@@ -475,9 +575,9 @@ export function evaluate() {
   }
   // A file cannot be dispositioned twice — that would let a reader see
   // whichever answer they preferred.
-  for (const file of Object.keys(ANALYSED_PENDING_REMOVAL)) {
+  for (const file of Object.keys(EXECUTED_REMOVALS)) {
     if (file in CORE_DISPOSITIONS) {
-      problems.push(`${file} appears in BOTH the manifest and the pending plan`);
+      problems.push(`${file} carries TWO dispositions (core manifest + removals)`);
     }
   }
 
@@ -497,9 +597,17 @@ export function evaluate() {
     ProductionModules: production.length,
     ReachableProductionModules: production.length - unreachable.length,
     UnreachableProductionModules: unreachable.length,
+    UnfollowableModuleSpecifiers: unresolvedSpecifiers.length,
   };
 
-  return { ok: problems.length === 0, problems, counters, unreachable, reachableByClass };
+  return {
+    ok: problems.length === 0,
+    problems,
+    counters,
+    unreachable,
+    reachableByClass,
+    unresolvedSpecifiers,
+  };
 }
 
 function main() {
@@ -510,6 +618,7 @@ function main() {
         ok: r.ok,
         counters: r.counters,
         unreachable: r.unreachable,
+        unresolvedSpecifiers: r.unresolvedSpecifiers,
         dispositions: Object.fromEntries(
           Object.entries(DISPOSITIONS).map(([k, v]) => [k, v.disposition]),
         ),

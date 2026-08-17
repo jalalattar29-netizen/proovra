@@ -224,12 +224,21 @@ describe("Phase 25 — route layer auth posture", () => {
   });
 
   it("reconcile route is cron-secret protected (NOT requireAuth)", () => {
+    // FINAL-003 (2026-08-15). The block used to be delimited by the first
+    // `});`, which happened to land just past the inline `!==` comparison this
+    // route used to carry. Routing the comparison through the canonical
+    // constant-time primitive moved that brace, and the assertion started
+    // reading a fragment that stopped before the guard — passing or failing on
+    // where a closing brace fell rather than on what the route enforces. The
+    // block is now delimited by the end of the `app.post(...)` call.
     const reconcileBlock = src.match(
-      /\/v1\/reviewer-ops\/reconcile["'][\s\S]*?\}\);/,
+      /"\/v1\/reviewer-ops\/reconcile"[\s\S]*?\n {2}\);/,
     );
     expect(reconcileBlock).toBeTruthy();
-    // Must check x-cron-secret header.
+    // Must present the scheduler's shared-secret header to the canonical
+    // constant-time comparison — never a raw `!==` on the header value.
     expect(reconcileBlock?.[0]).toMatch(/x-cron-secret/);
+    expect(reconcileBlock?.[0]).toMatch(/cronSecretMatches/);
     expect(reconcileBlock?.[0]).toMatch(/REVIEWER_OPS_CRON_SECRET/);
     // Must NOT preHandler: requireAuth.
     const reconcileHeader = src.match(

@@ -28,6 +28,13 @@ import {
   recordRequests,
   sql,
 } from "./_harness";
+// The denial codes are read from the SERVER-layer contract rather than
+// restated here. The two drifted once already: ARCH-001 renamed the
+// owned-workspace limit code to name the workspace SHAPE, the server contract
+// was updated, and this spec kept asserting the pre-rename spelling — which
+// stayed invisible until the browser layer was re-executed. One authority
+// means a future rename cannot pass the server layer and fail here.
+import { DENIAL_CODES } from "../../services/api/test/point7/plan-contract";
 
 const SUITE = "e2e/point7/plan-journeys.spec.ts";
 const proven = (id: string) => provenBrowserScenario(SUITE, id);
@@ -409,7 +416,7 @@ test.describe("PRO", () => {
       body: { name: "p7 browser pro over" },
     });
     expect(denied.status).toBeGreaterThanOrEqual(400);
-    expect(denied.body).toContain("TEAM_WORKSPACE_LIMIT_REACHED");
+    expect(denied.body).toContain(DENIAL_CODES.ownedWorkspaceLimitReached);
     // Over-limit denies the additive action; the existing workspaces survive.
     const after = await sql<{ id: string }>(
       `SELECT id FROM teams WHERE owner_user_id = $1 AND is_personal = false`,

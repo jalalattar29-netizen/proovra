@@ -459,6 +459,7 @@ function VersionWorkspace({
           />
           <VideoReviewWorkspace
             evidenceId={project.evidenceId}
+            versionId={version.id}
             versionLocked={version.state !== "DRAFT"}
             onChanged={onChanged}
           />

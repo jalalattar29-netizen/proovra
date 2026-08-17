@@ -35,6 +35,11 @@ const MIGRATION = readApi(
 );
 const QUEUE = readApi("src/services/dashboard/queue-telemetry.service.ts");
 const WORKER = readApi("src/services/dashboard/worker-telemetry.service.ts");
+/** The ONE writer of `WorkerTelemetrySnapshot` — see the note below. */
+const WORKER_SAMPLER = readFileSync(
+  fileURLToPath(new URL("../../worker/src/telemetry.ts", import.meta.url)),
+  "utf8",
+);
 const CASE_LINK = readApi("src/services/dashboard/case-evidence-link.service.ts");
 const TIMELINE = readApi("src/services/dashboard/operational-timeline.service.ts");
 const CASE_COMMENT = readApi("src/services/dashboard/case-comment.service.ts");
@@ -288,10 +293,27 @@ describe("Phase 32.8C+++++ — queue-telemetry.service.ts", () => {
 // =============================================================================
 
 describe("Phase 32.8C+++++ — worker-telemetry.service.ts", () => {
-  it("writer never throws and bounds workerId + lastErrorMessage", () => {
-    expect(WORKER).toMatch(/Advisory write — never throws/);
-    expect(WORKER).toMatch(/workerId:\s*sample\.workerId\.slice\(0,\s*120\)/);
-    expect(WORKER).toMatch(/sample\.lastErrorMessage\.slice\(0,\s*400\)/);
+  /**
+   * PHASE 13 §4 — the WRITER these assertions were about is not in this module.
+   *
+   * This file carried a second `workerTelemetrySnapshot.create` for "synthetic
+   * API-side stamps" that nothing in the tree ever called: a parallel authority
+   * over the same table with no caller. It was removed, and the assertions
+   * follow the writer rather than the filename — the sampler in
+   * `services/worker/src/telemetry.ts` is the ONE writer of this table, armed
+   * at boot by `startTelemetrySampler`.
+   *
+   * The property being held is unchanged and is now checked where it can
+   * actually fail: the worker id is bounded before it is written, and the row
+   * carries no free-text error field for a stack trace to leak through.
+   */
+  it("the one writer bounds workerId and never persists free-text error detail", () => {
+    expect(WORKER_SAMPLER).toMatch(/prisma\.workerTelemetrySnapshot\.create/);
+    expect(WORKER_SAMPLER).toMatch(/\.slice\(0,\s*120\)/);
+    expect(WORKER_SAMPLER).not.toMatch(/lastErrorMessage/);
+    // A telemetry hiccup must never be able to stop the worker sampling.
+    expect(WORKER_SAMPLER).toMatch(/catch\s*\(err\)\s*\{[\s\S]{0,120}logger\.warn/);
+    expect(WORKER).not.toMatch(/workerTelemetrySnapshot\.create/);
   });
 
   it("reader returns one row per workerKind (latest heartbeat)", () => {
@@ -303,9 +325,12 @@ describe("Phase 32.8C+++++ — worker-telemetry.service.ts", () => {
   });
 
   it("never projects raw stack traces, secrets, or signed URLs", () => {
-    expect(WORKER).toMatch(/No raw stack traces/);
+    // The reader is what faces the dashboard, so this is asserted about the
+    // projection rather than about a comment: nothing it selects can carry a
+    // storage key, a signed URL or an unbounded error string.
     expect(WORKER).not.toMatch(/storageKey/i);
     expect(WORKER).not.toMatch(/signedUrl/i);
+    expect(WORKER).not.toMatch(/stack/i);
   });
 });
 

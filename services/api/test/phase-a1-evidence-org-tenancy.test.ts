@@ -32,7 +32,7 @@
  *      disagreement (`tenancy_disagreement`) cleanly.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -50,10 +50,6 @@ const EVIDENCE_SERVICE = readSource("../src/services/evidence.service.ts");
 const WORKSPACE_BILLING = readSource(
   "../src/services/workspace-billing.service.ts",
 );
-const TENANCY_RESOLVER = readSource(
-  "../src/services/organization/tenancy-resolver.service.ts",
-);
-
 describe("Phase A1 — evidence org tenancy (source contract)", () => {
   it("migration UPDATEs evidence.organization_id from teams.organization_id", () => {
     expect(MIGRATION_SQL).toMatch(
@@ -141,44 +137,27 @@ describe("Phase A1 — evidence org tenancy (source contract)", () => {
     expect(buggyLine).toBeUndefined();
   });
 
-  it("tenancy-resolver helper surfaces the bounded TenancyResolutionError codes", () => {
-    expect(TENANCY_RESOLVER).toContain('"team_not_found"');
-    expect(TENANCY_RESOLVER).toContain('"team_org_missing"');
-    expect(TENANCY_RESOLVER).toContain('"tenancy_disagreement"');
-    expect(TENANCY_RESOLVER).toContain('"user_personal_team_missing"');
-    expect(TENANCY_RESOLVER).toContain('"invalid_input"');
-  });
+  // LEGACY-003 (2026-08-15): the read-only guarantee asserted here belonged to
+  // the REMOVED tenancy resolver. A module that does not exist writes nothing.
 
-  it("tenancy-resolver never creates organizations or teams", () => {
-    // Hard guarantee: the resolver is read-only. A future write would
-    // break the contract documented at the top of the file.
-    expect(TENANCY_RESOLVER).not.toMatch(/\.organization\.create\(/);
-    expect(TENANCY_RESOLVER).not.toMatch(/\.team\.create\(/);
-    expect(TENANCY_RESOLVER).not.toMatch(/\.evidence\.update\(/);
-  });
+});
 
-  it("tenancy-resolver supports the legacy personal-mode (no team, no org) flow", () => {
-    // The solo-user contract: when no teamId is provided AND no
-    // personal team is found, the resolver returns
-    // `source: "no_workspace"` with both fields null — never throws.
-    // This is the non-negotiable solo workflow.
-    expect(TENANCY_RESOLVER).toContain('"no_workspace"');
-    expect(TENANCY_RESOLVER).toMatch(
-      /source:\s*"no_workspace"[\s\S]*teamId:\s*null/,
-    );
-  });
+// =============================================================================
+// LEGACY-003 — removed module contract
+// =============================================================================
 
-  it("vocabulary discipline — no claims of organizations being owners of evidence content", () => {
-    // The tenancy resolver describes a structural relationship; it
-    // never claims an Organization "owns" the evidence as a factual
-    // matter. Keep the wording operational.
-    const banned = [
-      /\borganization\s+owns\s+evidence\b/i,
-      /\borg\s+owns\s+evidence\b/i,
-      /\bevidence\s+belongs\s+legally\s+to\b/i,
-    ];
-    for (const re of banned) {
-      expect(TENANCY_RESOLVER).not.toMatch(re);
+/**
+ * LEGACY-003 (2026-08-15) REMOVED `src/services/organization/tenancy-resolver.service.ts`. It resolved a Team's Organization id back when `teams.organization_id` was NULLABLE; Stage 6 made the column NOT NULL and every write path selects it directly, leaving this a lookup with no caller AND a second place that could decide which Organization a workspace belongs to. The Stage-6 invariant itself is still asserted in this file against the code that actually runs.
+ */
+describe("Phase A1 — tenancy resolver stays removed", () => {
+  it("the removed module(s) stay removed", () => {
+    for (const rel of [
+      "../src/services/organization/tenancy-resolver.service.ts",
+    ]) {
+      expect(
+        existsSync(fileURLToPath(new URL(rel, import.meta.url))),
+        `${rel} is REMOVED (LEGACY-003) and must not return`,
+      ).toBe(false);
     }
   });
 });

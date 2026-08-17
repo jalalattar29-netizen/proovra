@@ -249,11 +249,10 @@ describe("E5 Test 4 — existing safe surfaces stay aligned with the Trust Cente
       path: "src/report-v2/sections/cover.ts",
       reader: readWorker,
     },
-    {
-      label: "report-v2 integrity-proof",
-      path: "src/report-v2/sections/integrity-proof.ts",
-      reader: readWorker,
-    },
+    // LEGACY-003 (2026-08-15): "report-v2 integrity-proof" was REMOVED — it was
+    // reachable only through a barrel production does not import (processor.ts
+    // names the concrete section modules directly), so it never rendered into
+    // any report and could not carry a claim to sweep.
     {
       label: "report-v2 legal-interpretation",
       path: "src/report-v2/sections/legal-interpretation.ts",

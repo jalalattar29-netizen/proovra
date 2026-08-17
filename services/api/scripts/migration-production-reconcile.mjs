@@ -10,10 +10,26 @@
  *
  *   node services/api/scripts/migration-production-reconcile.mjs <snapshot.json> [--write]
  *
- * `--write` folds the result into docs/architecture/migration-inventory-p6.json
- * (prodApplied / prodChecksum / prodStatus per record, plus the production
- * snapshot block and the conservation split). Without it the reconciliation is
- * printed and nothing is modified.
+ * `--write` records the result in docs/architecture/migration-production-
+ * reconciliation.json (prodApplied / prodChecksum / prodStatus per record, plus
+ * the production snapshot block and the conservation split). Without it the
+ * reconciliation is printed and nothing is modified.
+ *
+ * PHASE 0 §8 — WHY THIS WRITES A SIDECAR AND NOT THE INVENTORY.
+ *
+ * `--write` used to fold its result directly into migration-inventory-p6.json,
+ * which gave that artifact two producers: this script and the inventory
+ * generator. Two writers is two authorities, and the split was already losing
+ * data — `buildInventory()` resets `prodApplied` to UNKNOWN on every run, so a
+ * reconciliation's per-migration fields survived only until the next inventory
+ * regeneration, while the snapshot block was carried forward by the generator
+ * READING ITS OWN PREVIOUS OUTPUT. Both halves of the Phase-0 §3 defect, in one
+ * file pair.
+ *
+ * Now the reconciliation is its own artifact with its own producer, and the
+ * inventory generator READS it as an input from another domain. The inventory's
+ * published shape is unchanged, so the Point-6 closure gate, the deploy
+ * materialiser and the curation file all continue to see what they saw.
  *
  * Exit 0 only when every required metric is zero.
  */
@@ -24,6 +40,12 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../..");
 const INVENTORY_PATH = join(REPO, "docs", "architecture", "migration-inventory-p6.json");
+const RECONCILIATION_PATH = join(
+  REPO,
+  "docs",
+  "architecture",
+  "migration-production-reconciliation.json",
+);
 
 function main() {
   const snapshotPath = process.argv[2];
@@ -259,25 +281,38 @@ function main() {
     metrics.MigrationInventoryDuplicates;
 
   if (write) {
+    const perMigration = {};
     for (const m of inventory.migrations) {
       const p = prod.get(m.name);
-      m.prodApplied = p ? p.status === "APPLIED" : false;
-      m.prodChecksum = p?.checksum ?? null;
-      m.prodStatus = p?.status ?? "NOT_PRESENT";
+      perMigration[m.name] = {
+        prodApplied: p ? p.status === "APPLIED" : false,
+        prodChecksum: p?.checksum ?? null,
+        prodStatus: p?.status ?? "NOT_PRESENT",
+      };
     }
-    inventory.productionSnapshot = {
-      state: "RECONCILED",
-      collectedAtUtc: snapshot.collectedAtUtc,
-      target: snapshot.target,
-      postgresVersion: snapshot.postgres?.version ?? null,
-      extensions: snapshot.extensions,
-      rows: prodRows.length,
-      reconciliation: result,
+    const artifact = {
+      $schema: "proovra/p6-production-reconciliation@1",
+      generatedBy: "services/api/scripts/migration-production-reconcile.mjs",
+      authority:
+        "CANONICAL production-reconciliation record for PHASE 12 POINT 6. The migration INVENTORY is a separate authority with its own producer; it READS this file to publish `productionSnapshot` and the per-migration prod fields. Do not fold this back into the inventory — one artifact, one producer.",
+      productionSnapshot: {
+        state: "RECONCILED",
+        collectedAtUtc: snapshot.collectedAtUtc,
+        target: snapshot.target,
+        postgresVersion: snapshot.postgres?.version ?? null,
+        extensions: snapshot.extensions,
+        rows: prodRows.length,
+        reconciliation: result,
+      },
+      conservation: result.conservation,
+      metrics,
+      perMigration,
     };
-    inventory.conservation = { ...inventory.conservation, ...result.conservation };
-    inventory.metrics = { ...inventory.metrics, ...metrics };
-    writeFileSync(INVENTORY_PATH, `${JSON.stringify(inventory, null, 2)}\n`, "utf8");
-    process.stderr.write(`reconcile: folded into ${INVENTORY_PATH}\n`);
+    writeFileSync(RECONCILIATION_PATH, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+    process.stderr.write(
+      `reconcile: wrote ${RECONCILIATION_PATH}\n` +
+        "reconcile: publish it into the inventory with `pnpm --filter proovra-api db:migration-inventory:write`\n",
+    );
   }
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

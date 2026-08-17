@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AI_CHAT_LIMITS, type AiChatAbuseReason } from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -295,7 +296,9 @@ export async function aiRoutes(app: FastifyInstance) {
       }
 
       const ipRate = await enforceRateLimit({
-        key: `ratelimit:ai-chat:ip:${req.ip}`,
+        // PHASE 13 §1 (NEW-022) — SECURITY_BOUND: key on the canonical resolved
+        // client, not raw `req.ip`, so a forwarded header cannot mint buckets.
+        key: `ratelimit:ai-chat:ip:${trustedClientIpKey(req)}`,
         max: AI_CHAT_LIMITS.RATE_LIMIT_IP_PER_MIN,
         windowSec: 60,
       });

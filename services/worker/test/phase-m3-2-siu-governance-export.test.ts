@@ -239,10 +239,16 @@ describe("M3.2 — frontend panel", () => {
     expect(src).toContain('data-testid="siu-export-download-link"');
   });
 
-  it("download href targets the bounded download endpoint", () => {
-    expect(src).toContain(
-      "/v1/cases/${caseId}/siu-exports/${h.id}/download",
-    );
+  it("download targets the bounded download endpoint, on the API origin", () => {
+    // Rebaselined 2026-08-16 — PHASE 13 §C, NEW-027. The control used to be an
+    // `<a href="/v1/cases/…/siu-exports/…/download">`: a RELATIVE path, which a
+    // browser resolves against the Next origin, and no Authorization header. It
+    // 404'd on every click. This pin asserted the broken spelling, so it would
+    // have failed the fix and passed the defect — the endpoint is still the
+    // subject, but the ORIGIN is now part of what is pinned.
+    expect(src).toContain("/v1/cases/${caseId}/siu-exports/${exportId}/download");
+    expect(src).toMatch(/apiBaseUrl\(\)\}\/v1\/cases\/\$\{caseId\}\/siu-exports/);
+    expect(src).not.toMatch(/href=\{`\/v1\//);
   });
 
   it("renders the storage-safety note", () => {

@@ -21,7 +21,7 @@
  *  11. Report section accepts the closure-extended shape.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -240,14 +240,23 @@ describe("Phase 3B Closure — service module surface", () => {
     expect(typeof m.getCorrectionVersionChainsForEvidence).toBe("function");
   });
 
-  it("verification-manifest exposes the four closure writers", async () => {
-    const m = await import(
-      "../src/services/intelligence/intelligence-verification-manifest.service.js"
-    );
-    expect(typeof m.buildCorrectionVersionChainManifestEntry).toBe("function");
-    expect(typeof m.buildProviderQualityManifestEntry).toBe("function");
-    expect(typeof m.buildBudgetGovernanceManifestEntry).toBe("function");
-    expect(typeof m.buildAuditEventsManifestEntry).toBe("function");
+  // LEGACY-003 (2026-08-15): the four "closure writers" lived in
+  // intelligence-verification-manifest.service.ts, which was REMOVED as an
+  // unreachable module — zero production importers, zero DB writes. Importing
+  // a deleted module to assert its exports are functions is not a contract,
+  // so what is pinned is that it stays removed.
+  it("the verification-manifest module stays removed", () => {
+    expect(
+      existsSync(
+        fileURLToPath(
+          new URL(
+            "../src/services/intelligence/intelligence-verification-manifest.service.ts",
+            import.meta.url,
+          ),
+        ),
+      ),
+      "intelligence-verification-manifest.service.ts is REMOVED (LEGACY-003)",
+    ).toBe(false);
   });
 });
 

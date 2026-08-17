@@ -494,7 +494,9 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
 
   it("CR1.6 byte-exact pin on capture.routes.ts holds (Phase-10 rebaseline)", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22331);
+  // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 — ACTIVE-membership check on
+  // the caller-supplied `body.teamId` before the CaptureSession row is written.
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23490);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {

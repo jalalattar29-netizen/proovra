@@ -405,7 +405,25 @@ describe("R8.1.3 — cleanup / TTL strategy is implemented", () => {
     expect(MFA_SVC).toMatch(/MFA_PENDING_CHALLENGE_RETENTION_SECONDS/);
     expect(MFA_SVC).toMatch(/MFA_PENDING_CHALLENGE_GC_BATCH/);
   });
-  it("admin-callable sweep is exported for ops surfaces", () => {
-    expect(MFA_SVC).toMatch(/export async function sweepExpiredPendingChallenges/);
+  // PHASE 13 §4 (2026-08-17) — the assertion was inverted, on purpose.
+  //
+  // It used to require that `sweepExpiredPendingChallenges` be EXPORTED "for ops
+  // surfaces". No ops surface ever called it, and the scheduled sweep it was
+  // standing in for had already shipped in the worker. Asserting the export
+  // therefore pinned a second, drifted implementation in place. What must hold
+  // is the opposite: exactly ONE scheduled sweep of this table exists, and it is
+  // the worker's.
+  it("the scheduled pending-challenge sweep has exactly one implementation", () => {
+    expect(MFA_SVC).not.toMatch(/function sweepExpiredPendingChallenges/);
+    const workerGc = readFileSync(
+      resolve(REPO, "services/worker/src/mfa-challenge-gc.ts"),
+      "utf8",
+    );
+    expect(workerGc).toMatch(/mfaPendingChallenge\.deleteMany/);
+    const workerIndex = readFileSync(
+      resolve(REPO, "services/worker/src/index.ts"),
+      "utf8",
+    );
+    expect(workerIndex).toMatch(/startMfaChallengeGcScheduler\(\)/);
   });
 });

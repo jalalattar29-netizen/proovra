@@ -37,6 +37,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { DestructionImpactPreview } from "../../../../components/governance/DestructionImpactPreview";
 import { DestructionCertificate } from "../../../../components/governance/DestructionCertificate";
+import { DestructionReviewForm } from "../../../../components/governance/DestructionReviewForm";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
@@ -715,6 +716,15 @@ function DestructionQueuePageInner() {
         }
       >
         {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+        {/* PHASE 13 — POST /v1/governance/destruction-reviews. Every row in
+            this queue was written by the retention sweeper or the
+            reconciliation worker; an operator could walk the state machine
+            but could never enqueue evidence themselves. The parallel
+            Evidence Lifecycle destruction-request surface is NOT a
+            substitute: it writes the DestructionRequest model, which this
+            queue never reads. */}
+        <DestructionReviewForm teamId={teamId} onCreated={refresh} />
 
         {!teamId ? (
           <EmptyState
