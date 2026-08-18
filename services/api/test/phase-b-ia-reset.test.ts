@@ -57,6 +57,11 @@ const BREADCRUMB = readSource(
 const CASE_PAGE = readSource(
   "../../../apps/web/app/(app)/cases/[id]/page.tsx",
 );
+// The canonical Case Details header, shared by the Enterprise and Personal
+// branches. It is the single producer of the Case Details breadcrumb.
+const CASE_DETAIL_HEADER = readSource(
+  "../../../apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+);
 const EVIDENCE_REQUEST_PAGE = readSource(
   "../../../apps/web/app/(app)/evidence-requests/[id]/page.tsx",
 );
@@ -267,11 +272,27 @@ describe("Phase B — OperationalBreadcrumb component", () => {
 // ===========================================================================
 
 describe("Phase B — breadcrumb integration", () => {
-  it("Matter Workspace page renders the breadcrumb above the workspace", () => {
-    expect(CASE_PAGE).toContain("OperationalBreadcrumb");
-    expect(CASE_PAGE).toMatch(
-      /<OperationalBreadcrumb[\s\S]*?routeId="workspace\.cases"/,
-    );
+  // Case Details no longer mounts <OperationalBreadcrumb> in the route file:
+  // the canonical CaseDetailHeader — shared by BOTH the Enterprise
+  // (MatterWorkspace) and Personal (SimpleCaseDetail) branches — renders the
+  // one breadcrumb for the surface, which removed a second, differently
+  // shaped crumb that Enterprise used to emit. The GUARANTEE is stronger than
+  // before, so it is asserted on real breadcrumb SEMANTICS rather than on the
+  // name of the component that happens to produce them.
+  it("Case Details renders one canonical breadcrumb above the workspace", () => {
+    // A labelled breadcrumb landmark…
+    expect(CASE_DETAIL_HEADER).toMatch(/<nav[\s\S]{0,200}?aria-label="Breadcrumb"/);
+    // …that links back to the Cases index…
+    expect(CASE_DETAIL_HEADER).toMatch(/href="\/cases"/);
+    // …and marks the current case as the current page.
+    expect(CASE_DETAIL_HEADER).toMatch(/aria-current="page"/);
+    // Exactly ONE breadcrumb landmark on the surface — no duplicate crumb.
+    expect(
+      (CASE_DETAIL_HEADER.match(/aria-label="Breadcrumb"/g) ?? []).length,
+    ).toBe(1);
+    // Asserted on the IMPORT: the route file explains the move in prose, and a
+    // real mount cannot exist without importing the component.
+    expect(CASE_PAGE).not.toMatch(/imports*{s*OperationalBreadcrumbs*}/);
   });
 
   it("Evidence Request inspector renders the breadcrumb pointing at the matter when one exists", () => {

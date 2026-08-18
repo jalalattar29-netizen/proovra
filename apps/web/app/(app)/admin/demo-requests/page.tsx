@@ -762,7 +762,7 @@ export default function AdminDemoRequestsPage() {
                   onClick={() => void loadDetails(item.id)}
                   style={
                     selectedId === item.id
-                      ? { borderColor: "var(--accent-500, #6b5bff)" }
+                      ? { borderColor: "var(--accent-500, #7C3AED)" }
                       : undefined
                   }
                 >

@@ -144,11 +144,13 @@ describe("Phase G0 (B.2) — OperationalBreadcrumb mounted on nested pages", () 
   // narrow viewports. The breadcrumb component itself is still in
   // use on every other nested page; this is a page-specific opt-out,
   // not a global removal.
+  // Case Details is NOT in this list. It is not an opt-out from breadcrumb
+  // navigation — it is an opt-out from this PRODUCER. The canonical
+  // CaseDetailHeader, shared by the Enterprise and Personal branches, renders
+  // the one breadcrumb for that surface; mounting OperationalBreadcrumb in the
+  // route file as well produced two differently shaped crumbs. The guarantee
+  // is pinned directly below.
   const PAGES: Array<{ name: string; rel: string }> = [
-    {
-      name: "Matter Workspace",
-      rel: "../../../apps/web/app/(app)/cases/[id]/page.tsx",
-    },
     {
       name: "Evidence Request inspector",
       rel: "../../../apps/web/app/(app)/evidence-requests/[id]/page.tsx",
@@ -173,6 +175,21 @@ describe("Phase G0 (B.2) — OperationalBreadcrumb mounted on nested pages", () 
       expect(src).toMatch(/<OperationalBreadcrumb/);
     });
   }
+
+  it("Case Details still provides breadcrumb navigation, via the canonical shared header", () => {
+    // The route file must NOT emit a second crumb...
+    const page = readSource("../../../apps/web/app/(app)/cases/[id]/page.tsx");
+    expect(page).not.toMatch(/imports*{s*OperationalBreadcrumbs*}/);
+    // ...and the shared header MUST still give the surface a labelled
+    // breadcrumb landmark that links back to the Cases index and marks the
+    // current case as the current page.
+    const header = readSource(
+      "../../../apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+    );
+    expect(header).toMatch(/aria-label="Breadcrumb"/);
+    expect(header).toMatch(/href="\/cases"/);
+    expect(header).toMatch(/aria-current="page"/);
+  });
 
   it("Intake links page does NOT mount OperationalBreadcrumb (intentional opt-out for UX cleanup)", () => {
     // Inverse regression pin — a future refactor that "puts the

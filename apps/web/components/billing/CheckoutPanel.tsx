@@ -511,7 +511,7 @@ export function CheckoutPanel({
 }
 
 // Shared pill/segment style — the canonical `.cases-filter-chip`
-// active-state language (indigo #4F46E5 active, neutral idle).
+// active-state language (indigo #6D28D9 active, neutral idle).
 function chipClass(active: boolean): string {
   return ["cases-filter-chip", active ? "is-active" : ""]
     .filter(Boolean)

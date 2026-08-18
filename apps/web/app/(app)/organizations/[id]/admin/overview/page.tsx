@@ -702,7 +702,7 @@ const subtleText = {
 const tileLink = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--enterprise-accent, #6b5bff)",
+  color: "var(--enterprise-accent, #7C3AED)",
   textDecoration: "none",
 } as const;
 
@@ -856,7 +856,7 @@ function QuickAction({
       }}
     >
       <span>{label}</span>
-      <span aria-hidden="true" style={{ color: "var(--enterprise-accent, #6b5bff)" }}>→</span>
+      <span aria-hidden="true" style={{ color: "var(--enterprise-accent, #7C3AED)" }}>→</span>
     </Link>
   );
 }

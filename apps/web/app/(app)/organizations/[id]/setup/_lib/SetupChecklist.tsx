@@ -104,7 +104,7 @@ export function SetupChecklist({
                 style={{
                   fontSize: 12,
                   whiteSpace: "nowrap",
-                  color: "var(--enterprise-accent, #6b5bff)",
+                  color: "var(--enterprise-accent, #7C3AED)",
                   textDecoration: "none",
                 }}
               >

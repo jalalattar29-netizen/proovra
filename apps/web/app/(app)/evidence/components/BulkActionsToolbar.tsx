@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Button, Modal } from "../../../../components/ui";
+import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
+import { AppListbox } from "../../../../components/app-primitives";
 import type {
   CaseOption,
   EvidenceBulkAction,
@@ -80,54 +81,64 @@ export function BulkActionsToolbar({
     <>
       <div className="evidence-library-bulk-toolbar">
         <strong>{selectedCount} selected</strong>
-        <select value={action} onChange={(event) => setAction(event.target.value as typeof action)}>
-          {ACTION_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <AppListbox<(typeof ACTION_OPTIONS)[number]["value"]>
+          ariaLabel="Bulk action"
+          value={action}
+          options={ACTION_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+          onChange={setAction}
+        />
         {needsCase ? (
-          <select value={caseId} onChange={(event) => setCaseId(event.target.value)}>
-            <option value="">Select case</option>
-            {availableCases.map((caseOption) => (
-              <option key={caseOption.id} value={caseOption.id}>
-                {caseOption.name}
-              </option>
-            ))}
-          </select>
+          <AppListbox
+            ariaLabel="Target case"
+            value={caseId}
+            placeholder="Select case"
+            options={availableCases.map((caseOption) => ({ value: caseOption.id, label: caseOption.name }))}
+            onChange={setCaseId}
+          />
         ) : null}
-        <Button
+        {/* SEMANTIC HIERARCHY: the run button is the page primary EXCEPT when
+            the chosen action is destructive, where it keeps the canonical
+            danger treatment rather than inheriting the accent. */}
+        <button
+          type="button"
+          className={
+            action === "TRASH" ? "app-danger-action" : "app-primary-action"
+          }
           onClick={() => setConfirmOpen(true)}
           disabled={
             selectedCount === 0 ||
             (needsCase && !caseId) ||
             allSelectedProtected
           }
+          title={
+            allSelectedProtected
+              ? "All selected records are protected by retention or legal hold."
+              : undefined
+          }
           data-bulk-trash-blocked={allSelectedProtected ? "true" : "false"}
+          data-evidence-run-bulk
         >
           Run Bulk Action
-        </Button>
-        <Button variant="secondary" onClick={onClear}>
+        </button>
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={onClear}
+          data-evidence-clear-selection
+        >
           Clear Selection
-        </Button>
+        </button>
       </div>
       {action === "TRASH" && protectedCount > 0 ? (
         <div
-          className="evidence-library-bulk-helper"
+          className="app-alert app-alert--warn evidence-library-bulk-helper"
+          role="status"
           data-bulk-trash-helper
-          style={{
-            marginTop: 8,
-            padding: "8px 12px",
-            border: "1px solid rgba(15, 23, 42, 0.12)",
-            borderRadius: 6,
-            background: "#fff7ed",
-          }}
         >
           <strong>
             {protectedCount} of {selectedCount} selected records cannot be moved to trash
           </strong>
-          <p style={{ margin: "4px 0 0 0" }}>
+          <p className="app-hint">
             {allSelectedProtected
               ? "All selected records are protected by retention or legal hold. Use Archive instead to remove them from Active evidence without deleting protected records."
               : `${eligibleCount} eligible record${eligibleCount === 1 ? "" : "s"} will be moved to trash; ${protectedCount} protected record${protectedCount === 1 ? "" : "s"} will be skipped.`}
@@ -136,17 +147,24 @@ export function BulkActionsToolbar({
       ) : null}
 
       <Modal
-        isOpen={confirmOpen}
+        open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         title="Confirm Bulk Action"
-        actions={
+        testid="evidence-bulk-confirm"
+        footer={
           <>
-            <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
+            <button type="button" className="app-secondary-action" onClick={() => setConfirmOpen(false)}>
               Cancel
-            </Button>
-            <Button onClick={() => void runAction()} disabled={running}>
+            </button>
+            <button
+              type="button"
+              className={action === "TRASH" ? "app-danger-action" : "app-primary-action"}
+              onClick={() => void runAction()}
+              disabled={running}
+              aria-busy={running}
+            >
               {running ? "Running..." : confirmLabel}
-            </Button>
+            </button>
           </>
         }
       >
@@ -159,13 +177,14 @@ export function BulkActionsToolbar({
       </Modal>
 
       <Modal
-        isOpen={resultOpen}
+        open={resultOpen}
         onClose={() => setResultOpen(false)}
         title="Bulk Action Results"
-        actions={
-          <Button variant="secondary" onClick={() => setResultOpen(false)}>
+        testid="evidence-bulk-result"
+        footer={
+          <button type="button" className="app-secondary-action" onClick={() => setResultOpen(false)}>
             Close
-          </Button>
+          </button>
         }
       >
         <p>
@@ -175,7 +194,7 @@ export function BulkActionsToolbar({
           <div className="evidence-library-result-list">
             {result.results.map((item) => (
               <div key={`${item.evidenceId}-${item.ok ? "ok" : "failed"}`} className="evidence-library-result-row">
-                <strong>{item.evidenceId}</strong>
+                <strong className="evidence-library-technical" dir="ltr">{item.evidenceId}</strong>
                 <span>{item.ok ? "Completed" : item.reason ?? "Failed"}</span>
               </div>
             ))}

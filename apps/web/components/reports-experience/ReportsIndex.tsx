@@ -628,7 +628,7 @@ function ArtifactRowView({
                 href={`/cases/${row.caseId}`}
                 onClick={(e) => e.stopPropagation()}
                 data-reports-case-link={row.caseId}
-                style={{ fontSize: 12, color: "#4F46E5", fontWeight: 600 }}
+                style={{ fontSize: 12, color: "#6D28D9", fontWeight: 600 }}
               >
                 Case #{row.caseId.slice(0, 6)}
               </Link>

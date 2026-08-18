@@ -1,4 +1,5 @@
 import { getReviewerEvidenceTypeLabel } from "@proovra/shared";
+import type { AppTone } from "../../../../components/app-primitives";
 import type {
   DetailWorkspaceState,
   EvidenceListItem,
@@ -250,4 +251,50 @@ export function getStatusTone(item: EvidenceListItem): "neutral" | "success" | "
     default:
       return "neutral";
   }
+}
+
+/**
+ * Part 3 — CANONICAL BADGE TONE AUTHORITY.
+ *
+ * `getStatusTone` speaks the product's own semantic vocabulary
+ * ("success" / "warning" / …). The shared badge primitive
+ * (`.app-status-badge[data-tone]`, `AppTone`) speaks a DIFFERENT,
+ * smaller vocabulary ("green" / "amber" / …). Emitting the product
+ * vocabulary straight into `data-tone` matched no rule at all, so every
+ * queue badge rendered in the untoned base style and status was
+ * communicated by TEXT ONLY.
+ *
+ * These two functions are the single translation point. Nothing on the
+ * route may hand a raw semantic tone to a badge again.
+ */
+const SEMANTIC_TONE_TO_APP_TONE = {
+  success: "green",
+  warning: "amber",
+  danger: "red",
+  processing: "indigo",
+  neutral: "slate",
+} as const satisfies Record<
+  ReturnType<typeof getStatusTone>,
+  "green" | "amber" | "red" | "indigo" | "slate"
+>;
+
+export function getStatusBadgeTone(item: EvidenceListItem): AppTone {
+  return SEMANTIC_TONE_TO_APP_TONE[getStatusTone(item)];
+}
+
+export type ReviewPriorityLevel =
+  | "critical"
+  | "operational"
+  | "informational"
+  | "stable";
+
+const PRIORITY_LEVEL_TO_APP_TONE = {
+  critical: "red",
+  operational: "amber",
+  informational: "slate",
+  stable: "green",
+} as const satisfies Record<ReviewPriorityLevel, AppTone>;
+
+export function getReviewPriorityTone(level: ReviewPriorityLevel): AppTone {
+  return PRIORITY_LEVEL_TO_APP_TONE[level];
 }

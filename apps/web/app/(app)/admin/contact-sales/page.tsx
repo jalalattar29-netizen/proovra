@@ -245,7 +245,7 @@ export default function AdminContactSalesPage() {
                           ? "var(--accent-050, #f2f0ff)"
                           : "var(--surface-card, #ffffff)",
                         border: active
-                          ? "1px solid var(--accent-500, #6b5bff)"
+                          ? "1px solid var(--accent-500, #7C3AED)"
                           : "1px solid var(--border-default, #e2e8f0)",
                         borderRadius: 999,
                         padding: "5px 12px",
@@ -264,7 +264,7 @@ export default function AdminContactSalesPage() {
                           width: 7,
                           height: 7,
                           borderRadius: "50%",
-                          background: "var(--accent-500, #6b5bff)",
+                          background: "var(--accent-500, #7C3AED)",
                           opacity: active ? 1 : 0.45,
                           flexShrink: 0,
                         }}

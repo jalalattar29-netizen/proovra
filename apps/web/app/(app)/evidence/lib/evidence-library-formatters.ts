@@ -1,5 +1,16 @@
 import { formatUtcAuditDateTime } from "../../../../lib/date";
 
+/** Page identity. Single source for the heading + supporting line so the
+ *  header component declares no copy of its own. */
+export const EVIDENCE_LIBRARY_TITLE = "Evidence Library";
+/** Target reference wording — concise, two lines at the design width. */
+export const EVIDENCE_LIBRARY_DESCRIPTION =
+  "Operational workspace for managing, reviewing, and exporting preserved evidence records.";
+
+/** Heading for the legal-boundary panel. The BODY below is the approved
+ *  wording and is unchanged. */
+export const EVIDENCE_LIBRARY_LEGAL_BOUNDARY_TITLE = "Legal boundary";
+
 export const EVIDENCE_LIBRARY_LEGAL_BOUNDARY =
   "PROOVRA verifies the recorded integrity state of evidence records. It does not independently establish factual truth, authorship, identity, legal admissibility, or evidentiary weight.";
 
@@ -51,4 +62,19 @@ export function buildVerificationUrl(evidenceId: string): string {
     "https://app.proovra.com";
 
   return `${appBase.replace(/\/+$/, "")}/verify/${evidenceId}`;
+}
+
+/**
+ * Part 3 — the reference renders CREATED as a bold date with the UTC clock
+ * time beneath it. This splits the single canonical string produced by
+ * `formatUtcDateTime` rather than introducing a second date formatter.
+ */
+export function splitUtcDateTime(value: string | null | undefined): {
+  date: string;
+  time: string | null;
+} {
+  const text = formatUtcDateTime(value);
+  const separator = text.indexOf(", ");
+  if (separator === -1) return { date: text, time: null };
+  return { date: text.slice(0, separator), time: text.slice(separator + 2) };
 }

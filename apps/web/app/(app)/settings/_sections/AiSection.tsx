@@ -414,7 +414,7 @@ export function AiSection() {
                         (allowance.consumed / allowance.monthlyOperations) * 100,
                       )}%`,
                       borderRadius: 999,
-                      background: "#4F46E5",
+                      background: "#6D28D9",
                     }}
                   />
                 </div>

@@ -450,7 +450,7 @@ export default function AdminContactSalesDetailPage({
                   <div style={{ marginTop: 4 }}>
                     <a
                       href={`mailto:${state.details.workEmail}`}
-                      style={{ color: "var(--accent-500, #6b5bff)" }}
+                      style={{ color: "var(--accent-500, #7C3AED)" }}
                     >
                       {state.details.workEmail}
                     </a>

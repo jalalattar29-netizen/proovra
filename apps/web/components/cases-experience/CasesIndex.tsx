@@ -359,7 +359,7 @@ export function CasesIndex() {
                     height="21"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#5B4FE9"
+                    stroke="#7C3AED"
                     strokeWidth="1.75"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1703,10 +1703,10 @@ const PRIMARY_CTA_STYLE: React.CSSProperties = {
   cursor: "pointer",
   // PROOVRA enterprise redesign — the coral→pink primary gradient is
   // retired on this surface. The onboarding "Create case" CTA uses the
-  // solid indigo #5B4FE8 (never coral) per the design system.
-  background: "#5B4FE8",
+  // solid indigo #7C3AED (never coral) per the design system.
+  background: "#7C3AED",
   color: "#ffffff",
-  border: "1px solid #5B4FE8",
+  border: "1px solid #7C3AED",
   boxShadow: "0 6px 16px rgba(91, 79, 232, 0.22)",
 };
 

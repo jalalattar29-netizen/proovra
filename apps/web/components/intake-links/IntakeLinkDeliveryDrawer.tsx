@@ -321,7 +321,7 @@ function chipStyle(channel: string): React.CSSProperties {
       channel === "WHATSAPP"
         ? "rgba(34, 197, 94, 0.15)"
         : channel === "SMS"
-          ? "rgba(79, 70, 229, 0.15)"
+          ? "rgba(124, 58, 237, 0.15)"
           : "rgba(148, 163, 184, 0.15)",
     color:
       channel === "WHATSAPP"

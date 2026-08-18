@@ -152,7 +152,7 @@ function HomeSecondaryLink({
 }) {
   const [hover, setHover] = useState(false);
   const hoverStyle: React.CSSProperties = hover
-    ? { background: "rgba(79, 70, 229, 0.06)", borderColor: "rgba(79, 70, 229, 0.32)" }
+    ? { background: "rgba(124, 58, 237, 0.06)", borderColor: "rgba(124, 58, 237, 0.32)" }
     : {};
   const merged: React.CSSProperties = { ...homeSecondaryButtonStyle, ...style, ...hoverStyle };
   const handlers = {
@@ -558,7 +558,7 @@ function RetryDeliveryButton({
         {state === "pending" ? "Retrying…" : "Retry delivery"}
       </button>
       {state === "error" ? (
-        <Link href={fallbackHref} style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }} data-delivery-retry-fallback>
+        <Link href={fallbackHref} style={{ ...listItemTimeStyle, color: "#6D28D9", fontWeight: 600 }} data-delivery-retry-fallback>
           Open delivery →
         </Link>
       ) : null}
@@ -1262,7 +1262,7 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
         <Link
           href="/evidence"
           data-verify-publish
-          style={{ ...secondaryButtonStyle, marginTop: 10, background: "#4f46e5", color: "white", border: "1px solid #4f46e5" }}
+          style={{ ...secondaryButtonStyle, marginTop: 10, background: "#6D28D9", color: "white", border: "1px solid #6D28D9" }}
         >
           Publish verification
         </Link>
@@ -1503,7 +1503,7 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
 
 function activityDot(kind: string): string {
   const map: Record<string, string> = {
-    evidence_finalized: "#4f46e5",
+    evidence_finalized: "#6D28D9",
     report_generated: "#16a34a",
     package_generated: "#0d9488",
     verification_published: "#0e7490",
@@ -1791,7 +1791,7 @@ const listItemLinkStyle: React.CSSProperties = { display: "block", padding: "8px
 const listItemTitleStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const listItemMetaStyle: React.CSSProperties = { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" };
 const listItemTimeStyle: React.CSSProperties = { fontSize: 11, color: "#94a3b8" };
-const chipStyle: React.CSSProperties = { display: "inline-block", padding: "2px 8px", borderRadius: 999, background: "rgba(79, 70, 229, 0.08)", color: "#4338ca", fontSize: 11, fontWeight: 600 };
+const chipStyle: React.CSSProperties = { display: "inline-block", padding: "2px 8px", borderRadius: 999, background: "rgba(124, 58, 237, 0.08)", color: "#4338ca", fontSize: 11, fontWeight: 600 };
 
 const primaryButtonStyle: React.CSSProperties = {
   display: "inline-block",

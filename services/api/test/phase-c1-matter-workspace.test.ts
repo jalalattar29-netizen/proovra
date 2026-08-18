@@ -182,8 +182,16 @@ describe("Phase C1 — empty-state discipline (no blank panels)", () => {
     expect(MATTER_UI).toContain('role="status"');
   });
 
+  // The per-tab degraded signal kept its behaviour but moved from a bespoke
+  // BEM class onto a stable data attribute carried by the canonical tab, so
+  // the badge is now addressable by tests and automation without depending on
+  // a styling class name.
   it("degraded sections render a per-tab badge in the navigation", () => {
-    expect(MATTER_UI).toContain("matter-workspace__tab-degraded");
+    expect(MATTER_UI).toContain("data-matter-tab-degraded");
+    // The badge must still be tied to the degraded STATUS, not rendered always.
+    expect(MATTER_UI).toMatch(/status === "degraded"/);
+    // …and it must still explain itself to the operator.
+    expect(MATTER_UI).toMatch(/title="This section is degraded"/);
     expect(MATTER_UI).toMatch(/sectionStatus\[tab\.id\]/);
   });
 });

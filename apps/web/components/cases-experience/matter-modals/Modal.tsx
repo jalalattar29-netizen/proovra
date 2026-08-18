@@ -26,7 +26,8 @@
  * importing a dependency.
  */
 
-import React, { useEffect, useId, useRef } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 const FOCUSABLE_SELECTOR = [
@@ -127,10 +128,29 @@ export function Modal({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    // BLOCKING-DIALOG FLAG (shared authority).
+    //
+    // Floating page furniture — today the privacy-preferences launcher, which
+    // pins itself at z-index 2147483000 — otherwise paints straight through a
+    // dialog and can sit on top of a footer action. Marking the body while a
+    // blocking dialog is open lets that furniture stand down in ONE place
+    // (app/globals.css) instead of each surface fighting it with its own
+    // z-index. Counted, so nested dialogs do not clear the flag early.
+    const openCount = Number(document.body.dataset.dialogOpenCount ?? "0") + 1;
+    document.body.dataset.dialogOpenCount = String(openCount);
+    document.body.dataset.dialogOpen = "true";
+
     return () => {
       clearTimeout(t);
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = prevOverflow;
+      const remaining = Number(document.body.dataset.dialogOpenCount ?? "1") - 1;
+      if (remaining > 0) {
+        document.body.dataset.dialogOpenCount = String(remaining);
+      } else {
+        delete document.body.dataset.dialogOpenCount;
+        delete document.body.dataset.dialogOpen;
+      }
       // Restore focus to the opener if it still exists in the DOM.
       const prev = previouslyFocusedRef.current;
       if (prev && document.body.contains(prev)) {
@@ -143,9 +163,22 @@ export function Modal({
     };
   }, [open, dismissDisabled, onClose]);
 
-  if (!open) return null;
+  // PORTAL — a dialog must cover the VIEWPORT, never just its host.
+  //
+  // `.app-panel` (and any ancestor with backdrop-filter / filter / transform)
+  // becomes the containing block for `position: fixed` descendants, so a dialog
+  // opened from inside a panel had its overlay clipped to that panel: the rest
+  // of the page stayed bright and interactive behind a supposedly blocking
+  // modal. Rendering through document.body removes the whole class of bug for
+  // every consumer instead of asking each surface to avoid panels.
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
 
-  return (
+  if (!open || !portalTarget) return null;
+
+  return createPortal(
     <div
       role="presentation"
       className="app-dialog-overlay"
@@ -198,6 +231,7 @@ export function Modal({
           </footer>
         ) : null}
       </div>
-    </div>
+    </div>,
+    portalTarget,
   );
 }

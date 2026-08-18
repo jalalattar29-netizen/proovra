@@ -17,7 +17,7 @@ export const HOME_COLORS = {
   // Brand accents
   wine: "#7a1638",
   wineDeep: "#5c1029",
-  indigo: "#4f46e5",
+  indigo: "#6D28D9",
   violet: "#6d28d9",
   teal: "#0e7490",
 
@@ -44,7 +44,7 @@ export const HOME_COLORS = {
 /** Soft tints for status fills (chips, rows, stat tiles). */
 export const HOME_TINTS = {
   wine: "rgba(122, 22, 56, 0.07)",
-  indigo: "rgba(79, 70, 229, 0.08)",
+  indigo: "rgba(124, 58, 237, 0.08)",
   violet: "rgba(109, 40, 217, 0.08)",
   teal: "rgba(14, 116, 144, 0.08)",
   ok: "rgba(5, 150, 105, 0.09)",
@@ -133,23 +133,23 @@ export const homeSecondaryButtonStyle: React.CSSProperties = {
   padding: "8px 14px",
   borderRadius: 10,
   background: "rgba(255, 255, 255, 0.94)",
-  border: "1px solid rgba(79, 70, 229, 0.20)",
-  color: "#4F46E5",
+  border: "1px solid rgba(124, 58, 237, 0.20)",
+  color: "#6D28D9",
   fontSize: 12.5,
   fontWeight: 650,
   textDecoration: "none",
   whiteSpace: "nowrap",
-  boxShadow: "0 6px 16px rgba(79, 70, 229, 0.06)",
+  boxShadow: "0 6px 16px rgba(124, 58, 237, 0.06)",
   cursor: "pointer",
 };
 
 /** Indigo/blue-violet accent family for file-type badges (DOC/IMG/etc.) and
  * other Home chips — consistent with the "All evidence →" action colour. */
 export const HOME_ACCENT = {
-  ink: "#4F46E5",
-  inkStrong: "#5B4FE8",
-  bg: "rgba(79, 70, 229, 0.08)",
-  border: "rgba(79, 70, 229, 0.10)",
+  ink: "#6D28D9",
+  inkStrong: "#7C3AED",
+  bg: "rgba(124, 58, 237, 0.08)",
+  border: "rgba(124, 58, 237, 0.10)",
 } as const;
 
 /** ONE unified enterprise semantic colour system for the Operations tab.
@@ -178,8 +178,8 @@ export const HOME_SEMANTIC = {
   info: {
     // Restrained indigo for informational badges (e.g. "Report v2").
     strong: "#5146D8",
-    softBg: "rgba(79, 70, 229, 0.08)",
-    border: "rgba(79, 70, 229, 0.12)",
+    softBg: "rgba(124, 58, 237, 0.08)",
+    border: "rgba(124, 58, 237, 0.12)",
   },
   neutral: {
     numberInk: "#111827",
@@ -262,7 +262,7 @@ videos: "#3974DC",
 audio: "#746FE8",
 archives: "#293A58",
 //   // Storage progress value.
-  storageBar: "#5B4FE8",
+  storageBar: "#7C3AED",
   storageTrack: "rgba(226, 232, 240, 0.88)",
   // Chart chrome.
   gridLine: "rgba(15, 23, 42, 0.07)",

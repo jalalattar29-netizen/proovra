@@ -80,7 +80,7 @@ const TONE_VARS: Record<
     bg: "var(--status-governance-bg, #eeebff)",
     fg: "var(--status-governance-fg, #4634c9)",
     border: "var(--status-governance-border, #d6cffb)",
-    solid: "var(--status-governance-solid, #6b5bff)",
+    solid: "var(--status-governance-solid, #7C3AED)",
   },
   info: {
     bg: "var(--status-info-bg, #eff6ff)",

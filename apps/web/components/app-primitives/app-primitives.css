@@ -12,7 +12,7 @@
  *   green  #167A5B / #EAF7F1   healthy · active · completed
  *   amber  #A86612 / #FFF6E5   pending · warning · on-hold
  *   red    #C9363E / #FFF1F2   destructive · failed
- *   indigo #4F46E5 / #F3F0FF   selection · active tab · primary
+ *   indigo #6D28D9 / #F2ECFE   selection · active tab · primary
  *   slate  #475569 / #F1F5F9   neutral · closed · inactive
  *
  * Imported once from `app/globals.css`.
@@ -60,9 +60,9 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  color: #5B4FE9;
-  background: linear-gradient(145deg, rgba(91, 79, 233, 0.10), rgba(73, 184, 255, 0.08));
-  border: 1px solid rgba(91, 79, 233, 0.16);
+  color: #7C3AED;
+  background: linear-gradient(145deg, rgba(124, 58, 237, 0.10), rgba(73, 184, 255, 0.08));
+  border: 1px solid rgba(124, 58, 237, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 .app-page-header__text {
@@ -164,25 +164,25 @@
   gap: 7px;
   padding: 0 14px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #6b5bff 0%, #5949e4 100%);
+  background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
   color: #ffffff;
   font-size: 12.5px;
   font-weight: 650;
   letter-spacing: -0.006em;
   text-decoration: none;
   white-space: nowrap;
-  border: 1px solid rgba(89, 73, 228, 0.5);
+  border: 1px solid rgba(109, 40, 217, 0.5);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
   cursor: pointer;
   transition: filter 120ms ease, box-shadow 120ms ease;
 }
 .app-primary-action:hover:not(:disabled) {
   filter: brightness(1.05);
-  box-shadow: 0 2px 8px rgba(89, 73, 228, 0.32);
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.32);
 }
 .app-primary-action:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.35);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35);
 }
 .app-primary-action:disabled {
   opacity: 0.55;
@@ -218,19 +218,32 @@
   letter-spacing: -0.006em;
   text-decoration: none;
   white-space: nowrap;
-  border: 1px solid rgba(79, 70, 229, 0.24);
+  border: 1px solid rgba(124, 58, 237, 0.24);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
+/* FILLED variant — a neutral solid secondary, for the leading control of a
+   pair where the trailing one is outlined (Saved Views / Save Current View). */
+.app-secondary-action--filled {
+  background: var(--app-ink-heading);
+  border-color: var(--app-ink-heading);
+  color: #ffffff;
+}
+.app-secondary-action--filled:hover:not(:disabled) {
+  background: #0F1723;
+  border-color: #0F1723;
+  color: #ffffff;
+}
+
 .app-secondary-action:hover:not(:disabled) {
-  background: #F3F0FF;
-  border-color: #D8CCFF;
+  background: #F2ECFE;
+  border-color: #D9C7FB;
   color: var(--app-ink-heading);
 }
 .app-secondary-action:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.28);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
 }
 .app-secondary-action:disabled {
   opacity: 0.55;
@@ -323,9 +336,21 @@
   background: rgba(15, 23, 42, 0.05);
   color: #172033;
 }
+/* LARGE variant — page-header actions. The 36px default is the dense
+   in-panel size; a page's own header carries more weight. Size only: colour,
+   radius, focus and disabled treatment stay with the base class. */
+.app-primary-action--lg,
+.app-secondary-action--lg,
+.app-danger-action--lg {
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
 .app-ghost-action:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.22);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.22);
 }
 
 /* ---------------------------------------------------------------------------
@@ -352,7 +377,7 @@ select.app-form-input {
 .app-form-input:focus-visible {
   outline: none;
   border-color: #8b7cf6;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.14);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
 }
 .app-form-input:disabled {
   opacity: 0.6;
@@ -430,7 +455,7 @@ textarea.app-form-input {
 .app-search-input:focus-visible {
   outline: none;
   border-color: #BEB4FF;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
 
 /* Custom checkbox — 18px, indigo selected, visible focus, no native look. */
@@ -458,15 +483,15 @@ textarea.app-form-input {
   clip-path: polygon(14% 44%, 0 65%, 43% 100%, 100% 16%, 84% 0, 40% 68%);
 }
 .app-checkbox:checked {
-  background: #5949e4;
-  border-color: #5949e4;
+  background: #6D28D9;
+  border-color: #6D28D9;
 }
 .app-checkbox:checked::after {
   transform: scale(1);
 }
 .app-checkbox:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
 }
 .app-checkbox:disabled {
   opacity: 0.5;
@@ -524,18 +549,18 @@ textarea.app-form-input {
     color 160ms ease, box-shadow 160ms ease;
 }
 .app-tab:hover:not(.is-active) {
-  background: rgba(92, 84, 255, 0.06);
-  color: #4F46E5;
+  background: rgba(124, 58, 237, 0.06);
+  color: #6D28D9;
 }
 .app-tab.is-active {
-  background: #F3F0FF;
-  border-color: #D8CCFF;
-  color: #4F46E5;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
+  background: #F2ECFE;
+  border-color: #D9C7FB;
+  color: #6D28D9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.10);
 }
 .app-tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.28);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
 }
 .app-tab__count {
   display: inline-flex;
@@ -547,8 +572,8 @@ textarea.app-form-input {
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  background: rgba(79, 70, 229, 0.1);
-  color: #4F46E5;
+  background: rgba(124, 58, 237, 0.1);
+  color: #6D28D9;
 }
 .app-tab:not(.is-active) .app-tab__count {
   background: rgba(15, 23, 42, 0.06);
@@ -627,7 +652,7 @@ textarea.app-form-input {
   font-size: 12px;
   font-weight: 700;
   color: #ffffff;
-  background: linear-gradient(145deg, #6b5bff, #5949e4);
+  background: linear-gradient(145deg, #7C3AED, #6D28D9);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .app-avatar--sm {
@@ -705,7 +730,7 @@ textarea.app-form-input {
   background: #FFF1F2; color: #B23442; border-color: rgba(178, 52, 66, 0.18);
 }
 .app-status-badge[data-tone="indigo"] {
-  background: #F3F0FF; color: #4F46E5; border-color: #D8CCFF;
+  background: #F2ECFE; color: #6D28D9; border-color: #D9C7FB;
 }
 .app-status-badge[data-tone="slate"] {
   background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
@@ -743,9 +768,9 @@ textarea.app-form-input {
   color: var(--app-ink-label);
 }
 .app-chip--ai {
-  border-color: #D8CCFF;
-  background: #F3F0FF;
-  color: #4F46E5;
+  border-color: #D9C7FB;
+  background: #F2ECFE;
+  color: #6D28D9;
 }
 .app-chip--warn {
   border-color: rgba(168, 102, 18, 0.24);
@@ -793,15 +818,14 @@ textarea.app-form-input {
   font-weight: 650;
   color: var(--app-ink-label);
 }
+/* The target communicates KPI state through the VALUE colour, paired with a
+   label and caption so it is never colour-only. */
+.app-kpi-card__value[data-tone="danger"] { color: var(--error); }
+.app-kpi-card__value[data-tone="accent"] { color: var(--accent-500); }
 .app-kpi-card__meta {
   font-size: 11.5px;
   color: var(--app-ink-secondary);
 }
-.app-kpi-card[data-tone="green"] { border-top: 2px solid #45B27D; }
-.app-kpi-card[data-tone="amber"] { border-top: 2px solid #E0A340; }
-.app-kpi-card[data-tone="red"] { border-top: 2px solid #D66; }
-.app-kpi-card[data-tone="indigo"] { border-top: 2px solid #6b5bff; }
-.app-kpi-card[data-tone="slate"] { border-top: 2px solid #94A3B8; }
 
 /* ---------------------------------------------------------------------------
  * 8. LISTBOX — trigger + popup for the shared <AppListbox> component
@@ -837,7 +861,7 @@ textarea.app-form-input {
 .app-listbox__trigger:focus-visible {
   outline: none;
   border-color: #8b7cf6;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.14);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
 }
 .app-listbox__trigger:disabled {
   opacity: 0.6;
@@ -895,8 +919,8 @@ textarea.app-form-input {
   color: #172033;
 }
 .app-listbox__option[aria-selected="true"] {
-  background: #F3F0FF;
-  color: #4F46E5;
+  background: #F2ECFE;
+  color: #6D28D9;
   font-weight: 650;
 }
 .app-listbox__option[aria-disabled="true"] {
@@ -905,7 +929,7 @@ textarea.app-form-input {
 }
 .app-listbox__option-check {
   margin-left: auto;
-  color: #4F46E5;
+  color: #6D28D9;
   flex-shrink: 0;
 }
 .app-listbox__option-desc {
@@ -941,9 +965,9 @@ textarea.app-form-input {
   border-radius: 14px;
   display: grid;
   place-items: center;
-  color: #5B4FE9;
-  background: linear-gradient(145deg, rgba(91, 79, 233, 0.10), rgba(73, 184, 255, 0.08));
-  border: 1px solid rgba(91, 79, 233, 0.16);
+  color: #7C3AED;
+  background: linear-gradient(145deg, rgba(124, 58, 237, 0.10), rgba(73, 184, 255, 0.08));
+  border: 1px solid rgba(124, 58, 237, 0.16);
   margin-bottom: 2px;
 }
 .app-empty strong {

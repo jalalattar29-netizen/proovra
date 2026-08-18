@@ -3,10 +3,10 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
@@ -180,47 +180,20 @@ function ActiveTrustFilterChips({
   }
   if (chips.length === 0) return null;
   return (
-    <div
-      data-evidence-active-filter-chips
-      style={{
-        display: "flex",
-        gap: 8,
-        flexWrap: "wrap",
-        margin: "8px 0 4px",
-      }}
-    >
+    // Part 3 — this strip used to describe itself with inline style objects
+    // carrying a private hex palette. It now uses the canonical `.app-chip`,
+    // so the route declares no colour values of its own here.
+    <div className="app-chip-row evidence-library-active-chips" data-evidence-active-filter-chips>
       {chips.map((c) => (
-        <span
-          key={c.key}
-          data-evidence-filter-chip={c.key}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "4px 8px",
-            borderRadius: 999,
-            background: "#eef2ff",
-            color: "#3730a3",
-            fontSize: 12.5,
-            fontWeight: 600,
-          }}
-        >
+        <span key={c.key} className="app-chip" data-evidence-filter-chip={c.key}>
           {c.label}
           <button
             type="button"
+            className="evidence-library-active-chips__clear"
             onClick={() => onClear(c.key)}
             aria-label={`Clear ${c.label}`}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "#3730a3",
-              cursor: "pointer",
-              fontWeight: 700,
-              padding: 0,
-              lineHeight: 1,
-            }}
           >
-            ×
+            <X size={13} strokeWidth={2.2} aria-hidden="true" />
           </button>
         </span>
       ))}
@@ -269,6 +242,8 @@ function EvidenceLibraryPageInner() {
   const { addToast } = useToast();
   const detailCacheRef = useRef<Record<string, DetailWorkspaceState>>({});
   const evidenceRequestRef = useRef(0);
+  /** Part 3 — monotonic id so only the NEWEST detail request may write state. */
+  const detailRequestRef = useRef(0);
 
   const [filters, setFilters] = useState<EvidenceFilterState>(DEFAULT_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState(DEFAULT_FILTERS.search);
@@ -291,9 +266,31 @@ function EvidenceLibraryPageInner() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<DetailWorkspaceState | null>(null);
+  /**
+   * Part 3 — WHICH record the loaded `selectedDetail` actually belongs to.
+   *
+   * Without this the Inspector rendered the PREVIOUS record's metadata for
+   * the whole time a newly selected record was in flight (and permanently,
+   * on a cache hit that lost a race). The Inspector now only ever receives
+   * a detail whose id matches the active record.
+   */
+  const [detailForId, setDetailForId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  /**
+   * Part 3 — Inspector visibility. Deliberately INDEPENDENT of both
+   * `selectedId` (the single record the Inspector describes) and
+   * `selectedIds` (the checkbox/bulk selection). Closing the Inspector
+   * destroys neither.
+   */
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  /**
+   * Part 3 — compact viewport hosts the Inspector in the canonical dialog
+   * instead of the right-hand column. Resolved after mount so the server
+   * and first client render agree (no hydration mismatch).
+   */
+  const [compactInspector, setCompactInspector] = useState(false);
   /**
    * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — workspace summary.
    *
@@ -495,10 +492,17 @@ function EvidenceLibraryPageInner() {
       const selectedListItem = library.items.find((item) => item.id === evidenceId);
       if (!selectedListItem) return;
 
+      // Part 3 — STALE-RESPONSE GUARD. `loadLibraryPage` already had one;
+      // this loader did not, so a slow request for record A could resolve
+      // after a fast request for record B and overwrite the Inspector with
+      // A's report, package, capabilities and case name.
+      const requestId = ++detailRequestRef.current;
+
       setDetailError(null);
 
       if (!force && detailCacheRef.current[evidenceId]) {
         setSelectedDetail(detailCacheRef.current[evidenceId]);
+        setDetailForId(evidenceId);
         return;
       }
 
@@ -542,17 +546,22 @@ function EvidenceLibraryPageInner() {
         };
 
         detailCacheRef.current[evidenceId] = detail;
+        if (detailRequestRef.current !== requestId) return;
         setSelectedDetail(detail);
+        setDetailForId(evidenceId);
       } catch (loadError) {
         const message =
           toSafeUserError(loadError, { message: "Failed to load review workspace" }).message;
-        setDetailError(message);
         captureException(loadError, {
           feature: "web_evidence_library_detail_load",
           evidenceId,
         });
+        if (detailRequestRef.current !== requestId) return;
+        setDetailError(message);
       } finally {
-        setDetailLoading(false);
+        if (detailRequestRef.current === requestId) {
+          setDetailLoading(false);
+        }
       }
     },
     [caseMap, library.cases, library.items, library.personalWorkspace, library.teamWorkspaces]
@@ -654,11 +663,50 @@ function EvidenceLibraryPageInner() {
   useEffect(() => {
     if (!selectedId) {
       setSelectedDetail(null);
+      setDetailForId(null);
       return;
     }
 
     void loadDetail(selectedId);
   }, [loadDetail, selectedId]);
+
+  /**
+   * Part 3 — the Inspector host follows the viewport, not the other way
+   * round. Below the two-column threshold it becomes the canonical dialog;
+   * at desktop widths it is the right-hand column. Resolved in an effect so
+   * SSR and the first client render both start from the desktop layout.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const query = window.matchMedia("(max-width: 1099.98px)");
+    const sync = () => setCompactInspector(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  /**
+   * Part 3 — activating a queue row selects that record AND opens the
+   * Inspector. The checkbox/bulk selection is untouched by this path.
+   */
+  const selectRecord = useCallback((evidenceId: string) => {
+    setSelectedId(evidenceId);
+    setInspectorOpen(true);
+  }, []);
+
+  /**
+   * Part 3 — closing returns focus to the row that opened the Inspector so
+   * keyboard users are never dropped at the top of the document. The active
+   * record and the bulk selection both survive the close.
+   */
+  const closeInspector = useCallback(() => {
+    setInspectorOpen(false);
+    if (typeof document === "undefined") return;
+    const trigger = selectedId
+      ? document.querySelector<HTMLElement>(`[data-evidence-row-title="${CSS.escape(selectedId)}"]`)
+      : null;
+    trigger?.focus();
+  }, [selectedId]);
 
   const refreshCurrentScope = async () => {
     setRefreshing(true);
@@ -701,7 +749,7 @@ function EvidenceLibraryPageInner() {
    */
   const metrics = useMemo(() => {
     const usingWorkspaceTotal = workspaceSummary !== null;
-    const workspaceScopeDetail = `Workspace total · ${filters.scope}`;
+    const workspaceScopeDetail = "Workspace total";
     const pageScopeDetail = "On this page";
 
     // Page-derived (safe fallbacks for non-package values).
@@ -723,7 +771,7 @@ function EvidenceLibraryPageInner() {
         ? {
             label: "Active records",
             value: String(library.totalCount),
-            detail: `Workspace total · ${filters.scope}`,
+            detail: "Workspace total",
           }
         : {
             label: "Active records",
@@ -776,7 +824,7 @@ function EvidenceLibraryPageInner() {
           tone: workspaceSummary.packagesMissingCount > 0
             ? ("warning" as const)
             : ("default" as const),
-          detail: workspaceScopeDetail,
+          detail: "Requires attention",
         }
       : {
           label: "Verification packages missing",
@@ -791,12 +839,12 @@ function EvidenceLibraryPageInner() {
       ? {
           label: "Storage protection",
           value: String(workspaceSummary.storageProtectedCount),
-          detail: workspaceScopeDetail,
+          detail: "Encrypted states",
         }
       : {
           label: "Storage protection",
           value: String(pageProtectedCount),
-          detail: pageScopeDetail,
+          detail: "Encrypted states",
         };
 
     // Card 6 — Multipart packages. Workspace via real
@@ -805,12 +853,12 @@ function EvidenceLibraryPageInner() {
       ? {
           label: "Multipart packages",
           value: String(workspaceSummary.multipartCount),
-          detail: workspaceScopeDetail,
+          detail: "Active batches",
         }
       : {
           label: "Multipart packages",
           value: String(pageMultipartCount),
-          detail: pageScopeDetail,
+          detail: "Active batches",
         };
 
     // Card 7 — Unassigned records (no case linkage).
@@ -818,12 +866,12 @@ function EvidenceLibraryPageInner() {
       ? {
           label: "Unassigned records",
           value: String(workspaceSummary.unassignedCount),
-          detail: workspaceScopeDetail,
+          detail: "Awaiting triage",
         }
       : {
           label: "Unassigned records",
           value: String(pageUnassignedCount),
-          detail: pageScopeDetail,
+          detail: "Awaiting triage",
         };
 
     // Card 8 — Review-ready markers (page only — no equivalent
@@ -832,7 +880,10 @@ function EvidenceLibraryPageInner() {
     const reviewReadyCard = {
       label: "Review-ready records",
       value: String(pageReviewReadyCount),
-      tone: "success" as const,
+      // The queue the operator acts on next — the target gives this value the
+      // brand accent. Semantics unchanged: it is still the page-derived
+      // review-ready marker count.
+      tone: "accent" as const,
       detail: pageScopeDetail,
     };
 
@@ -846,7 +897,7 @@ function EvidenceLibraryPageInner() {
       unassignedCard,
       reviewReadyCard,
     ];
-  }, [filters.scope, library.totalCount, visibleItems, workspaceSummary]);
+  }, [library.totalCount, visibleItems, workspaceSummary]);
 
   const pageLabel = useMemo(() => `Page ${pageNumber}`, [pageNumber]);
   const resultsLabel = useMemo(() => {
@@ -1162,14 +1213,20 @@ function EvidenceLibraryPageInner() {
 
   return (
     <PageShell className="evidence-library-page" data-evidence-library-page>
+      {/* Part 3 — the Inspector is a FULL-HEIGHT right rail beside the whole
+          page, not a column beside the queue list. The reference shows it
+          starting level with the top bar, spanning header, KPIs and queue. */}
       <div
-        className="evidence-library-shell"
-        style={{ maxWidth: "none", margin: 0, padding: 0 }}
+        className="evidence-library-layout"
+        data-inspector={inspectorOpen && !compactInspector ? "open" : "closed"}
       >
+      <div className="evidence-library-shell">
         <EvidenceLibraryHeader refreshing={refreshing} onRefresh={refreshCurrentScope} />
-        {/* Contextual help, collapsed by default so the evidence
-            table stays primary. */}
-        <ContextualHelp surface="evidence" collapsedByDefault />
+        {/* The full-width "HELP · EVIDENCE INTEGRITY" bar is not part of the
+            approved Evidence Library composition and made the page read as a
+            mix of two designs. The ContextualHelp CAPABILITY is unchanged and
+            still mounted on every other surface that registers help content;
+            only this page's bar is gone. */}
         <EvidenceMetrics items={metrics} />
         <ActiveTrustFilterChips
           filters={filters}
@@ -1196,7 +1253,10 @@ function EvidenceLibraryPageInner() {
           }
         />
 
-        <div className="evidence-library-main">
+        <div
+          className="evidence-library-main"
+          data-inspector={inspectorOpen && !compactInspector ? "open" : "closed"}
+        >
           <EvidenceList
             items={visibleItems}
             loading={loading}
@@ -1221,37 +1281,42 @@ function EvidenceLibraryPageInner() {
             allCurrentPageSelected={allCurrentPageSelected}
             hasNextPage={Boolean(library.pageInfo?.hasMore && library.pageInfo?.nextCursor)}
             hasPreviousPage={cursorHistory.length > 0}
-            onSelect={setSelectedId}
+            onSelect={selectRecord}
             onToggleSelected={toggleSelected}
             onToggleSelectAllCurrentPage={toggleSelectAllCurrentPage}
             onRetry={refreshCurrentScope}
-            onOpenRecord={openRecord}
-            onDownloadReport={downloadReport}
-            canDownloadReport={canDownloadReportForItem}
             onPrevPage={goToPreviousPage}
             onNextPage={goToNextPage}
           />
-
-          <QueueSelectionPreview
-            item={selectedItem}
-            detail={selectedDetail}
-            loading={detailLoading}
-            error={detailError}
-            caseName={selectedItem?.caseId ? getCaseName(selectedItem.caseId, caseMap) : null}
-            canSeeReviewerOps={canSeeReviewerOps}
-            onOpenRecord={() => (selectedItem ? openRecord(selectedItem.id) : undefined)}
-            onDownloadReport={() =>
-              selectedItem ? void downloadReport(selectedItem.id) : undefined
-            }
-            onDownloadVerificationPackage={() =>
-              selectedItem ? void downloadVerificationPackage(selectedItem.id) : undefined
-            }
-            onCopyVerificationLink={() =>
-              selectedItem ? void copyVerificationLink(selectedItem.id) : undefined
-            }
-          />
         </div>
       </div>
+
+      {/* ONE Inspector. `presentation` chooses the host — the desktop
+          right-hand rail, or the canonical dialog on compact widths. There is
+          no second mobile implementation. */}
+      {inspectorOpen ? (
+        <QueueSelectionPreview
+          presentation={compactInspector ? "hosted" : "panel"}
+          item={selectedItem}
+          detail={detailForId === selectedId ? selectedDetail : null}
+          loading={
+            Boolean(selectedId) && !detailError && (detailLoading || detailForId !== selectedId)
+          }
+          error={detailError}
+          caseName={selectedItem?.caseId ? getCaseName(selectedItem.caseId, caseMap) : null}
+          canSeeReviewerOps={canSeeReviewerOps}
+          onClose={closeInspector}
+          onOpenRecord={() => (selectedItem ? openRecord(selectedItem.id) : undefined)}
+          onDownloadReport={() => (selectedItem ? void downloadReport(selectedItem.id) : undefined)}
+          onDownloadVerificationPackage={() =>
+            selectedItem ? void downloadVerificationPackage(selectedItem.id) : undefined
+          }
+          onCopyVerificationLink={() =>
+            selectedItem ? void copyVerificationLink(selectedItem.id) : undefined
+          }
+        />
+      ) : null}
+    </div>
     </PageShell>
   );
 }

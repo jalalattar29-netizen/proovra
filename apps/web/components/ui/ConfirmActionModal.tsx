@@ -139,7 +139,7 @@ function toneAccent(tone: ConfirmActionTone): {
       };
     case "neutral":
     default:
-      return { color: "#fff", bg: "#5B4FE8", border: "#4F46E5" };
+      return { color: "#fff", bg: "#7C3AED", border: "#6D28D9" };
   }
 }
 

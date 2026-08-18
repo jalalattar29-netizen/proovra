@@ -459,6 +459,22 @@ export function AppAccountToolbar({
                   </div>
                 ) : null}
 
+                {/* EMPTY STATE — a context menu that resolves to no personal
+                    space, no owned workspace and no organization must say so
+                    rather than open a blank panel. Restored here (the shared
+                    shell authority) rather than at any one route. */}
+                {!menu.workspaces.personal &&
+                menu.workspaces.owned.length === 0 &&
+                menu.workspaces.organizations.length === 0 ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-empty"
+                    data-context-group="EMPTY"
+                    role="status"
+                  >
+                    No workspaces are available for this account yet.
+                  </div>
+                ) : null}
+
                 {menu.workspaces.personal ? (
                   <div
                     className="app-topbar-v2-workspace-menu-group"

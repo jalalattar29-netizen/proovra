@@ -2939,7 +2939,7 @@ const chipGroupStyle: React.CSSProperties = {
 };
 
 // Compact filter-rail chip — canonical indigo active state
-// (#F3F0FF / #D8CCFF / #4F46E5), the same tab language as Home / Cases.
+// (#F2ECFE / #D9C7FB / #6D28D9), the same tab language as Home / Cases.
 // The compact metrics are kept (the rail is denser than the Cases
 // segment strip) but the colours map onto the shared design system;
 // active never reads as the old dark-slate pill.
@@ -2971,9 +2971,9 @@ function chipButtonStyle(active: boolean): React.CSSProperties {
     fontWeight: 600,
     borderRadius: 999,
     border: "1px solid",
-    background: active ? "#F3F0FF" : "rgba(255,255,255,0.85)",
-    color: active ? "#4F46E5" : "#5F6878",
-    borderColor: active ? "#D8CCFF" : "rgba(15,23,42,0.10)",
+    background: active ? "#F2ECFE" : "rgba(255,255,255,0.85)",
+    color: active ? "#6D28D9" : "#5F6878",
+    borderColor: active ? "#D9C7FB" : "rgba(15,23,42,0.10)",
     cursor: "pointer",
   };
 }

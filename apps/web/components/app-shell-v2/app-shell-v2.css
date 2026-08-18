@@ -569,7 +569,7 @@
 .app-sidebar-v2-storage-fill {
   height: 100%;
   border-radius: 999px;
-  background: #5B4FE8;
+  background: #7C3AED;
   transition: width 200ms ease;
 }
 
@@ -851,25 +851,25 @@
     box-shadow 160ms ease;
 }
 .home-tab:hover {
-  background: rgba(92, 84, 255, 0.06);
-  color: #4F46E5;
+  background: rgba(124, 58, 237, 0.06);
+  color: #6D28D9;
   border-color: transparent;
 }
 .home-tab[aria-selected="true"] {
-  background: #F3F0FF;
-  border: 1px solid #D8CCFF;
-  color: #4F46E5;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
+  background: #F2ECFE;
+  border: 1px solid #D9C7FB;
+  color: #6D28D9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.10);
 }
 /* Keyboard focus ring — combined with the active shadow when the selected
    tab also has focus (never permanently replacing it). */
 .home-tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16);
 }
 .home-tab[aria-selected="true"]:focus-visible {
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10),
-    0 0 0 3px rgba(79, 70, 229, 0.16);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.10),
+    0 0 0 3px rgba(124, 58, 237, 0.16);
 }
 .home-tabpanel {
   display: flex;
@@ -937,21 +937,21 @@
   gap: 7px;
   padding: 0 14px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #6b5bff 0%, #5949e4 100%);
+  background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
   color: #ffffff;
   font-size: 12.5px;
   font-weight: 650;
   letter-spacing: -0.006em;
   text-decoration: none;
   white-space: nowrap;
-  border: 1px solid rgba(89, 73, 228, 0.5);
+  border: 1px solid rgba(109, 40, 217, 0.5);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
   transition: filter 120ms ease, box-shadow 120ms ease;
 }
 
 .app-header-primary-action:hover:not(:disabled) {
   filter: brightness(1.05);
-  box-shadow: 0 2px 8px rgba(89, 73, 228, 0.32);
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.32);
 }
 /* Disabled state — used when this canonical primary is a <button> (e.g. the
    Create case modal submit). The header "New Case" <Link> never receives
@@ -1152,7 +1152,7 @@
   display: grid;
   place-items: center;
   color: #FFFFFF;
-  background: linear-gradient(135deg, #6B5BFF 0%, #4E3EE8 100%);
+  background: linear-gradient(135deg, #7C3AED 0%, #4E3EE8 100%);
   border: 0;
   font-size: 11px;
   font-weight: 700;
@@ -1239,6 +1239,17 @@
   padding: 6px 10px 4px;
   color: var(--content-ink-muted);
   font-weight: 700;
+}
+
+/* Empty state — shown when the context menu resolves to no personal space,
+   no owned workspace and no organization, so the panel explains itself
+   instead of opening blank. */
+.app-topbar-v2-workspace-menu-empty {
+  padding: 14px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--content-ink-muted);
+  text-align: center;
 }
 
 .app-topbar-v2-workspace-menu-item,

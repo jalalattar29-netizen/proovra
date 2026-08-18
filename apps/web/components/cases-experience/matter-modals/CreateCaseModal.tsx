@@ -154,7 +154,7 @@ export function CreateCaseModal({
               fontWeight: 600,
               background: "rgba(255,255,255,0.78)",
               border: "1px solid rgba(79,70,229,0.18)",
-              color: "var(--accent-600, #4F46E5)",
+              color: "var(--accent-600, #6D28D9)",
               cursor: submitting ? "default" : "pointer",
               opacity: submitting ? 0.6 : 1,
             }}

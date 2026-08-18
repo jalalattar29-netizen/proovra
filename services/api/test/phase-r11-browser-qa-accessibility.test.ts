@@ -108,6 +108,7 @@ const APP_FILES = listAppFiles();
 const CSS_FILES = listAppCss();
 const UI_TSX = readWeb("components/ui-legacy.tsx");
 const MODAL_TSX = readWeb("components/cases-experience/matter-modals/Modal.tsx");
+const APP_PRIMITIVES_CSS = readWeb("components/app-primitives/app-primitives.css");
 
 // ---------------------------------------------------------------------------
 // Group 1 — Cross-phase byte-pin guard
@@ -376,8 +377,25 @@ describe("R11 Group 6 — modal canonical pattern", () => {
     expect(MODAL_TSX.length).toBeGreaterThan(100);
   });
 
-  it("Modal.tsx uses position:fixed (canonical overlay backdrop)", () => {
-    expect(/position\s*:\s*["']fixed["']|fixed/.test(MODAL_TSX)).toBe(true);
+  // The canonical Modal stopped describing its own backdrop with inline styles
+  // when the dialog anatomy moved into `app-primitives.css`. The GUARANTEE the
+  // original assertion protected — a fixed, full-viewport backdrop layered above
+  // the page while the dialog is open — is unchanged, so it is now proven
+  // through that canonical authority instead of through inline style text.
+  it("Modal.tsx renders the canonical fixed overlay backdrop", () => {
+    // 1. The component must opt into the canonical overlay, not roll its own.
+    expect(/className="app-dialog-overlay"/.test(MODAL_TSX)).toBe(true);
+    // 2. That canonical overlay must really be a fixed, full-viewport layer.
+    const start = APP_PRIMITIVES_CSS.indexOf(".app-dialog-overlay {");
+    expect(start).toBeGreaterThan(-1);
+    const overlayRule = APP_PRIMITIVES_CSS.slice(
+      start,
+      APP_PRIMITIVES_CSS.indexOf("}", start),
+    );
+    expect(/position:\s*fixed/.test(overlayRule)).toBe(true);
+    expect(/inset:\s*0/.test(overlayRule)).toBe(true);
+    // 3. And it must sit above page content.
+    expect(/z-index:\s*\d+/.test(overlayRule)).toBe(true);
   });
 
   // Heuristic: the canonical Modal should have an `onClose` or

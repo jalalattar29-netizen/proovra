@@ -313,7 +313,7 @@ export default function AdminAuditPage() {
         events), see the{" "}
         <Link
           href="/admin/timeline"
-          style={{ color: "var(--accent-500, #6B5BFF)", fontWeight: 700, textDecoration: "underline" }}
+          style={{ color: "var(--accent-500, #7C3AED)", fontWeight: 700, textDecoration: "underline" }}
         >
           Global timeline
         </Link>

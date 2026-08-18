@@ -713,6 +713,13 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
 
   it("reviewer-ops + governance UI gating fix preserves the SectionShell pattern", () => {
     expect(REVIEWER_TSX).toMatch(/<PageSection/);
-    expect(GOVERNANCE_TSX).toMatch(/<nav className="case-tabs"/);
+    // The Governance Control Plane kept its sectioned tab navigation but moved
+    // off the borrowed `case-tabs` class onto the canonical `app-tabs`
+    // primitive. Assert the NAVIGATION CONTRACT (a labelled tablist), which is
+    // what the SectionShell pattern actually guaranteed, rather than the name
+    // of the class that used to carry it.
+    expect(GOVERNANCE_TSX).toMatch(/<nav className="app-tabs"/);
+    expect(GOVERNANCE_TSX).toMatch(/role="tablist"/);
+    expect(GOVERNANCE_TSX).toMatch(/aria-label="Governance tabs"/);
   });
 });

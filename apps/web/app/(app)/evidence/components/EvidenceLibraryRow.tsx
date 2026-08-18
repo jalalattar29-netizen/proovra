@@ -1,108 +1,102 @@
-import { Button } from "../../../../components/ui";
 import type { EvidenceListItem } from "../lib/evidence-library-types";
 import {
-  getCaptureMethodLabel,
   getDisplayTitle,
-  getEvidenceTypeLabel,
   getRecordStatusLabel,
-  getStatusTone,
-  getStructureLabel,
-  getVerificationStatusLabel,
+  getReviewPriorityTone,
+  getStatusBadgeTone,
 } from "../lib/evidence-library-status";
 import { formatUtcDateTime, shortId } from "../lib/evidence-library-formatters";
-import { buildReportAvailability } from "../lib/evidence-library-helpers";
 import { buildReviewPriority } from "../lib/evidence-library-alerts";
 
+/**
+ * Evidence queue row.
+ *
+ * FIGMA (decoded, "Row Item (Default)"): a card carrying the checkbox, the
+ * filename as Heading 4, the truncated record id, the item count, the reported
+ * status and UTC timestamp, then the status badge and the operational badge.
+ *
+ * Selected state = purple border + checked purple box on the SAME white card,
+ * with no size change, so selecting a row causes no layout shift.
+ *
+ * ACCESSIBILITY: the row is NOT a button wrapping other buttons (the previous
+ * build nested `<button>` inside `<button>` and `<button>` inside `<a>`). The
+ * checkbox owns selection, the filename is the single control that opens the
+ * record, and the trailing actions are ordinary buttons.
+ */
 export function EvidenceLibraryRow({
   item,
   caseName,
   selected,
   checked,
-  canDownloadReport,
   onSelect,
   onToggleChecked,
-  onOpenRecord,
-  onDownloadReport,
 }: {
   item: EvidenceListItem;
   caseName: string | null;
   selected: boolean;
   checked: boolean;
-  canDownloadReport: boolean;
   onSelect: (id: string) => void;
   onToggleChecked: (id: string, checked: boolean) => void;
-  onOpenRecord: (id: string) => void;
-  onDownloadReport: (id: string) => void;
 }) {
-  const report = buildReportAvailability(item);
   const priority = buildReviewPriority(item);
+  const title = getDisplayTitle(item);
 
   return (
-    <div className={`evidence-library-row ${selected ? "is-selected" : ""}`}>
-      <div className="evidence-library-row__selection">
-        <label className="evidence-library-checkbox">
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(event) => onToggleChecked(item.id, event.target.checked)}
-            aria-label={`Select evidence record ${getDisplayTitle(item)}`}
-          />
-          <span>Select</span>
+    <li
+      className="app-panel evidence-library-row"
+      data-selected={selected ? "true" : undefined}
+      data-evidence-row={item.id}
+    >
+      <span className="evidence-library-row__check">
+        <input
+          id={`evidence-select-${item.id}`}
+          className="app-checkbox"
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onToggleChecked(item.id, event.target.checked)}
+        />
+        <label htmlFor={`evidence-select-${item.id}`} className="sr-only">
+          Select evidence record {title}
         </label>
-      </div>
-      <button
-        type="button"
-        className="evidence-library-row__select"
-        onClick={() => onSelect(item.id)}
-        aria-pressed={selected}
-      >
-        <div className="evidence-library-row__main">
-          <div className="evidence-library-row__title">
-            <strong>{getDisplayTitle(item)}</strong>
-            <p>{item.displaySubtitle}</p>
-          </div>
+      </span>
 
-          <div className="evidence-library-row__badge-stack">
-            <span className={`evidence-library-badge evidence-library-badge--${getStatusTone(item)}`}>
-              {getRecordStatusLabel(item.status)}
-            </span>
-            <span className={`evidence-library-badge evidence-library-badge--priority-${priority.level}`}>
-              {priority.label}
-            </span>
-          </div>
-        </div>
+      <span className="evidence-library-row__identity">
+        <button
+          type="button"
+          className="evidence-library-row__title"
+          onClick={() => onSelect(item.id)}
+          aria-pressed={selected}
+          title={title}
+          data-evidence-row-title={item.id}
+        >
+          {title}
+        </button>
+        <span className="evidence-library-row__id">{shortId(item.id)}</span>
+      </span>
 
-        <div className="evidence-library-row__grid">
-          <span>{shortId(item.id)}</span>
-          <span>{getEvidenceTypeLabel(item)}</span>
-          <span>{getStructureLabel(item)}</span>
-          <span>{item.itemCount} item{item.itemCount === 1 ? "" : "s"}</span>
-          <span>{formatUtcDateTime(item.createdAt)}</span>
-          <span>{caseName ?? "Unassigned"}</span>
-          <span>
-            {item.reviewWorkflow?.assignedTo?.displayName ??
-              item.reviewWorkflow?.assignedTo?.email ??
-              "Unassigned reviewer"}
-          </span>
-          <span>{item.reviewWorkflow?.priority?.replace(/_/g, " ") ?? "Normal"}</span>
-          <span>{item.reviewWorkflow?.dueAt ? formatUtcDateTime(item.reviewWorkflow.dueAt) : "No due date"}</span>
-          <span>{report.label}</span>
-          <span>{getVerificationStatusLabel(item.verificationStatus)}</span>
-          <span>{getCaptureMethodLabel(item.captureMethod)}</span>
-        </div>
-      </button>
+      <span className="evidence-library-row__meta">
+        <span>
+          {item.itemCount} item{item.itemCount === 1 ? "" : "s"}
+        </span>
+        <span aria-hidden>•</span>
+        <span>{getRecordStatusLabel(item.status)}</span>
+        <time dateTime={item.createdAt}>{formatUtcDateTime(item.createdAt)}</time>
+        {caseName ? <span className="app-chip">{caseName}</span> : null}
+      </span>
 
-      <div className="evidence-library-row__actions">
-        <Button onClick={() => onSelect(item.id)} variant="secondary">
-          Select
-        </Button>
-        <Button onClick={() => onOpenRecord(item.id)} variant="secondary">
-          Open Evidence
-        </Button>
-        <Button onClick={() => onDownloadReport(item.id)} disabled={!report.available || !canDownloadReport}>
-          Download Report
-        </Button>
-      </div>
-    </div>
+      <span className="evidence-library-row__badges">
+        <span className="app-status-badge" data-tone={getStatusBadgeTone(item)}>
+          {getRecordStatusLabel(item.status)}
+        </span>
+        <span
+          className="app-status-badge"
+          data-tone={getReviewPriorityTone(priority.level)}
+          data-evidence-row-priority={priority.level}
+        >
+          {priority.label}
+        </span>
+      </span>
+
+    </li>
   );
 }

@@ -193,13 +193,13 @@ const headerPrimaryCtaStyle: React.CSSProperties = {
   display: "inline-block",
   padding: "10px 18px",
   borderRadius: 10,
-  background: "linear-gradient(135deg, #6b5bff 0%, #5949e4 100%)",
+  background: "linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)",
   color: "white",
   fontWeight: 650,
   fontSize: 13.5,
   textDecoration: "none",
   whiteSpace: "nowrap",
-  boxShadow: "0 2px 8px rgba(89, 73, 228, 0.30)",
+  boxShadow: "0 2px 8px rgba(109, 40, 217, 0.30)",
 };
 
 // ============================================================================

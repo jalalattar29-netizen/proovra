@@ -537,7 +537,7 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
                           borderRadius: 9,
                           display: "grid",
                           placeItems: "center",
-                          color: "#5B4FE9",
+                          color: "#7C3AED",
                           background:
                             "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
                           border: "1px solid rgba(91,79,233,0.16)",

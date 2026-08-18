@@ -64,7 +64,7 @@ const TONE_SOLID: Record<CardTone, string> = {
   pending: "var(--status-pending-solid, #f59e0b)",
   risk: "var(--status-risk-solid, #dc2626)",
   neutral: "var(--status-neutral-solid, #64748b)",
-  governance: "var(--status-governance-solid, #6b5bff)",
+  governance: "var(--status-governance-solid, #7C3AED)",
   info: "var(--status-info-solid, #2563eb)",
 };
 

@@ -14,7 +14,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
  * Phase CASE-DETAIL-PROOVRA-UX (visual-only) — the surface is
  * restyled onto the PROOVRA enterprise design system shipped in
  * `cases-experience.css` (translucent `.cases-panel` outer modules,
- * `.cases-inner` inner rows, the #F3F0FF / #D8CCFF / #4F46E5 pill
+ * `.cases-inner` inner rows, the #F2ECFE / #D9C7FB / #6D28D9 pill
  * tabs, the shared semantic `.app-status-badge`, and the
  * success/indigo/neutral `.cases-timeline-*` states). This change is
  * layout + colour only: EVERY data-* attribute, testid, API call,
@@ -2111,7 +2111,7 @@ function NotesTab({
                         style={{
                           border: "none",
                           background: "transparent",
-                          color: "#4F46E5",
+                          color: "#6D28D9",
                           cursor: "pointer",
                           fontSize: 11,
                           fontWeight: 600,
@@ -2314,7 +2314,7 @@ function SettingsTab({
           />
           {/* §21 — Save is DISABLED unless the name actually changed.
               Disabled style: flat lilac-grey, no shadow, not-allowed.
-              Enabled style: solid #5B4FE8 (CaseButton primary default). */}
+              Enabled style: solid #7C3AED (CaseButton primary default). */}
           {(() => {
             const saveDisabled =
               !canRename ||

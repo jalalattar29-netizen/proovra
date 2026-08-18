@@ -150,7 +150,7 @@ function StatusGlyph({ status, active }: { status: string; active?: boolean }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        color: active ? "#4F46E5" : "#64748B",
+        color: active ? "#6D28D9" : "#64748B",
         flexShrink: 0,
       }}
     >
@@ -441,7 +441,7 @@ export function CaseStatusSelect({
               {isCurrent ? (
                 <span
                   aria-hidden
-                  style={{ color: "#4F46E5", display: "inline-flex", marginTop: 1 }}
+                  style={{ color: "#6D28D9", display: "inline-flex", marginTop: 1 }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <path

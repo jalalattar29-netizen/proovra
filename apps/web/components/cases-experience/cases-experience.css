@@ -5,7 +5,7 @@
  * system is upgraded to match the redesigned Home dashboard:
  *   • translucent outer module surfaces (glass over the app background)
  *   • enterprise row-based lists (soft dividers, no card-in-card)
- *   • the shared #F3F0FF / #D8CCFF / #4F46E5 active-state (Home tab language)
+ *   • the shared #F2ECFE / #D9C7FB / #6D28D9 active-state (Home tab language)
  *   • new field styling (44px, 12px radius, clear focus ring)
  * Tokens are consumed from lib/design-tokens/tokens.css; no !important,
  * no legacy globals extended.
@@ -75,7 +75,7 @@
 .cases-filter-search:focus-visible {
   outline: none;
   border-color: #BEB4FF;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
 
 .cases-filter-chips {
@@ -152,14 +152,14 @@
 /* §3 — an inactive hovered tab must NOT read as active; keep the purple
    active language exclusively for the pressed segment. */
 .cases-segments .cases-filter-chip.is-active:hover {
-  background: #F3F0FF;
-  color: #4F46E5;
+  background: #F2ECFE;
+  color: #6D28D9;
 }
 .cases-segments .cases-filter-chip.is-active {
-  background: #F3F0FF;
-  border-color: #D8CCFF;
-  color: #4F46E5;
-  box-shadow: 0 3px 10px rgba(79, 70, 229, 0.08);
+  background: #F2ECFE;
+  border-color: #D9C7FB;
+  color: #6D28D9;
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.08);
 }
 
 .cases-toolbar-right {
@@ -208,14 +208,14 @@
   color: #172033;
 }
 .cases-filter-chip.is-active {
-  background: #F3F0FF;
-  border-color: #D8CCFF;
-  color: #4F46E5;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
+  background: #F2ECFE;
+  border-color: #D9C7FB;
+  color: #6D28D9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.10);
 }
 .cases-filter-chip:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16);
 }
 
 /* ---------------------------------------------------------------------------
@@ -282,7 +282,7 @@
 }
 .cases-row-link:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 2px rgba(79, 70, 229, 0.35);
+  box-shadow: inset 0 0 0 2px rgba(124, 58, 237, 0.35);
   border-radius: 12px;
 }
 
@@ -399,7 +399,7 @@
   white-space: nowrap;
 }
 a.cases-row-title:hover {
-  color: #4F46E5;
+  color: #6D28D9;
 }
 
 .cases-row-scope {
@@ -468,12 +468,12 @@ a.cases-row-title:hover {
 }
 .cases-row-actions-trigger::-webkit-details-marker { display: none; }
 .cases-row-actions-trigger:hover {
-  background: rgba(92, 84, 255, 0.06);
-  color: #4F46E5;
+  background: rgba(124, 58, 237, 0.06);
+  color: #6D28D9;
 }
 .cases-row-actions[open] .cases-row-actions-trigger {
-  background: #F3F0FF;
-  color: #4F46E5;
+  background: #F2ECFE;
+  color: #6D28D9;
 }
 .cases-row-actions-menu {
   position: absolute;
@@ -566,7 +566,7 @@ a.cases-row-title:hover {
 .cases-form-input:focus-visible {
   outline: none;
   border-color: #8b7cf6;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.14);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
 }
 .cases-form-input:disabled {
   opacity: 0.6;
@@ -736,7 +736,7 @@ a.cases-row-title:hover {
 .cases-breadcrumb-link:hover { text-decoration: underline; }
 .cases-breadcrumb-link:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.28);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
 }
 .cases-breadcrumb-sep {
   padding-inline: 8px;

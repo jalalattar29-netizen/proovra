@@ -178,12 +178,12 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "b69289c131c2f89204320125fc136657c8e4c2ee",
-    "phase0ChangedPaths": 365,
-    "phase0AddedPaths": 126,
-    "phase0ModifiedPaths": 205,
-    "phase0DeletedPaths": 34,
-    "phase0AttributedPaths": 42,
+    "phase0BaselineRef": "7169663006149fc23050324ba0dc97b8d9df0da6",
+    "phase0ChangedPaths": 71,
+    "phase0AddedPaths": 0,
+    "phase0ModifiedPaths": 71,
+    "phase0DeletedPaths": 0,
+    "phase0AttributedPaths": 5,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,35 +208,24 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "b69289c131c2f89204320125fc136657c8e4c2ee",
+    "baseline": "7169663006149fc23050324ba0dc97b8d9df0da6",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": ".github/workflows/ci.yml",
+        "path": "apps/web/__tests__/evidence-library-data-accuracy.test.ts",
         "status": "MODIFIED",
-        "class": "CI",
+        "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
+          "byMarker": false,
+          "byEngineRef": false,
           "byInventory": false
         },
-        "attributedToPhase0": true
+        "attributedToPhase0": false
       },
       {
-        "path": ".gitignore",
+        "path": "apps/web/__tests__/evidence-library-enterprise-fixes.test.ts",
         "status": "MODIFIED",
-        "class": "RELEASE_CONFIGURATION",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": ".p12snapshot/head.txt",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
+        "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,
@@ -245,97 +234,9 @@
         "attributedToPhase0": false
       },
       {
-        "path": ".p12snapshot/pass3/status.txt",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/pass3/tracked-changes.patch",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/pass3/untracked-files.tgz",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/pass3/untracked-list.txt",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/status-at-start.txt",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/tracked-changes.patch",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/untracked-files.tgz",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": ".p12snapshot/untracked-list.txt",
-        "status": "DELETED",
-        "class": "RECOVERY_SNAPSHOT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "PHASE_4B_PRODUCT_PACKAGING_AND_LIFECYCLE_FINAL_REPORT.md",
+        "path": "apps/web/__tests__/intake-links-modal-strict-ux.test.ts",
         "status": "MODIFIED",
-        "class": "DOCUMENTATION",
+        "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,
@@ -344,7 +245,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
+        "path": "apps/web/app/(app)/admin/audit/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -355,7 +256,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/capture/_hooks/useResumableUploads.ts",
+        "path": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -366,7 +267,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
+        "path": "apps/web/app/(app)/admin/contact-sales/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -377,7 +278,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+        "path": "apps/web/app/(app)/admin/demo-requests/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -388,7 +289,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/page.tsx",
+        "path": "apps/web/app/(app)/billing/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -399,7 +300,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/governance-platform/access-reviews/page.tsx",
+        "path": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -410,7 +311,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/governance-platform/cross-org/page.tsx",
+        "path": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/ActivityTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -421,7 +322,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/governance-platform/delegated-admin/page.tsx",
+        "path": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -432,7 +333,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/governance-platform/policies/page.tsx",
+        "path": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -443,7 +344,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/governance/destruction/page.tsx",
+        "path": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -454,7 +355,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/operations/automation/page.tsx",
+        "path": "apps/web/app/(app)/evidence/components/BulkActionsToolbar.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -465,7 +366,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+        "path": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -476,7 +377,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
+        "path": "apps/web/app/(app)/evidence/components/EvidenceLibraryHeader.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -487,7 +388,128 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx",
+        "path": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/components/EvidenceList.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/components/EvidenceMetrics.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/components/SavedViewsMenu.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/evidence-library.css",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/lib/evidence-library-formatters.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/page.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/intake-links/page.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/investigation/graph/_sections/GraphCurationPanel.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/organizations/[id]/admin/overview/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -509,7 +531,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
+        "path": "apps/web/app/(app)/organizations/[id]/setup/_lib/SetupChecklist.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -520,7 +542,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+        "path": "apps/web/app/(app)/organizations/[id]/setup/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -531,7 +553,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/security-center/page.tsx",
+        "path": "apps/web/app/(app)/search/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -542,7 +564,40 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+        "path": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/settings/_sections/OverviewSection.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -564,7 +619,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/auth/mfa-challenge/page.tsx",
+        "path": "apps/web/app/globals.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -575,7 +630,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/request-demo/success/page.tsx",
+        "path": "apps/web/components/app-primitives/app-primitives.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -586,7 +641,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/identity-security/StepUpModal.tsx",
+        "path": "apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -597,7 +652,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+        "path": "apps/web/components/app-shell-v2/app-shell-v2.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -608,7 +663,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+        "path": "apps/web/components/billing/CheckoutPanel.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -619,7 +674,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/navigation/PageRouteGate.tsx",
+        "path": "apps/web/components/cases-experience/CasesIndex.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -630,7 +685,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/redaction/VideoReviewWorkspace.tsx",
+        "path": "apps/web/components/cases-experience/cases-experience.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -641,7 +696,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/surface/SurfaceGate.tsx",
+        "path": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -652,7 +707,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/workspace-admin/WorkspaceAdministrationHome.tsx",
+        "path": "apps/web/components/cases-experience/matter-modals/Modal.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -663,7 +718,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/api.ts",
+        "path": "apps/web/components/cases-experience/simple-case-detail/CaseStatusSelect.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -674,7 +729,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/citizen-capture/citizen-capture-client.ts",
+        "path": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -685,7 +740,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/contact-sales-schema.ts",
+        "path": "apps/web/components/feedback/severity.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -696,7 +751,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/media-intelligence/useDerivedAssets.ts",
+        "path": "apps/web/components/home-experience/HomeDashboardSections.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -707,7 +762,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/navigation/routeRegistry.ts",
+        "path": "apps/web/components/home-experience/HomeSections.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -718,7 +773,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/request-demo-schema.ts",
+        "path": "apps/web/components/home-experience/home-theme.ts",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -729,7 +784,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/surface/tiers.ts",
+        "path": "apps/web/components/intake-links/IntakeLinkDeliveryDrawer.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -740,7 +795,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/uploads/feature-flag.ts",
+        "path": "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -751,7 +806,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/lib/uploads/multipart-uploader.ts",
+        "path": "apps/web/components/reports-experience/ReportsIndex.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -762,7 +817,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/middleware.ts",
+        "path": "apps/web/components/ui/Badge.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -773,8 +828,52 @@
         "attributedToPhase0": false
       },
       {
-        "path": "audit-output/current/ledger/generate-ledger.mjs",
-        "status": "ADDED",
+        "path": "apps/web/components/ui/Card.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/components/ui/ConfirmActionModal.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/components/ui/PageShell.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/lib/design-tokens/tokens.css",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "audit-output/current/architecture-facts.json",
+        "status": "MODIFIED",
         "class": "AUDIT_ARTIFACT",
         "attribution": {
           "byMarker": false,
@@ -784,8 +883,8 @@
         "attributedToPhase0": true
       },
       {
-        "path": "audit-output/current/ledger/ledger.json",
-        "status": "ADDED",
+        "path": "audit-output/current/audit-governance-inventory.json",
+        "status": "MODIFIED",
         "class": "AUDIT_ARTIFACT",
         "attribution": {
           "byMarker": false,
@@ -795,8 +894,8 @@
         "attributedToPhase0": true
       },
       {
-        "path": "audit-output/current/ledger/ledger.md",
-        "status": "ADDED",
+        "path": "audit-output/current/report.md",
+        "status": "MODIFIED",
         "class": "AUDIT_ARTIFACT",
         "attribution": {
           "byMarker": false,
@@ -806,8 +905,8 @@
         "attributedToPhase0": true
       },
       {
-        "path": "audit-output/current/ledger/rows.json",
-        "status": "ADDED",
+        "path": "audit-output/diagnostics/test-caller-diagnostic.json",
+        "status": "MODIFIED",
         "class": "AUDIT_ARTIFACT",
         "attribution": {
           "byMarker": false,
@@ -815,314 +914,6 @@
           "byInventory": true
         },
         "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/CONTINUATION-CHECKPOINT.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/authority-inventory.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/authority-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/backend-route-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/checkpoint.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/corrective-pass-2-report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/corrective-pass-3-report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/corrective-pass-report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/database-migration-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/database-writer-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/final-report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/findings.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/focused-checkpoint.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/focused-final-report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/invitation-authority-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/migration-rehearsal.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/mobile-action-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/new-findings.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/page-action-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/production-file-inventory.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/queue-runtime-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/queue-topology.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/reachable-graph.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/remediation-ledger.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/remediation-report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/route-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/phase12-independent-source-audit/web-action-matrix.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/phase12-independent-source-audit/ledger/ledger.md",
-        "status": "DELETED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
       },
       {
         "path": "docs/architecture/current-runtime-capability-map.json",
@@ -1136,95 +927,7 @@
         "attributedToPhase0": true
       },
       {
-        "path": "docs/architecture/migration-deployment-plan.md",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/migration-inventory-p6.curation.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/migration-inventory-p6.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/phase-16-semantic-search-activation-final.md",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/point5-family-proven-cases.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/point7-proven-scenarios.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/program-ledger.md",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "docs/operations/point6-migration-runbook.md",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/_harness.ts",
+        "path": "services/api/test/phase-14-global-intelligence-search.test.ts",
         "status": "MODIFIED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -1235,7 +938,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "e2e/point7/plan-journeys.spec.ts",
+        "path": "services/api/test/phase-32-8-c-enterprise-gap-closure.test.ts",
         "status": "MODIFIED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -1246,1063 +949,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "package.json",
-        "status": "MODIFIED",
-        "class": "RELEASE_CONFIGURATION",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "packages/shared-billing/src/plan-catalog.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared-billing/src/workspace.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared-runtime/src/ops/metrics.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared-runtime/src/technical-metadata/capture-environment.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared-runtime/src/technical-metadata/index.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared/package.json",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared/src/index.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared/src/security.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/package.json",
-        "status": "MODIFIED",
-        "class": "RELEASE_CONFIGURATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/prisma/schema.prisma",
-        "status": "MODIFIED",
-        "class": "SCHEMA_DECLARATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/migration-inventory.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/scripts/migration-production-reconcile.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/scripts/migration-rehearsal.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/release-deploy.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/release-materialize.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/verify-module-reachability.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/src/db.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/middleware/auth.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/middleware/cron-secret.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/middleware/require-enterprise-feature.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/admin-audit.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/admin-identity.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/ai.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/analytics.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/auth.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/capture-trust.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/capture.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/cases.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/citizen-capture.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/contact-sales.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/demo-requests.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/evidence.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/external-intake.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/identity-security.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/mfa.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/ops.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/organizations.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/redaction.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/review-operations.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/reviewer-ops.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/saml-auth.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/siu.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/teams.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/workspace-ai-policy.routes.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/workspace-alias.plugin.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/server.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/access-control/session-inventory.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/access/tenant-access.helpers.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/ai/ai-retention.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/automation/automation-outbox.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/communications/provider-registry.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/communications/verification.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/dashboard/command-center.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/dashboard/worker-telemetry.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/enterprise-provisioning.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/exchange/signed-delivery.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/graph/domain-sync.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/identity-security/step-up.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/identity/contributor-governance.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/identity/membership-provisioning.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/identity/rbac.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/intelligence/extraction.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/intelligence/intelligence-verification-manifest.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/intelligence/search.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/media-intelligence/exif-extractor.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/media-intelligence/exif-summary.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/media-intelligence/ocr-transcript-indexer.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/media-intelligence/producer-mode.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/media-intelligence/report-projection.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/notifications/operations-summary-cache.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/ops-health/projection-health.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/ops/operational-seed.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/organization/tenancy-resolver.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/platform-audit-log.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/redaction/policy-verification-manifest.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/redaction/redaction-verification-manifest.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/redaction/video/video-verification-manifest.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/reliability/upload-session.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/reviewer-ops/reminder-engine.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/search/case-indexing.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/search/ocr-foundations.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/search/saved-search.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/search/transcript-foundations.service.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/security/mfa-recovery-request.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/security/mfa.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/siu/siu-export-bundle.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/technical-metadata/capture-environment-writer.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/trust/trust-center.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/uploads/unified-material-manifest.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/uploads/upload-session.service.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/communications.test.ts",
+        "path": "services/api/test/phase-b-ia-reset.test.ts",
         "status": "MODIFIED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -2313,7 +960,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "services/api/test/exif-extractor.service.test.ts",
+        "path": "services/api/test/phase-c1-matter-workspace.test.ts",
         "status": "MODIFIED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -2324,535 +971,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "services/api/test/identity-security.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/integration-harness.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/intelligence.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12-closure-gate.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12-coverage-manifest.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12-ledger-conservation.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12-new-005-delegated-tier-membership.integration.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12-point8-release-artifact.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12-trust-administration-matrix.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12-wiring-registry.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12a-reconciliation-gate.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12b-evidence-operations-entry-matrix.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12b-identity-security-matrix.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12b-identity-selfservice-matrix.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12b-legal-hold-convergence.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-24-b-completion.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-24-j-discovery.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-3-membership-orchestrator.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-30-11-unified-evidence-model.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-30-12-consumer-integration.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-31-11-report-projection.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-31-19-producer-mode.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-31-21-enterprise-closure.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-32-8-c-nav-reliability.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-32-8-c-ppppp-structural-closure.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-37-95-scale-closure.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-37-95-tenant-access-helpers-behavioral.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-37-98-command-center-projection-consumption.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-3a-elite-closure-policy-and-video.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-3a-redaction-platform.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-3b-enterprise-closure.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-3b-intelligence-platform.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-8-saml-signed-fixture.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-a1-evidence-org-tenancy.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-b0-workspace-operating-model.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-cr4-verify-decomposition.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-cr5-capture-safety.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-e5-trust-center.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-e6-dr-continuity.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-enterprise-tenant-model.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-g1-governance-lifecycle.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-g4-regression-safety.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-g4-tenancy-cleanup.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-ia-surface-tier-wiring.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-ia-surface-tier.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-r10-visual-maturity.test.ts",
+        "path": "services/api/test/phase-g0-operational-convergence.test.ts",
         "status": "MODIFIED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -2865,1359 +984,6 @@
       {
         "path": "services/api/test/phase-r11-browser-qa-accessibility.test.ts",
         "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-r8-1-1-mfa-orchestrator.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-r8-1-3-org-mfa-policy-and-durable-challenges.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-r9-duplicate-route-guard.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-repair-reviewers-honest-chips.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-tenant-isolation-scale.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase24-search.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase25-reviewer-ops.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase25_5-reviewer-ops-hardening.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/point7/scenario-manifest.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/pricing-hardening-canonical-contract.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/pricing-hardening-plan-capabilities.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/production-phase2-drift-remediation.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/review-operations.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/reviewer-ops-e2e-operational.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/setup/test-bootstrap.mjs",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/vitest.config.ts",
-        "status": "MODIFIED",
-        "class": "RELEASE_CONFIGURATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/src/governance/lifecycle-legal-hold.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/src/local-ocr-transcript-capability.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/src/report-v2/index.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/src/report-v2/sections/integrity-proof.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/src/report-v2/sections/redaction-summary.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/src/report-v2/sections/video-intelligence.ts",
-        "status": "DELETED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/test/phase-m3-2-siu-governance-export.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/test/phase-r6-lifecycle-legal-hold.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/test/report-location-source.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/test/report-media-intelligence.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/test/report.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/worker/test/technical-metadata.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/audit-002-api-origin-authority.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/phase13-api-error-envelope.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/phase13-automation-budgets-ui.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/phase13-disconnected-ui-actions.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/phase13-evidence-security-ui.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/phase13-governance-platform-ui.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/phase13-org-workspace-lifecycle-ui.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/render/surface-gate-state-machine.render.test.tsx",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/automation/",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/AccessReviewCampaignForm.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/CrossOrgReviewForms.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/DelegatedAdminGrantForm.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/DestructionReviewForm.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/GovernanceFormField.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/GovernancePolicyForm.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/governance/governance-action-state.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/mfa-recovery/",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/organizations/OrgMemberLifecycleControls.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/organizations/OrgWorkspaceLifecycleControls.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/redaction/VideoFrameTrackPanels.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/workspace-admin/CreateWorkspaceCard.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/current/CONTINUATION-CHECKPOINT.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/current/architecture-facts.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/current/audit-governance-inventory.json",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/current/report.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/diagnostics/",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "audit-output/history/README.md",
-        "status": "ADDED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "e2e/point7/_binary-fixtures.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/_org-upload-fixtures.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/_step-up-fixtures.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/_storage-target.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/_ui-fixtures.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/new-027-siu-export.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/new-028-derived-assets.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/new-029-multipart-cancel.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/new-058-account-bound-step-up.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/org-membership-lifecycle.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/step-up-and-error-envelope.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/ui-capabilities-automation.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/ui-capabilities-evidence.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/ui-capabilities-governance.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/ui-capabilities-security.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "e2e/point7/ui-capabilities-workspace.spec.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared-runtime/src/technical-metadata/proxy-trust-policy.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "packages/shared/src/zod-runtime-config.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "scripts/point7-run.mjs",
-        "status": "ADDED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/.eslintrc.cjs",
-        "status": "ADDED",
-        "class": "RELEASE_CONFIGURATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/prisma/migrations/20271201000000_new058_verified_contact_factors/",
-        "status": "ADDED",
-        "class": "HISTORICAL_MIGRATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/audit/",
-        "status": "ADDED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/capability-authority/",
-        "status": "ADDED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/generate-runtime-capability-map.mjs",
-        "status": "ADDED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/scripts/p12-production-workspace-kind-snapshot.mjs",
-        "status": "ADDED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/verify-route-consumers.mjs",
-        "status": "ADDED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/src/middleware/client-ip.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/identity-security-contact-factors.routes.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/routes/identity-security-shared.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/communications/recording-provider.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/src/services/security/verified-contact-factor.service.ts",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/_canonical-facts.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/_fixtures/",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/capability-authority-modules.d.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": false
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-0-audit-engine-governance.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-0-unique-evidence-guard.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12-capability-analyzer-adversarial.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-12-legacy-003-module-reachability.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-12-route-consumer-authority.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-13-checkpoint-truth-gate.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-13-closure-evaluator-adversarial.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-13-messaging-recording-provider.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-mfa-orchestrator-boundary.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-mutation-closure-adversarial.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-13-new058-account-bound-step-up.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-point7-process-boundary.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-point7-storage-reset-guard.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-step-up-verification-binding.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-structural-reachability-adversarial.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-13-tenant-binding-adversarial.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase-13-writer-disposition-runtime.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-13-writer-preservation-gate.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/phase1-002-citizen-intake-ip-trust.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase1-public-write-bounds.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-final-002-saml-authorization.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-final-005-ai-policy-routing.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-new-023-teams-membership-status.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-new-024-org-ownership-transfer-status.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-new-025-026-tenant-grant-and-stamp.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-proxy-trust-policy.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-public-write-bounds.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-secret-authorities.integration.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase13-security-families.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/security/",
-        "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
           "byMarker": false,

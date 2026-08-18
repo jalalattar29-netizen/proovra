@@ -38,7 +38,7 @@ export const SEVERITY: Record<FeedbackSeverity, SeverityToken> = {
   warning: { accent: "#D97706", ink: "#92400E", tint: "#FFFBEB", chipBorder: "rgba(217,119,6,0.28)" },
   info: { accent: "#2563EB", ink: "#1E40AF", tint: "#EFF6FF", chipBorder: "rgba(37,99,235,0.26)" },
   neutral: { accent: "#64748B", ink: "#334155", tint: "#F8FAFC", chipBorder: "rgba(100,116,139,0.24)" },
-  loading: { accent: "#5949E4", ink: "#3730A3", tint: "#EEF2FF", chipBorder: "rgba(89,73,228,0.26)" },
+  loading: { accent: "#6D28D9", ink: "#3730A3", tint: "#EEF2FF", chipBorder: "rgba(89,73,228,0.26)" },
 } as const;
 
 /** Shared surface tokens — premium light card, deep-navy ink. */

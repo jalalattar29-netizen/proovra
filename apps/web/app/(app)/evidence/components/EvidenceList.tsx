@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { EvidenceListItem } from "../lib/evidence-library-types";
 import { EvidenceLibraryRow } from "./EvidenceLibraryRow";
-import { Button, Card } from "../../../../components/ui";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { ProovraSystemState } from "../../../../components/feedback/ProovraSystemState";
 
@@ -24,9 +23,6 @@ export function EvidenceList({
   onToggleSelected,
   onToggleSelectAllCurrentPage,
   onRetry,
-  onOpenRecord,
-  onDownloadReport,
-  canDownloadReport,
   onPrevPage,
   onNextPage,
 }: {
@@ -47,45 +43,53 @@ export function EvidenceList({
   onToggleSelected: (id: string, checked: boolean) => void;
   onToggleSelectAllCurrentPage: (checked: boolean) => void;
   onRetry: () => void;
-  onOpenRecord: (id: string) => void;
-  onDownloadReport: (id: string) => void;
-  canDownloadReport: (item: EvidenceListItem) => boolean;
   onPrevPage: () => void;
   onNextPage: () => void;
 }) {
   return (
-    <Card className="evidence-library-list-shell">
-      <div className="evidence-library-list-shell__header">
+    <section className="app-panel app-panel__body evidence-library-list-shell">
+      <header className="evidence-library-list-shell__header">
         <div>
-          <strong>Evidence queue</strong>
-          <p>
+          <h2 className="evidence-library-list-shell__title">Evidence queue</h2>
+          <p className="app-hint">
             Dense operational triage for reviewer queues, export readiness, and case-linked evidence operations.
           </p>
         </div>
         <div className="evidence-library-list-shell__meta">
-          <span>{currentScope}</span>
-          <span>Results are loaded from the server using the selected filters.</span>
+          <span className="app-chip">{currentScope}</span>
+          <span className="app-hint">Results are loaded from the server using the selected filters.</span>
         </div>
-      </div>
+      </header>
 
-      <div className="evidence-library-list-toolbar">
-        <label className="evidence-library-checkbox">
+      {/* Selection + bulk-action bar. It renders whenever a page is loaded;
+          the bulk controls inside `toolbar` are supplied by the page and only
+          appear when its own selection state requires them. */}
+      <div className="evidence-library-list-toolbar" data-evidence-selection-bar>
+        <span className="evidence-library-checkbox">
           <input
+            id="evidence-select-all-loaded"
+            className="app-checkbox"
             type="checkbox"
             checked={allCurrentPageSelected}
             onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
             disabled={items.length === 0}
           />
-          <span>Select loaded page</span>
-        </label>
+          <label htmlFor="evidence-select-all-loaded">Select all loaded pages</label>
+        </span>
         {toolbar}
       </div>
 
       {loading ? (
-        <div className="evidence-library-skeleton-stack">
-          <div className="evidence-library-skeleton-row" />
-          <div className="evidence-library-skeleton-row" />
-          <div className="evidence-library-skeleton-row" />
+        <div
+          className="evidence-library-skeleton-stack"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          aria-label="Loading evidence records"
+        >
+          <span className="app-skeleton evidence-library-skeleton-row" />
+          <span className="app-skeleton evidence-library-skeleton-row" />
+          <span className="app-skeleton evidence-library-skeleton-row" />
         </div>
       ) : error ? (
         <ProovraSystemState
@@ -102,19 +106,22 @@ export function EvidenceList({
           title="No evidence records in this scope"
           purpose="Adjust the scope or filters, or capture new evidence to populate the reviewer queue."
           action={
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-              <Link href="/capture">
-                <Button variant="primary">Upload / Capture Evidence</Button>
+            /* ONE interactive element per action — the previous build nested a
+               <button> inside each <a>, which is invalid and gave assistive
+               tech two overlapping controls. */
+            <div className="app-empty__actions">
+              <Link href="/capture" className="app-header-primary-action">
+                Upload / Capture Evidence
               </Link>
-              <Link href="/cases">
-                <Button variant="secondary">Review Cases</Button>
+              <Link href="/cases" className="app-secondary-action">
+                Review Cases
               </Link>
             </div>
           }
         />
       ) : (
         <>
-          <div className="evidence-library-list">
+          <ul className="evidence-library-list" data-evidence-list>
             {items.map((item) => (
               <EvidenceLibraryRow
                 key={item.id}
@@ -122,29 +129,36 @@ export function EvidenceList({
                 caseName={item.caseId ? caseMap.get(item.caseId) ?? null : null}
                 selected={item.id === selectedId}
                 checked={selectedIds.has(item.id)}
-                canDownloadReport={canDownloadReport(item)}
                 onSelect={onSelect}
                 onToggleChecked={onToggleSelected}
-                onOpenRecord={onOpenRecord}
-                onDownloadReport={onDownloadReport}
               />
             ))}
-          </div>
+          </ul>
 
           <div className="evidence-library-pagination">
             <span>{pageLabel}</span>
             <span>{resultsLabel}</span>
             <div className="evidence-library-pagination__actions">
-              <Button variant="secondary" onClick={onPrevPage} disabled={!hasPreviousPage}>
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={onPrevPage}
+                disabled={!hasPreviousPage}
+              >
                 Previous
-              </Button>
-              <Button onClick={onNextPage} disabled={!hasNextPage}>
+              </button>
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={onNextPage}
+                disabled={!hasNextPage}
+              >
                 Next
-              </Button>
+              </button>
             </div>
           </div>
         </>
       )}
-    </Card>
+    </section>
   );
 }

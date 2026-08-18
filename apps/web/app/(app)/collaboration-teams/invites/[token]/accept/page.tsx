@@ -479,9 +479,9 @@ const TONE_META: Record<
   { ink: string; bg: string; border: string; icon: React.ReactNode }
 > = {
   neutral: {
-    ink: "#4F46E5",
-    bg: "#F3F0FF",
-    border: "#D8CCFF",
+    ink: "#6D28D9",
+    bg: "#F2ECFE",
+    border: "#D9C7FB",
     icon: (
       <path d="M12 16v-4M12 8h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
     ),

@@ -43,9 +43,12 @@
   /* ------------------------------------------------------------------
    * BRAND ACCENT (used sparingly)
    * ------------------------------------------------------------------ */
-  --accent-050: #EEEBFF;
-  --accent-500: #6B5BFF;
-  --accent-600: #5949E4;
+  /* APPROVED BRAND ACCENT — Figma "Color Palette/Purple". These are the ONE
+     accent authority; no surface may declare its own purple. */
+  --accent-050: #F2ECFE;
+  --accent-200: #D9C7FB;
+  --accent-500: #7C3AED;
+  --accent-600: #6D28D9;
 
   /* ------------------------------------------------------------------
    * SEMANTIC

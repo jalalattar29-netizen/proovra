@@ -1,40 +1,25 @@
-import type React from "react";
 import Link from "next/link";
-import { FolderPlus, RefreshCw, Scale, Upload } from "lucide-react";
+import { FolderPlus, RefreshCw, Upload } from "lucide-react";
 import { PageHeader } from "../../../../components/ui";
-import { Button } from "../../../../components/ui/Button";
-import { Card } from "../../../../components/ui/Card";
-import { Badge } from "../../../../components/ui/Badge";
-import { EVIDENCE_LIBRARY_LEGAL_BOUNDARY } from "../lib/evidence-library-formatters";
+import {
+  EVIDENCE_LIBRARY_LEGAL_BOUNDARY,
+  EVIDENCE_LIBRARY_TITLE,
+  EVIDENCE_LIBRARY_DESCRIPTION,
+  EVIDENCE_LIBRARY_LEGAL_BOUNDARY_TITLE,
+} from "../lib/evidence-library-formatters";
 
-const LINK_BASE: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  minHeight: 42,
-  padding: "0 18px",
-  borderRadius: 12,
-  fontSize: 14,
-  fontWeight: 650,
-  textDecoration: "none",
-};
-
-const SECONDARY_LINK_STYLE: React.CSSProperties = {
-  ...LINK_BASE,
-  background: "var(--surface-card, #ffffff)",
-  color: "var(--ink-primary, #0f172a)",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
-};
-
-const PRIMARY_LINK_STYLE: React.CSSProperties = {
-  ...LINK_BASE,
-  background: "var(--btn-primary-bg)",
-  color: "var(--btn-primary-color)",
-  border: "1px solid var(--btn-primary-border)",
-  boxShadow: "var(--btn-primary-shadow)",
-};
-
+/**
+ * Evidence Library header + legal boundary.
+ *
+ * Every control resolves to a canonical authority — `.app-header-primary-action`
+ * for the primary, `.app-secondary-action` for the two secondaries — so the
+ * page reads as the same product as Case Details. No inline style objects, no
+ * legacy Button/Card/Badge, no colour declared here.
+ *
+ * Behaviour is unchanged: New Case still navigates to /cases, Upload / Capture
+ * still navigates to /capture, and Refresh still calls the same handler with
+ * the same disabled-while-refreshing contract.
+ */
 export function EvidenceLibraryHeader({
   refreshing,
   onRefresh,
@@ -46,69 +31,67 @@ export function EvidenceLibraryHeader({
     <>
       <PageHeader
         className="evidence-library-header"
-        eyebrow={
-          <span
-            className="evidence-library-overline"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <Scale size={13} />
-            Evidence Operations Workspace
+        title={EVIDENCE_LIBRARY_TITLE}
+        subtitle={
+          /* INLINE element — PageHeader wraps `subtitle` in its own <p>. */
+          <span className="evidence-library-subtitle" data-evidence-subtitle>
+            {EVIDENCE_LIBRARY_DESCRIPTION}
           </span>
         }
-        title="Evidence Library"
-        subtitle="Operational workspace for managing, reviewing, filtering, and exporting preserved evidence records across professional review workflows."
         secondaryActions={
           <>
             <Link
               href="/cases"
-              className="evidence-library-link-button"
-              style={SECONDARY_LINK_STYLE}
+              className="app-secondary-action app-secondary-action--lg"
+              data-evidence-new-case
             >
-              <FolderPlus size={16} />
+              <FolderPlus size={16} strokeWidth={1.9} aria-hidden="true" />
               New Case
             </Link>
-            <Button
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--lg"
               onClick={onRefresh}
-              variant="secondary"
               disabled={refreshing}
-              leadingIcon={<RefreshCw size={16} />}
+              aria-busy={refreshing}
+              data-evidence-refresh
             >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </Button>
+              <RefreshCw size={16} strokeWidth={1.9} aria-hidden="true" />
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
           </>
         }
         primaryAction={
           <Link
             href="/capture"
-            className="evidence-library-link-button evidence-library-link-button--primary"
-            style={PRIMARY_LINK_STYLE}
+            className="app-header-primary-action app-primary-action--lg"
+            data-evidence-upload
           >
-            <Upload size={16} />
+            <Upload size={16} strokeWidth={2} aria-hidden="true" />
             Upload / Capture Evidence
           </Link>
         }
       />
 
-      <Card
-        variant="status"
-        tone="governance"
-        padding="comfortable"
-        className="evidence-library-callout"
-        header={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Badge tone="governance" subtle>
-              Legal boundary
-            </Badge>
-          </div>
-        }
+      {/* LEGAL BOUNDARY — canonical panel with a 4px accent on the LOGICAL
+          start edge, so it mirrors to the right-hand edge in Arabic. The
+          heading carries the accent ink; the body stays neutral and upright.
+          Wording and localization are untouched. */}
+      <section
+        className="app-panel app-panel__body evidence-library-boundary"
+        data-evidence-legal-boundary
+        aria-labelledby="evidence-legal-boundary-title"
       >
-        <p
-          className="evidence-library-muted"
-          style={{ margin: 0, lineHeight: 1.6 }}
+        <h2
+          id="evidence-legal-boundary-title"
+          className="evidence-library-boundary-title"
         >
+          {EVIDENCE_LIBRARY_LEGAL_BOUNDARY_TITLE}
+        </h2>
+        <p className="evidence-library-boundary-text">
           {EVIDENCE_LIBRARY_LEGAL_BOUNDARY}
         </p>
-      </Card>
+      </section>
     </>
   );
 }

@@ -167,9 +167,9 @@ function roleTone(role: string) {
 
   if (normalized === "OWNER") {
     return {
-      border: "1px solid #D8CCFF",
-      background: "#F3F0FF",
-      color: "#4F46E5",
+      border: "1px solid #D9C7FB",
+      background: "#F2ECFE",
+      color: "#6D28D9",
     };
   }
 
@@ -1323,7 +1323,7 @@ function TeamDetailPageBody() {
           border-color: #8b7cf6;
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.78),
-            0 0 0 3px rgba(139, 124, 246, 0.14),
+            0 0 0 3px rgba(124, 58, 237, 0.14),
             0 12px 24px rgba(0, 0, 0, 0.06);
         }
 

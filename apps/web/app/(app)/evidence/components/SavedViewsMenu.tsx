@@ -1,6 +1,8 @@
-import { Button, Modal } from "../../../../components/ui";
+import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 import type { EvidenceSavedView } from "../lib/evidence-library-types";
 import { useState } from "react";
+import { Bookmark as BookmarkIcon, Plus } from "lucide-react";
+import { AppListbox } from "../../../../components/app-primitives";
 
 export function SavedViewsMenu({
   views,
@@ -59,20 +61,41 @@ export function SavedViewsMenu({
 
   return (
     <>
-      <div className="evidence-library-toolbar">
-        <Button variant="secondary" onClick={() => setIsOpen(true)}>
+      {/* Triggers are canonical secondary actions. PART 3 — both dialogs
+          below now use the canonical app dialog (focus trap, focus
+          restoration, Escape and backdrop dismissal). Every callback,
+          validation rule and destructive semantic is unchanged. */}
+      <>
+        <button
+          type="button"
+          className="app-secondary-action app-secondary-action--filled"
+          onClick={() => setIsOpen(true)}
+          data-evidence-saved-views-trigger
+        >
+          <BookmarkIcon size={16} strokeWidth={1.9} aria-hidden="true" />
           Saved Views
-        </Button>
-        <Button variant="secondary" onClick={() => setSaveOpen(true)}>
+        </button>
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={() => setSaveOpen(true)}
+          data-evidence-save-view-trigger
+        >
+          <Plus size={16} strokeWidth={1.9} aria-hidden="true" />
           Save Current View
-        </Button>
-      </div>
+        </button>
+      </>
 
       <Modal
-        isOpen={isOpen}
+        open={isOpen}
         onClose={() => setIsOpen(false)}
         title="Saved Views"
-        actions={<Button variant="secondary" onClick={() => setIsOpen(false)}>Close</Button>}
+        testid="evidence-saved-views"
+        footer={
+          <button type="button" className="app-secondary-action" onClick={() => setIsOpen(false)}>
+            Close
+          </button>
+        }
       >
         {views.length === 0 ? (
           <p className="evidence-library-muted">No saved views yet.</p>
@@ -88,11 +111,12 @@ export function SavedViewsMenu({
                   {view.isDefault ? " • Default" : ""}
                 </p>
                 <div className="evidence-library-panel__actions">
-                  <Button variant="secondary" onClick={() => onApplyView(view)}>
+                  <button type="button" className="app-secondary-action" onClick={() => onApplyView(view)}>
                     Load View
-                  </Button>
-                  <Button
-                    variant="secondary"
+                  </button>
+                  <button
+                    type="button"
+                    className="app-secondary-action"
                     onClick={() => {
                       setEditViewId(view.id);
                       setName(view.name);
@@ -102,11 +126,11 @@ export function SavedViewsMenu({
                     }}
                   >
                     Rename
-                  </Button>
-                  <Button variant="secondary" onClick={() => void onSetDefault(view.id)} disabled={view.isDefault}>
+                  </button>
+                  <button type="button" className="app-secondary-action" onClick={() => void onSetDefault(view.id)} disabled={view.isDefault}>
                     {view.isDefault ? "Default View" : "Make Default"}
-                  </Button>
-                  <Button onClick={() => void onDeleteView(view.id)}>Delete</Button>
+                  </button>
+                  <button type="button" className="app-danger-action" onClick={() => void onDeleteView(view.id)}>Delete</button>
                 </div>
               </div>
             ))}
@@ -115,7 +139,8 @@ export function SavedViewsMenu({
       </Modal>
 
       <Modal
-        isOpen={saveOpen}
+        open={saveOpen}
+        testid="evidence-save-view"
         onClose={() => {
           setSaveOpen(false);
           setEditViewId(null);
@@ -125,10 +150,11 @@ export function SavedViewsMenu({
           setTeamId("");
         }}
         title={editView ? "Update Saved View" : "Save Current View"}
-        actions={
+        footer={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => {
                 setSaveOpen(false);
                 setEditViewId(null);
@@ -139,8 +165,10 @@ export function SavedViewsMenu({
               }}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() =>
                 void (editViewId
                   ? onUpdateView(editViewId, {
@@ -160,44 +188,48 @@ export function SavedViewsMenu({
               disabled={!name.trim() || saving}
             >
               {saving ? "Saving..." : editView ? "Update View" : "Save View"}
-            </Button>
+            </button>
           </>
         }
       >
         <div className="evidence-library-filter-group">
           <label htmlFor="saved-view-name">View name</label>
-          <input id="saved-view-name" value={name} onChange={(event) => setName(event.target.value)} />
+          <input
+            id="saved-view-name"
+            className="app-form-input"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
         </div>
-        <div className="evidence-library-filter-group" style={{ marginTop: 12 }}>
+        <div className="evidence-library-filter-group">
           <label htmlFor="saved-view-description">Description</label>
           <input
             id="saved-view-description"
+            className="app-form-input"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
         {!editView ? (
-          <div className="evidence-library-filter-group" style={{ marginTop: 12 }}>
-            <label htmlFor="saved-view-team">View scope</label>
-            <select
+          <div className="evidence-library-filter-group">
+            <label id="saved-view-team-label" htmlFor="saved-view-team">View scope</label>
+            <AppListbox
               id="saved-view-team"
+              ariaLabelledby="saved-view-team-label"
               value={teamId}
-              onChange={(event) => setTeamId(event.target.value)}
-            >
-              <option value="">Personal view</option>
-              {teamOptions.map((team) => (
-                <option key={team.id} value={team.id}>
-                  Team view: {team.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Personal view" },
+                ...teamOptions.map((team) => ({ value: team.id, label: `Team view: ${team.name}` })),
+              ]}
+              onChange={setTeamId}
+            />
           </div>
         ) : null}
-        <label className="evidence-library-checkbox" style={{ marginTop: 12 }}>
-          <input type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />
+        <label className="evidence-library-checkbox">
+          <input className="app-checkbox" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />
           <span>Make this my default view</span>
         </label>
-        <p className="evidence-library-muted" style={{ marginTop: 12 }}>
+        <p className="evidence-library-muted">
           This view will restore search, scope, status, type, review, export, case, retention, and sort.
         </p>
       </Modal>

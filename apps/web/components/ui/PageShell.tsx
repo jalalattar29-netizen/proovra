@@ -146,13 +146,19 @@ export function PageHeader({
       </div>
 
       {hasActions ? (
+        /* Stable class so a page can control how its header actions wrap at
+           narrow widths. `min-width: 0` lets the row shrink inside the header
+           instead of overflowing it — without it the actions kept their
+           content width and were clipped by the body's overflow-x. */
         <div
+          className="ui-page-header__actions"
           style={{
             display: "flex",
             flexWrap: "wrap",
             alignItems: "center",
             gap: 10,
             flexShrink: 0,
+            minWidth: 0,
           }}
         >
           {secondaryActions}

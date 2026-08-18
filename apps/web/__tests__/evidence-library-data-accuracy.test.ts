@@ -157,9 +157,27 @@ test("EvidenceMetrics component renders cards as read-only (Card components, NOT
   // NOT carry onClick handlers / button elements / quick-filter
   // dispatch — confirming the rejected redesign behaviour is
   // genuinely gone.
+  // Part 1 moved the card onto the canonical `.app-kpi-card` (the same card
+  // Case Details and the operational dashboards render). The GUARANTEE is
+  // unchanged and now stricter: no button, no link, no handler of any kind,
+  // so a KPI can never become a filter trigger again.
   assert.match(METRICS_COMPONENT, /function MetricCard\(\{/);
-  assert.match(METRICS_COMPONENT, /<Card className=\{`evidence-library-metric/);
+  assert.match(METRICS_COMPONENT, /className="app-kpi-card"/);
   assert.doesNotMatch(METRICS_COMPONENT, /<button/);
+  assert.doesNotMatch(METRICS_COMPONENT, /<a[\s>]/);
+  assert.doesNotMatch(METRICS_COMPONENT, /href=/);
+  assert.doesNotMatch(METRICS_COMPONENT, /role="button"/);
+  // Tone stays SEMANTIC: only the canonical vocabulary may be emitted, so no
+  // decorative colour can be introduced through this component.
+  // The target colours the VALUE, not a rail on the card. Only the two
+  // meaningful tones may be produced, and the card itself carries no tone.
+  // The CARD carries no tone (the target has no coloured top rail); only the
+  // VALUE may, so state reads from the number itself.
+  assert.match(METRICS_COMPONENT, /className="app-kpi-card" data-evidence-metric=/);
+  assert.match(METRICS_COMPONENT, /className="app-kpi-card__value"/);
+  assert.match(METRICS_COMPONENT, /data-tone=\{TONE_TO_VALUE\[tone\]/);
+  const tones = [...METRICS_COMPONENT.matchAll(/"(danger|accent)"/g)].map((m) => m[1]);
+  assert.ok(tones.length >= 2, "expected the value-tone map");
   assert.doesNotMatch(METRICS_COMPONENT, /onClick=/);
 });
 
@@ -183,8 +201,22 @@ test("Metric cards use workspace summary when available", () => {
   assert.match(PAGE, /workspaceSummary\.unassignedCount/);
 });
 
-test("Workspace totals are labelled 'Workspace total · {scope}'", () => {
-  assert.match(PAGE, /workspaceScopeDetail\s*=\s*`Workspace total · \$\{filters\.scope\}`/);
+test("Workspace totals and page counts keep distinct, honest captions", () => {
+  // The captions must remain DISTINCT and non-empty: a workspace total may
+  // never render with the page caption or vice versa. The scope qualifier
+  // moved out of the caption when the target composition put the Scope
+  // control immediately below the cards; the SOURCE distinction — the thing
+  // that makes the number honest — is unchanged.
+  assert.match(PAGE, /workspaceScopeDetail\s*=\s*"Workspace total"/);
+  assert.match(PAGE, /pageScopeDetail\s*=\s*"On this page"/);
+  assert.notEqual("Workspace total", "On this page");
+  // Page-derived branches must never borrow the workspace caption.
+  const pageBranches = [...PAGE.matchAll(/value: String\(page\w+\),\s*\n\s*detail: ([^,\n]+),/g)].map(
+    (m) => m[1].trim(),
+  );
+  for (const d of pageBranches) {
+    assert.notEqual(d, "workspaceScopeDetail", "a page-derived count used the workspace caption");
+  }
 });
 
 test("Page-derived counts are labelled 'On this page'", () => {

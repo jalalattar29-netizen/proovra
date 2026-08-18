@@ -670,7 +670,7 @@ function IntakeLinksPageInner() {
               height="21"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#5B4FE9"
+              stroke="#7C3AED"
               strokeWidth="1.75"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -1037,7 +1037,7 @@ function LocationPolicySelector({
                     <span
                       style={{
                         fontSize: 11,
-                        color: "#4f46e5",
+                        color: "#6D28D9",
                         marginLeft: 6,
                         fontWeight: 500,
                       }}
@@ -2002,7 +2002,7 @@ function CreateLinkModal({
           link-modal-select on every select inside this modal. */}
       <style>{`
         select[data-intake-link-modal-select]:focus-visible {
-          border-color: #4f46e5;
+          border-color: #6D28D9;
           box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
         }
         select[data-intake-link-modal-select]:hover:not(:disabled) {
@@ -2721,8 +2721,8 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 650,
   fontSize: 13,
   color: "#fff",
-  background: "linear-gradient(135deg, #6b5bff 0%, #5949e4 100%)",
-  border: "1px solid rgba(89, 73, 228, 0.5)",
+  background: "linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)",
+  border: "1px solid rgba(109, 40, 217, 0.5)",
   borderRadius: 10,
   boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
   cursor: "pointer",
@@ -3065,7 +3065,7 @@ const senderCardStyle: React.CSSProperties = {
   transition: "border-color 120ms ease, box-shadow 120ms ease",
 };
 const senderCardSelectedStyle: React.CSSProperties = {
-  borderColor: "#4f46e5",
+  borderColor: "#6D28D9",
   boxShadow: "0 0 0 2px rgba(99, 102, 241, 0.16)",
 };
 const senderCardRadioStyle: React.CSSProperties = {

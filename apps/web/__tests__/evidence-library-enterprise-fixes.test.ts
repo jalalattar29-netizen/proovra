@@ -102,7 +102,10 @@ test("FIX 1 — getDisplayTitle cascade order is title → displayFileName/origi
 test("FIX 2 — QueueSelectionPreview imports getVerificationStatusLabel from the shared status lib", () => {
   assert.match(
     QUEUE_PREVIEW,
-    /import \{\s*\n?\s*getDisplayTitle,\s*\n?\s*getEvidenceTypeLabel,\s*\n?\s*getRecordStatusLabel,\s*\n?\s*getVerificationStatusLabel,\s*\n?\s*\} from "\.\.\/lib\/evidence-library-status";/,
+    // Part 3 widened the specifier list (the canonical badge-tone helper
+    // joined it). The CONTRACT is unchanged: all four labels must come
+    // from the shared status lib in ONE import, never re-derived locally.
+    /import \{[^}]*\bgetDisplayTitle,[^}]*\bgetEvidenceTypeLabel,[^}]*\bgetRecordStatusLabel,[^}]*\bgetVerificationStatusLabel,[^}]*\} from "\.\.\/lib\/evidence-library-status";/,
   );
 });
 
@@ -274,8 +277,21 @@ test("FIX 7 — Real package readiness predicate (verificationPackages.some, NOT
 });
 
 test("FIX 7 — Workspace-total label discipline is intact", () => {
-  assert.match(PAGE, /workspaceScopeDetail\s*=\s*`Workspace total · \$\{filters\.scope\}`/);
+  // The captions must remain DISTINCT and non-empty: a workspace total may
+  // never render with the page caption or vice versa. The scope qualifier
+  // moved out of the caption when the target composition put the Scope
+  // control immediately below the cards; the SOURCE distinction — the thing
+  // that makes the number honest — is unchanged.
+  assert.match(PAGE, /workspaceScopeDetail\s*=\s*"Workspace total"/);
   assert.match(PAGE, /pageScopeDetail\s*=\s*"On this page"/);
+  assert.notEqual("Workspace total", "On this page");
+  // Page-derived branches must never borrow the workspace caption.
+  const pageBranches = [...PAGE.matchAll(/value: String\(page\w+\),\s*\n\s*detail: ([^,\n]+),/g)].map(
+    (m) => m[1].trim(),
+  );
+  for (const d of pageBranches) {
+    assert.notEqual(d, "workspaceScopeDetail", "a page-derived count used the workspace caption");
+  }
 });
 
 // ===========================================================================

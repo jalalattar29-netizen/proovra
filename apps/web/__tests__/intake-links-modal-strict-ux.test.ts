@@ -343,7 +343,7 @@ describe("Pin 10 — card-style radio tokens render stacked, not cramped", () =>
     assert.match(src, /const senderCardStyle: React\.CSSProperties = \{/);
     assert.match(src, /borderRadius:\s*12/);
     assert.match(src, /const senderCardSelectedStyle: React\.CSSProperties = \{/);
-    assert.match(src, /borderColor:\s*"#4f46e5"/);
+    assert.match(src, /borderColor:\s*"#6D28D9"/);
     // Stacked, not inline.
     assert.match(src, /const senderCardListStyle: React\.CSSProperties = \{/);
     assert.match(src, /flexDirection:\s*"column"/);

@@ -27,6 +27,18 @@ body.is-internal-app [data-testid="privacy-preferences-launcher"] {
   display: none !important;
 }
 
+/* BLOCKING DIALOG — the launcher pins itself at the top of the stacking order
+   (z-index 2147483000), which is correct for ordinary page furniture and wrong
+   the moment a modal owns the screen: on public surfaces it painted over the
+   dialog and could sit on a footer action. The canonical dialog marks the body
+   while it is open (see cases-experience/matter-modals/Modal.tsx), so the
+   launcher stands down here — once, for every surface — and returns as soon as
+   the dialog closes. The CMP itself is untouched; only this floating trigger
+   is suppressed, and only while a dialog is blocking. */
+body[data-dialog-open="true"] [data-testid="privacy-preferences-launcher"] {
+  display: none !important;
+}
+
 html,
 body {
   font-family:
@@ -151,10 +163,10 @@ textarea {
   --cta-coral-ring: rgba(230, 72, 128, 0.32);
 
   /* Violet / indigo ENTERPRISE accent (trust-center / governance tone).
-     Mirrors the internal --accent-500 (#6B5BFF) so both scales agree. */
-  --enterprise-accent: #6b5bff;
+     Mirrors the internal --accent-500 (#7C3AED) so both scales agree. */
+  --enterprise-accent: #7C3AED;
   --enterprise-accent-ink: #ffffff;
-  --enterprise-gradient: linear-gradient(135deg, #6b5bff 0%, #4e3ee8 100%);
+  --enterprise-gradient: linear-gradient(135deg, #7C3AED 0%, #4e3ee8 100%);
 
   /* Structure + neutral surfaces (navy / pearl / lavender) */
 
@@ -186,7 +198,7 @@ textarea {
   --status-governance-bg: #eeebff;
   --status-governance-fg: #4634c9;
   --status-governance-border: #d6cffb;
-  --status-governance-solid: #6b5bff;
+  --status-governance-solid: #7C3AED;
 
   --status-info-bg: #eff6ff;
   --status-info-fg: #1e40af;
@@ -278,7 +290,7 @@ textarea {
 .ui-filterbar__input:focus-visible,
 .ui-filterbar__select:focus-visible {
   outline: none;
-  border-color: var(--accent-500, #6b5bff);
+  border-color: var(--accent-500, #7C3AED);
   box-shadow: var(--focus-ring, 0 0 0 3px rgba(107, 91, 255, 0.28));
 }
 

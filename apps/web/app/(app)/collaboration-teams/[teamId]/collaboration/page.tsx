@@ -540,8 +540,8 @@ function renderBodyWithMentions(body: string): React.ReactNode {
         key={i}
         data-testid="mention-token"
         style={{
-          color: "#5949e4",
-          background: "rgba(89, 73, 228, 0.09)",
+          color: "#6D28D9",
+          background: "rgba(109, 40, 217, 0.09)",
           borderRadius: 5,
           padding: "0 4px",
           fontWeight: 650,

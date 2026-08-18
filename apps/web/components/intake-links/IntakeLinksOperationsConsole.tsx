@@ -326,10 +326,10 @@ const LIFECYCLE_CHIP: Record<
   // engagement), slate (neutral / terminal). Aligned to the design
   // system so intake lifecycle chips match every other status surface.
   CREATED: { bg: "#F1F5F9", fg: "#475569", border: "rgba(15,23,42,0.08)" },
-  SENT: { bg: "#F3F0FF", fg: "#4F46E5", border: "#D8CCFF" },
+  SENT: { bg: "#F2ECFE", fg: "#6D28D9", border: "#D9C7FB" },
   DELIVERY_FAILED: { bg: "#FFF1F2", fg: "#B23442", border: "rgba(178,52,66,0.18)" },
   OPENED: { bg: "#FFF6E5", fg: "#A86612", border: "rgba(168,102,18,0.17)" },
-  STARTED: { bg: "#F3F0FF", fg: "#4F46E5", border: "#D8CCFF" },
+  STARTED: { bg: "#F2ECFE", fg: "#6D28D9", border: "#D9C7FB" },
   SUBMITTED: { bg: "#EAF7F1", fg: "#167A5B", border: "rgba(22,122,91,0.16)" },
   EXPIRED: { bg: "#F1F5F9", fg: "#475569", border: "rgba(15,23,42,0.08)" },
   REVOKED: { bg: "#FFF1F2", fg: "#B23442", border: "rgba(178,52,66,0.18)" },

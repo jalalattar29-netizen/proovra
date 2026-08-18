@@ -254,9 +254,16 @@ describe("Phase 14 — Stage 6 deep-link affordances (frontend)", () => {
     expect(src).toMatch(/href=\{?[`'"]\/search\?q=/);
   });
 
-  it("cases/[id]/page.tsx contains a /search?caseId= deep link", () => {
-    const src = read(resolve(WEB_ROOT, "app/(app)/cases/[id]/page.tsx"));
-    expect(src).toMatch(/\/search\?caseId=/);
+  // The case-scoped Search affordance moved out of the route file when the
+  // canonical Case Details header absorbed it: the route now only picks
+  // between the Enterprise and Personal branches, and the deep link rides the
+  // shared header's secondary-action slot inside MatterWorkspace. Identical
+  // guarantee — a Case Details surface can jump to Search scoped to that case.
+  it("the Case Details surface contains a /search?caseId= deep link", () => {
+    const src = read(
+      resolve(WEB_ROOT, "components/cases-experience/MatterWorkspace.tsx"),
+    );
+    expect(src).toMatch(/href=\{`\/search\?caseId=\$\{encodeURIComponent\(/);
   });
 
   it("reports surface (ReportsIndex.tsx) contains a /search?documentType=REPORT deep link", () => {

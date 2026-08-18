@@ -22,8 +22,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | -------------- | ---------------------------------------------------------------- |
 | engineVersion  | audit-engine@1.0.0                                               |
 | engineHash     | b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea |
-| sourceRevision | b69289c131c2f89204320125fc136657c8e4c2ee                         |
-| generatedAtUtc | 2026-08-17T22:17:35.379Z                                         |
+| sourceRevision | 7169663006149fc23050324ba0dc97b8d9df0da6                         |
+| generatedAtUtc | 2026-08-18T20:04:29.145Z                                         |
 | schemaVersion  | architecture-facts@1                                             |
 
 ## Measured surface
@@ -146,12 +146,12 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 | counter                                | value                                    |
 | -------------------------------------- | ---------------------------------------- |
 | baseline                               | GIT_COMMIT                               |
-| baselineRef                            | b69289c131c2f89204320125fc136657c8e4c2ee |
-| changedPaths                           | 365                                      |
-| added                                  | 126                                      |
-| modified                               | 205                                      |
-| deleted                                | 34                                       |
-| attributedToPhase0                     | 42                                       |
+| baselineRef                            | 7169663006149fc23050324ba0dc97b8d9df0da6 |
+| changedPaths                           | 71                                       |
+| added                                  | 0                                        |
+| modified                               | 71                                       |
+| deleted                                | 0                                        |
+| attributedToPhase0                     | 5                                        |
 | productionRuntimeFilesModifiedByPhase0 | 0                                        |
 | productBehaviorTestsRemoved            | 0                                        |
 | historicalMigrationsModifiedByPhase0   | 0                                        |

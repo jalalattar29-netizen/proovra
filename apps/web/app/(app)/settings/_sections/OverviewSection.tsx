@@ -166,7 +166,7 @@ export function OverviewSection({
       {/* Identity — read-only avatar/initial (avatar upload is not a
           supported flow; no fake edit control) + display-name editing. */}
       <div className="flex items-center gap-4" data-cc-profile-card>
-        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(79,70,229,0.16)] bg-[linear-gradient(180deg,rgba(243,240,255,0.9)_0%,rgba(255,255,255,0.56)_100%)] text-[1.1rem] font-bold text-[#4F46E5]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(79,70,229,0.16)] bg-[linear-gradient(180deg,rgba(243,240,255,0.9)_0%,rgba(255,255,255,0.56)_100%)] text-[1.1rem] font-bold text-[#6D28D9]">
           {user?.avatarUrl ? (
             <img
               src={user.avatarUrl}

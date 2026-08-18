@@ -332,7 +332,7 @@ function BillingPageInner() {
                   height="21"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#5B4FE9"
+                  stroke="#7C3AED"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"

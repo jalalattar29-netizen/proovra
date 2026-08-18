@@ -283,7 +283,7 @@ const OVERVIEW_STYLES = `
 }
 .overview-kpi-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
 }
 .overview-two-col {
   display: grid;
@@ -361,7 +361,7 @@ const OVERVIEW_STYLES = `
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #6b5bff;
+  background: #7C3AED;
 }
 `;
 

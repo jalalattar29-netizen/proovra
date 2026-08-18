@@ -1235,7 +1235,7 @@ function ProgressBar({
           style={{
             width: `${pct}%`,
             height: "100%",
-            background: "var(--enterprise-accent, #6b5bff)",
+            background: "var(--enterprise-accent, #7C3AED)",
             transition: "width 160ms ease",
           }}
         />

@@ -94,7 +94,7 @@ type LoadState =
   | { kind: "error"; message: string };
 
 const ROLE_TONE: Record<RoleId, { bg: string; border: string; fg: string }> = {
-  OWNER: { bg: "#F3F0FF", border: "#D8CCFF", fg: "#4F46E5" },
+  OWNER: { bg: "#F2ECFE", border: "#D9C7FB", fg: "#6D28D9" },
   ADMIN: { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B" },
   MEMBER: { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#475569" },
   VIEWER: { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D" },
