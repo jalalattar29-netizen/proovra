@@ -469,33 +469,70 @@
   flex-direction: column;
   gap: 10px;
 }
+/* ===========================================================================
+ * QUEUE ROW ANATOMY — four semantic zones on ONE grid authority.
+ *
+ *   check  |  identity  |  activity  |  badges
+ *
+ * Every row is its OWN grid element, so any content-sized track (auto /
+ * max-content / fit-content) resolves to a DIFFERENT width per row — which is
+ * exactly why identity, activity and badges each began at a different x and
+ * the queue read as a stack of individually arranged cards. Every track below
+ * is therefore derived from the QUEUE CONTAINER (fixed px, fr, or clamp on a
+ * container percentage) and never from the row content, so all rows resolve
+ * identical geometry. Zone contents truncate INSIDE their own track and can
+ * never move a neighbouring zone.
+ * =========================================================================== */
 .evidence-library-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "check identity"
+    "blank activity"
+    "blank badges";
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px 14px;
   align-items: start;
-  gap: 6px 14px;
   padding: 14px 16px;
   /* Transparent in the resting state so selection swaps the COLOUR, never the
-     box — no layout shift, and the selected row keeps its dimensions. */
+     box — identical geometry selected and unselected, zero layout shift. */
   border: 2px solid transparent;
 }
 .evidence-library-row[data-selected="true"] {
   border-color: var(--accent-500);
 }
+
 .evidence-library-row__check {
-  grid-row: 1 / span 2;
+  grid-area: check;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 28px;
+  min-height: 28px;
 }
 .evidence-library-row__identity {
+  grid-area: identity;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.evidence-library-row__activity {
+  grid-area: activity;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
+.evidence-library-row__badges {
+  grid-area: badges;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ---- Identity zone ------------------------------------------------------- */
 .evidence-library-row__title {
   padding: 0;
   border: none;
@@ -507,59 +544,147 @@
   color: var(--app-ink-heading);
   text-align: start;
   cursor: pointer;
+  /* Two intentional lines, then an ellipsis — never a hard letter clip. The
+     full value stays available through the title attribute. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  /* A technical filename ("20260704_014724.mp4") reversed to
+     "mp4.014724_20260704" under an RTL paragraph. Direction resolved from the
+     content keeps it readable, and an Arabic filename would still render RTL.
+     Alignment stays tied to the ROW direction just below. */
+  unicode-bidi: plaintext;
 }
-.evidence-library-row__title:hover { color: var(--accent-600); }
+[dir="rtl"] .evidence-library-row__title,
+[dir="rtl"] .evidence-library-row__case {
+  /* plaintext resolves ALIGNMENT from the resolved content direction too, so
+     an LTR value would hug the wrong edge. Pin it back to the logical start of
+     the identity zone. */
+  text-align: right;
+}
+.evidence-library-row__title:hover {
+  color: var(--accent-600);
+}
 .evidence-library-row__title:focus-visible {
   outline: none;
   border-radius: 6px;
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
 }
+.evidence-library-row__identity-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .evidence-library-row__id {
+  flex: none;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11.5px;
   direction: ltr;
   unicode-bidi: isolate;
   color: var(--app-ink-secondary);
 }
-.evidence-library-row__meta {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+/* The Case chip is bounded by the identity track and ellipsizes there, so it
+   can never reach the activity or badge zones again. */
+.evidence-library-row__case {
+  flex: 0 1 auto;
   min-width: 0;
+  /* text-overflow does not apply to a flex container, and .app-chip is
+     inline-flex — so the chip hard-clipped mid-word instead of ellipsizing.
+     Laying it out as a block restores a real ellipsis. */
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Activity zone ------------------------------------------------------- */
+/* The count/lifecycle line mixes a leading number with a Latin label. Under a
+   plain RTL paragraph the bidi algorithm moved the number to the far end
+   ("items • Reported 32"). `plaintext` resolves direction from the content
+   itself, so the line keeps its written order whatever the page direction —
+   and would still render right-to-left once these labels are translated. */
+.evidence-library-row__activity-line {
+  unicode-bidi: plaintext;
+}
+.evidence-library-row__activity-line,
+.evidence-library-row__timestamp {
   font-size: 12px;
   line-height: 18px;
   color: var(--app-ink-secondary);
-  unicode-bidi: plaintext;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* One line each: the count/lifecycle line and the timestamp can never break
+     into narrow one-word fragments. */
+  white-space: nowrap;
 }
-.evidence-library-row__meta time { direction: ltr; unicode-bidi: isolate; }
-.evidence-library-row__badges {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.evidence-library-row__timestamp {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+  font-variant-numeric: tabular-nums;
 }
 
-/* WIDE CONTAINER — when the queue column itself is roomy the row collapses to
-   a single line, matching the reference. Keyed to the CONTAINER, so opening or
-   closing the inspector reflows correctly without a viewport rule. */
+/* ---- Badge zone ---------------------------------------------------------- */
+.evidence-library-row__badges .app-status-badge {
+  /* Readable at every width — badges never shrink into fragments. */
+  flex: none;
+  max-width: 100%;
+}
+
+/* ===========================================================================
+ * CONTAINER-DRIVEN LAYOUT. The Inspector changes the real queue width, so
+ * these are container queries on the queue, never viewport media queries.
+ * =========================================================================== */
 .evidence-library-list {
   container-type: inline-size;
   container-name: evidence-queue;
 }
-@container evidence-queue (min-width: 900px) {
+
+/* MEDIUM — identity and status side by side, activity on its own row. */
+@container evidence-queue (min-width: 620px) {
   .evidence-library-row {
-    grid-template-columns: auto minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto;
+    grid-template-areas:
+      "check identity badges"
+      "blank activity badges";
+    grid-template-columns: 28px minmax(0, 1fr) clamp(190px, 30%, 280px);
+    align-items: start;
+  }
+  .evidence-library-row__badges {
+    align-items: flex-start;
+    align-content: flex-start;
+    justify-content: flex-end;
+  }
+}
+
+/* WIDE — the full four-zone row. Tracks are container-derived, so identity,
+   activity and badges resolve to the SAME x in every row. */
+@container evidence-queue (min-width: 940px) {
+  .evidence-library-row {
+    grid-template-areas: "check identity activity badges";
+    grid-template-columns:
+      28px
+      minmax(0, 1fr)
+      clamp(180px, 21%, 250px)
+      clamp(190px, 26%, 300px);
     align-items: center;
     row-gap: 0;
   }
-  .evidence-library-row__check { grid-row: auto; }
-  .evidence-library-row__meta,
-  .evidence-library-row__badges { grid-column: auto; flex-wrap: nowrap; }
-  .evidence-library-row__badges { flex: none; }
+  .evidence-library-row__badges {
+    align-items: center;
+    /* Aligned to the LOGICAL end, so every status group ends on one axis. */
+    justify-content: flex-end;
+    /* Wrapping, deliberately: a long review state is allowed a second line but
+       is never sliced into an unreadable fragment. The end axis is unaffected
+       because the group stays right-aligned inside a container-derived track. */
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
 }
 
 /* ---- Skeleton ------------------------------------------------------------ */
@@ -1130,25 +1255,4 @@
 }
 .evidence-library-artifact {
   position: relative;
-}
-
-/* A long case name is real data, not an edge case. Untruncated it overflowed
-   the row card on mobile and, in the wide single-line layout, ran straight
-   under the status badges. The chip is bounded to its own column and the
-   timestamp is kept on one line so the row keeps its anatomy at every width. */
-.evidence-library-row__meta {
-  overflow: hidden;
-}
-.evidence-library-row__meta .app-chip {
-  /* Shrinkable, so the chip ellipsizes ITSELF instead of being sliced off by
-     the column clip. */
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.evidence-library-row__meta time {
-  white-space: nowrap;
 }

@@ -71,17 +71,34 @@ export function EvidenceLibraryRow({
         >
           {title}
         </button>
-        <span className="evidence-library-row__id">{shortId(item.id)}</span>
+        {/* Record id and Case live TOGETHER in the identity zone. The Case chip
+            used to sit inside the activity run, after the timestamp, so its
+            width pushed the badges to a different x on every row. */}
+        <span className="evidence-library-row__identity-meta">
+          <span className="evidence-library-row__id" dir="ltr">
+            {shortId(item.id)}
+          </span>
+          {caseName ? (
+            <span className="app-chip evidence-library-row__case" title={caseName}>
+              {caseName}
+            </span>
+          ) : null}
+        </span>
       </span>
 
-      <span className="evidence-library-row__meta">
-        <span>
+      <span className="evidence-library-row__activity">
+        <span className="evidence-library-row__activity-line">
           {item.itemCount} item{item.itemCount === 1 ? "" : "s"}
+          <span aria-hidden> • </span>
+          {getRecordStatusLabel(item.status)}
         </span>
-        <span aria-hidden>•</span>
-        <span>{getRecordStatusLabel(item.status)}</span>
-        <time dateTime={item.createdAt}>{formatUtcDateTime(item.createdAt)}</time>
-        {caseName ? <span className="app-chip">{caseName}</span> : null}
+        <time
+          className="evidence-library-row__timestamp"
+          dateTime={item.createdAt}
+          dir="ltr"
+        >
+          {formatUtcDateTime(item.createdAt)}
+        </time>
       </span>
 
       <span className="evidence-library-row__badges">
