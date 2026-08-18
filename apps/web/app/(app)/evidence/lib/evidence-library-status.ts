@@ -236,12 +236,17 @@ export function getStructureLabel(
   return count > 1 ? "Multipart package" : "Single item";
 }
 
-export function getStatusTone(item: EvidenceListItem): "neutral" | "success" | "warning" | "danger" | "processing" {
-  const scope = getEvidenceScope(item);
-  if (scope === "deleted") return "danger";
-  if (scope === "archived") return "warning";
-
-  switch (String(item.status).trim().toUpperCase()) {
+/**
+ * Status -> semantic tone for a BARE status string.
+ *
+ * Extracted so the Evidence Record header can tone its status badge without
+ * an EvidenceListItem, and without a second status map existing anywhere.
+ * `getStatusTone` below layers the list-only scope rules on top of it.
+ */
+export function getRecordStatusSemanticTone(
+  status: string | null | undefined,
+): "neutral" | "success" | "warning" | "danger" | "processing" {
+  switch (String(status ?? "").trim().toUpperCase()) {
     case "REPORTED":
     case "SIGNED":
       return "success";
@@ -251,6 +256,19 @@ export function getStatusTone(item: EvidenceListItem): "neutral" | "success" | "
     default:
       return "neutral";
   }
+}
+
+/** Canonical AppTone for a bare status string. ONE translation point. */
+export function getRecordStatusBadgeTone(status: string | null | undefined): AppTone {
+  return SEMANTIC_TONE_TO_APP_TONE[getRecordStatusSemanticTone(status)];
+}
+
+export function getStatusTone(item: EvidenceListItem): "neutral" | "success" | "warning" | "danger" | "processing" {
+  const scope = getEvidenceScope(item);
+  if (scope === "deleted") return "danger";
+  if (scope === "archived") return "warning";
+
+  return getRecordStatusSemanticTone(item.status);
 }
 
 /**

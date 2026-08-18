@@ -15,7 +15,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ImageIcon, type LucideIcon } from "lucide-react";
+import {
+  Archive,
+  ImageIcon,
+  Link2,
+  Lock,
+  LockOpen,
+  Pencil,
+  RotateCcw,
+  type LucideIcon,
+} from "lucide-react";
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import { Button } from "../../../../../components/ui";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -1122,5 +1131,120 @@ export function GroupedEventTimeline({
         </details>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Evidence Record hero — icon-only action group.
+ *
+ * Lives here rather than in page.tsx because the orchestrator is held under a
+ * byte-size guard whose whole purpose is to stop presentation accumulating in
+ * the route file. Every control maps to an action the route already owned; the
+ * caller still owns the handlers, permissions and disabled reasons.
+ */
+export function EvidenceHeroIconActions({
+  lockedAt,
+  archivedAt,
+  deleted,
+  shareUrl,
+  isIntegrityFailed,
+  titles,
+  onCopyShareLink,
+  onUnlock,
+  onLock,
+  onRestoreArchived,
+  onArchive,
+  onEditLabel,
+}: {
+  lockedAt: string | null | undefined;
+  archivedAt: string | null | undefined;
+  deleted: boolean;
+  shareUrl: string | null | undefined;
+  isIntegrityFailed: boolean;
+  titles: { share: string; lock: string; unlock: string; archive: string; restore: string };
+  onCopyShareLink: () => void;
+  onUnlock: () => void;
+  onLock: () => void;
+  onRestoreArchived: () => void;
+  onArchive: () => void;
+  onEditLabel: () => void;
+}) {
+  return (
+      <div className="evidence-detail-hero-icon-actions">
+        <button
+          type="button"
+          className="app-ghost-action evidence-detail-icon-action"
+          onClick={onCopyShareLink}
+          disabled={isIntegrityFailed || !shareUrl}
+          aria-label="Copy verification link"
+          title={titles.share}
+          data-evidence-action="copy-verification-link"
+        >
+          <Link2 size={17} strokeWidth={1.9} aria-hidden="true" />
+        </button>
+
+        {lockedAt ? (
+          <button
+            type="button"
+            className="app-ghost-action evidence-detail-icon-action"
+            onClick={onUnlock}
+            disabled={deleted}
+            aria-label="Unlock record"
+            title={titles.unlock}
+            data-evidence-action="unlock-record"
+          >
+            <LockOpen size={17} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="app-ghost-action evidence-detail-icon-action"
+            onClick={onLock}
+            disabled={deleted || isIntegrityFailed}
+            aria-label="Lock record"
+            title={titles.lock}
+            data-evidence-action="lock-record"
+          >
+            <Lock size={17} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        )}
+
+        {archivedAt ? (
+          <button
+            type="button"
+            className="app-ghost-action evidence-detail-icon-action"
+            onClick={onRestoreArchived}
+            disabled={deleted}
+            aria-label="Restore archived evidence"
+            title={titles.restore}
+            data-evidence-action="restore-archived"
+          >
+            <RotateCcw size={17} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="app-ghost-action evidence-detail-icon-action"
+            onClick={onArchive}
+            disabled={deleted}
+            aria-label="Archive evidence"
+            title={titles.archive}
+            data-evidence-action="archive-evidence"
+          >
+            <Archive size={17} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="app-ghost-action evidence-detail-icon-action"
+          onClick={onEditLabel}
+          aria-label="Edit label"
+          title="Edit label"
+          data-evidence-action="edit-label"
+        >
+          <Pencil size={17} strokeWidth={1.9} aria-hidden="true" />
+        </button>
+      </div>
   );
 }

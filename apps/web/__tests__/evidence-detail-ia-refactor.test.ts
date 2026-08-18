@@ -343,10 +343,20 @@ test("Phase 6 — AI categorization is rendered by ONE canonical panel that hand
 // Phase 7 — anti-overclaim guard + main-action presence
 // ---------------------------------------------------------------------------
 
-test("Phase 7 — hero exposes Download Report PDF + Download Verification Package ZIP + Copy verification link", () => {
-  assert.match(PAGE, /Download Report PDF/);
-  assert.match(PAGE, /Download Verification Package ZIP/);
-  assert.match(PAGE, /Copy verification link/);
+test("Phase 7 — hero exposes report download, package download and verification link", () => {
+  // The GUARANTEE is that all three actions are reachable from the hero. The
+  // canonical header keeps the two downloads as named buttons and moves the
+  // verification link into the icon-action group, so this now asserts on the
+  // stable action ids and the accessible name rather than on button label
+  // text — which is what a label change may legitimately alter, and what an
+  // action being REMOVED never can.
+  const HERO = PAGE + LIB;
+  assert.match(HERO, /data-evidence-action="download-report"/);
+  assert.match(HERO, /Download Report PDF/);
+  assert.match(HERO, /data-evidence-action="download-package"/);
+  assert.match(HERO, /Download Verification Package/);
+  assert.match(HERO, /data-evidence-action="copy-verification-link"/);
+  assert.match(HERO, /aria-label="Copy verification link"/);
 });
 
 test("Phase 7 — legal boundary statement is rendered near the top (in the hero)", () => {

@@ -41,7 +41,13 @@ function src(rel: string): string {
   return readFileSync(resolve(REPO_ROOT, rel), "utf8");
 }
 
-const DETAIL_PAGE = src("apps/web/app/(app)/evidence/[id]/page.tsx");
+// The Evidence Record hero is the orchestrator PLUS the shared _lib authority
+// that now owns the icon-action group: page.tsx is held under a byte-size
+// guard, so the group was extracted there rather than growing the route file.
+// The hero CONTRACT is unchanged, so it is asserted across both.
+const DETAIL_PAGE =
+  src("apps/web/app/(app)/evidence/[id]/page.tsx") +
+  src("apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx");
 const REVIEW_TAB = src("apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx");
 const RELATIONSHIPS = src("apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx");
 const HELPER = src("apps/web/app/(app)/evidence/lib/evidence-relationships-visibility.ts");
@@ -116,7 +122,11 @@ test("moveToTrash accepts the same `onSuccess` callback so the trash modal close
 
 test("hero shows Lock OR Unlock depending on evidence.lockedAt (two-way toggle, not a disabled stub)", () => {
   // Both branches must exist and be wrapped in the conditional.
-  assert.match(DETAIL_PAGE, /\{evidence\.lockedAt \? \(/);
+  // The branch is driven by the lock state. It is asserted on the VALUE, not
+  // on the shape of the expression: the icon group was extracted into the
+  // shared _lib authority (page.tsx is under a byte-size guard) and now reads
+  // the state through a prop, which is the same guarantee.
+  assert.match(DETAIL_PAGE, /\{lockedAt \? \(|\{evidence\.lockedAt \? \(/);
   assert.match(DETAIL_PAGE, /data-evidence-action="unlock-record"/);
   assert.match(DETAIL_PAGE, /data-evidence-action="lock-record"/);
   // Anti-regression: the prior "Record locked" disabled-stub label
@@ -139,13 +149,15 @@ test("hero buttons disable themselves when the record is already deleted", () =>
     assert.ok(idx > 0, `attribute ${needle} not found`);
     return DETAIL_PAGE.slice(Math.max(0, idx - 400), idx + 400);
   }
-  assert.match(
-    windowAround('data-evidence-action="lock-record"'),
-    /evidence\.deletedAt != null/,
-  );
+  // `deleted` is computed once in the orchestrator as `deletedAt != null` and
+  // passed to the extracted icon group, so each action still refuses a
+  // trashed record. Accept either spelling.
+  const DELETED_GATE = /evidence\.deletedAt != null|disabled=\{deleted\b/;
+  assert.match(DETAIL_PAGE, /deletedAt != null/);
+  assert.match(windowAround('data-evidence-action="lock-record"'), DELETED_GATE);
   assert.match(
     windowAround('data-evidence-action="archive-evidence"'),
-    /evidence\.deletedAt != null/,
+    DELETED_GATE,
   );
 });
 

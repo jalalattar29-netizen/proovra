@@ -77,13 +77,14 @@ import {
   formatBytes,
   formatValue,
   isOtsTerminal,
-  pillTone,
   shortId,
   shouldPollArtifactReadiness,
   tryDownloadFile,
   type EvidenceDetailCtx,
   type EvidenceDetailTab,
+  EvidenceHeroIconActions,
 } from "./_tabs/_lib";
+import { getRecordStatusBadgeTone } from "../lib/evidence-library-status";
 import { useArtifactReadinessPoll } from "./_hooks/useArtifactReadinessPoll";
 import { EvidenceOverviewTab } from "./_tabs/EvidenceOverviewTab";
 import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
@@ -945,6 +946,25 @@ function EvidenceDetailPageInner() {
   const canSeeDiscussion =
     workspaceCaps?.discussionEnabled === true ||
     workspaceCaps?.discussionReadOnly === true;
+  const deleted = evidence?.deletedAt != null;
+  const iconActionTitle = {
+    share: !shareUrl
+      ? "No verification link is available for this record."
+      : isIntegrityFailed
+        ? "Verification link is unavailable while integrity is failed."
+        : "Copy verification link",
+    lock: deleted
+      ? "A deleted record cannot be locked."
+      : isIntegrityFailed
+        ? "Locking is unavailable while integrity is failed."
+        : "Lock record",
+    unlock: deleted ? "A deleted record cannot be unlocked." : "Unlock record",
+    archive: deleted ? "A deleted record cannot be archived." : "Archive evidence",
+    restore: deleted
+      ? "A deleted record cannot be restored from archive."
+      : "Restore archived evidence",
+  };
+
   const visibleTabs = DETAIL_TABS.filter(
     (t) => !(t.id === "discussion" && !canSeeDiscussion),
   );
@@ -1137,53 +1157,79 @@ function EvidenceDetailPageInner() {
             verbatim from the backend; copy is not altered here. */}
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
-            <button
-              type="button"
-              className="evidence-detail-back-link"
-              onClick={() => router.push("/evidence")}
-            >
-              <ArrowLeft size={14} strokeWidth={2.2} />
-              <span>Evidence Library</span>
-            </button>
-
-            <p className="evidence-detail-kicker">Evidence record</p>
+            {/* Breadcrumb — a real labelled landmark. The Library crumb
+                navigates; the record itself is the current page. */}
+            <nav className="evidence-detail-breadcrumb" aria-label="Breadcrumb">
+              <button
+                type="button"
+                className="evidence-detail-breadcrumb-link"
+                onClick={() => router.push("/evidence")}
+              >
+                <ArrowLeft size={13} strokeWidth={2.2} aria-hidden="true" />
+                Evidence Library
+              </button>
+              <span aria-hidden className="evidence-detail-breadcrumb-sep">
+                /
+              </span>
+              <span aria-current="page" className="evidence-detail-breadcrumb-current">
+                Evidence Record
+              </span>
+            </nav>
 
             {editingLabel ? (
               <div className="evidence-detail-label-edit">
                 <input
+                  className="app-form-input"
                   value={labelDraft}
                   onChange={(event) => setLabelDraft(event.target.value)}
+                  aria-label="Evidence label"
                 />
-                <Button
+                <button
+                  type="button"
+                  className="app-primary-action"
                   onClick={() => void handleSaveLabel()}
                   disabled={actionBusy || !labelDraft.trim()}
                 >
                   Save label
-                </Button>
-                <Button variant="secondary" onClick={() => setEditingLabel(false)}>
+                </button>
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  onClick={() => setEditingLabel(false)}
+                >
                   Cancel
-                </Button>
+                </button>
               </div>
             ) : (
-              <h1>{evidence.displayTitle || evidence.title}</h1>
+              <h1 className="evidence-detail-title">
+                {evidence.displayTitle || evidence.title}
+              </h1>
             )}
 
-            <p className="evidence-detail-subtitle">
-              {evidence.displayDescription ||
-                "Reviewer workspace for preserved evidence content, verification, custody chronology, export readiness, and review context."}
-            </p>
-
+            {/* Identity line: status, package type, truncated record id and
+                item count, exactly as the record header reads in the
+                reference. The record id stays LTR so it is readable in RTL. */}
             <div className="evidence-detail-hero-meta">
-              <span className={`evidence-detail-pill ${pillTone(evidence.status)}`}>
+              <span
+                className="app-status-badge"
+                data-tone={getRecordStatusBadgeTone(evidence.status)}
+              >
                 {evidence.status.replace(/_/g, " ")}
               </span>
-              <span className="evidence-detail-pill neutral">
+              <span className="evidence-detail-meta-item">
+                <Package size={14} strokeWidth={1.9} aria-hidden="true" />
                 {workspace.classification.evidenceTypeLabel}
               </span>
-              <span className="evidence-detail-pill neutral">
+              <span aria-hidden className="evidence-detail-meta-dot">
+                •
+              </span>
+              <span className="evidence-detail-meta-item evidence-detail-technical" dir="ltr">
                 Record {shortId(evidence.id)}
               </span>
-              <span className="evidence-detail-pill neutral">
+              <span aria-hidden className="evidence-detail-meta-dot">
+                •
+              </span>
+              <span className="evidence-detail-meta-item">
                 {workspace.relationships.multipart
                   ? `${workspace.relationships.itemCount} items`
                   : "Single item"}
@@ -1220,80 +1266,51 @@ function EvidenceDetailPageInner() {
               />
             </div>
           ) : null}
+          {/* CANONICAL ACTION TOOLBAR.
+              Two named actions carry the record's primary outputs; every other
+              existing action keeps its behaviour and permissions but moves to
+              an icon control at the logical end, matching the record header in
+              the reference. Nothing new is exposed here — each control maps to
+              an action this route already owned. */}
           <div className="evidence-detail-hero-actions">
-            <Button
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() => void downloadReport()}
               disabled={exportDisabled || isIntegrityFailed}
+              data-evidence-action="download-report"
             >
+              <FileText size={16} strokeWidth={1.9} aria-hidden="true" />
               Download Report PDF
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => void downloadVerificationPackage()}
               disabled={packageDisabled || isIntegrityFailed}
+              data-evidence-action="download-package"
             >
-              Download Verification Package ZIP
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void copyShareLink()}
-              disabled={isIntegrityFailed || !shareUrl}
-            >
-              Copy verification link
-            </Button>
-            {/* Phase EVIDENCE-LIFECYCLE-TOGGLE — Lock and Unlock are now
-                a true two-way toggle. Unlock is a separate controlled
-                modal with an optional reason that ends up in the audit
-                log; the backend rejects unlock when the record is not
-                actually locked. Both actions auto-close their modal on
-                success and refresh the detail. */}
-            {evidence.lockedAt ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setUnlockReasonDraft("");
-                  setUnlockOpen(true);
-                }}
-                disabled={evidence.deletedAt != null}
-                data-evidence-action="unlock-record"
-              >
-                Unlock record
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() => setLockOpen(true)}
-                disabled={evidence.deletedAt != null || isIntegrityFailed}
-                data-evidence-action="lock-record"
-              >
-                Lock record
-              </Button>
-            )}
-            {/* Phase EVIDENCE-LIFECYCLE-TOGGLE — Archive/Restore archived
-                toggle. Lives in the hero so it's discoverable as the
-                primary "remove from active" action when the trash is
-                disabled by COMPLIANCE retention. */}
-            {evidence.archivedAt ? (
-              <Button
-                variant="secondary"
-                onClick={() => setRestoreArchivedOpen(true)}
-                disabled={evidence.deletedAt != null}
-                data-evidence-action="restore-archived"
-              >
-                Restore archived evidence
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() => setArchiveOpen(true)}
-                disabled={evidence.deletedAt != null}
-                data-evidence-action="archive-evidence"
-              >
-                Archive evidence
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => setEditingLabel(true)}>
-              Edit label
-            </Button>
+              <ShieldCheck size={16} strokeWidth={1.9} aria-hidden="true" />
+              Download Verification Package
+            </button>
+
+            <EvidenceHeroIconActions
+              lockedAt={evidence.lockedAt}
+              archivedAt={evidence.archivedAt}
+              deleted={deleted}
+              shareUrl={shareUrl}
+              isIntegrityFailed={isIntegrityFailed}
+              titles={iconActionTitle}
+              onCopyShareLink={() => void copyShareLink()}
+              onUnlock={() => {
+                setUnlockReasonDraft("");
+                setUnlockOpen(true);
+              }}
+              onLock={() => setLockOpen(true)}
+              onRestoreArchived={() => setRestoreArchivedOpen(true)}
+              onArchive={() => setArchiveOpen(true)}
+              onEditLabel={() => setEditingLabel(true)}
+            />
           </div>
         </section>
 
@@ -1313,8 +1330,13 @@ function EvidenceDetailPageInner() {
           onGoToReview={() => setActiveTab("review")}
         />
 
+        {/* CANONICAL TABS. One authority (.app-tabs) shared with every other
+            internal surface, with real tablist semantics: the previous markup
+            used aria-pressed on plain buttons, which announces a toggle group
+            rather than a tab set. */}
         <nav
-          className="evidence-detail-tabs"
+          className="app-tabs evidence-detail-tabs"
+          role="tablist"
           aria-label="Evidence detail sections"
           data-evidence-tabs-visible-count={visibleTabs.length}
         >
@@ -1322,9 +1344,36 @@ function EvidenceDetailPageInner() {
             <button
               key={tab.id}
               type="button"
-              className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
+              role="tab"
+              id={`evidence-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`evidence-tabpanel-${tab.id}`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              className={`app-tab ${activeTab === tab.id ? "is-active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
-              aria-pressed={activeTab === tab.id}
+              onKeyDown={(event) => {
+                const idx = visibleTabs.findIndex((t) => t.id === activeTab);
+                if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                  event.preventDefault();
+                  const dir = event.key === "ArrowRight" ? 1 : -1;
+                  const next =
+                    visibleTabs[(idx + dir + visibleTabs.length) % visibleTabs.length];
+                  if (next) {
+                    setActiveTab(next.id);
+                    document.getElementById(`evidence-tab-${next.id}`)?.focus();
+                  }
+                } else if (event.key === "Home" || event.key === "End") {
+                  event.preventDefault();
+                  const next =
+                    event.key === "Home"
+                      ? visibleTabs[0]
+                      : visibleTabs[visibleTabs.length - 1];
+                  if (next) {
+                    setActiveTab(next.id);
+                    document.getElementById(`evidence-tab-${next.id}`)?.focus();
+                  }
+                }
+              }}
               data-evidence-tab={tab.id}
             >
               <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
@@ -1334,7 +1383,13 @@ function EvidenceDetailPageInner() {
         </nav>
 
         <div className="evidence-detail-layout">
-          <main className="evidence-detail-main">
+          <main
+            className="evidence-detail-main"
+            role="tabpanel"
+            id={`evidence-tabpanel-${activeTab}`}
+            aria-labelledby={`evidence-tab-${activeTab}`}
+            tabIndex={0}
+          >
             {activeTab === "overview" ? <EvidenceOverviewTab ctx={ctx} /> : null}
             {activeTab === "integrity" ? <EvidenceIntegrityTab ctx={ctx} /> : null}
             {activeTab === "custody" ? <EvidenceCustodyTab ctx={ctx} /> : null}
