@@ -4740,7 +4740,12 @@ box-shadow:
 body {
     width: 100% !important;
     max-width: 100vw !important;
-    overflow-x: hidden !important;
+    /* `clip`, not `hidden`. This rule is scoped by width, not by route, so it
+       reached EVERY narrow surface and turned the body into a scroll container
+       with zero scroll range — which silently disables every position: sticky
+       descendant app-wide below 980px. `clip` contains the overflow exactly
+       the same way without creating a scrollport. */
+    overflow-x: clip !important;
   }
 
   .capture-enterprise-page,

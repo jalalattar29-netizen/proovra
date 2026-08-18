@@ -23,6 +23,15 @@
   --surface-card: #FFFFFF;
   --surface-elevated: #FFFFFF;
   --surface-muted: #F1F4F9;
+  /* Translucent surface hierarchy. The app paints artwork behind its content;
+     these are the three levels allowed to let it through. Opaque fallbacks are
+     applied under prefers-reduced-transparency / forced-colors. */
+  --surface-translucent-outer: rgba(255, 255, 255, 0.80);
+  --surface-translucent-inner: rgba(255, 255, 255, 0.62);
+  --surface-translucent-inner-hover: rgba(255, 255, 255, 0.76);
+  --surface-translucent-selected: rgba(242, 236, 254, 0.72);
+  --surface-translucent-border: rgba(255, 255, 255, 0.58);
+  --surface-translucent-border-strong: rgba(15, 23, 42, 0.07);
   --surface-header: #F8FAFC;
 
   /* ------------------------------------------------------------------

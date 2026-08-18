@@ -288,11 +288,17 @@ export type ReviewPriorityLevel =
   | "informational"
   | "stable";
 
+/**
+ * Review priority is an OPERATIONAL signal, not a workflow status, so its
+ * settled states use the blue informational tone. Green stays reserved for
+ * integrity-ready workflow states (Reported / Signed) — sharing it made a
+ * record with operational notes look like a completed one.
+ */
 const PRIORITY_LEVEL_TO_APP_TONE = {
   critical: "red",
   operational: "amber",
-  informational: "slate",
-  stable: "green",
+  informational: "blue",
+  stable: "blue",
 } as const satisfies Record<ReviewPriorityLevel, AppTone>;
 
 export function getReviewPriorityTone(level: ReviewPriorityLevel): AppTone {

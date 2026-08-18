@@ -22,8 +22,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | -------------- | ---------------------------------------------------------------- |
 | engineVersion  | audit-engine@1.0.0                                               |
 | engineHash     | b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea |
-| sourceRevision | f66cac836988c31389433e365cc073387dda8817                         |
-| generatedAtUtc | 2026-08-18T21:53:06.199Z                                         |
+| sourceRevision | a25432a83a9ff16c6f291090f83631ef02d5fd74                         |
+| generatedAtUtc | 2026-08-18T22:12:11.169Z                                         |
 | schemaVersion  | architecture-facts@1                                             |
 
 ## Measured surface
@@ -146,10 +146,10 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 | counter                                | value                                    |
 | -------------------------------------- | ---------------------------------------- |
 | baseline                               | GIT_COMMIT                               |
-| baselineRef                            | f66cac836988c31389433e365cc073387dda8817 |
-| changedPaths                           | 8                                        |
+| baselineRef                            | a25432a83a9ff16c6f291090f83631ef02d5fd74 |
+| changedPaths                           | 11                                       |
 | added                                  | 0                                        |
-| modified                               | 8                                        |
+| modified                               | 11                                       |
 | deleted                                | 0                                        |
 | attributedToPhase0                     | 5                                        |
 | productionRuntimeFilesModifiedByPhase0 | 0                                        |

@@ -12,7 +12,21 @@
 
 import * as React from "react";
 
-export type AppTone = "green" | "amber" | "red" | "indigo" | "slate";
+/**
+ * Canonical semantic tones.
+ *
+ * `blue` is the OPERATIONAL / REVIEW-INFORMATIONAL tone. It is deliberately
+ * distinct from `indigo`, which means active processing: a record that is
+ * uploading and a record carrying operational notes are different statements,
+ * and collapsing them onto one colour made the queue unreadable.
+ */
+export type AppTone =
+  | "green"
+  | "amber"
+  | "red"
+  | "indigo"
+  | "blue"
+  | "slate";
 
 export interface AppStatusBadgeProps {
   tone: AppTone;

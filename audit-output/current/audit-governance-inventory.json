@@ -178,10 +178,10 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "f66cac836988c31389433e365cc073387dda8817",
-    "phase0ChangedPaths": 8,
+    "phase0BaselineRef": "a25432a83a9ff16c6f291090f83631ef02d5fd74",
+    "phase0ChangedPaths": 11,
     "phase0AddedPaths": 0,
-    "phase0ModifiedPaths": 8,
+    "phase0ModifiedPaths": 11,
     "phase0DeletedPaths": 0,
     "phase0AttributedPaths": 5,
     "phase0ChangedPathsFromManualDeclaration": 0,
@@ -208,7 +208,7 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "f66cac836988c31389433e365cc073387dda8817",
+    "baseline": "a25432a83a9ff16c6f291090f83631ef02d5fd74",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
@@ -223,7 +223,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/globals.css",
+        "path": "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -234,7 +234,40 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/app-shell-v2/app-shell-v2.css",
+        "path": "apps/web/components/app-primitives/AppStatusBadge.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/components/app-primitives/app-primitives.css",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/components/capture-v2/capture-v2.css",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/lib/design-tokens/tokens.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {

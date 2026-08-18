@@ -39,7 +39,6 @@
 
 .evidence-library-list-shell {
   border: 1px solid rgba(58, 93, 97, 0.1);
-  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(246,248,246,0.96));
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
 }
 
@@ -755,7 +754,6 @@
   flex-direction: column;
   min-width: 0;
   padding: 0;
-  background: #ffffff;
   border-inline-start: 1px solid rgba(15, 23, 42, 0.09);
   /* A full-height rail: it sticks to the top of the viewport and scrolls its
      own body, so it never exceeds the viewport at any height. */
@@ -849,7 +847,6 @@
   padding: 12px;
   border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.07);
-  background: rgba(248, 250, 249, 0.9);
 }
 .evidence-library-key-card dt {
   font-size: 11.5px;
@@ -991,7 +988,6 @@
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.07);
-  background: rgba(255, 255, 255, 0.72);
 }
 /* Shape only. Background, foreground and border all come from the canonical
    .app-status-badge[data-tone] rules the element also carries, so this route
@@ -1416,4 +1412,211 @@
   [data-matter-modal="evidence-queue-inspector"] .app-dialog__body {
     overscroll-behavior: contain;
   }
+}
+
+/* ===========================================================================
+ * TRANSLUCENT SURFACE HIERARCHY
+ *
+ * The canonical primitives were ALREADY translucent (.app-panel 0.42,
+ * .app-kpi-card 0.50, .app-inner-surface 0.70). The Evidence Library had
+ * overridden them back to near-opaque white, which is why the background
+ * artwork disappeared. These rules restore the canonical behaviour through the
+ * shared surface tokens rather than a new page-local palette.
+ *
+ * Three intentional levels:
+ *   OUTER  — queue shell, Inspector rail, filter toolbar, Legal boundary
+ *   INNER  — KPI cards, rows, metadata cards, artifact cards
+ *   SELECT — the one selected row
+ *
+ * Blur is applied ONLY to outer surfaces: nesting backdrop-filter inside
+ * backdrop-filter costs real scroll performance for no visual gain, and every
+ * blurred box is a containing block for fixed descendants — the defect the
+ * dialog portal already had to solve.
+ * ======================================================================== */
+
+/* ---- Outer surfaces ------------------------------------------------------ */
+.evidence-library-list-shell {
+  background: var(--surface-translucent-outer);
+  border: 1px solid var(--surface-translucent-border);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+}
+.evidence-library-inspector {
+  background: var(--surface-translucent-outer);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ---- Inner surfaces ------------------------------------------------------ */
+.evidence-library-key-card {
+  background: var(--surface-translucent-inner);
+  border-color: var(--surface-translucent-border-strong);
+}
+.evidence-library-artifact {
+  background: var(--surface-translucent-inner);
+}
+/* Rows sit on .app-panel, whose translucency is canonical. Only the resting
+   tint is re-stated here so a row reads against the queue shell beneath it. */
+.evidence-library-row {
+  background: var(--surface-translucent-inner);
+}
+.evidence-library-row:hover {
+  background: var(--surface-translucent-inner-hover);
+}
+.evidence-library-row__title:focus-visible {
+  /* Focus stays a ring, never a fill, so it cannot be confused with selection. */
+  outline: none;
+}
+
+/* ---- Selected row --------------------------------------------------------
+ * A soft purple wash derived from the canonical selection tint, NOT an opaque
+ * rectangle: the artwork stays faintly visible and the border does the work. */
+.evidence-library-row[data-selected="true"] {
+  background: var(--surface-translucent-selected);
+}
+
+/* ---- Preview keeps an opaque, neutral ground -----------------------------
+ * JUSTIFIED EXCEPTION: evidence media must be judged against a stable neutral
+ * field. Letting page artwork show through the letterbox would change how the
+ * evidence itself reads, so this surface stays opaque by design. */
+.evidence-library-preview {
+  background: var(--surface-muted);
+}
+
+/* ---- Dense-text guard ----------------------------------------------------
+ * Where small secondary text sits directly on a translucent surface the
+ * surface is nudged up, so contrast is measured against the real page, not a
+ * theoretical white. */
+.evidence-library-inspector__body .app-hint,
+.evidence-library-row__activity-line,
+.evidence-library-row__timestamp {
+  text-shadow: none;
+}
+
+/* ---- Reduced transparency / forced colours ------------------------------- */
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .evidence-library-list-shell,
+  .evidence-library-inspector,
+  .evidence-library-key-card,
+  .evidence-library-artifact,
+  .evidence-library-row,
+  .evidence-library-row[data-selected="true"] {
+    background: var(--surface-card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Mobile: keep the tint, drop the blur. Large blurred layers are the single
+   most expensive thing to scroll on a phone. */
+@media (max-width: 720px) {
+  .evidence-library-inspector {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ===========================================================================
+ * PAGINATION — three stable regions: start / true centre / end.
+ *
+ * margin-inline-start:auto only pushes the last group over; it cannot keep the
+ * middle text centred when the two outer groups differ in width. A
+ * 1fr auto 1fr grid centres the summary on the FOOTER midpoint regardless.
+ * ======================================================================== */
+.evidence-library-pagination {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px 16px;
+  /* 16px canonical step from the last row. */
+  margin-block-start: 16px;
+  padding: 16px 20px;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+}
+.evidence-library-pagination > :first-child {
+  justify-self: start;
+}
+.evidence-library-pagination > :nth-child(2) {
+  justify-self: center;
+  text-align: center;
+}
+.evidence-library-pagination__actions {
+  grid-column: 3;
+  justify-self: end;
+  margin-inline-start: 0;
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 620px) {
+  .evidence-library-pagination {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .evidence-library-pagination > :first-child,
+  .evidence-library-pagination > :nth-child(2) {
+    justify-self: center;
+  }
+  .evidence-library-pagination__actions {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+  .evidence-library-pagination__actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ===========================================================================
+ * LONG-TEXT RESILIENCE
+ *
+ * Every user-controlled value on the route is bounded inside its own zone.
+ * `anywhere` is applied ONLY where a string can genuinely arrive unbroken
+ * (filenames, ids); prose keeps normal word wrapping, and there is no global
+ * word-break: break-all.
+ * ======================================================================== */
+.evidence-library-inspector__body,
+.evidence-library-key-grid,
+.evidence-library-artifacts,
+.evidence-library-artifact,
+.evidence-library-artifact__text,
+.evidence-library-note-card,
+.evidence-library-result-row {
+  min-inline-size: 0;
+}
+/* Inspector metadata cards stay equal and never widen for a long value. */
+.evidence-library-key-card,
+.evidence-library-key-card dd {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.evidence-library-key-card dd strong,
+.evidence-library-key-card dd p {
+  overflow-wrap: anywhere;
+}
+/* The Case value clamps to two lines rather than growing the card. */
+.evidence-library-key-card[data-preview-case] dd strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Saved views, bulk results and dialog copy. */
+.evidence-library-note-card strong,
+.evidence-library-result-row strong {
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
+}
+.evidence-library-artifact__title,
+.evidence-library-artifact__text .app-hint {
+  overflow-wrap: anywhere;
+}
+/* A long selected value must not stretch a filter control. */
+.evidence-library-filter-chip__control .app-listbox__trigger > * {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

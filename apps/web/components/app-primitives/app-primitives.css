@@ -732,6 +732,9 @@ textarea.app-form-input {
 .app-status-badge[data-tone="indigo"] {
   background: #F2ECFE; color: #6D28D9; border-color: #D9C7FB;
 }
+.app-status-badge[data-tone="blue"] {
+  background: #EAF0FD; color: #2563EB; border-color: rgba(37, 99, 235, 0.18);
+}
 .app-status-badge[data-tone="slate"] {
   background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
 }
