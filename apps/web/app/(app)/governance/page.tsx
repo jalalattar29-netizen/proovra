@@ -42,7 +42,7 @@ export default function GovernancePage() {
   // The GovernanceControlPlane is untouched: it still renders through
   // the mature, density-aware `cc-page` enterprise design system baked
   // into the frozen app-shell-v2 stylesheet (page hero, tokenised tiles,
-  // `case-tabs`) and carries its ~30 load-bearing `data-governance-*`
+  // `app-tabs`) and carries its ~30 load-bearing `data-governance-*`
   // contract attributes + 6-tab state. The `data-hub-page*` contract
   // attributes are preserved on the PageShell frame.
   return (

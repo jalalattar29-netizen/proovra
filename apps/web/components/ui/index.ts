@@ -12,11 +12,13 @@
  *       PageShell / PageHeader / PageSection, DataTable, FilterBar,
  *       Badge, EmptyState, StatusBadge, ConfirmAction*.
  *
- *   • Legacy primitives still relied on by ~60 accepted pages and
- *     re-exported UNCHANGED for backward compatibility:
- *       Button, Card, Modal, Input, Select, Tabs, ListRow, StatusPill,
- *       TopBar, BottomNav, TimelineBlock, Skeleton, SkeletonText,
+ *   • Legacy primitives still relied on by accepted pages that have not
+ *     been redesigned yet, re-exported UNCHANGED:
+ *       Button, Card, EmptyState, Modal, Skeleton, Input, Select,
  *       ToastProvider, useToast.
+ *     Each is scheduled for removal when its route is migrated. Members of
+ *     this family that reached zero consumers were DELETED outright rather
+ *     than kept as dead exports.
  *
  * NOTE ON Button / Card / Badge / EmptyState: the new versions (richer
  * variant/size/tone APIs) live at `./Button` `./Card` `./Badge`
@@ -64,27 +66,18 @@ export type {
 } from "./ConfirmActionModal";
 
 // ---------------------------------------------------------------------------
-// Legacy primitives — re-exported UNCHANGED from ../ui-legacy for
-// backward compatibility. Button + Card keep the legacy implementation
-// here (deep-import ./Button, ./Card for the new versions).
+// Legacy primitives — re-exported UNCHANGED from ../ui-legacy. Button,
+// Card and EmptyState keep the legacy implementation here (deep-import
+// ./Button, ./Card, ./EmptyState for the canonical versions).
 // ---------------------------------------------------------------------------
 export {
   Button,
   Card,
-  Badge,
   EmptyState,
-  StatusPill,
-  Tabs,
-  ListRow,
-  TopBar,
-  BottomNav,
-  TimelineBlock,
   Modal,
   Skeleton,
-  SkeletonText,
   Input,
   Select,
   ToastProvider,
   useToast,
 } from "../ui-legacy";
-export type { ToastOptions } from "../ui-legacy";

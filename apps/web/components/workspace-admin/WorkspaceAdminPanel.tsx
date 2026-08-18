@@ -167,7 +167,7 @@ export function WorkspaceAdminPanel() {
         </div>
       </header>
 
-      <nav className="case-tabs" role="tablist" aria-label="Workspace admin tabs">
+      <nav className="app-tabs" role="tablist" aria-label="Workspace admin tabs">
         {tabs
           .filter((t) => t.visible)
           .map((t) => (
@@ -176,7 +176,7 @@ export function WorkspaceAdminPanel() {
               type="button"
               role="tab"
               aria-selected={tab === t.key}
-              className={`case-tab ${tab === t.key ? "is-active" : ""}`}
+              className={`app-tab ${tab === t.key ? "is-active" : ""}`}
               onClick={() => setTab(t.key)}
               data-workspace-admin-tab={t.key}
             >

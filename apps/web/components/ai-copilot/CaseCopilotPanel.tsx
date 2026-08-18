@@ -116,7 +116,7 @@ export function CaseCopilotPanel({
 
   if (!aiEnabled) {
     return (
-      <section className="app-card">
+      <section className="app-panel app-panel__body">
         <Header />
         <p style={{ opacity: 0.7 }}>AI is turned off for this workspace by policy.</p>
       </section>
@@ -124,30 +124,43 @@ export function CaseCopilotPanel({
   }
 
   return (
-    <section className="app-card" aria-label="Case Copilot">
+    <section className="app-panel app-panel__body" aria-label="Case Copilot">
       <Header />
 
       {/* Selection */}
       <div style={{ marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <strong>Select evidence to analyze</strong>
           <span style={{ display: "flex", gap: 8 }}>
-            <button className="app-btn app-btn--ghost" onClick={() => setSelected(new Set(selectableIds))} disabled={selectableIds.length === 0}>Select all</button>
-            <button className="app-btn app-btn--ghost" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
+            <button className="app-secondary-action" onClick={() => setSelected(new Set(selectableIds))} disabled={selectableIds.length === 0}>Select all</button>
+            <button className="app-secondary-action" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
           </span>
         </div>
         {linkedEvidence.length === 0 ? (
           <p style={{ opacity: 0.7 }}>No evidence is linked to this case yet.</p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
+          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
             {linkedEvidence.map((e) => (
-              <li key={e.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", opacity: e.stale ? 0.5 : 1 }}>
-                <input type="checkbox" checked={selected.has(e.id)} disabled={e.stale} onChange={() => toggle(e.id)} aria-label={`Select ${e.title}`} />
-                <span style={{ flex: 1 }}>{e.title}</span>
-                <span className="app-chip">{e.type}</span>
-                <span className="app-chip">v{e.version}</span>
-                <span className="app-chip">{e.status}</span>
-                {e.stale ? <span className="app-chip app-chip--warn">stale</span> : null}
+              <li key={e.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "4px 0", opacity: e.stale ? 0.5 : 1 }}>
+                <input className="app-checkbox" type="checkbox" checked={selected.has(e.id)} disabled={e.stale} onChange={() => toggle(e.id)} aria-label={`Select ${e.title}`} />
+                {/* A floor on the filename keeps the three metadata chips
+                    reflowing UNDER it in a narrow rail instead of overflowing
+                    the card. Nothing is hidden — it wraps. */}
+                <span style={{ flex: 1, minWidth: 200, overflowWrap: "anywhere" }}>{e.title}</span>
+                {/* Same reason as the disclosure row: as adjacent spans these
+                    ran together as "DOCUMENTv2Reported". A list keeps each
+                    metadata value discrete in the DOM, on screen, and in the
+                    accessible name. Values and order are unchanged. */}
+                {/* The `{" "}` nodes are deliberate: a whitespace-only text
+                    node is ignored for flex layout but keeps the values apart
+                    in `textContent`, so the row never serialises as
+                    "DOCUMENTv2Reported" for a reader or a scraper. */}
+                <ul className="app-chip-row" aria-label={`${e.title} metadata`}>
+                  <li className="app-chip">{e.type}</li>{" "}
+                  <li className="app-chip">v{e.version}</li>{" "}
+                  <li className="app-chip">{e.status}</li>
+                  {e.stale ? <> <li className="app-chip app-chip--warn">stale</li></> : null}
+                </ul>
               </li>
             ))}
           </ul>
@@ -156,7 +169,7 @@ export function CaseCopilotPanel({
 
       {/* D2 pre-run preview */}
       {selected.size > 0 ? (
-        <div className="app-card app-card--muted" style={{ marginTop: 12 }}>
+        <div className="app-inner-surface app-panel__body" style={{ marginTop: 12 }}>
           <strong>Before you run</strong>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
             <li>{selected.size} record(s): {selectedList.map((e) => e.title).join(", ")}</li>
@@ -171,7 +184,7 @@ export function CaseCopilotPanel({
 
       {/* Controls */}
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button className="app-btn app-btn--primary" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
+        <button className="app-primary-action app-primary-action--block" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Analyzing…" : state.kind === "result" ? "Re-run" : "Run Case Copilot"}
         </button>
         {state.kind === "loading" ? <span style={{ alignSelf: "center", opacity: 0.7 }} aria-live="polite">Advisory only — this does not change any record.</span> : null}
@@ -193,11 +206,16 @@ function Header() {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <h3 style={{ margin: 0 }}>Evidence Operations Copilot</h3>
-      <span style={{ display: "flex", gap: 6 }}>
-        <span className="app-chip app-chip--ai">AI-generated</span>
-        <span className="app-chip">Advisory only</span>
-        <span className="app-chip">Metadata only</span>
-      </span>
+      {/* The three disclosures are LIST ITEMS, not adjacent spans. As spans
+          their text ran together into a single accessible name
+          ("AI-generatedAdvisory onlyMetadata only"); as a list each label is
+          announced separately and is visually a discrete chip. The wording
+          of every disclosure is unchanged. */}
+      <ul className="app-chip-row" aria-label="AI disclosures">
+        <li className="app-chip app-chip--ai">AI-generated</li>{" "}
+        <li className="app-chip">Advisory only</li>{" "}
+        <li className="app-chip">Metadata only</li>
+      </ul>
     </div>
   );
 }

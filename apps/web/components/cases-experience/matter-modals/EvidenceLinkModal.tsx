@@ -320,7 +320,7 @@ export function EvidenceLinkModal({
                       </span>
                       {ev.alreadyLinked ? (
                         <span
-                          className="cases-row-chip"
+                          className="app-status-badge" data-tone="slate"
                           data-matter-evidence-link-row-already-linked
                           data-existing-role={ev.existingLinkRole ?? ""}
                         >
@@ -341,7 +341,7 @@ export function EvidenceLinkModal({
                       }}
                     >
                       <span
-                        className="cases-row-chip"
+                        className="app-status-badge" data-tone="slate"
                         data-matter-evidence-link-row-type={ev.type}
                       >
                         {ev.type}

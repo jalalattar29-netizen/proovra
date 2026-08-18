@@ -14,6 +14,12 @@
  *   - Background scroll prevented while open.
  *   - No animations / transitions — bounded behavior only.
  *
+ * VISUAL AUTHORITY: the canonical `.app-dialog` anatomy in
+ * `app-primitives.css` (overlay + head/title + body + footer), the same
+ * anatomy the collaboration and assignment dialogs use. The previous
+ * implementation described the whole dialog with inline hex styles, which
+ * made Enterprise modals a second modal language.
+ *
  * Intentionally no third-party dialog library: the shell already
  * uses bounded CSS classes, and the focus-trap implementation here
  * is small enough that auditing the surface area is easier than
@@ -21,6 +27,7 @@
  */
 
 import React, { useEffect, useId, useRef } from "react";
+import { X } from "lucide-react";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -141,19 +148,8 @@ export function Modal({
   return (
     <div
       role="presentation"
+      className="app-dialog-overlay"
       data-matter-modal-overlay={testid}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        background: "rgba(15,23,42,0.38)",
-        backdropFilter: "blur(5px)",
-        WebkitBackdropFilter: "blur(5px)",
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !dismissDisabled) onClose();
       }}
@@ -163,57 +159,24 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
+        className="app-dialog"
         data-matter-modal={testid}
         ref={dialogRef}
         tabIndex={-1}
-        style={{
-          maxWidth: 520,
-          width: "100%",
-          maxHeight: "85vh",
-          background: "rgba(255,255,255,0.96)",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 18,
-          boxShadow: "0 24px 70px rgba(15,23,42,0.18)",
-          display: "flex",
-          flexDirection: "column",
-          color: "#475569",
-          outline: "none",
-        }}
       >
-        <header
-          style={{
-            padding: "14px 18px",
-            borderBottom: "1px solid rgba(15,23,42,0.08)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <h2
-            id={titleId}
-            data-matter-modal-title
-            style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#172033" }}
-          >
+        <header className="app-dialog__head">
+          <h2 id={titleId} data-matter-modal-title className="app-dialog__title">
             {title}
           </h2>
           {!dismissDisabled ? (
             <button
               type="button"
+              className="app-ghost-action"
               data-matter-modal-close
               onClick={onClose}
               aria-label="Close"
-              style={{
-                padding: "2px 8px",
-                background: "transparent",
-                border: "1px solid rgba(15,23,42,0.12)",
-                borderRadius: 8,
-                color: "#475569",
-                fontSize: 16,
-                lineHeight: 1,
-                cursor: "pointer",
-              }}
             >
-              ×
+              <X size={16} strokeWidth={2} aria-hidden="true" />
             </button>
           ) : null}
         </header>
@@ -221,42 +184,16 @@ export function Modal({
           <span
             id={descriptionId}
             data-matter-modal-description
-            style={{
-              position: "absolute",
-              width: 1,
-              height: 1,
-              padding: 0,
-              margin: -1,
-              overflow: "hidden",
-              clip: "rect(0,0,0,0)",
-              whiteSpace: "nowrap",
-              border: 0,
-            }}
+            className="sr-only"
           >
             {description}
           </span>
         ) : null}
-        <div
-          data-matter-modal-body
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "16px 18px",
-          }}
-        >
+        <div data-matter-modal-body className="app-dialog__body">
           {children}
         </div>
         {footer ? (
-          <footer
-            data-matter-modal-footer
-            style={{
-              padding: "12px 18px",
-              borderTop: "1px solid rgba(15,23,42,0.08)",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-            }}
-          >
+          <footer data-matter-modal-footer className="app-dialog__footer">
             {footer}
           </footer>
         ) : null}

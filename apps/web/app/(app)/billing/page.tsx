@@ -347,12 +347,15 @@ function BillingPageInner() {
             </div>
           }
           subtitle={
-            <p className="cc-subtitle" data-billing-subtitle>
+            // INLINE element — see the PageHeader `subtitle` contract. A <p>
+            // here nested inside PageHeader's own <p>, which is invalid HTML
+            // and a React validateDOMNesting hydration error.
+            <span className="cc-subtitle" data-billing-subtitle>
               Review storage, members, subscriptions, add-ons, and payment
               history in one place. Workspaces stay visible here even when their
               TEAM subscription is canceled, so you can review and reactivate
               them from the same console.
-            </p>
+            </span>
           }
           primaryAction={
             <Link href="/pricing" className="app-header-primary-action" data-billing-view-pricing>

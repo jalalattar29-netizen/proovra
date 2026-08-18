@@ -355,7 +355,7 @@ export function AssignmentPickerModal({
                           ) : null}
                         </div>
                         <span
-                          className="cases-row-chip"
+                          className="app-status-badge" data-tone="slate"
                           data-matter-assignment-picker-row-workspace-role={
                             c.workspaceRole
                           }
@@ -364,7 +364,7 @@ export function AssignmentPickerModal({
                         </span>
                         {c.existingAssignmentRoles.length > 0 ? (
                           <span
-                            className="cases-row-chip"
+                            className="app-status-badge" data-tone="slate"
                             data-matter-assignment-picker-row-existing
                             data-existing-roles={c.existingAssignmentRoles.join(
                               ",",

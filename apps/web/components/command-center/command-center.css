@@ -1918,8 +1918,7 @@
   font-weight: 600;
 }
 
-.ec-classifier-action,
-.ec-coord-action {
+.ec-classifier-action {
   color: #1d4ed8;
   font-size: 11px;
 }

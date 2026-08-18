@@ -103,6 +103,7 @@
  * 2. SURFACES — translucent enterprise panel (L2) + inner surface (L3)
  * ------------------------------------------------------------------------- */
 .app-panel {
+  min-width: 0;
   background: rgba(255, 255, 255, 0.42);
   border: 1px solid rgba(255, 255, 255, 0.58);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
@@ -133,6 +134,21 @@
   margin: 0;
   letter-spacing: -0.01em;
 }
+/* A panel section heading beside its action. Layout only. */
+.app-panel__head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.app-panel__head-row h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+}
+
 .app-panel__body {
   padding: 16px 18px;
 }
@@ -176,6 +192,14 @@
 }
 .app-primary-action svg {
   flex: 0 0 auto;
+}
+
+/* Full-width variant. Stacked action rails (Case Details "Quick actions",
+   the Copilot run button) need the SAME button, laid out block. This is a
+   layout modifier on the canonical action — never a second button. */
+.app-primary-action--block,
+.app-secondary-action--block {
+  width: 100%;
 }
 
 .app-secondary-action {
@@ -355,14 +379,11 @@ textarea.app-form-input {
   line-height: 1.45;
   color: var(--app-ink-secondary);
 }
-.app-field-error {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #C9363E;
-}
 
-/* Search field: relative wrapper + leading icon + input. */
+/* Search field: relative wrapper + leading icon + input.
+   `flex: 1 1 260px` is written for the ROW it normally sits in (a toolbar or
+   filter bar), where the basis is a width. Dropped into a COLUMN it becomes a
+   260px HEIGHT and the field stretches — use `--block` there. */
 .app-search-field {
   position: relative;
   display: inline-flex;
@@ -371,9 +392,18 @@ textarea.app-form-input {
   min-width: 220px;
   max-width: 440px;
 }
+/* Full-width variant for column layouts (a list filter that owns its row). */
+.app-search-field--block {
+  display: flex;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: none;
+}
 .app-search-icon {
   position: absolute;
-  left: 14px;
+  /* LOGICAL — the icon must follow the text edge in Arabic, and the input's
+     leading padding below is logical for the same reason. */
+  inset-inline-start: 14px;
   display: inline-flex;
   color: #8793A6;
   pointer-events: none;
@@ -383,7 +413,8 @@ textarea.app-form-input {
   width: 100%;
   min-width: 200px;
   height: 42px;
-  padding: 0 14px 0 38px;
+  padding-block: 0;
+  padding-inline: 38px 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
@@ -446,15 +477,22 @@ textarea.app-form-input {
  * 5. TABS — 44px lavender-active segmented tabs (no underline tabs)
  * ------------------------------------------------------------------------- */
 .app-tabs {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 44px;
+  padding: 4px;
+  margin-bottom: 4px;
+  flex-wrap: nowrap;
+  max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.38);
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.025);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .app-tabs::-webkit-scrollbar {
   display: none;
@@ -469,23 +507,25 @@ textarea.app-form-input {
 .app-tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  height: 44px;
+  height: 36px;
   padding: 0 16px;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 13.5px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   color: #5F6878;
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, box-shadow 160ms ease;
 }
 .app-tab:hover:not(.is-active) {
-  background: rgba(15, 23, 42, 0.045);
-  color: #172033;
+  background: rgba(92, 84, 255, 0.06);
+  color: #4F46E5;
 }
 .app-tab.is-active {
   background: #F3F0FF;
@@ -677,6 +717,58 @@ textarea.app-form-input {
   background: currentColor;
 }
 
+/* Metadata / disclosure CHIP — a compact, non-status label.
+   Distinct from `.app-status-badge`, which announces lifecycle state with a
+   semantic tone; a chip carries a neutral fact ("DOCUMENT", "v2", "Metadata
+   only"). Used across the ai-copilot surfaces, which emitted these class
+   names with no definition anywhere in the codebase. Upright by contract:
+   the disclosure line must never render slanted. */
+.app-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(255, 255, 255, 0.70);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  font-style: normal;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+}
+.app-chip__tag {
+  font-weight: 650;
+  color: var(--app-ink-label);
+}
+.app-chip--ai {
+  border-color: #D8CCFF;
+  background: #F3F0FF;
+  color: #4F46E5;
+}
+.app-chip--warn {
+  border-color: rgba(168, 102, 18, 0.24);
+  background: #FFF6E5;
+  color: #A86612;
+}
+.app-chip--ok {
+  border-color: rgba(22, 122, 91, 0.20);
+  background: #EAF7F1;
+  color: #167A5B;
+}
+/* Chip rows are LISTS — adjacent chips must never run together into one
+   accessible name. Reset the list affordances and keep a real gap. */
+.app-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* Operational KPI card — translucent, restrained semantic accent. */
 .app-kpi-card {
   background: rgba(255, 255, 255, 0.5);
@@ -707,8 +799,8 @@ textarea.app-form-input {
 }
 .app-kpi-card[data-tone="green"] { border-top: 2px solid #45B27D; }
 .app-kpi-card[data-tone="amber"] { border-top: 2px solid #E0A340; }
-.app-kpi-card[data-tone="red"]   { border-top: 2px solid #D66; }
-.app-kpi-card[data-tone="indigo"]{ border-top: 2px solid #6b5bff; }
+.app-kpi-card[data-tone="red"] { border-top: 2px solid #D66; }
+.app-kpi-card[data-tone="indigo"] { border-top: 2px solid #6b5bff; }
 .app-kpi-card[data-tone="slate"] { border-top: 2px solid #94A3B8; }
 
 /* ---------------------------------------------------------------------------
@@ -865,6 +957,26 @@ textarea.app-form-input {
   line-height: 1.5;
   max-width: 46ch;
 }
+/* Muted supporting note inside a panel — the one authority for the
+   "small explanatory line" that surfaces kept re-inventing inline. */
+.app-hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+
+.app-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+/* Tone variants — the same block states an error or a restriction; only the
+   title ink changes. Body copy keeps the readable neutral. */
+.app-empty[data-tone="danger"] strong { color: #C9363E; }
+.app-empty[data-tone="restricted"] strong { color: var(--warning-ink, #B45309); }
 .app-skeleton {
   position: relative;
   overflow: hidden;
@@ -883,10 +995,43 @@ textarea.app-form-input {
   100% { transform: translateX(100%); }
 }
 
+/* Inline notice — non-blocking status message inside a panel (AI provider
+   unavailable, policy denial, validation failure). Neutral by default, amber
+   for a warning. Also emitted, previously undefined, by the ai-copilot
+   surfaces. */
+.app-alert {
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-lg, 12px);
+  background: rgba(255, 255, 255, 0.70);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+.app-alert--warn {
+  border-color: rgba(168, 102, 18, 0.24);
+  background: #FFF6E5;
+  color: #7C4A0C;
+}
+
 /* ---------------------------------------------------------------------------
  * 10. DIALOG — light form dialog surface (confirmations reuse
  *     <ConfirmActionModal>; form dialogs wrap their body in .app-dialog).
  * ------------------------------------------------------------------------- */
+/* The scrim. Every dialog in the app described this inline; it is part of
+   the dialog anatomy, so it lives with the rest of it. */
+.app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
 .app-dialog {
   background: rgba(255, 255, 255, 0.97);
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -902,6 +1047,10 @@ textarea.app-form-input {
   overflow: hidden;
 }
 .app-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 20px 22px 14px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
@@ -966,22 +1115,17 @@ textarea.app-form-input {
   box-shadow: 0 0 0 3px rgba(184, 107, 22, 0.28) !important;
 }
 
-/* ---------------------------------------------------------------------------
- * 11. Layout helpers used across authenticated pages
- * ------------------------------------------------------------------------- */
-.app-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.app-toolbar__spacer {
-  flex: 1 1 auto;
-}
 .app-grid-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+/* Dense variant — information-dense surfaces (matter overview) fit more
+   tiles per row without changing the CARD. Density is a layout decision,
+   not a second design system. */
+.app-grid-kpis--dense {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
 }
 @media (max-width: 900px) {
   .app-grid-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }

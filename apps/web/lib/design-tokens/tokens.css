@@ -46,19 +46,21 @@
   --accent-050: #EEEBFF;
   --accent-500: #6B5BFF;
   --accent-600: #5949E4;
-  --brand-gradient: linear-gradient(135deg, #6B5BFF 0%, #4E3EE8 100%);
 
   /* ------------------------------------------------------------------
    * SEMANTIC
    * ------------------------------------------------------------------ */
   --success: #10B981;
-  --success-050: #ECFDF5;
   --warning: #F59E0B;
-  --warning-050: #FFFBEB;
+  /* Readable warning INK. `--warning` is the DECORATIVE amber (accent rails,
+     bullets, icons); as TEXT it measures 2.15:1 on white and fails WCAG AA
+     (an 18px bold heading is not "large text", so it needs 4.5:1). This is
+     the canonical amber for warning TEXT: same family, 5.02:1 on #FFFFFF.
+     Use `--warning` for decoration and `--warning-ink` for words. */
+  --warning-ink: #B45309;
   --error: #DC2626;
   --error-050: #FEF2F2;
   --info: #2563EB;
-  --info-050: #EFF6FF;
 
   /* ------------------------------------------------------------------
    * RADIUS
@@ -82,16 +84,6 @@
   /* ------------------------------------------------------------------
    * SPACING (4px base)
    * ------------------------------------------------------------------ */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
 
   /* ------------------------------------------------------------------
    * LAYOUT
@@ -109,10 +101,7 @@
   /* ------------------------------------------------------------------
    * TYPOGRAPHY
    * ------------------------------------------------------------------ */
-  --font-page-title: 700 22px/1.2 var(--font-sans, -apple-system, "Segoe UI", system-ui);
-  --font-section-title: 650 15px/1.35 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-card-title: 600 14px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
-  --font-body: 500 14px/1.55 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-meta: 500 12.5px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-label: 700 10.5px/1 var(--font-sans, -apple-system, "Segoe UI", system-ui);
 
@@ -120,26 +109,12 @@
    * DENSITY
    * Consumed by tables / cards / lists to switch row height + padding.
    * ------------------------------------------------------------------ */
-  --density-comfortable-row-h: 44px;
-  --density-comfortable-pad-y: 12px;
-  --density-comfortable-pad-x: 16px;
-
-  --density-compact-row-h: 36px;
-  --density-compact-pad-y: 8px;
-  --density-compact-pad-x: 12px;
-
-  --density-ultra-compact-row-h: 28px;
-  --density-ultra-compact-pad-y: 4px;
-  --density-ultra-compact-pad-x: 10px;
 
   /* ------------------------------------------------------------------
    * SIDEBAR (dark surface, separate scale — never mix with --ink-*)
    * Premium navy → graphite → subtle indigo undertone.
    * No pure black. No neon. No violet wash.
    * ------------------------------------------------------------------ */
-  --nav-surface-top: #0B1220;
-  --nav-surface-mid: #101A2E;
-  --nav-surface-bottom: #151B34;
   --nav-ink-strong: #F8FAFC;
   --nav-ink: rgba(226, 232, 240, 0.82);
   --nav-ink-muted: rgba(226, 232, 240, 0.42);

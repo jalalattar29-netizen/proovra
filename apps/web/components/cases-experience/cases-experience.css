@@ -6,7 +6,6 @@
  *   • translucent outer module surfaces (glass over the app background)
  *   • enterprise row-based lists (soft dividers, no card-in-card)
  *   • the shared #F3F0FF / #D8CCFF / #4F46E5 active-state (Home tab language)
- *   • one shared semantic status colour system
  *   • new field styling (44px, 12px radius, clear focus ring)
  * Tokens are consumed from lib/design-tokens/tokens.css; no !important,
  * no legacy globals extended.
@@ -36,17 +35,6 @@
   background: rgba(255, 255, 255, 0.70);
   border: 1px solid rgba(15, 23, 42, 0.05);
   border-radius: 12px;
-}
-
-/* ---------------------------------------------------------------------------
- * Filter / toolbar
- * ------------------------------------------------------------------------- */
-
-.cases-filter-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
 }
 
 /* §4 — search field wrapper (icon + input). */
@@ -384,9 +372,9 @@
   .cases-cell-actions { grid-column: 2; grid-row: 1; }
   .cases-cell-status { grid-column: 1 / -1; }
   .cases-cell-owner,
-  .cases-cell-evidence,
-  .cases-cell-readiness,
-  .cases-cell-updated { grid-column: auto; }
+.cases-cell-evidence,
+.cases-cell-readiness,
+.cases-cell-updated { grid-column: auto; }
 }
 
 /* Case identity column — name + short reference stacked. */
@@ -550,129 +538,12 @@ a.cases-row-title:hover {
   align-items: center;
 }
 
-.cases-row-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(241, 245, 249, 0.9);
-  color: #475569;
-  border: 1px solid rgba(15, 23, 42, 0.05);
-}
-
-/* ---- One shared SEMANTIC status colour system (badges + row chips) ---- */
-.cases-row-chip[data-status="OPEN"],
-.case-status-badge[data-status="OPEN"] {
-  background: #EAF7F1; color: #167A5B; border-color: rgba(22, 122, 91, 0.16);
-}
-.cases-row-chip[data-status="INVESTIGATING"],
-.case-status-badge[data-status="INVESTIGATING"] {
-  background: #F3F0FF; color: #4F46E5; border-color: #D8CCFF;
-}
-.cases-row-chip[data-status="ON_HOLD"],
-.case-status-badge[data-status="ON_HOLD"] {
-  background: #FFF6E5; color: #A86612; border-color: rgba(168, 102, 18, 0.17);
-}
-.cases-row-chip[data-status="RESOLVED"],
-.case-status-badge[data-status="RESOLVED"] {
-  background: #EAF7F1; color: #167A5B; border-color: rgba(22, 122, 91, 0.16);
-}
-.cases-row-chip[data-status="CLOSED"],
-.case-status-badge[data-status="CLOSED"] {
-  background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
-}
-.cases-row-chip[data-status="ARCHIVED"],
-.case-status-badge[data-status="ARCHIVED"] {
-  background: #E9EEF5; color: #334155; border-color: rgba(51, 65, 85, 0.14);
-}
-
-/* §6 — empty-case readiness chip (neutral, never a green "healthy"
-   claim). Used when the case has no linked evidence. */
-.cases-row-chip[data-matter-queue-row-empty] {
-  background: rgba(241, 245, 249, 0.9);
-  color: #5F6B7D;
-  border-color: rgba(15, 23, 42, 0.08);
-}
-
-/* Operational row-chip tones (unchanged semantics, refined tints). */
-.cases-row-chip[data-cases-row-chip="hold"] {
-  background: #FDEEEF; color: #B9383E; border-color: rgba(185, 56, 62, 0.16);
-}
-.cases-row-chip[data-cases-row-chip="review"] {
-  background: #FFF6E5; color: #A86612; border-color: rgba(168, 102, 18, 0.17);
-}
-
 /* §4 — truthful vertical lifecycle timeline (real history only). Check
    icons + subtle connectors, NO coloured bullets. */
 .cases-timeline {
   list-style: none;
   margin: 0;
   padding: 0;
-}
-.cases-timeline-step {
-  display: flex;
-  gap: 12px;
-  min-height: 44px;
-}
-.cases-timeline-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: none;
-}
-.cases-timeline-connector {
-  width: 2px;
-  flex: 1;
-  min-height: 14px;
-  margin: 2px 0;
-  background: rgba(15, 23, 42, 0.12);
-  border-radius: 2px;
-}
-.cases-timeline-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-bottom: 12px;
-}
-.cases-timeline-name {
-  font-size: 13.5px;
-  font-weight: 650;
-}
-.cases-timeline-when {
-  font-size: 11.5px;
-  color: #8793A6;
-  font-variant-numeric: tabular-nums;
-}
-.cases-lifecycle-empty {
-  display: flex;
-  flex-direction: column;
-}
-.cases-lifecycle-kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #8793A6;
-}
-.cases-lifecycle-transitions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.cases-lifecycle-transition {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 11px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #3F3A8A;
-  background: #F5F3FF;
-  border: 1px solid #E2DCF7;
 }
 
 /* §6 — canonical shared form input focus system (used by the Create case
@@ -714,14 +585,6 @@ a.cases-row-title:hover {
   margin: 0;
 }
 
-/* §4 — case-header primary action (light enterprise button on the dark
-   image header). Restrained hover lift, no purple glow. */
-.cases-header-add-evidence:hover:not(:disabled) {
-  background: #ffffff !important;
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16) !important;
-}
-
 /* §1 — shared semantic DANGER action for evidence removal (Evidence tab
    "Remove from case" + Add-evidence dialog "Remove"). Restrained: it reads
    as a secondary text action until hovered, matching the Delete-note /
@@ -754,20 +617,6 @@ a.cases-row-title:hover {
   cursor: not-allowed;
 }
 
-/* Shared status badge primitive (detail header / settings). */
-.case-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 650;
-  padding: 4px 11px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: #F1F5F9;
-  color: #475569;
-}
-
 /* ---------------------------------------------------------------------------
  * Empty state
  * ------------------------------------------------------------------------- */
@@ -794,108 +643,6 @@ a.cases-row-title:hover {
   font-size: 13px;
   max-width: 42ch;
 }
-
-/* ---------------------------------------------------------------------------
- * Tabs — new enterprise pill system (matches Home tabs)
- * ------------------------------------------------------------------------- */
-
-.case-tabs {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 44px;
-  padding: 4px;
-  margin-bottom: 4px;
-  flex-wrap: nowrap;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(255, 255, 255, 0.38);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.025);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.case-tabs::-webkit-scrollbar { display: none; }
-
-.case-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid transparent;
-  border-bottom: 1px solid transparent; /* neutralise the old underline */
-  border-radius: 12px;
-  background: transparent;
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  color: #5F6878;
-  cursor: pointer;
-  margin-bottom: 0;
-  transition: background-color 160ms ease, border-color 160ms ease,
-    color 160ms ease, box-shadow 160ms ease;
-}
-.case-tab:hover {
-  background: rgba(92, 84, 255, 0.06);
-  color: #4F46E5;
-}
-.case-tab.is-active {
-  background: #F3F0FF;
-  border-color: #D8CCFF;
-  color: #4F46E5;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
-}
-.case-tab:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
-}
-
-/* ---------------------------------------------------------------------------
- * Timeline — shared success/indigo/neutral state colours
- * ------------------------------------------------------------------------- */
-
-.cases-timeline-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.cases-timeline-row {
-  display: grid;
-  grid-template-columns: 12px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 4px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.045);
-}
-.cases-timeline-row:last-child { border-bottom: none; }
-
-.cases-timeline-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: #94a3b8;
-}
-.cases-timeline-dot[data-case-timeline-kind-dot="case_created"] { background: #167A5B; }
-.cases-timeline-dot[data-case-timeline-kind-dot="evidence_linked"] { background: #167A5B; }
-.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_placed"] { background: #B9383E; }
-.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_released"] { background: #64748b; }
-
-.cases-timeline-body { display: flex; flex-direction: column; gap: 2px; }
-.cases-timeline-label {
-  font-size: 13px; color: #172033; text-decoration: none; font-weight: 600;
-}
-.cases-timeline-label:hover { color: #4F46E5; text-decoration: underline; }
-.cases-timeline-subtitle { font-size: 11px; color: #64748b; }
-.cases-timeline-time { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------------------
  * Preservation / activity
@@ -944,3 +691,374 @@ a.cases-row-title:hover {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 .cases-activity-time { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+
+/* ===========================================================================
+ * CASE DETAILS — page presentation.
+ *
+ * This is the ONE stylesheet that owns Case Details presentation. Everything
+ * with a shared responsibility renders from the canonical authorities and is
+ * NOT redefined here:
+ *
+ *   surface / card ....... .app-panel / .app-inner-surface   (app-primitives)
+ *   buttons .............. .app-primary-action / .app-secondary-action /
+ *                          .app-danger-link / .app-header-primary-action
+ *   tabs ................. .app-tabs / .app-tab            (app-primitives)
+ *   status badge ......... .app-status-badge                (app-primitives)
+ *   search field ......... .app-search-field / -icon / -input
+ *   empty / error state .. .app-empty                        (app-primitives)
+ *   skeleton ............. .app-skeleton                     (app-primitives)
+ *   KPI card ............. .app-kpi-card / .app-grid-kpis    (app-primitives)
+ *   chips / notices ...... .app-chip / .app-chip-row / .app-alert
+ *   shell chrome ......... app-shell-v2.css, unmodified and unscoped
+ *   tokens ............... lib/design-tokens/tokens.css
+ *
+ * What lives below is only what is genuinely SPECIFIC to this page: the case
+ * header composition, the two-column workspace, the summary definition list,
+ * the attention panel, the quick-action rail and the linked-evidence rows.
+ * =========================================================================== */
+
+/* ---- Breadcrumb ---------------------------------------------------------- */
+.cases-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--app-ink-secondary);
+}
+.cases-breadcrumb-link {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm, 6px);
+}
+.cases-breadcrumb-link:hover { text-decoration: underline; }
+.cases-breadcrumb-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.28);
+}
+.cases-breadcrumb-sep {
+  padding-inline: 8px;
+  opacity: 0.5;
+}
+.cases-breadcrumb-current { color: var(--app-ink-heading); }
+
+/* ---- Case header --------------------------------------------------------- */
+.case-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.case-detail-head-top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.case-detail-head-titlerow {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.case-detail-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+}
+.case-detail-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+}
+.case-detail-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.case-detail-dot {
+  flex: none;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.4;
+}
+.case-detail-idrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+}
+.case-detail-idlabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+}
+/* Copyable identifier control. The button skin is the canonical
+   .app-secondary-action applied at the call site; only the identifier-specific
+   sizing and bidi isolation live here. */
+.case-detail-copy {
+  height: 32px;
+  max-width: 100%;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.case-detail-copy-value {
+  /* Identifiers stay LTR + selectable inside an RTL document. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Two-column workspace (main + right rail) ---------------------------- */
+.case-detail-split {
+  --case-detail-rail-w: 312px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--case-detail-rail-w);
+  gap: 24px;
+  align-items: start;
+}
+.case-detail-split--wide-rail { --case-detail-rail-w: 326px; }
+.case-detail-split-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+/* ---- Case summary definition list ---------------------------------------- */
+.case-detail-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+.case-detail-kv-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 20px;
+}
+.case-detail-kv-key {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 16px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--app-ink-label);
+}
+.case-detail-kv-val {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--app-ink-control);
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Attention panel -----------------------------------------------------
+ * A 4px amber accent on ONE edge of the canonical panel. Logical inline-start
+ * so the accent mirrors correctly in Arabic. */
+.case-detail-attention {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-inline-start: 4px solid var(--warning, #F59E0B);
+}
+.case-detail-attention-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.case-detail-attention-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 720;
+  /* TEXT reads the readable amber. The 4px rail and the bullet keep the
+     decorative --warning. */
+  color: var(--warning-ink, #B45309);
+}
+.case-detail-attention-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+.case-detail-attention-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.case-detail-attention-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+.case-detail-attention-bullet {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--warning, #F59E0B);
+}
+
+/* ---- Panel content stack -------------------------------------------------
+ * Vertical rhythm for the contents of a Case Details panel. Layout only: it
+ * declares no colour, border, radius, shadow or type. Shared by both branches
+ * (Personal tab bodies and the Enterprise matter tabs). */
+.case-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.case-detail-stack > .app-hint:first-child { margin-top: 0; }
+
+/* ---- Quick-action rail ---------------------------------------------------- */
+.case-detail-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.case-detail-rail-title {
+  margin: 0;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+
+/* ---- Linked-evidence rows ------------------------------------------------- */
+.case-detail-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.case-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+}
+.case-detail-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.case-detail-row-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--app-ink-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.case-detail-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+}
+.case-detail-row-meta-id {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.case-detail-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* ---- Loading skeleton ------------------------------------------------------
+ * The shimmer, surface and reduced-motion behaviour come from the canonical
+ * .app-skeleton; only the bar rhythm is page-specific. */
+.case-detail-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.case-detail-skel-bar { height: 14px; }
+.case-detail-skel-bar:first-child { width: 38%; }
+.case-detail-skel-bar:last-child { width: 62%; }
+
+/* ---- Responsive -----------------------------------------------------------
+ * Reflow only: no security, custody or governance content is hidden at any
+ * width. */
+@media (max-width: 1180px) {
+  .case-detail-split,
+.case-detail-split--wide-rail { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .case-detail-title { font-size: 20px; line-height: 26px; }
+  .case-detail-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .case-detail-row-title { white-space: normal; }
+  .case-detail-row-actions { flex-wrap: wrap; }
+  .case-detail-kv-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .case-detail-kv-val { text-align: start; }
+}
+
+/* ---- RTL -------------------------------------------------------------------
+ * Layout is logical throughout, so the only explicit work is bidi resolution.
+ * Composed technical values ("3 of 3", "dd440009 DOCUMENT Reported") and
+ * not-yet-localized prose are mixed-direction runs: plaintext resolves each
+ * run by its own first-strong character, so a Latin composite reads LTR inside
+ * an Arabic page while a translated value still mirrors. Without it the Arabic
+ * page renders "3 of 3" as "of 3 3". */
+.case-detail-meta,
+.case-detail-row-meta,
+.case-detail-attention-text,
+.case-detail-attention-item,
+.case-detail-kv-val,
+.app-kpi-card__value {
+  unicode-bidi: plaintext;
+}

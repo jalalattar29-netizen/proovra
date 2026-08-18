@@ -45,7 +45,16 @@ export interface PageHeaderProps {
   title: React.ReactNode;
   /** Small uppercase kicker above the title. */
   eyebrow?: React.ReactNode;
-  /** Muted supporting line under the title. */
+  /**
+   * Muted supporting line under the title.
+   *
+   * CONTRACT — INLINE CONTENT ONLY. `PageHeader` renders this inside its own
+   * `<p>` (see below), so callers must pass a string, a fragment, or inline
+   * elements (`<span>`, `<strong>`, `<a>`…). Passing a block element such as
+   * `<p>` or `<div>` produces invalid `<p><p>` nesting, which React reports
+   * as a `validateDOMNesting` hydration error and which the HTML parser
+   * "fixes" by splitting the paragraph.
+   */
   subtitle?: React.ReactNode;
   /** Inline strip below the subtitle — badges, scope, breadcrumbs. */
   contextStrip?: React.ReactNode;

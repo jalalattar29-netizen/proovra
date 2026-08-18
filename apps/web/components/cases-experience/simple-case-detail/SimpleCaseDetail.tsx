@@ -15,7 +15,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
  * restyled onto the PROOVRA enterprise design system shipped in
  * `cases-experience.css` (translucent `.cases-panel` outer modules,
  * `.cases-inner` inner rows, the #F3F0FF / #D8CCFF / #4F46E5 pill
- * tabs, the shared semantic `.case-status-badge`, and the
+ * tabs, the shared semantic `.app-status-badge`, and the
  * success/indigo/neutral `.cases-timeline-*` states). This change is
  * layout + colour only: EVERY data-* attribute, testid, API call,
  * handler, capability gate, confirm-flow, and spec-locked copy string
@@ -45,17 +45,19 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+// CANONICAL ICON AUTHORITY. `lucide-react` is the repository's single icon
+// family (the app shell, capture, marketing and settings surfaces all render
+// it). Every glyph below is wrapped in an `aria-hidden` span by its caller —
+// the same convention `AppSidebarV2` / `AppAccountToolbar` use — so an icon
+// never leaks into an accessible name.
+import { Copy, FileText, Plus, Search, Share2, ShieldCheck } from "lucide-react";
 
 import { apiFetch } from "../../../lib/api";
 import { useToast } from "../../ui";
 // Phase 7B (visual-only) — canonical shared design-system primitives.
-// PageShell/PageHeader/PageSection from the barrel.
-//
-// Phase CASE-DETAIL-PROOVRA-V2 — the legacy `Button` barrel import and
-// the deep `Card` / `EmptyState` imports are dropped from THIS file
-// because the surface now renders the V2 primitives below. Both legacy
-// components remain in the repository and are still used by other
-// routes; nothing was deleted.
+// PageShell is the repository's ONE content-plane authority; this surface
+// uses its documented `width="full"` option rather than a page-specific
+// shell override.
 import { PageShell } from "../../ui";
 // Phase CASE-DETAIL-PERSONAL-UX — canonical confirmation hook. The
 // repo-wide Phase Final-D3 contract forbids raw `window.confirm` in
@@ -69,32 +71,20 @@ import { CaseCopilotPanel } from "../../ai-copilot/CaseCopilotPanel";
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
-// Phase CASE-DETAIL-PROOVRA-V2 (visual-only) — the shared V2 internal UI
-// foundation extracted from the Figma source. Presentation primitives
-// only; no data fetching, no authorization, no mutations. See
-// `components/proovra-v2/proovra-v2.css` for the token provenance.
-import {
-  ActionRail,
-  AttentionPanel,
-  Button as V2Button,
-  CopyField,
-  IconChevronRight,
-  IconDocument,
-  IconPlus,
-  IconShare,
-  IconShieldCheck,
-  KeyValuePanel,
-  LoadingSkeleton,
-  MetricCard,
-  MetricRow,
-  SearchField,
-  Split,
-  StateBlock,
-  Surface,
-  Tabs as V2Tabs,
-  useProovraV2Surface,
-} from "../../proovra-v2";
-import { caseStatusTone } from "./helpers";
+// CANONICAL PRESENTATION AUTHORITIES (no component imports needed — these are
+// classes, not a second component library):
+//   surface / card ..... .app-panel / .app-inner-surface  (app-primitives.css)
+//   buttons ............ .app-primary-action / .app-secondary-action /
+//                        .app-danger-link / .app-header-primary-action
+//   tabs ............... .app-tabs / .app-tab            (app-primitives.css)
+//   status badge ....... .app-status-badge              (app-primitives.css)
+//   search ............. .app-search-field / -icon / -input
+//   empty / error ...... .app-empty                       (app-primitives.css)
+//   skeleton ........... .app-skeleton                    (app-primitives.css)
+//   KPI ................ .app-grid-kpis / .app-kpi-card   (app-primitives.css)
+// Case-specific composition (header, split, summary list, attention panel,
+// action rail, evidence rows) lives in `cases-experience.css` under
+// `.case-detail-*` — the existing Case Details stylesheet, not a new one.
 import type {
   MatterWorkspaceCaseHeader,
   MatterWorkspaceEnvelope,
@@ -102,6 +92,7 @@ import type {
 import {
   CASE_STATUS_OPTIONS,
   caseStatusLabel,
+  caseStatusTone,
   deriveNeedsAttention,
   formatRelative,
   summariseDeliverables,
@@ -118,74 +109,36 @@ const TAB_ORDER: ReadonlyArray<{ id: TabId; label: string }> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Phase CASE-DETAIL-PROOVRA-UX — local PROOVRA button styles.
+// CaseButton — a local NAME for the canonical actions, not a second button.
 //
-// The legacy shared `Button` (btn primary) renders the banned
-// coral/pink gradient and the dark-glass secondary, neither of which
-// belong on the light translucent `.cases-panel` surfaces. §25 of the
-// spec pins the enterprise palette instead:
-//   • primary   — #5B4FE8 solid, white text
-//   • secondary — white + 1px rgba(79,70,229,0.18) border + #4F46E5 text
-//   • text      — bare #4F46E5 label
-// These are inline-styled plain <button>s so no test data-* / disabled
-// predicate / handler wiring changes. The visible affordance is the
-// only thing that moves.
+// It carries no colours, no radius, no shadow and no size of its own: each
+// variant resolves to the shared `app-*-action` class defined once in
+// `components/app-primitives/app-primitives.css`, which is the same authority
+// behind every other internal surface. Keeping the local component preserves
+// the existing call sites (and their `style` escape hatches) while leaving
+// exactly ONE answer to "which button does this page use?".
 // ---------------------------------------------------------------------------
 type CaseButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "text";
 };
 
+const CASE_BUTTON_CLASS: Record<NonNullable<CaseButtonProps["variant"]>, string> = {
+  primary: "app-primary-action",
+  secondary: "app-secondary-action",
+  text: "app-ghost-action",
+};
+
 function CaseButton({
   variant = "primary",
-  disabled,
-  style,
+  className,
   children,
   type = "button",
   ...rest
 }: CaseButtonProps) {
-  const base: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    height: 38,
-    padding: variant === "text" ? "0 6px" : "0 16px",
-    borderRadius: 12,
-    fontSize: 13.5,
-    fontWeight: 650,
-    lineHeight: 1,
-    whiteSpace: "nowrap",
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.55 : 1,
-    transition:
-      "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease",
-  };
-  const skin: React.CSSProperties =
-    variant === "primary"
-      ? {
-          background: "#5B4FE8",
-          color: "#ffffff",
-          border: "1px solid #5B4FE8",
-          boxShadow: "0 6px 16px rgba(79, 70, 229, 0.20)",
-        }
-      : variant === "secondary"
-        ? {
-            background: "#ffffff",
-            color: "#4F46E5",
-            border: "1px solid rgba(79, 70, 229, 0.18)",
-            boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-          }
-        : {
-            background: "transparent",
-            color: "#4F46E5",
-            border: "1px solid transparent",
-            boxShadow: "none",
-          };
   return (
     <button
       type={type}
-      disabled={disabled}
-      style={{ ...base, ...skin, ...style }}
+      className={[CASE_BUTTON_CLASS[variant], className].filter(Boolean).join(" ")}
       {...rest}
     >
       {children}
@@ -220,10 +173,6 @@ export function SimpleCaseDetail({
   // called unconditionally (React rules of hooks) — the consumer
   // tabs receive `confirm` via prop drilling.
   const { confirm } = useConfirmAction();
-  // Phase CASE-DETAIL-PROOVRA-V2 — opt this route (and ONLY this route)
-  // into the redesigned shell chrome. Presentation only; unmount restores
-  // the previous sidebar/topbar exactly, so no other internal page moves.
-  useProovraV2Surface("case-detail");
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   // Phase CASES-ATTACH-PICKER — `attachOpen` lives at page level so
@@ -275,12 +224,22 @@ export function SimpleCaseDetail({
   if (state.status === "loading") {
     return (
       <CaseDetailPlane data-simple-case-detail-loading>
-        <Surface variant="panel">
+        <div className="app-panel app-panel__body">
           <p className="sr-only" style={{ margin: 0 }}>
             Loading case…
           </p>
-          <LoadingSkeleton rows={4} label="Loading case" />
-        </Surface>
+          <div
+            className="case-detail-skel"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading case"
+          >
+            <span className="app-skeleton case-detail-skel-bar" />
+            <span className="app-skeleton case-detail-skel-bar" />
+            <span className="app-skeleton case-detail-skel-bar" />
+            <span className="app-skeleton case-detail-skel-bar" />
+          </div>
+        </div>
       </CaseDetailPlane>
     );
   }
@@ -289,48 +248,44 @@ export function SimpleCaseDetail({
     // this only renders the outcome. No client-side authorization here.
     return (
       <CaseDetailPlane data-simple-case-detail-auth>
-        <Surface variant="panel">
-          <StateBlock
-            tone="restricted"
-            title="You don&apos;t have access to this case."
-            description="Ask a workspace owner or administrator if you need access."
-          />
-        </Surface>
+        <div className="app-empty" data-tone="restricted">
+          <strong>You don&apos;t have access to this case.</strong>
+          <p>Ask a workspace owner or administrator if you need access.</p>
+        </div>
       </CaseDetailPlane>
     );
   }
   if (state.status === "not_found") {
     return (
       <CaseDetailPlane data-simple-case-detail-not-found>
-        <Surface variant="panel">
-          <StateBlock
-            title="Case not found"
-            description="The case may have been deleted or moved."
-            actions={
-              <Link href="/cases">
-                <V2Button tone="outline">Back to cases</V2Button>
-              </Link>
-            }
-          />
-        </Surface>
+        <div className="app-empty">
+          <strong>Case not found</strong>
+          <p>The case may have been deleted or moved.</p>
+          <div className="app-empty__actions">
+            <Link href="/cases" className="app-secondary-action">
+              Back to cases
+            </Link>
+          </div>
+        </div>
       </CaseDetailPlane>
     );
   }
   if (state.status === "unavailable") {
     return (
       <CaseDetailPlane data-simple-case-detail-unavailable>
-        <Surface variant="panel">
-          <StateBlock
-            tone="danger"
-            title="Case unavailable"
-            description={state.message}
-            actions={
-              <V2Button tone="outline" onClick={() => void reload()}>
-                Retry
-              </V2Button>
-            }
-          />
-        </Surface>
+        <div className="app-empty" data-tone="danger">
+          <strong>Case unavailable</strong>
+          <p>{state.message}</p>
+          <div className="app-empty__actions">
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => void reload()}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       </CaseDetailPlane>
     );
   }
@@ -348,7 +303,7 @@ export function SimpleCaseDetail({
       data-case-id={caseDetail.id}
       data-case-status={caseDetail.status}
     >
-      <SimpleCaseHeader
+      <CaseDetailHeader
         caseDetail={caseDetail}
         evidenceCount={evidenceItems.length}
         isReloading={Boolean(isReloading)}
@@ -357,19 +312,30 @@ export function SimpleCaseDetail({
         onAddEvidence={() => setAttachOpen(true)}
       />
 
-      {/* Phase CASE-DETAIL-PROOVRA-V2 §Tabs — Figma "Tabs/filled": white
-          card, radius 8, 4px inset, 8px gap, active pill filled
-          rgba(37,99,235,0.10). Tab identity + routing state are
-          unchanged; `data-simple-case-tab` is still emitted per tab and
-          `setActiveTab` is still the only state writer. */}
-      <V2Tabs
-        items={TAB_ORDER}
-        active={activeTab}
-        onSelect={setActiveTab}
-        label="Case sections"
-        tabAttr={(id) => ({ "data-simple-case-tab": id })}
+      {/* CANONICAL TABS — `.app-tabs` / `.app-tab` in app-primitives.css, the
+          ONE tab authority for every internal surface. Tab identity and
+          routing state are unchanged: `data-simple-case-tab` is still emitted
+          per tab and `setActiveTab` is still the only state writer. */}
+      <nav
+        className="app-tabs"
+        role="tablist"
+        aria-label="Case sections"
         data-simple-case-tabs
-      />
+      >
+        {TAB_ORDER.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? "app-tab is-active" : "app-tab"}
+            onClick={() => setActiveTab(tab.id)}
+            data-simple-case-tab={tab.id}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
       {activeTab === "overview" ? (
         <OverviewTab
@@ -389,9 +355,8 @@ export function SimpleCaseDetail({
         // the SAME derived `linkedEvidence` projection, the SAME AI
         // policy/disclosure/consent behaviour (the panel still owns its
         // own aiEnabled/policy_denied/provider_unavailable states).
-        <Split
-          wideRail
-          main={
+        <div className="case-detail-split case-detail-split--wide-rail">
+          <div className="case-detail-split-main">
             <EvidenceTab
               caseId={caseId}
               items={evidenceItems}
@@ -401,25 +366,22 @@ export function SimpleCaseDetail({
               addToast={addToast}
               confirm={confirm}
             />
-          }
-          rail={
-            // Presentation wrapper only — it carries the Figma rail styling
-            // for the panel's existing class names. No props, no policy, no
-            // disclosure copy is altered.
-            <div className="pv2-copilot-rail">
-              <CaseCopilotPanel
-                caseId={caseId}
-                linkedEvidence={evidenceItems.map((it) => ({
-                  id: it.id,
-                  title: getDisplayTitle(it),
-                  type: (it as { type?: string }).type ?? "EVIDENCE",
-                  version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
-                  status: (it as { status?: string }).status ?? "",
-                }))}
-              />
-            </div>
-          }
-        />
+          </div>
+          {/* The SAME panel with the SAME props — only its grid position
+              moved. It renders from the canonical primitives and needs no
+              wrapper, so no policy, disclosure copy or selection behaviour
+              is touched. */}
+          <CaseCopilotPanel
+            caseId={caseId}
+            linkedEvidence={evidenceItems.map((it) => ({
+              id: it.id,
+              title: getDisplayTitle(it),
+              type: (it as { type?: string }).type ?? "EVIDENCE",
+              version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
+              status: (it as { status?: string }).status ?? "",
+            }))}
+          />
+        </div>
       ) : null}
       {activeTab === "reports" ? (
         <ReportsPackagesTab
@@ -503,33 +465,25 @@ export function SimpleCaseDetail({
 // ---------------------------------------------------------------------------
 
 /**
- * Phase CASE-DETAIL-PROOVRA-V2 — the Figma content plane.
+ * Content plane — the canonical `PageShell`, unmodified.
  *
- * Figma "Container" under the navbar: 24px top / 32px side / 32px bottom
- * padding and a 24px vertical rhythm, FLUID width (the frame's content
- * column simply fills whatever is left of the viewport beside the
- * sidebar). We therefore keep the shared `PageShell` — so this surface
- * still participates in the repository's page-plane contract — but opt
- * out of its 1360px clamp (`width="full"`) because clamping would shrink
- * the page below the reference composition on wide displays.
+ * The gutter, vertical rhythm and typography all come from the shared page
+ * plane (`--page-pad-x`, `--page-pad-y`, `--section-gap`) inside the shared
+ * `.app-shell-v2-content` padding, exactly like /cases and every other
+ * internal route. The only page-level decision is `width="full"` — a
+ * documented `PageShell` option (≈20 admin surfaces use it) that opts out of
+ * the 1360px clamp so the two-column workspace fills wide displays.
+ *
+ * There is deliberately NO shell override here: the previous revision zeroed
+ * `.app-shell-v2-content`'s padding for this route only, which made one page
+ * disagree with the shell every other page renders inside.
  */
 function CaseDetailPlane({
   children,
   ...rest
 }: { children: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <PageShell
-      width="full"
-      className="cc-page pv2-page-plane"
-      style={{
-        paddingInline: "var(--pv2-gutter-x)",
-        paddingBlock: "var(--pv2-gutter-y) var(--pv2-space-8)",
-        gap: "var(--pv2-space-6)",
-        fontFamily: "var(--pv2-font)",
-        color: "var(--pv2-ink-primary)",
-      }}
-      {...rest}
-    >
+    <PageShell width="full" className="cc-page" {...rest}>
       {children}
     </PageShell>
   );
@@ -539,13 +493,33 @@ function CaseDetailPlane({
 // Header
 // ---------------------------------------------------------------------------
 
-function SimpleCaseHeader({
+/**
+ * CaseDetailHeader — the ONE header for every `/cases/[id]` branch.
+ *
+ * Personal / Small-Business (`SimpleCaseDetail`) and Enterprise
+ * (`MatterWorkspace`) both render THIS component, so the anatomy, order,
+ * typography, status authority, Case-ID treatment and primary-action
+ * authority are identical by construction rather than by convention:
+ *
+ *   breadcrumb  →  title + primary action  →  status + metadata  →  Case ID
+ *
+ * Workspace-specific context is supplied through `scopeLabel` (the leading
+ * breadcrumb crumb) and `extraMeta` (additional metadata items such as
+ * organization, matter owner or reviewer scope). Neither may introduce a
+ * second visual language: they render inside the same canonical classes.
+ */
+export function CaseDetailHeader({
   caseDetail,
   evidenceCount,
   isReloading,
   canLinkEvidence,
   linkEvidenceDisabledReason,
   onAddEvidence,
+  scopeLabel = "Personal Space",
+  primaryActionLabel = "Add evidence",
+  extraMeta,
+  secondaryActions,
+  testIdPrefix = "simple",
 }: {
   caseDetail: MatterWorkspaceCaseHeader;
   evidenceCount: number;
@@ -553,76 +527,89 @@ function SimpleCaseHeader({
   canLinkEvidence: boolean;
   linkEvidenceDisabledReason: string | null | undefined;
   onAddEvidence: () => void;
+  /** Leading breadcrumb crumb — the workspace/organization context. */
+  scopeLabel?: string;
+  primaryActionLabel?: string;
+  /** Workspace-specific metadata items, rendered in the same meta row. */
+  extraMeta?: React.ReactNode;
+  /** Workspace-specific secondary actions, beside the primary. */
+  secondaryActions?: React.ReactNode;
+  /** Marks which branch rendered the shared header. */
+  testIdPrefix?: "simple" | "matter";
 }) {
   const { addToast } = useToast();
-  // Phase CASE-DETAIL-PROOVRA-V2 §PageHeader — the Figma "Page Heading"
-  // frame, reproduced from decoded node properties:
-  //
-  //   Nav          12/18 Medium #565E74, current crumb #1D1A24
-  //   Heading 2    24/32 Bold  #1D1A24  + right-aligned primary action
-  //   Meta row     13/18 Regular #565E74, 4px dot separators, status pill
-  //   Case ID      13/18 label + 305x32 bordered copy control
-  //
-  // The previous dark `.ops-banner-card` banner is replaced. EVERY
-  // data-* attribute, testid, handler, capability gate, tooltip and
-  // copy string below is preserved byte-for-byte from the previous
-  // revision — this is a presentation change only.
+  // Case header composition. Every class below resolves to a canonical
+  // authority: `.cases-breadcrumb*` and `.case-detail-*` in the existing
+  // Case Details stylesheet, `.app-status-badge` for the status pill,
+  // `.app-header-primary-action` for the primary and `.app-secondary-action`
+  // for the copy control. EVERY data-* attribute, testid, handler, capability
+  // gate, tooltip and copy string is preserved byte-for-byte.
   return (
-    <header data-simple-case-header className="pv2-pagehead">
+    <header
+      data-simple-case-header
+      data-case-detail-surface={testIdPrefix}
+      className="case-detail-head"
+    >
       {/* Breadcrumb — Cases links to /cases; the case name is the
           current, non-clickable segment. The workspace crumb keeps the
           existing label. */}
       <nav
         data-simple-case-breadcrumb
         aria-label="Breadcrumb"
-        className="pv2-crumbs"
+        className="cases-breadcrumb"
       >
-        <span>Personal Space</span>
-        <span aria-hidden className="pv2-crumb-sep">
+        <span>{scopeLabel}</span>
+        <span aria-hidden className="cases-breadcrumb-sep">
           /
         </span>
         <Link href="/cases" className="cases-breadcrumb-link">
           Cases
         </Link>
-        <span aria-hidden className="pv2-crumb-sep">
+        <span aria-hidden className="cases-breadcrumb-sep">
           /
         </span>
-        <span aria-current="page" className="pv2-crumb-current">
+        <span aria-current="page" className="cases-breadcrumb-current">
           {caseDetail.name}
         </span>
       </nav>
 
-      <div className="pv2-pagehead-top">
-        <div className="pv2-pagehead-titlerow">
-          <h1 data-simple-case-title className="pv2-pagehead-title">
+      <div className="case-detail-head-top">
+        <div className="case-detail-head-titlerow">
+          <h1 data-simple-case-title className="case-detail-title">
             {caseDetail.name}
           </h1>
-          {/* The single canonical Add-evidence entry point. The
-              capability gate + disabled reason are unchanged. */}
+          {/* The single canonical Add-evidence entry point. This is a
+              page-level PRIMARY action, so it reuses the app-wide
+              `.app-header-primary-action` class — the exact same class the
+              "Create case" button on /cases and the global "New Case" button
+              use. No colours are redeclared here, so the gradient, border,
+              shadow, hover, focus and :disabled treatment stay in lockstep
+              with those controls. The capability gate, disabled reason,
+              handler and testid are unchanged. */}
           <button
             type="button"
-            className="pv2-btn pv2-btn--outline"
+            className="app-header-primary-action"
             onClick={onAddEvidence}
             disabled={!canLinkEvidence}
             title={linkEvidenceDisabledReason ?? undefined}
             data-simple-case-action="add-evidence"
           >
-            <span className="pv2-btn-icon" aria-hidden>
-              <IconPlus size={20} />
-            </span>
-            Add evidence
-            <span className="pv2-btn-icon" aria-hidden>
-              <IconChevronRight size={20} />
-            </span>
+            <Plus size={16} strokeWidth={2} aria-hidden="true" />
+            {primaryActionLabel}
           </button>
+          {secondaryActions ?? null}
         </div>
 
         {/* Compact metadata line — status pill, evidence count, created,
             last updated. Reference number is surfaced only when the
             envelope actually carries one (never fabricated). */}
-        <div data-simple-case-subtitle className="pv2-pagehead-meta">
+        <div data-simple-case-subtitle className="case-detail-meta">
+          {/* CANONICAL STATUS BADGE — `.app-status-badge[data-tone]`, the ONE
+              status pill for every internal surface. The status enum is mapped
+              to a semantic tone by `caseStatusTone()`; `data-status` is kept
+              because it is a load-bearing test hook. */}
           <span
-            className="pv2-status"
+            className="app-status-badge"
             data-tone={caseStatusTone(caseDetail.status)}
             data-status={caseDetail.status}
             data-simple-case-status
@@ -630,8 +617,8 @@ function SimpleCaseHeader({
             {caseStatusLabel(caseDetail.status)}
           </span>
           {caseDetail.referenceNumber ? (
-            <span className="pv2-pagehead-meta-item">
-              <span className="pv2-dot" aria-hidden />
+            <span className="case-detail-meta-item">
+              <span className="case-detail-dot" aria-hidden />
               <span data-simple-case-reference style={{ fontWeight: 600 }}>
                 Ref {caseDetail.referenceNumber}
               </span>
@@ -642,16 +629,17 @@ function SimpleCaseHeader({
               ? "1 evidence record"
               : `${evidenceCount} evidence records`}
           </span>
-          <span className="pv2-pagehead-meta-item">
-            <span className="pv2-dot" aria-hidden />
+          <span className="case-detail-meta-item">
+            <span className="case-detail-dot" aria-hidden />
             <span>Created {formatRelative(caseDetail.createdAt)}</span>
           </span>
-          <span className="pv2-pagehead-meta-item">
-            <span className="pv2-dot" aria-hidden />
+          <span className="case-detail-meta-item">
+            <span className="case-detail-dot" aria-hidden />
             <span data-simple-case-updated>
               Last updated {formatRelative(caseDetail.updatedAt)}
             </span>
           </span>
+          {extraMeta ?? null}
           {isReloading ? (
             <span
               className="cc-muted"
@@ -666,16 +654,25 @@ function SimpleCaseHeader({
         {/* Labelled, copyable Case ID (the UUID is the DB primary key,
             the /cases/[id] route param and the searchable reference).
             Stays LTR + selectable in RTL documents. */}
-        <CopyField
-          label="CASE ID :"
-          value={caseDetail.id}
-          title="Copy case ID"
-          data-simple-case-id
-          onCopy={() => {
-            void navigator.clipboard?.writeText(caseDetail.id);
-            addToast("Case ID copied.", "success");
-          }}
-        />
+        <span className="case-detail-idrow">
+          <span className="case-detail-idlabel">
+            <span className="case-detail-dot" aria-hidden />
+            CASE ID :
+          </span>
+          <button
+            type="button"
+            className="app-secondary-action case-detail-copy"
+            title="Copy case ID"
+            data-simple-case-id
+            onClick={() => {
+              void navigator.clipboard?.writeText(caseDetail.id);
+              addToast("Case ID copied.", "success");
+            }}
+          >
+            <span className="case-detail-copy-value">{caseDetail.id}</span>
+            <Copy size={16} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        </span>
       </div>
     </header>
   );
@@ -751,152 +748,168 @@ function OverviewTab({
 
   return (
     <section
-      className="cc-section"
+      className="cc-section case-detail-split-main"
       role="tabpanel"
       aria-label="Overview"
       data-simple-case-overview
-      style={{ display: "flex", flexDirection: "column", gap: "var(--pv2-space-6)" }}
     >
-      {/* Figma "Frame 1109": [ KPI row + case summary ] | [ action rail ] */}
-      <Split
-        main={
-          <>
-            {/* Figma "KPI Summary Row" — four white cards, 16px padding,
-                radius 16, 1px #F8FAFC border, 0 1px 2px shadow. */}
-            <div data-simple-case-summary>
-              <MetricRow>
-                {kpis.map((kpi) => (
-                  <MetricCard
-                    key={kpi.label}
-                    label={kpi.label}
-                    value={kpi.value}
-                    hint={kpi.hint}
-                    data-simple-case-kpi={kpi.label}
-                  />
-                ))}
-              </MetricRow>
+      {/* [ KPI row + case summary ] | [ action rail ] */}
+      <div className="case-detail-split">
+        <div className="case-detail-split-main">
+          {/* CANONICAL KPI GRID + CARD — `.app-grid-kpis` / `.app-kpi-card`
+              from app-primitives.css, the same pair the operational
+              dashboards use. */}
+          <div data-simple-case-summary>
+            <div className="app-grid-kpis">
+              {kpis.map((kpi) => (
+                <div
+                  className="app-kpi-card"
+                  key={kpi.label}
+                  data-simple-case-kpi={kpi.label}
+                >
+                  <span className="app-kpi-card__label">{kpi.label}</span>
+                  <span className="app-kpi-card__value">{kpi.value}</span>
+                  <span className="app-kpi-card__meta">{kpi.hint}</span>
+                </div>
+              ))}
             </div>
+          </div>
 
-            {/* Figma "Case - Overview" — key/value panel, 24/16 padding. */}
-            <KeyValuePanel rows={summaryRows} data-simple-case-summary-rows />
-          </>
-        }
-        rail={
-          // FIGMA DEVIATION (documented in the deliverable): the Figma
-          // frame labels this rail "RISK SIGNALS" while its content is
-          // four ordinary operational actions (Add evidence / Generate
-          // report / Create verification package / Share). PROOVRA
-          // reserves risk vocabulary for advisory integrity signals on
-          // the Evidence Record surface, so relabelling these actions
-          // as risk would be materially misleading on a custody
-          // product. The Figma geometry is reproduced exactly; the
-          // heading keeps the truthful product term.
-          <ActionRail title="Quick actions" data-simple-case-actions>
-            <V2Button
-              tone="outline"
-              block
-              onClick={onAddEvidence}
-              disabled={!viewer.canLinkEvidence}
-              title={viewer.disabledReasons.linkEvidence ?? undefined}
-            >
-              <span className="pv2-btn-icon" aria-hidden>
-                <IconPlus size={20} />
-              </span>
-              Add evidence
-            </V2Button>
-            {/* State-aware. With zero evidence, report + package
-                generation have no valid input, so they are DISABLED
-                with an explanatory tooltip. */}
-            <V2Button
-              tone="outline"
-              block
-              onClick={() => onGoToTab("reports")}
-              disabled={evidenceCount === 0}
-              title={
-                evidenceCount === 0
-                  ? "Add evidence before generating a report."
-                  : undefined
-              }
-            >
-              <span className="pv2-btn-icon" aria-hidden>
-                <IconDocument size={20} />
-              </span>
-              Generate report
-            </V2Button>
-            <V2Button
-              tone="outline"
-              block
-              onClick={() => onGoToTab("reports")}
-              disabled={evidenceCount === 0}
-              title={
-                evidenceCount === 0
-                  ? "A finalized evidence record is required."
-                  : undefined
-              }
-            >
-              <span className="pv2-btn-icon" aria-hidden>
-                <IconShieldCheck size={20} />
-              </span>
-              Create verification package
-            </V2Button>
-            <V2Button tone="outline" block onClick={() => onGoToTab("settings")}>
-              <span className="pv2-btn-icon" aria-hidden>
-                <IconShare size={20} />
-              </span>
-              Share
-            </V2Button>
-          </ActionRail>
-        }
-      />
-
-      {/* Figma "Section - AlertBanner" — full-width attention panel,
-          1px #F59E0B border, radius 12. */}
-      <AttentionPanel
-        title="What needs attention"
-        data-simple-case-needs-attention
-        action={
-          evidenceCount === 0 ? (
-            <V2Button
-              tone="outline"
-              onClick={onAddEvidence}
-              disabled={!viewer.canLinkEvidence}
-              title={viewer.disabledReasons.linkEvidence ?? undefined}
-            >
-              <span className="pv2-btn-icon" aria-hidden>
-                <IconPlus size={20} />
-              </span>
-              Add evidence
-            </V2Button>
-          ) : null
-        }
-      >
-        {evidenceCount === 0 ? (
-          <p className="pv2-attention-text" data-simple-case-attention-empty>
-            No evidence linked yet. Add evidence to begin building this case
-            workspace.
-          </p>
-        ) : needsAttention.length === 0 ? (
-          <p
-            className="pv2-attention-text"
-            data-simple-case-attention-empty
+          {/* Case summary — canonical panel, page-specific definition list. */}
+          <section
+            className="app-panel app-panel__body"
+            data-simple-case-summary-rows
           >
-            No open issues. Reports and packages are up to date.
-          </p>
-        ) : (
-          <ul className="pv2-attention-list" data-simple-case-attention-items>
-            {needsAttention.map((item) => (
-              <li
-                key={item.key}
-                data-simple-case-attention-key={item.key}
-                className="pv2-attention-item"
-              >
-                <span aria-hidden className="pv2-attention-bullet" />
-                <span>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </AttentionPanel>
+            <dl className="case-detail-kv">
+              {summaryRows.map((row) => (
+                <div className="case-detail-kv-row" key={row.label}>
+                  <dt className="case-detail-kv-key">{row.label}</dt>
+                  <dd className="case-detail-kv-val">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </div>
+
+        {/* Quick actions. The heading keeps the truthful product term:
+            PROOVRA reserves risk vocabulary for advisory integrity signals on
+            the Evidence Record surface, so labelling ordinary operational
+            actions as risk would be materially misleading on a custody
+            product. Each control is the canonical secondary action laid out
+            block — no second button. */}
+        <aside
+          className="app-panel app-panel__body case-detail-rail"
+          data-simple-case-actions
+        >
+          <h2 className="case-detail-rail-title">Quick actions</h2>
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--block"
+            onClick={onAddEvidence}
+            disabled={!viewer.canLinkEvidence}
+            title={viewer.disabledReasons.linkEvidence ?? undefined}
+          >
+            <Plus size={16} strokeWidth={1.9} aria-hidden="true" />
+            Add evidence
+          </button>
+          {/* State-aware. With zero evidence, report + package
+              generation have no valid input, so they are DISABLED
+              with an explanatory tooltip. */}
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--block"
+            onClick={() => onGoToTab("reports")}
+            disabled={evidenceCount === 0}
+            title={
+              evidenceCount === 0
+                ? "Add evidence before generating a report."
+                : undefined
+            }
+          >
+            <FileText size={16} strokeWidth={1.9} aria-hidden="true" />
+            Generate report
+          </button>
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--block"
+            onClick={() => onGoToTab("reports")}
+            disabled={evidenceCount === 0}
+            title={
+              evidenceCount === 0
+                ? "A finalized evidence record is required."
+                : undefined
+            }
+          >
+            <ShieldCheck size={16} strokeWidth={1.9} aria-hidden="true" />
+            Create verification package
+          </button>
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--block"
+            onClick={() => onGoToTab("settings")}
+          >
+            <Share2 size={16} strokeWidth={1.9} aria-hidden="true" />
+            Share
+          </button>
+        </aside>
+      </div>
+
+      {/* Attention panel — the canonical panel with a 4px amber accent on its
+          INLINE-START edge, so it mirrors correctly in Arabic. The heading
+          reads `--warning-ink` (the readable amber) while the rail and the
+          bullets keep the decorative `--warning`. */}
+      <section
+        className="app-panel app-panel__body case-detail-attention"
+        data-simple-case-needs-attention
+      >
+        <div className="case-detail-attention-body">
+          <h2 className="case-detail-attention-title">What needs attention</h2>
+          {evidenceCount === 0 ? (
+            <p
+              className="case-detail-attention-text"
+              data-simple-case-attention-empty
+            >
+              No evidence linked yet. Add evidence to begin building this case
+              workspace.
+            </p>
+          ) : needsAttention.length === 0 ? (
+            <p
+              className="case-detail-attention-text"
+              data-simple-case-attention-empty
+            >
+              No open issues. Reports and packages are up to date.
+            </p>
+          ) : (
+            <ul
+              className="case-detail-attention-list"
+              data-simple-case-attention-items
+            >
+              {needsAttention.map((item) => (
+                <li
+                  key={item.key}
+                  data-simple-case-attention-key={item.key}
+                  className="case-detail-attention-item"
+                >
+                  <span aria-hidden className="case-detail-attention-bullet" />
+                  <span>{item.label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {evidenceCount === 0 ? (
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onAddEvidence}
+            disabled={!viewer.canLinkEvidence}
+            title={viewer.disabledReasons.linkEvidence ?? undefined}
+          >
+            <Plus size={16} strokeWidth={1.9} aria-hidden="true" />
+            Add evidence
+          </button>
+        ) : null}
+      </section>
     </section>
   );
 }
@@ -983,62 +996,62 @@ function EvidenceTab({
 
   return (
     <section
-      className="cc-section"
+      className="cc-section case-detail-split-main"
       role="tabpanel"
       aria-label="Evidence"
       data-simple-case-evidence
-      style={{ display: "flex", flexDirection: "column", gap: "var(--pv2-space-6)" }}
     >
       {/* Phase CASES-ATTACH-PICKER (Final) — the tab body no longer
           renders an Add-evidence button. The page header owns the
           single canonical entry point so the user can attach from
           any tab without duplicate affordances. */}
       {items.length === 0 ? (
-        <Surface variant="panel" data-simple-case-evidence-empty>
-          <StateBlock
-            title="No evidence linked yet."
-            description={
-              <>
-                Use <em>Add evidence</em> above to link files, photos,
-                videos, or documents to this case.
-              </>
-            }
-          />
-        </Surface>
+        <div className="app-empty" data-simple-case-evidence-empty>
+          <strong>No evidence linked yet.</strong>
+          <p>
+            Use <em>Add evidence</em> above to link files, photos,
+            videos, or documents to this case.
+          </p>
+        </div>
       ) : (
         <>
-          {/* Figma "Input" — 56px tall, 16px padding, 1px #E2E8F0,
-              radius 8. The search really filters the list client-side
-              by name / type / status / record id; semantics unchanged. */}
-          <SearchField
-            value={search}
-            onValueChange={setSearch}
-            placeholder="Search linked evidence by name, type, or record ID"
-            ariaLabel="Search linked evidence"
-            data-simple-case-evidence-search
-          />
+          {/* CANONICAL SEARCH FIELD — `.app-search-field` / `-icon` /
+              `-input` from app-primitives.css. The search really filters the
+              list client-side by name / type / status / record id; semantics
+              unchanged. */}
+          <div className="app-search-field app-search-field--block">
+            <span className="app-search-icon" aria-hidden="true">
+              <Search size={16} strokeWidth={1.9} />
+            </span>
+            <input
+              className="app-search-input"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search linked evidence by name, type, or record ID"
+              aria-label="Search linked evidence"
+              data-simple-case-evidence-search
+            />
+          </div>
 
-          {/* Figma "Row Item (Default)" — one white card per record,
-              24px padding, radius 16, 24px gap between rows. */}
-          <ul className="pv2-rows" data-simple-case-evidence-items>
+          {/* One canonical panel per linked record. */}
+          <ul className="case-detail-rows" data-simple-case-evidence-items>
             {visibleItems.map((item) => (
-              <Surface
-                as="li"
-                variant="flush"
+              <li
+                className="app-panel case-detail-row"
                 key={item.id}
-                className="pv2-row"
                 data-simple-case-evidence-item={item.id}
               >
-                <div className="pv2-row-main">
+                <div className="case-detail-row-main">
                   <h3
-                    className="pv2-row-title"
+                    className="case-detail-row-title"
                     data-simple-case-evidence-title
                     title={getDisplayTitle(item)}
                   >
                     {getDisplayTitle(item)}
                   </h3>
-                  <div className="cc-muted pv2-row-meta">
-                    <span className="pv2-row-meta-id">{item.id.slice(0, 8)}</span>
+                  <div className="cc-muted case-detail-row-meta">
+                    <span className="case-detail-row-meta-id">{item.id.slice(0, 8)}</span>
                     <span aria-hidden>•</span>
                     <span>{item.type}</span>
                     <span aria-hidden>•</span>
@@ -1061,14 +1074,15 @@ function EvidenceTab({
                     </span>
                   </div>
                 </div>
-                <div className="pv2-row-actions">
-                  <V2Button
-                    tone="outline"
+                <div className="case-detail-row-actions">
+                  <button
+                    type="button"
+                    className="app-secondary-action"
                     onClick={() => onOpenEvidence(item.id)}
                     data-simple-case-evidence-open={item.id}
                   >
                     Open
-                  </V2Button>
+                  </button>
                   {/* Phase CASES-PERSONAL-UX-CLEANUP — the previous
                       code disabled this button when `linkId === null`
                       (legacy `Evidence.caseId` attachment, common for
@@ -1083,7 +1097,7 @@ function EvidenceTab({
                       stays authoritative. */}
                   <button
                     type="button"
-                    className="pv2-btn pv2-btn--danger cases-remove-action"
+                    className="cases-remove-action"
                     disabled={
                       busyId === item.id ||
                       // Allow either the canonical or the legacy unlink
@@ -1109,19 +1123,19 @@ function EvidenceTab({
                     Remove from case
                   </button>
                 </div>
-              </Surface>
+              </li>
             ))}
           </ul>
           {visibleItems.length === 0 ? (
-            <Surface variant="panel">
+            <div className="app-panel app-panel__body">
               <p
-                className="cc-muted pv2-attention-text"
+                className="cc-muted case-detail-attention-text"
                 data-simple-case-evidence-no-match
                 style={{ margin: 0 }}
               >
                 No linked evidence matches your search.
               </p>
-            </Surface>
+            </div>
           ) : null}
         </>
       )}

@@ -378,10 +378,16 @@ export function CasesIndex() {
               </div>
             }
             subtitle={
-              <p className="cc-subtitle" data-cases-subtitle>
+              // INLINE element: PageHeader already wraps `subtitle` in its own
+              // <p>, so a <p> here produced invalid <p><p> nesting and a
+              // React validateDOMNesting hydration error. `.cc-subtitle` has
+              // no CSS rules (it is a semantic/test hook) and Tailwind
+              // preflight zeroes <p> margins, so the rendered wording,
+              // typography and spacing are unchanged.
+              <span className="cc-subtitle" data-cases-subtitle>
                 Group related evidence into simple workspaces for incidents,
                 claims, projects, or reviews.
-              </p>
+              </span>
             }
             contextStrip={
               <div className="cc-meta" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1205,7 +1211,6 @@ function MatterQueueRow({
         <span className="cases-cell cases-cell-status">
           <Badge
             tone={statusBadgeTone(row.status)}
-            className="cases-row-chip"
             data-matter-queue-row-chip="status"
             data-status={row.status}
           >
@@ -1215,7 +1220,6 @@ function MatterQueueRow({
             <Badge
               tone="neutral"
               subtle
-              className="cases-row-chip"
               data-matter-queue-row-chip="priority"
               data-priority={row.priority}
             >
@@ -1274,13 +1278,13 @@ function MatterQueueRow({
                 <Counter dataKey="governance-blockers" value={row.governanceBlockerCount} label="gov block" tone="high" />
               ) : null}
               {row.activeLegalHoldCount > 0 ? (
-                <span className="cases-row-chip" data-matter-queue-row-chip="hold" data-hold-count={row.activeLegalHoldCount}>
+                <span className="app-status-badge" data-tone="red" data-matter-queue-row-chip="hold" data-hold-count={row.activeLegalHoldCount}>
                   Legal preservation
                 </span>
               ) : null}
               {reasonCodes.length > 0
                 ? reasonCodes.map((code) => (
-                    <span key={code} className="cases-row-chip" data-matter-queue-row-reason={code} style={{ fontSize: 11 }}>
+                    <span key={code} className="app-status-badge" data-tone="slate" data-matter-queue-row-reason={code}>
                       {reasonCodeLabel(code)}
                     </span>
                   ))
@@ -1569,7 +1573,6 @@ function RiskBadge({
     <Badge
       tone={badgeTone}
       dot
-      className="cases-row-chip"
       data-matter-queue-row-chip="risk"
       data-risk-tone={tone}
       data-risk-level={level}

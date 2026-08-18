@@ -127,7 +127,7 @@ export function QcSamplingPanel() {
   if (!teamId) return null;
 
   return (
-    <section className="app-card" style={{ marginTop: 16 }} aria-label="AI QC sampling">
+    <section className="app-panel app-panel__body" style={{ marginTop: 16 }} aria-label="AI QC sampling">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>AI QC sampling</h3>
         <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -176,9 +176,9 @@ export function QcSamplingPanel() {
                     {s.caseId ? <> · <Link className="app-link" href={`/cases/${s.caseId}`}>Open case</Link></> : null}
                   </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                    <button className="app-btn app-btn--primary" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_ACCEPTED")}>Accept</button>
-                    <button className="app-btn app-btn--ghost" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_REVIEWED")}>Mark reviewed</button>
-                    <button className="app-btn app-btn--ghost" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_SKIPPED")}>Skip</button>
+                    <button className="app-primary-action" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_ACCEPTED")}>Accept</button>
+                    <button className="app-secondary-action" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_REVIEWED")}>Mark reviewed</button>
+                    <button className="app-secondary-action" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_SKIPPED")}>Skip</button>
                   </div>
                 </li>
               );
@@ -186,9 +186,9 @@ export function QcSamplingPanel() {
           </ul>
           {state.samples.length > PAGE_SIZE ? (
             <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-              <button className="app-btn app-btn--ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+              <button className="app-secondary-action" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
               <span style={{ fontSize: 12, opacity: 0.6 }}>Page {page + 1} of {Math.ceil(state.samples.length / PAGE_SIZE)}</span>
-              <button className="app-btn app-btn--ghost" disabled={(page + 1) * PAGE_SIZE >= state.samples.length} onClick={() => setPage((p) => p + 1)}>Next</button>
+              <button className="app-secondary-action" disabled={(page + 1) * PAGE_SIZE >= state.samples.length} onClick={() => setPage((p) => p + 1)}>Next</button>
             </div>
           ) : null}
         </>

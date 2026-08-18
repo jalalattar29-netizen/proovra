@@ -29,7 +29,7 @@ import { RuntimeStatusBanner } from "../operational";
 // per the barrel contract (the ui/index barrel still serves the LEGACY
 // Card/Button/Badge to older call sites). No structural / contract change:
 // every data-governance-* attribute, tab-state hook, honesty note and the
-// `case-tabs` hero/tab structure are preserved.
+// canonical `app-tabs` hero/tab structure are preserved.
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
@@ -190,7 +190,7 @@ export function GovernanceControlPlane() {
               Subsections handle their own status (ok / not_applicable) via
               the standard SectionStatus contract; team-only mutating
               actions are gated at the route level. */}
-          <nav className="case-tabs" role="tablist" aria-label="Governance tabs">
+          <nav className="app-tabs" role="tablist" aria-label="Governance tabs">
             {(
               [
                 ["posture", "Posture"],
@@ -206,7 +206,7 @@ export function GovernanceControlPlane() {
                 type="button"
                 role="tab"
                 aria-selected={tab === key}
-                className={`case-tab ${tab === key ? "is-active" : ""}`}
+                className={`app-tab ${tab === key ? "is-active" : ""}`}
                 onClick={() => setTab(key)}
                 data-governance-tab={key}
               >

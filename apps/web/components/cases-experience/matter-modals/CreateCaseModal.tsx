@@ -154,7 +154,7 @@ export function CreateCaseModal({
               fontWeight: 600,
               background: "rgba(255,255,255,0.78)",
               border: "1px solid rgba(79,70,229,0.18)",
-              color: "#4F46E5",
+              color: "var(--accent-600, #4F46E5)",
               cursor: submitting ? "default" : "pointer",
               opacity: submitting ? 0.6 : 1,
             }}
@@ -190,7 +190,7 @@ export function CreateCaseModal({
             display: "block",
             fontSize: 13,
             fontWeight: 600,
-            color: "#172033",
+            color: "var(--app-ink-heading, #172033)",
             marginBottom: 6,
           }}
         >
@@ -220,7 +220,7 @@ export function CreateCaseModal({
           style={{
             margin: "6px 0 0",
             fontSize: 12,
-            color: "#64748B",
+            color: "var(--app-ink-secondary, #64748B)",
           }}
         >
           You can rename the case from its workspace at any time. Evidence,
@@ -247,7 +247,7 @@ export function CreateCaseModal({
               background: "rgba(185, 56, 62, 0.08)",
               border: "1px solid rgba(185, 56, 62, 0.30)",
               borderRadius: 8,
-              color: "#B9383E",
+              color: "var(--error, #B9383E)",
               fontSize: 13,
             }}
           >

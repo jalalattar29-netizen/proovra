@@ -15,7 +15,6 @@
   --detail-teal-strong: #4338ca;
   --detail-teal-soft: #f3f0ff;
   --detail-bronze: #8d6438;
-  --detail-bronze-soft: #faf5ed;
   --detail-green: #16794a;
   --detail-green-soft: #ebf7ef;
   --detail-amber: #b65f18;
@@ -134,8 +133,7 @@
 }
 
 .evidence-detail-hero-meta,
-.evidence-detail-inline-actions,
-.evidence-detail-item-actions {
+.evidence-detail-inline-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -244,8 +242,7 @@
 }
 
 .evidence-detail-hero-actions button:not(:first-child):not(:nth-child(2)),
-.evidence-detail-inline-actions button,
-.evidence-detail-item-actions button {
+.evidence-detail-inline-actions button {
   background: #ffffff !important;
   border: 1px solid var(--detail-line-strong) !important;
   color: var(--detail-ink) !important;
@@ -385,18 +382,6 @@
   line-height: 1.3;
   font-weight: 750;
   letter-spacing: -0.02em;
-}
-
-.evidence-detail-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  margin-top: 18px;
-}
-
-.evidence-detail-overview-panel {
-  display: grid;
-  gap: 10px;
 }
 
 .evidence-detail-data-grid {
@@ -767,10 +752,6 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   min-height: 72px;
 }
 
-.evidence-detail-rail {
-  display: none;
-}
-
 @media (max-width: 1180px) {
   .evidence-detail-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -804,22 +785,21 @@ button.evidence-detail-item-card[aria-pressed="true"] {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .evidence-detail-overview-grid,
   .evidence-detail-label-edit {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .evidence-detail-section-header,
-  .evidence-detail-card-header,
-  .evidence-detail-item-row,
-  .evidence-detail-definition-inline,
-  .evidence-detail-subsection__header {
+.evidence-detail-card-header,
+.evidence-detail-item-row,
+.evidence-detail-definition-inline,
+.evidence-detail-subsection__header {
     flex-direction: column;
     align-items: stretch;
   }
 
   .evidence-detail-preview-media,
-  .evidence-detail-preview-frame {
+.evidence-detail-preview-frame {
     min-height: 280px;
     max-height: 520px;
   }
@@ -837,7 +817,7 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   }
 
   .evidence-detail-data-grid,
-  .evidence-detail-item-grid {
+.evidence-detail-item-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

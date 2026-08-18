@@ -7,7 +7,6 @@ import type {
   InputHTMLAttributes,
   SelectHTMLAttributes,
 } from "react";
-import Link from "next/link";
 import { createContext, useContext, useState, useCallback } from "react";
 import { ProovraToast, type ProovraToastData } from "./feedback/ProovraToast";
 
@@ -184,177 +183,6 @@ export function Card({ children, className, ...props }: CardProps) {
 }
 
 /* =========================
-   Badge
-   ========================= */
-
-export function Badge({
-  children,
-  tone,
-}: {
-  children: ReactNode;
-  tone: "signed" | "processing" | "ready";
-}) {
-  return <span className={`badge ${tone}`}>{children}</span>;
-}
-
-export function StatusPill({ children }: { children: ReactNode }) {
-  return <span className="phone-pill">{children}</span>;
-}
-
-/* =========================
-   Tabs
-   ========================= */
-
-export function Tabs({
-  items,
-  active,
-  onChange,
-}: {
-  items: Array<{ label: string; value: string; icon?: ReactNode }> | string[];
-  active?: string;
-  onChange?: (value: string) => void;
-}) {
-  const tabItems = items.map((item) =>
-    typeof item === "string" ? { label: item, value: item } : item
-  );
-
-  return (
-    <div className="ui-tabs">
-      {tabItems.map((item, idx) => {
-        const isActive = active ? item.value === active : idx === 0;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChange?.(item.value)}
-            className={`ui-tab ${isActive ? "active" : ""}`}
-          >
-            {item.icon && <span className="ui-tab-icon">{item.icon}</span>}
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/* =========================
-   List Row
-   ========================= */
-
-export function ListRow({
-  title,
-  subtitle,
-  badge,
-}: {
-  title: string;
-  subtitle: string;
-  badge: ReactNode;
-}) {
-  const normalized = title.trim().toUpperCase();
-
-  const typeCode =
-    normalized === "PHOTO"
-      ? "PH"
-      : normalized === "VIDEO"
-        ? "VI"
-        : normalized === "DOCUMENT"
-          ? "DO"
-          : normalized === "AUDIO"
-            ? "AU"
-            : "EV";
-
-  return (
-    <div className="evidence-row-pro">
-      <div className="evidence-row-pro__left">
-        <div className="evidence-row-pro__icon" aria-hidden="true">
-          <span className="evidence-row-pro__icon-text">{typeCode}</span>
-        </div>
-
-        <div className="evidence-row-pro__content">
-          <div className="evidence-row-pro__title">{title}</div>
-          <div className="evidence-row-pro__subtitle">{subtitle}</div>
-        </div>
-      </div>
-
-      <div className="evidence-row-pro__right">
-        <div className="evidence-row-pro__badge">{badge}</div>
-        <span className="evidence-row-pro__arrow" aria-hidden="true">
-          ›
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   Top Bar
-   ========================= */
-
-export function TopBar({
-  title,
-  center,
-  right,
-  logoSrc = "/brand/logo.svg",
-  logoHref,
-}: {
-  title: string;
-  center?: ReactNode;
-  right?: ReactNode;
-  logoSrc?: string;
-  logoHref?: string;
-}) {
-  return (
-    <div className="nav">
-      <div className="nav-left">
-        {logoHref ? (
-          <Link className="logo" href={logoHref}>
-            <img src={logoSrc} alt="PROO✓RA" width={34} height={34} />
-            <span>{title}</span>
-          </Link>
-        ) : (
-          <div className="logo">
-            <img src={logoSrc} alt="PROO✓RA" width={34} height={34} />
-            <span>{title}</span>
-          </div>
-        )}
-      </div>
-      {center && <div className="nav-center">{center}</div>}
-      {right}
-    </div>
-  );
-}
-
-export function BottomNav() {
-  const items = ["Home", "Cases", "Teams", "Settings"];
-  return (
-    <div className="ui-bottom-nav-preview">
-      {items.map((item, idx) => (
-        <div
-          key={item}
-          className={`ui-bottom-nav-preview-item ${idx === 0 ? "active" : ""}`}
-        >
-          {item}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function TimelineBlock({ items }: { items: string[] }) {
-  return (
-    <div className="timeline">
-      {items.map((item) => (
-        <div key={item} className="timeline-row">
-          <span className="timeline-dot" />
-          <span>{item}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* =========================
    Modal
    ========================= */
 
@@ -409,16 +237,6 @@ export function Skeleton({
         height,
       }}
     />
-  );
-}
-
-export function SkeletonText({ lines = 3 }: { lines?: number }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton key={i} width={i === lines - 1 ? "80%" : "100%"} height="16px" />
-      ))}
-    </div>
   );
 }
 

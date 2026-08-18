@@ -42,11 +42,15 @@ import { apiFetch } from "../../lib/api";
 // PageShell/PageHeader/PageSection come from the barrel; Card / Button /
 // Badge / EmptyState are DEEP-imported (the barrel serves the LEGACY
 // four). No data-fetching, permission, or routing behaviour changes.
-import { PageShell, PageHeader } from "../ui";
-import { Card } from "../ui/Card";
+import { PageShell } from "../ui";
 import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
 import { EmptyState as UiEmptyState } from "../ui/EmptyState";
+import Link from "next/link";
+import { Search } from "lucide-react";
+// UNIVERSAL CASE HEADER — the same component the Personal / Small-Business
+// branch renders. Sharing the implementation (rather than re-describing the
+// anatomy here) is what makes the two branches structurally identical.
+import { CaseDetailHeader } from "./simple-case-detail/SimpleCaseDetail";
 // Phase 6 (SCOPE B) — canonical case-assignment picker. The modal was
 // already built (POST /v1/cases/:id/assignments) but orphaned; wiring
 // it into the Assignments tab is the only missing piece.
@@ -379,120 +383,6 @@ const TABS: ReadonlyArray<{
 ];
 
 // =============================================================================
-// Scoped visual styling (Phase 7B, visual-only)
-// =============================================================================
-
-// The `.matter-tab*` class hooks in this component had NO CSS anywhere in
-// the codebase before Phase 7B — the surface rendered with browser
-// defaults. This scoped block styles the list/table/heading affordances
-// with the shared design tokens so the tab bodies match the rest of the
-// migrated console. All colour comes from `lib/design-tokens/tokens.css`
-// variables (with the same fallbacks the shared primitives use).
-const MATTER_WORKSPACE_CSS = `
-.matter-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border-radius: var(--radius-card, 14px);
-  border: 1px solid var(--border-default, rgba(15,23,42,0.09));
-  background: var(--surface-card, #ffffff);
-  box-shadow: var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04));
-}
-/* The SIU tab hosts its own self-contained panel; don't double-frame it. */
-.matter-tab--siu { padding: 0; border: none; background: transparent; box-shadow: none; }
-.matter-tab h3 {
-  margin: 4px 0 0;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--ink-primary, #0f172a);
-}
-.matter-tab__hint {
-  margin: 4px 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--ink-secondary, #475569);
-}
-.matter-tab__inline-empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink-muted, #94a3b8);
-}
-.matter-tab ul, .matter-tab ol { margin: 0; padding: 0; list-style: none; }
-.matter-tab ul li, .matter-tab__timeline li {
-  padding: 10px 12px;
-  border: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
-  border-radius: var(--radius-md, 10px);
-  background: var(--surface-card, #ffffff);
-  font-size: 13px;
-  color: var(--ink-primary, #0f172a);
-  margin-bottom: 6px;
-}
-.matter-tab ul li:last-child, .matter-tab__timeline li:last-child { margin-bottom: 0; }
-.matter-tab ul li a, .matter-tab__timeline li a {
-  color: var(--status-info-fg, #1e40af);
-  text-decoration: none;
-  font-weight: 600;
-}
-.matter-tab ul li a:hover { text-decoration: underline; }
-.matter-tab ul li span, .matter-tab ul li small {
-  color: var(--ink-secondary, #475569);
-}
-.matter-tab ul li code, .matter-tab__reasons code {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12px;
-  color: var(--ink-primary, #0f172a);
-}
-.matter-tab__counts { display: flex; flex-wrap: wrap; gap: 8px; }
-.matter-tab__counts li { margin-bottom: 0 !important; }
-.matter-tab__reasons { display: flex; flex-wrap: wrap; gap: 6px; }
-.matter-tab__reasons li {
-  padding: 4px 10px !important;
-  border-radius: var(--radius-pill, 999px) !important;
-  background: var(--surface-muted, #f1f4f9) !important;
-  margin-bottom: 0 !important;
-}
-.matter-tab__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13.5px;
-  color: var(--ink-primary, #0f172a);
-  border: 1px solid var(--border-default, rgba(15,23,42,0.09));
-  border-radius: var(--radius-card, 14px);
-  overflow: hidden;
-}
-.matter-tab__table th {
-  text-align: left;
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-muted, #94a3b8);
-  background: var(--surface-header, #f8fafc);
-  border-bottom: 1px solid var(--border-default, rgba(15,23,42,0.09));
-}
-.matter-tab__table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
-  vertical-align: middle;
-}
-.matter-tab__table tbody tr { cursor: pointer; transition: background-color 140ms ease; }
-.matter-tab__table tbody tr:hover { background: var(--surface-muted, #f1f4f9); }
-.matter-tab__timeline li time {
-  display: block;
-  font-size: 11px;
-  color: var(--ink-muted, #94a3b8);
-}
-.matter-tab__timeline-family, .matter-tab__timeline-type {
-  font-size: 11px;
-  color: var(--ink-secondary, #475569);
-  margin-right: 8px;
-}
-.matter-tab__empty { display: block; }
-`;
-
-// =============================================================================
 // Component
 // =============================================================================
 
@@ -676,70 +566,105 @@ export function MatterWorkspace({
 
   if (loading) {
     return (
-      <PageShell className="matter-workspace matter-workspace--loading">
-        <Card variant="summary">
-          <p style={{ margin: 0, color: "var(--ink-secondary, #475569)" }}>
+      <PageShell width="full" className="cc-page matter-workspace matter-workspace--loading">
+        <div className="app-panel app-panel__body">
+          <p className="sr-only" style={{ margin: 0 }}>
             Loading matter workspace…
           </p>
-        </Card>
+          <div
+            className="case-detail-skel"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading matter workspace"
+          >
+            <span className="app-skeleton case-detail-skel-bar" />
+            <span className="app-skeleton case-detail-skel-bar" />
+            <span className="app-skeleton case-detail-skel-bar" />
+            <span className="app-skeleton case-detail-skel-bar" />
+          </div>
+        </div>
       </PageShell>
     );
   }
 
   if (error || !envelope) {
     return (
-      <PageShell className="matter-workspace matter-workspace--error">
-        <Card variant="status" tone="risk">
-          <p role="alert" style={{ margin: 0 }}>
-            {error ?? "Matter workspace unavailable."}
-          </p>
-        </Card>
+      <PageShell width="full" className="cc-page matter-workspace matter-workspace--error">
+        <div className="app-empty" data-tone="danger" role="alert">
+          <strong>Matter workspace unavailable</strong>
+          <p>{error ?? "Matter workspace unavailable."}</p>
+        </div>
       </PageShell>
     );
   }
 
   return (
     <PageShell
-      className="matter-workspace"
+      width="full"
+      className="cc-page matter-workspace"
       data-active-tab={activeTab}
-      header={
-        <PageHeader
-          eyebrow="Matter Workspace"
-          title={envelope.case.name}
-          subtitle={
-            <>
-              {envelope.case.referenceNumber ?? "no reference number"} ·{" "}
-              {envelope.case.priority} · {envelope.case.status}
-            </>
-          }
-          contextStrip={
-            /* Phase G3.1 — polling-based presence chip. Workspace +
-               resource-id scoped server-side. Bounded payload — only
-               {userId, displayName, lastSeenAtUtc} per viewer. */
+    >
+      {/* UNIVERSAL CASE HEADER — the SAME `CaseDetailHeader` the Personal /
+          Small-Business branch renders, so breadcrumb, title, status badge,
+          metadata row, Case ID + copy and the primary action are identical in
+          anatomy, order and authority. Only the CONTENT differs: the scope
+          crumb names the organization/team, and the enterprise-only presence
+          chip + priority ride in `extraMeta`. */}
+      <CaseDetailHeader
+        testIdPrefix="matter"
+        caseDetail={envelope.case}
+        evidenceCount={envelope.sections.evidence.items.length}
+        isReloading={false}
+        canLinkEvidence={envelope.viewer.canManage === true}
+        linkEvidenceDisabledReason={
+          envelope.viewer.disabledReasons?.["LINK_EVIDENCE"] ?? null
+        }
+        onAddEvidence={() => setActiveTab("evidence")}
+        scopeLabel={envelope.case.scope === "TEAM" ? "Organization" : "Personal Space"}
+        primaryActionLabel="Add evidence"
+        extraMeta={
+          <>
+            <span className="case-detail-meta-item">
+              <span className="case-detail-dot" aria-hidden />
+              <span data-matter-case-priority>
+                Priority {envelope.case.priority}
+              </span>
+            </span>
+            {/* Phase G3.1 — polling-based presence chip. Workspace +
+                resource-id scoped server-side. Bounded payload — only
+                {userId, displayName, lastSeenAtUtc} per viewer. */}
             <PresenceIndicator
               teamId={envelope.case.teamId ?? null}
               resourceKind="matter"
               resourceId={envelope.case.id}
             />
-          }
-        />
-      }
-    >
-      {/* Phase 7B (visual-only) — scoped token-driven styling for the
-          matter-workspace class hooks. These classes previously had NO
-          CSS anywhere in the app (the surface rendered unstyled); this
-          block gives them the shared design-system look without a
-          framework dependency and without touching frozen globals.css.
-          Every class hook + data-* attribute in the JSX is preserved. */}
-      <style>{MATTER_WORKSPACE_CSS}</style>
+          </>
+        }
+        secondaryActions={
+          /* Phase 14 — deep link into the canonical /search surface scoped to
+             this case. Moved out of the route file (where it was an inline
+             hex-coloured pill) onto the canonical secondary action. */
+          <Link
+            href={`/search?caseId=${encodeURIComponent(envelope.case.id)}`}
+            className="app-secondary-action"
+            data-cases-detail-search-pivot
+          >
+            <Search size={16} strokeWidth={1.9} aria-hidden="true" />
+            View evidence in Search
+          </Link>
+        }
+      />
+      {/* CANONICAL TABS — `.app-tabs` / `.app-tab`, the same strip the
+          Personal branch renders. Enterprise keeps its twelve sections and its
+          per-section degraded signal; the signal now rides the canonical
+          `.app-tab__count` slot instead of a bespoke two-line button. Tab ids,
+          `data-tab-id`, `data-section-status` and the keyboard shortcuts are
+          unchanged. */}
       <nav
-        className="matter-workspace__tabs"
+        className="app-tabs"
         role="tablist"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-        }}
+        aria-label="Case sections"
+        data-matter-case-tabs
       >
         {TABS.map((tab) => {
           const status = sectionStatus[tab.id];
@@ -750,47 +675,20 @@ export function MatterWorkspace({
               type="button"
               role="tab"
               aria-selected={isActive}
-              className={`matter-workspace__tab ${isActive ? "is-active" : ""}`}
+              className={isActive ? "app-tab is-active" : "app-tab"}
               data-section-status={status}
               data-tab-id={tab.id}
+              title={tab.description}
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-start",
-                gap: 2,
-                textAlign: "left",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-md, 10px)",
-                cursor: "pointer",
-                background: isActive
-                  ? "var(--surface-card, #ffffff)"
-                  : "transparent",
-                border: isActive
-                  ? "1px solid var(--border-default, rgba(15,23,42,0.09))"
-                  : "1px solid transparent",
-                boxShadow: isActive
-                  ? "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))"
-                  : "none",
-                color: isActive
-                  ? "var(--ink-primary, #0f172a)"
-                  : "var(--ink-secondary, #475569)",
-              }}
             >
-              <strong style={{ fontSize: 13.5, fontWeight: 650 }}>
-                {tab.label}
-              </strong>
-              <span
-                className="matter-workspace__tab-desc"
-                style={{ fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
-              >
-                {tab.description}
-              </span>
+              {tab.label}
               {status === "degraded" ? (
-                <span className="matter-workspace__tab-degraded">
-                  <Badge tone="pending" subtle>
-                    degraded
-                  </Badge>
+                <span
+                  className="app-tab__count"
+                  data-matter-tab-degraded
+                  title="This section is degraded"
+                >
+                  !
                 </span>
               ) : null}
             </button>
@@ -805,59 +703,36 @@ export function MatterWorkspace({
       activeTab !== "graph" &&
       activeTab !== "risk" ? (
         <div
-          className="matter-workspace__filter-row"
+          className="app-search-field app-search-field--block"
           data-matter-filter-row
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 12px",
-            borderRadius: "var(--radius-md, 10px)",
-            border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-            background: "var(--surface-muted, #f1f4f9)",
-            fontSize: 13,
-          }}
         >
-          <label
-            htmlFor="matter-workspace-filter"
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              color: "var(--ink-muted, #94a3b8)",
-            }}
-          >
-            FILTER
+          <span className="app-search-icon" aria-hidden="true">
+            <Search size={16} strokeWidth={1.9} />
+          </span>
+          <label htmlFor="matter-workspace-filter" className="sr-only">
+            Filter {activeTab}
           </label>
           <input
             id="matter-workspace-filter"
             ref={filterInputRef}
             data-matter-filter-input
-            type="text"
+            className="app-search-input"
+            type="search"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder={`Filter ${activeTab}… ( / to focus, Esc to clear)`}
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              borderRadius: "var(--radius-sm, 6px)",
-              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-              fontSize: 13,
-              background: "var(--surface-card, #ffffff)",
-              color: "var(--ink-primary, #0f172a)",
-            }}
           />
           <span
             data-matter-keyboard-hint
-            style={{ fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
+            className="app-chip"
             title="g + letter to jump tabs (g+e Evidence, g+t Timeline, g+a Audit, g+x Export). / to filter. Esc to clear."
           >
-            g+key jumps · / filter · Esc clear
+            g+key · / filter · Esc
           </span>
         </div>
       ) : null}
 
-      <div className="matter-workspace__body">
+      <div className="case-detail-split-main" data-matter-workspace-body>
         {activeTab === "overview" ? (
           <OverviewTab envelope={envelope} />
         ) : null}
@@ -891,7 +766,7 @@ export function MatterWorkspace({
           />
         ) : null}
         {activeTab === "siu" ? (
-          <div className="matter-tab matter-tab--siu" data-cc-matter-siu-tab>
+          <div className="case-detail-split-main" data-cc-matter-siu-tab>
             <SiuPanel caseId={envelope.case.id} />
             {/* PHASE 12 — VERTICAL B. Saved views + intake templates +
                 the worklist they drive. Mounted alongside the per-case
@@ -940,7 +815,7 @@ function OverviewTab({ envelope }: { envelope: MatterEnvelope }) {
   const totalHolds =
     (gov.caseHolds?.length ?? 0) + (gov.evidenceHolds?.length ?? 0);
   return (
-    <div className="matter-tab matter-tab--overview">
+    <div className="app-panel app-panel__body case-detail-stack">
       <Grid>
         <Tile label="Linked evidence" value={s.linkedEvidenceCount} />
         <Tile label="Recently linked" value={s.recentlyLinkedCount} />
@@ -961,7 +836,7 @@ function OverviewTab({ envelope }: { envelope: MatterEnvelope }) {
       {/* Phase G2 (G1.1) — matter-level governance summary. Aggregates
           hold counts + retention + lifecycle posture without fetching
           extra data. */}
-      <div style={{ marginTop: 12 }}>
+      <div>
         <GovernanceSummary
           variant="matter"
           activeHoldCount={totalHolds}
@@ -972,14 +847,14 @@ function OverviewTab({ envelope }: { envelope: MatterEnvelope }) {
         />
       </div>
 
-      <p className="matter-tab__hint">
+      <p className="app-hint">
         Sampled {formatRelative(envelope.generatedAt)}. Drill into individual
         tabs for the underlying records.
       </p>
 
       {/* Phase Final-Hidden-Feature-Surfacing — durable matter risk
           snapshot. Real backend; bounded; loading/empty/error states. */}
-      <div style={{ marginTop: 12 }}>
+      <div>
         <CaseRiskPanel caseId={_caseId} />
       </div>
     </div>
@@ -1084,7 +959,7 @@ function EvidenceTab({
     );
   }
   return (
-    <div className="matter-tab matter-tab--evidence">
+    <div className="app-panel app-panel__body case-detail-stack">
       {/* Phase C3 — Evidence Requests sub-section. Bounded surfacing
           of operational intake readiness for this matter. */}
       <h3>
@@ -1095,11 +970,11 @@ function EvidenceTab({
         )
       </h3>
       {requests && "error" in requests ? (
-        <p className="matter-tab__inline-empty">{requests.error}</p>
+        <p className="app-hint">{requests.error}</p>
       ) : !requests ? (
-        <p className="matter-tab__inline-empty">Loading requests…</p>
+        <p className="app-hint">Loading requests…</p>
       ) : requestRows.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No evidence requests for this matter. Issue a request from the
           intake operations surface to drive structured evidence collection.
         </p>
@@ -1135,12 +1010,13 @@ function EvidenceTab({
       {/* Existing C1 linked-evidence table. */}
       <h3>Linked evidence ({ev.items.length})</h3>
       {ev.items.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No evidence linked yet. Link evidence from the workspace library
           via the Evidence detail surface.
         </p>
       ) : (
-        <table className="matter-tab__table" role="grid">
+        <div className="app-table-surface">
+        <table className="app-table" role="grid">
           <thead>
             <tr>
               <th>Title</th>
@@ -1174,6 +1050,7 @@ function EvidenceTab({
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
@@ -1196,17 +1073,27 @@ function TimelineTab({
     );
   }
   return (
-    <ol className="matter-tab__timeline">
+    <ol className="case-detail-rows">
       {matchesFilter(
         tl.items,
         filterText,
         (e) => `${e.family} ${e.eventType} ${e.severity} ${e.summary}`,
       ).map((ev) => (
-        <li key={ev.id} data-severity={ev.severity}>
-          <time>{formatRelative(ev.occurredAtUtc)}</time>
-          <span className="matter-tab__timeline-family">{ev.family}</span>
-          <span className="matter-tab__timeline-type">{ev.eventType}</span>
-          <p>{ev.summary}</p>
+        <li
+          key={ev.id}
+          className="app-inner-surface case-detail-row"
+          data-severity={ev.severity}
+        >
+          <div className="case-detail-row-main">
+            <div className="case-detail-row-meta">
+              <time dateTime={ev.occurredAtUtc}>
+                {formatRelative(ev.occurredAtUtc)}
+              </time>
+              <span className="app-chip">{ev.family}</span>
+              <span className="app-chip">{ev.eventType}</span>
+            </div>
+            <p className="app-hint">{ev.summary}</p>
+          </div>
         </li>
       ))}
     </ol>
@@ -1224,7 +1111,7 @@ function GraphTab({ envelope }: { envelope: MatterEnvelope }) {
     );
   }
   return (
-    <div className="matter-tab matter-tab--graph">
+    <div className="app-panel app-panel__body case-detail-stack">
       <Grid>
         <Tile label="Primary" value={rel.counts.primary} />
         <Tile label="Supporting" value={rel.counts.supporting} />
@@ -1233,7 +1120,7 @@ function GraphTab({ envelope }: { envelope: MatterEnvelope }) {
         <Tile label="Derived" value={rel.counts.derived} />
         <Tile label="Context" value={rel.counts.context} />
       </Grid>
-      <p className="matter-tab__hint">
+      <p className="app-hint">
         {rel.relationships.length} relationships across {rel.links.length}{" "}
         linked items. The interactive graph view lives in the Investigation
         Graph surface.
@@ -1258,14 +1145,14 @@ function HoldsTab({
     // confirmation, but that's surfaced inline when the user
     // attempts the action, not advertised in an empty state.
     return (
-      <div className="matter-tab matter-tab--holds">
+      <div className="app-panel app-panel__body case-detail-stack">
         <EmptyState
           title="No holds active"
           body="No legal or retention holds apply to this case or its evidence. Place a hold when you need to stop records being deleted or destroyed."
         />
         {/* PHASE 12B CLUSTER 8 — ONE Legal-Hold surface. Placing and
             releasing holds happens in one place for every scope. */}
-        <p className="matter-tab__hint">
+        <p className="app-hint">
           <a href="/evidence-lifecycle/legal-holds" data-legal-holds-link>
             Manage legal holds
           </a>
@@ -1286,21 +1173,21 @@ function HoldsTab({
     (h) => `${h.evidenceId ?? ""} ${h.status ?? ""}`,
   );
   return (
-    <div className="matter-tab matter-tab--holds">
+    <div className="app-panel app-panel__body case-detail-stack">
       {/* PHASE 12B CLUSTER 8 — case-level holds now come from the ONE
           canonical Legal-Hold authority (canonical CASE-scoped rows plus any
           legacy row not yet converted), and placing/releasing happens on the
           single Legal Holds surface. */}
-      <p className="matter-tab__hint">
+      <p className="app-hint">
         <a href="/evidence-lifecycle/legal-holds" data-legal-holds-link>
           Manage legal holds
         </a>
       </p>
       <h3>Case-level holds</h3>
       {filteredCaseHolds.length === 0 ? (
-        <p className="matter-tab__inline-empty">No case-level holds.</p>
+        <p className="app-hint">No case-level holds.</p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredCaseHolds.map((h) => (
             <li key={h.id}>
               <strong>{h.title}</strong>
@@ -1319,11 +1206,11 @@ function HoldsTab({
       )}
       <h3>Evidence-level holds ({filteredEvidenceHolds.length})</h3>
       {filteredEvidenceHolds.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No evidence-level holds inherited or applied.
         </p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredEvidenceHolds.slice(0, 25).map((h) => (
             <li key={h.id}>
               <code>{h.evidenceId}</code>
@@ -1338,7 +1225,7 @@ function HoldsTab({
         </ul>
       )}
       {typeof gov.auditReadinessScore === "number" ? (
-        <p className="matter-tab__hint">
+        <p className="app-hint">
           Audit readiness score: {gov.auditReadinessScore} (
           {gov.blockerCount} blockers).
         </p>
@@ -1381,12 +1268,12 @@ function DecisionsTab({
     (e) => `${e.evidenceId ?? ""} ${e.severity ?? ""} ${e.status ?? ""}`,
   );
   return (
-    <div className="matter-tab matter-tab--decisions">
+    <div className="app-panel app-panel__body case-detail-stack">
       <h3>Active workflows ({filteredWorkflows.length})</h3>
       {filteredWorkflows.length === 0 ? (
-        <p className="matter-tab__inline-empty">No active review workflows.</p>
+        <p className="app-hint">No active review workflows.</p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredWorkflows.slice(0, 25).map((w) => (
             <li key={w.id}>
               <strong>{w.title}</strong>
@@ -1405,9 +1292,9 @@ function DecisionsTab({
       )}
       <h3>Open escalations ({filteredEscalations.length})</h3>
       {filteredEscalations.length === 0 ? (
-        <p className="matter-tab__inline-empty">No open escalations.</p>
+        <p className="app-hint">No open escalations.</p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredEscalations.slice(0, 25).map((e) => (
             <li key={e.id} data-severity={e.severity}>
               <code>{e.evidenceId}</code>
@@ -1438,7 +1325,7 @@ function RiskTab({ envelope }: { envelope: MatterEnvelope }) {
     );
   }
   return (
-    <div className="matter-tab matter-tab--risk">
+    <div className="app-panel app-panel__body case-detail-stack">
       <p>
         <strong>Risk level:</strong> {r.data.riskLevel ?? "—"}
         {typeof r.data.riskScore === "number"
@@ -1446,12 +1333,12 @@ function RiskTab({ envelope }: { envelope: MatterEnvelope }) {
           : ""}
       </p>
       {r.data.recommendedAction ? (
-        <p className="matter-tab__hint">
+        <p className="app-hint">
           Recommended next operational action: {r.data.recommendedAction}
         </p>
       ) : null}
       {r.data.reasonCodes && r.data.reasonCodes.length > 0 ? (
-        <ul className="matter-tab__reasons">
+        <ul className="app-chip-row">
           {r.data.reasonCodes.map((c) => (
             <li key={c}>
               <code>{c}</code>
@@ -1459,9 +1346,9 @@ function RiskTab({ envelope }: { envelope: MatterEnvelope }) {
           ))}
         </ul>
       ) : (
-        <p className="matter-tab__inline-empty">No reason codes recorded.</p>
+        <p className="app-hint">No reason codes recorded.</p>
       )}
-      <p className="matter-tab__hint">
+      <p className="app-hint">
         Sampled {formatRelative(r.sampledAtUtc)}. This projection is operational
         decision support — it never asserts factual truth, authorship, or legal
         status.
@@ -1572,17 +1459,17 @@ function CommunicationsTab({
     );
   }
   return (
-    <div className="matter-tab matter-tab--communications">
+    <div className="app-panel app-panel__body case-detail-stack">
       <h3>
         Discussion threads ({discussionThreads.length}
         {discussionCounts ? ` · ${discussionCounts.escalated} escalated` : ""})
       </h3>
       {threads && "error" in threads ? (
-        <p className="matter-tab__inline-empty">{threads.error}</p>
+        <p className="app-hint">{threads.error}</p>
       ) : !threads ? (
-        <p className="matter-tab__inline-empty">Loading threads…</p>
+        <p className="app-hint">Loading threads…</p>
       ) : discussionThreads.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No discussion threads on linked evidence yet. Reviewers can open
           a thread from any evidence's Discussion tab to coordinate
           operationally without leaving the matter context.
@@ -1619,9 +1506,9 @@ function CommunicationsTab({
 
       <h3>Case-level comments ({filteredCaseComments.length})</h3>
       {filteredCaseComments.length === 0 ? (
-        <p className="matter-tab__inline-empty">No case-level comments.</p>
+        <p className="app-hint">No case-level comments.</p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredCaseComments.slice(0, 25).map((c) => (
             <li key={c.id}>
               <em>{c.visibility}</em>
@@ -1638,11 +1525,11 @@ function CommunicationsTab({
         Unresolved reviewer comments ({filteredReviewerComments.length})
       </h3>
       {filteredReviewerComments.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No unresolved reviewer comments.
         </p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredReviewerComments.slice(0, 25).map((c) => (
             <li key={c.id}>
               <code>{c.evidenceId}</code>
@@ -1785,34 +1672,17 @@ function AssignmentsTab({
   );
 
   return (
-    <div className="matter-tab matter-tab--assignments">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <h3 style={{ margin: 0 }}>Active assignments ({active.length})</h3>
+    <div className="app-panel app-panel__body case-detail-stack">
+      <div className="app-panel__head-row">
+        <h3>Active assignments ({active.length})</h3>
         {assignButton}
       </div>
 
       {banner ? (
         <div
-          className="cc-section-note"
+          className="app-alert app-alert--warn"
           role="alert"
           data-matter-assignments-error
-          style={{
-            marginBottom: 12,
-            padding: "10px 12px",
-            borderRadius: "var(--radius-md, 10px)",
-            border: "1px solid var(--status-risk-border, #fecaca)",
-            background: "var(--status-risk-bg, #fef2f2)",
-            color: "var(--status-risk-fg, #991b1b)",
-            fontSize: 13,
-          }}
         >
           {banner}
         </div>
@@ -1828,9 +1698,13 @@ function AssignmentsTab({
           }
         />
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {active.map((a) => (
-            <li key={a.id} data-matter-assignment-row={a.id}>
+            <li
+              key={a.id}
+              className="app-inner-surface case-detail-row"
+              data-matter-assignment-row={a.id}
+            >
               <strong>{a.role}</strong>
               <span> · {a.assignedToUserId}</span>
               <small> · assigned {formatRelative(a.assignedAtUtc)}</small>
@@ -1842,7 +1716,6 @@ function AssignmentsTab({
                   data-matter-assignment-unassign={a.id}
                   disabled={removingId === a.id}
                   onClick={() => void unassign(a.id)}
-                  style={{ marginLeft: 8 }}
                 >
                   {removingId === a.id ? "Removing…" : "Unassign"}
                 </Button>
@@ -1855,7 +1728,7 @@ function AssignmentsTab({
       {removed.length > 0 ? (
         <>
           <h3>History ({removed.length})</h3>
-          <ul>
+          <ul className="case-detail-rows">
             {removed.slice(0, 25).map((a) => (
               <li key={a.id}>
                 <span>{a.role}</span>
@@ -1915,7 +1788,7 @@ function AuditTab({
     );
   }
   return (
-    <div className="matter-tab matter-tab--audit">
+    <div className="app-panel app-panel__body case-detail-stack">
       <Grid>
         <Tile
           label="Custody events (30d)"
@@ -1924,11 +1797,11 @@ function AuditTab({
       </Grid>
       <h3>Lifecycle states</h3>
       {filteredLifecycle.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No lifecycle state breakdown available.
         </p>
       ) : (
-        <ul className="matter-tab__counts">
+        <ul className="app-chip-row">
           {filteredLifecycle.map((c) => (
             <li key={c.lifecycleState}>
               <code>{c.lifecycleState}</code>
@@ -1939,11 +1812,11 @@ function AuditTab({
       )}
       <h3>Verification statuses</h3>
       {filteredVerification.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No verification status breakdown available.
         </p>
       ) : (
-        <ul className="matter-tab__counts">
+        <ul className="app-chip-row">
           {filteredVerification.map((c) => (
             <li key={c.verificationStatus}>
               <code>{c.verificationStatus}</code>
@@ -1954,11 +1827,11 @@ function AuditTab({
       )}
       <h3>Integrity snapshots ({filteredSnapshots.length})</h3>
       {filteredSnapshots.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No integrity snapshots recorded.
         </p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredSnapshots.slice(0, 25).map((s) => (
             <li key={s.evidenceId} data-status={s.overallStatus}>
               <code>{s.evidenceId}</code>
@@ -2010,7 +1883,7 @@ function ExportTab({
     );
   }
   return (
-    <div className="matter-tab matter-tab--export">
+    <div className="app-panel app-panel__body case-detail-stack">
       <Grid>
         <Tile label="Report PDFs ready" value={d.counts.reportsReady} />
         <Tile
@@ -2021,9 +1894,9 @@ function ExportTab({
       </Grid>
       <h3>Report PDFs ({filteredReports.length})</h3>
       {filteredReports.length === 0 ? (
-        <p className="matter-tab__inline-empty">No Report PDFs generated.</p>
+        <p className="app-hint">No Report PDFs generated.</p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredReports.slice(0, 25).map((r) => (
             <li key={r.id}>
               <code>{r.evidenceId}</code>
@@ -2040,11 +1913,11 @@ function ExportTab({
       )}
       <h3>Verification Package ZIPs ({filteredPackages.length})</h3>
       {filteredPackages.length === 0 ? (
-        <p className="matter-tab__inline-empty">
+        <p className="app-hint">
           No Verification Package ZIPs generated.
         </p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredPackages.slice(0, 25).map((p) => (
             <li key={p.id}>
               <code>{p.evidenceId}</code>
@@ -2061,9 +1934,9 @@ function ExportTab({
       )}
       <h3>External review links ({filteredLinks.length})</h3>
       {filteredLinks.length === 0 ? (
-        <p className="matter-tab__inline-empty">No external review links.</p>
+        <p className="app-hint">No external review links.</p>
       ) : (
-        <ul>
+        <ul className="case-detail-rows">
           {filteredLinks.slice(0, 25).map((l) => (
             <li key={l.id}>
               <code>{l.evidenceId}</code>
@@ -2090,65 +1963,20 @@ function Tile({
   value: number;
   tone?: "neutral" | "warning";
 }) {
-  const warn = tone === "warning";
+  // CANONICAL KPI CARD — the same `.app-kpi-card` the Personal Overview and
+  // the operational dashboards render. `tone` is SEMANTIC (a warning count is
+  // a warning on every surface), never a workspace-kind variant.
   return (
-    <div
-      className="matter-tab__tile"
-      data-tone={tone ?? "neutral"}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        padding: "12px 14px",
-        borderRadius: "var(--radius-md, 10px)",
-        border: warn
-          ? "1px solid var(--status-pending-border, #fde68a)"
-          : "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-        background: warn
-          ? "var(--status-pending-bg, #fef3c7)"
-          : "var(--surface-muted, #f1f4f9)",
-      }}
-    >
-      <span
-        className="matter-tab__tile-label"
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          color: warn
-            ? "var(--status-pending-fg, #78350f)"
-            : "var(--ink-muted, #94a3b8)",
-        }}
-      >
-        {label}
-      </span>
-      <strong
-        className="matter-tab__tile-value"
-        style={{
-          fontSize: 22,
-          fontWeight: 700,
-          color: warn
-            ? "var(--status-pending-fg, #78350f)"
-            : "var(--ink-primary, #0f172a)",
-        }}
-      >
-        {value}
-      </strong>
+    <div className="app-kpi-card" data-tone={tone === "warning" ? "amber" : "slate"}>
+      <span className="app-kpi-card__label">{label}</span>
+      <span className="app-kpi-card__value">{value}</span>
     </div>
   );
 }
 
 function Grid({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="matter-tab__grid"
-      style={{
-        display: "grid",
-        gap: 10,
-        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-      }}
-    >
+    <div className="app-grid-kpis app-grid-kpis--dense" data-matter-grid>
       {children}
     </div>
   );
@@ -2159,7 +1987,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   // EmptyState (framed, token-driven). Copy + honesty discipline is
   // unchanged; `body` maps to the shared `purpose` slot.
   return (
-    <div className="matter-tab__empty" role="status">
+    <div data-matter-empty role="status">
       <UiEmptyState title={title} purpose={body} framed compact />
     </div>
   );

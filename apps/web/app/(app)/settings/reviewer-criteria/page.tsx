@@ -81,7 +81,7 @@ function ReviewerCriteriaPageInner() {
     <main style={{ padding: 24, maxWidth: 980 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h1 style={{ margin: 0 }}>Reviewer Criteria</h1>
-        <button className="app-btn app-btn--primary" onClick={() => setShowCreate((v) => !v)}>
+        <button className="app-primary-action" onClick={() => setShowCreate((v) => !v)}>
           {showCreate ? "Close" : "New criteria set"}
         </button>
       </div>
@@ -95,12 +95,12 @@ function ReviewerCriteriaPageInner() {
 
       {sets === null ? <p style={{ opacity: 0.6 }}>Loading…</p> : null}
       {sets && sets.length === 0 && !error ? (
-        <div className="app-card" style={{ marginTop: 16 }}>
+        <div className="app-panel app-panel__body" style={{ marginTop: 16 }}>
           <p style={{ margin: 0, opacity: 0.7 }}>No criteria sets yet. Create the first one to standardize your reviews.</p>
         </div>
       ) : null}
       {sets?.map((s) => (
-        <section key={s.id} className="app-card" style={{ marginTop: 12 }}>
+        <section key={s.id} className="app-panel app-panel__body" style={{ marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <div>
               <strong>{s.name}</strong>{" "}
@@ -110,25 +110,25 @@ function ReviewerCriteriaPageInner() {
             <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {s.status === "DRAFT" ? (
                 <>
-                  <button className="app-btn app-btn--ghost" disabled={busy} onClick={() => setEditId(editId === s.id ? null : s.id)}>
+                  <button className="app-secondary-action" disabled={busy} onClick={() => setEditId(editId === s.id ? null : s.id)}>
                     {editId === s.id ? "Close editor" : "Edit draft"}
                   </button>
-                  <button className="app-btn app-btn--primary" disabled={busy} onClick={() => void act(s.id, "publish")}>
+                  <button className="app-primary-action" disabled={busy} onClick={() => void act(s.id, "publish")}>
                     Publish v{s.versions[0]?.version ?? 1}
                   </button>
                 </>
               ) : null}
               {s.status === "PUBLISHED" ? (
-                <button className="app-btn app-btn--ghost" disabled={busy} onClick={() => void act(s.id, "duplicate")}>
+                <button className="app-secondary-action" disabled={busy} onClick={() => void act(s.id, "duplicate")}>
                   Duplicate as v{(s.versions[0]?.version ?? 1) + 1}
                 </button>
               ) : null}
               {s.status !== "RETIRED" ? (
-                <button className="app-btn app-btn--ghost" disabled={busy} onClick={() => void act(s.id, "retire")}>
+                <button className="app-secondary-action" disabled={busy} onClick={() => void act(s.id, "retire")}>
                   Retire
                 </button>
               ) : null}
-              <button className="app-btn app-btn--ghost" onClick={() => setHistoryId(historyId === s.id ? null : s.id)}>
+              <button className="app-secondary-action" onClick={() => setHistoryId(historyId === s.id ? null : s.id)}>
                 {historyId === s.id ? "Hide history" : "History"}
               </button>
             </span>
@@ -207,7 +207,7 @@ function VersionHistory({ teamId, setId }: { teamId: string; setId: string }) {
         </div>
       ) : null}
       {vA && vB && vA.id !== vB.id ? (
-        <div className="app-card app-card--muted" style={{ marginBottom: 8 }}>
+        <div className="app-inner-surface app-panel__body" style={{ marginBottom: 8 }}>
           <strong style={{ fontSize: 13 }}>v{vA.version} → v{vB.version}</strong>
           {vA.title !== vB.title ? <p style={{ margin: "4px 0 0", fontSize: 12 }}>Title: “{vA.title}” → “{vB.title}”</p> : null}
           <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12 }}>
@@ -430,14 +430,14 @@ function DraftEditor({ teamId, setId, onSaved }: { teamId: string; setId: string
             {conflict.latestPublished ? " (the draft was published)" : ""} since you loaded it. Your changes were NOT saved.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="app-btn app-btn--primary" onClick={() => void reloadLatest()} disabled={busy}>Reload latest version</button>
-            <button className="app-btn app-btn--ghost" onClick={() => setShowCompare((v) => !v)} disabled={busy} aria-expanded={showCompare}>
+            <button className="app-primary-action" onClick={() => void reloadLatest()} disabled={busy}>Reload latest version</button>
+            <button className="app-secondary-action" onClick={() => setShowCompare((v) => !v)} disabled={busy} aria-expanded={showCompare}>
               {showCompare ? "Hide comparison" : "Compare changes"}
             </button>
             {conflict.latestPublished ? (
-              <button className="app-btn app-btn--ghost" onClick={() => void saveAsNewDraft()} disabled={busy}>Save as new draft</button>
+              <button className="app-secondary-action" onClick={() => void saveAsNewDraft()} disabled={busy}>Save as new draft</button>
             ) : (
-              <button className="app-btn app-btn--ghost" onClick={() => void save(null)} disabled={busy}>Overwrite with my changes</button>
+              <button className="app-secondary-action" onClick={() => void save(null)} disabled={busy}>Overwrite with my changes</button>
             )}
           </div>
           {showCompare ? (
@@ -456,12 +456,12 @@ function DraftEditor({ teamId, setId, onSaved }: { teamId: string; setId: string
           <label style={{ fontSize: 12, display: "flex", gap: 4, alignItems: "center" }}>
             <input type="checkbox" checked={r.required} onChange={(e) => updateRow(i, { required: e.target.checked })} /> required
           </label>
-          <button className="app-btn app-btn--ghost" onClick={() => setRows((prev) => (prev ? prev.filter((_, idx) => idx !== i) : prev))} disabled={rows.length === 1} aria-label={`Remove draft criterion ${i + 1}`}>✕</button>
+          <button className="app-secondary-action" onClick={() => setRows((prev) => (prev ? prev.filter((_, idx) => idx !== i) : prev))} disabled={rows.length === 1} aria-label={`Remove draft criterion ${i + 1}`}>✕</button>
         </div>
       ))}
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="app-btn app-btn--ghost" onClick={() => setRows((prev) => (prev ? [...prev, { key: "", title: "", required: false }] : prev))} disabled={rows.length >= 50}>Add criterion</button>
-        <button className="app-btn app-btn--primary" onClick={() => void save(baseUpdatedAt)} disabled={busy} aria-busy={busy}>{busy ? "Saving…" : "Save draft"}</button>
+        <button className="app-secondary-action" onClick={() => setRows((prev) => (prev ? [...prev, { key: "", title: "", required: false }] : prev))} disabled={rows.length >= 50}>Add criterion</button>
+        <button className="app-primary-action" onClick={() => void save(baseUpdatedAt)} disabled={busy} aria-busy={busy}>{busy ? "Saving…" : "Save draft"}</button>
       </div>
     </div>
   );
@@ -503,7 +503,7 @@ function CreateForm({ teamId, onCreated }: { teamId: string; onCreated: () => vo
   }
 
   return (
-    <section className="app-card" style={{ marginTop: 12 }}>
+    <section className="app-panel app-panel__body" style={{ marginTop: 12 }}>
       <strong>New criteria set (draft)</strong>
       {err ? <div className="app-alert app-alert--warn">{err}</div> : null}
       <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
@@ -516,12 +516,12 @@ function CreateForm({ teamId, onCreated }: { teamId: string; onCreated: () => vo
             <label style={{ fontSize: 12, display: "flex", gap: 4, alignItems: "center" }}>
               <input type="checkbox" checked={r.required} onChange={(e) => updateRow(i, { required: e.target.checked })} /> required
             </label>
-            <button className="app-btn app-btn--ghost" onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))} disabled={rows.length === 1} aria-label={`Remove criterion ${i + 1}`}>✕</button>
+            <button className="app-secondary-action" onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))} disabled={rows.length === 1} aria-label={`Remove criterion ${i + 1}`}>✕</button>
           </div>
         ))}
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="app-btn app-btn--ghost" onClick={() => setRows((prev) => [...prev, { key: "", title: "", required: false }])} disabled={rows.length >= 50}>Add criterion</button>
-          <button className="app-btn app-btn--primary" onClick={() => void submit()} disabled={busy}>{busy ? "Creating…" : "Create draft"}</button>
+          <button className="app-secondary-action" onClick={() => setRows((prev) => [...prev, { key: "", title: "", required: false }])} disabled={rows.length >= 50}>Add criterion</button>
+          <button className="app-primary-action" onClick={() => void submit()} disabled={busy}>{busy ? "Creating…" : "Create draft"}</button>
         </div>
       </div>
     </section>

@@ -77,7 +77,7 @@ test("Header 'Add evidence' button opens the modal (not just switches tab)", () 
   // The header mount passes `setAttachOpen(true)` as onAddEvidence.
   assert.match(
     SIMPLE_DETAIL,
-    /<SimpleCaseHeader[\s\S]{0,600}?onAddEvidence=\{\(\) => setAttachOpen\(true\)\}/,
+    /<CaseDetailHeader[\s\S]{0,600}?onAddEvidence=\{\(\) => setAttachOpen\(true\)\}/,
   );
   // Anti-regression: the previous "switch to evidence tab" handler
   // is gone (that's what made the button feel dead).

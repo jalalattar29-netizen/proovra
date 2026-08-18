@@ -80,13 +80,3 @@
   border-radius: 8px;
   font-size: 13px;
 }
-
-.governance-policy-row-label {
-  color: #475569;
-}
-
-.governance-policy-row-value {
-  color: #0f172a;
-  font-weight: 500;
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}

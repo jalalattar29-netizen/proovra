@@ -50,6 +50,7 @@ function src(rel: string): string {
 }
 
 const PAGE = src("apps/web/app/(app)/cases/[id]/page.tsx");
+const MATTER = src("apps/web/components/cases-experience/MatterWorkspace.tsx");
 const COMPONENT = src(
   "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
 );
@@ -94,15 +95,65 @@ test("page renders MatterWorkspace only when advanced mode is true; SimpleCaseDe
 
 test("View-evidence-in-Search pivot link is gated to advanced (enterprise) mode only", () => {
   // Anti-regression: the pivot must NOT render in personal mode.
-  // Source-pin: the wrapping `<div data-cases-detail-search-pivot>`
-  // lives inside the advanced branch only.
+  //
+  // The gate MOVED during the Case Details harmonization. It used to be an
+  // inline hex-styled pill emitted by the route file inside the advanced
+  // branch; it is now the canonical `.app-secondary-action` supplied to the
+  // SHARED `CaseDetailHeader` by `MatterWorkspace` — which is itself the
+  // advanced-only branch. The guarantee is unchanged and strictly stronger:
+  // the personal component cannot render it at all.
   const advancedBlockStart = PAGE.indexOf("{canSeeAdvancedCaseOps ? (");
   const personalBlockStart = PAGE.indexOf(") : (", advancedBlockStart);
   assert.ok(advancedBlockStart > 0 && personalBlockStart > advancedBlockStart);
   const advancedBlock = PAGE.slice(advancedBlockStart, personalBlockStart);
   const personalBlock = PAGE.slice(personalBlockStart);
-  assert.match(advancedBlock, /data-cases-detail-search-pivot/);
-  assert.doesNotMatch(personalBlock, /data-cases-detail-search-pivot/);
+  assert.match(advancedBlock, /<MatterWorkspace/);
+  assert.doesNotMatch(personalBlock, /<MatterWorkspace/);
+  // The pivot lives in the enterprise component, and nowhere else.
+  assert.match(MATTER, /data-cases-detail-search-pivot/);
+  assert.match(MATTER, /className="app-secondary-action"/);
+  assert.doesNotMatch(COMPONENT, /data-cases-detail-search-pivot/);
+  assert.doesNotMatch(PAGE, /data-cases-detail-search-pivot/);
+});
+
+// ===========================================================================
+// Universal Case Details contract — both branches, one visual system
+// ===========================================================================
+
+test("both /cases/[id] branches render the SAME header component", () => {
+  // One implementation, not two that happen to look alike.
+  assert.match(COMPONENT, /export function CaseDetailHeader\(/);
+  assert.match(MATTER, /import \{ CaseDetailHeader \} from "\.\/simple-case-detail\/SimpleCaseDetail";/);
+  assert.match(MATTER, /<CaseDetailHeader/);
+  assert.match(COMPONENT, /<CaseDetailHeader/);
+});
+
+test("both branches use the canonical tab / status / surface authorities", () => {
+  for (const src of [COMPONENT, MATTER]) {
+    assert.match(src, /className="app-tabs"/);
+    assert.match(src, /app-tab is-active/);
+  }
+  // No parallel Enterprise stylesheet, and no route-activated styling.
+  assert.doesNotMatch(MATTER, /MATTER_WORKSPACE_CSS/);
+  assert.doesNotMatch(MATTER, /<style>/);
+  assert.doesNotMatch(MATTER, /data-pv2-surface/);
+  // Every obsolete MatterWorkspace visual selector is gone.
+  for (const dead of ["matter-workspace__", ".matter-tab"]) {
+    assert.equal(
+      MATTER.includes(dead),
+      false,
+      `obsolete selector ${dead} still emitted`,
+    );
+  }
+});
+
+test("Enterprise keeps its full tab set — harmonization is visual, not a feature cut", () => {
+  for (const id of [
+    "overview", "evidence", "timeline", "graph", "holds", "decisions", "risk",
+    "communications", "assignments", "siu", "audit", "export",
+  ]) {
+    assert.ok(MATTER.includes(`id: "${id}"`), `enterprise tab ${id} was lost`);
+  }
 });
 
 // ===========================================================================

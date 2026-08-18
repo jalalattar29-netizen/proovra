@@ -42,7 +42,7 @@ export function NlSearchBox() {
 
   if (!teamId) return null;
   return (
-    <section className="app-card" style={{ marginBottom: 16 }} aria-label="Ask in plain language">
+    <section className="app-panel app-panel__body" style={{ marginBottom: 16 }} aria-label="Ask in plain language">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Ask in plain language</h3>
         <span className="app-chip">Deterministic filters · Advisory</span>
@@ -59,13 +59,13 @@ export function NlSearchBox() {
           maxLength={300}
           style={{ flex: 1, padding: "8px 10px" }}
         />
-        <button className="app-btn app-btn--primary" type="submit" disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
+        <button className="app-primary-action" type="submit" disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Searching…" : "Search"}
         </button>
       </form>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
         {EXAMPLES.map((e) => (
-          <button key={e} className="app-btn app-btn--ghost" style={{ fontSize: 12 }} onClick={() => { setQuery(e); void run(e); }}>{e}</button>
+          <button key={e} className="app-secondary-action" style={{ fontSize: 12 }} onClick={() => { setQuery(e); void run(e); }}>{e}</button>
         ))}
       </div>
       {state.kind === "error" ? <div className="app-alert app-alert--warn" style={{ marginTop: 10 }} role="alert">Search is unavailable right now. Standard search below remains fully functional.</div> : null}

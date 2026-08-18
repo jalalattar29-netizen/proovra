@@ -63,7 +63,7 @@ export function OperationsIntelligencePanel() {
 
   if (!teamId) return null;
   return (
-    <section className="app-card" style={{ marginTop: 16 }} aria-label="Operations Intelligence">
+    <section className="app-panel app-panel__body" style={{ marginTop: 16 }} aria-label="Operations Intelligence">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Operations Intelligence</h3>
         <span style={{ display: "flex", gap: 6 }}>
@@ -77,7 +77,7 @@ export function OperationsIntelligencePanel() {
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
         {MODES.map((m) => (
-          <button key={m.type} className="app-btn app-btn--ghost" disabled={state.kind === "loading"} aria-busy={state.kind === "loading" && state.mode === m.type} onClick={() => void run(m.type)}>
+          <button key={m.type} className="app-secondary-action" disabled={state.kind === "loading"} aria-busy={state.kind === "loading" && state.mode === m.type} onClick={() => void run(m.type)}>
             {state.kind === "loading" && state.mode === m.type ? "Summarizing…" : m.label}
           </button>
         ))}

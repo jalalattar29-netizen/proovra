@@ -148,14 +148,6 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
   }
 }
 
-// Shared red tint for the one "failed" status that the neutral
-// `.case-status-badge` data-status system doesn't cover (brief red).
-const FAILED_BADGE_STYLE: React.CSSProperties = {
-  background: "#FFF1F2",
-  color: "#B23442",
-  borderColor: "rgba(178, 52, 66, 0.18)",
-};
-
 export function ReportsIndex() {
   // Phase EMERGENCY-RECOVERY — Reports works for ANY active workspace
   // (personal Team with isPersonal=true OR a real team). Both have a
@@ -608,19 +600,17 @@ function ArtifactRowView({
             style={{ marginTop: 10 }}
           >
             <span
-              className="case-status-badge"
-              data-status={reportStatusAttr(row.report.state)}
+              className="app-status-badge"
+              data-tone={reportStatusAttr(row.report.state)}
               data-reports-report-state={row.report.state}
-              style={row.report.state === "failed" ? FAILED_BADGE_STYLE : undefined}
             >
               Report: {reportLabel(row.report.state)}
               {row.report.version ? ` · v${row.report.version}` : ""}
             </span>
             <span
-              className="case-status-badge"
-              data-status={packageStatusAttr(row.package.state)}
+              className="app-status-badge"
+              data-tone={packageStatusAttr(row.package.state)}
               data-reports-package-state={row.package.state}
-              style={row.package.state === "failed" ? FAILED_BADGE_STYLE : undefined}
             >
               Package: {packageLabel(row.package.state)}
               {row.package.version ? ` · v${row.package.version}` : ""}
@@ -651,8 +641,8 @@ function ArtifactRowView({
             </time>
             {row.package.blockedReason ? (
               <span
-                className="case-status-badge"
-                data-status="ON_HOLD"
+                className="app-status-badge"
+                data-tone="amber"
                 data-reports-package-blocked-reason={row.package.blockedReason}
               >
                 Export blocked by governance: {row.package.blockedReason}
@@ -856,7 +846,7 @@ function ArtifactRowActions({
         />
       ) : (
         <span
-          className="cases-row-chip"
+          className="app-status-badge" data-tone="slate"
           data-reports-report-action-status={row.report.state}
           style={{ opacity: 0.7 }}
         >
@@ -895,7 +885,7 @@ function ArtifactRowActions({
         />
       ) : row.package.state === "blocked" ? (
         <span
-          className="cases-row-chip"
+          className="app-status-badge" data-tone="slate"
           data-reports-package-action-status="blocked"
           style={{ opacity: 0.7 }}
         >
@@ -903,7 +893,7 @@ function ArtifactRowActions({
         </span>
       ) : (
         <span
-          className="cases-row-chip"
+          className="app-status-badge" data-tone="slate"
           data-reports-package-action-status={row.package.state}
           style={{ opacity: 0.7 }}
         >
@@ -985,31 +975,36 @@ function ArtifactRowActions({
   );
 }
 
-// Map artifact lifecycle → the shared `.case-status-badge[data-status]`
-// semantic tint system (green ready · amber pending · indigo active ·
-// slate neutral). "failed" has no data-status tint in the shared CSS, so
-// callers apply an inline red (#B23442/#FFF1F2) for that one state.
+// Map artifact lifecycle → the canonical `.app-status-badge[data-tone]`
+// vocabulary (green ready · amber pending · red failed · slate neutral).
+// This replaces the previous hack of borrowing CASE-STATUS names ("OPEN",
+// "ON_HOLD", "CLOSED") purely for their colour, plus the inline red style
+// that existed only because the borrowed system had no failed tint.
 function reportStatusAttr(state: ReportLifecycle): string {
   switch (state) {
     case "ready":
-      return "OPEN";
+      return "green";
     case "pending":
-      return "ON_HOLD";
+      return "amber";
+    case "failed":
+      return "red";
     default:
-      return "CLOSED";
+      return "slate";
   }
 }
 
 function packageStatusAttr(state: PackageLifecycle): string {
   switch (state) {
     case "ready":
-      return "OPEN";
+      return "green";
     case "pending":
-      return "ON_HOLD";
+      return "amber";
     case "blocked":
-      return "INVESTIGATING";
+      return "indigo";
+    case "failed":
+      return "red";
     default:
-      return "CLOSED";
+      return "slate";
   }
 }
 

@@ -22,7 +22,6 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback } from "react";
-import Link from "next/link";
 
 import { MatterWorkspace } from "../../../../components/cases-experience/MatterWorkspace";
 // Phase CASE-DETAIL-PERSONAL-UX — Personal / Small-Business workspaces
@@ -35,7 +34,6 @@ import { MatterWorkspace } from "../../../../components/cases-experience/MatterW
 import { SimpleCaseDetail } from "../../../../components/cases-experience/simple-case-detail/SimpleCaseDetail";
 import { useEnterpriseSurfaceAccess } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 
 export default function CaseDetailPage() {
   return (
@@ -71,50 +69,21 @@ function CaseDetailPageInner() {
 
   return (
     <>
+      {/* UNIVERSAL CASE DETAILS.
+          Both branches render the SAME shell, page plane, breadcrumb, header
+          anatomy, tabs, cards, buttons, status language and states — the
+          difference is the CONTENT each surfaces, not the design system.
+
+          Two enterprise-only chrome pieces were removed from this file
+          because they duplicated what the shared header now provides:
+            - <OperationalBreadcrumb>: the shared CaseDetailHeader renders
+              the one canonical breadcrumb for every branch, so Enterprise
+              no longer emitted a second, differently-shaped one.
+            - the inline hex-coloured "View evidence in Search" pill: it now
+              rides the canonical .app-secondary-action inside the shared
+              header's secondary-action slot. */}
       {canSeeAdvancedCaseOps ? (
-        <>
-          {/* Phase B — operational breadcrumb on the enterprise Matter
-              Workspace only. The personal SimpleCaseDetail renders its own
-              breadcrumb INSIDE the dark case header (§2/§10), so we do NOT
-              also emit this external one for that surface. */}
-          <OperationalBreadcrumb
-            routeId="workspace.cases"
-            items={[
-              { label: "Cases", href: "/cases" },
-              { label: caseId },
-            ]}
-          />
-          {/* Phase 14 — deep link from the canonical case detail
-              surface into the canonical /search surface, scoped to
-              this case. Enterprise-only — Personal users don't need
-              cross-document Discovery from this surface. */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              padding: "0 16px",
-              marginBottom: 4,
-            }}
-            data-cases-detail-search-pivot
-          >
-            <Link
-              href={`/search?caseId=${encodeURIComponent(caseId)}`}
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#1e40af",
-                textDecoration: "none",
-                background: "#eff6ff",
-                border: "1px solid #bfdbfe",
-                borderRadius: 999,
-                padding: "4px 12px",
-              }}
-            >
-              View evidence in Search
-            </Link>
-          </div>
-          <MatterWorkspace caseId={caseId} onOpenEvidence={onOpenEvidence} />
-        </>
+        <MatterWorkspace caseId={caseId} onOpenEvidence={onOpenEvidence} />
       ) : (
         <SimpleCaseDetail caseId={caseId} onOpenEvidence={onOpenEvidence} />
       )}

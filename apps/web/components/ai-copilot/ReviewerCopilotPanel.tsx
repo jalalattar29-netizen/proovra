@@ -248,7 +248,7 @@ export function ReviewerCopilotPanel({
 
   if (!aiEnabled) {
     return (
-      <section className="app-card" aria-label="Reviewer Copilot">
+      <section className="app-panel app-panel__body" aria-label="Reviewer Copilot">
         <Header criteriaVersion={criteriaVersion} />
         <p style={{ opacity: 0.7 }}>AI is turned off for this workspace by policy.</p>
       </section>
@@ -256,7 +256,7 @@ export function ReviewerCopilotPanel({
   }
 
   return (
-    <section className="app-card" aria-label="Reviewer Copilot">
+    <section className="app-panel app-panel__body" aria-label="Reviewer Copilot">
       <Header criteriaVersion={criteriaVersion} />
 
       {/* Evidence scope (explicit selection) */}
@@ -264,8 +264,8 @@ export function ReviewerCopilotPanel({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <strong>Evidence in scope</strong>
           <span style={{ display: "flex", gap: 8 }}>
-            <button className="app-btn app-btn--ghost" onClick={() => setSelected(new Set(selectable.map((e) => e.id)))} disabled={selectable.length === 0}>Select all</button>
-            <button className="app-btn app-btn--ghost" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
+            <button className="app-secondary-action" onClick={() => setSelected(new Set(selectable.map((e) => e.id)))} disabled={selectable.length === 0}>Select all</button>
+            <button className="app-secondary-action" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
           </span>
         </div>
         {evidence.length === 0 ? (
@@ -305,7 +305,7 @@ export function ReviewerCopilotPanel({
 
       {/* Pre-run preview */}
       {selected.size > 0 ? (
-        <div className="app-card app-card--muted" style={{ marginTop: 12 }}>
+        <div className="app-inner-surface app-panel__body" style={{ marginTop: 12 }}>
           <strong>Before you run</strong>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
             <li>{selected.size} record(s) · criteria {criteriaVersion} · metadata only · external AI provider (advisory) · 1 operation</li>
@@ -316,7 +316,7 @@ export function ReviewerCopilotPanel({
       ) : null}
 
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button className="app-btn app-btn--primary" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
+        <button className="app-primary-action" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Preparing brief…" : state.kind === "result" ? "Re-run" : "Run Reviewer Copilot"}
         </button>
         <span aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
@@ -342,7 +342,7 @@ export function ReviewerCopilotPanel({
             A newer version of “{set.name}” (v{latest}) has been published since this brief was
             generated ({usedLabel}). The result below remains linked to its original criteria
             version.{" "}
-            <button className="app-btn app-btn--ghost" onClick={run}>Re-run with v{latest}</button>
+            <button className="app-secondary-action" onClick={run}>Re-run with v{latest}</button>
           </div>
         ) : null;
       })() : null}
@@ -375,7 +375,7 @@ export function ReviewerCopilotPanel({
           which policy governed the run, and the canonical disclosure for the
           reviewer capability. Rendered verbatim from the API. */}
       {ack ? (
-        <div className="app-card app-card--muted" style={{ marginTop: 12 }} data-copilot-observation-ack>
+        <div className="app-inner-surface app-panel__body" style={{ marginTop: 12 }} data-copilot-observation-ack>
           <strong style={{ fontSize: 13 }}>Recorded on the AI defensibility record</strong>
           {ack.aiPolicy ? (
             <p style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.75 }}>
@@ -504,14 +504,14 @@ function ResultView(props: {
                     {isEditing ? (
                       <span style={{ display: "block", marginTop: 4 }}>
                         <textarea value={props.editText} onChange={(e) => props.onEditTextChange(e.target.value)} maxLength={600} rows={2} style={{ width: "100%" }} aria-label="Edit observation" />
-                        <button className="app-btn app-btn--primary" onClick={() => props.onSaveEdit(obsId, text)} style={{ marginRight: 6 }}>Save edit</button>
-                        <button className="app-btn app-btn--ghost" onClick={props.onCancelEdit}>Cancel</button>
+                        <button className="app-primary-action" onClick={() => props.onSaveEdit(obsId, text)} style={{ marginRight: 6 }}>Save edit</button>
+                        <button className="app-secondary-action" onClick={props.onCancelEdit}>Cancel</button>
                       </span>
                     ) : (
                       <span style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}>
-                        <button className="app-btn app-btn--ghost" onClick={() => props.onAccept(obsId, text)} aria-label={`Accept observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "ACCEPTED" ? "Retry accept" : "Accept"}</button>
-                        <button className="app-btn app-btn--ghost" onClick={() => props.onStartEdit(obsId, text)} aria-label={`Edit observation ${obsId}`}>Edit</button>
-                        <button className="app-btn app-btn--ghost" onClick={() => props.onReject(obsId, text)} aria-label={`Reject observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "REJECTED" ? "Retry reject" : "Reject"}</button>
+                        <button className="app-secondary-action" onClick={() => props.onAccept(obsId, text)} aria-label={`Accept observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "ACCEPTED" ? "Retry accept" : "Accept"}</button>
+                        <button className="app-secondary-action" onClick={() => props.onStartEdit(obsId, text)} aria-label={`Edit observation ${obsId}`}>Edit</button>
+                        <button className="app-secondary-action" onClick={() => props.onReject(obsId, text)} aria-label={`Reject observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "REJECTED" ? "Retry reject" : "Reject"}</button>
                       </span>
                     )}
                   </li>

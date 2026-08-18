@@ -70,7 +70,7 @@ export function AiCapabilityStatusTable() {
   if (!teamId) return null;
 
   return (
-    <section className="app-card" style={{ marginBottom: 16 }} aria-label="Live AI capability status">
+    <section className="app-panel app-panel__body" style={{ marginBottom: 16 }} aria-label="Live AI capability status">
       <h3 style={{ marginTop: 0 }}>Live AI capability status (this workspace)</h3>
       <p style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
         Computed from the actual platform configuration and this workspace&apos;s AI policy —
@@ -81,7 +81,7 @@ export function AiCapabilityStatusTable() {
       {!caps && !error ? <p style={{ opacity: 0.6 }}>Loading live status…</p> : null}
       {caps ? (
         // Compact live-status widget — a justified direct-table variant
-        // (app-card + chips). Shares only the canonical polished
+        // (app-panel app-panel__body + chips). Shares only the canonical polished
         // scrollbar (.legal-scroll); keeps its own compact chrome.
         <div className="legal-scroll" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>

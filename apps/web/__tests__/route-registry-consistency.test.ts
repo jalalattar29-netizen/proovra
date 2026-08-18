@@ -84,3 +84,67 @@ test("Phase 1 — every ALLOWED_DANGLING entry is still actually dangling", () =
     );
   }
 });
+
+// ===========================================================================
+// Team vs Workspace vocabulary (migrated here from
+// `lib/navigation/__tests__/phase9-team-vs-workspace-vocabulary.test.ts`,
+// which lived outside `__tests__/` and was therefore executed by NO runner —
+// `scripts/run-tests.mjs` walks `apps/web/__tests__` and the vitest render
+// config only matches `*.render.test.tsx`. The assertions below are the
+// originals; only their location changed, so the rules are now enforced.)
+//
+// Constitutional rules being defended:
+//   1. "Team" and "Workspace" are DIFFERENT concepts. Workspace kinds stay
+//      PERSONAL | ORGANIZATION; Team is a collaboration feature inside both.
+//   2. Two canonical surfaces must stay distinct:
+//        workspace.collaboration_teams -> /collaboration-teams
+//        admin.teams                   -> /workspaces
+//   3. The legacy alias href `/teams` must never become a registry canonical
+//      href again — that is the conflation Phase 9 retired. The alias page
+//      still exists on disk for back-compat.
+// ===========================================================================
+
+test("exactly one ROUTE_REGISTRY entry uses href=/collaboration-teams", () => {
+  const matches = ROUTE_REGISTRY.filter(
+    (entry) => entry.href === "/collaboration-teams",
+  );
+  assert.equal(
+    matches.length,
+    1,
+    `Expected exactly one ROUTE_REGISTRY entry with href='/collaboration-teams', found ${matches.length}. ` +
+      `Matching ids: ${matches.map((m) => m.id).join(", ") || "(none)"}.`,
+  );
+  assert.equal(
+    matches[0]?.id,
+    "workspace.collaboration_teams",
+    `Expected the /collaboration-teams entry to have id='workspace.collaboration_teams', got '${matches[0]?.id}'.`,
+  );
+});
+
+test("exactly one ROUTE_REGISTRY entry uses href=/workspaces", () => {
+  const matches = ROUTE_REGISTRY.filter((entry) => entry.href === "/workspaces");
+  assert.equal(
+    matches.length,
+    1,
+    `Expected exactly one ROUTE_REGISTRY entry with href='/workspaces', found ${matches.length}. ` +
+      `Matching ids: ${matches.map((m) => m.id).join(", ") || "(none)"}.`,
+  );
+  assert.equal(
+    matches[0]?.id,
+    "admin.teams",
+    `Expected the /workspaces entry to have id='admin.teams' (historical id; canonical href is /workspaces per Phase G0), got '${matches[0]?.id}'.`,
+  );
+});
+
+test("no ROUTE_REGISTRY entry uses href=/teams as its canonical href", () => {
+  const offenders = ROUTE_REGISTRY.filter((entry) => entry.href === "/teams");
+  assert.equal(
+    offenders.length,
+    0,
+    `ROUTE_REGISTRY MUST NOT contain a canonical href='/teams' entry. ` +
+      `The legacy /teams page remains as a backwards-compatible alias on disk, ` +
+      `but the registry's canonical entry for Workspace administration is href='/workspaces' (id='admin.teams') ` +
+      `and the canonical entry for the Team collaboration product is href='/collaboration-teams' (id='workspace.collaboration_teams'). ` +
+      `Offending ids: ${offenders.map((o) => o.id).join(", ")}.`,
+  );
+});

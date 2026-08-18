@@ -99,22 +99,22 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
         Actions run through the standard PROOVRA workflow with your normal permissions and audit logging. Nothing runs without your confirmation.
       </p>
       {serverActions.filter((a) => a.actionType === "OPEN_MISSING_METADATA").map((a) => (
-        <a key={a.suggestionId} className="app-btn app-btn--ghost" href={`/evidence/${evidenceId}`} style={{ marginRight: 6 }}>
+        <a key={a.suggestionId} className="app-secondary-action" href={`/evidence/${evidenceId}`} style={{ marginRight: 6 }}>
           {a.displayLabel}
         </a>
       ))}
       {serverActions.filter((a) => a.actionType === "OPEN_REVIEWER_ASSIGNMENT").map((a) => (
-        <a key={a.suggestionId} className="app-btn app-btn--ghost" href="/review" style={{ marginRight: 6 }} title={a.reason}>
+        <a key={a.suggestionId} className="app-secondary-action" href="/review" style={{ marginRight: 6 }} title={a.reason}>
           {a.displayLabel}
         </a>
       ))}
       {!canGenerateReport ? null : !confirming ? (
-        <button className="app-btn app-btn--ghost" onClick={() => setConfirming(true)} disabled={busy}>
+        <button className="app-secondary-action" onClick={() => setConfirming(true)} disabled={busy}>
           Generate / regenerate Report…
         </button>
       ) : (
         <div
-          className="app-card app-card--muted"
+          className="app-inner-surface app-panel__body"
           role="dialog"
           aria-modal="true"
           aria-label="Confirm report regeneration"
@@ -127,10 +127,10 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
           </p>
           <div style={{ display: "flex", gap: 8 }}>
             {/* autoFocus moves keyboard/screen-reader focus into the dialog. */}
-            <button className="app-btn app-btn--primary" onClick={() => void executeRegenerateReport()} disabled={busy} aria-busy={busy} autoFocus>
+            <button className="app-primary-action" onClick={() => void executeRegenerateReport()} disabled={busy} aria-busy={busy} autoFocus>
               {busy ? "Queuing…" : "Confirm and run"}
             </button>
-            <button className="app-btn app-btn--ghost" onClick={() => setConfirming(false)} disabled={busy}>Cancel</button>
+            <button className="app-secondary-action" onClick={() => setConfirming(false)} disabled={busy}>Cancel</button>
           </div>
         </div>
       )}
@@ -176,7 +176,7 @@ export function EvidenceCopilotPanel({
   if (!aiEnabled) return null;
 
   return (
-    <section className="app-card" aria-label="Evidence Copilot" style={{ marginTop: 16 }}>
+    <section className="app-panel app-panel__body" aria-label="Evidence Copilot" style={{ marginTop: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <h3 style={{ margin: 0 }}>Evidence Copilot</h3>
         <span style={{ display: "flex", gap: 6 }}>
@@ -191,7 +191,7 @@ export function EvidenceCopilotPanel({
         determines truth, authenticity, or admissibility.
       </p>
       <div style={{ marginTop: 8 }}>
-        <button className="app-btn app-btn--primary" onClick={run} disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
+        <button className="app-primary-action" onClick={run} disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Analyzing…" : state.kind === "result" ? "Re-run" : "Run Evidence Copilot"}
         </button>
         <span aria-live="polite" className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>

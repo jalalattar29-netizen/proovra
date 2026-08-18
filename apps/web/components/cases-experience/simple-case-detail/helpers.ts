@@ -30,28 +30,28 @@ export function caseStatusLabel(status: string | null | undefined): string {
 }
 
 /**
- * Phase CASE-DETAIL-PROOVRA-V2 — presentational tone for the status
- * badge. This is a DISPLAY mapping only: it never changes which
- * statuses exist, which transitions are allowed, or who may perform
- * them (the backend state machine remains authoritative). Tones mirror
- * the semantic palette decoded from the Figma variable collection.
+ * Case status → the canonical `.app-status-badge[data-tone]` vocabulary.
+ *
+ * DISPLAY ONLY: it never changes which statuses exist, which transitions are
+ * allowed, or who may perform them (the backend state machine stays
+ * authoritative). Mapping here rather than in CSS is what lets ONE badge
+ * definition serve every surface instead of a per-domain `[data-status]`
+ * colour table.
  */
 export function caseStatusTone(
   status: string | null | undefined,
-): "success" | "neutral" | "info" | "attention" {
+): "green" | "amber" | "indigo" | "slate" {
   switch (status) {
     case "OPEN":
+      return "green";
     case "INVESTIGATING":
-      return "info";
+      return "indigo";
     case "ON_HOLD":
-      return "attention";
+      return "amber";
     case "RESOLVED":
-    case "CLOSED":
-      return "success";
-    case "ARCHIVED":
-      return "neutral";
+      return "green";
     default:
-      return "neutral";
+      return "slate";
   }
 }
 

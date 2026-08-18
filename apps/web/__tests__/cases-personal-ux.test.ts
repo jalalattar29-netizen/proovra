@@ -66,10 +66,18 @@ test("Header renders a single 'Cases' title — kicker duplicate is gone", () =>
 });
 
 test("Subtitle uses the spec copy and carries a stable data attribute", () => {
+  // CORRECTED ASSERTION. This previously pinned `<p className="cc-subtitle">`,
+  // which locked in a DEFECT: `PageHeader` already wraps `subtitle` in its own
+  // <p>, so a <p> here rendered invalid `<p><p>` nesting and React logged a
+  // `validateDOMNesting` hydration error on /cases. The spec copy and the
+  // `data-cases-subtitle` hook are unchanged — only the element is now the
+  // inline `<span>` the subtitle contract requires.
   assert.match(
     CASES_PAGE,
-    /<p className="cc-subtitle" data-cases-subtitle>\s*\n?\s*Group related evidence into simple workspaces for incidents,\s*\n?\s*claims, projects, or reviews\./,
+    /<span className="cc-subtitle" data-cases-subtitle>\s*\n?\s*Group related evidence into simple workspaces for incidents,\s*\n?\s*claims, projects, or reviews\./,
   );
+  // Anti-regression: the subtitle must never become a block element again.
+  assert.doesNotMatch(CASES_PAGE, /subtitle=\{\s*\n?\s*(\/\/[^\n]*\n\s*)*<(p|div)[\s>]/);
 });
 
 // ===========================================================================
