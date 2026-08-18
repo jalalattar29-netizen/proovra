@@ -464,11 +464,21 @@
 /* ---- Queue rows ---------------------------------------------------------- */
 .evidence-library-list {
   list-style: none;
-  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* One spacing authority for the whole group: the parent gap. No card
+     carries its own margin, so no row can gain or lose separation and there
+     is no first/last-row exception. 12px lets the translucent page read
+     between records while the queue stays operational, not airy. */
+  gap: 12px;
+  /* Separates the record group from the selection/bulk toolbar above it. */
+  margin: 16px 0 0;
+}
+@media (max-width: 720px) {
+  .evidence-library-list {
+    gap: 10px;
+  }
 }
 /* ===========================================================================
  * QUEUE ROW ANATOMY — four semantic zones on ONE grid authority.
@@ -978,7 +988,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 .evidence-library-artifact {
   display: grid;

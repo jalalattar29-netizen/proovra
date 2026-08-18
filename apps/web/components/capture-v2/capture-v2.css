@@ -4744,7 +4744,9 @@ body {
        reached EVERY narrow surface and turned the body into a scroll container
        with zero scroll range — which silently disables every position: sticky
        descendant app-wide below 980px. `clip` contains the overflow exactly
-       the same way without creating a scrollport. */
+       the same way without creating a scrollport. Verified against the old
+       value: Capture clips the same controls either way, so this is a sticky
+       fix and not a Capture layout change. */
     overflow-x: clip !important;
   }
 
