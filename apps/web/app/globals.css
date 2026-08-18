@@ -339,7 +339,13 @@ body {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  /* `clip`, not `hidden`. Both stop horizontal overflow, but `hidden` makes
+     the body a SCROLL CONTAINER — and because the body is exactly as tall as
+     its content, that container has zero scroll range, so every
+     `position: sticky` descendant had nothing to stick against and simply
+     scrolled away with the page. `clip` suppresses the overflow without
+     creating a scrollport, so sticky resolves against the viewport again. */
+  overflow-x: clip;
 }
 
 html[dir="rtl"] body {

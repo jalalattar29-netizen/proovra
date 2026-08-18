@@ -21,6 +21,10 @@
   --shell-reveal-offset: -4px;
   --shell-drawer-closed: -105%;
   --shell-rail-shadow-x: 1px;
+  /* Canonical top-bar height. Surfaces that pin a full-height rail beside the
+     content need the real offset rather than a copied literal; this is the one
+     place it is declared. */
+  --app-topbar-h: 72px;
 }
 
 :root[dir="rtl"] {
@@ -208,8 +212,8 @@
    Hover-expanded: crossfade to footer-logo (white wordmark). */
 .app-sidebar-v2-brand {
   position: relative;
-  height: 72px;
-  min-height: 72px;
+  height: var(--app-topbar-h, 72px);
+  min-height: var(--app-topbar-h, 72px);
   padding: 14px 12px;
   display: flex;
   align-items: center;

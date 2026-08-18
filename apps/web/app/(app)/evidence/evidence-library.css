@@ -286,7 +286,9 @@
 
 /* ---- KPI grid — 8 cards, 4x2 at the design width ------------------------ */
 .evidence-library-metrics {
-  margin-block: 4px 0;
+  /* No margin: the shell gap is the one spacing authority for page sections,
+     so a local margin here would stack on top of it. */
+  margin-block: 0;
 }
 
 /* ---- Filter surface ------------------------------------------------------ */
@@ -758,10 +760,7 @@
   /* A full-height rail: it sticks to the top of the viewport and scrolls its
      own body, so it never exceeds the viewport at any height. */
   position: sticky;
-  top: 0;
   align-self: start;
-  height: 100vh;
-  max-height: 100vh;
   overflow: hidden;
 }
 .evidence-library-inspector__head {
@@ -1225,17 +1224,6 @@
   min-height: 0;
 }
 
-/* The rail begins BELOW the app top bar, so `height: 100vh` overshot the
-   viewport by exactly that offset and pushed the last two footer actions off
-   screen. Sizing and sticking to the same offset keeps the rail inside the
-   viewport both at rest and while the page is scrolled. */
-.evidence-library-inspector {
-  --evidence-rail-top: 100px;
-  top: var(--evidence-rail-top);
-  height: calc(100vh - var(--evidence-rail-top));
-  max-height: calc(100vh - var(--evidence-rail-top));
-}
-
 /* The canonical dialog body is also a scrolling column flex container, so the
    hosted Inspector needs the same non-shrink rule as the desktop rail —
    without it the preview frame and the artifact cards collapsed to nothing on
@@ -1255,4 +1243,177 @@
 }
 .evidence-library-artifact {
   position: relative;
+}
+
+/* ===========================================================================
+ * RESPONSIVE POLISH PASS
+ * =========================================================================== */
+
+/* ---- 1. Page vertical rhythm --------------------------------------------
+ * The shell was a plain block, so Legal Boundary sat flush against the header
+ * above it and the KPI grid below it. Making the shell the stack authority
+ * gives one canonical gap between every page section — a single spacing
+ * source, not competing top/bottom margins, so nothing can collapse or
+ * double up. */
+.evidence-library-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+@media (max-width: 720px) {
+  .evidence-library-shell {
+    gap: 16px;
+  }
+}
+
+/* ---- 2. Full-height Inspector rail ---------------------------------------
+ * The rail is offset by the real top bar (canonical --app-topbar-h) plus the
+ * page's own top padding, and its block size is the remaining DYNAMIC viewport
+ * height — so mobile browser chrome cannot push the footer out of reach. The
+ * vh value is kept first as the fallback for engines without dvh.
+ *
+ * head = intrinsic, body = the only scroller, footer = intrinsic. Every
+ * ancestor in the chain carries min-block-size: 0 so the body may actually
+ * shrink and scroll instead of stretching the rail past the viewport. */
+.evidence-library-inspector {
+  --evidence-rail-top: calc(var(--app-topbar-h, 72px) + 28px);
+  top: var(--evidence-rail-top);
+  block-size: calc(100vh - var(--evidence-rail-top));
+  block-size: calc(100dvh - var(--evidence-rail-top));
+  max-block-size: calc(100vh - var(--evidence-rail-top));
+  max-block-size: calc(100dvh - var(--evidence-rail-top));
+  min-block-size: 0;
+}
+.evidence-library-layout,
+.evidence-library-layout > * {
+  min-block-size: 0;
+}
+.evidence-library-inspector__head,
+.evidence-library-inspector__footer {
+  flex: none;
+  min-block-size: 0;
+}
+.evidence-library-inspector__body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  /* The ONE scroll container in the rail. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- 3. Preview sized from available height ------------------------------
+ * A single fixed height pushed the preview below the fold on short laptops and
+ * wasted space on tall displays. The frame keeps its ratio but is bounded by a
+ * share of the viewport height, so it stays meaningful at 768px and generous at
+ * 1080px without ever collapsing or stretching the media. */
+.evidence-library-preview__frame {
+  max-block-size: clamp(150px, 30dvh, 380px);
+  min-block-size: 132px;
+  /* Neutral ground for the letterboxing that object-fit: contain produces. */
+  background: rgba(15, 23, 42, 0.05);
+}
+
+/* ---- 4. Height-aware density --------------------------------------------
+ * Short laptops trade decorative space first — gaps and padding — never font
+ * size, never touch-target size, and never the preview or artifact cards. */
+@media (max-height: 860px) {
+  .evidence-library-inspector__head {
+    padding-block: 10px 12px;
+  }
+  .evidence-library-inspector__title {
+    font-size: 20px;
+    line-height: 27px;
+  }
+  .evidence-library-inspector__body {
+    gap: 11px;
+    padding-block: 12px 16px;
+  }
+  .evidence-library-inspector__footer {
+    padding-block: 10px 12px;
+  }
+  .evidence-library-key-card {
+    padding: 10px;
+  }
+}
+/* 1366x768-class laptops: the preview is the last thing that must clear the
+   fold, so it gives up a little block size before anything else does. */
+@media (max-height: 800px) {
+  .evidence-library-preview__frame {
+    max-block-size: clamp(140px, 24dvh, 260px);
+  }
+  .evidence-library-key-card {
+    padding: 9px 10px;
+  }
+  .evidence-library-key-card dd strong {
+    font-size: 13px;
+  }
+}
+@media (max-height: 720px) {
+  .evidence-library-inspector__support {
+    display: none;
+  }
+  .evidence-library-inspector__body {
+    gap: 9px;
+  }
+  .evidence-library-artifact {
+    padding: 9px 12px;
+  }
+}
+
+/* ---- 5. Metadata labels -------------------------------------------------
+ * RECORD / STATUS / CASE / CREATED move from the label ink to the canonical
+ * SECONDARY ink, so the label reads clearly below its value while keeping one
+ * typographic treatment across all four cards. No page-local grey. */
+.evidence-library-key-card dt {
+  color: var(--app-ink-secondary);
+}
+
+/* ---- 6. Queue footer region ----------------------------------------------
+ * The pagination row sat directly against the last evidence row. It is now a
+ * real footer region: separated by the canonical hairline, with its own
+ * breathing room, the page label at the logical start, the result summary in
+ * the middle and the Previous/Next pair at the logical end. */
+.evidence-library-pagination {
+  margin-block-start: 14px;
+  padding: 16px 20px;
+  gap: 12px 20px;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+}
+.evidence-library-pagination__actions {
+  margin-inline-start: auto;
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  .evidence-library-pagination {
+    justify-content: flex-start;
+    padding: 14px 16px;
+  }
+  .evidence-library-pagination__actions {
+    margin-inline-start: 0;
+    width: 100%;
+  }
+  .evidence-library-pagination__actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ---- 7. Compact host height ---------------------------------------------
+ * The dialog uses the DYNAMIC viewport so browser chrome cannot hide the
+ * footer, and it keeps one body scroller with safe-area aware padding. */
+@media (max-width: 1099.98px) {
+  [data-matter-modal="evidence-queue-inspector"] {
+    max-block-size: calc(100vh - 32px);
+    max-block-size: calc(100dvh - 32px);
+  }
+}
+@media (max-width: 560px) {
+  [data-matter-modal="evidence-queue-inspector"] {
+    max-block-size: 92vh;
+    max-block-size: min(92dvh, calc(100dvh - 16px));
+  }
+  [data-matter-modal="evidence-queue-inspector"] .app-dialog__body {
+    overscroll-behavior: contain;
+  }
 }

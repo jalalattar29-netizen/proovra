@@ -1,7 +1,7 @@
 {
   "schemaVersion": "architecture-facts@1",
-  "generatedAtUtc": "2026-08-18T20:37:35.287Z",
-  "sourceRevision": "11a5514b99744f2b2afaa5e92ac9021307b96739",
+  "generatedAtUtc": "2026-08-18T21:53:06.199Z",
+  "sourceRevision": "f66cac836988c31389433e365cc073387dda8817",
   "releaseCandidateId": null,
   "engineVersion": "audit-engine@1.0.0",
   "engineHash": "b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea",
@@ -305,10 +305,10 @@
   },
   "phase0": {
     "baselineKind": "GIT_COMMIT",
-    "baselineRef": "11a5514b99744f2b2afaa5e92ac9021307b96739",
-    "changedPaths": 7,
+    "baselineRef": "f66cac836988c31389433e365cc073387dda8817",
+    "changedPaths": 8,
     "addedPaths": 0,
-    "modifiedPaths": 7,
+    "modifiedPaths": 8,
     "deletedPaths": 0,
     "attributedPaths": 5,
     "productionRuntimeFilesModifiedByPhase0": 0,

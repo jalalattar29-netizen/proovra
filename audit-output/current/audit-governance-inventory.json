@@ -178,10 +178,10 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "11a5514b99744f2b2afaa5e92ac9021307b96739",
-    "phase0ChangedPaths": 7,
+    "phase0BaselineRef": "f66cac836988c31389433e365cc073387dda8817",
+    "phase0ChangedPaths": 8,
     "phase0AddedPaths": 0,
-    "phase0ModifiedPaths": 7,
+    "phase0ModifiedPaths": 8,
     "phase0DeletedPaths": 0,
     "phase0AttributedPaths": 5,
     "phase0ChangedPathsFromManualDeclaration": 0,
@@ -208,11 +208,11 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "11a5514b99744f2b2afaa5e92ac9021307b96739",
+    "baseline": "f66cac836988c31389433e365cc073387dda8817",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
+        "path": "apps/web/app/(app)/evidence/evidence-library.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -223,7 +223,18 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/evidence-library.css",
+        "path": "apps/web/app/globals.css",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/components/app-shell-v2/app-shell-v2.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
