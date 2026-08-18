@@ -30,6 +30,32 @@ export function caseStatusLabel(status: string | null | undefined): string {
 }
 
 /**
+ * Phase CASE-DETAIL-PROOVRA-V2 — presentational tone for the status
+ * badge. This is a DISPLAY mapping only: it never changes which
+ * statuses exist, which transitions are allowed, or who may perform
+ * them (the backend state machine remains authoritative). Tones mirror
+ * the semantic palette decoded from the Figma variable collection.
+ */
+export function caseStatusTone(
+  status: string | null | undefined,
+): "success" | "neutral" | "info" | "attention" {
+  switch (status) {
+    case "OPEN":
+    case "INVESTIGATING":
+      return "info";
+    case "ON_HOLD":
+      return "attention";
+    case "RESOLVED":
+    case "CLOSED":
+      return "success";
+    case "ARCHIVED":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+/**
  * Phase CASES-STATUS-MANUAL — the personal Settings tab now exposes
  * case status as a plain organizational dropdown (Open / Investigating
  * / On hold / Resolved / Closed / Archived). Every option is always

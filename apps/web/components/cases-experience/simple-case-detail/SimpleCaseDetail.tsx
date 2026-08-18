@@ -47,14 +47,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
-import { Button, useToast } from "../../ui";
+import { useToast } from "../../ui";
 // Phase 7B (visual-only) — canonical shared design-system primitives.
-// PageShell/PageHeader/PageSection from the barrel; Card / EmptyState /
-// Badge DEEP-imported (barrel serves the LEGACY four). The existing
-// legacy `Button` + `useToast` barrel import above is kept unchanged.
+// PageShell/PageHeader/PageSection from the barrel.
+//
+// Phase CASE-DETAIL-PROOVRA-V2 — the legacy `Button` barrel import and
+// the deep `Card` / `EmptyState` imports are dropped from THIS file
+// because the surface now renders the V2 primitives below. Both legacy
+// components remain in the repository and are still used by other
+// routes; nothing was deleted.
 import { PageShell } from "../../ui";
-import { Card } from "../../ui/Card";
-import { EmptyState } from "../../ui/EmptyState";
 // Phase CASE-DETAIL-PERSONAL-UX — canonical confirmation hook. The
 // repo-wide Phase Final-D3 contract forbids raw `window.confirm` in
 // apps/web; this is the parity replacement.
@@ -67,6 +69,32 @@ import { CaseCopilotPanel } from "../../ai-copilot/CaseCopilotPanel";
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
+// Phase CASE-DETAIL-PROOVRA-V2 (visual-only) — the shared V2 internal UI
+// foundation extracted from the Figma source. Presentation primitives
+// only; no data fetching, no authorization, no mutations. See
+// `components/proovra-v2/proovra-v2.css` for the token provenance.
+import {
+  ActionRail,
+  AttentionPanel,
+  Button as V2Button,
+  CopyField,
+  IconChevronRight,
+  IconDocument,
+  IconPlus,
+  IconShare,
+  IconShieldCheck,
+  KeyValuePanel,
+  LoadingSkeleton,
+  MetricCard,
+  MetricRow,
+  SearchField,
+  Split,
+  StateBlock,
+  Surface,
+  Tabs as V2Tabs,
+  useProovraV2Surface,
+} from "../../proovra-v2";
+import { caseStatusTone } from "./helpers";
 import type {
   MatterWorkspaceCaseHeader,
   MatterWorkspaceEnvelope,
@@ -192,6 +220,10 @@ export function SimpleCaseDetail({
   // called unconditionally (React rules of hooks) — the consumer
   // tabs receive `confirm` via prop drilling.
   const { confirm } = useConfirmAction();
+  // Phase CASE-DETAIL-PROOVRA-V2 — opt this route (and ONLY this route)
+  // into the redesigned shell chrome. Presentation only; unmount restores
+  // the previous sidebar/topbar exactly, so no other internal page moves.
+  useProovraV2Surface("case-detail");
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   // Phase CASES-ATTACH-PICKER — `attachOpen` lives at page level so
@@ -242,50 +274,64 @@ export function SimpleCaseDetail({
 
   if (state.status === "loading") {
     return (
-      <PageShell className="cc-page" data-simple-case-detail-loading>
-        <div className="cases-panel" style={{ padding: 24 }}>
-          <p style={{ margin: 0, color: "#475569" }}>Loading case…</p>
-        </div>
-      </PageShell>
+      <CaseDetailPlane data-simple-case-detail-loading>
+        <Surface variant="panel">
+          <p className="sr-only" style={{ margin: 0 }}>
+            Loading case…
+          </p>
+          <LoadingSkeleton rows={4} label="Loading case" />
+        </Surface>
+      </CaseDetailPlane>
     );
   }
   if (state.status === "auth_error") {
+    // RestrictedState — access is decided by the backend + PageRouteGate;
+    // this only renders the outcome. No client-side authorization here.
     return (
-      <PageShell className="cc-page" data-simple-case-detail-auth>
-        <Card variant="status" tone="risk">
-          You don&apos;t have access to this case.
-        </Card>
-      </PageShell>
+      <CaseDetailPlane data-simple-case-detail-auth>
+        <Surface variant="panel">
+          <StateBlock
+            tone="restricted"
+            title="You don&apos;t have access to this case."
+            description="Ask a workspace owner or administrator if you need access."
+          />
+        </Surface>
+      </CaseDetailPlane>
     );
   }
   if (state.status === "not_found") {
     return (
-      <PageShell className="cc-page" data-simple-case-detail-not-found>
-        <EmptyState
-          framed
-          title="Case not found"
-          purpose="The case may have been deleted or moved."
-          action={
-            <Link href="/cases">
-              <Button variant="secondary">Back to cases</Button>
-            </Link>
-          }
-        />
-      </PageShell>
+      <CaseDetailPlane data-simple-case-detail-not-found>
+        <Surface variant="panel">
+          <StateBlock
+            title="Case not found"
+            description="The case may have been deleted or moved."
+            actions={
+              <Link href="/cases">
+                <V2Button tone="outline">Back to cases</V2Button>
+              </Link>
+            }
+          />
+        </Surface>
+      </CaseDetailPlane>
     );
   }
   if (state.status === "unavailable") {
     return (
-      <PageShell className="cc-page" data-simple-case-detail-unavailable>
-        <Card variant="status" tone="risk">
-          {state.message}
-          <div style={{ marginTop: 8 }}>
-            <Button variant="secondary" onClick={() => void reload()}>
-              Retry
-            </Button>
-          </div>
-        </Card>
-      </PageShell>
+      <CaseDetailPlane data-simple-case-detail-unavailable>
+        <Surface variant="panel">
+          <StateBlock
+            tone="danger"
+            title="Case unavailable"
+            description={state.message}
+            actions={
+              <V2Button tone="outline" onClick={() => void reload()}>
+                Retry
+              </V2Button>
+            }
+          />
+        </Surface>
+      </CaseDetailPlane>
     );
   }
 
@@ -297,8 +343,7 @@ export function SimpleCaseDetail({
   const viewer = workspace.viewer;
 
   return (
-    <PageShell
-      className="cc-page"
+    <CaseDetailPlane
       data-simple-case-detail
       data-case-id={caseDetail.id}
       data-case-status={caseDetail.status}
@@ -312,39 +357,19 @@ export function SimpleCaseDetail({
         onAddEvidence={() => setAttachOpen(true)}
       />
 
-      {/* Phase CASE-DETAIL-PROOVRA-UX §12 — restyled pill tab bar,
-          sticky beneath the app header while the body scrolls. The
-          data-simple-case-tab attributes + role/aria are preserved
-          exactly; only the class-driven pill visuals + `.is-active`
-          state + sticky positioning are new. */}
-      <nav
-        className="case-tabs"
-        role="tablist"
-        aria-label="Case sections"
+      {/* Phase CASE-DETAIL-PROOVRA-V2 §Tabs — Figma "Tabs/filled": white
+          card, radius 8, 4px inset, 8px gap, active pill filled
+          rgba(37,99,235,0.10). Tab identity + routing state are
+          unchanged; `data-simple-case-tab` is still emitted per tab and
+          `setActiveTab` is still the only state writer. */}
+      <V2Tabs
+        items={TAB_ORDER}
+        active={activeTab}
+        onSelect={setActiveTab}
+        label="Case sections"
+        tabAttr={(id) => ({ "data-simple-case-tab": id })}
         data-simple-case-tabs
-        style={{
-          position: "sticky",
-          top: "var(--header-h, 72px)",
-          zIndex: 5,
-        }}
-      >
-        {TAB_ORDER.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              data-simple-case-tab={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={isActive ? "case-tab is-active" : "case-tab"}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </nav>
+      />
 
       {activeTab === "overview" ? (
         <OverviewTab
@@ -358,29 +383,43 @@ export function SimpleCaseDetail({
         />
       ) : null}
       {activeTab === "evidence" ? (
-        <>
-          <EvidenceTab
-            caseId={caseId}
-            items={evidenceItems}
-            viewer={viewer}
-            onOpenEvidence={onOpenEvidence}
-            onReload={reload}
-            addToast={addToast}
-            confirm={confirm}
-          />
-          <div style={{ marginTop: 16 }}>
-            <CaseCopilotPanel
+        // Phase CASE-DETAIL-PROOVRA-V2 §Evidence — Figma places the
+        // Copilot in the right rail beside the evidence list instead of
+        // stacked underneath. Layout only: the SAME CaseCopilotPanel,
+        // the SAME derived `linkedEvidence` projection, the SAME AI
+        // policy/disclosure/consent behaviour (the panel still owns its
+        // own aiEnabled/policy_denied/provider_unavailable states).
+        <Split
+          wideRail
+          main={
+            <EvidenceTab
               caseId={caseId}
-              linkedEvidence={evidenceItems.map((it) => ({
-                id: it.id,
-                title: getDisplayTitle(it),
-                type: (it as { type?: string }).type ?? "EVIDENCE",
-                version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
-                status: (it as { status?: string }).status ?? "",
-              }))}
+              items={evidenceItems}
+              viewer={viewer}
+              onOpenEvidence={onOpenEvidence}
+              onReload={reload}
+              addToast={addToast}
+              confirm={confirm}
             />
-          </div>
-        </>
+          }
+          rail={
+            // Presentation wrapper only — it carries the Figma rail styling
+            // for the panel's existing class names. No props, no policy, no
+            // disclosure copy is altered.
+            <div className="pv2-copilot-rail">
+              <CaseCopilotPanel
+                caseId={caseId}
+                linkedEvidence={evidenceItems.map((it) => ({
+                  id: it.id,
+                  title: getDisplayTitle(it),
+                  type: (it as { type?: string }).type ?? "EVIDENCE",
+                  version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
+                  status: (it as { status?: string }).status ?? "",
+                }))}
+              />
+            </div>
+          }
+        />
       ) : null}
       {activeTab === "reports" ? (
         <ReportsPackagesTab
@@ -455,6 +494,43 @@ export function SimpleCaseDetail({
           onError={(msg) => addToast(msg, "error")}
         />
       ) : null}
+    </CaseDetailPlane>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Content plane
+// ---------------------------------------------------------------------------
+
+/**
+ * Phase CASE-DETAIL-PROOVRA-V2 — the Figma content plane.
+ *
+ * Figma "Container" under the navbar: 24px top / 32px side / 32px bottom
+ * padding and a 24px vertical rhythm, FLUID width (the frame's content
+ * column simply fills whatever is left of the viewport beside the
+ * sidebar). We therefore keep the shared `PageShell` — so this surface
+ * still participates in the repository's page-plane contract — but opt
+ * out of its 1360px clamp (`width="full"`) because clamping would shrink
+ * the page below the reference composition on wide displays.
+ */
+function CaseDetailPlane({
+  children,
+  ...rest
+}: { children: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <PageShell
+      width="full"
+      className="cc-page pv2-page-plane"
+      style={{
+        paddingInline: "var(--pv2-gutter-x)",
+        paddingBlock: "var(--pv2-gutter-y) var(--pv2-space-8)",
+        gap: "var(--pv2-space-6)",
+        fontFamily: "var(--pv2-font)",
+        color: "var(--pv2-ink-primary)",
+      }}
+      {...rest}
+    >
+      {children}
     </PageShell>
   );
 }
@@ -479,256 +555,128 @@ function SimpleCaseHeader({
   onAddEvidence: () => void;
 }) {
   const { addToast } = useToast();
-  // Phase CASE-DETAIL-PROOVRA-UX §11 — structured, compact header.
-  // A "Back to cases" link, a case icon + case name + a semantic
-  // `.case-status-badge`, the raw case id demoted to SECONDARY
-  // monospace metadata, a created/updated/owner/evidence-count
-  // metadata row, and the right-aligned primary "Add evidence"
-  // action. Every data-* / testid is preserved.
+  // Phase CASE-DETAIL-PROOVRA-V2 §PageHeader — the Figma "Page Heading"
+  // frame, reproduced from decoded node properties:
+  //
+  //   Nav          12/18 Medium #565E74, current crumb #1D1A24
+  //   Heading 2    24/32 Bold  #1D1A24  + right-aligned primary action
+  //   Meta row     13/18 Regular #565E74, 4px dot separators, status pill
+  //   Case ID      13/18 label + 305x32 bordered copy control
+  //
+  // The previous dark `.ops-banner-card` banner is replaced. EVERY
+  // data-* attribute, testid, handler, capability gate, tooltip and
+  // copy string below is preserved byte-for-byte from the previous
+  // revision — this is a presentation change only.
   return (
-    <header
-      data-simple-case-header
-      // §1/§2/§7 — the Case header renders on the SHARED `.ops-banner-card`
-      // shell (the exact accepted Home critical-card surface: same height,
-      // radius, padding, dark navy base, icon-card artwork at `right center
-      // / auto 260%`, shadow and [content | action] flex row). Only the
-      // accent differs — a restrained neutral/purple left rail instead of
-      // the critical red (severity does not belong on a context header).
-      className="ops-banner-card"
-      // Spacing refinement: slightly taller than the shared shell's default
-      // (16px 20px) — ~22px 24px — for clearer vertical rhythm between the
-      // breadcrumb / title / metadata / Case ID levels. Still the compact
-      // enterprise banner, not a hero. Only this instance is overridden;
-      // the Home critical card keeps the shell default.
-      style={{ borderLeft: "4px solid rgba(139,124,246,0.55)", padding: "26px 28px" }}
-    >
-      {/* LEFT content zone — a dedicated vertical stack; per-level spacing is
-          controlled by each row's margin so the rhythm stays even. */}
-      <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        {/* §6 — breadcrumb is the top line (the external OperationalBreadcrumb
-            is removed for this surface). Cases links to /cases; the case name
-            is the current, non-clickable segment. No "Back to cases" link. */}
-        <nav
-          data-simple-case-breadcrumb
-          aria-label="Breadcrumb"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            flexWrap: "wrap",
-            marginBottom: 16,
-            fontSize: 12,
-            lineHeight: 1.35,
-            fontWeight: 500,
-            color: "rgba(255,255,255,0.58)",
-          }}
-        >
-          <span>Personal Space</span>
-          <span aria-hidden style={{ color: "rgba(255,255,255,0.34)" }}>›</span>
-          <Link
-            href="/cases"
-            className="cases-breadcrumb-link"
-            style={{ color: "rgba(255,255,255,0.62)", textDecoration: "none" }}
-          >
-            Cases
-          </Link>
-          <span aria-hidden style={{ color: "rgba(255,255,255,0.34)" }}>›</span>
-          <span aria-current="page" style={{ color: "rgba(255,255,255,0.9)" }}>
-            {caseDetail.name}
-          </span>
-        </nav>
+    <header data-simple-case-header className="pv2-pagehead">
+      {/* Breadcrumb — Cases links to /cases; the case name is the
+          current, non-clickable segment. The workspace crumb keeps the
+          existing label. */}
+      <nav
+        data-simple-case-breadcrumb
+        aria-label="Breadcrumb"
+        className="pv2-crumbs"
+      >
+        <span>Personal Space</span>
+        <span aria-hidden className="pv2-crumb-sep">
+          /
+        </span>
+        <Link href="/cases" className="cases-breadcrumb-link">
+          Cases
+        </Link>
+        <span aria-hidden className="pv2-crumb-sep">
+          /
+        </span>
+        <span aria-current="page" className="pv2-crumb-current">
+          {caseDetail.name}
+        </span>
+      </nav>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-            marginBottom: 14,
-          }}
-        >
-          <span
-            aria-hidden
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: "rgba(255,255,255,0.10)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              color: "#E7E3FF",
-              flexShrink: 0,
-            }}
-          >
-            {/* Simple case/folder glyph. */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <h1
-            data-simple-case-title
-            style={{
-              margin: 0,
-              fontSize: 21,
-              fontWeight: 700,
-              lineHeight: 1.2,
-              letterSpacing: "-0.015em",
-              color: "#ffffff",
-              minWidth: 0,
-              overflowWrap: "anywhere",
-            }}
-          >
+      <div className="pv2-pagehead-top">
+        <div className="pv2-pagehead-titlerow">
+          <h1 data-simple-case-title className="pv2-pagehead-title">
             {caseDetail.name}
           </h1>
+          {/* The single canonical Add-evidence entry point. The
+              capability gate + disabled reason are unchanged. */}
+          <button
+            type="button"
+            className="pv2-btn pv2-btn--outline"
+            onClick={onAddEvidence}
+            disabled={!canLinkEvidence}
+            title={linkEvidenceDisabledReason ?? undefined}
+            data-simple-case-action="add-evidence"
+          >
+            <span className="pv2-btn-icon" aria-hidden>
+              <IconPlus size={20} />
+            </span>
+            Add evidence
+            <span className="pv2-btn-icon" aria-hidden>
+              <IconChevronRight size={20} />
+            </span>
+          </button>
+        </div>
+
+        {/* Compact metadata line — status pill, evidence count, created,
+            last updated. Reference number is surfaced only when the
+            envelope actually carries one (never fabricated). */}
+        <div data-simple-case-subtitle className="pv2-pagehead-meta">
           <span
-            className="case-status-badge"
+            className="pv2-status"
+            data-tone={caseStatusTone(caseDetail.status)}
             data-status={caseDetail.status}
             data-simple-case-status
           >
             {caseStatusLabel(caseDetail.status)}
           </span>
-        </div>
-
-        {/* §6 — compact metadata line. */}
-        <div
-          data-simple-case-subtitle
-          style={{
-            display: "flex",
-            columnGap: 10,
-            rowGap: 6,
-            flexWrap: "wrap",
-            alignItems: "center",
-            marginBottom: 16,
-            fontSize: 12.5,
-            lineHeight: 1.4,
-            color: "rgba(255,255,255,0.68)",
-          }}
-        >
           {caseDetail.referenceNumber ? (
-            <>
+            <span className="pv2-pagehead-meta-item">
+              <span className="pv2-dot" aria-hidden />
               <span data-simple-case-reference style={{ fontWeight: 600 }}>
                 Ref {caseDetail.referenceNumber}
               </span>
-              <span aria-hidden style={{ color: "rgba(255,255,255,0.36)" }}>·</span>
-            </>
+            </span>
           ) : null}
           <span data-simple-case-evidence-count>
             {evidenceCount === 1
               ? "1 evidence record"
               : `${evidenceCount} evidence records`}
           </span>
-          <span aria-hidden style={{ color: "rgba(255,255,255,0.36)" }}>·</span>
-          <span style={{ color: "rgba(255,255,255,0.56)" }}>
-            Created {formatRelative(caseDetail.createdAt)}
+          <span className="pv2-pagehead-meta-item">
+            <span className="pv2-dot" aria-hidden />
+            <span>Created {formatRelative(caseDetail.createdAt)}</span>
           </span>
-          <span aria-hidden style={{ color: "rgba(255,255,255,0.36)" }}>·</span>
-          <span data-simple-case-updated style={{ color: "rgba(255,255,255,0.56)" }}>
-            Last updated {formatRelative(caseDetail.updatedAt)}
+          <span className="pv2-pagehead-meta-item">
+            <span className="pv2-dot" aria-hidden />
+            <span data-simple-case-updated>
+              Last updated {formatRelative(caseDetail.updatedAt)}
+            </span>
           </span>
           {isReloading ? (
             <span
               className="cc-muted"
               data-simple-case-reloading
-              style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}
+              aria-live="polite"
             >
               Updating…
             </span>
           ) : null}
         </div>
 
-        {/* §6 — compact, labelled, copyable Case ID (the UUID is the DB
-            primary key + the /cases/[id] route param + the searchable
-            reference). Monospace, secondary, click-to-copy. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              fontSize: 11,
-              lineHeight: 1.35,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.44)",
-            }}
-          >
-            Case ID
-          </span>
-          <button
-            type="button"
-            data-simple-case-id
-            title="Copy case ID"
-            onClick={() => {
-              void navigator.clipboard?.writeText(caseDetail.id);
-              addToast("Case ID copied.", "success");
-            }}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              height: 26,
-              fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-              fontSize: 11.5,
-              lineHeight: 1.35,
-              color: "rgba(255,255,255,0.76)",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: 7,
-              padding: "0 9px",
-              cursor: "pointer",
-            }}
-          >
-            {caseDetail.id}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.7" />
-              <path d="M5 15V5a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
+        {/* Labelled, copyable Case ID (the UUID is the DB primary key,
+            the /cases/[id] route param and the searchable reference).
+            Stays LTR + selectable in RTL documents. */}
+        <CopyField
+          label="CASE ID :"
+          value={caseDetail.id}
+          title="Copy case ID"
+          data-simple-case-id
+          onCopy={() => {
+            void navigator.clipboard?.writeText(caseDetail.id);
+            addToast("Case ID copied.", "success");
+          }}
+        />
       </div>
-
-      {/* §4/§5 — the primary action reuses the SAME button as the Home
-          card's "Open affected records" (`.home-exec-action` glass button +
-          ArrowRight), sitting as the right-side flex item exactly like the
-          Home card — before the artwork glow, never floating over it. */}
-      <button
-        type="button"
-        className="home-exec-action"
-        onClick={onAddEvidence}
-        disabled={!canLinkEvidence}
-        title={linkEvidenceDisabledReason ?? undefined}
-        data-simple-case-action="add-evidence"
-        style={{
-          cursor: canLinkEvidence ? "pointer" : "not-allowed",
-          // Sit around the centre-right (~65–75% across), NOT flush to the
-          // edge: this right reserve clears the decorative hexagon artwork
-          // so the row reads [case info] → [Add evidence] → [artwork].
-          marginRight: "clamp(180px, 22%, 320px)",
-        }}
-      >
-        <span>Add evidence</span>
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden
-          style={{ opacity: 0.9, flexShrink: 0 }}
-        >
-          <path
-            d="M5 12h14M13 6l6 6-6 6"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
     </header>
   );
 }
@@ -754,8 +702,9 @@ function OverviewTab({
   onAddEvidence: () => void;
   onGoToTab: (tab: TabId) => void;
 }) {
-  // Real, envelope-only KPI values (§13). Lighter than Home's dark
-  // KPI cards — restrained `.cases-inner` tiles.
+  // Real, envelope-only KPI values. Figma's mock shows "3 of 3" for a
+  // three-record case; the values below stay derived from the live
+  // envelope, so a workspace with different data renders its own truth.
   const verificationLinks = deliverables.packagesReady;
   const kpis: Array<{ label: string; value: string; hint: string }> = [
     {
@@ -780,7 +729,7 @@ function OverviewTab({
     },
   ];
 
-  // Definition-list summary (§14) — real fields only. Priority /
+  // Definition-list summary — real fields only. Priority /
   // classification / tags / workspace are surfaced only when the
   // envelope actually carries them (never fabricated).
   const summaryRows: Array<{ label: string; value: string }> = [
@@ -806,255 +755,61 @@ function OverviewTab({
       role="tabpanel"
       aria-label="Overview"
       data-simple-case-overview
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(240px, 320px)",
-        gap: 16,
-        alignItems: "start",
-      }}
+      style={{ display: "flex", flexDirection: "column", gap: "var(--pv2-space-6)" }}
     >
-      {/* Main column */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-        {/* KPI tiles (§13) */}
-        <div className="cases-panel" data-simple-case-summary style={{ padding: 16 }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 10,
-            }}
-          >
-            {kpis.map((kpi) => (
-              <div
-                key={kpi.label}
-                className="cases-inner"
-                style={{ padding: "12px 14px" }}
-              >
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    letterSpacing: "-0.01em",
-                    color: "#172033",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {kpi.value}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    color: "#475569",
-                    marginTop: 2,
-                  }}
-                >
-                  {kpi.label}
-                </div>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
-                  {kpi.hint}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Case summary definition list (§14) — subtle separators,
-              not a bordered box per value. */}
-          <dl
-            style={{
-              margin: "16px 0 0",
-              display: "grid",
-              gridTemplateColumns: "1fr",
-              gap: 0,
-            }}
-          >
-            {summaryRows.length === 0 ? (
-              <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
-                No case summary added.
-              </p>
-            ) : (
-              summaryRows.map((row, idx) => (
-                <div
-                  key={row.label}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    padding: "9px 2px",
-                    borderTop:
-                      idx === 0
-                        ? "none"
-                        : "1px solid rgba(15, 23, 42, 0.055)",
-                    fontSize: 13,
-                  }}
-                >
-                  <dt style={{ color: "#64748b", margin: 0 }}>{row.label}</dt>
-                  <dd
-                    style={{
-                      color: "#172033",
-                      fontWeight: 600,
-                      margin: 0,
-                      textAlign: "right",
-                    }}
-                  >
-                    {row.value}
-                  </dd>
-                </div>
-              ))
-            )}
-          </dl>
-        </div>
-
-        {/* What needs attention (§15) */}
-        <div
-          className="cases-panel"
-          data-simple-case-needs-attention
-          style={{ padding: 16 }}
-        >
-          <h2
-            style={{
-              margin: "0 0 10px",
-              fontSize: 14,
-              fontWeight: 700,
-              color: "#172033",
-            }}
-          >
-            What needs attention
-          </h2>
-          {evidenceCount === 0 ? (
-            // Compact, actionable empty state (§15) — not a big white
-            // card. Keeps the attention-empty testid.
-            <div
-              className="cases-inner"
-              data-simple-case-attention-empty
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                padding: "12px 14px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 650, color: "#172033", fontSize: 13.5 }}>
-                  No evidence linked yet
-                </div>
-                <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 2 }}>
-                  Add evidence to begin building this case workspace.
-                </div>
-              </div>
-              {/* §15 — compact, outlined secondary action with a neutral
-                  (slate) plus icon, not a full-purple row. */}
-              <CaseButton
-                variant="secondary"
-                onClick={onAddEvidence}
-                disabled={!viewer.canLinkEvidence}
-                title={viewer.disabledReasons.linkEvidence ?? undefined}
-                style={{ height: 34, padding: "0 12px" }}
-              >
-                <span
-                  aria-hidden
-                  style={{ color: "#5F6B7D", display: "inline-flex", flexShrink: 0 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M12 5v14M5 12h14"
-                      stroke="currentColor"
-                      strokeWidth="1.9"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                Add evidence
-              </CaseButton>
-            </div>
-          ) : needsAttention.length === 0 ? (
-            <p
-              className="cc-muted"
-              data-simple-case-attention-empty
-              style={{ margin: 0, color: "#475569", fontSize: 13 }}
-            >
-              No open issues. Reports and packages are up to date.
-            </p>
-          ) : (
-            <ul
-              data-simple-case-attention-items
-              style={{
-                margin: 0,
-                padding: 0,
-                listStyle: "none",
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              {needsAttention.map((item) => (
-                <li
-                  key={item.key}
-                  data-simple-case-attention-key={item.key}
-                  className="cases-inner"
-                  style={{
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    color: "#334155",
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 999,
-                      background: "#A86612",
-                      marginTop: 6,
-                      flexShrink: 0,
-                    }}
+      {/* Figma "Frame 1109": [ KPI row + case summary ] | [ action rail ] */}
+      <Split
+        main={
+          <>
+            {/* Figma "KPI Summary Row" — four white cards, 16px padding,
+                radius 16, 1px #F8FAFC border, 0 1px 2px shadow. */}
+            <div data-simple-case-summary>
+              <MetricRow>
+                {kpis.map((kpi) => (
+                  <MetricCard
+                    key={kpi.label}
+                    label={kpi.label}
+                    value={kpi.value}
+                    hint={kpi.hint}
+                    data-simple-case-kpi={kpi.label}
                   />
-                  <span>{item.label}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+                ))}
+              </MetricRow>
+            </div>
 
-      {/* Right sidebar — quick actions only. The former Status/lifecycle
-          history card was removed: the case status is already surfaced in
-          the header, the Settings status selector, and the metadata row,
-          and the history rows read as noise rather than a real workflow. */}
-      <aside style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-        <div className="cases-panel" style={{ padding: 16 }}>
-          <h2
-            style={{
-              margin: "0 0 8px",
-              fontSize: 13,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              color: "#64748b",
-            }}
-          >
-            Quick actions
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <QuickAction
-              label="Add evidence"
+            {/* Figma "Case - Overview" — key/value panel, 24/16 padding. */}
+            <KeyValuePanel rows={summaryRows} data-simple-case-summary-rows />
+          </>
+        }
+        rail={
+          // FIGMA DEVIATION (documented in the deliverable): the Figma
+          // frame labels this rail "RISK SIGNALS" while its content is
+          // four ordinary operational actions (Add evidence / Generate
+          // report / Create verification package / Share). PROOVRA
+          // reserves risk vocabulary for advisory integrity signals on
+          // the Evidence Record surface, so relabelling these actions
+          // as risk would be materially misleading on a custody
+          // product. The Figma geometry is reproduced exactly; the
+          // heading keeps the truthful product term.
+          <ActionRail title="Quick actions" data-simple-case-actions>
+            <V2Button
+              tone="outline"
+              block
               onClick={onAddEvidence}
               disabled={!viewer.canLinkEvidence}
               title={viewer.disabledReasons.linkEvidence ?? undefined}
-              icon="plus"
-            />
-            {/* §13 — state-aware. With zero evidence, report + package
+            >
+              <span className="pv2-btn-icon" aria-hidden>
+                <IconPlus size={20} />
+              </span>
+              Add evidence
+            </V2Button>
+            {/* State-aware. With zero evidence, report + package
                 generation have no valid input, so they are DISABLED
-                with a neutral muted style and an explanatory tooltip
-                (not rendered as an active purple link). */}
-            <QuickAction
-              label="Generate report"
+                with an explanatory tooltip. */}
+            <V2Button
+              tone="outline"
+              block
               onClick={() => onGoToTab("reports")}
               disabled={evidenceCount === 0}
               title={
@@ -1062,10 +817,15 @@ function OverviewTab({
                   ? "Add evidence before generating a report."
                   : undefined
               }
-              icon="doc"
-            />
-            <QuickAction
-              label="Create verification package"
+            >
+              <span className="pv2-btn-icon" aria-hidden>
+                <IconDocument size={20} />
+              </span>
+              Generate report
+            </V2Button>
+            <V2Button
+              tone="outline"
+              block
               onClick={() => onGoToTab("reports")}
               disabled={evidenceCount === 0}
               title={
@@ -1073,126 +833,71 @@ function OverviewTab({
                   ? "A finalized evidence record is required."
                   : undefined
               }
-              icon="shield"
-            />
-            <QuickAction
-              label="Share"
-              onClick={() => onGoToTab("settings")}
-              icon="share"
-            />
-          </div>
-        </div>
-      </aside>
-    </section>
-  );
-}
+            >
+              <span className="pv2-btn-icon" aria-hidden>
+                <IconShieldCheck size={20} />
+              </span>
+              Create verification package
+            </V2Button>
+            <V2Button tone="outline" block onClick={() => onGoToTab("settings")}>
+              <span className="pv2-btn-icon" aria-hidden>
+                <IconShare size={20} />
+              </span>
+              Share
+            </V2Button>
+          </ActionRail>
+        }
+      />
 
-function QuickAction({
-  label,
-  onClick,
-  disabled,
-  title,
-  icon,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  title?: string;
-  icon: "plus" | "doc" | "shield" | "share";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        width: "100%",
-        padding: "9px 10px",
-        border: "none",
-        background: "transparent",
-        borderRadius: 10,
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        color: "#334155",
-        fontSize: 13,
-        fontWeight: 600,
-        textAlign: "left",
-        transition: "background-color 140ms ease",
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) e.currentTarget.style.background = "rgba(243, 240, 255, 0.6)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <span
-        aria-hidden
-        style={{ color: "#4F46E5", display: "inline-flex", flexShrink: 0 }}
+      {/* Figma "Section - AlertBanner" — full-width attention panel,
+          1px #F59E0B border, radius 12. */}
+      <AttentionPanel
+        title="What needs attention"
+        data-simple-case-needs-attention
+        action={
+          evidenceCount === 0 ? (
+            <V2Button
+              tone="outline"
+              onClick={onAddEvidence}
+              disabled={!viewer.canLinkEvidence}
+              title={viewer.disabledReasons.linkEvidence ?? undefined}
+            >
+              <span className="pv2-btn-icon" aria-hidden>
+                <IconPlus size={20} />
+              </span>
+              Add evidence
+            </V2Button>
+          ) : null
+        }
       >
-        <QuickActionIcon icon={icon} />
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
-      <span aria-hidden style={{ color: "#94a3b8", flexShrink: 0 }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <path
-            d="m9 6 6 6-6 6"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    </button>
-  );
-}
-
-function QuickActionIcon({ icon }: { icon: "plus" | "doc" | "shield" | "share" }) {
-  const common = {
-    width: 16,
-    height: 16,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-  if (icon === "plus") {
-    return (
-      <svg {...common}>
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    );
-  }
-  if (icon === "doc") {
-    return (
-      <svg {...common}>
-        <path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
-        <path d="M14 3v4h4" />
-      </svg>
-    );
-  }
-  if (icon === "shield") {
-    return (
-      <svg {...common}>
-        <path d="M12 3 5 6v5c0 4 3 7 7 8 4-1 7-4 7-8V6l-7-3Z" />
-        <path d="m9 12 2 2 4-4" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <circle cx="18" cy="5" r="2.5" />
-      <circle cx="6" cy="12" r="2.5" />
-      <circle cx="18" cy="19" r="2.5" />
-      <path d="m8 11 8-5M8 13l8 5" />
-    </svg>
+        {evidenceCount === 0 ? (
+          <p className="pv2-attention-text" data-simple-case-attention-empty>
+            No evidence linked yet. Add evidence to begin building this case
+            workspace.
+          </p>
+        ) : needsAttention.length === 0 ? (
+          <p
+            className="pv2-attention-text"
+            data-simple-case-attention-empty
+          >
+            No open issues. Reports and packages are up to date.
+          </p>
+        ) : (
+          <ul className="pv2-attention-list" data-simple-case-attention-items>
+            {needsAttention.map((item) => (
+              <li
+                key={item.key}
+                data-simple-case-attention-key={item.key}
+                className="pv2-attention-item"
+              >
+                <span aria-hidden className="pv2-attention-bullet" />
+                <span>{item.label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </AttentionPanel>
+    </section>
   );
 }
 
@@ -1282,148 +987,88 @@ function EvidenceTab({
       role="tabpanel"
       aria-label="Evidence"
       data-simple-case-evidence
+      style={{ display: "flex", flexDirection: "column", gap: "var(--pv2-space-6)" }}
     >
       {/* Phase CASES-ATTACH-PICKER (Final) — the tab body no longer
           renders an Add-evidence button. The page header owns the
           single canonical entry point so the user can attach from
           any tab without duplicate affordances. */}
       {items.length === 0 ? (
-        <div
-          className="cases-panel"
-          data-simple-case-evidence-empty
-          style={{ padding: 32 }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-              gap: 6,
-              color: "#475569",
-            }}
-          >
-            <strong style={{ color: "#172033", fontSize: 15 }}>
-              No evidence linked yet.
-            </strong>
-            <p style={{ margin: 0, fontSize: 13, maxWidth: "42ch" }}>
-              Use <em>Add evidence</em> above to link files, photos,
-              videos, or documents to this case.
-            </p>
-          </div>
-        </div>
+        <Surface variant="panel" data-simple-case-evidence-empty>
+          <StateBlock
+            title="No evidence linked yet."
+            description={
+              <>
+                Use <em>Add evidence</em> above to link files, photos,
+                videos, or documents to this case.
+              </>
+            }
+          />
+        </Surface>
       ) : (
-        // §18 — one `.cases-panel` container with a proper row list
-        // (filename + record ID secondary + type + integrity + report
-        // + package + added + quick actions). Not one card per record.
-        <div className="cases-panel" style={{ padding: 8 }}>
-          {/* §8 — the duplicate in-tab "Add evidence" button was removed:
-              the case header owns the single canonical Add-evidence action,
-              so a second primary button here was a redundant affordance.
-              The search (which really filters the list client-side by
-              name/type/status/record id) stays and now spans the row. */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 10px 10px",
-            }}
-          >
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search linked evidence by name, type, or record ID"
-              aria-label="Search linked evidence"
-              data-simple-case-evidence-search
-              className="cases-filter-search"
-              style={{ flex: 1, height: 40 }}
-            />
-          </div>
-          <ul
-            className="cases-list"
-            data-simple-case-evidence-items
-          >
+        <>
+          {/* Figma "Input" — 56px tall, 16px padding, 1px #E2E8F0,
+              radius 8. The search really filters the list client-side
+              by name / type / status / record id; semantics unchanged. */}
+          <SearchField
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Search linked evidence by name, type, or record ID"
+            ariaLabel="Search linked evidence"
+            data-simple-case-evidence-search
+          />
+
+          {/* Figma "Row Item (Default)" — one white card per record,
+              24px padding, radius 16, 24px gap between rows. */}
+          <ul className="pv2-rows" data-simple-case-evidence-items>
             {visibleItems.map((item) => (
-              <li
+              <Surface
+                as="li"
+                variant="flush"
                 key={item.id}
-                className="cases-row"
+                className="pv2-row"
                 data-simple-case-evidence-item={item.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "12px 12px",
-                }}
               >
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 650,
-                      color: "#172033",
-                      fontSize: 14,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                <div className="pv2-row-main">
+                  <h3
+                    className="pv2-row-title"
                     data-simple-case-evidence-title
+                    title={getDisplayTitle(item)}
                   >
                     {getDisplayTitle(item)}
-                  </div>
-                  <div
-                    className="cc-muted"
-                    style={{
-                      fontSize: 12,
-                      display: "flex",
-                      gap: 8,
-                      color: "#64748b",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      marginTop: 3,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily:
-                          'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-                        fontSize: 11,
-                        color: "#94a3b8",
-                      }}
-                    >
-                      {item.id.slice(0, 8)}
-                    </span>
-                    <span aria-hidden>·</span>
+                  </h3>
+                  <div className="cc-muted pv2-row-meta">
+                    <span className="pv2-row-meta-id">{item.id.slice(0, 8)}</span>
+                    <span aria-hidden>•</span>
                     <span>{item.type}</span>
-                    <span aria-hidden>·</span>
+                    <span aria-hidden>•</span>
                     <span>{item.status}</span>
                     {item.verificationStatus ? (
                       <>
-                        <span aria-hidden>·</span>
+                        <span aria-hidden>•</span>
                         <span data-simple-case-evidence-verification={item.verificationStatus}>
                           {item.verificationStatus.replace(/_/g, " ").toLowerCase()}
                         </span>
                       </>
                     ) : null}
-                    <span aria-hidden>·</span>
+                    <span aria-hidden>•</span>
                     <span>
                       {item.reportReady ? "Report ready" : "Report missing"}
                     </span>
-                    <span aria-hidden>·</span>
+                    <span aria-hidden>•</span>
                     <span>
                       {item.packageReady ? "Package ready" : "Package missing"}
                     </span>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  <CaseButton
-                    variant="secondary"
+                <div className="pv2-row-actions">
+                  <V2Button
+                    tone="outline"
                     onClick={() => onOpenEvidence(item.id)}
                     data-simple-case-evidence-open={item.id}
                   >
                     Open
-                  </CaseButton>
+                  </V2Button>
                   {/* Phase CASES-PERSONAL-UX-CLEANUP — the previous
                       code disabled this button when `linkId === null`
                       (legacy `Evidence.caseId` attachment, common for
@@ -1438,7 +1083,7 @@ function EvidenceTab({
                       stays authoritative. */}
                   <button
                     type="button"
-                    className="cases-remove-action"
+                    className="pv2-btn pv2-btn--danger cases-remove-action"
                     disabled={
                       busyId === item.id ||
                       // Allow either the canonical or the legacy unlink
@@ -1464,19 +1109,21 @@ function EvidenceTab({
                     Remove from case
                   </button>
                 </div>
-              </li>
+              </Surface>
             ))}
           </ul>
           {visibleItems.length === 0 ? (
-            <p
-              className="cc-muted"
-              data-simple-case-evidence-no-match
-              style={{ padding: "14px 12px", margin: 0, color: "#64748b", fontSize: 13 }}
-            >
-              No linked evidence matches your search.
-            </p>
+            <Surface variant="panel">
+              <p
+                className="cc-muted pv2-attention-text"
+                data-simple-case-evidence-no-match
+                style={{ margin: 0 }}
+              >
+                No linked evidence matches your search.
+              </p>
+            </Surface>
           ) : null}
-        </div>
+        </>
       )}
     </section>
   );

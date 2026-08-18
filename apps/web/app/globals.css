@@ -12,6 +12,12 @@
 @import "../components/cases-experience/cases-experience.css";
 @import "../components/workspace-admin/workspace-admin.css";
 @import "../components/notifications/notifications.css";
+/* PROOVRA V2 foundation — Figma-derived tokens + `.pv2-*` primitives, plus
+   shell chrome overrides scoped to `:root[data-pv2-surface]`. Inert until a
+   route opts in via `useProovraV2Surface()`, so shipping it globally does
+   not migrate any page on its own. MUST come after app-shell-v2.css so the
+   scoped chrome overrides win by order, not by !important. */
+@import "../components/proovra-v2/proovra-v2.css";
 @import "./font-strategy.css"; /* POINT 7: remote Jakarta @import deleted; app/fonts.ts self-hosts it */
 
 /* Cookie-banner scope — the cookie consent banner (vanilla-cookieconsent
