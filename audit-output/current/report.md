@@ -18,13 +18,11 @@ Every number below is produced by an analyzer executed at generation time and re
 
 ## Provenance
 
-| field          | value                                                            |
-| -------------- | ---------------------------------------------------------------- |
-| engineVersion  | audit-engine@1.0.0                                               |
-| engineHash     | 4cb8e7d953694dc36e59616fb467cb7efb2acf8205e4be48d7bc476600b05137 |
-| sourceRevision | 056e5cbf1e9b6ca3c6949ab365b07884a234b2a6                         |
-| generatedAtUtc | 2026-08-19T05:29:33.181Z                                         |
-| schemaVersion  | architecture-facts@1                                             |
+| field         | value                                                            |
+| ------------- | ---------------------------------------------------------------- |
+| engineVersion | audit-engine@1.0.0                                               |
+| engineHash    | 41428741a39d4ab75fb61d850d3629a2bdee416e7c9e1b01bd571f1eff5066ee |
+| schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
@@ -143,18 +141,14 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 
 ### Phase-0 change set
 
-| counter                                | value                                    |
-| -------------------------------------- | ---------------------------------------- |
-| baseline                               | GIT_COMMIT                               |
-| baselineRef                            | 056e5cbf1e9b6ca3c6949ab365b07884a234b2a6 |
-| changedPaths                           | 17                                       |
-| added                                  | 2                                        |
-| modified                               | 15                                       |
-| deleted                                | 0                                        |
-| attributedToPhase0                     | 6                                        |
-| productionRuntimeFilesModifiedByPhase0 | 0                                        |
-| productBehaviorTestsRemoved            | 0                                        |
-| historicalMigrationsModifiedByPhase0   | 0                                        |
+| counter                           | value      |
+| --------------------------------- | ---------- |
+| baseline                          | GIT_COMMIT |
+| derivedFromBaseline               | true       |
+| selfGeneratedPathsDeclared        | 5          |
+| undeclaredSelfGeneratedExclusions | 0          |
+
+The COUNTS are not recorded in the artifact. They describe the working tree the run happened to execute against, so a document holding them could never agree with the next run once the change was committed. The run prints them, and every Phase-0 assertion is raised from the live evaluation rather than from this document.
 
 Derived by diffing the working tree against the HEAD commit, so the set is complete — a path cannot be omitted the way it could from the hand-maintained prefix list this replaced. Attribution within the set is content-derived; no artifact records the tree at the instant Phase 0 began, so a change cannot be differentially attributed to Phase 0 versus pre-existing work. The three safety counters do not rely on that: they hold because no runtime file carries a Phase-0 signal, no test was deleted anywhere, and no migration changed at all.
 

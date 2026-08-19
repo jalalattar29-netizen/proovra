@@ -153,16 +153,20 @@ export async function buildTestCallerDiagnostic(capabilityArtifact) {
       "\"no suite exercises this route\".",
     supersedes: "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
     schemaVersion: "test-caller-diagnostic@1",
-    sourceRevision: capabilityArtifact.sourceRevision,
     analyzerHash: analyzerHash(),
     capabilityRouteInventoryHash: capabilityArtifact.routeInventoryHash,
     totals,
     rows: rows.sort((a, b) => a.routeId.localeCompare(b.routeId)),
   };
 
-  // `generatedAtUtc` is added AFTER the content hash is taken. Hashing it would
-  // change the digest on every run, which would make the freshness comparison
-  // fail for a reason that has nothing to do with the content — and a staleness
-  // gate that always fires is a staleness gate that gets switched off.
-  return { generatedAtUtc: new Date().toISOString(), ...body, contentHash: sha256(body) };
+  // No `generatedAtUtc` at all. Keeping it out of the CONTENT HASH was already
+  // right for the reason below; writing it into the file was still enough to
+  // make the artifact differ on every run, which is the same defect one level
+  // out. The run prints the timestamp.
+  //
+  //   (original rationale) hashing a timestamp changes the digest on every
+  //   run, which would make the freshness comparison fail for a reason that
+  //   has nothing to do with the content — and a staleness gate that always
+  //   fires is a staleness gate that gets switched off.
+  return { ...body, contentHash: sha256(body) };
 }

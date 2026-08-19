@@ -139,277 +139,6 @@
     "HistoricalMigrationsModifiedByPhase0": 0,
     "ProductBehaviorTestsInventoried": 158
   },
-  "phase0ExitCounters": {
-    "canonicalAuditEntryPoints": 1,
-    "canonicalRouteAuthorities": 1,
-    "canonicalConsumerAuthorities": 1,
-    "canonicalCapabilityMaps": 1,
-    "canonicalLedgerSources": 1,
-    "canonicalCurrentReports": 1,
-    "independentRegexRouteScanners": 0,
-    "independentTextConsumerScanners": 0,
-    "independentRouteInventories": 0,
-    "independentConsumerInventories": 0,
-    "duplicateFindingsLedgers": 0,
-    "handMaintainedAuditCounts": 0,
-    "handMaintainedLedgerTotals": 0,
-    "gatesReadingHistoricalReports": 0,
-    "historicalReportsUsedAsAuthority": 0,
-    "artifactsWithMultipleProducers": 0,
-    "auditDependencyCycles": 0,
-    "generatorsReadingOwnOutputsAsFacts": 0,
-    "obsoleteAuditScripts": 0,
-    "regenerableTempArtifacts": 0,
-    "testsReadingRetiredAuditArtifacts": 0,
-    "auditEngineDuplicateTests": 0,
-    "auditFilesUnclassified": 0,
-    "untrackedAuditFilesUnclassified": 0,
-    "reportRelatedEntries": 25,
-    "reportDocuments": 24,
-    "currentGeneratedReports": 1,
-    "historicalReports": 22,
-    "domainReportTemplates": 1,
-    "misclassifiedReportDocuments": 0,
-    "historyTreeMarkers": 1,
-    "nonAuditProductReportTemplates": 0,
-    "reportRoleOverlap": 0,
-    "reportRoleMissing": 0,
-    "reportRoleConservationFailures": 0,
-    "ambiguousReportRoles": 0,
-    "phase0ChangedPathsDerivedFromBaseline": true,
-    "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "056e5cbf1e9b6ca3c6949ab365b07884a234b2a6",
-    "phase0ChangedPaths": 17,
-    "phase0AddedPaths": 2,
-    "phase0ModifiedPaths": 15,
-    "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 6,
-    "phase0SelfGeneratedPathsDeclared": 5,
-    "phase0UndeclaredSelfGeneratedExclusions": 0,
-    "phase0ChangedPathsFromManualDeclaration": 0,
-    "undeclaredPhase0ChangedPaths": 0,
-    "phase0ChangedPathClassificationMissing": 0,
-    "manualPhase0ChangeInventories": 0,
-    "productionRuntimeFilesModifiedByPhase0": 0,
-    "productBehaviorTestsRemoved": 0,
-    "historicalMigrationsModifiedByPhase0": 0,
-    "uniqueAuthoritativeAuditEvidenceLost": 0,
-    "retiredNonAuthoritativeDiagnosticArtifacts": 1,
-    "replacementHistoricalDiagnostics": 1,
-    "uniqueAuditEvidenceLost": 0,
-    "deletedDiagnosticCurrentConsumers": 0,
-    "deletedDiagnosticDecisionConsumers": 0,
-    "deletedArtifactConsumersUnresolved": 0,
-    "historicalDiagnosticCreditedAsAuthority": 0,
-    "diagnosticsReadAsAuthority": 0,
-    "recoveryManifestInsideRepository": 0,
-    "temporaryGitAuditState": 0,
-    "recoveryStateLossRisk": 0,
-    "nonDelegatingLegacyAuditScripts": 0,
-    "ciUsingDeprecatedAuditTools": 0,
-    "ciEngineCheckInstalled": true
-  },
-  "phase0ChangeSet": {
-    "baseline": "056e5cbf1e9b6ca3c6949ab365b07884a234b2a6",
-    "baselineKind": "GIT_COMMIT",
-    "entries": [
-      {
-        "path": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/evidence-library.css",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/register/page.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/reset-password/page.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/cases-experience/matter-modals/Modal.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/components/marketing/EnterpriseSuccessModal.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/scripts/audit/engine/facts.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/scripts/audit/engine/governance.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/scripts/audit/engine/registry.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/scripts/audit/index.mjs",
-        "status": "MODIFIED",
-        "class": "AUDIT_TOOLING",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "services/api/test/capability-authority-modules.d.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-0-audit-engine-governance.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "apps/web/__tests__/render/visually-hidden-accessibility.render.test.tsx",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "services/api/test/phase-0-audit-self-reference.test.ts",
-        "status": "ADDED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": true,
-          "byEngineRef": true,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      }
-    ],
-    "selfGeneratedDeclared": [
-      "audit-output/current/architecture-facts.json",
-      "audit-output/current/audit-governance-inventory.json",
-      "audit-output/current/report.md",
-      "audit-output/diagnostics/test-caller-diagnostic.json",
-      "docs/architecture/current-runtime-capability-map.json"
-    ],
-    "undeclaredSelfGeneratedExclusions": 0
-  },
   "reportRoles": {
     "counts": {
       "ReportRelatedEntries": 25,
@@ -4968,5 +4697,78 @@
       "sourceOfTruthFor": [],
       "disposition": "RETAINED"
     }
-  ]
+  ],
+  "phase0ExitCounters": {
+    "canonicalAuditEntryPoints": 1,
+    "canonicalRouteAuthorities": 1,
+    "canonicalConsumerAuthorities": 1,
+    "canonicalCapabilityMaps": 1,
+    "canonicalLedgerSources": 1,
+    "canonicalCurrentReports": 1,
+    "independentRegexRouteScanners": 0,
+    "independentTextConsumerScanners": 0,
+    "independentRouteInventories": 0,
+    "independentConsumerInventories": 0,
+    "duplicateFindingsLedgers": 0,
+    "handMaintainedAuditCounts": 0,
+    "handMaintainedLedgerTotals": 0,
+    "gatesReadingHistoricalReports": 0,
+    "historicalReportsUsedAsAuthority": 0,
+    "artifactsWithMultipleProducers": 0,
+    "auditDependencyCycles": 0,
+    "generatorsReadingOwnOutputsAsFacts": 0,
+    "obsoleteAuditScripts": 0,
+    "regenerableTempArtifacts": 0,
+    "testsReadingRetiredAuditArtifacts": 0,
+    "auditEngineDuplicateTests": 0,
+    "auditFilesUnclassified": 0,
+    "untrackedAuditFilesUnclassified": 0,
+    "reportRelatedEntries": 25,
+    "reportDocuments": 24,
+    "currentGeneratedReports": 1,
+    "historicalReports": 22,
+    "domainReportTemplates": 1,
+    "misclassifiedReportDocuments": 0,
+    "historyTreeMarkers": 1,
+    "nonAuditProductReportTemplates": 0,
+    "reportRoleOverlap": 0,
+    "reportRoleMissing": 0,
+    "reportRoleConservationFailures": 0,
+    "ambiguousReportRoles": 0,
+    "phase0ChangedPathsDerivedFromBaseline": true,
+    "phase0BaselineKind": "GIT_COMMIT",
+    "phase0SelfGeneratedPathsDeclared": 5,
+    "phase0UndeclaredSelfGeneratedExclusions": 0,
+    "phase0ChangedPathsFromManualDeclaration": 0,
+    "undeclaredPhase0ChangedPaths": 0,
+    "phase0ChangedPathClassificationMissing": 0,
+    "manualPhase0ChangeInventories": 0,
+    "uniqueAuthoritativeAuditEvidenceLost": 0,
+    "retiredNonAuthoritativeDiagnosticArtifacts": 1,
+    "replacementHistoricalDiagnostics": 1,
+    "uniqueAuditEvidenceLost": 0,
+    "deletedDiagnosticCurrentConsumers": 0,
+    "deletedDiagnosticDecisionConsumers": 0,
+    "deletedArtifactConsumersUnresolved": 0,
+    "historicalDiagnosticCreditedAsAuthority": 0,
+    "diagnosticsReadAsAuthority": 0,
+    "recoveryManifestInsideRepository": 0,
+    "temporaryGitAuditState": 0,
+    "recoveryStateLossRisk": 0,
+    "nonDelegatingLegacyAuditScripts": 0,
+    "ciUsingDeprecatedAuditTools": 0,
+    "ciEngineCheckInstalled": true
+  },
+  "phase0ChangeSet": {
+    "note": "The working-tree change set is REPORTED by the run, not recorded here: it describes the checkout the run executed against, so persisting it would make this artifact disagree with the next run the moment the change is committed. Every Phase-0 assertion is raised from the live evaluation.",
+    "baselineKind": "GIT_COMMIT",
+    "selfGeneratedDeclared": [
+      "audit-output/current/architecture-facts.json",
+      "audit-output/current/audit-governance-inventory.json",
+      "audit-output/current/report.md",
+      "audit-output/diagnostics/test-caller-diagnostic.json",
+      "docs/architecture/current-runtime-capability-map.json"
+    ],
+    "undeclaredSelfGeneratedExclusions": 0
+  }
 }

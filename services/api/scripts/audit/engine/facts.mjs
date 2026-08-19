@@ -447,8 +447,11 @@ export async function buildFacts() {
 
   const document = {
     schemaVersion: FACTS_SCHEMA_VERSION,
-    generatedAtUtc: new Date().toISOString(),
-    sourceRevision: sourceRevision(),
+    // NO `generatedAtUtc` and NO `sourceRevision`. Both are metadata about the
+    // RUN, and persisting them made the artifact impossible to keep current:
+    // an artifact recording the revision it belongs to would have to contain
+    // the hash of the commit that contains it. The run banner prints them,
+    // which is where a log belongs.
     releaseCandidateId: null,
     engineVersion: ENGINE_VERSION,
     engineHash: freshnessHash(),
@@ -469,28 +472,24 @@ export async function buildFacts() {
     // Phase-0's own change set, derived from the HEAD baseline. Carried in the
     // facts so the report renders it from a record rather than from prose.
     phase0: {
+      // ONLY the parts that are a function of the committed SOURCE.
+      //
+      // The change set itself answers "what differs between this working tree
+      // and HEAD" — a property of somebody local checkout, the same category
+      // the registry already refuses to keep in the artifact tree. It is
+      // reported in the run banner and asserted live in `engineProblems()`;
+      // persisting it made the artifact differ before and after every commit,
+      // which is what kept the freshness gate permanently red.
       note:
-        "Describes the WORKING TREE at the moment this artifact was generated, not the committed revision. " +
-        "It cannot be stable across a commit — the artifact is written while a change is uncommitted and read " +
-        "back after it is committed — so the checkout-dependent fields here are excluded from the staleness " +
-        "comparison. Every Phase-0 assertion is still raised from the live evaluation, never from this record.",
+        "The Phase-0 change set is a property of the working tree, not of the committed revision, " +
+        "so it is REPORTED by the run rather than recorded here. Every Phase-0 assertion is raised " +
+        "from the live evaluation. Only the source-derived parts are persisted.",
       baselineKind: governance.phase0ChangeSet?.baselineKind ?? null,
-      baselineRef: governance.phase0ChangeSet?.baseline ?? null,
-      changedPaths: governance.phase0ExitCounters.phase0ChangedPaths,
-      addedPaths: governance.phase0ExitCounters.phase0AddedPaths,
-      modifiedPaths: governance.phase0ExitCounters.phase0ModifiedPaths,
-      deletedPaths: governance.phase0ExitCounters.phase0DeletedPaths,
-      attributedPaths: governance.phase0ExitCounters.phase0AttributedPaths,
-      productionRuntimeFilesModifiedByPhase0:
-        governance.phase0ExitCounters.productionRuntimeFilesModifiedByPhase0,
-      productBehaviorTestsRemoved: governance.phase0ExitCounters.productBehaviorTestsRemoved,
-      historicalMigrationsModifiedByPhase0:
-        governance.phase0ExitCounters.historicalMigrationsModifiedByPhase0,
       derivedFromBaseline: governance.phase0ExitCounters.phase0ChangedPathsDerivedFromBaseline,
-      // The engine's own generated outputs are held out of the change set so a
-      // run cannot measure its own writes. Both numbers are recorded, and
+      // The engine own generated outputs are held out of the change set so a
+      // run cannot measure its own writes. The DECLARATION is a constant, and
       // `undeclaredSelfGeneratedExclusions` is gated to 0 by the engine check,
-      // so the hold-out can never widen past the registry's declaration.
+      // so the hold-out can never widen past the registry declaration.
       selfGeneratedPathsDeclared:
         governance.phase0ExitCounters.phase0SelfGeneratedPathsDeclared,
       undeclaredSelfGeneratedExclusions:

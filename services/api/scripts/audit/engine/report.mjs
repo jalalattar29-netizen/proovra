@@ -118,8 +118,6 @@ export function renderReport(facts, engineProblems, closureProblems) {
       [
         ["engineVersion", facts.engineVersion ?? ENGINE_VERSION],
         ["engineHash", facts.engineHash],
-        ["sourceRevision", facts.sourceRevision ?? "(no git)"],
-        ["generatedAtUtc", facts.generatedAtUtc],
         ["schemaVersion", facts.schemaVersion],
       ],
     ),
@@ -194,23 +192,24 @@ export function renderReport(facts, engineProblems, closureProblems) {
   }
 
   // --- what Phase 0 itself changed -------------------------------------------
-  if (g.Phase0ChangedPaths !== undefined || facts.phase0 !== undefined) {
+  if (facts.phase0 !== undefined) {
     const p = facts.phase0 ?? {};
     w("### Phase-0 change set");
     w();
     w(
       counterTable({
         baseline: p.baselineKind ?? "GIT_COMMIT",
-        baselineRef: p.baselineRef ?? "(unknown)",
-        changedPaths: p.changedPaths ?? 0,
-        added: p.addedPaths ?? 0,
-        modified: p.modifiedPaths ?? 0,
-        deleted: p.deletedPaths ?? 0,
-        attributedToPhase0: p.attributedPaths ?? 0,
-        productionRuntimeFilesModifiedByPhase0: p.productionRuntimeFilesModifiedByPhase0 ?? 0,
-        productBehaviorTestsRemoved: p.productBehaviorTestsRemoved ?? 0,
-        historicalMigrationsModifiedByPhase0: p.historicalMigrationsModifiedByPhase0 ?? 0,
+        derivedFromBaseline: p.derivedFromBaseline ?? false,
+        selfGeneratedPathsDeclared: p.selfGeneratedPathsDeclared ?? 0,
+        undeclaredSelfGeneratedExclusions: p.undeclaredSelfGeneratedExclusions ?? 0,
       }),
+    );
+    w();
+    w(
+      "The COUNTS are not recorded in the artifact. They describe the working tree the run " +
+        "happened to execute against, so a document holding them could never agree with the " +
+        "next run once the change was committed. The run prints them, and every Phase-0 " +
+        "assertion is raised from the live evaluation rather than from this document.",
     );
     w();
     w(

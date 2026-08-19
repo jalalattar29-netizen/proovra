@@ -1269,6 +1269,46 @@ export function evaluateGovernance() {
   };
 }
 
+/**
+ * The inventory as it is WRITTEN TO DISK.
+ *
+ * `evaluateGovernance()` returns the working-tree change set because every
+ * Phase-0 gate is evaluated from it. None of that may be PERSISTED: it describes
+ * the checkout the run happened to execute against, so an artifact holding it is
+ * written while a change is uncommitted and read back after it is committed, and
+ * can never agree with the next run. That is precisely what kept the freshness
+ * gate red at every commit in this repository's history.
+ *
+ * What stays is everything derived from the committed source, plus the two
+ * Phase-0 values that are constants: the size of the registry's declared
+ * self-generated hold-out, and the count of exclusions outside it (0, gated).
+ */
+const CHECKOUT_COUNTER =
+  /^(phase0(BaselineRef|ChangedPaths|AddedPaths|ModifiedPaths|DeletedPaths|AttributedPaths)|productionRuntimeFilesModifiedByPhase0|productBehaviorTestsRemoved|historicalMigrationsModifiedByPhase0)$/;
+
+export function persistableGovernance(governance) {
+  const { phase0ChangeSet, phase0ExitCounters, ...rest } = governance;
+  const counters = {};
+  for (const [k, v] of Object.entries(phase0ExitCounters ?? {})) {
+    if (!CHECKOUT_COUNTER.test(k)) counters[k] = v;
+  }
+  return {
+    ...rest,
+    phase0ExitCounters: counters,
+    phase0ChangeSet: {
+      note:
+        "The working-tree change set is REPORTED by the run, not recorded here: it describes the " +
+        "checkout the run executed against, so persisting it would make this artifact disagree " +
+        "with the next run the moment the change is committed. Every Phase-0 assertion is raised " +
+        "from the live evaluation.",
+      baselineKind: phase0ChangeSet?.baselineKind ?? null,
+      selfGeneratedDeclared: phase0ChangeSet?.selfGeneratedDeclared ?? [],
+      undeclaredSelfGeneratedExclusions:
+        phase0ChangeSet?.undeclaredSelfGeneratedExclusions ?? 0,
+    },
+  };
+}
+
 const safeRead = (r) => {
   try {
     return read(path.join(REPO, r));

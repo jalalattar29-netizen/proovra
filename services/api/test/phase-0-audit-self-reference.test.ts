@@ -76,6 +76,34 @@ const p0 = (v: string | string[]): string => (Array.isArray(v) ? v[0] : v);
 const facts = () =>
   JSON.parse(readFileSync(path.join(REPO, p0(CANONICAL.currentFacts.path)), "utf8"));
 
+/** Byte state of every artifact a run writes. */
+const artifactBytes = () =>
+  ENGINE_GENERATED_PATHS.map(
+    (rel) => rel + ":" + readFileSync(path.join(REPO, rel), "utf8"),
+  );
+
+/**
+ * The run banner's working-tree change set. It is printed rather than
+ * persisted because it describes the checkout, not the committed source.
+ */
+function bannerChangeSet(out: string): Record<string, number | string | null> {
+  const start = out.indexOf("=== RUN ===");
+  const json = out.slice(out.indexOf("{", start));
+  let depth = 0;
+  let end = -1;
+  for (let i = 0; i < json.length; i += 1) {
+    if (json[i] === "{") depth += 1;
+    else if (json[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  return JSON.parse(json.slice(0, end)).workingTreeChangeSet;
+}
+
 // ---------------------------------------------------------------------------
 // 1. The hold-out is exactly the declaration
 // ---------------------------------------------------------------------------
@@ -141,28 +169,33 @@ describe("phase-0 self-reference — deterministic and non-dirtying", () => {
       expect(first.code).toBe(0);
       expect(dirtyTracked(), "first run must not dirty the tree").toEqual([]);
       const firstFacts = facts();
+      const afterFirst = artifactBytes();
 
       const second = runAudit();
       expect(second.out, "second run must pass").toContain("AuditEngineIntegrity = PASS");
       expect(second.code).toBe(0);
       expect(dirtyTracked(), "second run must not dirty the tree").toEqual([]);
       const secondFacts = facts();
+      const afterSecond = artifactBytes();
 
-      // Identical output apart from the two fields that are metadata about the
-      // RUN rather than measurements of the tree.
-      const stable = (f: Record<string, unknown>) => {
-        const c = JSON.parse(JSON.stringify(f));
-        delete c.generatedAtUtc;
-        delete c.sourceRevision;
-        return c;
-      };
-      expect(stable(secondFacts)).toEqual(stable(firstFacts));
+      // Byte-identical, with nothing normalised away. Nothing volatile is
+      // persisted any more, so the comparison can be exact.
+      expect(secondFacts).toEqual(firstFacts);
+      expect(afterSecond).toEqual(afterFirst);
 
       // A clean tree really does mean zero changed SOURCE paths — the number
       // that used to read 3 purely because of the engine's own writes.
-      expect(firstFacts.phase0.changedPaths).toBe(0);
+      expect(bannerChangeSet(first.out).changedPaths).toBe(0);
+      expect(bannerChangeSet(second.out).changedPaths).toBe(0);
+
+      // The persisted facts carry only source-derived Phase-0 values.
       expect(firstFacts.phase0.undeclaredSelfGeneratedExclusions).toBe(0);
       expect(firstFacts.phase0.selfGeneratedPathsDeclared).toBe(ENGINE_GENERATED_PATHS.length);
+      // Run metadata may not be persisted at all: an artifact recording the
+      // revision it belongs to can never be current.
+      expect(firstFacts.sourceRevision).toBeUndefined();
+      expect(firstFacts.generatedAtUtc).toBeUndefined();
+      expect(firstFacts.phase0.changedPaths).toBeUndefined();
     },
     AUDIT_TIMEOUT,
   );
@@ -188,12 +221,12 @@ describe("phase-0 self-reference — real drift still registers", () => {
       const original = readFileSync(abs, "utf8");
       try {
         writeFileSync(abs, `${original}\n// phase-0 drift probe\n`);
-        runAudit();
-        const f = facts();
-        expect(f.phase0.changedPaths).toBeGreaterThan(0);
-        expect(f.phase0.modifiedPaths).toBeGreaterThan(0);
+        const run = runAudit();
+        const cs = bannerChangeSet(run.out);
+        expect(cs.changedPaths).toBeGreaterThan(0);
+        expect(cs.modified).toBeGreaterThan(0);
         // And it is attributed to the production runtime, not swallowed.
-        expect(f.phase0.productionRuntimeFilesModifiedByPhase0).toBeGreaterThan(0);
+        expect(cs.productionRuntimeFilesModifiedByPhase0).toBeGreaterThan(0);
       } finally {
         writeFileSync(abs, original);
         // Put the generated artifacts back the way the committed tree has them.
@@ -219,8 +252,8 @@ describe("phase-0 self-reference — real drift still registers", () => {
       const original = readFileSync(abs, "utf8");
       try {
         writeFileSync(abs, `${original}\n`);
-        runAudit();
-        expect(facts().phase0.changedPaths).toBeGreaterThan(0);
+        const run = runAudit();
+        expect(bannerChangeSet(run.out).changedPaths).toBeGreaterThan(0);
       } finally {
         writeFileSync(abs, original);
         runAudit();

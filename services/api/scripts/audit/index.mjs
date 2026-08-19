@@ -31,13 +31,14 @@
  * so no second exit-code semantics and no second opinion can grow back.
  */
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { REPO, CANONICAL, DIAGNOSTICS } from "./engine/registry.mjs";
-import { evaluateGovernance } from "./engine/governance.mjs";
+import { evaluateGovernance, persistableGovernance } from "./engine/governance.mjs";
 import {
   buildFacts,
   engineProblems,
@@ -70,71 +71,77 @@ function writeArtifact(rel, value) {
  * comparing them would make the gate fail for reasons that have nothing to do
  * with the artifact being stale — which is how a staleness gate gets disabled.
  *
- * The Phase-0 CHANGE SET is the same kind of value, and missing that cost this
- * repository a permanently-failing gate. It answers "what differs between this
- * WORKING TREE and HEAD" — a property of somebody's local checkout, exactly
- * like the recovery manifest the registry already refuses to keep in the
- * artifact tree. It cannot be stable across a commit by construction: the
- * artifact is generated while the change is uncommitted (N paths differ) and
- * read back after it is committed (0 differ). So an artifact recording it could
- * never agree with the next run, at any commit, forever — and the only way to
- * see the gate pass was to leave the worktree dirty.
+ * That normalisation is now VESTIGIAL and deliberately kept as a backstop: no
+ * artifact carries either field any more. Both, and the Phase-0 change set with
+ * them, moved to the run banner, because none of them is a measurement of the
+ * source:
  *
- * Normalising it here removes NOTHING from the gates. Every Phase-0 assertion —
- * unclassified changed paths, a production runtime file carrying a Phase-0
- * signal, a deleted product-behaviour test, a rewritten historical migration —
- * is raised from the LIVE evaluation in `engineProblems()`, never from the
- * artifact on disk. The values stay in the artifact so a developer can read
- * their own change set; they simply stop being evidence of staleness.
+ *   - `sourceRevision` is self-referential. An artifact recording the revision
+ *     it belongs to would have to contain the hash of the commit that contains
+ *     it, so it is wrong the instant it is committed.
+ *   - `generatedAtUtc` is wall-clock. It differed on every run by construction.
+ *   - the change set answers "what differs between this WORKING TREE and HEAD"
+ *     — a property of somebody's local checkout, the same category as the
+ *     recovery manifest the registry already refuses to keep in the artifact
+ *     tree. It is written while a change is uncommitted (N paths differ) and
+ *     read back after it is committed (0 differ).
  *
- * Everything that measures the SOURCE — route inventory, consumer inventory,
- * authorization, tenant binding, capability classification, conservation,
- * ledger, proof freshness, the audit system's own inventory — is compared byte
- * for byte, unchanged.
+ * Together they made every artifact differ from itself across every commit, so
+ * the freshness gate was permanently red and the only way to see it pass was to
+ * leave the worktree dirty. With them gone the artifacts are a pure function of
+ * the committed source, and this comparison can be exact.
+ *
+ * Nothing is removed from the GATES. Every Phase-0 assertion — unclassified
+ * changed paths, a production runtime file carrying a Phase-0 signal, a deleted
+ * product-behaviour test, a rewritten historical migration — is raised from the
+ * LIVE evaluation in `engineProblems()`, never from an artifact on disk.
  */
 const VOLATILE = /"(generatedAtUtc|sourceRevision)": "[^"]*"/g;
 const stripVolatile = (s) => s.replace(VOLATILE, '"$1": "-"');
 
-/** Keys inside `phase0ExitCounters` that describe the checkout, not the source. */
-const CHECKOUT_COUNTER = /^(phase0(BaselineRef|ChangedPaths|AddedPaths|ModifiedPaths|DeletedPaths|AttributedPaths)|productionRuntimeFilesModifiedByPhase0|productBehaviorTestsRemoved|historicalMigrationsModifiedByPhase0)$/;
-
-/** Keys inside the facts' `phase0` block that describe the checkout. */
-const CHECKOUT_FACT = /^(baselineRef|changedPaths|addedPaths|modifiedPaths|deletedPaths|attributedPaths|productionRuntimeFilesModifiedByPhase0|productBehaviorTestsRemoved|historicalMigrationsModifiedByPhase0)$/;
-
-function maskCheckoutState(parsed) {
-  if (!parsed || typeof parsed !== "object") return parsed;
-  const c = JSON.parse(JSON.stringify(parsed));
-  // architecture-facts.json
-  if (c.phase0 && typeof c.phase0 === "object") {
-    for (const k of Object.keys(c.phase0)) if (CHECKOUT_FACT.test(k)) c.phase0[k] = "-";
-  }
-  // audit-governance-inventory.json
-  if (c.phase0ChangeSet !== undefined) c.phase0ChangeSet = "-";
-  if (c.phase0ExitCounters && typeof c.phase0ExitCounters === "object") {
-    for (const k of Object.keys(c.phase0ExitCounters)) {
-      if (CHECKOUT_COUNTER.test(k)) c.phase0ExitCounters[k] = "-";
-    }
-  }
-  return c;
-}
-
-/** Serialised form used ONLY for the staleness comparison. */
-function comparable(value) {
-  return stripVolatile(serialize(maskCheckoutState(value)));
-}
-
 function staleness(rel, regenerated) {
   const target = abs(rel);
   if (!existsSync(target)) return `MISSING: ${rel} — run \`pnpm audit:architecture\` to generate it`;
-  let onDisk;
-  try {
-    onDisk = JSON.parse(readFileSync(target, "utf8"));
-  } catch {
-    return `UNREADABLE: ${rel} — regenerate with \`pnpm audit:architecture\``;
-  }
-  if (comparable(onDisk) !== comparable(regenerated))
+  const onDisk = readFileSync(target, "utf8").replace(/\r\n/g, "\n");
+  if (stripVolatile(onDisk) !== stripVolatile(serialize(regenerated)))
     return `STALE: ${rel} — regenerate with \`pnpm audit:architecture\``;
   return null;
+}
+
+/**
+ * The RUN banner: everything true of this execution rather than of the source.
+ *
+ * These used to be written into the artifacts, which is what made them
+ * impossible to keep current — an artifact recording the revision it belongs to
+ * would have to contain the hash of the commit that contains it, and one
+ * recording the working-tree diff is written while a change is uncommitted and
+ * read back after it is committed. A log is the right home for both.
+ */
+function printRunBanner(governance) {
+  let head = "(no git)";
+  try {
+    head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO, encoding: "utf8" }).trim();
+  } catch {
+    /* no git — reported as such, never guessed */
+  }
+  const c = governance?.phase0ExitCounters ?? {};
+  print("RUN", {
+    sourceRevision: head,
+    generatedAtUtc: new Date().toISOString(),
+    workingTreeChangeSet: {
+      baselineKind: c.phase0BaselineKind ?? null,
+      baselineRef: c.phase0BaselineRef ?? null,
+      changedPaths: c.phase0ChangedPaths ?? 0,
+      added: c.phase0AddedPaths ?? 0,
+      modified: c.phase0ModifiedPaths ?? 0,
+      deleted: c.phase0DeletedPaths ?? 0,
+      attributedToPhase0: c.phase0AttributedPaths ?? 0,
+      productionRuntimeFilesModifiedByPhase0: c.productionRuntimeFilesModifiedByPhase0 ?? 0,
+      productBehaviorTestsRemoved: c.productBehaviorTestsRemoved ?? 0,
+      historicalMigrationsModifiedByPhase0: c.historicalMigrationsModifiedByPhase0 ?? 0,
+      selfGeneratedPathsHeldOut: c.phase0SelfGeneratedPathsDeclared ?? 0,
+    },
+  });
 }
 
 async function writeCapabilityMap() {
@@ -178,7 +185,7 @@ function ensureGeneratedPaths() {
 async function regenerate() {
   ensureGeneratedPaths();
   const governance = evaluateGovernance();
-  writeArtifact(CANONICAL.governanceInventory.path, governance);
+  writeArtifact(CANONICAL.governanceInventory.path, persistableGovernance(governance));
   const capability = await writeCapabilityMap();
   writeArtifact(DIAGNOSTICS[0].path, await buildTestCallerDiagnostic(capability));
   const facts = await buildFacts();
@@ -195,6 +202,7 @@ async function regenerate() {
 
 async function engineCheck() {
   const governance = evaluateGovernance();
+  printRunBanner(governance);
   const facts = await buildFacts();
 
   const problems = engineProblems(facts, governance);
@@ -203,7 +211,7 @@ async function engineCheck() {
   // just recomputed. An artifact that disagrees with the engine is a
   // hand-edited artifact, which is the exact defect FINAL-001 was.
   for (const [rel, value] of [
-    [CANONICAL.governanceInventory.path, governance],
+    [CANONICAL.governanceInventory.path, persistableGovernance(governance)],
     [CANONICAL.currentFacts.path, facts],
   ]) {
     const s = staleness(rel, value);

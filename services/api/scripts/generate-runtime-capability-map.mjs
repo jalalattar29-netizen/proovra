@@ -1281,7 +1281,8 @@ export function build() {
       "analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, " +
       "each entry carrying the source evidence it was read from. Do not hand-edit this file.",
     generatorHash: generatorHash(),
-    sourceRevision: sourceRevision(),
+    // NO `sourceRevision`: metadata about the run. Recording it made this
+    // artifact differ from itself across every commit. The run prints it.
     routeInventoryHash: sha256(routeIds.slice().sort()),
     consumerInventoryHash: sha256(
       consumers.map((c) => `${c.method ?? "*"} ${c.path} ${c.file}:${c.line}`).sort(),
