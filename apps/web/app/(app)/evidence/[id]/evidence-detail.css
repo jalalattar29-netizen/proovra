@@ -789,11 +789,6 @@ button.evidence-detail-item-card {
   margin-bottom: 10px;
 }
 
-.evidence-detail-related-list {
-  display: grid;
-  gap: 12px;
-}
-
 .evidence-detail-modal-stack {
   display: grid;
   gap: 12px;
@@ -2748,4 +2743,316 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   gap: 8px;
   margin-block-start: 12px;
   min-inline-size: 0;
+}
+
+/* ===========================================================================
+ * ARTIFACTS TAB — verification-link card, artifact family cards, sharing.
+ * Reports and packages share ONE anatomy so a reviewer reads both the same
+ * way; they stay separate cards because they are separate materials.
+ * =========================================================================== */
+
+/* ---- Latest verification link -------------------------------------------- */
+.evidence-detail-verify-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-inline-size: 0;
+  padding: 18px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-verify-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  flex: none;
+  border-radius: 13px;
+  background: var(--accent-050);
+  color: var(--accent-600);
+}
+.evidence-detail-verify-card__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evidence-detail-verify-card__action {
+  justify-self: end;
+  min-inline-size: 0;
+}
+.evidence-detail-verify-card__unavailable {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--app-ink-secondary);
+  unicode-bidi: plaintext;
+}
+.evidence-detail-verify-card__reason {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+@media (max-width: 700px) {
+  .evidence-detail-verify-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .evidence-detail-verify-card__action {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .evidence-detail-verify-card__reason {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---- Artifacts & Versions ------------------------------------------------
+ * The heading sits on the page ground; only the family cards are carded. */
+.evidence-detail-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+}
+.evidence-detail-artifacts__head,
+.evidence-detail-sharing__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-artifacts__icon,
+.evidence-detail-sharing__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent-500);
+}
+.evidence-detail-artifacts__copy,
+.evidence-detail-sharing__copy {
+  min-inline-size: 0;
+}
+.evidence-detail-artifacts__title,
+.evidence-detail-sharing__title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 27px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+.evidence-detail-artifacts__description,
+.evidence-detail-sharing__description {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* ---- One artifact family ------------------------------------------------- */
+.evidence-detail-artifact-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 20px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-artifact-card__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.evidence-detail-artifact-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  flex: none;
+  border-radius: 13px;
+  background: var(--accent-050);
+  color: var(--accent-600);
+}
+.evidence-detail-artifact-card__title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 25px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evidence-detail-artifact-card__action {
+  justify-self: end;
+  min-inline-size: 0;
+}
+.evidence-detail-artifact-card__reason,
+.evidence-detail-artifact-card__empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* A version line wraps its own chips; it never widens the card and never
+   pushes the download action off-screen. Technical values keep their written
+   order in Arabic layout. */
+.evidence-detail-artifact-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+.evidence-detail-artifact-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-label);
+}
+.evidence-detail-artifact-version__label {
+  flex: none;
+  font-weight: 700;
+  color: var(--app-ink-heading);
+  unicode-bidi: plaintext;
+}
+.evidence-detail-artifact-version__meta {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The bidi scope belongs to the VALUE, not to the box. Applying it to the
+   box made the whole item an LTR paragraph, which threw the decorative
+   separator to the wrong side of the item in Arabic layout. */
+.evidence-detail-artifact-version__text {
+  unicode-bidi: plaintext;
+}
+/* Separator dots are drawn, not typed, so they never reorder in RTL. */
+.evidence-detail-artifact-version__meta::before {
+  content: "";
+  display: inline-block;
+  inline-size: 3px;
+  block-size: 3px;
+  margin-inline-end: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--app-ink-secondary);
+}
+
+/* Below the tablet threshold the download action takes its own full-width
+   row rather than squeezing the title. */
+@media (max-width: 700px) {
+  .evidence-detail-artifact-card {
+    padding: 16px;
+  }
+  .evidence-detail-artifact-card__head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .evidence-detail-artifact-card__action {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+  .evidence-detail-artifact-card__action > button,
+  .evidence-detail-artifact-card__action > * > button {
+    inline-size: 100%;
+    justify-content: center;
+  }
+}
+
+/* ---- Public verification & sharing --------------------------------------- */
+.evidence-detail-sharing {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-inline-size: 0;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+  overflow: hidden;
+}
+.evidence-detail-sharing__head {
+  padding: 18px 22px;
+  border-block-end: 1px solid var(--surface-translucent-border-strong);
+}
+/* One row of columns, not a grid of sub-cards. Tracks come from the
+   container, so a long publication detail wraps inside its OWN column and
+   never moves the column starts beside it. */
+.evidence-detail-sharing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 20px 24px;
+  align-items: start;
+  min-inline-size: 0;
+  padding: 20px 22px 22px;
+}
+.evidence-detail-sharing-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.evidence-detail-sharing-fact[data-wide="true"] {
+  grid-column: span 2;
+}
+.evidence-detail-sharing-fact__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-sharing-fact__value {
+  min-inline-size: 0;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+@media (max-width: 640px) {
+  .evidence-detail-sharing-fact[data-wide="true"] {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The verification shortcut carries a chevron that mirrors in Arabic. */
+.evidence-detail-verify-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+[dir="rtl"] .evidence-detail-verify-link > svg {
+  transform: scaleX(-1);
 }

@@ -178,10 +178,10 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "a71a097f969f76b6acf40636c9b86142cd09edd9",
-    "phase0ChangedPaths": 20,
+    "phase0BaselineRef": "1ae67ba236e158f3167e68c24eb37c6d58111099",
+    "phase0ChangedPaths": 9,
     "phase0AddedPaths": 1,
-    "phase0ModifiedPaths": 19,
+    "phase0ModifiedPaths": 8,
     "phase0DeletedPaths": 0,
     "phase0AttributedPaths": 5,
     "phase0ChangedPathsFromManualDeclaration": 0,
@@ -208,77 +208,11 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "a71a097f969f76b6acf40636c9b86142cd09edd9",
+    "baseline": "1ae67ba236e158f3167e68c24eb37c6d58111099",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/__tests__/evidence-delete-eligibility.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/evidence-detail-cleanup-pass.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/evidence-detail-review-visibility.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/evidence-library-enterprise-fixes.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/evidence-lifecycle-actions.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/evidence-review-tab-stability.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -289,18 +223,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/components/ReviewerAuditTrailSection.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -312,50 +235,6 @@
       },
       {
         "path": "apps/web/app/(app)/evidence/[id]/evidence-detail.css",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/page.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -421,7 +300,7 @@
         "attributedToPhase0": true
       },
       {
-        "path": "apps/web/__tests__/evidence-review-redesign.test.ts",
+        "path": "apps/web/__tests__/evidence-artifacts-redesign.test.ts",
         "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {

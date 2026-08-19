@@ -3,26 +3,34 @@
  *
  * Generated outputs only: reports, packages, public verification.
  *
- * "Latest" hero now carries only the verification link. The earlier
+ * The "Latest" hero carries only the verification link. The earlier
  * Latest-Report and Latest-Package cards were removed because the
- * ArtifactHistorySection rendered immediately below already lists
- * every version (v1, v2, …) and exposes "Download latest" — the
- * top cards were a duplicate of the first row of each version table.
+ * ArtifactHistorySection rendered immediately below already lists every
+ * version (v1, v2, …) and exposes "Download latest".
  *
- * Phase 1 — Public verification counts (views / report downloads /
- * package downloads / last view) are owned here. Removed from
- * Integrity (no duplication).
+ * Phase 1 — Public verification counts (views / report downloads / package
+ * downloads / last view) are owned here. Removed from Integrity (no
+ * duplication).
+ *
+ * Phase EVIDENCE-DETAIL-REDESIGN — presentation only, with two truthfulness
+ * corrections that the previous build got wrong:
+ *
+ *   1. DOWNLOAD GATING. "Download latest" used to be enabled whenever the
+ *      history array was non-empty. A record can carry prior versions while
+ *      the current artifact is pending, failed, unavailable or excluded by
+ *      plan — so the control could offer a download that could not succeed.
+ *      It now derives from `artifactStatus`, and carries the reason.
+ *
+ *   2. ZERO vs UNAVAILABLE. Public-verification counters were stringified
+ *      unconditionally, so a workspace with no analytics read as "0 views".
+ *      They now honour `analyticsAvailable`: a real zero shows "0", and
+ *      absent analytics say so instead of claiming no activity.
  */
 
 "use client";
 
-import { Globe, Package } from "lucide-react";
-import {
-  KeyValueGrid,
-  SectionHeading,
-  formatValue,
-  type EvidenceDetailCtx,
-} from "./_lib";
+import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
+import { formatValue, type EvidenceDetailCtx } from "./_lib";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { formatBytes } from "./_lib";
@@ -42,122 +50,130 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     downloadVerificationPackage,
   } = ctx;
 
+  const summary = workspace.publicVerificationSummary;
+  const reportStatus = workspace.artifactStatus.report;
+  const packageStatus = workspace.artifactStatus.verificationPackage;
+  const reportsIncluded = workspaceCaps?.reportsIncluded !== false;
+  const packageIncluded = workspaceCaps?.verificationPackageIncluded !== false;
+
+  // The download control is enabled only when the CURRENT artifact is
+  // available; each blocked state carries the reason the server gave.
+  const reportDownloadable = reportStatus.available === true;
+  const reportDisabledReason = reportDownloadable
+    ? null
+    : reportStatus.pending
+      ? "The report is still being generated. Re-check status once it completes."
+      : !reportsIncluded
+        ? "Report PDFs are not included in the current plan."
+        : "No report has been generated for this record yet.";
+
+  const packageDownloadable = packageStatus.available === true;
+  const packageDisabledReason = packageDownloadable
+    ? null
+    : packageStatus.pending
+      ? "The verification package is still being generated. Re-check status once it completes."
+      : packageStatus.blocked
+        ? (packageStatus.blockedReason ??
+          "Verification package export is blocked by an export-governance gate.")
+        : packageStatus.unavailable
+          ? (packageStatus.unavailableReason ??
+            "The verification package is unavailable for this record.")
+          : !packageIncluded
+            ? "Verification packages are not included in the current plan."
+            : "No verification package has been generated for this record yet.";
+
+  // A counter is a real number only when analytics are actually available.
+  // Otherwise the honest answer is that we do not know — never "0".
+  const counter = (value: number): string =>
+    summary.analyticsAvailable ? String(value) : "Not available";
+
   return (
     <>
       {stalePending ? (
-        <section
-          className="evidence-detail-section"
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
           data-evidence-section="artifact-stale-pending"
-          style={{
-            borderLeft: "4px solid #d97706",
-            background: "#fef3c7",
-            padding: "12px 14px",
-            borderRadius: 8,
-          }}
         >
-          <strong
-            style={{ display: "block", marginBottom: 4, color: "#78350f", fontSize: 13.5 }}
-          >
-            Report generation is taking longer than expected
-          </strong>
-          <p
-            className="evidence-detail-muted"
-            style={{ margin: "0 0 8px 0", fontSize: 12.5, color: "#78350f" }}
-          >
-            The signed evidence record is preserved — the chain-of-custody and integrity
-            columns are intact. The downstream report and verification package are still
-            pending. Click refresh below to re-check status, or contact support if this
-            persists.
+          <strong>Report generation is taking longer than expected</strong>
+          <p>
+            The signed evidence record is preserved — the chain-of-custody and
+            integrity columns are intact. The downstream report and verification
+            package are still pending. Re-check status below, or contact support
+            if this persists.
           </p>
           <button
             type="button"
+            className="app-secondary-action"
             onClick={() => {
               setStalePending(false);
               setPollStartedAt(null);
               void loadWorkspace();
             }}
             data-evidence-action="artifact-stale-refresh"
-            style={{
-              border: "1px solid #d97706",
-              background: "white",
-              color: "#78350f",
-              padding: "5px 10px",
-              borderRadius: 6,
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
           >
             Re-check status
           </button>
-        </section>
+        </div>
       ) : null}
 
-      {workspaceCaps && !workspaceCaps.reportsIncluded &&
-      !workspace.artifactStatus.report.available ? (
-        <section
-          className="evidence-detail-section"
+      {workspaceCaps && !workspaceCaps.reportsIncluded && !reportStatus.available ? (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
           data-evidence-section="reports-plan-gated"
-          style={{
-            borderLeft: "4px solid #d97706",
-            background: "#fef3c7",
-            padding: "12px 14px",
-            borderRadius: 8,
-          }}
         >
-          <strong
-            style={{ display: "block", marginBottom: 4, color: "#78350f", fontSize: 13.5 }}
-          >
-            Reports are not included in this plan
-          </strong>
-          <p
-            className="evidence-detail-muted"
-            style={{ margin: 0, fontSize: 12.5, color: "#78350f" }}
-          >
-            Report PDFs and verification packages are part of Pay-Per-Evidence, Pro, and
-            Team plans. Your evidence record itself is signed and preserved — the
-            chain-of-custody chain remains intact — but no downloadable report artifact
-            will be generated on your current plan.
+          <strong>Reports are not included in this plan</strong>
+          <p>
+            Report PDFs and verification packages are part of Pay-Per-Evidence,
+            Pro, and Team plans. Your evidence record itself is signed and
+            preserved — the chain-of-custody chain remains intact — but no
+            downloadable report artifact will be generated on your current plan.
           </p>
-        </section>
+        </div>
       ) : null}
 
-      {/* Latest verification link only — the report + package cards
-          that used to live here duplicated the version-history rows
-          rendered by ArtifactHistorySection below. Removing them
-          eliminates a top-of-tab "summary" that was redundant with
-          the immediately-following version table.
-
-          Verify link stays here because it has no equivalent surface
-          below; ArtifactHistorySection only carries report/package
-          versions. */}
-      <section className="evidence-detail-section" data-evidence-section="latest-artifacts">
-        <div className="evidence-detail-section-header">
-          <SectionHeading
-            kicker="Latest"
-            title="Latest verification link"
-            icon={Package}
-          />
+      {/* Latest verification link. `shareUrl` is derived from the SAME
+          publicVerificationSummary the rail reads, so the tab and the rail can
+          never disagree about publication state. The link is never
+          synthesised: without a real share path the card shows the state
+          label and its reason instead of an action. */}
+      <section
+        className="evidence-detail-verify-card"
+        data-evidence-section="latest-artifacts"
+      >
+        <span className="evidence-detail-verify-card__icon" aria-hidden="true">
+          <ShieldCheck size={20} strokeWidth={2} />
+        </span>
+        <h2 className="evidence-detail-verify-card__title">
+          Latest verification link
+        </h2>
+        <div className="evidence-detail-verify-card__action" data-latest-artifact="verify">
+          {shareUrl ? (
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="evidence-detail-inline-link evidence-detail-verify-link"
+              data-evidence-verify-link
+            >
+              Open verification surface
+              <ChevronRight size={16} strokeWidth={2.5} aria-hidden="true" />
+            </a>
+          ) : (
+            <span
+              className="evidence-detail-verify-card__unavailable"
+              data-evidence-verify-unavailable
+            >
+              {publicVerificationState?.label ?? "Not available"}
+            </span>
+          )}
         </div>
-        <div className="evidence-detail-data-grid">
-          <div className="evidence-detail-data-cell" data-latest-artifact="verify">
-            <span>Latest verification link</span>
-            <strong>
-              {shareUrl ? (
-                <a
-                  href={shareUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="evidence-detail-inline-link"
-                >
-                  Open verification surface →
-                </a>
-              ) : (
-                (publicVerificationState?.label ?? "Not available")
-              )}
-            </strong>
-          </div>
-        </div>
+        {!shareUrl && publicVerificationState?.detail ? (
+          <p className="evidence-detail-verify-card__reason">
+            {publicVerificationState.detail}
+          </p>
+        ) : null}
       </section>
 
       <ArtifactHistorySection
@@ -168,18 +184,34 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         formatBytes={formatBytes}
         evidenceId={evidenceId}
         teamId={workspace.evidence.teamId}
+        reportDownloadable={reportDownloadable}
+        reportDisabledReason={reportDisabledReason}
+        packageDownloadable={packageDownloadable}
+        packageDisabledReason={packageDisabledReason}
       />
 
-      <section className="evidence-detail-section">
-        <div className="evidence-detail-section-header">
-          <SectionHeading
-            kicker="Public verification &amp; sharing"
-            title="External verification and export activity"
-            icon={Globe}
-          />
+      <section
+        className="evidence-detail-sharing"
+        data-evidence-section="public-verification-sharing"
+      >
+        <div className="evidence-detail-sharing__head">
+          <span className="evidence-detail-sharing__icon" aria-hidden="true">
+            <Globe size={20} strokeWidth={2} />
+          </span>
+          <div className="evidence-detail-sharing__copy">
+            <h2 className="evidence-detail-sharing__title">
+              Public verification &amp; sharing
+            </h2>
+            <p className="evidence-detail-sharing__description">
+              External verification and export activity
+            </p>
+          </div>
         </div>
-        <KeyValueGrid
-          items={[
+
+        {/* One bare row of label/value pairs inside the card, not a grid of
+            sub-cards: these are columns of one activity summary. */}
+        <div className="evidence-detail-sharing-grid" data-evidence-facts-grid>
+          {[
             {
               label: "Verification status",
               value: publicVerificationState?.label ?? "State unavailable",
@@ -190,30 +222,34 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             {
               label: "Publication detail",
-              value: publicVerificationState?.detail ?? "No publication detail available",
+              value:
+                publicVerificationState?.detail ?? "No publication detail available",
+              wide: true,
             },
-            {
-              label: "Public views",
-              value: String(workspace.publicVerificationSummary.publicViewCount),
-            },
+            { label: "Public views", value: counter(summary.publicViewCount) },
             {
               label: "Report downloads",
-              value: String(workspace.publicVerificationSummary.reportDownloadCount),
+              value: counter(summary.reportDownloadCount),
             },
             {
               label: "Package downloads",
-              value: String(
-                workspace.publicVerificationSummary.verificationPackageDownloadCount,
-              ),
+              value: counter(summary.verificationPackageDownloadCount),
             },
             {
               label: "Last public view",
-              value: formatValue(
-                formatUserDateTime(workspace.publicVerificationSummary.lastPublicViewAt),
-              ),
+              value: formatValue(formatUserDateTime(summary.lastPublicViewAt)),
             },
-          ]}
-        />
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="evidence-detail-sharing-fact"
+              data-wide={item.wide ? "true" : undefined}
+            >
+              <span className="evidence-detail-sharing-fact__label">{item.label}</span>
+              <span className="evidence-detail-sharing-fact__value">{item.value}</span>
+            </div>
+          ))}
+        </div>
       </section>
     </>
   );
