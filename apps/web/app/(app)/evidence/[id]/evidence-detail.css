@@ -19,7 +19,10 @@
   --detail-red-soft: #fff5f2;
 
   min-height: 100%;
-  background: #ffffff;
+  /* Transparent, not white: the app shell paints the ground, and the cards
+     below use the translucent surface tokens to sit ON it. A flat white page
+     under translucent cards is what made them read as opaque walls. */
+  background: transparent;
   color: var(--detail-ink);
   padding: 26px 28px 56px;
 }
@@ -31,12 +34,15 @@
   gap: 18px;
 }
 
+/* Typeface only. The COLOUR was removed: these element selectors outrank every
+   redesign class, so one declaration here painted the rail headings, the
+   section titles and the hero the same near-black and erased the tonal
+   hierarchy the rail depends on. Colour now comes from the component class. */
 .evidence-detail-page h1,
 .evidence-detail-page h2,
 .evidence-detail-page h3,
 .evidence-detail-page h4 {
   margin: 0;
-  color: var(--detail-ink);
   font-family: var(--font-header), var(--font-jakarta), system-ui, sans-serif;
 }
 
@@ -51,10 +57,6 @@
 .evidence-detail-page summary,
 .evidence-detail-page pre {
   font-family: var(--font-jakarta), system-ui, sans-serif;
-}
-
-.evidence-detail-page button {
-  box-shadow: none !important;
 }
 
 .evidence-detail-kicker {
@@ -86,18 +88,6 @@
   min-width: 0;
   display: grid;
   gap: 10px;
-}
-
-.evidence-detail-hero h1 {
-  max-width: 980px;
-  margin: 2px 0 0;
-  font-size: clamp(2.45rem, 4vw, 3.85rem);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.06em;
-  overflow-wrap: anywhere;
-  word-break: normal;
-  text-wrap: balance;
 }
 
 .evidence-detail-hero-meta,
@@ -178,43 +168,6 @@
   display: grid;
   gap: 10px;
   align-content: start;
-}
-
-.evidence-detail-hero-actions button,
-.evidence-detail-inline-actions button,
-.evidence-detail-label-edit button,
-.evidence-detail-modal-stack button {
-  min-height: 42px;
-  border-radius: 12px !important;
-  font-size: 0.86rem;
-  font-weight: 800;
-}
-
-.evidence-detail-hero-actions button:first-child,
-.evidence-detail-hero-actions button:nth-child(2) {
-  background: var(--btn-primary-bg, linear-gradient(180deg, #4f46e5, #4338ca)) !important;
-  border: 1px solid var(--btn-primary-border, #4338ca) !important;
-  color: var(--btn-primary-color, #ffffff) !important;
-}
-
-.evidence-detail-hero-actions button:not(:first-child):not(:nth-child(2)),
-.evidence-detail-inline-actions button {
-  background: #ffffff !important;
-  border: 1px solid var(--detail-line-strong) !important;
-  color: var(--detail-ink) !important;
-}
-
-.evidence-detail-tabs {
-  position: sticky;
-  top: 72px;
-  z-index: 18;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 0 14px;
-  border-bottom: 1px solid var(--detail-line);
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(14px);
 }
 
 .evidence-detail-tab {
@@ -330,8 +283,11 @@
   min-width: 0;
 }
 
+/* The rail headings are <h2>, so this element rule (0-1-1) outranked
+   `.evidence-detail-rail-heading` (0-1-0) and forced them to 16px/750 body
+   scale instead of the 11.5px uppercase section label the rail is built on.
+   The rail is excluded; section and card headings keep the treatment. */
 .evidence-detail-heading-copy h2,
-.evidence-detail-side-block h2,
 .evidence-detail-section h2,
 .evidence-detail-card h2 {
   font-size: 1rem;
@@ -837,10 +793,6 @@ button.evidence-detail-item-card {
     gap: 22px;
   }
 
-  .evidence-detail-hero h1 {
-    font-size: clamp(2.1rem, 9vw, 3rem);
-  }
-
   .evidence-detail-hero-actions {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1282,16 +1234,6 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
 }
 
 /* ---- Identity ------------------------------------------------------------ */
-.evidence-detail-title {
-  margin: 0 0 10px;
-  font-size: 26px;
-  line-height: 34px;
-  font-weight: 720;
-  letter-spacing: -0.02em;
-  color: var(--app-ink-heading);
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-}
 .evidence-detail-hero-meta {
   display: flex;
   align-items: center;
@@ -4476,4 +4418,314 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   min-inline-size: 0;
   overflow-wrap: break-word;
   unicode-bidi: plaintext;
+}
+
+/* ===========================================================================
+ * PRODUCTION POLISH — shell corrections.
+ *
+ * Everything here replaces a rule deleted above. No new palette is declared:
+ * the accent, the soft accent, the muted ink and the translucent surfaces are
+ * all canonical tokens, so this surface moves with the rest of the product.
+ * =========================================================================== */
+
+/* ---- Record title --------------------------------------------------------
+ * An application page heading, not a marketing headline. Two deliberate lines
+ * with the full filename preserved on the element's `title`, and `anywhere`
+ * wrapping so an unbroken filename can never widen the page. */
+.evidence-detail-title {
+  margin: 0 0 10px;
+  max-inline-size: 62ch;
+  font-size: clamp(2rem, 2.2vw, 2.5rem);
+  line-height: 1.18;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  /* Two lines, then ellipsis. Deliberate truncation of a value that is still
+     available in full — never a clipped glyph, which is what `line-height: 1`
+     on a 57.6px display face produced. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .evidence-detail-title {
+    font-size: clamp(1.625rem, 6vw, 1.875rem);
+    line-height: 1.22;
+  }
+}
+
+/* ---- Tabs ----------------------------------------------------------------
+ * Static, in normal flow. The bar no longer follows the reader, and it can no
+ * longer scroll vertically: `overflow-x: auto` with `overflow-y: visible`
+ * COMPUTES to `auto` on both axes, which is where the internal vertical
+ * scrollbar came from (scrollHeight 62 vs clientHeight 42). Pinning
+ * `overflow-y: hidden` is the fix; the visual scrollbar is hidden on the
+ * remaining axis while touch and keyboard scrolling are untouched. */
+.evidence-detail-page .evidence-detail-tabs {
+  position: static;
+  z-index: auto;
+  margin: 18px 0 0;
+  padding: 4px;
+  border-bottom: none;
+  background: var(--surface-translucent-outer);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.evidence-detail-page .evidence-detail-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Right rail: tonal hierarchy -----------------------------------------
+ * Four deliberate levels instead of one near-black. */
+.evidence-detail-sidebar .evidence-detail-rail-heading {
+  color: var(--app-ink-label);
+  font-weight: 700;
+}
+
+.evidence-detail-sidebar .evidence-detail-field-label,
+.evidence-detail-sidebar dt,
+.evidence-detail-sidebar .evidence-detail-muted {
+  color: var(--app-ink-secondary);
+  font-weight: 500;
+}
+
+.evidence-detail-sidebar .evidence-detail-field-value,
+.evidence-detail-sidebar dd,
+.evidence-detail-sidebar strong {
+  color: var(--app-ink-heading);
+  font-weight: 550;
+}
+
+.evidence-detail-sidebar .evidence-detail-side-block {
+  border-block-end: 1px solid var(--surface-translucent-border-strong);
+}
+
+/* ---- Translucent surfaces ------------------------------------------------
+ * Outer sections and inner cards join the shared surface hierarchy. */
+.evidence-detail-page .evidence-detail-section {
+  background: var(--surface-translucent-outer);
+  border: 1px solid var(--surface-translucent-border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-block-end: 14px;
+}
+
+.evidence-detail-page .evidence-detail-card,
+.evidence-detail-page .evd-card {
+  background: var(--surface-translucent-inner);
+  border: 1px solid var(--surface-translucent-border-strong);
+  border-radius: 12px;
+}
+
+.evidence-detail-page .evd-card[data-selected="true"] {
+  background: var(--surface-translucent-selected);
+}
+
+/* A viewing field has to be stable, so the preview grounds stay opaque. */
+.evidence-detail-page .evidence-detail-preview-stage,
+.evidence-detail-page .evidence-detail-preview-placeholder,
+.evidence-detail-page .evd-thumb-frame,
+.evidence-detail-page .evd-thumb-button {
+  background: var(--surface-muted);
+}
+
+/* Accessibility fallbacks: a reader who has asked for less transparency, or a
+   forced-colors mode, gets opaque surfaces and system colours. */
+@media (prefers-reduced-transparency: reduce) {
+  .evidence-detail-page .evidence-detail-section,
+  .evidence-detail-page .evidence-detail-card,
+  .evidence-detail-page .evd-card,
+  .evidence-detail-page .evidence-detail-tabs {
+    background: var(--surface-card);
+    backdrop-filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .evidence-detail-page .evidence-detail-section,
+  .evidence-detail-page .evidence-detail-card,
+  .evidence-detail-page .evd-card,
+  .evidence-detail-page .evidence-detail-tabs {
+    background: Canvas;
+    border-color: CanvasText;
+    forced-color-adjust: none;
+  }
+}
+
+/* ---- Stated disabled reason ----------------------------------------------
+ * A refused download says why. The eligibility badge already returned the
+ * governance reason on every change; the page was discarding it, so the only
+ * signal a user got was a faded control. */
+.evidence-detail-action-reason {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  max-inline-size: 46ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Icon action group ---------------------------------------------------
+ * Equal targets, one shared border and radius, so the group reads as one
+ * control set rather than as icons floating at different weights. */
+.evidence-detail-hero-icon-actions {
+  gap: 8px;
+}
+
+.evidence-detail-page .evidence-detail-icon-action {
+  inline-size: 40px;
+  block-size: 40px;
+  min-inline-size: 40px;
+  min-block-size: 40px;
+  padding: 0;
+  border: 1px solid var(--surface-translucent-border-strong);
+  border-radius: 10px;
+  background: var(--surface-translucent-inner);
+  color: var(--app-ink-label);
+  align-items: center;
+  justify-content: center;
+}
+
+.evidence-detail-page .evidence-detail-icon-action:hover:not(:disabled) {
+  background: var(--accent-050);
+  border-color: var(--accent-200);
+  color: var(--accent-600);
+}
+
+/* A destructive icon control keeps destructive semantics. It is never purple —
+   the hover above is scoped so this rule wins for the destructive one. */
+.evidence-detail-page .evidence-detail-icon-action[data-destructive="true"]:hover:not(:disabled) {
+  background: rgba(201, 54, 62, 0.07);
+  border-color: rgba(201, 54, 62, 0.24);
+  color: #a9222b;
+}
+
+/* The sticky rail scrolls independently, which is deliberate — but its thumb
+   sat in the middle of the page against the content edge. Scrolling by wheel,
+   touch and keyboard is unchanged; only the painted thumb goes. */
+@media (min-width: 1100px) {
+  .evidence-detail-sidebar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .evidence-detail-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---- Artifact family cards: one shared anatomy ---------------------------
+ * ANATOMY:  icon chip | title + version metadata | download action
+ *
+ * The head was `grid-template-columns: auto minmax(0, 1fr) auto`, so both the
+ * icon and the action track were sized by their own card's CONTENT. A family
+ * with no download collapsed its third track to zero while a family with a long
+ * label pushed its own out — measured at 1440: one action began at x=1033 and
+ * the other at x=800 on the same page. The tracks are now fixed, so every card
+ * places its icon, its title and its action on the same axes whatever the
+ * content is. */
+.evidence-detail-artifacts {
+  --evidence-artifact-icon: 40px;
+  --evidence-artifact-action-w: 248px;
+}
+
+.evidence-detail-artifacts .evidence-detail-artifact-card__head {
+  grid-template-columns:
+    var(--evidence-artifact-icon)
+    minmax(0, 1fr)
+    var(--evidence-artifact-action-w);
+  align-items: center;
+  gap: 12px;
+}
+
+.evidence-detail-artifacts .evidence-detail-artifact-card__icon {
+  inline-size: var(--evidence-artifact-icon);
+  block-size: var(--evidence-artifact-icon);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--accent-200);
+  background: var(--accent-050);
+  color: var(--accent-600);
+  flex: 0 0 auto;
+}
+
+.evidence-detail-artifacts .evidence-detail-artifact-card__title {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The action fills its fixed track, so buttons start AND end on one axis. */
+.evidence-detail-artifacts .evidence-detail-artifact-card__action {
+  /* `justify-self: end` (line ~2879) sized this to its own content and pinned
+     it to the track end, which is why a long label and a missing label put
+     their buttons on different axes. Stretching it to the fixed track is what
+     puts every download on one start axis and one end axis. */
+  justify-self: stretch;
+  display: flex;
+  min-inline-size: 0;
+}
+
+.evidence-detail-artifacts .evidence-detail-artifact-card__action > * {
+  inline-size: 100%;
+  justify-content: center;
+}
+
+/* Long package/version names wrap inside their own region and never widen a
+   neighbour. */
+.evidence-detail-artifacts .evidence-detail-artifact-version {
+  min-inline-size: 0;
+}
+
+.evidence-detail-artifacts .evidence-detail-artifact-version__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+/* Mobile stacks icon/title/action deliberately rather than squeezing three
+   tracks into 390px. */
+@media (max-width: 760px) {
+  .evidence-detail-artifacts .evidence-detail-artifact-card__head {
+    grid-template-columns: var(--evidence-artifact-icon) minmax(0, 1fr);
+    row-gap: 12px;
+  }
+  .evidence-detail-artifacts .evidence-detail-artifact-card__action {
+    grid-column: 1 / -1;
+  }
+}
+
+/* `Latest` and `Immutable recorded` are METADATA. They are not success
+   verdicts, so they carry no green badge treatment and no border box — the
+   thin outline that read as a success state around the download control. */
+.evidence-detail-artifacts [data-evidence-artifact-marker] {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--app-ink-secondary);
+  font-weight: 550;
+}
+
+/* Keyboard focus is preserved and is `:focus-visible` only, so a focus ring can
+   never sit permanently around a control that merely received a click. */
+.evidence-detail-artifacts .evidence-detail-artifact-card__action > *:focus {
+  outline: none;
+}
+
+.evidence-detail-artifacts .evidence-detail-artifact-card__action > *:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
 }

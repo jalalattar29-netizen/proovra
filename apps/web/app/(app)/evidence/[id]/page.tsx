@@ -201,6 +201,10 @@ function EvidenceDetailPageInner() {
   const [relationshipNote, setRelationshipNote] = useState("");
   const [exportDisabled, setExportDisabled] = useState(false);
   const [packageDisabled, setPackageDisabled] = useState(false);
+  // The governance reason behind a disabled download. Kept beside the boolean
+  // so the control can say WHY rather than only appearing faded.
+  const [exportBlockedReason, setExportBlockedReason] = useState<string | null>(null);
+  const [packageBlockedReason, setPackageBlockedReason] = useState<string | null>(null);
   const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<string | null>(null);
   const [intelligence, setIntelligence] = useState<IntelligenceEvidenceResponse | null>(null);
   const [intelligenceLoaded, setIntelligenceLoaded] = useState(false);
@@ -977,6 +981,36 @@ function EvidenceDetailPageInner() {
       : "Restore archived evidence",
   };
 
+  /**
+   * Why a download is refused, from the authorities that already know.
+   *
+   * Integrity first — a failed record may not export at all, whatever the
+   * governance slice says. Then the governance reason the eligibility badge
+   * returns, then the artifact projection's own reason (a plan that does not
+   * include the artifact). `null` means the control is enabled.
+   */
+  const reportDownloadBlockedReason = isIntegrityFailed
+    ? "Downloads are unavailable while recorded integrity is failed."
+    : exportDisabled
+      ? (exportBlockedReason ?? "Governance policy currently blocks this download.")
+      : !workspace.artifactStatus.report.available
+        ? workspace.artifactStatus.report.pending
+          ? "The report is still being generated."
+          : "No report has been generated for this record yet."
+        : null;
+
+  const packageDownloadBlockedReason = isIntegrityFailed
+    ? "Downloads are unavailable while recorded integrity is failed."
+    : packageDisabled
+      ? (packageBlockedReason ?? "Governance policy currently blocks this download.")
+      : !workspace.artifactStatus.verificationPackage.available
+        ? (workspace.artifactStatus.verificationPackage.blockedReason ??
+          workspace.artifactStatus.verificationPackage.unavailableReason ??
+          (workspace.artifactStatus.verificationPackage.pending
+            ? "The verification package is still being generated."
+            : "No verification package has been generated for this record yet."))
+        : null;
+
   const visibleTabs = DETAIL_TABS.filter(
     (t) => !(t.id === "discussion" && !canSeeDiscussion),
   );
@@ -1173,7 +1207,13 @@ function EvidenceDetailPageInner() {
                 </button>
               </div>
             ) : (
-              <h1 className="evidence-detail-title">
+              // The heading clamps to two lines, so the COMPLETE filename has
+              // to remain reachable — on the element itself and to assistive
+              // technology, not only in a tooltip.
+              <h1
+                className="evidence-detail-title"
+                title={evidence.displayTitle || evidence.title}
+              >
                 {evidence.displayTitle || evidence.title}
               </h1>
             )}
@@ -1217,17 +1257,19 @@ function EvidenceDetailPageInner() {
                 evidenceId={evidenceId}
                 teamId={workspace.reviewWorkflow.teamId}
                 kind="export"
-                onEligibilityChange={(s) =>
-                  setExportDisabled(!s.loading && !s.unknown && !s.eligible)
-                }
+                onEligibilityChange={(s) => {
+                  setExportDisabled(!s.loading && !s.unknown && !s.eligible);
+                  setExportBlockedReason(s.eligible ? null : s.reason);
+                }}
               />
               <ExportPackageEligibilityBadge
                 evidenceId={evidenceId}
                 teamId={workspace.reviewWorkflow.teamId}
                 kind="package"
-                onEligibilityChange={(s) =>
-                  setPackageDisabled(!s.loading && !s.unknown && !s.eligible)
-                }
+                onEligibilityChange={(s) => {
+                  setPackageDisabled(!s.loading && !s.unknown && !s.eligible);
+                  setPackageBlockedReason(s.eligible ? null : s.reason);
+                }}
               />
             </div>
           ) : null}
@@ -1243,7 +1285,12 @@ function EvidenceDetailPageInner() {
               className="app-primary-action"
               onClick={() => void downloadReport()}
               disabled={exportDisabled || isIntegrityFailed}
+              title={reportDownloadBlockedReason ?? "Download the generated report PDF"}
+              aria-describedby={
+                reportDownloadBlockedReason ? "evidence-download-report-reason" : undefined
+              }
               data-evidence-action="download-report"
+              data-evidence-disabled-reason={reportDownloadBlockedReason ?? undefined}
             >
               <FileText size={16} strokeWidth={1.9} aria-hidden="true" />
               Download Report PDF
@@ -1253,7 +1300,12 @@ function EvidenceDetailPageInner() {
               className="app-secondary-action"
               onClick={() => void downloadVerificationPackage()}
               disabled={packageDisabled || isIntegrityFailed}
+              title={packageDownloadBlockedReason ?? "Download the verification package"}
+              aria-describedby={
+                packageDownloadBlockedReason ? "evidence-download-report-reason" : undefined
+              }
               data-evidence-action="download-package"
+              data-evidence-disabled-reason={packageDownloadBlockedReason ?? undefined}
             >
               <ShieldCheck size={16} strokeWidth={1.9} aria-hidden="true" />
               {/* The "ZIP" suffix is a vocabulary CONTRACT (phase A2 / G5.2): it
@@ -1261,6 +1313,19 @@ function EvidenceDetailPageInner() {
                   redesign dropped it; restored. */}
               Download Verification Package ZIP
             </button>
+
+            {/* The reason a download is refused, stated rather than implied by
+                a faded control. Rendered once for whichever action is blocked;
+                both controls point at it with `aria-describedby`. */}
+            {reportDownloadBlockedReason || packageDownloadBlockedReason ? (
+              <p
+                className="evidence-detail-action-reason"
+                id="evidence-download-report-reason"
+                data-evidence-download-blocked-reason
+              >
+                {reportDownloadBlockedReason ?? packageDownloadBlockedReason}
+              </p>
+            ) : null}
 
             <EvidenceHeroIconActions
               lockedAt={evidence.lockedAt}
