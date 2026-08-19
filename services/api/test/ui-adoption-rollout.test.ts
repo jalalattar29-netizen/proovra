@@ -364,11 +364,15 @@ describe("Evidence detail page (full adoption)", () => {
     // isIntegrityFailed`. The contract we still want to assert is
     // that the eligibility-derived flag participates in the disabled
     // gate.
+    // The hero actions are canonical `<button className="app-*-action">`
+    // now — the legacy Button primitive is gone from the whole route. The
+    // contract asserted here is unchanged: the eligibility-derived flag
+    // participates in the disabled gate of the report download.
     expect(src).toMatch(
-      /<Button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{exportDisabled\b/,
+      /<button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{exportDisabled\b/,
     );
     expect(src).toMatch(
-      /<Button[\s\S]*?onClick=\{\(\) => void downloadVerificationPackage\(\)\}[\s\S]*?disabled=\{packageDisabled\b/,
+      /<button[\s\S]*?onClick=\{\(\) => void downloadVerificationPackage\(\)\}[\s\S]*?disabled=\{packageDisabled\b/,
     );
   });
 

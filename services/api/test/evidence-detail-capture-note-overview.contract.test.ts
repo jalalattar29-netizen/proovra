@@ -28,6 +28,23 @@ const __dirname = dirname(__filename);
 // Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
 // concatenate the orchestrator + every tab body so source-shape
 // assertions still find the capture-note section snippet.
+const EVIDENCE_DETAIL_CSS = readFileSync(
+  resolve(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "apps",
+    "web",
+    "app",
+    "(app)",
+    "evidence",
+    "[id]",
+    "evidence-detail.css",
+  ),
+  "utf8",
+);
+
 const PAGE_SRC = [
   "page.tsx",
   "_tabs/_lib.tsx",
@@ -38,6 +55,12 @@ const PAGE_SRC = [
   "_tabs/EvidenceArtifactsTab.tsx",
   "_tabs/EvidenceDiscussionTab.tsx",
   "_tabs/EvidenceTechnicalAppendixTab.tsx",
+  // The redesign extracted three single-responsibility surfaces out of the
+  // orchestrator and the appendix tab. They are part of the same page body,
+  // so source-shape assertions must keep seeing them.
+  "_tabs/EvidenceRecordRail.tsx",
+  "_tabs/technical-appendix/TrustDecisionSummary.tsx",
+  "_tabs/technical-appendix/TechnicalDisclosure.tsx",
 ]
   .map((rel) =>
     readFileSync(
@@ -71,8 +94,15 @@ describe("Evidence Detail — Overview capture-note surface (P0 Bug 3)", () => {
   });
 
   it("Overview surface renders the captured note verbatim (whitespace preserved)", () => {
+    // pre-wrap moved from an inline style object onto the canonical
+    // .evidence-detail-capture-note class when the route's inline styles were
+    // removed. The guarantee — the note renders verbatim with its whitespace
+    // preserved — is asserted against the class AND the stylesheet rule.
     expect(PAGE_SRC).toMatch(
-      /data-evidence-section="capture-note"[\s\S]{0,800}?whiteSpace:\s*"pre-wrap"[\s\S]{0,200}?evidence\.internalNotes/,
+      /data-evidence-section="capture-note"[\s\S]{0,800}?evidence-detail-capture-note[\s\S]{0,200}?evidence\.internalNotes/,
+    );
+    expect(EVIDENCE_DETAIL_CSS).toMatch(
+      /\.evidence-detail-capture-note\s*\{[\s\S]{0,240}white-space:\s*pre-wrap/,
     );
   });
 
@@ -83,8 +113,10 @@ describe("Evidence Detail — Overview capture-note surface (P0 Bug 3)", () => {
   });
 
   it("Review tab still carries the canonical 'Private session note' surface (no regression)", () => {
+    // The Review surface keeps the same heading and the same value; the
+    // heading is now a titled BoundaryNote rather than a bare <strong>.
     expect(PAGE_SRC).toMatch(
-      /<strong>Private session note<\/strong>[\s\S]{0,200}?\{evidence\.internalNotes\}/,
+      /Private session note[\s\S]{0,300}?\{evidence\.internalNotes\}/,
     );
   });
 });

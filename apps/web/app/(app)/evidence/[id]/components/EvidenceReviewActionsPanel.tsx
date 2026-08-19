@@ -205,12 +205,12 @@ export function EvidenceReviewActionsPanel({
   }
 
   return (
-    <section style={panelStyle}>
-      <header style={headerStyle}>
+    <section className="evd-panel">
+      <header className="evd-header">
         <div>
-          <div style={kickerStyle}>Review actions</div>
-          <h3 style={titleStyle}>Internal review decisions</h3>
-          <p style={mutedStyle}>
+          <div className="evd-kicker">Review actions</div>
+          <h3 className="evd-title">Internal review decisions</h3>
+          <p className="evd-muted">
             Internal-only actions. Decisions and notes stay in the
             workspace and are never shared with public verify, external
             contributors, or the report.
@@ -218,24 +218,26 @@ export function EvidenceReviewActionsPanel({
         </div>
       </header>
 
-      {error ? <div style={errorStyle}>{error}</div> : null}
+      {error ? <div className="evd-error">{error}</div> : null}
 
-      <div style={metaRowStyle}>
-        <span style={badgeStyle(stage)}>{stage}</span>
+      <div className="evd-actions">
+        <span className="app-status-badge" data-tone={stageTone(stage)}>
+          {stage}
+        </span>
         {assignedToUserId ? (
-          <span style={mutedStyle}>
+          <span className="evd-muted">
             assigned to {isMine ? "you" : `${assignedToUserId.slice(0, 8)}…`}
           </span>
         ) : (
-          <span style={mutedStyle}>unassigned</span>
+          <span className="evd-muted">unassigned</span>
         )}
       </div>
 
-      <div style={actionRowStyle}>
+      <div className="evd-actions evd-actions--top">
         {canClaim ? (
           <button
             type="button"
-            style={primaryButtonStyle}
+            className="app-primary-action"
             disabled={busy}
             onClick={claim}
           >
@@ -258,7 +260,7 @@ export function EvidenceReviewActionsPanel({
             <button
               key={d}
               type="button"
-              style={enabled ? secondaryButtonStyle : disabledButtonStyle}
+              className="app-secondary-action"
               disabled={busy || !enabled}
               onClick={() => decide(d)}
               title={enabled ? "" : `Not available from ${stage}`}
@@ -277,117 +279,23 @@ export function EvidenceReviewActionsPanel({
 // pattern. No new design tokens introduced.
 // -----------------------------------------------------------------------------
 
-const panelStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: 16,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const headerStyle: React.CSSProperties = {
-  marginBottom: 12,
-};
-const kickerStyle: React.CSSProperties = {
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "#94a3b8",
-  fontWeight: 600,
-};
-const titleStyle: React.CSSProperties = {
-  margin: "4px 0 4px 0",
-  fontSize: 16,
-  fontWeight: 600,
-  color: "#0f172a",
-};
-const mutedStyle: React.CSSProperties = { fontSize: 12, color: "#64748b" };
-const errorStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  fontSize: 13,
-  marginBottom: 8,
-};
-const metaRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginBottom: 12,
-};
-const actionRowStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-};
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 13,
-};
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 13,
-};
-const disabledButtonStyle: React.CSSProperties = {
-  ...secondaryButtonStyle,
-  opacity: 0.45,
-  cursor: "not-allowed",
-};
 
-function badgeStyle(stage: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "3px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-  };
-  if (stage === "APPROVED_INTERNAL") {
-    return {
-      ...base,
-      background: "#f0fdf4",
-      borderColor: "#86efac",
-      color: "#166534",
-    };
-  }
+/**
+ * Reviewer stage -> canonical badge tone. The previous helper built a raw
+ * palette per stage (a green ground, border and ink); the canonical
+ * app-status-badge already owns that vocabulary, so this only names the tone.
+ * The stage groupings are unchanged.
+ */
+function stageTone(stage: string): "green" | "red" | "amber" | "blue" | "slate" {
+  if (stage === "APPROVED_INTERNAL") return "green";
   if (
     stage === "REJECTED_INSUFFICIENT" ||
     stage === "ESCALATED" ||
     stage === "NEEDS_MORE_INFO"
   ) {
-    return {
-      ...base,
-      background: "#fef2f2",
-      borderColor: "#fca5a5",
-      color: "#991b1b",
-    };
+    return "red";
   }
-  if (stage === "CLOSED") {
-    return {
-      ...base,
-      background: "#f1f5f9",
-      borderColor: "#cbd5e1",
-      color: "#475569",
-    };
-  }
-  return {
-    ...base,
-    background: "#eff6ff",
-    borderColor: "#93c5fd",
-    color: "#1e40af",
-  };
+  if (stage === "IN_REVIEW" || stage === "READY_FOR_EXTERNAL_REVIEW") return "blue";
+  if (stage === "NOT_STARTED") return "slate";
+  return "amber";
 }

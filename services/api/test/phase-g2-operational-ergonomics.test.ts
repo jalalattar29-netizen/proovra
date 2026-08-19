@@ -224,8 +224,11 @@ describe("Phase G2 (C2.5) — discussion advanced filters/search", () => {
   });
 
   it("applies the filter client-side on the bounded thread list", () => {
+    // The filter was hoisted out of JSX into a named `visibleThreads` const
+    // when the panel was migrated off inline styles. Same client-side filter,
+    // same bounded list, same two inputs — one binding earlier.
     expect(DISCUSSION_PANEL).toMatch(
-      /threads\s*\n?\s*\.filter\([\s\S]*?filterPreset[\s\S]*?filterText/,
+      /visibleThreads = \(threads \?\? \[\]\)\.filter\([\s\S]*?filterPreset[\s\S]*?filterText/,
     );
   });
 

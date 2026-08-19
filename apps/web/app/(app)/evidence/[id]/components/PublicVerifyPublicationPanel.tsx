@@ -38,7 +38,6 @@ import {
   useId,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -237,18 +236,18 @@ export default function PublicVerifyPublicationPanel({
       aria-busy={busy}
     >
       <div className="evidence-detail-section-header">
-        <h3 id={`${reasonFieldId}-heading`} style={headingStyle}>
+        <h3 id={`${reasonFieldId}-heading`} className="evd-title">
           Public verification
         </h3>
       </div>
-      <p style={mutedStyle}>
+      <p className="evd-muted">
         Current state: <strong>{summary.state.replace(/_/g, " ")}</strong>.
         Publishing lets anyone with the link confirm this record&apos;s
         integrity without signing in. It does not assert legal admissibility.
       </p>
 
-      <div style={fieldStyle}>
-        <label htmlFor={reasonFieldId} style={labelStyle}>
+      <div className="evd-block--foot">
+        <label htmlFor={reasonFieldId} className="evd-field__label">
           Internal note (optional)
         </label>
         <textarea
@@ -268,9 +267,9 @@ export default function PublicVerifyPublicationPanel({
           aria-describedby={
             reasonError ? `${reasonFieldId}-error` : `${reasonFieldId}-hint`
           }
-          style={textareaStyle}
+          className="app-form-input evd-textarea"
         />
-        <p id={`${reasonFieldId}-hint`} style={hintStyle}>
+        <p id={`${reasonFieldId}-hint`} className="evd-muted evd-muted--small">
           Recorded in the custody chain only. Never shown on the public page.
           Up to {REASON_MAX} characters.
         </p>
@@ -279,25 +278,21 @@ export default function PublicVerifyPublicationPanel({
             id={`${reasonFieldId}-error`}
             role="alert"
             data-cc-public-verify-reason-error
-            style={errorTextStyle}
+            className="evd-error"
           >
             {reasonError}
           </p>
         ) : null}
       </div>
 
-      <div style={buttonRowStyle}>
+      <div className="evd-actions">
         {published ? (
           <button
             type="button"
             data-cc-public-verify-unpublish
             onClick={() => void run("unpublish")}
             disabled={busy || !permitted}
-            style={{
-              ...dangerButtonStyle,
-              opacity: busy || !permitted ? 0.55 : 1,
-              cursor: busy || !permitted ? "not-allowed" : "pointer",
-            }}
+            className="app-secondary-action evidence-detail-destructive-action"
           >
             {pending === "unpublish"
               ? "Withdrawing…"
@@ -309,11 +304,7 @@ export default function PublicVerifyPublicationPanel({
             data-cc-public-verify-publish
             onClick={() => void run("publish")}
             disabled={busy || !permitted}
-            style={{
-              ...primaryButtonStyle,
-              opacity: busy || !permitted ? 0.55 : 1,
-              cursor: busy || !permitted ? "not-allowed" : "pointer",
-            }}
+            className="app-primary-action"
           >
             {pending === "publish" ? "Publishing…" : "Publish to public verify"}
           </button>
@@ -321,7 +312,7 @@ export default function PublicVerifyPublicationPanel({
       </div>
 
       {blockedReason ? (
-        <p data-cc-public-verify-blocked style={hintStyle}>
+        <p data-cc-public-verify-blocked className="evd-muted evd-muted--small">
           {blockedReason}
         </p>
       ) : null}
@@ -331,7 +322,7 @@ export default function PublicVerifyPublicationPanel({
         role="status"
         aria-live="polite"
         data-cc-public-verify-status
-        style={notice || problem ? statusStyle : srOnlyStyle}
+        className={notice || problem ? "evd-flash" : "app-visually-hidden"}
       >
         {busy
           ? pending === "publish"
@@ -346,78 +337,3 @@ export default function PublicVerifyPublicationPanel({
     </section>
   );
 }
-
-const headingStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 14,
-  fontWeight: 650,
-};
-const mutedStyle: CSSProperties = {
-  margin: "4px 0 12px",
-  fontSize: 13,
-  color: "#475569",
-};
-const fieldStyle: CSSProperties = { marginBottom: 12 };
-const labelStyle: CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
-  marginBottom: 4,
-};
-const textareaStyle: CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  fontSize: 13,
-  boxSizing: "border-box",
-  fontFamily: "inherit",
-  resize: "vertical",
-};
-const hintStyle: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: 12,
-  color: "#64748b",
-};
-const errorTextStyle: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: 12,
-  color: "#b91c1c",
-};
-const buttonRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
-const primaryButtonStyle: CSSProperties = {
-  padding: "8px 14px",
-  border: "1px solid #1d4ed8",
-  background: "#1d4ed8",
-  color: "#fff",
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 8,
-};
-const dangerButtonStyle: CSSProperties = {
-  padding: "8px 14px",
-  border: "1px solid #dc2626",
-  background: "#fff",
-  color: "#b91c1c",
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 8,
-};
-const statusStyle: CSSProperties = {
-  marginTop: 12,
-  padding: "8px 10px",
-  background: "#f1f5f9",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  fontSize: 13,
-  color: "#0f172a",
-};
-const srOnlyStyle: CSSProperties = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  overflow: "hidden",
-  clip: "rect(0 0 0 0)",
-  whiteSpace: "nowrap",
-};

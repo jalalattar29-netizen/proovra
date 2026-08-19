@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "../../../../../components/ui";
 import {
   formatReviewerStatusLabel,
   REVIEWER_STATUS_DISCLAIMER,
@@ -62,12 +61,21 @@ export function ReviewerWorkflowCard({
           <h2>Assignment and review state</h2>
         </div>
         <div className="evidence-detail-inline-actions">
-          <Button variant="secondary" onClick={onRefreshEvents}>
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onRefreshEvents}
+          >
             Refresh history
-          </Button>
-          <Button onClick={onOpenEditor} disabled={actionBusy}>
+          </button>
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--filled"
+            onClick={onOpenEditor}
+            disabled={actionBusy}
+          >
             {workflow.available ? "Update workflow" : "Create workflow"}
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -106,9 +114,8 @@ export function ReviewerWorkflowCard({
         {workflow.note || "Workflow state is recorded separately from forensic custody and does not alter the preserved evidence record."}
       </p>
       <p
-        className="evidence-detail-muted"
+        className="evd-muted evd-muted--small evd-block--tight"
         data-evidence-reviewer-disclaimer="true"
-        style={{ fontSize: 12, marginTop: 4 }}
       >
         {REVIEWER_STATUS_DISCLAIMER}
       </p>

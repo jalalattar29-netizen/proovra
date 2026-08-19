@@ -136,16 +136,16 @@ export default function GovernanceIndicators({
   if (items.length === 0) return null;
 
   return (
-    <section style={wrapperStyle} aria-label="Governance indicators">
-      <p style={mutedStyle}>Governance</p>
-      <ul style={listStyle}>
+    <section className="evd-panel" aria-label="Governance indicators">
+      <p className="evd-muted">Governance</p>
+      <ul className="evd-list">
         {items.map((it, i) => (
-          <li key={i} style={badgeStyle(it.tone)}>
+          <li key={i} className="app-status-badge" data-tone={toneFor(it.tone)}>
             {it.label}
           </li>
         ))}
       </ul>
-      <p style={{ ...mutedStyle, marginTop: 8, fontSize: 11 }}>
+      <p className="evd-muted">
         Governance indicators reflect internal preservation and workflow
         controls. They do not assert authenticity, legal admissibility, or
         evidentiary truth.
@@ -154,44 +154,11 @@ export default function GovernanceIndicators({
   );
 }
 
-const wrapperStyle: React.CSSProperties = {
-  marginTop: 16,
-  marginBottom: 16,
-  padding: 14,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const mutedStyle: React.CSSProperties = {
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-  color: "#64748b",
-  margin: 0,
-};
-const listStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: "8px 0 0",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-};
 
-function badgeStyle(tone: "warn" | "info" | "danger"): React.CSSProperties {
-  const palette: Record<"warn" | "info" | "danger", [string, string, string]> = {
-    warn: ["#fef3c7", "#fde68a", "#92400e"],
-    info: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    danger: ["#fef2f2", "#fecaca", "#7f1d1d"],
-  };
-  const [bg, border, color] = palette[tone];
-  return {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-  };
+/**
+ * Governance tone -> canonical badge tone. The previous helper carried a
+ * private three-colour palette; the canonical app-status-badge owns it now.
+ */
+function toneFor(tone: "warn" | "info" | "danger"): "amber" | "blue" | "red" {
+  return tone === "warn" ? "amber" : tone === "info" ? "blue" : "red";
 }

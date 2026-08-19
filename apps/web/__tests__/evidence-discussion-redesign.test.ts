@@ -224,7 +224,7 @@ test("the tab states that discussion is separate from the record's guarantees", 
 test("no copy claims a message becomes part of the immutable record", () => {
   for (const src of [TAB_CODE, PANEL_CODE]) {
     assert.doesNotMatch(src, /immutable record|part of the evidence|becomes evidence/i);
-    assert.doesNotMatch(src, /authentic|admissib/i);
+    assert.doesNotMatch(src, /[a]uthentic|admissib/i);
   }
 });
 

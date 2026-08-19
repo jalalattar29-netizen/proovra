@@ -157,12 +157,12 @@ export function EvidenceProvenanceChainSection({
 
       {state.kind === "error" ? (
         <div data-evidence-provenance-error className="evidence-detail-muted">
-          <p style={{ margin: 0 }}>{state.message}</p>
+          <p className="evd-muted">{state.message}</p>
           <button
             type="button"
             data-evidence-provenance-retry
             onClick={() => void load()}
-            style={retryButtonStyle}
+            className="app-secondary-action"
           >
             Try again
           </button>
@@ -245,22 +245,22 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChain }) {
     <div data-evidence-provenance-body>
       <KeyValueGrid items={captureItems} />
 
-      <div style={{ marginTop: 14 }}>
-        <strong style={subHeadingStyle}>Preservation steps recorded</strong>
+      <div className="evd-block">
+        <strong className="evd-kicker">Preservation steps recorded</strong>
         <KeyValueGrid items={preservationItems} />
-        <p className="evidence-detail-muted" style={{ marginTop: 6 }}>
+        <p className="evd-muted evd-block--tight">
           These steps are the same events listed on the Custody tab — open
           Custody for the full timeline, including who performed each step.
         </p>
       </div>
 
       {chain.derivations.length > 0 ? (
-        <div style={{ marginTop: 14 }} data-evidence-provenance-derivations>
-          <strong style={subHeadingStyle}>Files derived from this one</strong>
-          <ul style={listStyle}>
+        <div className="evd-block" data-evidence-provenance-derivations>
+          <strong className="evd-kicker">Files derived from this one</strong>
+          <ul className="evd-list">
             {chain.derivations.map((d) => (
               <li key={`${d.derivedEvidenceId}:${d.derivedAtUtc}`}>
-                <Link2 size={12} aria-hidden style={{ marginRight: 6 }} />
+                <Link2 size={12} aria-hidden className="evd-inline-icon" />
                 <code>{d.derivedEvidenceId.slice(0, 8)}…</code> ·{" "}
                 {d.transformLabel || "derived copy"} ·{" "}
                 {formatUserDateTime(d.derivedAtUtc)}
@@ -270,9 +270,9 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChain }) {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 14 }}>
-        <strong style={subHeadingStyle}>What this does not tell you</strong>
-        <ul style={listStyle} data-evidence-provenance-limitations>
+      <div className="evd-block">
+        <strong className="evd-kicker">What this does not tell you</strong>
+        <ul className="evd-list" data-evidence-provenance-limitations>
           {chain.limitations.map((code) => (
             <li key={code}>{LIMITATION_COPY[code] ?? humaniseEnum(code)}</li>
           ))}
@@ -303,26 +303,3 @@ function humaniseEnum(value: string): string {
   const spaced = value.replace(/_/g, " ").toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
-
-const subHeadingStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  marginBottom: 6,
-};
-const listStyle: React.CSSProperties = {
-  margin: "4px 0 0",
-  paddingLeft: 18,
-  fontSize: 12,
-  color: "var(--text-muted, #475569)",
-  display: "grid",
-  gap: 4,
-};
-const retryButtonStyle: React.CSSProperties = {
-  marginTop: 8,
-  padding: "4px 10px",
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  borderRadius: 6,
-  fontSize: 12,
-  cursor: "pointer",
-};

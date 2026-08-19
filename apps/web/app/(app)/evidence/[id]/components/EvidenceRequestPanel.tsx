@@ -18,6 +18,7 @@
  *     URL is held in component state ONLY while the dialog is open.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
@@ -243,58 +244,58 @@ export default function EvidenceRequestPanel({
   if (featureDisabled) return null;
 
   return (
-    <section style={panelStyle} aria-label="Evidence requests">
-      <header style={headerStyle}>
+    <section className="evd-panel" aria-label="Evidence requests">
+      <header className="evd-header">
         <div>
-          <p style={mutedStyle}>Evidence requests</p>
-          <h3 style={titleStyle}>Linked requests</h3>
+          <p className="evd-muted">Evidence requests</p>
+          <h3 className="evd-title">Linked requests</h3>
         </div>
         <button
           type="button"
-          style={primaryButtonStyle}
+          className="app-primary-action"
           onClick={() => setShowCreate(true)}
         >
           New request
         </button>
       </header>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="evd-error">{error}</div> : null}
 
       {requests !== null && requests.length === 0 ? (
-        <p style={mutedTextStyle}>
+        <p className="evd-muted">
           No linked requests yet. Use “New request” to ask a contributor or
           reviewer for additional evidence or context.
         </p>
       ) : null}
 
       {requests?.map((req) => (
-        <article key={req.id} style={requestCardStyle}>
-          <div style={requestHeaderStyle}>
+        <article key={req.id} className="evd-card">
+          <div className="evd-card-header">
             <div>
               <strong>{req.title}</strong>
-              <div style={mutedTextStyle}>
+              <div className="evd-muted">
                 {req.requestType} · {RECIPIENT_MODE_LABEL[req.recipientMode] ?? req.recipientMode}
                 {req.recipientLabel ? ` · ${req.recipientLabel}` : ""}
               </div>
             </div>
-            <span style={statusBadgeStyle(req.status)}>
+            <span className="app-status-badge" data-tone={requestStatusTone(req.status)}>
               {STATUS_LABEL[req.status] ?? req.status}
             </span>
           </div>
 
           {req.instructions ? (
-            <p style={paragraphStyle}>{req.instructions}</p>
+            <p className="evd-paragraph">{req.instructions}</p>
           ) : null}
 
           {req.deliverables.length > 0 ? (
-            <ul style={deliverableListStyle}>
+            <ul className="evd-list">
               {req.deliverables.map((d) => (
-                <li key={d.id} style={deliverableItemStyle}>
-                  <span style={{ fontWeight: 600 }}>{d.title}</span>
+                <li key={d.id} className="evd-list-item">
+                  <span className="evd-strong">{d.title}</span>
                   {d.required ? (
-                    <span style={requiredBadgeStyle}>Required</span>
+                    <span className="evd-badge evd-badge--accent">Required</span>
                   ) : null}
-                  <span style={deliverableStatusBadge(d.status)}>
+                  <span className="app-status-badge" data-tone={deliverableStatusTone(d.status)}>
                     {DELIVERABLE_LABEL[d.status] ?? d.status}
                   </span>
                 </li>
@@ -303,27 +304,27 @@ export default function EvidenceRequestPanel({
           ) : null}
 
           {req.responses.length > 0 ? (
-            <div style={{ marginTop: 8 }}>
-              <p style={mutedStyle}>Responses</p>
+            <div className="evd-block--tight">
+              <p className="evd-muted">Responses</p>
               {req.responses.map((r) => (
-                <div key={r.id} style={responseRowStyle}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                <div key={r.id} className="evd-card">
+                  <div className="evd-grow">
                     <div>
                       <strong>
                         {r.submittedByExternalLabel ?? "External contributor"}
                       </strong>{" "}
-                      <span style={mutedStyle}>
+                      <span className="evd-muted">
                         · {formatUserDateTime(r.submittedAtUtc)}
                       </span>
                     </div>
-                    <div style={mutedStyle}>
+                    <div className="evd-muted">
                       Status: {RESPONSE_STATUS_LABEL[r.status] ?? r.status}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <div className="evd-actions">
                     <button
                       type="button"
-                      style={smallButtonStyle}
+                      className="app-ghost-action"
                       onClick={() => reviewResponse(req.id, r.id, "ACCEPTED")}
                     >
                       {RESPONSE_STATUS_LABEL.ACCEPTED}
@@ -332,7 +333,7 @@ export default function EvidenceRequestPanel({
                       <button
                         key={s}
                         type="button"
-                        style={smallButtonStyle}
+                        className="app-ghost-action"
                         onClick={() =>
                           setNoteDialog({
                             action: "review",
@@ -352,10 +353,10 @@ export default function EvidenceRequestPanel({
             </div>
           ) : null}
 
-          <div style={requestActionsStyle}>
+          <div className="evd-actions">
             <button
               type="button"
-              style={secondaryButtonStyle}
+              className="app-secondary-action"
               onClick={() => setTimelineFor(req.id)}
             >
               Activity
@@ -363,7 +364,7 @@ export default function EvidenceRequestPanel({
             {req.status === "DRAFT" || req.status === "OPEN" ? (
               <button
                 type="button"
-                style={secondaryButtonStyle}
+                className="app-secondary-action"
                 onClick={() => sendRequest(req)}
               >
                 Send
@@ -374,7 +375,7 @@ export default function EvidenceRequestPanel({
             req.status !== "DRAFT" ? (
               <button
                 type="button"
-                style={secondaryButtonStyle}
+                className="app-secondary-action"
                 onClick={() =>
                   setNoteDialog({
                     action: "needs-more-info",
@@ -390,7 +391,7 @@ export default function EvidenceRequestPanel({
               <>
                 <button
                   type="button"
-                  style={secondaryButtonStyle}
+                  className="app-secondary-action"
                   onClick={() =>
                     setNoteDialog({
                       action: "close",
@@ -403,7 +404,7 @@ export default function EvidenceRequestPanel({
                 </button>
                 <button
                   type="button"
-                  style={dangerButtonStyle}
+                  className="app-secondary-action evidence-detail-destructive-action"
                   onClick={() =>
                     setNoteDialog({
                       action: "cancel",
@@ -448,23 +449,23 @@ export default function EvidenceRequestPanel({
       ) : null}
 
       {reveal ? (
-        <div style={modalBackdropStyle} role="dialog" aria-modal>
-          <div style={modalStyle}>
-            <h3 style={titleStyle}>Intake link created</h3>
-            <p style={paragraphStyle}>
+        <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
+          <div className="evd-dialog">
+            <h3 className="evd-title">Intake link created</h3>
+            <p className="evd-paragraph">
               Send this link to the intended recipient. It will not be shown
               again.
             </p>
             <input
-              style={{ ...inputStyle, fontFamily: "monospace", fontSize: 12 }}
+              className="app-form-input evd-input evd-mono"
               readOnly
               value={reveal.url}
               onClick={(e) => (e.target as HTMLInputElement).select()}
             />
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+            <div className="evd-actions evd-actions--end evd-actions--top">
               <button
                 type="button"
-                style={primaryButtonStyle}
+                className="app-primary-action"
                 onClick={() => {
                   navigator.clipboard?.writeText(reveal.url).catch(() => {});
                 }}
@@ -473,7 +474,7 @@ export default function EvidenceRequestPanel({
               </button>
               <button
                 type="button"
-                style={secondaryButtonStyle}
+                className="app-secondary-action"
                 onClick={() => setReveal(null)}
               >
                 Close (forget link)
@@ -590,74 +591,77 @@ function CreateRequestDialog({
   }
 
   return (
-    <div style={modalBackdropStyle} role="dialog" aria-modal>
-      <div style={modalStyle}>
-        <h3 style={titleStyle}>New evidence request</h3>
+    <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
+      <div className="evd-dialog">
+        <h3 className="evd-title">New evidence request</h3>
         {/* PHASE 7 §10.5 — this request + its intake link land in the
             owning workspace/org; show it before submission. */}
         <WorkspaceContextBanner action="Evidence request will be created in" />
-        {error ? <div style={errorBoxStyle}>{error}</div> : null}
+        {error ? <div className="evd-error">{error}</div> : null}
 
-        <label style={labelStyle}>Title</label>
+        <label className="evd-label">Title</label>
         <input
-          style={inputStyle}
+          className="app-form-input evd-input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
 
-        <label style={labelStyle}>Instructions</label>
+        <label className="evd-label">Instructions</label>
         <textarea
-          style={{ ...inputStyle, minHeight: 80 }}
+          className="app-form-input evd-input evd-textarea"
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
         />
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Type</label>
-            <select
-              style={inputStyle}
+        <div className="evd-row">
+          <div className="evd-grow">
+            <label className="evd-label">Type</label>
+            <AppListbox
               value={requestType}
-              onChange={(e) => setRequestType(e.target.value)}
-            >
-              <option value="ADDITIONAL_EVIDENCE">Additional evidence</option>
-              <option value="CLARIFICATION">Clarification</option>
-              <option value="REPLACEMENT_FILE">Replacement file</option>
-              <option value="WITNESS_STATEMENT">Witness statement</option>
-              <option value="DOCUMENT">Document</option>
-              <option value="OTHER">Other</option>
-            </select>
+              ariaLabel="Request type"
+              onChange={(next) => setRequestType(next)}
+              options={[
+                { value: "ADDITIONAL_EVIDENCE", label: "Additional evidence" },
+                { value: "CLARIFICATION", label: "Clarification" },
+                { value: "REPLACEMENT_FILE", label: "Replacement file" },
+                { value: "WITNESS_STATEMENT", label: "Witness statement" },
+                { value: "DOCUMENT", label: "Document" },
+                { value: "OTHER", label: "Other" },
+              ]}
+            />
           </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Priority</label>
-            <select
-              style={inputStyle}
+          <div className="evd-grow">
+            <label className="evd-label">Priority</label>
+            <AppListbox
               value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-            >
-              <option value="LOW">Low</option>
-              <option value="NORMAL">Normal</option>
-              <option value="HIGH">High</option>
-              <option value="URGENT">Urgent</option>
-            </select>
+              ariaLabel="Priority"
+              onChange={(next) => setPriority(next)}
+              options={[
+                { value: "LOW", label: "Low" },
+                { value: "NORMAL", label: "Normal" },
+                { value: "HIGH", label: "High" },
+                { value: "URGENT", label: "Urgent" },
+              ]}
+            />
           </div>
         </div>
 
-        <label style={labelStyle}>Recipient</label>
-        <select
-          style={inputStyle}
+        <label className="evd-label">Recipient</label>
+        <AppListbox
           value={recipientMode}
-          onChange={(e) => setRecipientMode(e.target.value)}
-        >
-          <option value="INTERNAL_USER">Internal team member</option>
-          <option value="EXTERNAL_CONTRIBUTOR">External contributor</option>
-          <option value="ANONYMOUS_SOURCE">Anonymous source</option>
-          <option value="PSEUDONYMOUS_SOURCE">Pseudonymous source</option>
-        </select>
+          ariaLabel="Recipient"
+          onChange={(next) => setRecipientMode(next)}
+          options={[
+            { value: "INTERNAL_USER", label: "Internal team member" },
+            { value: "EXTERNAL_CONTRIBUTOR", label: "External contributor" },
+            { value: "ANONYMOUS_SOURCE", label: "Anonymous source" },
+            { value: "PSEUDONYMOUS_SOURCE", label: "Pseudonymous source" },
+          ]}
+        />
 
-        <label style={labelStyle}>Recipient label (optional)</label>
+        <label className="evd-label">Recipient label (optional)</label>
         <input
-          style={inputStyle}
+          className="app-form-input evd-input"
           value={recipientLabel}
           onChange={(e) => setRecipientLabel(e.target.value.slice(0, 180))}
           placeholder="e.g. John Smith — claim 4842"
@@ -665,9 +669,9 @@ function CreateRequestDialog({
 
         {recipientMode === "EXTERNAL_CONTRIBUTOR" ? (
           <>
-            <label style={labelStyle}>Recipient email (optional)</label>
+            <label className="evd-label">Recipient email (optional)</label>
             <input
-              style={inputStyle}
+              className="app-form-input evd-input"
               type="email"
               value={recipientEmail}
               onChange={(e) => setRecipientEmail(e.target.value.slice(0, 320))}
@@ -675,9 +679,9 @@ function CreateRequestDialog({
           </>
         ) : null}
 
-        <label style={labelStyle}>Due in (hours)</label>
+        <label className="evd-label">Due in (hours)</label>
         <input
-          style={inputStyle}
+          className="app-form-input evd-input"
           type="number"
           min={1}
           max={24 * 365}
@@ -687,25 +691,20 @@ function CreateRequestDialog({
           }
         />
 
-        <label style={labelStyle}>Deliverables</label>
+        <label className="evd-label">Deliverables</label>
         {deliverables.map((d, idx) => (
           <div
             key={idx}
-            style={{
-              border: "1px solid #e2e8f0",
-              borderRadius: 6,
-              padding: 12,
-              marginBottom: 8,
-            }}
+            className="evd-card"
           >
             <input
-              style={inputStyle}
+              className="app-form-input evd-input"
               value={d.title}
               placeholder="Title (e.g. Damage close-up)"
               onChange={(e) => updateDeliverable(idx, { title: e.target.value })}
             />
             <input
-              style={inputStyle}
+              className="app-form-input evd-input"
               value={d.description}
               placeholder="Description (optional)"
               onChange={(e) =>
@@ -713,13 +712,7 @@ function CreateRequestDialog({
               }
             />
             <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 13,
-                color: "#334155",
-              }}
+              className="evd-checkbox"
             >
               <input
                 type="checkbox"
@@ -734,7 +727,7 @@ function CreateRequestDialog({
         ))}
         <button
           type="button"
-          style={secondaryButtonStyle}
+          className="app-secondary-action"
           onClick={() =>
             setDeliverables((prev) => [
               ...prev,
@@ -750,10 +743,10 @@ function CreateRequestDialog({
           Add deliverable
         </button>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+        <div className="evd-actions evd-actions--end evd-actions--top">
           <button
             type="button"
-            style={secondaryButtonStyle}
+            className="app-secondary-action"
             onClick={onClose}
             disabled={busy}
           >
@@ -761,7 +754,7 @@ function CreateRequestDialog({
           </button>
           <button
             type="button"
-            style={primaryButtonStyle}
+            className="app-primary-action"
             onClick={submit}
             disabled={busy || !title.trim()}
           >
@@ -777,217 +770,56 @@ function CreateRequestDialog({
 // Styles
 // -----------------------------------------------------------------------------
 
-const panelStyle: React.CSSProperties = {
-  marginTop: 24,
-  marginBottom: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: 12,
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  margin: 0,
-  color: "#0f172a",
-};
-const mutedStyle: React.CSSProperties = {
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-  color: "#64748b",
-  margin: 0,
-};
-const mutedTextStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-};
-const paragraphStyle: React.CSSProperties = {
-  fontSize: 14,
-  color: "#0f172a",
-  margin: "8px 0",
-};
-const requestCardStyle: React.CSSProperties = {
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  padding: 16,
-  marginTop: 12,
-};
-const requestHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 12,
-};
-const requestActionsStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 8,
-  marginTop: 12,
-};
-const deliverableListStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: "8px 0",
-};
-const deliverableItemStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  alignItems: "center",
-  padding: "4px 0",
-};
-const responseRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  padding: 8,
-  border: "1px solid #e2e8f0",
-  borderRadius: 6,
-  marginTop: 6,
-};
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
-  cursor: "pointer",
-};
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  cursor: "pointer",
-};
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  fontWeight: 500,
-  color: "#7f1d1d",
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  cursor: "pointer",
-};
-const smallButtonStyle: React.CSSProperties = {
-  padding: "4px 10px",
-  fontSize: 12,
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 999,
-  cursor: "pointer",
-  color: "#0f172a",
-};
-const requiredBadgeStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: "2px 6px",
-  background: "#fef2f2",
-  color: "#991b1b",
-  borderRadius: 999,
-};
-const errorBoxStyle: React.CSSProperties = {
-  marginBottom: 12,
-  padding: 8,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 6,
-  fontSize: 13,
-};
-const modalBackdropStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15, 23, 42, 0.6)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 1000,
-  padding: 16,
-};
-const modalStyle: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 12,
-  padding: 24,
-  maxWidth: 560,
-  width: "100%",
-  maxHeight: "90vh",
-  overflow: "auto",
-  boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
-};
-const inputStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "8px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  marginBottom: 12,
-  fontSize: 14,
-  fontFamily: "inherit",
-  color: "#0f172a",
-  background: "#fff",
-  boxSizing: "border-box",
-};
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  fontWeight: 600,
-  marginBottom: 4,
-  color: "#334155",
-};
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const palette: Record<string, [string, string, string]> = {
-    DRAFT: ["#f1f5f9", "#cbd5e1", "#475569"],
-    OPEN: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    SENT: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    VIEWED: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    IN_PROGRESS: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    RESPONSE_RECEIVED: ["#fef3c7", "#fde68a", "#92400e"],
-    UNDER_REVIEW: ["#fef3c7", "#fde68a", "#92400e"],
-    PARTIALLY_FULFILLED: ["#fef9c3", "#fde68a", "#854d0e"],
-    FULFILLED: ["#dcfce7", "#bbf7d0", "#166534"],
-    NEEDS_MORE_INFO: ["#fef3c7", "#fde68a", "#92400e"],
-    CANCELLED: ["#fef2f2", "#fecaca", "#7f1d1d"],
-    CLOSED: ["#f1f5f9", "#cbd5e1", "#475569"],
-  };
-  const [bg, border, color] = palette[status] ?? palette.DRAFT;
-  return {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-  };
+
+
+
+
+/**
+ * Request / deliverable status -> canonical badge tone. Both helpers used to
+ * build a private three-colour palette per status; app-status-badge already
+ * owns that vocabulary. The status groupings below are unchanged.
+ */
+function requestStatusTone(
+  status: string,
+): "green" | "blue" | "amber" | "red" | "slate" {
+  switch (status) {
+    case "FULFILLED":
+      return "green";
+    case "OPEN":
+    case "SENT":
+    case "VIEWED":
+    case "IN_PROGRESS":
+      return "blue";
+    case "RESPONSE_RECEIVED":
+    case "UNDER_REVIEW":
+    case "PARTIALLY_FULFILLED":
+    case "NEEDS_MORE_INFO":
+      return "amber";
+    case "CANCELLED":
+      return "red";
+    case "DRAFT":
+    case "CLOSED":
+    default:
+      return "slate";
+  }
 }
 
-function deliverableStatusBadge(status: string): React.CSSProperties {
-  const palette: Record<string, [string, string]> = {
-    PENDING: ["#f1f5f9", "#475569"],
-    PARTIALLY_FULFILLED: ["#fef9c3", "#854d0e"],
-    FULFILLED: ["#dcfce7", "#166534"],
-    WAIVED: ["#e2e8f0", "#475569"],
-    REJECTED: ["#fef2f2", "#7f1d1d"],
-  };
-  const [bg, color] = palette[status] ?? palette.PENDING;
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    background: bg,
-    color,
-    borderRadius: 999,
-  };
+function deliverableStatusTone(
+  status: string,
+): "green" | "amber" | "red" | "slate" {
+  switch (status) {
+    case "FULFILLED":
+      return "green";
+    case "PARTIALLY_FULFILLED":
+      return "amber";
+    case "REJECTED":
+      return "red";
+    case "PENDING":
+    case "WAIVED":
+    default:
+      return "slate";
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1006,34 +838,27 @@ function NoteDialog({
 }) {
   const [note, setNote] = useState("");
   return (
-    <div style={modalBackdropStyle} role="dialog" aria-modal>
-      <div style={modalStyle}>
-        <h3 style={titleStyle}>{label}</h3>
-        <p style={paragraphStyle}>
+    <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
+      <div className="evd-dialog">
+        <h3 className="evd-title">{label}</h3>
+        <p className="evd-paragraph">
           Please add a short reviewer note explaining the decision. The note
           is internal — it is not shared with the contributor or any public
           surface.
         </p>
         <textarea
-          style={{ ...inputStyle, minHeight: 100 }}
+          className="app-form-input evd-input evd-textarea evd-textarea--tall"
           value={note}
           onChange={(e) => setNote(e.target.value.slice(0, 4000))}
           autoFocus
         />
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            justifyContent: "flex-end",
-            marginTop: 12,
-          }}
-        >
-          <button type="button" style={secondaryButtonStyle} onClick={onCancel}>
+        <div className="evd-actions evd-actions--end evd-actions--top">
+          <button type="button" className="app-secondary-action" onClick={onCancel}>
             Cancel
           </button>
           <button
             type="button"
-            style={primaryButtonStyle}
+            className="app-primary-action"
             disabled={note.trim().length === 0}
             onClick={() => onConfirm(note.trim())}
           >
@@ -1107,38 +932,34 @@ function ActivityTimelineDrawer({
   }, [requestId]);
 
   return (
-    <div style={modalBackdropStyle} role="dialog" aria-modal>
-      <div style={modalStyle}>
-        <h3 style={titleStyle}>Request activity</h3>
+    <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
+      <div className="evd-dialog">
+        <h3 className="evd-title">Request activity</h3>
         {error ? (
-          <div style={errorBoxStyle}>{error}</div>
+          <div className="evd-error">{error}</div>
         ) : events === null ? (
-          <p style={mutedTextStyle}>Loading…</p>
+          <p className="evd-muted">Loading…</p>
         ) : events.length === 0 ? (
-          <p style={mutedTextStyle}>No activity yet.</p>
+          <p className="evd-muted">No activity yet.</p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul className="evd-list">
             {events.map((e) => (
               <li
                 key={e.id}
-                style={{
-                  padding: "8px 0",
-                  borderBottom: "1px solid #e2e8f0",
-                  fontSize: 13,
-                }}
+                className="evd-activity-row"
               >
-                <div style={{ fontWeight: 600 }}>
+                <div className="evd-strong">
                   {ACTIVITY_LABEL[e.eventType] ?? e.eventType}
                 </div>
-                <div style={mutedTextStyle}>
+                <div className="evd-muted">
                   {formatUserDateTime(e.createdAt)}
                 </div>
               </li>
             ))}
           </ul>
         )}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-          <button type="button" style={secondaryButtonStyle} onClick={onClose}>
+        <div className="evd-actions evd-actions--end evd-actions--top">
+          <button type="button" className="app-secondary-action" onClick={onClose}>
             Close
           </button>
         </div>

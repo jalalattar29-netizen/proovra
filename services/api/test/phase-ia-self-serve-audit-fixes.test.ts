@@ -474,12 +474,22 @@ describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
     // canonical `data-evidence-section="review-status"` so every
     // tab section follows the same data-attr pattern.
     expect(EVI).toMatch(/data-evidence-section="review-status"/);
-    expect(EVI).toMatch(/title="Review status"/);
+    // The status section became the Review HERO: the reviewer state is now
+    // the heading itself (formatReviewerStatusLabel) rather than a card
+    // titled "Review status". The guarantee — self-serve sees the simplified
+    // status surface, not the workflow machinery — is unchanged, and the
+    // canonical disclaimer still travels with it.
+    expect(EVI).toMatch(/formatReviewerStatusLabel\(reviewerStatus\)/);
+    expect(EVI).toMatch(/data-evidence-reviewer-disclaimer="true"/);
   });
 
   it("Intelligence section is gated by canSeeIntelligence", () => {
+    // The section kept its gate; only the heading treatment changed — the
+    // kicker/icon SectionHeading became a plain canonical section title, and
+    // the copy is now "Entities and content summaries". The gate is the
+    // contract this test exists for.
     expect(EVI).toMatch(
-      /\{canSeeIntelligence \?\s*[\s\S]{0,500}<section className="evidence-detail-section"[\s\S]{0,800}kicker="Extracted content"/,
+      /\{canSeeIntelligence \?\s*[\s\S]{0,500}<section className="evidence-detail-section"[\s\S]{0,800}Entities and content summaries/,
     );
   });
 

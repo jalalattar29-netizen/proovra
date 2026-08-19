@@ -132,6 +132,12 @@ describe("Phase 12 UI_SURFACE_EXISTING_DATA — evidence detail intelligence sec
     "_tabs/EvidenceArtifactsTab.tsx",
     "_tabs/EvidenceDiscussionTab.tsx",
     "_tabs/EvidenceTechnicalAppendixTab.tsx",
+  // The redesign extracted three single-responsibility surfaces out of the
+  // orchestrator and the appendix tab. They are part of the same page body,
+  // so source-shape assertions must keep seeing them.
+  "_tabs/EvidenceRecordRail.tsx",
+  "_tabs/technical-appendix/TrustDecisionSummary.tsx",
+  "_tabs/technical-appendix/TechnicalDisclosure.tsx",
   ]
     .map((rel) => readSrc(resolve(EVIDENCE_DETAIL_DIR, rel)))
     .join("\n\n");

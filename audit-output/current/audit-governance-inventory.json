@@ -178,12 +178,12 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "4a7a83e9596eda2c6a76247c49b9bdefef94b6e4",
-    "phase0ChangedPaths": 4,
+    "phase0BaselineRef": "d76ceeb05f85bd601d741a22683a966df9eec975",
+    "phase0ChangedPaths": 28,
     "phase0AddedPaths": 1,
-    "phase0ModifiedPaths": 3,
+    "phase0ModifiedPaths": 27,
     "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 0,
+    "phase0AttributedPaths": 5,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,11 +208,44 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "4a7a83e9596eda2c6a76247c49b9bdefef94b6e4",
+    "baseline": "d76ceeb05f85bd601d741a22683a966df9eec975",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
+        "path": "apps/web/__tests__/evidence-discussion-redesign.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/__tests__/evidence-review-redesign.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/__tests__/evidence-technical-appendix-redesign.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -223,7 +256,62 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/components/GovernanceIndicators.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/components/ReviewerWorkflowCard.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -245,7 +333,183 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/__tests__/evidence-discussion-redesign.test.ts",
+        "path": "apps/web/app/(app)/evidence/[id]/page.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "audit-output/current/architecture-facts.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "audit-output/current/audit-governance-inventory.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "audit-output/current/report.md",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "audit-output/diagnostics/test-caller-diagnostic.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "docs/architecture/current-runtime-capability-map.json",
+        "status": "MODIFIED",
+        "class": "DOCUMENTATION",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "services/api/scripts/capability-authority/manifests/dynamic-resolutions.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_TOOLING",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/capture-closure-pass.contract.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/capture-detail-wiring.contract.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/evidence-detail-capture-note-overview.contract.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/export-package-eligibility-badge-allowed-renders-nothing.contract.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/forensic-hardening.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/phase-12-investigation-productization.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/phase-g2-operational-ergonomics.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/phase-ia-self-serve-audit-fixes.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/ui-adoption-rollout.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/__tests__/evidence-shell-cleanup.test.ts",
         "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {

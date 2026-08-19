@@ -1,18 +1,14 @@
 .evidence-detail-page {
   --detail-ink: #162032;
   --detail-muted: #667085;
-  --detail-soft: #98a2b3;
   --detail-line: rgba(15, 23, 42, 0.09);
   --detail-line-strong: rgba(15, 23, 42, 0.16);
-  --detail-panel: #ffffff;
-  --detail-subtle: #f8fbfa;
   /* PROOVRA design-system migration — the detail accent was a teal
      brand color (#0f5c56). Remapped to the canonical indigo accent so
      kickers, active tabs, primary buttons, focus rings and inline
      links match Home/Cases. The variable names are kept to avoid a
      risky rename across ~20 call sites. */
   --detail-teal: #4f46e5;
-  --detail-teal-strong: #4338ca;
   --detail-teal-soft: #f3f0ff;
   --detail-bronze: #8d6438;
   --detail-green: #16794a;
@@ -166,8 +162,7 @@
   border-color: rgba(141, 100, 56, 0.18);
 }
 
-.evidence-detail-boundary,
-.evidence-detail-note-box {
+.evidence-detail-boundary {
   border-left: 3px solid rgba(141, 100, 56, 0.38);
   padding: 10px 0 10px 14px;
 }
@@ -177,17 +172,6 @@
   color: #475467;
   font-size: 0.92rem;
   line-height: 1.58;
-}
-
-.evidence-detail-note-box {
-  margin-top: 18px;
-  display: grid;
-  gap: 4px;
-}
-
-.evidence-detail-note-box strong {
-  color: var(--detail-bronze);
-  font-size: 0.9rem;
 }
 
 .evidence-detail-hero-actions {
@@ -461,7 +445,6 @@
 }
 
 .evidence-detail-signal-card,
-.evidence-detail-related-card,
 .evidence-library-panel {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
@@ -3930,4 +3913,488 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
     inline-size: 100%;
     justify-content: center;
   }
+}
+
+/* ===========================================================================
+ * EVIDENCE RECORD SHELL — the last presentation the route carried inline.
+ * Record banners, the attention strip, the eligibility row and the dialog
+ * body all move onto the canonical surfaces and semantic tones.
+ * =========================================================================== */
+
+.evidence-detail-presence-row,
+.evidence-detail-eligibility-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-block-end: 8px;
+  min-inline-size: 0;
+}
+.evidence-detail-eligibility-row {
+  gap: 16px;
+  margin-block-end: 12px;
+}
+
+/* ---- Record-level banners -----------------------------------------------
+ * One anatomy, two truthful tones: a failed integrity check is not the same
+ * event as a record sitting in trash, so they never share a colour. */
+.evidence-detail-record-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 16px 18px;
+  margin-block-end: 16px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+}
+.evidence-detail-record-banner--split {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.evidence-detail-record-banner__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.evidence-detail-record-banner__title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.evidence-detail-record-banner__body {
+  font-size: 13px;
+  line-height: 20px;
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-record-banner[data-banner-tone="danger"] {
+  border-color: #F4CFC8;
+  background: #FCEDEA;
+  color: #8f3324;
+}
+.evidence-detail-record-banner[data-banner-tone="warn"] {
+  border-color: #F2DFBB;
+  background: #FDF3E4;
+  color: #8a6414;
+}
+
+/* ---- "What needs attention" strip ---------------------------------------- */
+.evidence-detail-attention {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 12px 16px;
+  margin-block-end: 12px;
+  border-inline-start: 4px solid #b8861f;
+  border-radius: 0 12px 12px 0;
+  background: #FDF3E4;
+}
+[dir="rtl"] .evidence-detail-attention {
+  border-radius: 12px 0 0 12px;
+}
+.evidence-detail-attention__title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #8a6414;
+}
+.evidence-detail-attention__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.evidence-detail-attention__action {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 134, 31, 0.5);
+  background: var(--surface-translucent-outer);
+  color: #8a6414;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.evidence-detail-attention__action:hover {
+  background: #FBEBD2;
+}
+.evidence-detail-attention__action:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+
+/* ---- Dialog body --------------------------------------------------------- */
+.evidence-detail-dialog-note {
+  /* Prose resolves its own direction so a trailing full stop does not jump
+     to the left of the sentence in Arabic layout. */
+  unicode-bidi: plaintext;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+.evidence-detail-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-block-start: 12px;
+  min-inline-size: 0;
+}
+.evidence-detail-dialog-field__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-dialog-field .app-form-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/* ===========================================================================
+ * EVIDENCE PANEL VOCABULARY (`evd-*`)
+ *
+ * The six mounted panels under /evidence/[id] each carried their own
+ * `React.CSSProperties` constants — ~155 raw hex values and 33 inline style
+ * blocks between them, all describing the same handful of shapes: a panel, a
+ * header, a muted line, a card, an action row, a field, a badge, an error
+ * box. This is that shape vocabulary, declared once against the canonical
+ * tokens, so those constants can be deleted rather than re-typed per file.
+ *
+ * It is NOT a second design system: every value below resolves to a token
+ * the rest of the product already uses, and any panel needing a real action
+ * uses the canonical `app-*` primitives instead of a class from here.
+ * =========================================================================== */
+
+.evd-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 18px 20px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evd-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evd-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.evd-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evd-subtitle,
+.evd-muted {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evd-muted--small {
+  font-size: 11.5px;
+}
+.evd-paragraph {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--app-ink-label);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+.evd-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.evd-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.evd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evd-actions--end {
+  justify-content: flex-end;
+}
+.evd-actions--top {
+  margin-block-start: 12px;
+}
+
+.evd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+.evd-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--app-ink-label);
+  overflow-wrap: break-word;
+}
+
+.evd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 12px;
+  align-items: start;
+  min-inline-size: 0;
+}
+.evd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.evd-field__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.evd-field__value {
+  min-inline-size: 0;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 620;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.evd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  color: var(--app-ink-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.evd-badge--accent {
+  border-color: rgba(124, 58, 237, 0.22);
+  background: var(--accent-050);
+  color: var(--accent-600);
+}
+
+.evd-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #F4CFC8;
+  background: #FCEDEA;
+  color: #8f3324;
+  font-size: 12.5px;
+  line-height: 19px;
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+.evd-flash {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #BFE7D6;
+  background: #E7F6EF;
+  color: #167a5b;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+/* Form controls reuse the canonical input; these only carry shape. */
+.evd-input,
+.evd-textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  font: inherit;
+  font-size: 13px;
+}
+.evd-textarea {
+  min-block-size: 84px;
+  resize: vertical;
+}
+.evd-textarea--tall {
+  min-block-size: 110px;
+}
+.evd-mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  unicode-bidi: plaintext;
+}
+.evd-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+}
+.evd-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evd-row > .evd-label,
+.evd-row > .evd-grow {
+  flex: 1 1 180px;
+  min-inline-size: 0;
+}
+.evd-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+/* Provenance-chain and intake blocks: vertical rhythm only. */
+.evd-block {
+  margin-block-start: 14px;
+  min-inline-size: 0;
+}
+.evd-block--tight {
+  margin-block-start: 6px;
+}
+.evd-block--foot {
+  margin-block-end: 8px;
+  min-inline-size: 0;
+}
+.evd-inline-icon {
+  margin-inline-end: 6px;
+  vertical-align: middle;
+}
+
+/* Visually hidden but announced — the publication panel's live region is
+   always present so a screen reader hears the result, and only becomes
+   visible when there is something to show. */
+.app-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Request-panel dialogs -----------------------------------------------
+ * These were four bare role="dialog" overlays with a private backdrop. The
+ * shell now matches the canonical dialog surface; the panel keeps its own
+ * mount because its dialogs are nested inside a live editing flow. */
+.evd-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+.evd-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  inline-size: min(100%, 560px);
+  max-block-size: min(86dvh, 720px);
+  overflow-y: auto;
+  min-inline-size: 0;
+  padding: 20px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: #ffffff;
+}
+.evd-strong {
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evd-grow {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.evd-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  font-size: 13px;
+  color: var(--app-ink-label);
+}
+.evd-activity-row {
+  padding-block: 8px;
+  border-block-end: 1px solid var(--surface-translucent-border-strong);
+  font-size: 13px;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
 }

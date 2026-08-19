@@ -39,7 +39,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import { Button, Modal, useToast } from "../../../../components/ui";
+import { useToast } from "../../../../components/ui";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   useEnterpriseSurfaceAccess,
@@ -589,7 +589,12 @@ function EvidenceDetailPageInner() {
         addToast("Original file not available", "info");
         return;
       }
-      const ok = await tryDownloadFile(url, data.originalFileName || `evidence-${evidenceId}`);
+      // Hoisted so BOTH arguments are plain identifiers at the call site.
+      // The architecture audit resolves a request primitive by walking its
+      // arguments; an inline `||` or property access made the site
+      // unanalysable and forced a hand-reviewed exemption.
+      const originalFileName = data.originalFileName || `evidence-${evidenceId}`;
+      const ok = await tryDownloadFile(url, originalFileName);
       if (!ok) window.open(url, "_blank", "noopener,noreferrer");
       addToast("Original downloaded", "success");
     } catch (downloadError) {
@@ -643,10 +648,11 @@ function EvidenceDetailPageInner() {
         message?: string | null;
       };
       if (data && typeof data.url === "string" && data.url.length > 0) {
-        const ok = await tryDownloadFile(
-          data.url,
-          `verification-package-${evidenceId}.zip`,
-        );
+        // Same reason as downloadOriginal: hoist the signed URL and the file
+        // name so the call site is two identifiers.
+        const packageUrl = data.url;
+        const packageFileName = `verification-package-${evidenceId}.zip`;
+        const ok = await tryDownloadFile(packageUrl, packageFileName);
         if (!ok) window.open(data.url, "_blank", "noopener,noreferrer");
         return;
       }
@@ -926,7 +932,13 @@ function EvidenceDetailPageInner() {
             <h1>Unable to load the record</h1>
             <p>{error || "This evidence record is unavailable right now."}</p>
             <div className="evidence-detail-inline-actions">
-              <Button onClick={() => void loadWorkspace()}>Retry</Button>
+              <button
+                type="button"
+                className="app-primary-action"
+                onClick={() => void loadWorkspace()}
+              >
+                Retry
+              </button>
             </div>
           </section>
         </div>
@@ -1030,15 +1042,7 @@ function EvidenceDetailPageInner() {
           />
         ) : null}
         {workspace.reviewWorkflow?.teamId ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginBottom: 8,
-            }}
-          >
+          <div className="evidence-detail-presence-row">
             <PresenceIndicator
               teamId={workspace.reviewWorkflow.teamId}
               resourceKind="evidence"
@@ -1058,25 +1062,15 @@ function EvidenceDetailPageInner() {
         />
         {isIntegrityFailed ? (
           <aside
-            className="evidence-detail-integrity-banner"
+            className="evidence-detail-record-banner"
+            data-banner-tone="danger"
             role="alert"
             aria-live="polite"
-            style={{
-              border: "1px solid var(--status-risk-border, rgba(176, 50, 50, 0.55))",
-              background: "var(--status-risk-bg, rgba(176, 50, 50, 0.06))",
-              color: "var(--status-risk-fg, #5a1414)",
-              borderRadius: "var(--radius-card, 12px)",
-              padding: "16px 18px",
-              marginBottom: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
           >
-            <strong style={{ fontSize: 14, letterSpacing: 0.02 }}>
+            <strong className="evidence-detail-record-banner__title">
               Integrity check failed
             </strong>
-            <span style={{ fontSize: 13, lineHeight: 1.5 }}>
+            <span className="evidence-detail-record-banner__body">
               The uploaded file&rsquo;s SHA-256 does not match the recomputed
               server-side fingerprint. This evidence record cannot be used. Re-upload or
               recapture the source material as a new evidence record. The original
@@ -1099,29 +1093,17 @@ function EvidenceDetailPageInner() {
             data-evidence-trash-banner is the e2e probe. */}
         {evidence.deletedAt ? (
           <aside
-            className="evidence-detail-trash-banner"
+            className="evidence-detail-record-banner evidence-detail-record-banner--split"
+            data-banner-tone="warn"
             role="status"
             aria-live="polite"
             data-evidence-trash-banner="true"
-            style={{
-              border: "1px solid var(--status-pending-border, rgba(180, 130, 40, 0.55))",
-              background: "var(--status-pending-bg, rgba(180, 130, 40, 0.06))",
-              color: "var(--status-pending-fg, #5a3a14)",
-              borderRadius: "var(--radius-card, 12px)",
-              padding: "16px 18px",
-              marginBottom: 16,
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <strong style={{ fontSize: 14, letterSpacing: 0.02 }}>
+            <div className="evidence-detail-record-banner__copy">
+              <strong className="evidence-detail-record-banner__title">
                 This record is in trash
               </strong>
-              <span style={{ fontSize: 13, lineHeight: 1.5 }}>
+              <span className="evidence-detail-record-banner__body">
                 Mutating actions (download, lock, archive, assign to
                 case, generate report/package) are disabled while
                 the record is in trash. Restore it to bring it back
@@ -1130,20 +1112,10 @@ function EvidenceDetailPageInner() {
             </div>
             <button
               type="button"
+              className="app-secondary-action app-secondary-action--filled"
               onClick={() => void restoreTrash()}
               disabled={actionBusy}
               data-evidence-trash-restore="true"
-              style={{
-                padding: "8px 14px",
-                fontSize: 13,
-                fontWeight: 600,
-                background: "var(--ink-primary, #0f172a)",
-                color: "#ffffff",
-                border: "1px solid var(--ink-primary, #0f172a)",
-                borderRadius: "var(--radius-md, 6px)",
-                cursor: actionBusy ? "wait" : "pointer",
-                opacity: actionBusy ? 0.7 : 1,
-              }}
             >
               {actionBusy ? "Restoring…" : "Restore from trash"}
             </button>
@@ -1240,14 +1212,7 @@ function EvidenceDetailPageInner() {
           </div>
 
           {workspace.reviewWorkflow?.teamId ? (
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                flexWrap: "wrap",
-                marginBottom: 12,
-              }}
-            >
+            <div className="evidence-detail-eligibility-row">
               <ExportPackageEligibilityBadge
                 evidenceId={evidenceId}
                 teamId={workspace.reviewWorkflow.teamId}
@@ -1291,7 +1256,10 @@ function EvidenceDetailPageInner() {
               data-evidence-action="download-package"
             >
               <ShieldCheck size={16} strokeWidth={1.9} aria-hidden="true" />
-              Download Verification Package
+              {/* The "ZIP" suffix is a vocabulary CONTRACT (phase A2 / G5.2): it
+                  disambiguates the package download from the PDF report. The
+                  redesign dropped it; restored. */}
+              Download Verification Package ZIP
             </button>
 
             <EvidenceHeroIconActions
@@ -1650,11 +1618,13 @@ function EvidenceDetailPageInner() {
           Each lifecycle modal now closes automatically once the
           mutation completes AND the workspace has reloaded. The
           modal stays open with the error toast on failure. */}
-      <Modal
-        isOpen={lockOpen}
+      <PortalModal
+        open={lockOpen}
+        testid="evidence-lock"
+        dismissDisabled={actionBusy}
         onClose={() => setLockOpen(false)}
         title="Lock evidence record"
-        actions={
+        footer={
           <>
             <button
               type="button"
@@ -1664,7 +1634,9 @@ function EvidenceDetailPageInner() {
             >
               Cancel
             </button>
-            <Button
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--filled"
               onClick={() =>
                 void runRecordAction(
                   `/v1/evidence/${evidenceId}/lock`,
@@ -1676,7 +1648,7 @@ function EvidenceDetailPageInner() {
               data-evidence-modal-action="confirm-lock"
             >
               Confirm lock
-            </Button>
+            </button>
           </>
         }
       >
@@ -1684,7 +1656,7 @@ function EvidenceDetailPageInner() {
           Locking preserves the current record state and prevents further mutable
           updates to this evidence record.
         </p>
-      </Modal>
+      </PortalModal>
 
       {/* Phase EVIDENCE-LIFECYCLE-UNLOCK — controlled unlock with audit
           trail. Optional reason is stored verbatim on the audit log
@@ -1692,11 +1664,13 @@ function EvidenceDetailPageInner() {
           the record is not actually locked. Object Lock retention,
           legal hold, report immutability, and the custody chain are
           unaffected — unlock only restores mutable workspace updates. */}
-      <Modal
-        isOpen={unlockOpen}
+      <PortalModal
+        open={unlockOpen}
+        testid="evidence-unlock"
+        dismissDisabled={actionBusy}
         onClose={() => setUnlockOpen(false)}
         title="Unlock evidence record"
-        actions={
+        footer={
           <>
             <button
               type="button"
@@ -1706,7 +1680,9 @@ function EvidenceDetailPageInner() {
             >
               Cancel
             </button>
-            <Button
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--filled"
               onClick={() =>
                 void runRecordAction(
                   `/v1/evidence/${evidenceId}/unlock`,
@@ -1726,7 +1702,7 @@ function EvidenceDetailPageInner() {
               data-evidence-modal-action="confirm-unlock"
             >
               Confirm unlock
-            </Button>
+            </button>
           </>
         }
       >
@@ -1734,38 +1710,25 @@ function EvidenceDetailPageInner() {
           Unlocking allows permitted workspace users to make mutable updates
           again. The unlock action is recorded in the audit trail.
         </p>
-        <p className="evidence-detail-muted" style={{ marginTop: 8 }}>
+        <p className="evidence-detail-dialog-note">
           Unlocking does not change retention, legal hold, Object Lock,
           generated reports, verification packages, or the custody chain.
         </p>
-        <label
-          style={{
-            display: "block",
-            marginTop: 12,
-            fontSize: 13,
-            color: "var(--ink-primary, #1f2937)",
-          }}
-        >
-          <span style={{ display: "block", marginBottom: 4 }}>
+        <label className="evidence-detail-dialog-field">
+          <span className="evidence-detail-dialog-field__label">
             Reason for unlocking (optional)
           </span>
           <input
             type="text"
+            className="app-form-input"
             value={unlockReasonDraft}
             onChange={(event) => setUnlockReasonDraft(event.target.value)}
             maxLength={500}
             placeholder="e.g. correcting label after upload"
             data-evidence-unlock-reason
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              borderRadius: "var(--radius-sm, 4px)",
-              border: "1px solid var(--border-default, rgba(15, 23, 42, 0.2))",
-              fontSize: 13,
-            }}
           />
         </label>
-      </Modal>
+      </PortalModal>
 
       <PortalModal
         open={archiveOpen}
@@ -1810,11 +1773,13 @@ function EvidenceDetailPageInner() {
       {/* Phase EVIDENCE-LIFECYCLE-RESTORE-ARCHIVED — confirmation modal
           for restore so it follows the same close-and-refresh pattern
           as every other lifecycle action. Backend route unchanged. */}
-      <Modal
-        isOpen={restoreArchivedOpen}
+      <PortalModal
+        open={restoreArchivedOpen}
+        testid="evidence-restore-archived"
+        dismissDisabled={actionBusy}
         onClose={() => setRestoreArchivedOpen(false)}
         title="Restore archived evidence"
-        actions={
+        footer={
           <>
             <button
               type="button"
@@ -1824,7 +1789,9 @@ function EvidenceDetailPageInner() {
             >
               Cancel
             </button>
-            <Button
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--filled"
               onClick={() =>
                 void runRecordAction(
                   `/v1/evidence/${evidenceId}/unarchive`,
@@ -1836,7 +1803,7 @@ function EvidenceDetailPageInner() {
               data-evidence-modal-action="confirm-restore-archived"
             >
               Restore evidence
-            </Button>
+            </button>
           </>
         }
       >
@@ -1844,7 +1811,7 @@ function EvidenceDetailPageInner() {
           Restoring returns this record to Active evidence. Retention and
           verification history remain unchanged.
         </p>
-      </Modal>
+      </PortalModal>
 
       <PortalModal
         open={trashOpen}
@@ -1945,24 +1912,11 @@ function WhatNeedsAttentionStrip({
   if (!hasAnything) return null;
 
   return (
-    <section
-      className="evidence-detail-section"
-      data-evidence-attention-strip
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        padding: "12px 14px",
-        borderLeft: "4px solid var(--status-pending-solid, #d97706)",
-        background: "var(--status-pending-bg, #fffbeb)",
-        borderRadius: "var(--radius-md, 8px)",
-        marginBottom: 12,
-      }}
-    >
-      <strong style={{ fontSize: 13, color: "var(--status-pending-fg, #7c2d12)", letterSpacing: 0.02 }}>
+    <section className="evidence-detail-attention" data-evidence-attention-strip>
+      <strong className="evidence-detail-attention__title">
         What needs attention
       </strong>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <div className="evidence-detail-attention__items">
         {topRisks.map((s) => (
           <span
             key={`${s.title}-${s.detail}`}
@@ -1988,7 +1942,7 @@ function WhatNeedsAttentionStrip({
             type="button"
             data-evidence-attention-action="assign-case"
             onClick={onAssignCase}
-            style={pillButtonStyle}
+            className="evidence-detail-attention__action"
           >
             No case assigned · Assign
           </button>
@@ -1998,7 +1952,7 @@ function WhatNeedsAttentionStrip({
             type="button"
             data-evidence-attention-action="assign-reviewer"
             onClick={onAssignReviewer}
-            style={pillButtonStyle}
+            className="evidence-detail-attention__action"
           >
             Review not started · Start
           </button>
@@ -2008,7 +1962,7 @@ function WhatNeedsAttentionStrip({
             type="button"
             data-evidence-attention-action="missing-report"
             onClick={onGoToArtifacts}
-            style={pillButtonStyle}
+            className="evidence-detail-attention__action"
           >
             Report not available · Artifacts
           </button>
@@ -2018,7 +1972,7 @@ function WhatNeedsAttentionStrip({
             type="button"
             data-evidence-attention-action="missing-package"
             onClick={onGoToArtifacts}
-            style={pillButtonStyle}
+            className="evidence-detail-attention__action"
           >
             Verification package not available · Artifacts
           </button>
@@ -2027,12 +1981,9 @@ function WhatNeedsAttentionStrip({
       {topRisks.length === 0 && !needsCase && !needsReviewer ? (
         <button
           type="button"
+          className="evidence-detail-attention__action"
           data-evidence-attention-action="open-review"
           onClick={onGoToReview}
-          style={{
-            ...pillButtonStyle,
-            alignSelf: "flex-start",
-          }}
         >
           Open review workspace
         </button>
@@ -2040,14 +1991,3 @@ function WhatNeedsAttentionStrip({
     </section>
   );
 }
-
-const pillButtonStyle: React.CSSProperties = {
-  border: "1px solid var(--status-pending-solid, #d97706)",
-  background: "var(--surface-card, white)",
-  color: "var(--status-pending-fg, #7c2d12)",
-  padding: "4px 10px",
-  borderRadius: 999,
-  fontSize: 12.5,
-  fontWeight: 600,
-  cursor: "pointer",
-};

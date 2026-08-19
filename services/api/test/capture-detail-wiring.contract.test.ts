@@ -56,6 +56,12 @@ const DETAIL_PAGE = [
   "_tabs/EvidenceArtifactsTab.tsx",
   "_tabs/EvidenceDiscussionTab.tsx",
   "_tabs/EvidenceTechnicalAppendixTab.tsx",
+  // The redesign extracted three single-responsibility surfaces out of the
+  // orchestrator and the appendix tab. They are part of the same page body,
+  // so source-shape assertions must keep seeing them.
+  "_tabs/EvidenceRecordRail.tsx",
+  "_tabs/technical-appendix/TrustDecisionSummary.tsx",
+  "_tabs/technical-appendix/TechnicalDisclosure.tsx",
 ]
   .map((rel) =>
     readFileSync(
@@ -164,8 +170,12 @@ describe("CAPTURE-DETAIL-WIRING — structural fixes", () => {
     //   <details data-evidence-raw-appendix data-evidence-raw-debug-gated>
     // and must still NOT carry `open`. The previous always-on
     // `<details open>` form must remain absent.
+    // The appendix now renders every block through one TechnicalDisclosure
+    // component, which defaults to collapsed — so "no `open` attribute" is
+    // held by construction rather than by the tag's spelling. The raw block
+    // still carries both debug markers and still passes no defaultOpen.
     expect(DETAIL_PAGE).toMatch(
-      /<details\s+data-evidence-raw-appendix\s+data-evidence-raw-debug-gated>/,
+      /data-evidence-raw-appendix="true"[\s\S]{0,120}data-evidence-raw-debug-gated="true"/,
     );
     expect(DETAIL_PAGE).not.toMatch(
       /<details\s+open>\s*\n\s*<summary[^>]*>Raw technical appendix/,
@@ -173,6 +183,8 @@ describe("CAPTURE-DETAIL-WIRING — structural fixes", () => {
   });
 
   it("Technical Appendix tab kicker says `Advanced` so the user is warned", () => {
-    expect(DETAIL_PAGE).toMatch(/Technical Appendix · Advanced/);
+    // The separator is now a bullet (•) rather than a middot (·); the
+    // load-bearing part of this contract is the word "Advanced".
+    expect(DETAIL_PAGE).toMatch(/Technical Appendix [·•] Advanced/);
   });
 });

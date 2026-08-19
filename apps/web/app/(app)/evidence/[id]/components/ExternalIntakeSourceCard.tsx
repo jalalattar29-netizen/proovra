@@ -258,18 +258,18 @@ export default function ExternalIntakeSourceCard({
   })();
 
   return (
-    <section style={cardWrapperStyle} aria-label="External intake source">
-      <header style={cardHeaderStyle}>
+    <section className="evd-panel" aria-label="External intake source">
+      <header className="evd-header">
         <div>
-          <p style={mutedStyle}>Source</p>
-          <h3 style={titleStyle}>External intake</h3>
+          <p className="evd-muted">Source</p>
+          <h3 className="evd-title">External intake</h3>
         </div>
-        <span style={modeBadgeStyle}>
+        <span className="evd-badge">
           {summary.intakeMode.replace("EXTERNAL_", "").replace(/_/g, " ").toLowerCase()}
         </span>
       </header>
 
-      <dl style={detailGridStyle}>
+      <dl className="evd-grid">
         <Detail label="Workflow">
           {summary.workflowTemplateName} (v{summary.workflowTemplateVersion})
         </Detail>
@@ -298,17 +298,17 @@ export default function ExternalIntakeSourceCard({
         ) : null}
       </dl>
 
-      <div style={reviewSectionStyle}>
-        <header style={{ marginBottom: 8 }}>
-          <p style={mutedStyle}>Reviewer status</p>
+      <div className="evd-stack">
+        <header className="evd-block--foot">
+          <p className="evd-muted">Reviewer status</p>
           <h4
-            style={subtitleStyle}
+            className="evd-subtitle"
             data-evidence-reviewer-current-status={currentStatus}
           >
             {currentStatusLabel}
             {savedFlashStatus && savedFlashStatus === currentStatus ? (
               <span
-                style={savedFlashStyle}
+                className="evd-flash"
                 data-evidence-reviewer-saved-flash="true"
               >
                 Saved
@@ -316,18 +316,18 @@ export default function ExternalIntakeSourceCard({
             ) : null}
           </h4>
         </header>
-        {reviewError ? <div style={errorBoxStyle}>{reviewError}</div> : null}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {reviewError ? <div className="evd-error">{reviewError}</div> : null}
+        <div className="evd-actions">
           {ACTIONABLE_STATUSES.map((s) => {
             const active = currentStatus === s;
             return (
               <button
                 key={s}
                 type="button"
-                style={
+                className={
                   active
-                    ? { ...statusButtonStyle, ...statusButtonActiveStyle }
-                    : statusButtonStyle
+                    ? "app-secondary-action app-secondary-action--filled"
+                    : "app-secondary-action"
                 }
                 disabled={reviewBusy}
                 onClick={() => patchReviewStatus(s)}
@@ -344,7 +344,7 @@ export default function ExternalIntakeSourceCard({
         {/* Verdicts are recorded as DECISIONS; the status they produce is
             derived by the server from the immutable decision log. */}
         <div
-          style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}
+          className="evd-actions evd-actions--top"
           data-evidence-reviewer-decisions="true"
         >
           {REVIEWER_DECISION_ACTIONS.map((action) => {
@@ -353,10 +353,10 @@ export default function ExternalIntakeSourceCard({
               <button
                 key={action.decision}
                 type="button"
-                style={
+                className={
                   satisfied
-                    ? { ...statusButtonStyle, ...statusButtonActiveStyle }
-                    : statusButtonStyle
+                    ? "app-secondary-action app-secondary-action--filled"
+                    : "app-secondary-action"
                 }
                 disabled={reviewBusy}
                 onClick={() => recordDecision(action.decision)}
@@ -372,7 +372,7 @@ export default function ExternalIntakeSourceCard({
           })}
         </div>
         <p
-          style={{ ...mutedStyle, marginTop: 12, fontSize: 12 }}
+          className="evd-muted"
           data-evidence-reviewer-disclaimer="true"
         >
           {REVIEWER_STATUS_DISCLAIMER}
@@ -385,8 +385,8 @@ export default function ExternalIntakeSourceCard({
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt style={detailLabelStyle}>{label}</dt>
-      <dd style={detailValueStyle}>{children}</dd>
+      <dt className="evd-field__label">{label}</dt>
+      <dd className="evd-field__value">{children}</dd>
     </div>
   );
 }
@@ -395,107 +395,3 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 // Styles — self-contained so this component does not depend on the existing
 // evidence-detail.css. A future polish phase can move to the design system.
 // -----------------------------------------------------------------------------
-
-const cardWrapperStyle: React.CSSProperties = {
-  marginTop: 24,
-  marginBottom: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const cardHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: 16,
-  gap: 12,
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  margin: 0,
-  color: "#0f172a",
-};
-const subtitleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 600,
-  margin: 0,
-  color: "#0f172a",
-};
-const mutedStyle: React.CSSProperties = {
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-  color: "#64748b",
-  margin: 0,
-};
-const modeBadgeStyle: React.CSSProperties = {
-  padding: "4px 10px",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  color: "#1e40af",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 600,
-};
-const detailGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
-  margin: 0,
-};
-const detailLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  color: "#64748b",
-  marginBottom: 2,
-};
-const detailValueStyle: React.CSSProperties = {
-  fontSize: 14,
-  color: "#0f172a",
-  margin: 0,
-};
-const reviewSectionStyle: React.CSSProperties = {
-  marginTop: 20,
-  paddingTop: 16,
-  borderTop: "1px solid #e2e8f0",
-};
-const statusButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  fontSize: 13,
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 999,
-  cursor: "pointer",
-  color: "#0f172a",
-};
-const statusButtonActiveStyle: React.CSSProperties = {
-  background: "#0f172a",
-  borderColor: "#0f172a",
-  color: "#fff",
-  fontWeight: 600,
-};
-const savedFlashStyle: React.CSSProperties = {
-  marginLeft: 10,
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: 0.4,
-  textTransform: "uppercase",
-  color: "#065f46",
-  background: "#d1fae5",
-  border: "1px solid #6ee7b7",
-  borderRadius: 999,
-  verticalAlign: "middle",
-};
-const errorBoxStyle: React.CSSProperties = {
-  marginBottom: 8,
-  padding: 8,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 6,
-  fontSize: 13,
-};
