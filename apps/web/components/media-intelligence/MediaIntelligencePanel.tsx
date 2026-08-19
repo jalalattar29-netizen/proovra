@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useMediaIntelligence } from "../../lib/media-intelligence/useMediaIntelligence";
+import { type AppTone } from "../app-primitives";
 import { formatUserDateTime } from "../../lib/date";
 import {
   useDerivedAssets,
@@ -85,9 +86,9 @@ export default function MediaIntelligencePanel({
 
   if (!teamId) {
     return (
-      <section style={panelStyle} aria-label="Media intelligence">
+      <section className="evd-panel" aria-label="Media intelligence">
         <PanelHeader />
-        <p style={emptyStyle}>
+        <p className="evd-muted">
           Workspace context is required to load media intelligence.
         </p>
       </section>
@@ -95,7 +96,7 @@ export default function MediaIntelligencePanel({
   }
 
   return (
-    <section style={panelStyle} aria-label="Media intelligence">
+    <section className="evd-panel" aria-label="Media intelligence">
       <PanelHeader
         onRunAnalyzer={async () => {
           await runAsync();
@@ -103,32 +104,32 @@ export default function MediaIntelligencePanel({
         running={state.loading}
       />
 
-      <p style={advisoryStyle}>
+      <p className="evd-muted">
         Observations below are deterministic, advisory-only signals
         derived from file metadata. They do not establish authenticity
         or content. Review with normal operator judgment.
       </p>
 
       {state.error ? (
-        <p style={errorStyle}>
+        <p className="evd-error">
           Could not load signals ({state.error.code}). Retry from the
           analyzer button above.
         </p>
       ) : null}
 
       {state.loading && !state.data ? (
-        <p style={emptyStyle}>Loading…</p>
+        <p className="evd-muted">Loading…</p>
       ) : null}
 
       {state.data && sortedSignals.length === 0 ? (
-        <p style={emptyStyle}>
+        <p className="evd-muted">
           No signals recorded yet. Run the analyzer to populate the
           known categories below.
         </p>
       ) : null}
 
       {sortedSignals.length > 0 ? (
-        <ul style={listStyle}>
+        <ul className="evd-list">
           {sortedSignals.map((signal) => (
             <SignalRow
               key={signal.id}
@@ -146,14 +147,14 @@ export default function MediaIntelligencePanel({
       ) : null}
 
       {missingCategories.length > 0 ? (
-        <details style={detailsStyle}>
-          <summary style={summaryStyle}>
+        <details className="evd-stack">
+          <summary className="evd-kicker">
             Categories not yet computed for this evidence
             ({missingCategories.length})
           </summary>
-          <ul style={catalogListStyle}>
+          <ul className="evd-list">
             {missingCategories.map((entry) => (
-              <li key={entry.signalType} style={catalogItemStyle}>
+              <li key={entry.signalType} className="evd-list-item">
                 {entry.displayLabel}
               </li>
             ))}
@@ -201,17 +202,17 @@ function DerivedAssetsStrip({
   const closeModal = useCallback(() => setOpenAsset(null), []);
 
   return (
-    <div style={derivedSectionStyle}>
-      <div style={derivedHeaderStyle}>
-        <div style={derivedTitleStyle}>Derived previews</div>
-        <div style={derivedHintStyle}>
+    <div className="evd-stack">
+      <div className="evd-header">
+        <div className="evd-title">Derived previews</div>
+        <div className="evd-muted evd-muted--small">
           Operator-facing thumbnails generated from the recorded material.
           Advisory aids only; never a substitute for the preserved original.
         </div>
       </div>
 
       {completed.length > 0 ? (
-        <ul style={thumbGridStyle}>
+        <ul className="evd-grid">
           {completed.map((a) => (
             <DerivedAssetThumbnail
               key={a.id}
@@ -225,19 +226,19 @@ function DerivedAssetsStrip({
       {(pending.length > 0 ||
         failed.length > 0 ||
         unsupported.length > 0) ? (
-        <div style={derivedStatusRowStyle}>
+        <div className="evd-actions">
           {pending.length > 0 ? (
-            <span style={derivedStatusPillStyle("info")}>
+            <span className="app-status-badge" data-tone="blue">
               {pending.length} generating
             </span>
           ) : null}
           {failed.length > 0 ? (
-            <span style={derivedStatusPillStyle("warn")}>
+            <span className="app-status-badge" data-tone="amber">
               {failed.length} failed
             </span>
           ) : null}
           {unsupported.length > 0 ? (
-            <span style={derivedStatusPillStyle("neutral")}>
+            <span className="app-status-badge" data-tone="slate">
               {unsupported.length} unsupported
             </span>
           ) : null}
@@ -263,19 +264,19 @@ function DerivedAssetThumbnail({
   );
 
   return (
-    <li style={thumbCardStyle}>
+    <li className="evd-card">
       <button
         type="button"
         onClick={onOpen}
         disabled={imageState === "failed"}
         aria-label={`Open ${humanAssetKind(asset.assetKind)} preview`}
-        style={thumbButtonStyle(imageState === "failed")}
+        className="evd-thumb-button"
       >
         {asset.bytesUrl && imageState !== "failed" ? (
           <>
             {imageState === "loading" ? (
-              <div style={thumbPlaceholderStyle} aria-hidden="true">
-                <span style={thumbPlaceholderLabelStyle}>Loading…</span>
+              <div className="evd-thumb-placeholder" aria-hidden="true">
+                <span className="evd-muted evd-muted--small">Loading…</span>
               </div>
             ) : null}
             <img
@@ -299,29 +300,29 @@ function DerivedAssetThumbnail({
               // The bytes route is authenticated and cross-origin; without this the
               // browser omits the session cookie and the image 401s.
               crossOrigin="use-credentials"
-              style={imageState === "loaded" ? thumbImageStyle : thumbImageHiddenStyle}
+              className={imageState === "loaded" ? "evd-thumb-image" : "evd-thumb-image evd-thumb-image--hidden"}
               onLoad={() => setImageState("loaded")}
               onError={() => setImageState("failed")}
             />
           </>
         ) : (
-          <div style={thumbPlaceholderStyle} aria-hidden="true">
-            <span style={thumbPlaceholderLabelStyle}>
+          <div className="evd-thumb-placeholder" aria-hidden="true">
+            <span className="evd-muted evd-muted--small">
               {humanAssetKind(asset.assetKind)} unavailable
             </span>
           </div>
         )}
       </button>
-      <div style={thumbMetaStyle}>
-        <span style={thumbKindStyle}>
+      <div className="evd-thumb-meta">
+        <span className="evd-strong">
           {humanAssetKind(asset.assetKind)} (derived)
         </span>
-        <span style={thumbSizeStyle}>
+        <span>
           {asset.widthPx && asset.heightPx
             ? `${asset.widthPx}×${asset.heightPx}`
             : "—"}
         </span>
-        <span style={thumbHashStyle}>
+        <span className="evd-mono">
           sha256 {asset.derivedSha256 ? asset.derivedSha256.slice(0, 10) : "—"}
         </span>
       </div>
@@ -345,28 +346,28 @@ function DerivedAssetPreviewModal({
       aria-modal="true"
       aria-label="Derived preview"
       onClick={onClose}
-      style={modalBackdropStyle}
+      className="evd-dialog-backdrop"
     >
-      <div onClick={(e) => e.stopPropagation()} style={modalCardStyle}>
-        <header style={modalHeaderStyle}>
+      <div onClick={(e) => e.stopPropagation()} className="evd-dialog evd-dialog--wide">
+        <header className="evd-header">
           <div>
-            <div style={modalKickerStyle}>Derived preview</div>
-            <div style={modalTitleStyle}>{humanAssetKind(asset.assetKind)}</div>
+            <div className="evd-kicker">Derived preview</div>
+            <div className="evd-title">{humanAssetKind(asset.assetKind)}</div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close preview"
-            style={modalCloseStyle}
+            className="app-ghost-action"
           >
             ×
           </button>
         </header>
-        <div style={modalImageWrapStyle}>
+        <div className="evd-thumb-frame">
           {asset.bytesUrl && imageState !== "failed" ? (
             <>
               {imageState === "loading" ? (
-                <div style={modalPlaceholderStyle} aria-hidden="true">
+                <div className="evd-thumb-placeholder" aria-hidden="true">
                   Loading preview…
                 </div>
               ) : null}
@@ -375,32 +376,28 @@ function DerivedAssetPreviewModal({
                 alt=""
                 // Same authenticated cross-origin route as the thumbnail above.
                 crossOrigin="use-credentials"
-                style={
-                  imageState === "loaded"
-                    ? modalImageStyle
-                    : modalImageHiddenStyle
-                }
+                className={imageState === "loaded" ? "evd-thumb-image" : "evd-thumb-image evd-thumb-image--hidden"}
                 onLoad={() => setImageState("loaded")}
                 onError={() => setImageState("failed")}
               />
             </>
           ) : (
-            <div style={modalPlaceholderStyle}>Preview unavailable</div>
+            <div className="evd-thumb-placeholder">Preview unavailable</div>
           )}
         </div>
-        <p style={modalDisclaimerStyle}>
+        <p className="evd-muted">
           This preview is an operator-facing rendering derived from the
           recorded material. It is an advisory aid only and is not a
           substitute for the preserved original or the canonical custody
           record.
         </p>
-        <div style={modalMetaRowStyle}>
-          <span style={modalMetaItemStyle}>
+        <div className="evd-actions">
+          <span className="evd-muted evd-muted--small">
             {asset.widthPx && asset.heightPx
               ? `${asset.widthPx}×${asset.heightPx}`
               : "Dimensions unrecorded"}
           </span>
-          <span style={modalMetaItemStyle}>
+          <span className="evd-muted evd-muted--small">
             sha256 {asset.derivedSha256 ? asset.derivedSha256.slice(0, 16) : "—"}
           </span>
         </div>
@@ -438,17 +435,17 @@ function PanelHeader({
   running?: boolean;
 } = {}) {
   return (
-    <header style={headerStyle}>
+    <header className="evd-header">
       <div>
-        <h3 style={titleStyle}>Media intelligence</h3>
-        <p style={subtitleStyle}>
+        <h3 className="evd-title">Media intelligence</h3>
+        <p className="evd-subtitle">
           Deterministic metadata observations
         </p>
       </div>
       {onRunAnalyzer ? (
         <button
           type="button"
-          style={runButtonStyle(running ?? false)}
+          className="app-secondary-action app-secondary-action--filled"
           disabled={running}
           onClick={() => {
             void onRunAnalyzer();
@@ -470,35 +467,35 @@ function SignalRow({
 }) {
   const isOpen = signal.status === "PENDING";
   return (
-    <li style={rowStyle}>
-      <div style={rowHeaderStyle}>
-        <span style={severityBadgeStyle(signal.severity)}>
+    <li className="evd-card">
+      <div className="evd-card-header">
+        <span className="app-status-badge" data-tone={severityTone(signal.severity)}>
           {severityLabel(signal.severity)}
         </span>
-        <span style={confidenceBadgeStyle}>
+        <span className="evd-badge">
           {confidenceLabel(signal.confidence)}
         </span>
-        <span style={statusBadgeStyle(signal.status)}>
+        <span className="app-status-badge" data-tone={statusTone(signal.status)}>
           {statusLabel(signal.status)}
         </span>
       </div>
-      <p style={summaryTextStyle}>{signal.safeSummary}</p>
-      <div style={rowFooterStyle}>
-        <time style={timestampStyle} dateTime={signal.createdAtUtc}>
+      <p className="evd-paragraph">{signal.safeSummary}</p>
+      <div className="evd-actions">
+        <time className="evd-muted evd-muted--small" dateTime={signal.createdAtUtc}>
           Recorded {formatTimestamp(signal.createdAtUtc)}
         </time>
         {isOpen ? (
-          <div style={actionsStyle}>
+          <div className="evd-actions">
             <button
               type="button"
-              style={ackButtonStyle}
+              className="app-secondary-action"
               onClick={() => onAck("ACKNOWLEDGED")}
             >
               Acknowledge
             </button>
             <button
               type="button"
-              style={dismissButtonStyle}
+              className="app-ghost-action"
               onClick={() => onAck("DISMISSED")}
             >
               Dismiss
@@ -520,464 +517,14 @@ function formatTimestamp(iso: string): string {
 // pages without pulling new CSS modules.
 // ---------------------------------------------------------------------------
 
-const panelStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  padding: 16,
-  background: "#ffffff",
-  margin: "12px 0",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 12,
-  marginBottom: 8,
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 15,
-  fontWeight: 700,
-  color: "#0f172a",
-};
-
-const subtitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 12,
-  color: "#64748b",
-};
-
-const advisoryStyle: React.CSSProperties = {
-  margin: "0 0 12px 0",
-  fontSize: 12,
-  color: "#475569",
-  lineHeight: 1.4,
-};
-
-const errorStyle: React.CSSProperties = {
-  margin: "0 0 12px 0",
-  fontSize: 12,
-  color: "#991b1b",
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
-  borderRadius: 6,
-  padding: "6px 10px",
-};
-
-const emptyStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  color: "#64748b",
-};
-
-const listStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-const rowStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 6,
-  padding: 10,
-  background: "#f8fafc",
-};
-
-const rowHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 6,
-  marginBottom: 6,
-};
-
-const summaryTextStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  color: "#0f172a",
-  lineHeight: 1.4,
-};
-
-const rowFooterStyle: React.CSSProperties = {
-  marginTop: 8,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const timestampStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#64748b",
-};
-
-const actionsStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 6,
-};
-
-const ackButtonStyle: React.CSSProperties = {
-  fontSize: 12,
-  padding: "4px 10px",
-  borderRadius: 6,
-  border: "1px solid #bfdbfe",
-  background: "#eff6ff",
-  color: "#1e40af",
-  cursor: "pointer",
-};
-
-const dismissButtonStyle: React.CSSProperties = {
-  fontSize: 12,
-  padding: "4px 10px",
-  borderRadius: 6,
-  border: "1px solid #e5e7eb",
-  background: "#ffffff",
-  color: "#475569",
-  cursor: "pointer",
-};
-
-function runButtonStyle(running: boolean): React.CSSProperties {
-  return {
-    fontSize: 12,
-    fontWeight: 600,
-    padding: "6px 14px",
-    borderRadius: 6,
-    border: "1px solid #0f172a",
-    background: running ? "#94a3b8" : "#0f172a",
-    color: "#ffffff",
-    cursor: running ? "not-allowed" : "pointer",
-    whiteSpace: "nowrap",
-  };
+function severityTone(severity: ClientSeverity): AppTone {
+  if (severity === "ATTENTION") return "red";
+  if (severity === "REVIEW_RECOMMENDED") return "amber";
+  return "blue";
 }
 
-function severityBadgeStyle(severity: ClientSeverity): React.CSSProperties {
-  const palette: Record<ClientSeverity, [string, string, string]> = {
-    INFO: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    REVIEW_RECOMMENDED: ["#fffbeb", "#fcd34d", "#92400e"],
-    ATTENTION: ["#fef2f2", "#fca5a5", "#991b1b"],
-  };
-  const [bg, border, color] = palette[severity];
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  };
+function statusTone(status: ClientStatus): AppTone {
+  if (status === "ACKNOWLEDGED") return "green";
+  if (status === "DISMISSED") return "slate";
+  return "blue";
 }
-
-const confidenceBadgeStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 500,
-  background: "#f1f5f9",
-  border: "1px solid #e2e8f0",
-  color: "#334155",
-  borderRadius: 999,
-  whiteSpace: "nowrap",
-};
-
-function statusBadgeStyle(status: ClientStatus): React.CSSProperties {
-  const palette: Record<ClientStatus, [string, string, string]> = {
-    PENDING: ["#ffffff", "#cbd5e1", "#334155"],
-    ACKNOWLEDGED: ["#ecfdf5", "#bbf7d0", "#166534"],
-    DISMISSED: ["#f1f5f9", "#cbd5e1", "#64748b"],
-  };
-  const [bg, border, color] = palette[status];
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 500,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  };
-}
-
-const detailsStyle: React.CSSProperties = {
-  marginTop: 12,
-  fontSize: 12,
-  color: "#475569",
-};
-
-const summaryStyle: React.CSSProperties = {
-  cursor: "pointer",
-  fontSize: 12,
-  color: "#1e40af",
-  userSelect: "none",
-};
-
-const catalogListStyle: React.CSSProperties = {
-  listStyle: "disc",
-  paddingLeft: 20,
-  margin: "6px 0 0 0",
-  display: "flex",
-  flexDirection: "column",
-  gap: 2,
-};
-
-const catalogItemStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#475569",
-};
-
-// ---------------------------------------------------------------------------
-// Phase 31.13 — Derived assets strip styles
-// ---------------------------------------------------------------------------
-
-const derivedSectionStyle: React.CSSProperties = {
-  marginTop: 12,
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  padding: 12,
-  background: "#f8fafc",
-};
-
-const derivedHeaderStyle: React.CSSProperties = {
-  marginBottom: 8,
-};
-
-const derivedTitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#0f172a",
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-};
-
-const derivedHintStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#64748b",
-  marginTop: 2,
-  lineHeight: 1.4,
-};
-
-const thumbGridStyle: React.CSSProperties = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-  gap: 8,
-};
-
-const thumbCardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
-  borderRadius: 6,
-  padding: 6,
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-};
-
-const thumbPlaceholderStyle: React.CSSProperties = {
-  aspectRatio: "1 / 1",
-  background: "#f1f5f9",
-  border: "1px dashed #cbd5e1",
-  borderRadius: 4,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const thumbPlaceholderLabelStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: "#64748b",
-  textAlign: "center",
-};
-
-const thumbMetaStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 2,
-};
-
-const thumbSizeStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: "#475569",
-};
-
-const thumbHashStyle: React.CSSProperties = {
-  fontSize: 9,
-  color: "#94a3b8",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-};
-
-const derivedStatusRowStyle: React.CSSProperties = {
-  marginTop: 8,
-  display: "flex",
-  gap: 6,
-  flexWrap: "wrap",
-};
-
-function derivedStatusPillStyle(
-  tone: "info" | "warn" | "neutral",
-): React.CSSProperties {
-  const palette: Record<typeof tone, [string, string, string]> = {
-    info: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    warn: ["#fffbeb", "#fcd34d", "#92400e"],
-    neutral: ["#f1f5f9", "#cbd5e1", "#475569"],
-  };
-  const [bg, border, color] = palette[tone];
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Phase 31.14 — thumbnail + modal styles
-// ---------------------------------------------------------------------------
-
-function thumbButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    all: "unset",
-    cursor: disabled ? "default" : "pointer",
-    display: "block",
-    aspectRatio: "1 / 1",
-    width: "100%",
-    background: "#f1f5f9",
-    border: "1px solid #cbd5e1",
-    borderRadius: 4,
-    overflow: "hidden",
-    outlineOffset: 2,
-  };
-}
-
-const thumbImageStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  height: "100%",
-  objectFit: "cover",
-};
-
-const thumbImageHiddenStyle: React.CSSProperties = {
-  display: "none",
-};
-
-const thumbKindStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: "#334155",
-  fontWeight: 600,
-};
-
-const modalBackdropStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15, 23, 42, 0.72)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 1000,
-  padding: 24,
-};
-
-const modalCardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 10,
-  maxWidth: 720,
-  width: "100%",
-  maxHeight: "calc(100vh - 48px)",
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-};
-
-const modalHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  padding: 14,
-  borderBottom: "1px solid #e2e8f0",
-};
-
-const modalKickerStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  color: "#64748b",
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-};
-
-const modalTitleStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#0f172a",
-  marginTop: 2,
-};
-
-const modalCloseStyle: React.CSSProperties = {
-  all: "unset",
-  cursor: "pointer",
-  fontSize: 22,
-  lineHeight: 1,
-  color: "#475569",
-  padding: "0 6px",
-};
-
-const modalImageWrapStyle: React.CSSProperties = {
-  flex: "1 1 auto",
-  background: "#0f172a",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  overflow: "hidden",
-  minHeight: 240,
-};
-
-const modalImageStyle: React.CSSProperties = {
-  display: "block",
-  maxWidth: "100%",
-  maxHeight: "60vh",
-  objectFit: "contain",
-};
-
-const modalImageHiddenStyle: React.CSSProperties = {
-  display: "none",
-};
-
-const modalPlaceholderStyle: React.CSSProperties = {
-  color: "#94a3b8",
-  fontSize: 12,
-};
-
-const modalDisclaimerStyle: React.CSSProperties = {
-  margin: 0,
-  padding: "10px 14px",
-  fontSize: 11,
-  color: "#475569",
-  lineHeight: 1.5,
-  borderTop: "1px solid #e2e8f0",
-  background: "#f8fafc",
-};
-
-const modalMetaRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 14,
-  padding: "8px 14px 12px 14px",
-  borderTop: "1px solid #f1f5f9",
-};
-
-const modalMetaItemStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#64748b",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-};

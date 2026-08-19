@@ -71,7 +71,7 @@ function renderGroup(
   return (
     <div className="evidence-library-note-card" data-comparison-card={title}>
       <strong>{title}</strong>
-      <p style={{ fontSize: 12.5, color: "#475569", margin: "2px 0 6px 0" }}>
+      <p className="evd-muted evd-block--tight">
         {summariseGroup(group)}
       </p>
       {/* FIX 4 — the raw key/value grid moves behind a collapsed
@@ -80,17 +80,10 @@ function renderGroup(
           value) into the default view. Engineering can still expand
           it on demand; the data is preserved, just one click deeper. */}
       <details data-comparison-technical-details>
-        <summary
-          style={{
-            cursor: "pointer",
-            fontSize: 12,
-            color: "#475569",
-            fontWeight: 600,
-          }}
-        >
+        <summary className="evd-disclosure-summary">
           Technical details
         </summary>
-        <div className="evidence-library-definition-grid" style={{ marginTop: 6 }}>
+        <div className="evidence-library-definition-grid evd-block--tight">
           {Object.entries(group).map(([key, value]) => (
             <div key={key}>
               <span>{key}</span>

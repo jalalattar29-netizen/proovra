@@ -1,7 +1,7 @@
 "use client";
 
+import { AppListbox } from "../../../../components/app-primitives";
 import { useEffect, useState } from "react";
-import { Button } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { LegalNote, LegalNotesResponse } from "../lib/evidence-library-types";
@@ -75,25 +75,27 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
         <p className="evidence-library-muted">
           Legal notes are internal workspace notes. They do not determine legal outcome or evidentiary weight.
         </p>
-        <div className="evidence-library-case-toolbar" style={{ marginTop: 12 }}>
-          <select value={noteType} onChange={(event) => setNoteType(event.target.value as typeof noteType)}>
-            {NOTE_TYPES.map((item) => (
-              <option key={item} value={item}>
-                {item.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
+        <div className="evidence-library-case-toolbar evd-block--tight">
+          <AppListbox
+            value={noteType}
+            ariaLabel="Legal note type"
+            onChange={(next) => setNoteType(next as typeof noteType)}
+            options={NOTE_TYPES.map((item) => ({
+              value: item,
+              label: item.replace(/_/g, " "),
+            }))}
+          />
         </div>
         <textarea
           className="evidence-library-textarea"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          style={{ marginTop: 12 }}
+
         />
-        <div className="evidence-library-panel__actions" style={{ marginTop: 12 }}>
-          <Button onClick={() => void createNote()} disabled={!draft.trim()}>
+        <div className="evidence-library-panel__actions evd-block--tight">
+          <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createNote()} disabled={!draft.trim()}>
             Save Legal Note
-          </Button>
+          </button>
         </div>
         {loading ? <p className="evidence-library-muted">Loading legal notes...</p> : null}
         {!loading && items.length === 0 ? <p className="evidence-library-muted">No legal notes yet.</p> : null}
@@ -107,37 +109,35 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
               </p>
               {editingId === item.id ? (
                 <>
-                  <select
+                  <AppListbox
                     value={editingType}
-                    onChange={(event) => setEditingType(event.target.value as typeof editingType)}
-                  >
-                    {NOTE_TYPES.map((typeOption) => (
-                      <option key={typeOption} value={typeOption}>
-                        {typeOption.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </select>
+                    ariaLabel="Legal note type"
+                    onChange={(next) => setEditingType(next as typeof editingType)}
+                    options={NOTE_TYPES.map((typeOption) => ({
+                      value: typeOption,
+                      label: typeOption.replace(/_/g, " "),
+                    }))}
+                  />
                   <textarea
                     className="evidence-library-textarea"
                     value={editingBody}
                     onChange={(event) => setEditingBody(event.target.value)}
-                    style={{ marginTop: 12 }}
+
                   />
-                  <div className="evidence-library-panel__actions">
-                    <Button onClick={() => void saveEdit()} disabled={!editingBody.trim()}>
+                  <div className="evidence-library-panel__actions evd-block--tight">
+                    <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void saveEdit()} disabled={!editingBody.trim()}>
                       Save
-                    </Button>
-                    <Button variant="secondary" onClick={() => setEditingId(null)}>
+                    </button>
+                    <button type="button" className="app-secondary-action" onClick={() => setEditingId(null)}>
                       Cancel
-                    </Button>
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
                   <p>{item.body}</p>
-                  <div className="evidence-library-panel__actions">
-                    <Button
-                      variant="secondary"
+                  <div className="evidence-library-panel__actions evd-block--tight">
+                    <button type="button" className="app-secondary-action"
                       onClick={() => {
                         setEditingId(item.id);
                         setEditingBody(item.body);
@@ -145,8 +145,8 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
                       }}
                     >
                       Edit
-                    </Button>
-                    <Button onClick={() => void deleteNote(item.id)}>Delete</Button>
+                    </button>
+                    <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteNote(item.id)}>Delete</button>
                   </div>
                 </>
               )}

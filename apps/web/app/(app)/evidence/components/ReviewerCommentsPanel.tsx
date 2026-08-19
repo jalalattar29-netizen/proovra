@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { ReviewerComment, ReviewerCommentsResponse } from "../lib/evidence-library-types";
@@ -70,7 +69,7 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
         <p className="evidence-library-muted">
           Reviewer comments are operational notes and do not alter the recorded integrity state.
         </p>
-        <div className="evidence-library-filter-group" style={{ marginTop: 12 }}>
+        <div className="evidence-library-filter-group evd-block--tight">
           <label htmlFor={`comment-${evidenceId}`}>Add comment</label>
           <textarea
             id={`comment-${evidenceId}`}
@@ -78,10 +77,10 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <div className="evidence-library-panel__actions">
-            <Button onClick={() => void createComment()} disabled={!draft.trim()}>
+          <div className="evidence-library-panel__actions evd-block--tight">
+            <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createComment()} disabled={!draft.trim()}>
               Save Comment
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -104,29 +103,28 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
                     value={editingBody}
                     onChange={(event) => setEditingBody(event.target.value)}
                   />
-                  <div className="evidence-library-panel__actions">
-                    <Button onClick={() => void saveEdit()} disabled={!editingBody.trim()}>
+                  <div className="evidence-library-panel__actions evd-block--tight">
+                    <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void saveEdit()} disabled={!editingBody.trim()}>
                       Save
-                    </Button>
-                    <Button variant="secondary" onClick={() => setEditingId(null)}>
+                    </button>
+                    <button type="button" className="app-secondary-action" onClick={() => setEditingId(null)}>
                       Cancel
-                    </Button>
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
                   <p>{item.body}</p>
-                  <div className="evidence-library-panel__actions">
-                    <Button
-                      variant="secondary"
+                  <div className="evidence-library-panel__actions evd-block--tight">
+                    <button type="button" className="app-secondary-action"
                       onClick={() => {
                         setEditingId(item.id);
                         setEditingBody(item.body);
                       }}
                     >
                       Edit
-                    </Button>
-                    <Button onClick={() => void deleteComment(item.id)}>Delete</Button>
+                    </button>
+                    <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteComment(item.id)}>Delete</button>
                   </div>
                 </>
               )}

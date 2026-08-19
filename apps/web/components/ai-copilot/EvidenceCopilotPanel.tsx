@@ -93,18 +93,18 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
   }
 
   return (
-    <div style={{ borderTop: "1px solid var(--app-border,#eee)", paddingTop: 8 }}>
+    <div className="evd-block--divided">
       <strong>Suggested actions</strong>
-      <p style={{ fontSize: 12, opacity: 0.65, margin: "2px 0 6px" }}>
+      <p className="evd-muted evd-muted--small evd-block--tight">
         Actions run through the standard PROOVRA workflow with your normal permissions and audit logging. Nothing runs without your confirmation.
       </p>
       {serverActions.filter((a) => a.actionType === "OPEN_MISSING_METADATA").map((a) => (
-        <a key={a.suggestionId} className="app-secondary-action" href={`/evidence/${evidenceId}`} style={{ marginRight: 6 }}>
+        <a key={a.suggestionId} className="app-secondary-action" href={`/evidence/${evidenceId}`}>
           {a.displayLabel}
         </a>
       ))}
       {serverActions.filter((a) => a.actionType === "OPEN_REVIEWER_ASSIGNMENT").map((a) => (
-        <a key={a.suggestionId} className="app-secondary-action" href="/review" style={{ marginRight: 6 }} title={a.reason}>
+        <a key={a.suggestionId} className="app-secondary-action" href="/review" title={a.reason}>
           {a.displayLabel}
         </a>
       ))}
@@ -122,10 +122,10 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
             if (e.key === "Escape" && !busy) setConfirming(false);
           }}
         >
-          <p style={{ margin: "0 0 6px", fontSize: 13 }}>
+          <p className="evd-paragraph evd-block--tight">
             <strong>Confirm:</strong> queue report regeneration for this evidence record via the standard endpoint. This creates a new report version; it does not alter evidence bytes, hashes, custody, or verification state.
           </p>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="evd-actions">
             {/* autoFocus moves keyboard/screen-reader focus into the dialog. */}
             <button className="app-primary-action" onClick={() => void executeRegenerateReport()} disabled={busy} aria-busy={busy} autoFocus>
               {busy ? "Queuing…" : "Confirm and run"}
@@ -134,7 +134,7 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
           </div>
         </div>
       )}
-      {outcome ? <div className="app-alert" style={{ marginTop: 8 }} role="status" aria-live="polite">{outcome}</div> : null}
+      {outcome ? <div className="app-alert evd-block--tight" role="status" aria-live="polite">{outcome}</div> : null}
     </div>
   );
 }
@@ -176,32 +176,32 @@ export function EvidenceCopilotPanel({
   if (!aiEnabled) return null;
 
   return (
-    <section className="app-panel app-panel__body" aria-label="Evidence Copilot" style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0 }}>Evidence Copilot</h3>
-        <span style={{ display: "flex", gap: 6 }}>
+    <section className="app-panel app-panel__body" aria-label="Evidence Copilot">
+      <div className="evd-header">
+        <h3 className="evd-title">Evidence Copilot</h3>
+        <span className="evd-actions">
           <span className="app-chip app-chip--ai">AI-generated</span>
           <span className="app-chip">Advisory only</span>
           <span className="app-chip">Metadata only</span>
         </span>
       </div>
-      <p style={{ fontSize: 13, opacity: 0.7, marginTop: 6 }}>
+      <p className="evd-muted evd-block--tight">
         Explains this record&apos;s operational state — missing context, deterministic
         integrity/custody/timestamping signals, and report/package readiness. It never
         determines truth, authenticity, or admissibility.
       </p>
-      <div style={{ marginTop: 8 }}>
+      <div className="evd-actions evd-block--tight">
         <button className="app-primary-action" onClick={run} disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Analyzing…" : state.kind === "result" ? "Re-run" : "Run Evidence Copilot"}
         </button>
-        <span aria-live="polite" className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+        <span aria-live="polite" className="evd-sr-only">
           {state.kind === "loading" ? "Analyzing evidence record" : state.kind === "result" ? "Evidence Copilot result ready" : ""}
         </span>
       </div>
 
       {state.kind === "error" ? (
-        <div className="app-alert app-alert--warn" style={{ marginTop: 12 }} role="alert">
-          {state.message} <span style={{ opacity: 0.6 }}>({state.code})</span>
+        <div className="app-alert app-alert--warn evd-block" role="alert">
+          {state.message} <span className="evd-muted">({state.code})</span>
         </div>
       ) : null}
       {state.kind === "result" ? <ResultView result={state.result} serverActions={state.serverActions} /> : null}
@@ -210,18 +210,18 @@ export function EvidenceCopilotPanel({
 }
 
 function ResultView({ result, serverActions }: { result: RunResult; serverActions: ServerAction[] }) {
-  if (result.status === "provider_unavailable") return <div className="app-alert" style={{ marginTop: 12 }}>AI is currently unavailable. Evidence workflows are unaffected.</div>;
-  if (result.status === "policy_denied") return <div className="app-alert" style={{ marginTop: 12 }}>Evidence AI is disabled for this workspace ({result.decision}).</div>;
-  if (result.status === "schema_error") return <div className="app-alert app-alert--warn" style={{ marginTop: 12 }}>The AI response could not be validated and was discarded. Please try again.</div>;
+  if (result.status === "provider_unavailable") return <div className="app-alert evd-block">AI is currently unavailable. Evidence workflows are unaffected.</div>;
+  if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace ({result.decision}).</div>;
+  if (result.status === "schema_error") return <div className="app-alert app-alert--warn evd-block">The AI response could not be validated and was discarded. Please try again.</div>;
   const data = result.data;
   if (result.status === "blocked_prohibited_claim" || !data) {
-    return <div className="app-alert app-alert--warn" style={{ marginTop: 12 }}>The AI output contained language PROOVRA cannot present and was blocked.</div>;
+    return <div className="app-alert app-alert--warn evd-block">The AI output contained language PROOVRA cannot present and was blocked.</div>;
   }
   return (
-    <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+    <div className="evd-stack evd-block">
       <div>
         <strong>Operational summary</strong>
-        <p style={{ margin: "4px 0 0" }}>{data.operationalSummary}</p>
+        <p className="evd-paragraph">{data.operationalSummary}</p>
       </div>
       {SECTIONS.map(({ key, label }) => {
         const items = data[key] as string[];
@@ -229,7 +229,7 @@ function ResultView({ result, serverActions }: { result: RunResult; serverAction
         return (
           <div key={key}>
             <strong>{label}</strong>
-            <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+            <ul className="evd-bullets">
               {items.map((t, i) => <li key={i}>{t}</li>)}
             </ul>
           </div>
@@ -237,11 +237,11 @@ function ResultView({ result, serverActions }: { result: RunResult; serverAction
       })}
       <div>
         <strong>Validated sources</strong>
-        <div style={{ marginTop: 4 }}><CopilotCitationList citations={data.citations} /></div>
-        {result.droppedCitations ? <p style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>{result.droppedCitations} unverifiable citation(s) were removed.</p> : null}
+        <div className="evd-block--tight"><CopilotCitationList citations={data.citations} /></div>
+        {result.droppedCitations ? <p className="evd-muted evd-muted--small evd-block--tight">{result.droppedCitations} unverifiable citation(s) were removed.</p> : null}
       </div>
       <ConfirmedActionBar evidenceId={evidenceIdOfResult(result)} serverActions={serverActions} />
-      <p style={{ fontSize: 12, opacity: 0.7, borderTop: "1px solid var(--app-border,#eee)", paddingTop: 8 }}>{data.advisoryBoundary}</p>
+      <p className="evd-muted evd-muted--small evd-block--divided">{data.advisoryBoundary}</p>
     </div>
   );
 }

@@ -4398,3 +4398,108 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   min-inline-size: 0;
   overflow-wrap: break-word;
 }
+.evd-dialog--wide {
+  inline-size: min(100%, 720px);
+}
+.evd-thumb-button {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 1px solid var(--surface-translucent-border-strong);
+  border-radius: 10px;
+  background: var(--surface-translucent-inner);
+  overflow: hidden;
+  cursor: pointer;
+  outline-offset: 2px;
+}
+.evd-thumb-button:disabled {
+  cursor: default;
+}
+.evd-thumb-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 220px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  border-radius: 12px;
+  background: var(--surface-translucent-inner);
+  overflow: hidden;
+}
+.evd-thumb-image {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.evd-thumb-image--hidden {
+  display: none;
+}
+.evd-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 96px;
+  padding: 10px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+}
+.evd-thumb-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-block-start: 6px;
+  min-inline-size: 0;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+  overflow-wrap: break-word;
+}
+.evd-disclosure-summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--app-ink-label);
+}
+.evd-push-end {
+  margin-inline-start: auto;
+}
+.evd-link {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent-600);
+  text-decoration: none;
+}
+.evd-link:hover {
+  text-decoration: underline;
+}
+.evd-block--divided {
+  margin-block-start: 12px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+}
+.evd-bullets {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+  font-size: 13px;
+  color: var(--app-ink-label);
+}
+.evd-bullets > li {
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evd-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

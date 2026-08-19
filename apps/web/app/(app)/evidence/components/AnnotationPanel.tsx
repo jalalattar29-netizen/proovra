@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { EvidenceAnnotationsResponse, EvidenceAnnotation } from "../lib/evidence-library-types";
@@ -70,12 +69,12 @@ export function AnnotationPanel({
           className="evidence-library-textarea"
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          style={{ marginTop: 12 }}
+
         />
-        <div className="evidence-library-panel__actions" style={{ marginTop: 12 }}>
-          <Button onClick={() => void createAnnotation()} disabled={!body.trim()}>
+        <div className="evidence-library-panel__actions evd-block--tight">
+          <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createAnnotation()} disabled={!body.trim()}>
             Add Text Annotation
-          </Button>
+          </button>
         </div>
         {loading ? <p className="evidence-library-muted">Loading annotations...</p> : null}
         {!loading && items.length === 0 ? <p className="evidence-library-muted">No annotations yet.</p> : null}
@@ -88,8 +87,8 @@ export function AnnotationPanel({
                 {formatUserDateTime(item.createdAt)}
               </p>
               <p>{item.body || "Annotation metadata recorded."}</p>
-              <div className="evidence-library-panel__actions">
-                <Button onClick={() => void deleteAnnotation(item.id)}>Delete</Button>
+              <div className="evidence-library-panel__actions evd-block--tight">
+                <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteAnnotation(item.id)}>Delete</button>
               </div>
             </div>
           ))}

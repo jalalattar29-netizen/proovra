@@ -97,19 +97,13 @@ function MatchReasonsRow({ match }: { match: EvidenceDuplicateGroupedMatch }) {
   return (
     <div
       data-evidence-duplicate-match-reasons
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 4,
-        marginTop: 6,
-      }}
+      className="evd-actions evd-block--tight"
     >
       {match.matchReasons.map((reason) => (
         <span
           key={reason}
           data-evidence-duplicate-match-reason={reason}
           className="evidence-detail-pill neutral"
-          style={{ fontSize: 11 }}
         >
           {MATCH_REASON_LABELS[reason] ?? reason}
           {reason === "part_hash" && match.matchedPartsCount > 1
@@ -126,60 +120,31 @@ function DuplicateRecordCard({ match }: { match: EvidenceDuplicateGroupedMatch }
   return (
     <article
       data-evidence-duplicate-record={match.evidenceId}
-      className="evidence-library-result-row"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        padding: "10px 12px",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 8,
-        background: "#ffffff",
-      }}
+      className="evidence-library-result-row evd-card"
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <strong style={{ fontSize: 13.5 }}>{title}</strong>
+      <div className="evd-card-header">
+        <strong className="evd-strong">{title}</strong>
         <span
-          className="evidence-detail-muted"
-          style={{ fontSize: 12 }}
+          className="evidence-detail-muted evd-muted--small"
           data-evidence-duplicate-record-id
         >
           {shortId(match.evidenceId)}
         </span>
         <span
-          className="evidence-detail-muted"
-          style={{ fontSize: 12, marginLeft: "auto" }}
+          className="evidence-detail-muted evd-muted--small evd-push-end"
           data-evidence-duplicate-record-created-at
         >
           {match.createdAt ? formatUserDateTime(match.createdAt) : ""}
         </span>
       </div>
       <MatchReasonsRow match={match} />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: 4,
-        }}
-      >
+      <div className="evd-actions evd-actions--end evd-block--tight">
         <a
           href={`/evidence/${encodeURIComponent(match.evidenceId)}`}
           target="_blank"
           rel="noreferrer"
           data-evidence-duplicate-open
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#1e40af",
-            textDecoration: "none",
-          }}
+          className="evd-link"
         >
           Open record →
         </a>
@@ -285,7 +250,6 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
             <p
               className="evidence-detail-muted"
               data-evidence-duplicate-summary
-              style={{ marginTop: 4 }}
             >
               {totalRecords === 1
                 ? "1 record shares one or more file hashes or metadata."
@@ -293,12 +257,7 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
             </p>
             <div
               data-evidence-duplicate-records
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                marginTop: 8,
-              }}
+              className="evd-list evd-block--tight"
             >
               {groupedMatches.map((match) => (
                 <DuplicateRecordCard key={match.evidenceId} match={match} />
