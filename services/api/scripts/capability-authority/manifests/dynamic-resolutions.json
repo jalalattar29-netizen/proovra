@@ -32,13 +32,13 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:597",
+      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:601",
       "class": "OBJECT_STORE",
       "evidence": "tryDownloadFile(url, originalFileName) — url is the signed download URL returned by GET /v1/evidence/:id/original; the storage provider serves it. Both arguments are hoisted identifiers, so the analyzer resolves the call shape and reports precisely why the value is not static: it is a runtime signed URL and cannot be.",
       "reviewedAtUtc": "2026-08-19"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:655",
+      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:659",
       "class": "OBJECT_STORE",
       "evidence": "tryDownloadFile(packageUrl, packageFileName) — packageUrl is the signed verification-package URL returned by GET /v1/evidence/:id/verification-package; the storage provider serves it. Hoisted to an identifier so the analyzer resolves the call shape.",
       "reviewedAtUtc": "2026-08-19"

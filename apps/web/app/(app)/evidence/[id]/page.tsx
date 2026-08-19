@@ -1300,7 +1300,7 @@ function EvidenceDetailPageInner() {
               className="app-secondary-action"
               onClick={() => void downloadVerificationPackage()}
               disabled={packageDisabled || isIntegrityFailed}
-              title={packageDownloadBlockedReason ?? "Download the verification package"}
+              title={packageDownloadBlockedReason ?? "Download Verification Package ZIP"}
               aria-describedby={
                 packageDownloadBlockedReason ? "evidence-download-report-reason" : undefined
               }

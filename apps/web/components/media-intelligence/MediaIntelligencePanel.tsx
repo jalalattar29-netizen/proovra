@@ -57,10 +57,38 @@ export default function MediaIntelligencePanel({
   teamId,
   pollWhileRunning = false,
 }: MediaIntelligencePanelProps) {
-  const { state, runAsync, ack } = useMediaIntelligence({
+  /**
+   * THE RUN LIFECYCLE, held explicitly.
+   *
+   * The panel used to call `void runAsync()` and pass `running={state.loading}`
+   * — the LIST-FETCH flag, which `runAsync` never sets. So the button had no
+   * pending state, its `{ ok: false, reason }` was discarded, a `queued: false`
+   * response (queue down, run row left PENDING) read as success, and nothing
+   * refreshed afterwards because polling was off. The request really was sent
+   * and the run row really was created; the operator simply saw nothing, which
+   * is why the control read as dead.
+   */
+  const [run, setRun] = useState<{
+    phase: "idle" | "pending" | "polling" | "done" | "error";
+    message: string | null;
+    runId: string | null;
+    /** Signal count when the run was accepted, so completion is observable. */
+    baseline: number | null;
+    polls: number;
+  }>({ phase: "idle", message: null, runId: null, baseline: null, polls: 0 });
+
+  /** Signals with an acknowledge/dismiss request in flight. */
+  const [pendingAcks, setPendingAcks] = useState<Record<string, boolean>>({});
+  const [ackError, setAckError] = useState<string | null>(null);
+
+  const runInFlight = run.phase === "pending" || run.phase === "polling";
+
+  const { state, runAsync, ack, refresh } = useMediaIntelligence({
     evidenceId,
     teamId,
-    pollMs: pollWhileRunning ? 5_000 : null,
+    // Poll while a run is actually in flight, not only when a caller opted in.
+    // Without this the async run enqueued and the panel never looked again.
+    pollMs: run.phase === "polling" || pollWhileRunning ? 5_000 : null,
   });
 
   // Phase 31.13 — derived assets viewer state. Bounded read; the
@@ -75,6 +103,121 @@ export default function MediaIntelligencePanel({
     if (!state.data) return [];
     return [...state.data.signals].sort(compareSignalsForDisplay);
   }, [state.data]);
+
+  /**
+   * Open observations first; acknowledged and dismissed together in a resolved
+   * group. Every record is preserved — nothing is deduplicated away — because
+   * each one is its own audit row.
+   */
+  const openSignals = useMemo(
+    () => sortedSignals.filter((x) => x.status === "PENDING"),
+    [sortedSignals],
+  );
+  const resolvedSignals = useMemo(
+    () => sortedSignals.filter((x) => x.status !== "PENDING"),
+    [sortedSignals],
+  );
+
+  const handleRunAnalyzer = useCallback(async () => {
+    // Duplicate protection: the control is disabled while in flight, and the
+    // handler refuses re-entry even if a caller invokes it directly.
+    if (runInFlight) return;
+    setRun({ phase: "pending", message: null, runId: null, baseline: null, polls: 0 });
+    const result = await runAsync();
+
+    if (!result.ok) {
+      setRun({
+        phase: "error",
+        // The server's own reason, never a generic invention.
+        message: `The analyzer could not be started (${result.reason}).`,
+        runId: null,
+        baseline: null,
+        polls: 0,
+      });
+      return;
+    }
+
+    if (!result.queued) {
+      // 202 with queued:false — the run row exists but the queue refused it.
+      // Reported honestly rather than as a success.
+      setRun({
+        phase: "error",
+        message:
+          "The analysis was recorded but could not be queued for processing. It stays pending until the queue is available.",
+        runId: result.runId,
+        baseline: null,
+        polls: 0,
+      });
+      return;
+    }
+
+    setRun({
+      phase: "polling",
+      message: "Analysis queued. Observations will appear here when it finishes.",
+      runId: result.runId,
+      baseline: state.data?.signals.length ?? 0,
+      polls: 0,
+    });
+  }, [runInFlight, runAsync, state.data]);
+
+  /**
+   * Watch for the queued run to land. `useMediaIntelligence` is already polling
+   * (above); this only decides when the run is observably finished and stops.
+   */
+  useEffect(() => {
+    if (run.phase !== "polling") return;
+    const current = state.data?.signals.length ?? 0;
+    if (run.baseline !== null && current !== run.baseline) {
+      setRun((prev) => ({
+        ...prev,
+        phase: "done",
+        message: `Analysis finished. ${current} observation${current === 1 ? "" : "s"} recorded.`,
+      }));
+      return;
+    }
+    // Bounded wait. A run that never lands is reported as still running rather
+    // than left spinning forever or quietly marked complete.
+    if (run.polls > 24) {
+      setRun((prev) => ({
+        ...prev,
+        phase: "done",
+        message:
+          "The analysis is still processing. This panel refreshes on its own; reopen it later to see the result.",
+      }));
+    }
+  }, [run.phase, run.baseline, run.polls, state.data]);
+
+  useEffect(() => {
+    if (run.phase !== "polling") return;
+    const t = setInterval(() => setRun((prev) => ({ ...prev, polls: prev.polls + 1 })), 5_000);
+    return () => clearInterval(t);
+  }, [run.phase]);
+
+  const handleAck = useCallback(
+    async (signalId: string, action: "ACKNOWLEDGED" | "DISMISSED") => {
+      if (pendingAcks[signalId]) return;
+      setAckError(null);
+      setPendingAcks((prev) => ({ ...prev, [signalId]: true }));
+      const result = await ack(signalId, action);
+      setPendingAcks((prev) => {
+        const next = { ...prev };
+        delete next[signalId];
+        return next;
+      });
+      if (!result.ok) {
+        setAckError(
+          action === "ACKNOWLEDGED"
+            ? "The observation could not be acknowledged. Nothing was changed."
+            : "The observation could not be dismissed. Nothing was changed.",
+        );
+        return;
+      }
+      // Re-read from the server so the rendered status is the PERSISTED one
+      // rather than only the optimistic local edit.
+      await refresh();
+    },
+    [ack, pendingAcks, refresh],
+  );
 
   const missingCategories = useMemo(() => {
     if (!state.data) return [];
@@ -97,18 +240,36 @@ export default function MediaIntelligencePanel({
 
   return (
     <section className="evd-panel" aria-label="Media intelligence">
-      <PanelHeader
-        onRunAnalyzer={async () => {
-          await runAsync();
-        }}
-        running={state.loading}
-      />
+      <PanelHeader onRunAnalyzer={handleRunAnalyzer} running={runInFlight} />
 
       <p className="evd-muted">
-        Observations below are deterministic, advisory-only signals
-        derived from file metadata. They do not establish authenticity
-        or content. Review with normal operator judgment.
+        These are deterministic metadata observations. They are advisory
+        workflow signals only: they do not establish authenticity, factual
+        truth, or legal admissibility.
       </p>
+
+      {/* The run's own state, stated. Polite live region so a screen reader
+          hears the outcome without the focus moving. */}
+      <p
+        className={run.phase === "error" ? "evd-error" : "evd-muted evd-muted--small"}
+        role="status"
+        aria-live="polite"
+        data-media-intelligence-run-state={run.phase}
+      >
+        {run.phase === "pending"
+          ? "Starting the analyzer…"
+          : run.phase === "polling"
+            ? (run.message ?? "Analysis running…")
+            : run.phase === "done" || run.phase === "error"
+              ? run.message
+              : ""}
+      </p>
+
+      {ackError ? (
+        <p className="evd-error" role="alert" data-media-intelligence-ack-error>
+          {ackError}
+        </p>
+      ) : null}
 
       {state.error ? (
         <p className="evd-error">
@@ -128,18 +289,45 @@ export default function MediaIntelligencePanel({
         </p>
       ) : null}
 
-      {sortedSignals.length > 0 ? (
-        <ul className="evd-list">
-          {sortedSignals.map((signal) => (
+      {openSignals.length > 0 ? (
+        <ul className="evd-list" data-media-intelligence-group="open">
+          {openSignals.map((signal) => (
             <SignalRow
               key={signal.id}
               signal={signal}
+              pending={Boolean(pendingAcks[signal.id])}
               onAck={(action) => {
-                void ack(signal.id, action);
+                void handleAck(signal.id, action);
               }}
             />
           ))}
         </ul>
+      ) : null}
+
+      {/* Resolved observations keep their individual audit records. They are
+          collapsed once there are enough of them to bury the open ones. */}
+      {resolvedSignals.length > 0 ? (
+        <details
+          className="evd-stack"
+          data-media-intelligence-group="resolved"
+          open={resolvedSignals.length <= 3}
+        >
+          <summary className="evd-disclosure-summary">
+            Resolved observations ({resolvedSignals.length})
+          </summary>
+          <ul className="evd-list">
+            {resolvedSignals.map((signal) => (
+              <SignalRow
+                key={signal.id}
+                signal={signal}
+                pending={Boolean(pendingAcks[signal.id])}
+                onAck={(action) => {
+                  void handleAck(signal.id, action);
+                }}
+              />
+            ))}
+          </ul>
+        </details>
       ) : null}
 
       {derived.state.assets.length > 0 ? (
@@ -460,15 +648,18 @@ function PanelHeader({
 
 function SignalRow({
   signal,
+  pending,
   onAck,
 }: {
   signal: MediaIntelligenceSignal;
+  pending: boolean;
   onAck: (action: Extract<ClientStatus, "ACKNOWLEDGED" | "DISMISSED">) => void;
 }) {
   const isOpen = signal.status === "PENDING";
+  const helpId = `mi-help-${signal.id}`;
   return (
     <li className="evd-card">
-      <div className="evd-card-header">
+      <div className="evd-card-header" data-media-intelligence-statuses>
         <span className="app-status-badge" data-tone={severityTone(signal.severity)}>
           {severityLabel(signal.severity)}
         </span>
@@ -490,19 +681,35 @@ function SignalRow({
               type="button"
               className="app-secondary-action"
               onClick={() => onAck("ACKNOWLEDGED")}
+              disabled={pending}
+              aria-busy={pending}
+              aria-describedby={helpId}
+              data-media-intelligence-action="acknowledge"
             >
-              Acknowledge
+              {pending ? "Working…" : "Acknowledge"}
             </button>
             <button
               type="button"
               className="app-ghost-action"
               onClick={() => onAck("DISMISSED")}
+              disabled={pending}
+              aria-busy={pending}
+              aria-describedby={helpId}
+              data-media-intelligence-action="dismiss"
             >
-              Dismiss
+              {pending ? "Working…" : "Dismiss"}
             </button>
           </div>
         ) : null}
       </div>
+
+      {isOpen ? (
+        <p className="evd-muted evd-muted--small" id={helpId}>
+          Acknowledge marks this observation as reviewed for workflow purposes;
+          it does not verify the evidence. Dismiss marks it as not actionable;
+          it does not delete the evidence or its audit history.
+        </p>
+      ) : null}
     </li>
   );
 }

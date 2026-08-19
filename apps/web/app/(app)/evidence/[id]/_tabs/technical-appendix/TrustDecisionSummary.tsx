@@ -243,13 +243,13 @@ export function TrustDecisionSummary({
                   data-trust-signal-key={signal.key}
                   data-trust-signal-status={signal.status}
                   data-trust-signal-tone={state.tone}
+                  leading={<StateIcon size={15} strokeWidth={2.4} aria-hidden="true" />}
                   trailing={
                     <span className="ta-signal-trailing">
                       <span
                         className={`ta-badge ta-badge-${state.tone}`}
                         data-trust-signal-pill
                       >
-                        <StateIcon size={12} strokeWidth={2.5} aria-hidden="true" />
                         {state.label}
                       </span>
                       <span className="ta-signal-score">

@@ -4729,3 +4729,263 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   outline: 2px solid var(--accent-500);
   outline-offset: 2px;
 }
+
+/* ---- Per-signal row: one explicit anatomy -------------------------------
+ * ANATOMY:  state icon | label | status badge | score | chevron
+ *
+ * The summary row was `display: flex` with a shared gap, so every column was
+ * content-driven: a longer label pushed the badge, a longer badge pushed the
+ * score, and no two rows agreed on any axis. The five parts now have their own
+ * tracks, so a label may grow only into its own `minmax(0, 1fr)`.
+ */
+.ta-signals .ta-accordion-summary {
+  display: grid;
+  grid-template-columns:
+    18px                       /* state icon   */
+    minmax(0, 1fr)             /* label        */
+    auto                       /* status badge */
+    var(--ta-signal-score-w, 52px) /* score    */
+    16px;                      /* chevron      */
+  align-items: center;
+  gap: 10px;
+}
+
+.ta-signals .ta-accordion-summary__lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.ta-signals .ta-accordion-summary__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The badge and the score are separate tracks, so `ta-signal-trailing` is no
+   longer a flex box that owned both. It becomes `display: contents` so its two
+   children land in the grid directly. */
+.ta-signals .ta-signal-trailing {
+  display: contents;
+}
+
+/* Identical badge geometry on every row, whatever the label says. */
+.ta-signals .ta-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 22px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+/* The score ends on one axis, and stays LTR-readable inside an RTL row. */
+.ta-signals .ta-signal-score {
+  justify-self: end;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Expanding a row may not move a neighbour's columns: the tracks are declared,
+   not derived from the open row's content. */
+.ta-signals .ta-accordion[open] > .ta-accordion-summary {
+  grid-template-columns:
+    18px
+    minmax(0, 1fr)
+    auto
+    var(--ta-signal-score-w, 52px)
+    16px;
+}
+
+/* Mobile: two deliberate rows. The label keeps the state icon for company, and
+   the score and chevron stay obvious on their own line — never a label squeezed
+   to one character per line. */
+@media (max-width: 760px) {
+  .ta-signals .ta-accordion-summary {
+    grid-template-columns: 18px minmax(0, 1fr) 16px;
+    row-gap: 6px;
+  }
+  .ta-signals .ta-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .ta-signals .ta-signal-score {
+    grid-column: 3;
+    justify-self: end;
+  }
+}
+
+/* ---- Technical evidence context cards: one anatomy, equal per row --------
+ * Each card is a 5-zone stack — header, description, facts, boundary note,
+ * action footer — and every card in a GRID ROW shares its height because the
+ * row's tracks are `1fr` and each card stretches. Cards in different rows are
+ * left alone, so one long card cannot stretch the whole page. */
+.ta-grid > .ta-card {
+  /* The card was a flex column, so its height was its content height and two
+     cards in one row ended at different depths. As a grid it stretches to the
+     row, and the FACTS zone absorbs the slack — the header, the description,
+     the boundary note and the footer keep their own heights, so titles and
+     icons stay on one axis across the row. Cards in DIFFERENT rows are
+     untouched: nothing is equalised page-wide. */
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  block-size: 100%;
+  align-content: start;
+}
+
+.ta-grid > .ta-card > .ta-rows {
+  align-self: start;
+}
+
+.ta-grid .ta-row-label {
+  color: var(--app-ink-secondary);
+}
+
+.ta-grid .ta-row-value-text {
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  /* Technical values keep their own direction inside an RTL card, and may wrap
+     only inside their own value column. */
+  unicode-bidi: plaintext;
+}
+
+/* The card head was a WRAPPING flex row, so a wide badge could push the title
+   block onto a second line and start it 40px below the same-row neighbours.
+   Three tracks instead: the icon, the titles, and the badge, so the title
+   always begins on one axis whatever the badge contains. */
+.ta-grid > .ta-card > .ta-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.ta-grid > .ta-card > .ta-card-head .ta-card-titles {
+  min-inline-size: 0;
+}
+
+.ta-grid > .ta-card > .ta-card-head .ta-card-badge {
+  justify-self: end;
+}
+
+@container ta-card (max-width: 260px) {
+  .ta-card-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ta-card-head .ta-card-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+/* ---- Evidence parts: compact row, expanded detail ------------------------
+ * ANATOMY: icon | filename | role | type | size | chevron — one row shape for
+ * image, video and PDF alike. */
+.ta-part-headline {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.ta-part-summary {
+  inline-size: 100%;
+  display: grid;
+  grid-template-columns:
+    18px
+    minmax(0, 1fr)
+    auto
+    minmax(0, 130px)
+    72px
+    16px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: start;
+  font: inherit;
+  color: var(--app-ink-heading);
+  cursor: pointer;
+}
+
+.ta-part-summary:hover {
+  background: var(--surface-translucent-inner-hover);
+}
+
+.ta-part-summary:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+}
+
+/* A long filename is clamped to one line inside its own track; the full value
+   stays on the element's `title`, so nothing is lost and nothing overflows. */
+.ta-part-summary .ta-part-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+.ta-part-compact {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--app-ink-secondary);
+}
+
+.ta-part-compact--size {
+  justify-self: end;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.ta-part-chevron {
+  justify-self: end;
+  color: var(--app-ink-secondary);
+  transition: transform 160ms ease;
+}
+
+.ta-part-summary[aria-expanded="true"] .ta-part-chevron {
+  transform: rotate(180deg);
+}
+
+.ta-part-body {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+/* A full SHA-256 may never push the page sideways. */
+.ta-part-hash-value {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.ta-parts-toggle {
+  justify-self: start;
+  margin-block-start: 4px;
+}
+
+@media (max-width: 760px) {
+  .ta-part-summary {
+    grid-template-columns: 18px minmax(0, 1fr) 16px;
+    row-gap: 4px;
+  }
+  .ta-part-summary .ta-part-role,
+  .ta-part-compact {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .ta-part-compact--size {
+    justify-self: start;
+  }
+}
