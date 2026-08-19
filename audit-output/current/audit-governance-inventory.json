@@ -178,12 +178,12 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "e94d4d93f30575d3f512dae81b97ceb49eb03342",
-    "phase0ChangedPaths": 5,
-    "phase0AddedPaths": 0,
-    "phase0ModifiedPaths": 5,
+    "phase0BaselineRef": "74b61ca8292120b98569ebe89be90d6ebe95eeac",
+    "phase0ChangedPaths": 12,
+    "phase0AddedPaths": 2,
+    "phase0ModifiedPaths": 10,
     "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 0,
+    "phase0AttributedPaths": 5,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,7 +208,7 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "e94d4d93f30575d3f512dae81b97ceb49eb03342",
+    "baseline": "74b61ca8292120b98569ebe89be90d6ebe95eeac",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
@@ -223,18 +223,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/__tests__/evidence-detail-preview-switch.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -258,6 +247,94 @@
       {
         "path": "apps/web/app/(app)/evidence/[id]/evidence-detail.css",
         "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/page.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "audit-output/current/architecture-facts.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "audit-output/current/audit-governance-inventory.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "audit-output/current/report.md",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "audit-output/diagnostics/test-caller-diagnostic.json",
+        "status": "MODIFIED",
+        "class": "AUDIT_ARTIFACT",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "docs/architecture/current-runtime-capability-map.json",
+        "status": "MODIFIED",
+        "class": "DOCUMENTATION",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "apps/web/__tests__/evidence-custody-redesign.test.ts",
+        "status": "ADDED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx",
+        "status": "ADDED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
           "byMarker": false,

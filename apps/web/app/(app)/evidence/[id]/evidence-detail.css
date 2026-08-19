@@ -620,8 +620,8 @@ button.evidence-detail-item-card {
 }
 
 .evidence-detail-signal-card.info {
-  background: var(--detail-teal-soft);
-  border-color: rgba(79, 70, 229, 0.15);
+  background: #EAF0FD;
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .evidence-detail-signal-card.danger {
@@ -1893,4 +1893,400 @@ button.evidence-detail-item-card {
   font-style: normal;
   overflow-wrap: break-word;
   unicode-bidi: plaintext;
+}
+
+/* ===========================================================================
+ * SHARED RIGHT RAIL — four semantic sections with visible separation.
+ * =========================================================================== */
+
+.evidence-detail-rail-heading {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+  font-style: normal;
+}
+.evidence-detail-rail-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evidence-detail-rail-lede {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--app-ink-heading);
+  font-style: normal;
+}
+.evidence-detail-rail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-inline-size: 0;
+}
+.evidence-detail-rail-field__label {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-rail-field__value {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-inline-size: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-rail-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-ink-secondary);
+}
+.evidence-detail-rail-dot[data-tone="green"] { background: #167a5b; }
+.evidence-detail-rail-dot[data-tone="blue"] { background: #2563EB; }
+.evidence-detail-rail-dot[data-tone="amber"] { background: #b8861f; }
+.evidence-detail-rail-dot[data-tone="red"] { background: #b54738; }
+.evidence-detail-rail-dot[data-tone="slate"] { background: var(--app-ink-secondary); }
+.evidence-detail-rail-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  unicode-bidi: plaintext;
+}
+
+/* Each rail section is its own stacked block; a hairline between sections
+   makes the four groups readable as four groups. */
+.evidence-detail-side-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-inline-size: 0;
+  padding-block: 18px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+}
+.evidence-detail-side-block:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+/* ===========================================================================
+ * CUSTODY — two separate chronologies, one shared row anatomy.
+ * =========================================================================== */
+
+.evidence-detail-timeline-card {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding: 22px 24px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-timeline-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-timeline-card__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent-500);
+}
+.evidence-detail-timeline-card__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evidence-detail-timeline-card__description {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+.evidence-detail-timeline-empty {
+  margin: 20px 0 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  unicode-bidi: plaintext;
+}
+
+.evidence-detail-chrono {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  margin-block-start: 22px;
+  min-inline-size: 0;
+}
+.evidence-detail-chrono-day {
+  min-inline-size: 0;
+}
+
+/* ---- One explicit anatomy for every line in a timeline -------------------
+ * Three columns: marker/rail · identity · time. Day heads and event rows
+ * share the SAME track definition, so day titles and event labels start on
+ * one axis and totals and timestamps end on one axis. Nothing is positioned
+ * by a margin derived from text width. */
+.evidence-detail-chrono-day__head,
+.evidence-detail-chrono-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-inline-size: 0;
+}
+
+.evidence-detail-chrono-day__head {
+  padding-block-end: 4px;
+}
+.evidence-detail-chrono-marker {
+  justify-self: center;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--accent-500);
+}
+/* Access activity is a neutral chronology: same anatomy, slate rail. */
+[data-timeline-tone="access"] .evidence-detail-chrono-marker {
+  background: #98a2b3;
+}
+.evidence-detail-chrono-day__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-chrono-day__total {
+  justify-self: end;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+.evidence-detail-chrono-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+.evidence-detail-chrono-row {
+  padding-block: 10px;
+}
+/* The connecting rail is drawn by the row's own marker column, so it can
+   never drift away from the markers above it. */
+.evidence-detail-chrono-row__rail {
+  justify-self: center;
+  align-self: stretch;
+  inline-size: 1px;
+  background: var(--surface-translucent-border-strong);
+}
+.evidence-detail-chrono-row__label {
+  min-inline-size: 0;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--app-ink-heading);
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-chrono-row__count {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.evidence-detail-chrono-row__time {
+  justify-self: end;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Raw events ---------------------------------------------------------- */
+.evidence-detail-raw-disclosure {
+  margin-block-start: 20px;
+  min-inline-size: 0;
+}
+.evidence-detail-raw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+.evidence-detail-raw-row {
+  min-inline-size: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.evidence-detail-raw-row__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 12px;
+  min-inline-size: 0;
+}
+.evidence-detail-raw-row__label {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-raw-row__time {
+  justify-self: end;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-raw-row__summary {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Mobile: a deliberate stacked row, not a squeezed desktop grid -------
+ * The marker column survives so the rail stays continuous; identity and time
+ * become two stacked rows in the second column, so a timestamp keeps a whole
+ * line to itself and never fragments. */
+@media (max-width: 560px) {
+  .evidence-detail-timeline-card {
+    padding: 18px 16px 20px;
+  }
+  .evidence-detail-chrono-day__head,
+  .evidence-detail-chrono-row {
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: start;
+    row-gap: 2px;
+  }
+  .evidence-detail-chrono-day__total,
+  .evidence-detail-chrono-row__time {
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
+  }
+  .evidence-detail-chrono-row__rail {
+    grid-row: 1 / span 2;
+  }
+  .evidence-detail-raw-row__head {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 2px;
+  }
+  .evidence-detail-raw-row__time {
+    justify-self: start;
+  }
+}
+
+/* ---- Custody raw-events affordance --------------------------------------
+ * A disclosure, styled as the operational link the reference shows: no
+ * native triangle, a chevron on the logical end side that turns when open.
+ * <details>/<summary> semantics, keyboard behaviour and focus are native. */
+.evidence-detail-raw-disclosure > .evidence-detail-raw-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: #2563EB;
+  font-size: 13.5px;
+  font-weight: 650;
+  list-style: none;
+}
+.evidence-detail-raw-disclosure > .evidence-detail-raw-summary::-webkit-details-marker {
+  display: none;
+}
+.evidence-detail-raw-disclosure > .evidence-detail-raw-summary::after {
+  content: "›";
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+[dir="rtl"] .evidence-detail-raw-disclosure > .evidence-detail-raw-summary::after {
+  transform: scaleX(-1);
+}
+.evidence-detail-raw-disclosure[open] > .evidence-detail-raw-summary::after {
+  transform: rotate(90deg);
+}
+[dir="rtl"] .evidence-detail-raw-disclosure[open] > .evidence-detail-raw-summary::after {
+  transform: scaleX(-1) rotate(-90deg);
+}
+.evidence-detail-raw-disclosure > .evidence-detail-raw-summary:hover {
+  color: #1D4ED8;
+  text-decoration: underline;
+}
+
+/* The rail is continuous: the day marker carries the segment that bridges
+   the head's own leading down to the first event row. */
+.evidence-detail-chrono-marker {
+  position: relative;
+}
+.evidence-detail-chrono-marker::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: calc(50% - 0.5px);
+  inline-size: 1px;
+  block-size: 12px;
+  background: var(--surface-translucent-border-strong);
+}
+
+/* The rail's shortcut arrow points along the reading direction, so it flips
+   in Arabic instead of pointing back at the text it belongs to. */
+.evidence-detail-side-block .evidence-detail-inline-link::after {
+  content: "→";
+  display: inline-block;
+  margin-inline-start: 6px;
+}
+[dir="rtl"] .evidence-detail-side-block .evidence-detail-inline-link::after {
+  transform: scaleX(-1);
 }

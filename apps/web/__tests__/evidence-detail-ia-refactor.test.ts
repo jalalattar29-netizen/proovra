@@ -165,8 +165,11 @@ test("Phase 1 — Custody is the single home for access + forensic event lists",
   // The full forensic + access timelines render in Custody only
   // (grouped by day with a `Show raw events` expander); Integrity
   // does not re-render the lists.
-  assert.match(CUSTODY, /Forensic custody/);
-  assert.match(CUSTODY, /Access activity/);
+  // Case-insensitive: the redesign titles these cards "Forensic Custody" and
+  // "Access Activity" to match the product reference. The guarantee this test
+  // exists for — both lists live in Custody and nowhere else — is unchanged.
+  assert.match(CUSTODY, /Forensic custody/i);
+  assert.match(CUSTODY, /Access activity/i);
   assert.doesNotMatch(INTEGRITY, /<EventTimeline/);
 });
 
@@ -213,11 +216,15 @@ test("Phase ARTIFACTS-DEDUP — Artifacts tab carries only the verify-link card 
 });
 
 test("Phase 2 — Custody renders the grouped-by-day default with raw expander", () => {
-  // `GroupedEventTimeline` in `_lib.tsx` carries the
-  // `data-grouped-timeline` + `data-grouped-timeline-raw` contract.
-  assert.match(LIB, /data-grouped-timeline\b/);
-  assert.match(LIB, /data-grouped-timeline-raw/);
-  assert.match(LIB, /Show raw events/);
+  // The `data-grouped-timeline` + `data-grouped-timeline-raw` contract now
+  // lives in the Custody tab itself: the timeline is Custody-only
+  // presentation, so it moved out of the shared `_lib.tsx` and into the
+  // component responsible for it. The contract is unchanged, and
+  // evidence-custody-redesign.test.ts pins the grouping and the per-timeline
+  // disclosure in far more detail than this assertion did.
+  assert.match(CUSTODY, /data-grouped-timeline\b/);
+  assert.match(CUSTODY, /data-grouped-timeline-raw/);
+  assert.match(CUSTODY, /Show raw events/);
 });
 
 // ---------------------------------------------------------------------------

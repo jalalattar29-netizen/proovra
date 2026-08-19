@@ -32,13 +32,11 @@ import {
   ArrowLeft,
   ClipboardCheck,
   FileText,
-  Globe,
   History,
   LayoutGrid,
   MessageSquare,
   Package,
   ShieldCheck,
-  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 import { Button, Modal, useToast } from "../../../../components/ui";
@@ -66,7 +64,6 @@ import { PresenceIndicator } from "../../../../components/presence/PresenceIndic
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
 import "./evidence-detail.css";
 import {
-  SectionHeading,
   buildPublishedVerificationUrl,
   buildRiskSignals,
   buildTechnicalReadinessSummary,
@@ -89,6 +86,7 @@ import { useArtifactReadinessPoll } from "./_hooks/useArtifactReadinessPoll";
 import { EvidenceOverviewTab } from "./_tabs/EvidenceOverviewTab";
 import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
 import { EvidenceCustodyTab } from "./_tabs/EvidenceCustodyTab";
+import { EvidenceRecordRail } from "./_tabs/EvidenceRecordRail";
 import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
@@ -1404,103 +1402,18 @@ function EvidenceDetailPageInner() {
             ) : null}
           </main>
 
-          <aside
-            className="evidence-detail-sidebar"
-            data-evidence-sidebar="status-and-next-action"
-          >
-            <section
-              className="evidence-detail-side-block"
-              data-evidence-side="risk-signals"
-            >
-              <SectionHeading
-                kicker="Risk Signals"
-                title="Reviewer attention"
-                icon={TriangleAlert}
-              />
-              {reviewSignals.length === 0 ? (
-                <p className="evidence-detail-muted">
-                  No advisory risk signals in the current response.
-                </p>
-              ) : (
-                <div className="evidence-detail-signal-list">
-                  {reviewSignals.slice(0, 4).map((signal) => (
-                    <article
-                      key={`${signal.title}-${signal.detail}`}
-                      className={`evidence-detail-signal-card ${signal.severity}`}
-                    >
-                      <strong>{signal.title}</strong>
-                      <p>{signal.detail}</p>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section
-              className="evidence-detail-side-block"
-              data-evidence-side="operational-summary"
-            >
-              <SectionHeading
-                kicker="Review Workflow"
-                title="Operational summary"
-                icon={ShieldCheck}
-              />
-              <div className="evidence-detail-data-grid">
-                <div className="evidence-detail-data-cell">
-                  <span>Review workflow</span>
-                  <strong>
-                    {workspace.reviewWorkflow.status
-                      ? workspace.reviewWorkflow.status.replace(/_/g, " ")
-                      : "Not started"}
-                  </strong>
-                </div>
-                <div className="evidence-detail-data-cell">
-                  <span>Priority</span>
-                  <strong>{workspace.reviewWorkflow.priority || "Not configured"}</strong>
-                </div>
-                <div className="evidence-detail-data-cell">
-                  <span>Case</span>
-                  <strong>{workspace.relationships.caseName || "Unassigned"}</strong>
-                </div>
-                <div className="evidence-detail-data-cell">
-                  <span>Due date</span>
-                  <strong>
-                    {formatValue(formatUserDateTime(workspace.reviewWorkflow.dueAt))}
-                  </strong>
-                </div>
-              </div>
-            </section>
-
-            {/* Phase CAPTURE-CLOSURE Part C — compact public-verification
-                shortcut. Sidebar only carries the publication-state chip
-                + a shortcut link (no full KeyValueGrid duplication); the
-                detail counts live in the Artifacts tab. */}
-            <section
-              className="evidence-detail-side-block"
-              data-evidence-side="public-verification-shortcut"
-            >
-              <SectionHeading
-                kicker="Public Verification"
-                title={publicVerificationState?.label ?? "State unavailable"}
-                icon={Globe}
-              />
-              {shareUrl ? (
-                <a
-                  href={shareUrl}
-                  className="evidence-detail-inline-link"
-                  target="_blank"
-                  rel="noreferrer"
-                  data-evidence-side-publish-link
-                >
-                  Open verification surface →
-                </a>
-              ) : (
-                <p className="evidence-detail-muted" style={{ fontSize: 12.5 }}>
-                  {publicVerificationState?.detail ?? "No publication detail available."}
-                </p>
-              )}
-            </section>
-          </aside>
+          {/* ONE shared rail for every tab — see _tabs/EvidenceRecordRail. */}
+          <EvidenceRecordRail
+            workspace={workspace}
+            signals={reviewSignals}
+            publicVerificationLabel={
+              publicVerificationState?.label ?? "State unavailable"
+            }
+            publicVerificationDetail={
+              publicVerificationState?.detail ?? "No publication detail available."
+            }
+            shareUrl={shareUrl}
+          />
         </div>
       </div>
 

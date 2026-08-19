@@ -26,6 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
+import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
 import type {
   ReviewWorkspaceResponse,
@@ -1076,116 +1077,6 @@ export function EventTimeline({
   );
 }
 
-/**
- * Phase EVIDENCE-IA — grouped lifecycle timeline view.
- *
- * Default summary buckets repeated event types by day so the user
- * doesn't see "REPORT_DOWNLOADED × 47" as 47 rows. The raw event log
- * remains accessible via a "Show raw events" `<details>` expander
- * (Phase 1 deduplication + Custody recommendation in the audit).
- */
-export function GroupedEventTimeline({
-  title,
-  subtitle,
-  events,
-  icon,
-}: {
-  title: string;
-  subtitle: string;
-  events: TimelineEvent[];
-  icon: LucideIcon;
-}) {
-  const grouped = useMemo(() => {
-    const buckets = new Map<
-      string,
-      Map<string, { count: number; lastAtUtc: string }>
-    >();
-
-    for (const ev of events) {
-      // Day key derived from atUtc; falls back to "Undated" if the
-      // event has no timestamp. The ISO date prefix (YYYY-MM-DD) is
-      // stable and sortable.
-      const day = ev.atUtc?.slice(0, 10) || "Undated";
-      const byType = buckets.get(day) ?? new Map();
-      const prev = byType.get(ev.eventType);
-      byType.set(ev.eventType, {
-        count: (prev?.count ?? 0) + 1,
-        lastAtUtc: prev?.lastAtUtc && prev.lastAtUtc > (ev.atUtc ?? "")
-          ? prev.lastAtUtc
-          : ev.atUtc ?? "",
-      });
-      buckets.set(day, byType);
-    }
-
-    // Sort days descending (newest first).
-    return Array.from(buckets.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [events]);
-
-  return (
-    <section className="evidence-detail-section">
-      <div className="evidence-detail-section-header">
-        <SectionHeading kicker={title} title={subtitle} icon={icon} />
-      </div>
-
-      {events.length === 0 ? (
-        <p className="evidence-detail-muted">No events recorded in the current API response.</p>
-      ) : (
-        <div className="evidence-detail-timeline" data-grouped-timeline>
-          {grouped.map(([day, byType]) => (
-            <article key={day} className="evidence-detail-timeline-item">
-              <div className="evidence-detail-timeline-dot" aria-hidden="true" />
-              <div>
-                <div className="evidence-detail-item-row">
-                  <strong>
-                    {day === "Undated"
-                      ? "Undated"
-                      : formatUserDateTime(`${day}T00:00:00Z`).split(",")[0]}
-                  </strong>
-                  <span>{Array.from(byType.values()).reduce((s, b) => s + b.count, 0)} events</span>
-                </div>
-                <ul style={{ margin: "4px 0 0 0", paddingLeft: 18, fontSize: 13 }}>
-                  {Array.from(byType.entries()).map(([type, b]) => (
-                    <li key={type}>
-                      {type.replace(/_/g, " ")} × {b.count}
-                      {b.lastAtUtc ? (
-                        <span className="evidence-detail-muted" style={{ marginLeft: 6 }}>
-                          (most recent {formatUserDateTime(b.lastAtUtc)})
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {events.length > 0 ? (
-        <details data-grouped-timeline-raw style={{ marginTop: 10 }}>
-          <summary className="evidence-detail-raw-summary">Show raw events</summary>
-          <div className="evidence-detail-timeline" style={{ marginTop: 8 }}>
-            {events.map((event) => (
-              <article
-                key={`${event.sequence}-${event.eventType}`}
-                className="evidence-detail-timeline-item"
-              >
-                <div className="evidence-detail-timeline-dot" aria-hidden="true" />
-                <div>
-                  <div className="evidence-detail-item-row">
-                    <strong>{event.eventType.replace(/_/g, " ")}</strong>
-                    <span>{formatUserDateTime(event.atUtc)}</span>
-                  </div>
-                  <p>{event.payloadSummary || "No event summary recorded."}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </details>
-      ) : null}
-    </section>
-  );
-}
 
 /**
  * Evidence Record hero — icon-only action group.
@@ -1300,4 +1191,62 @@ export function EvidenceHeroIconActions({
         </button>
       </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Shared right-rail tones
+//
+// The rail is one authority used by every tab, so these live here rather than
+// in any single tab. Each maps a real projection value onto the canonical
+// AppTone vocabulary; none of them invents a state.
+// ---------------------------------------------------------------------------
+
+export function getWorkflowStatusTone(status: string | null | undefined): AppTone {
+  switch ((status ?? "").toUpperCase()) {
+    case "APPROVED":
+    case "COMPLETED":
+      return "green";
+    case "REJECTED":
+      return "red";
+    case "IN_REVIEW":
+    case "ASSIGNED":
+      return "blue";
+    case "CHANGES_REQUESTED":
+      return "amber";
+    default:
+      return "slate";
+  }
+}
+
+export function getPriorityTone(priority: string | null | undefined): AppTone {
+  switch ((priority ?? "").toUpperCase()) {
+    case "URGENT":
+    case "CRITICAL":
+      return "red";
+    case "HIGH":
+      return "amber";
+    case "NORMAL":
+    case "MEDIUM":
+      return "blue";
+    case "LOW":
+      return "slate";
+    default:
+      return "slate";
+  }
+}
+
+export function getPublicVerificationTone(
+  state: ReviewWorkspaceResponse["publicVerificationSummary"]["state"]
+): AppTone {
+  switch (state) {
+    case "PUBLISHED":
+      return "green";
+    case "SUSPENDED":
+      return "red";
+    case "CONFIGURED_NOT_PUBLISHED":
+    case "UNPUBLISHED":
+      return "amber";
+    default:
+      return "slate";
+  }
 }
