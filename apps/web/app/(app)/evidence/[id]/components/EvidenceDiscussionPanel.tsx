@@ -114,6 +114,25 @@ const STATUS_LABELS: Record<ThreadStatus, string> = {
   CLOSED: "Closed",
 };
 
+/**
+ * Thread status -> canonical badge tone. Resolved is not the same as open,
+ * and closed is not the same as resolved; each keeps its own tone so the list
+ * cannot read as uniformly healthy.
+ */
+function statusTone(status: ThreadStatus): "green" | "blue" | "amber" | "slate" {
+  switch (status) {
+    case "RESOLVED":
+      return "green";
+    case "IN_PROGRESS":
+      return "blue";
+    case "OPEN":
+      return "amber";
+    case "CLOSED":
+    default:
+      return "slate";
+  }
+}
+
 function formatDateTime(iso: string): string {
   try {
     return new Date(iso).toISOString().replace("T", " ").slice(0, 16) + " UTC";
@@ -142,14 +161,8 @@ function renderMessageBody(body: string): Array<JSX.Element | string> {
     out.push(
       <mark
         key={`mention-${key++}`}
+        className="evidence-discussion__mention"
         data-discussion-mention-token={m[0]}
-        style={{
-          background: "rgba(99,102,241,0.18)",
-          color: "#3730a3",
-          padding: "0 4px",
-          borderRadius: 4,
-          fontWeight: 600,
-        }}
       >
         {m[0]}
       </mark>,
@@ -355,337 +368,220 @@ export default function EvidenceDiscussionPanel({
   // -----------------------------------------------------------------
   if (!teamId) {
     return (
-      <section
-        className="evidence-discussion-panel"
+      <div
+        className="evidence-discussion"
         data-evidence-discussion-empty="no-workspace"
-        style={panelStyle}
       >
-        <h3 style={{ margin: 0 }}>Discussion</h3>
-        <p style={{ margin: "0.5rem 0 0", opacity: 0.85 }}>
+        <p className="evidence-discussion__notice">
           Discussion threads are workspace-scoped. This evidence does not have
           an active workspace context. Switch to a workspace this evidence
           belongs to in order to coordinate with reviewers.
         </p>
-      </section>
+      </div>
     );
   }
 
+  const visibleThreads = (threads ?? []).filter((t) => {
+    // Preset filter
+    if (filterPreset === "unresolved") {
+      if (t.status === "RESOLVED" || t.status === "CLOSED") return false;
+    } else if (filterPreset === "escalated") {
+      if (!t.escalatedAtUtc) return false;
+    } else if (filterPreset === "resolved") {
+      if (t.status !== "RESOLVED" && t.status !== "CLOSED") return false;
+    }
+    // Text filter (case-insensitive title match)
+    const q = filterText.trim().toLowerCase();
+    if (q.length > 0 && !t.title.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const composerDisabled = posting || draft.trim().length === 0;
+
   return (
-    <section
-      className="evidence-discussion-panel"
+    <div
+      className="evidence-discussion"
       data-evidence-discussion-panel
       data-evidence-discussion-mode={readOnly ? "read-only" : "writable"}
-      style={panelStyle}
     >
+      {/* Read-only is stated once, at the top, in the canonical warning
+          treatment — the composer below is REPLACED rather than disabled, so
+          the mode is unmistakable instead of merely inert. */}
       {readOnly ? (
         <div
+          className="app-alert app-alert--warn"
           data-evidence-discussion-readonly-banner
           role="note"
-          style={{
-            border: "1px solid #fcd34d",
-            background: "#fef3c7",
-            color: "#78350f",
-            padding: "0.45rem 0.7rem",
-            borderRadius: 6,
-            fontSize: 12.5,
-            marginBottom: "0.6rem",
-          }}
         >
-          Read-only — existing discussion history is preserved, but new
-          messages cannot be posted in the current workspace context.
+          <strong>Read-only discussion</strong>
+          <p>
+            Existing discussion history is preserved, but new messages cannot
+            be posted in the current workspace context.
+          </p>
         </div>
       ) : null}
-      <header style={{ marginBottom: "0.75rem" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <h3 style={{ margin: 0 }}>Discussion</h3>
-          {/* Phase G3.2 — Presence on the selected thread (or the
-              evidence-level panel when no thread is selected). */}
-          <PresenceIndicator
-            teamId={teamId}
-            resourceKind="discussion_thread"
-            resourceId={selectedThreadId ?? evidenceId}
-          />
-        </div>
-        <p style={{ margin: "0.25rem 0 0", opacity: 0.8, fontSize: 13 }}>
-          Operational coordination attached to this evidence. Threads are
-          workspace-scoped and audit-visible. Use this surface instead of
-          external chat tools to preserve traceability.
-        </p>
-      </header>
 
       {error ? (
         <div
+          className="app-alert app-alert--danger"
           role="alert"
           data-evidence-discussion-error
-          style={{
-            border: "1px solid rgba(239,68,68,0.45)",
-            background: "rgba(239,68,68,0.08)",
-            padding: "0.5rem 0.75rem",
-            borderRadius: 6,
-            marginBottom: "0.75rem",
-            fontSize: 13,
-          }}
         >
-          {error}
+          <strong>Discussion could not be loaded</strong>
+          <p>{error}</p>
         </div>
       ) : null}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(260px, 1fr) minmax(380px, 2fr)",
-          gap: "1rem",
-        }}
-      >
+      <div className="evidence-discussion__layout">
         {/* ---------- Thread list ---------- */}
-        <div data-evidence-discussion-list>
-          <div
-            style={{
-              fontSize: 11,
-              opacity: 0.7,
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
-              marginBottom: 6,
-            }}
-          >
-            Threads
+        <div className="evidence-discussion__threads" data-evidence-discussion-list>
+          <div className="evidence-discussion__threads-head">
+            <h3 className="evidence-discussion__threads-title">Threads</h3>
+            <PresenceIndicator
+              teamId={teamId}
+              resourceKind="discussion_thread"
+              resourceId={selectedThreadId ?? evidenceId}
+            />
           </div>
 
           {/* Phase G2 (C2.5) — discussion advanced filters/search.
-              Client-side, bounded, operational. No realtime, no
-              social, no AI. */}
+              Client-side, bounded, operational. No realtime, no social,
+              no AI. */}
           <div
+            className="evidence-discussion__filters"
             data-evidence-discussion-filters
-            style={{
-              display: "flex",
-              gap: 6,
-              marginBottom: 8,
-              flexWrap: "wrap",
-            }}
           >
             <input
               type="search"
+              className="app-form-input evidence-discussion__search"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               placeholder="Filter threads by title…"
+              aria-label="Filter threads by title"
               data-discussion-filter-text
-              style={{
-                flex: 1,
-                padding: "4px 8px",
-                fontSize: 12.5,
-                borderRadius: 6,
-                border: "1px solid rgba(127,127,127,0.4)",
-                background: "transparent",
-                color: "inherit",
-              }}
             />
-            {(["all", "unresolved", "escalated", "resolved"] as const).map(
-              (preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setFilterPreset(preset)}
-                  data-discussion-filter-preset={preset}
-                  data-discussion-filter-preset-active={
-                    filterPreset === preset ? "true" : "false"
-                  }
-                  style={{
-                    padding: "3px 8px",
-                    fontSize: 11.5,
-                    borderRadius: 999,
-                    border:
-                      filterPreset === preset
-                        ? "1px solid rgba(99,102,241,0.6)"
-                        : "1px solid rgba(127,127,127,0.3)",
-                    background:
-                      filterPreset === preset
-                        ? "rgba(99,102,241,0.12)"
-                        : "transparent",
-                    color: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  {preset === "all"
-                    ? "All"
-                    : preset === "unresolved"
-                      ? "Unresolved"
-                      : preset === "escalated"
-                        ? "Escalated"
-                        : "Resolved"}
-                </button>
-              ),
-            )}
+            <div className="evidence-discussion__presets" role="group" aria-label="Thread filter">
+              {(["all", "unresolved", "escalated", "resolved"] as const).map(
+                (preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className="evidence-discussion__preset"
+                    onClick={() => setFilterPreset(preset)}
+                    aria-pressed={filterPreset === preset}
+                    data-discussion-filter-preset={preset}
+                    data-discussion-filter-preset-active={
+                      filterPreset === preset ? "true" : "false"
+                    }
+                  >
+                    {preset === "all"
+                      ? "All"
+                      : preset === "unresolved"
+                        ? "Unresolved"
+                        : preset === "escalated"
+                          ? "Escalated"
+                          : "Resolved"}
+                  </button>
+                ),
+              )}
+            </div>
           </div>
 
           {loadingThreads ? (
-            <p style={{ fontSize: 13, opacity: 0.75 }}>Loading threads…</p>
-          ) : threads && threads.length > 0 ? (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              {threads
-                .filter((t) => {
-                  // Preset filter
-                  if (filterPreset === "unresolved") {
-                    if (t.status === "RESOLVED" || t.status === "CLOSED") {
-                      return false;
-                    }
-                  } else if (filterPreset === "escalated") {
-                    if (!t.escalatedAtUtc) return false;
-                  } else if (filterPreset === "resolved") {
-                    if (t.status !== "RESOLVED" && t.status !== "CLOSED") {
-                      return false;
-                    }
-                  }
-                  // Text filter (case-insensitive title match)
-                  const q = filterText.trim().toLowerCase();
-                  if (q.length > 0 && !t.title.toLowerCase().includes(q)) {
-                    return false;
-                  }
-                  return true;
-                })
-                .map((t) => {
+            <p className="evidence-discussion__muted">Loading threads…</p>
+          ) : visibleThreads.length > 0 ? (
+            <ul className="evidence-discussion__thread-list">
+              {visibleThreads.map((t) => {
                 const active = t.id === selectedThreadId;
                 return (
                   <li key={t.id}>
+                    {/* Selection changes surface and border only — the row
+                        keeps identical geometry selected or not, so the list
+                        never shifts as the reader moves through it. */}
                     <button
                       type="button"
+                      className="evidence-discussion__thread"
                       onClick={() => setSelectedThreadId(t.id)}
                       data-evidence-discussion-thread={t.id}
                       data-thread-status={t.status}
                       data-thread-escalated={t.escalatedAtUtc ? "true" : "false"}
+                      data-thread-selected={active ? "true" : "false"}
                       aria-current={active ? "true" : undefined}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.7rem",
-                        borderRadius: 6,
-                        border: active
-                          ? "1px solid rgba(99,102,241,0.65)"
-                          : "1px solid rgba(127,127,127,0.25)",
-                        background: active
-                          ? "rgba(99,102,241,0.08)"
-                          : "rgba(127,127,127,0.04)",
-                        cursor: "pointer",
-                        color: "inherit",
-                      }}
                     >
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          marginBottom: 2,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <span className="evidence-discussion__thread-title">
                         {t.title}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          opacity: 0.75,
-                          display: "flex",
-                          gap: 6,
-                          flexWrap: "wrap",
-                        }}
-                      >
+                      </span>
+                      <span className="evidence-discussion__thread-meta">
                         <span>{labelForKind(t.kind)}</span>
-                        <span>·</span>
-                        <span>{STATUS_LABELS[t.status] ?? t.status}</span>
+                        <span
+                          className="app-status-badge"
+                          data-tone={statusTone(t.status)}
+                        >
+                          {STATUS_LABELS[t.status] ?? t.status}
+                        </span>
                         {t.escalatedAtUtc ? (
-                          <>
-                            <span>·</span>
-                            <span style={{ color: "#b91c1c", fontWeight: 600 }}>
-                              escalated
-                            </span>
-                          </>
+                          <span className="app-status-badge" data-tone="red">
+                            Escalated
+                          </span>
                         ) : null}
-                      </div>
+                      </span>
                     </button>
                   </li>
                 );
               })}
             </ul>
+          ) : threads && threads.length > 0 ? (
+            <p
+              className="evidence-discussion__muted"
+              data-evidence-discussion-empty="no-matches"
+            >
+              No threads match the current filter.
+            </p>
           ) : (
             <p
-              style={{ fontSize: 13, opacity: 0.78, margin: 0 }}
+              className="evidence-discussion__muted"
               data-evidence-discussion-empty="no-threads"
             >
               No discussion threads yet. Threads created from the classic
-              reviewer surfaces appear here. Operational coordination on
-              this evidence should be recorded as a thread so the audit
-              trail remains complete.
+              reviewer surfaces appear here. Operational coordination on this
+              evidence should be recorded as a thread so the audit trail
+              remains complete.
             </p>
           )}
         </div>
 
         {/* ---------- Selected thread ---------- */}
-        <div data-evidence-discussion-detail>
+        <div className="evidence-discussion__detail" data-evidence-discussion-detail>
           {selectedThread ? (
             <>
-              <div
-                style={{
-                  border: "1px solid rgba(127,127,127,0.25)",
-                  borderRadius: 6,
-                  padding: "0.75rem 0.85rem",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                <h4 style={{ margin: 0, fontSize: 14 }}>
+              <div className="evidence-discussion__thread-header">
+                <h3 className="evidence-discussion__thread-header-title">
                   {selectedThread.title}
-                </h4>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 11,
-                    opacity: 0.75,
-                    display: "flex",
-                    gap: 6,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span>
-                    {labelForKind(selectedThread.kind)}
-                  </span>
-                  <span>·</span>
-                  <span>
+                </h3>
+                <div className="evidence-discussion__thread-meta">
+                  <span>{labelForKind(selectedThread.kind)}</span>
+                  <span
+                    className="app-status-badge"
+                    data-tone={statusTone(selectedThread.status)}
+                  >
                     {STATUS_LABELS[selectedThread.status] ?? selectedThread.status}
                   </span>
                   {selectedThread.escalatedAtUtc ? (
-                    <>
-                      <span>·</span>
-                      <span style={{ color: "#b91c1c", fontWeight: 600 }}>
-                        escalated
-                      </span>
-                    </>
+                    <span className="app-status-badge" data-tone="red">
+                      Escalated
+                    </span>
                   ) : null}
-                  <span>·</span>
-                  <span>updated {formatDateTime(selectedThread.updatedAt)}</span>
+                  <span className="evidence-discussion__stamp">
+                    Updated {formatDateTime(selectedThread.updatedAt)}
+                  </span>
                 </div>
               </div>
 
               {loadingMessages ? (
-                <p style={{ fontSize: 13, opacity: 0.75 }}>Loading messages…</p>
+                <p className="evidence-discussion__muted">Loading messages…</p>
               ) : messages.length === 0 ? (
                 <p
-                  style={{ fontSize: 13, opacity: 0.78 }}
+                  className="evidence-discussion__muted"
                   data-evidence-discussion-empty="no-messages"
                 >
                   No messages in this thread yet. Post one below — it will be
@@ -693,67 +589,42 @@ export default function EvidenceDiscussionPanel({
                 </p>
               ) : (
                 <ol
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                  }}
+                  className="evidence-discussion__messages"
                   data-evidence-discussion-messages
                 >
                   {messages.map((m) => (
                     <li
                       key={m.id}
+                      className="evidence-discussion__message"
                       data-evidence-discussion-message={m.id}
                       data-author-kind={m.authorKind}
-                      style={{
-                        border: "1px solid rgba(127,127,127,0.2)",
-                        borderRadius: 6,
-                        padding: "0.55rem 0.7rem",
-                        background:
-                          m.authorKind === "SYSTEM"
-                            ? "rgba(127,127,127,0.06)"
-                            : "transparent",
-                      }}
                     >
-                      <div
-                        style={{
-                          fontSize: 11,
-                          opacity: 0.78,
-                          marginBottom: 4,
-                          display: "flex",
-                          gap: 6,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <strong style={{ fontWeight: 600 }}>
+                      <div className="evidence-discussion__message-head">
+                        <span className="evidence-discussion__author">
                           {m.authorKind === "CONTRIBUTOR"
-                            ? m.contributorLabel ?? "Contributor"
+                            ? (m.contributorLabel ?? "Contributor")
                             : m.authorKind === "SYSTEM"
                               ? "System"
-                              : m.authorUserId ?? "Reviewer"}
-                        </strong>
-                        <span>·</span>
-                        <span>{formatDateTime(m.createdAt)}</span>
+                              : (m.authorUserId ?? "Reviewer")}
+                        </span>
+                        {m.authorKind !== "USER" ? (
+                          <span className="app-chip">
+                            {m.authorKind === "SYSTEM" ? "System" : "Contributor"}
+                          </span>
+                        ) : null}
+                        <span className="evidence-discussion__stamp">
+                          {formatDateTime(m.createdAt)}
+                        </span>
                         {m.editedAtUtc ? (
-                          <>
-                            <span>·</span>
-                            <em style={{ opacity: 0.7 }}>
-                              edited {formatDateTime(m.editedAtUtc)}
-                            </em>
-                          </>
+                          <span className="evidence-discussion__stamp">
+                            Edited {formatDateTime(m.editedAtUtc)}
+                          </span>
                         ) : null}
                       </div>
-                      <p
-                        style={{
-                          margin: 0,
-                          whiteSpace: "pre-wrap",
-                          fontSize: 14,
-                          lineHeight: 1.45,
-                        }}
-                      >
+                      {/* `white-space: pre-wrap` preserves the line breaks the
+                          author typed. The body is rendered as TEXT nodes —
+                          never as markup — so a message cannot inject HTML. */}
+                      <p className="evidence-discussion__body">
                         {renderMessageBody(m.body)}
                       </p>
                     </li>
@@ -763,17 +634,16 @@ export default function EvidenceDiscussionPanel({
 
               {readOnly ? (
                 <p
-                  style={{ fontSize: 12, opacity: 0.72, marginTop: 12 }}
+                  className="evidence-discussion__muted"
                   data-evidence-discussion-readonly-message-form-hidden
                 >
-                  This workspace is in read-only mode for discussion.
-                  History above is preserved; new messages cannot be
-                  posted.
+                  This workspace is in read-only mode for discussion. History
+                  above is preserved; new messages cannot be posted.
                 </p>
               ) : selectedThread.status === "RESOLVED" ||
-              selectedThread.status === "CLOSED" ? (
+                selectedThread.status === "CLOSED" ? (
                 <p
-                  style={{ fontSize: 12, opacity: 0.72, marginTop: 12 }}
+                  className="evidence-discussion__muted"
                   data-evidence-discussion-locked
                 >
                   This thread is {STATUS_LABELS[selectedThread.status]}. Reopen
@@ -781,70 +651,38 @@ export default function EvidenceDiscussionPanel({
                 </p>
               ) : (
                 <form
+                  className="evidence-discussion__composer"
                   onSubmit={handlePost}
-                  style={{ marginTop: 12 }}
                   data-evidence-discussion-form
                 >
                   <label
+                    className="evidence-discussion__composer-label"
                     htmlFor="evidence-discussion-message"
-                    style={{
-                      display: "block",
-                      fontSize: 12,
-                      opacity: 0.78,
-                      marginBottom: 4,
-                    }}
                   >
                     Post a message
                   </label>
                   <textarea
                     id="evidence-discussion-message"
+                    className="app-form-input evidence-discussion__textarea"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     placeholder="Write an operational message. Use @username to mention a workspace member."
                     rows={3}
                     maxLength={8192}
-                    style={{
-                      width: "100%",
-                      resize: "vertical",
-                      padding: "0.5rem 0.6rem",
-                      borderRadius: 6,
-                      border: "1px solid rgba(127,127,127,0.4)",
-                      background: "transparent",
-                      color: "inherit",
-                      fontSize: 13.5,
-                      fontFamily: "inherit",
-                    }}
+                    aria-describedby="evidence-discussion-composer-note"
                   />
-                  <div
-                    style={{
-                      marginTop: 6,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <small style={{ opacity: 0.7 }}>
+                  <div className="evidence-discussion__composer-foot">
+                    <span
+                      className="evidence-discussion__muted"
+                      id="evidence-discussion-composer-note"
+                    >
                       Audit-attributed. Workspace-scoped.
-                    </small>
+                    </span>
                     <button
                       type="submit"
-                      disabled={posting || draft.trim().length === 0}
-                      style={{
-                        padding: "0.4rem 0.85rem",
-                        borderRadius: 6,
-                        border: "1px solid rgba(99,102,241,0.6)",
-                        background:
-                          posting || draft.trim().length === 0
-                            ? "rgba(99,102,241,0.18)"
-                            : "rgba(99,102,241,0.85)",
-                        color:
-                          posting || draft.trim().length === 0 ? "#3730a3" : "#fff",
-                        cursor:
-                          posting || draft.trim().length === 0
-                            ? "default"
-                            : "pointer",
-                        fontSize: 13,
-                      }}
+                      className="app-primary-action"
+                      disabled={composerDisabled}
+                      aria-disabled={composerDisabled}
                     >
                       {posting ? "Posting…" : "Post message"}
                     </button>
@@ -854,22 +692,15 @@ export default function EvidenceDiscussionPanel({
             </>
           ) : threads && threads.length > 0 ? (
             <p
-              style={{ fontSize: 13, opacity: 0.78 }}
+              className="evidence-discussion__muted"
               data-evidence-discussion-empty="no-selection"
             >
-              Select a thread on the left to read its operational history and
-              post a coordinating message.
+              Select a thread to read its operational history and post a
+              coordinating message.
             </p>
           ) : null}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
-
-const panelStyle = {
-  border: "1px solid rgba(127,127,127,0.25)",
-  borderRadius: 8,
-  padding: "1rem 1.1rem",
-  background: "rgba(127,127,127,0.03)",
-} as const;

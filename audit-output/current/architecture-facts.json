@@ -1,7 +1,7 @@
 {
   "schemaVersion": "architecture-facts@1",
-  "generatedAtUtc": "2026-08-19T02:27:50.107Z",
-  "sourceRevision": "2685a771ece4d8112854fb2baa58ec812b7342aa",
+  "generatedAtUtc": "2026-08-19T02:47:54.994Z",
+  "sourceRevision": "4a7a83e9596eda2c6a76247c49b9bdefef94b6e4",
   "releaseCandidateId": null,
   "engineVersion": "audit-engine@1.0.0",
   "engineHash": "b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea",
@@ -79,7 +79,7 @@
       "machineOnlyConsumerRoutes": 4,
       "noConsumerRoutes": 224,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "fe4f79ae4ab455cb2e997ed77c4286b04ea6f2dd3ca8b0e3cb6ff9a09ad71b17"
+      "consumerInventoryHash": "8f33628d010127f954a2ca86e18a5a322f15471f3c18907a958c79b2ddac0391"
     },
     "capabilities": {
       "totalRoutes": 1087,
@@ -305,10 +305,10 @@
   },
   "phase0": {
     "baselineKind": "GIT_COMMIT",
-    "baselineRef": "2685a771ece4d8112854fb2baa58ec812b7342aa",
-    "changedPaths": 12,
-    "addedPaths": 3,
-    "modifiedPaths": 9,
+    "baselineRef": "4a7a83e9596eda2c6a76247c49b9bdefef94b6e4",
+    "changedPaths": 7,
+    "addedPaths": 1,
+    "modifiedPaths": 6,
     "deletedPaths": 0,
     "attributedPaths": 3,
     "productionRuntimeFilesModifiedByPhase0": 0,

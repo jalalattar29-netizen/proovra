@@ -3560,3 +3560,374 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   border-color: transparent;
   text-decoration: underline;
 }
+
+/* ===========================================================================
+ * DISCUSSION TAB — system-derived from the accepted Evidence Detail design.
+ * Two stable regions (threads · conversation) on desktop, deliberately
+ * stacked below the tablet threshold. No private palette.
+ * =========================================================================== */
+
+.evidence-detail-discussion {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-inline-size: 0;
+}
+
+/* ---- Page-ground introduction -------------------------------------------- */
+.evidence-discussion-intro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-discussion-intro__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent-500);
+}
+.evidence-discussion-intro__copy {
+  min-inline-size: 0;
+}
+.evidence-discussion-intro__title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 27px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+.evidence-discussion-intro__description {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Panel shell --------------------------------------------------------- */
+.evidence-discussion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+}
+.evidence-discussion__notice,
+.evidence-discussion__muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* Two regions with EXPLICIT bounds: the thread column cannot grow past its
+   maximum or shrink past its minimum, so a long thread title or author name
+   can never resize the page. */
+.evidence-discussion__layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-inline-size: 0;
+}
+@media (max-width: 1024px) {
+  /* A deliberate stack, not two squeezed desktop columns. The thread list
+     keeps its full width above the conversation it selects. */
+  .evidence-discussion__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Thread region -------------------------------------------------------- */
+.evidence-discussion__threads {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-discussion__threads-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evidence-discussion__threads-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+  font-style: normal;
+}
+.evidence-discussion__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evidence-discussion__search {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  font-size: 12.5px;
+}
+.evidence-discussion__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+/* Operational blue for the informational "which filter am I in" state —
+   filters are not a semantic result, so they are never green or purple. */
+.evidence-discussion__preset {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  color: var(--app-ink-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.evidence-discussion__preset:hover {
+  background: var(--surface-translucent-inner-hover);
+  color: var(--app-ink-heading);
+}
+.evidence-discussion__preset:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+.evidence-discussion__preset[aria-pressed="true"] {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: #EAF0FD;
+  color: #2563EB;
+}
+
+.evidence-discussion__thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+/* Selected and unselected rows keep IDENTICAL geometry — only the surface
+   and border change — so the list never shifts as selection moves. */
+.evidence-discussion__thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.evidence-discussion__thread:hover {
+  background: var(--surface-translucent-inner-hover);
+}
+.evidence-discussion__thread:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+.evidence-discussion__thread[data-thread-selected="true"] {
+  border-color: var(--accent-500);
+  background: var(--surface-translucent-selected);
+}
+/* A long title clamps at two lines: it never widens the column and never
+   pushes the metadata row out of the card. */
+.evidence-discussion__thread-title {
+  min-inline-size: 0;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.evidence-discussion__thread-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--app-ink-secondary);
+}
+.evidence-discussion__stamp {
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Conversation region -------------------------------------------------- */
+.evidence-discussion__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 16px 18px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-discussion__thread-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  padding-block-end: 12px;
+  border-block-end: 1px solid var(--surface-translucent-border-strong);
+}
+.evidence-discussion__thread-header-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 23px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+.evidence-discussion__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+.evidence-discussion__message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+/* A system message is operationally different from a person's message; it
+   keeps a distinct ground without becoming a consumer-chat bubble. */
+.evidence-discussion__message[data-author-kind="SYSTEM"] {
+  background: #EAF0FD;
+  border-color: rgba(37, 99, 235, 0.18);
+}
+.evidence-discussion__message-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--app-ink-secondary);
+}
+.evidence-discussion__author {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+/* The author's own line breaks are preserved; a long URL or token breaks
+   rather than escaping the card. */
+.evidence-discussion__body {
+  margin: 0;
+  min-inline-size: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-label);
+  font-style: normal;
+  unicode-bidi: plaintext;
+}
+.evidence-discussion__mention {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--accent-050);
+  color: var(--accent-600);
+  font-weight: 650;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Composer ------------------------------------------------------------- */
+.evidence-discussion__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+}
+.evidence-discussion__composer-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.evidence-discussion__textarea {
+  /* content-box + 100% width overflowed the conversation region by its own
+     padding and border. The composer must stay inside its card. */
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 84px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 20px;
+}
+.evidence-discussion__composer-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+@media (max-width: 560px) {
+  .evidence-discussion__threads,
+  .evidence-discussion__detail {
+    padding: 14px;
+  }
+  /* The send action takes its own full-width row rather than being squeezed
+     beside the audit note. */
+  .evidence-discussion__composer-foot > .app-primary-action {
+    inline-size: 100%;
+    justify-content: center;
+  }
+}

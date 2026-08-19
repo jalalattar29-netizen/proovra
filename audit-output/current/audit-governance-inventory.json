@@ -178,10 +178,10 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "2685a771ece4d8112854fb2baa58ec812b7342aa",
-    "phase0ChangedPaths": 9,
-    "phase0AddedPaths": 3,
-    "phase0ModifiedPaths": 6,
+    "phase0BaselineRef": "4a7a83e9596eda2c6a76247c49b9bdefef94b6e4",
+    "phase0ChangedPaths": 4,
+    "phase0AddedPaths": 1,
+    "phase0ModifiedPaths": 3,
     "phase0DeletedPaths": 0,
     "phase0AttributedPaths": 0,
     "phase0ChangedPathsFromManualDeclaration": 0,
@@ -208,33 +208,11 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "2685a771ece4d8112854fb2baa58ec812b7342aa",
+    "baseline": "4a7a83e9596eda2c6a76247c49b9bdefef94b6e4",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/__tests__/evidence-detail-cleanup-pass.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/__tests__/evidence-detail-ia-refactor.test.ts",
-        "status": "MODIFIED",
-        "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -245,18 +223,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/FullExifAccordion.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -278,31 +245,9 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/__tests__/evidence-technical-appendix-redesign.test.ts",
+        "path": "apps/web/__tests__/evidence-discussion-redesign.test.ts",
         "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TechnicalDisclosure.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx",
-        "status": "ADDED",
-        "class": "PRODUCTION_RUNTIME",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,
