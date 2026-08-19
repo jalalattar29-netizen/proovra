@@ -3222,24 +3222,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .ta-signal-detail {
   color: var(--app-ink-secondary);
 }
-.ta-signals__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  min-inline-size: 0;
-  font-size: 11.5px;
-  color: var(--app-ink-secondary);
-}
-.ta-signals__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.ta-signals__legend-item[data-tone="success"] { color: #167a5b; }
-.ta-signals__legend-item[data-tone="warning"] { color: #b8861f; }
-.ta-signals__legend-item[data-tone="danger"] { color: #b54738; }
-.ta-signals__legend-item[data-tone="info"] { color: #2563EB; }
-
 @media (max-width: 560px) {
   .ta-decision-card {
     padding: 16px;
@@ -3250,11 +3232,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   .ta-signal-trailing {
     justify-content: flex-start;
   }
-}
-.ta-part-icon {
-  display: inline-flex;
-  flex: none;
-  color: var(--accent-600);
 }
 .ta-part-name {
   flex: 1 1 auto;
@@ -4517,11 +4494,11 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .ta-signals .ta-accordion-summary {
   display: grid;
   grid-template-columns:
-    18px                       /* state icon   */
-    minmax(0, 1fr)             /* label        */
-    auto                       /* status badge */
-    var(--ta-signal-score-w, 52px) /* score    */
-    16px;                      /* chevron      */
+    18px                                  /* state icon   */
+    minmax(0, 1fr)                        /* label        */
+    var(--ta-signal-badge-w, 132px)       /* status badge */
+    var(--ta-signal-score-w, 104px)       /* contribution */
+    16px;                                 /* chevron      */
   align-items: center;
   gap: 10px;
 }
@@ -4548,6 +4525,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 
 /* Identical badge geometry on every row, whatever the label says. */
 .ta-signals .ta-badge {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4569,8 +4547,8 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   grid-template-columns:
     18px
     minmax(0, 1fr)
-    auto
-    var(--ta-signal-score-w, 52px)
+    var(--ta-signal-badge-w, 132px)
+    var(--ta-signal-score-w, 104px)
     16px;
 }
 
@@ -4656,9 +4634,10 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 
 .ta-part-summary {
   inline-size: 100%;
+  /* filename | role | type | size | chevron. The whole header is the target,
+     not the chevron, and it clears 44px so it is reachable by touch. */
   display: grid;
   grid-template-columns:
-    18px
     minmax(0, 1fr)
     auto
     minmax(0, 130px)
@@ -4666,7 +4645,8 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
     16px;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  min-block-size: 44px;
+  padding: 8px 12px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -4726,6 +4706,13 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   gap: 10px;
   min-inline-size: 0;
 }
+
+/* `display: grid` above outranks the UA stylesheet rule for [hidden], so every
+   part rendered its full detail and its SHA-256 with the disclosure CLOSED —
+   which is the wall of tall part cards in the production capture. */
+.ta-part-body[hidden] {
+  display: none;
+}
 .ta-parts-toggle {
   justify-self: start;
   margin-block-start: 4px;
@@ -4733,15 +4720,87 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 
 @media (max-width: 760px) {
   .ta-part-summary {
-    grid-template-columns: 18px minmax(0, 1fr) 16px;
+    grid-template-columns: minmax(0, 1fr) 16px;
     row-gap: 4px;
   }
   .ta-part-summary .ta-part-role,
   .ta-part-compact {
-    grid-column: 2;
+    grid-column: 1;
     justify-self: start;
   }
   .ta-part-compact--size {
     justify-self: start;
   }
 }
+
+/* ---- Technical Appendix: peer cards vs unbounded collections -------------
+ * `.ta-grid` holds the six REGULAR context cards, whose height is a fixed
+ * field list. `.ta-wide` holds the collections — evidence parts, integrity,
+ * custody — whose height is a function of how many records exist. Mixing them
+ * let a 23-part record dictate a grid row and leave the column beside it
+ * empty, which is the imbalance in the production capture. */
+.ta-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-block-start: 12px;
+  min-inline-size: 0;
+}
+
+.ta-wide > * {
+  min-inline-size: 0;
+}
+
+/* Three columns where there is room, then two, then one. */
+.ta-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+@media (min-width: 1180px) {
+  .ta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---- Card footer action --------------------------------------------------
+ * `Open full custody timeline` was `.ta-link-btn`, which paints no surface —
+ * white text on a white card. It is a canonical secondary action now. */
+.ta-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 10px;
+  min-inline-size: 0;
+}
+
+.ta-card-footer .app-secondary-action {
+  min-block-size: 44px;
+}
+
+.ta-card-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+}
+
+/* ---- Per-signal contribution --------------------------------------------
+ * The score is a weighted contribution to the 100-point assessment, not a
+ * count of checks, so it is labelled rather than left as a bare fraction. */
+.ta-signal-score__unit {
+  margin-inline-start: 4px;
+  font-weight: 500;
+  color: var(--app-ink-secondary);
+}
+
+.ta-signals__lede {
+  margin: 4px 0 10px;
+  max-inline-size: 74ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+
+/* The expanded panel gets a real hierarchy instead of two loose paragraphs. */

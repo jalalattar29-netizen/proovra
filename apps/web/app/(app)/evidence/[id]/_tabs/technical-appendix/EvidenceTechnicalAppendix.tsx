@@ -264,6 +264,17 @@ export function EvidenceTechnicalAppendix({
           <MetadataRows rows={uploadRows} empty="No upload session metadata recorded." />
         </TechnicalAppendixCard>
 
+      </div>
+
+      {/* ---------------------------------------------------------------
+          FULL-WIDTH SECTIONS.
+
+          Everything below is an UNBOUNDED COLLECTION: its height is a
+          function of how many records exist, not of a fixed field list. In
+          the peer grid a single 23-part record dictated the row height and
+          left the neighbouring column empty. These get the full measure. */}
+
+      <div className="ta-wide">
         {/* Section 8 — Technical Metadata (per part) */}
         <TechnicalAppendixCard
           icon={Layers}
@@ -328,15 +339,29 @@ export function EvidenceTechnicalAppendix({
             rows={custodyRows}
             empty="No custody events recorded."
           />
-          {onOpenCustody ? (
+          {/* The canonical secondary action. It was `ta-link-btn`, which paints
+              no surface — white text on a white card. */}
+          <div className="ta-card-footer">
             <button
               type="button"
-              className="ta-link-btn ta-custody-open"
-              onClick={onOpenCustody}
+              className="app-secondary-action ta-custody-open"
+              onClick={onOpenCustody ?? undefined}
+              disabled={!onOpenCustody}
+              title={
+                onOpenCustody
+                  ? "Open the full custody timeline"
+                  : "The full custody timeline is not available for this record."
+              }
+              data-ta-custody-open
             >
               Open full custody timeline
             </button>
-          ) : null}
+            {!onOpenCustody ? (
+              <p className="ta-card-note" data-ta-custody-disabled-reason>
+                The full custody timeline is not available for this record.
+              </p>
+            ) : null}
+          </div>
         </TechnicalAppendixCard>
       </div>
 

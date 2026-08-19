@@ -77,6 +77,8 @@ export type MediaIntelligenceResponse = {
   evidenceId: string;
   signals: ReadonlyArray<MediaIntelligenceSignal>;
   catalog: ReadonlyArray<MediaIntelligenceCatalogEntry>;
+  /** The analysis run own terminal state. `null` when none has ever run. */
+  latestRun?: MediaIntelligenceRunState | null;
 };
 
 // =============================================================================
@@ -96,10 +98,17 @@ export function severityLabel(s: ClientSeverity): string {
   }
 }
 
+/**
+ * The USER-FACING projection of the workflow state.
+ *
+ * The backend enum stays as it is. `Open` read as an imperative — an action to
+ * take rather than a state the record is in — beside two real buttons, so the
+ * label says what the state IS.
+ */
 export function statusLabel(s: ClientStatus): string {
   switch (s) {
     case "PENDING":
-      return "Open";
+      return "Awaiting review";
     case "ACKNOWLEDGED":
       return "Acknowledged";
     case "DISMISSED":
@@ -133,3 +142,21 @@ export function compareSignalsForDisplay(
   if (sevDelta !== 0) return sevDelta;
   return b.createdAtUtc.localeCompare(a.createdAtUtc);
 }
+
+/**
+ * The analysis run's own state, projected by
+ * `GET /v1/evidence/:id/media-intelligence`.
+ *
+ * Before this existed the client could only INFER completion by watching the
+ * signal count change, and a re-run that produces no new observations never
+ * changes it — so the panel reported "still processing" forever on precisely
+ * the records an operator re-analyses most.
+ */
+export type MediaIntelligenceRunState = {
+  runId: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "DISMISSED";
+  attemptCount: number;
+  startedAtUtc: string | null;
+  completedAtUtc: string | null;
+  lastError: string | null;
+};

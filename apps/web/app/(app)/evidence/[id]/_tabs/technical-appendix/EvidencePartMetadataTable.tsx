@@ -10,7 +10,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, FileDigit } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { AppendixBadge, AppendixEmpty, CopyButton } from "./MetadataRow";
 import { fmtBytes, fmtDimensions, fmtDurationMs } from "./sections-model";
 import type { TechnicalMetadataPerPart } from "./types";
@@ -105,11 +105,10 @@ function PartRow({ part: p }: { part: TechnicalMetadataPerPart }) {
           onClick={() => setOpen((v) => !v)}
           data-ta-part-toggle
         >
-          <span className="ta-part-icon" aria-hidden>
-            <FileDigit size={15} />
-          </span>
-          {/* The filename is clamped deliberately; the full value stays on the
-              element so it is never lost. */}
+          {/* No leading file glyph. Every row IS a file, so the icon carried no
+              information, had no tooltip and no semantic purpose — it only read
+              as an unexplained control. The filename is the identity and takes
+              the primary slot; the role is secondary metadata beside it. */}
           <span className="ta-part-name" title={name}>
             {name}
           </span>

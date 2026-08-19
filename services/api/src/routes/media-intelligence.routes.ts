@@ -40,6 +40,7 @@ import {
   MEDIA_INTELLIGENCE_STATUSES,
   SIGNAL_METADATA,
 } from "../services/media-intelligence/signal-catalog.js";
+import { listRecentRunsForEvidence } from "../services/media-intelligence/run-tracker.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 // Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
@@ -182,9 +183,33 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         acknowledged_at_utc: Date | null;
       }>;
       bump("graph_query_total"); // shared "intelligence query" counter
+
+      // THE ANALYSIS RUN STATE.
+      //
+      // Without this the client could only INFER whether an analysis had
+      // finished, by watching the signal count change — and a re-run that
+      // produces no new observations never changes it, so the UI reported
+      // "still processing" forever on exactly the records an operator is most
+      // likely to re-analyse. The run row already carries the terminal state;
+      // it simply was not projected. Bounded to the analyze kind and to this
+      // tenant, and it exposes no storage internals.
+      const runs = await listRecentRunsForEvidence(teamId, evidenceId);
+      const latest = runs.find((r) => r.kind === "analyze_metadata") ?? null;
+
       return reply.code(200).send({
         evidenceId,
         signals: rows.map(projectSignal),
+        latestRun: latest
+          ? {
+              runId: latest.id,
+              status: latest.status,
+              attemptCount: latest.attemptCount,
+              startedAtUtc: latest.startedAtUtc,
+              completedAtUtc: latest.completedAtUtc,
+              // The operator-safe failure reason, never a stack or a query.
+              lastError: latest.status === "FAILED" ? latest.lastError : null,
+            }
+          : null,
         // Surface the bounded catalog so the UI can render
         // categories with no rows yet (e.g. "OCR_AVAILABLE — not
         // yet computed"). The catalog itself is public — no

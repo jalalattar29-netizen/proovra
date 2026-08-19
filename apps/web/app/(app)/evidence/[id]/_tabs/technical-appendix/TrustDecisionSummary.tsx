@@ -232,6 +232,11 @@ export function TrustDecisionSummary({
             ) : null}
           </div>
 
+          <p className="ta-signals__lede">
+            Scores show each signal’s contribution to the 100-point technical
+            assessment; they are not counts of separate checks.
+          </p>
+
           <div className="ta-signals__list">
             {signals.map((signal) => {
               const state = describeSignalState(signal.status);
@@ -252,8 +257,11 @@ export function TrustDecisionSummary({
                       >
                         {state.label}
                       </span>
+                      {/* A weighted CONTRIBUTION to the 100-point assessment,
+                          labelled so it cannot read as a count of checks. */}
                       <span className="ta-signal-score">
-                        {signal.points}/{signal.maxPoints}
+                        {signal.points} / {signal.maxPoints}
+                        <span className="ta-signal-score__unit">points</span>
                       </span>
                     </span>
                   }
@@ -274,20 +282,6 @@ export function TrustDecisionSummary({
             })}
           </div>
 
-          {/* The state icon travels with the row label so the state is never
-              communicated by colour alone. */}
-          <div className="ta-signals__legend" aria-hidden="true">
-            {[...new Set(signals.map((s) => s.status))].map((status) => {
-              const state = describeSignalState(status);
-              const Icon = state.icon;
-              return (
-                <span key={status} className="ta-signals__legend-item" data-tone={state.tone}>
-                  <Icon size={14} strokeWidth={2} />
-                  {state.label}
-                </span>
-              );
-            })}
-          </div>
         </section>
       ) : null}
     </div>

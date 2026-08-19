@@ -65,12 +65,24 @@ function signal(over: Record<string, unknown> = {}) {
   };
 }
 
-const listResponse = (signals: unknown[]) => ({
+const listResponse = (signals: unknown[], latestRun: unknown = null) => ({
   evidenceId: EVIDENCE_ID,
   signals,
   catalog: [],
   derivedAssets: [],
   analyzerAvailable: true,
+  latestRun,
+});
+
+/** A run row as the API projects it. */
+const runRow = (status: string, over: Record<string, unknown> = {}) => ({
+  runId: "run-1",
+  status,
+  attemptCount: 1,
+  startedAtUtc: status === "PENDING" ? null : "2026-07-04T03:47:43Z",
+  completedAtUtc: status === "COMPLETED" ? "2026-07-04T03:48:10Z" : null,
+  lastError: null,
+  ...over,
 });
 
 function mount() {
@@ -93,7 +105,8 @@ beforeEach(() => {
   };
 });
 
-const runButton = () => screen.getByRole("button", { name: /run analyzer|working/i });
+const runButton = () =>
+  screen.getByRole("button", { name: /run analyzer|queued|running/i });
 const runState = () =>
   document.querySelector("[data-media-intelligence-run-state]")?.getAttribute(
     "data-media-intelligence-run-state",
@@ -103,8 +116,8 @@ const runState = () =>
 // Run analyzer
 // ---------------------------------------------------------------------------
 
-describe("Run analyzer — a real request with real feedback", () => {
-  it("issues the run request and reports that the analysis was queued", async () => {
+describe("Run analyzer — a lifecycle with a terminal outcome", () => {
+  it("issues the run request and reports it queued", async () => {
     mount();
     await waitFor(() => expect(runButton()).toBeTruthy());
 
@@ -118,11 +131,135 @@ describe("Run analyzer — a real request with real feedback", () => {
     // The tenant goes with the request; the server authorizes on it.
     expect(run!.body).toMatchObject({ teamId: TEAM_ID, async: true });
 
-    await waitFor(() => expect(runState()).toBe("polling"));
-    expect(document.body.textContent).toMatch(/Analysis queued/i);
+    await waitFor(() => expect(runState()).toBe("queued"));
   });
 
-  it("shows a pending state and refuses a duplicate submission", async () => {
+  it("a queued run becomes running when the worker claims it", { timeout: 20_000 }, async () => {
+    mount();
+    await waitFor(() => expect(runButton()).toBeTruthy());
+    await act(async () => {
+      runButton().click();
+    });
+    await waitFor(() => expect(runState()).toBe("queued"));
+
+    // The worker claims the row.
+    responders["/media-intelligence?"] = () => listResponse([signal()], runRow("PROCESSING"));
+    await waitFor(() => expect(runState()).toBe("running"), { timeout: 15_000 });
+    expect(document.body.textContent).toMatch(/running/i);
+  });
+
+  it(
+    "a running run becomes completed and reports what changed",
+    { timeout: 20_000 },
+    async () => {
+      mount();
+      await waitFor(() => expect(runButton()).toBeTruthy());
+      await act(async () => {
+        runButton().click();
+      });
+
+      responders["/media-intelligence?"] = () =>
+        listResponse(
+          [signal(), signal({ id: "sig-2", safeSummary: "A second observation." })],
+          runRow("COMPLETED"),
+        );
+
+      await waitFor(() => expect(runState()).toBe("completed"), { timeout: 15_000 });
+      expect(document.body.textContent).toMatch(/Analysis complete/i);
+      // The new observation is on screen without a page reload.
+      await waitFor(() => expect(document.body.textContent).toMatch(/A second observation/));
+    },
+  );
+
+  it(
+    "completing with ZERO new observations is still a visible completion",
+    { timeout: 20_000 },
+    async () => {
+      // THE PRODUCTION CASE. Re-analysing an already-analysed record produces
+      // no new observations, so the old count-watching logic never saw a change
+      // and the panel said "still processing" forever.
+      mount();
+      await waitFor(() => expect(runButton()).toBeTruthy());
+      await act(async () => {
+        runButton().click();
+      });
+
+      responders["/media-intelligence?"] = () => listResponse([signal()], runRow("COMPLETED"));
+
+      await waitFor(() => expect(runState()).toBe("completed"), { timeout: 15_000 });
+      expect(document.body.textContent).toMatch(/No new observations/i);
+      expect(document.body.textContent).not.toMatch(/still processing/i);
+    },
+  );
+
+  it("a failed run shows the server's own reason and offers Retry", { timeout: 20_000 }, async () => {
+    mount();
+    await waitFor(() => expect(runButton()).toBeTruthy());
+    await act(async () => {
+      runButton().click();
+    });
+
+    responders["/media-intelligence?"] = () =>
+      listResponse([signal()], runRow("FAILED", { lastError: "probe_timeout" }));
+
+    await waitFor(() => expect(runState()).toBe("failed"), { timeout: 15_000 });
+    expect(document.body.textContent).toMatch(/probe_timeout/);
+    expect(document.querySelector("[data-media-intelligence-retry]")).not.toBeNull();
+  });
+
+  it("a refusal to start reports the reason instead of failing silently", async () => {
+    responders["/media-intelligence/run"] = () => {
+      throw new Error("forbidden");
+    };
+    mount();
+    await waitFor(() => expect(runButton()).toBeTruthy());
+    await act(async () => {
+      runButton().click();
+    });
+    await waitFor(() => expect(runState()).toBe("failed"));
+    expect(document.body.textContent).toMatch(/could not be started/i);
+    expect(document.body.textContent).toMatch(/forbidden/i);
+  });
+
+  it("does not present an unqueued run as a success", async () => {
+    responders["/media-intelligence/run"] = () => ({
+      evidenceId: EVIDENCE_ID,
+      mode: "async",
+      queued: false,
+      runId: "run-1",
+      reason: "queue_unavailable",
+    });
+    mount();
+    await waitFor(() => expect(runButton()).toBeTruthy());
+    await act(async () => {
+      runButton().click();
+    });
+    await waitFor(() => expect(runState()).toBe("failed"));
+    expect(document.body.textContent).toMatch(/could not be queued/i);
+  });
+
+  it(
+    "a run that never reports does not stay a fake working state",
+    { timeout: 40_000 },
+    async () => {
+      // The run row stays PENDING forever — queued but never consumed.
+      render(
+        <MediaIntelligencePanel evidenceId={EVIDENCE_ID} teamId={TEAM_ID} stallAfterPolls={2} />,
+      );
+      await waitFor(() => expect(runButton()).toBeTruthy());
+      await act(async () => {
+        runButton().click();
+      });
+      responders["/media-intelligence?"] = () => listResponse([signal()], runRow("PENDING"));
+
+      await waitFor(() => expect(runState()).toBe("stalled"), { timeout: 30_000 });
+      expect(document.body.textContent).toMatch(/has not reported a result/i);
+      // And a way to re-check, rather than a spinner with no exit.
+      expect(document.querySelector("[data-media-intelligence-refresh]")).not.toBeNull();
+    },
+  );
+
+  it("refuses a duplicate submission while in flight", async () => {
     let release: (v: unknown) => void = () => {};
     responders["/media-intelligence/run"] = () =>
       new Promise((res) => {
@@ -131,17 +268,13 @@ describe("Run analyzer — a real request with real feedback", () => {
 
     mount();
     await waitFor(() => expect(runButton()).toBeTruthy());
-
     await act(async () => {
       runButton().click();
     });
 
-    // Pending, and the control is disabled while in flight.
-    expect(runState()).toBe("pending");
+    expect(runState()).toBe("queued");
     expect((runButton() as HTMLButtonElement).disabled).toBe(true);
-    expect(runButton().textContent).toMatch(/working/i);
 
-    // A second click while in flight must not produce a second request.
     await act(async () => {
       runButton().click();
     });
@@ -152,63 +285,12 @@ describe("Run analyzer — a real request with real feedback", () => {
     });
   });
 
-  it("reports a refusal with the server's own reason instead of failing silently", async () => {
-    responders["/media-intelligence/run"] = () => {
-      throw new Error("forbidden");
-    };
-
-    mount();
-    await waitFor(() => expect(runButton()).toBeTruthy());
-    await act(async () => {
-      runButton().click();
-    });
-
-    await waitFor(() => expect(runState()).toBe("error"));
-    expect(document.body.textContent).toMatch(/could not be started/i);
-    // The server's reason is carried through, not replaced by a generic string.
-    expect(document.body.textContent).toMatch(/forbidden/i);
-  });
-
-  it("does not present an unqueued run as a success", async () => {
-    // 202 with queued:false — the run row exists, the queue refused it.
-    responders["/media-intelligence/run"] = () => ({
-      evidenceId: EVIDENCE_ID,
-      mode: "async",
-      queued: false,
-      runId: "run-1",
-      reason: "queue_unavailable",
-    });
-
-    mount();
-    await waitFor(() => expect(runButton()).toBeTruthy());
-    await act(async () => {
-      runButton().click();
-    });
-
-    await waitFor(() => expect(runState()).toBe("error"));
-    expect(document.body.textContent).toMatch(/could not be queued/i);
-  });
-
-  it("renders the observations the run produced without a page reload", { timeout: 30_000 }, async () => {
-    mount();
-    await waitFor(() => expect(runButton()).toBeTruthy());
-
-    // After the run, the server has a second observation.
-    responders["/media-intelligence?"] = () =>
-      listResponse([signal(), signal({ id: "sig-2", safeSummary: "A second observation." })]);
-
-    await act(async () => {
-      runButton().click();
-    });
-    await waitFor(() => expect(runState()).toBe("polling"));
-
-    // The panel polls on its own — no manual reload.
-    await waitFor(
-      () => expect(document.body.textContent).toMatch(/A second observation/),
-      { timeout: 10_000 },
-    );
-    await waitFor(() => expect(runState()).toBe("done"), { timeout: 10_000 });
-    expect(document.body.textContent).toMatch(/Analysis finished/i);
+  it("fails closed without a workspace projection", async () => {
+    render(<MediaIntelligencePanel evidenceId={EVIDENCE_ID} teamId={null} />);
+    // No tenant, no analyzer control and no request at all.
+    expect(screen.queryByRole("button", { name: /run analyzer/i })).toBeNull();
+    expect(calls.filter((c) => c.path.includes("/media-intelligence"))).toHaveLength(0);
+    expect(document.body.textContent).toMatch(/Workspace context is required/i);
   });
 });
 

@@ -121,7 +121,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7713,
+      "METHOD_ON_VALUE": 7714,
       "UNRESOLVED_IDENTIFIER": 982
     },
     "MutationFixpointRounds": 9,
@@ -18211,8 +18211,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/media-intelligence.routes.ts#media_intelligence_signals.$executeRawUnsafe@326",
-      "terminalLocation": "services/api/src/routes/media-intelligence.routes.ts:326",
+      "writerId": "services/api/src/routes/media-intelligence.routes.ts#media_intelligence_signals.$executeRawUnsafe@351",
+      "terminalLocation": "services/api/src/routes/media-intelligence.routes.ts:351",
       "file": "services/api/src/routes/media-intelligence.routes.ts",
       "enclosingDeclaration": "mediaIntelligenceRoutes",
       "kind": "RAW_SQL",
@@ -74434,7 +74434,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-assets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1244",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1269",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -74500,7 +74500,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1308",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1333",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -74566,7 +74566,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/media-intelligence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:135",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:136",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -83790,7 +83790,7 @@
       "method": "GET",
       "path": "/v1/investigation/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:494",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:519",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -83855,7 +83855,7 @@
       "method": "GET",
       "path": "/v1/investigation/reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:688",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:713",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -108661,7 +108661,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/derived-assets/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1428",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1453",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -108728,7 +108728,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/media-intelligence/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:207",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:232",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120339,7 +120339,7 @@
       "method": "POST",
       "path": "/v1/investigation/media-intelligence/refresh",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:362",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:387",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -121523,7 +121523,7 @@
       "method": "POST",
       "path": "/v1/media-intelligence/signals/:signalId/action",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:302",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:327",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",

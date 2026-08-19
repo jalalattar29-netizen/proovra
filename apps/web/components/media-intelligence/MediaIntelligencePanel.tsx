@@ -50,12 +50,19 @@ export type MediaIntelligencePanelProps = {
    *  immediately after a runAsync). Caller is responsible for
    *  turning polling off when the run has settled. */
   pollWhileRunning?: boolean;
+  /**
+   * How many 4s polls a run may go without reporting a terminal state before
+   * it is declared stalled. Production keeps the ~2 minute budget; the test
+   * suite lowers it so proving the bound exists does not cost two minutes.
+   */
+  stallAfterPolls?: number;
 };
 
 export default function MediaIntelligencePanel({
   evidenceId,
   teamId,
   pollWhileRunning = false,
+  stallAfterPolls = 30,
 }: MediaIntelligencePanelProps) {
   /**
    * THE RUN LIFECYCLE, held explicitly.
@@ -69,10 +76,10 @@ export default function MediaIntelligencePanel({
    * is why the control read as dead.
    */
   const [run, setRun] = useState<{
-    phase: "idle" | "pending" | "polling" | "done" | "error";
+    phase: "idle" | "queued" | "running" | "completed" | "failed" | "stalled";
     message: string | null;
     runId: string | null;
-    /** Signal count when the run was accepted, so completion is observable. */
+    /** Observation count when the run was accepted, to report what changed. */
     baseline: number | null;
     polls: number;
   }>({ phase: "idle", message: null, runId: null, baseline: null, polls: 0 });
@@ -81,14 +88,14 @@ export default function MediaIntelligencePanel({
   const [pendingAcks, setPendingAcks] = useState<Record<string, boolean>>({});
   const [ackError, setAckError] = useState<string | null>(null);
 
-  const runInFlight = run.phase === "pending" || run.phase === "polling";
+  const runInFlight = run.phase === "queued" || run.phase === "running";
 
   const { state, runAsync, ack, refresh } = useMediaIntelligence({
     evidenceId,
     teamId,
     // Poll while a run is actually in flight, not only when a caller opted in.
     // Without this the async run enqueued and the panel never looked again.
-    pollMs: run.phase === "polling" || pollWhileRunning ? 5_000 : null,
+    pollMs: runInFlight || pollWhileRunning ? 4_000 : null,
   });
 
   // Phase 31.13 — derived assets viewer state. Bounded read; the
@@ -122,76 +129,137 @@ export default function MediaIntelligencePanel({
     // Duplicate protection: the control is disabled while in flight, and the
     // handler refuses re-entry even if a caller invokes it directly.
     if (runInFlight) return;
-    setRun({ phase: "pending", message: null, runId: null, baseline: null, polls: 0 });
+    setRun({
+      phase: "queued",
+      message: "Starting the analyzer…",
+      runId: null,
+      baseline: state.data?.signals.length ?? 0,
+      polls: 0,
+    });
     const result = await runAsync();
 
     if (!result.ok) {
-      setRun({
-        phase: "error",
+      setRun((prev) => ({
+        ...prev,
+        phase: "failed",
         // The server's own reason, never a generic invention.
         message: `The analyzer could not be started (${result.reason}).`,
-        runId: null,
-        baseline: null,
-        polls: 0,
-      });
+      }));
       return;
     }
 
     if (!result.queued) {
-      // 202 with queued:false — the run row exists but the queue refused it.
-      // Reported honestly rather than as a success.
-      setRun({
-        phase: "error",
+      // 202 with queued:false — the run row exists, the queue refused it.
+      setRun((prev) => ({
+        ...prev,
+        phase: "failed",
+        runId: result.runId,
         message:
           "The analysis was recorded but could not be queued for processing. It stays pending until the queue is available.",
-        runId: result.runId,
-        baseline: null,
-        polls: 0,
-      });
+      }));
       return;
     }
 
-    setRun({
-      phase: "polling",
-      message: "Analysis queued. Observations will appear here when it finishes.",
+    setRun((prev) => ({
+      ...prev,
+      phase: "queued",
       runId: result.runId,
-      baseline: state.data?.signals.length ?? 0,
-      polls: 0,
-    });
+      message: "Analysis queued.",
+    }));
   }, [runInFlight, runAsync, state.data]);
 
   /**
-   * Watch for the queued run to land. `useMediaIntelligence` is already polling
-   * (above); this only decides when the run is observably finished and stops.
+   * THE TERMINAL STATE COMES FROM THE RUN ROW, not from a side effect.
+   *
+   * The previous version inferred completion by watching the observation COUNT
+   * change against a baseline. A re-run that produces no new observations —
+   * the normal case on an already-analysed record — never changes the count, so
+   * the bounded wait always expired and the panel said "still processing"
+   * forever. `GET /media-intelligence` now projects `latestRun`, so the run
+   * reports its own PENDING / PROCESSING / COMPLETED / FAILED state.
    */
   useEffect(() => {
-    if (run.phase !== "polling") return;
-    const current = state.data?.signals.length ?? 0;
-    if (run.baseline !== null && current !== run.baseline) {
+    if (!runInFlight) return;
+    const latest = state.data?.latestRun ?? null;
+    if (!latest) return;
+
+    if (latest.status === "PROCESSING" && run.phase !== "running") {
       setRun((prev) => ({
         ...prev,
-        phase: "done",
-        message: `Analysis finished. ${current} observation${current === 1 ? "" : "s"} recorded.`,
+        phase: "running",
+        runId: latest.runId,
+        message: latest.startedAtUtc
+          ? `Analysis running since ${formatTimestamp(latest.startedAtUtc)}.`
+          : "Analysis running…",
       }));
       return;
     }
-    // Bounded wait. A run that never lands is reported as still running rather
-    // than left spinning forever or quietly marked complete.
-    if (run.polls > 24) {
+
+    if (latest.status === "COMPLETED") {
+      const now = state.data?.signals.length ?? 0;
+      const added = run.baseline === null ? null : now - run.baseline;
       setRun((prev) => ({
         ...prev,
-        phase: "done",
+        phase: "completed",
+        runId: latest.runId,
+        // Zero new observations is a real, visible completion — not silence.
         message:
-          "The analysis is still processing. This panel refreshes on its own; reopen it later to see the result.",
+          added === null || added === 0
+            ? `Analysis complete. No new observations; ${now} recorded in total.`
+            : `Analysis complete. ${added} new observation${added === 1 ? "" : "s"}; ${now} recorded in total.`,
+      }));
+      return;
+    }
+
+    if (latest.status === "FAILED") {
+      setRun((prev) => ({
+        ...prev,
+        phase: "failed",
+        runId: latest.runId,
+        message: latest.lastError
+          ? `The analysis failed: ${latest.lastError}`
+          : "The analysis failed. No reason was recorded.",
       }));
     }
-  }, [run.phase, run.baseline, run.polls, state.data]);
+  }, [runInFlight, run.phase, run.baseline, state.data]);
 
+  /**
+   * A DELIBERATE BOUNDED TIMEOUT.
+   *
+   * A run that never reaches a terminal state is reported as stalled with a way
+   * to re-check — never left spinning, and never quietly marked complete.
+   */
   useEffect(() => {
-    if (run.phase !== "polling") return;
-    const t = setInterval(() => setRun((prev) => ({ ...prev, polls: prev.polls + 1 })), 5_000);
+    if (!runInFlight) return;
+    const t = setInterval(() => {
+      setRun((prev) => {
+        if (prev.phase !== "queued" && prev.phase !== "running") return prev;
+        const polls = prev.polls + 1;
+        if (polls > stallAfterPolls) {
+          return {
+            ...prev,
+            phase: "stalled",
+            polls,
+            message:
+              "The analysis has not reported a result yet. It may still be processing.",
+          };
+        }
+        return { ...prev, polls };
+      });
+    }, 4_000);
     return () => clearInterval(t);
-  }, [run.phase]);
+  }, [runInFlight, stallAfterPolls]);
+
+  /** Re-read observations once the run reaches a terminal state. */
+  useEffect(() => {
+    if (run.phase !== "completed") return;
+    void refresh();
+  }, [run.phase, refresh]);
+
+  const handleRefreshStatus = useCallback(async () => {
+    await refresh();
+    setRun((prev) => ({ ...prev, phase: "idle", message: null, polls: 0 }));
+  }, [refresh]);
 
   const handleAck = useCallback(
     async (signalId: string, action: "ACKNOWLEDGED" | "DISMISSED") => {
@@ -240,7 +308,7 @@ export default function MediaIntelligencePanel({
 
   return (
     <section className="evd-panel" aria-label="Media intelligence">
-      <PanelHeader onRunAnalyzer={handleRunAnalyzer} running={runInFlight} />
+      <PanelHeader onRunAnalyzer={handleRunAnalyzer} running={runInFlight} phase={run.phase} />
 
       <p className="evd-muted">
         These are deterministic metadata observations. They are advisory
@@ -250,20 +318,38 @@ export default function MediaIntelligencePanel({
 
       {/* The run's own state, stated. Polite live region so a screen reader
           hears the outcome without the focus moving. */}
-      <p
-        className={run.phase === "error" ? "evd-error" : "evd-muted evd-muted--small"}
-        role="status"
-        aria-live="polite"
-        data-media-intelligence-run-state={run.phase}
-      >
-        {run.phase === "pending"
-          ? "Starting the analyzer…"
-          : run.phase === "polling"
-            ? (run.message ?? "Analysis running…")
-            : run.phase === "done" || run.phase === "error"
-              ? run.message
-              : ""}
-      </p>
+      {run.phase !== "idle" ? (
+        <div
+          className="mi-runstate"
+          role="status"
+          aria-live="polite"
+          data-media-intelligence-run-state={run.phase}
+        >
+          <p className={run.phase === "failed" ? "evd-error" : "evd-muted evd-muted--small"}>
+            {run.message}
+          </p>
+          {run.phase === "failed" ? (
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => void handleRunAnalyzer()}
+              data-media-intelligence-retry
+            >
+              Retry analysis
+            </button>
+          ) : null}
+          {run.phase === "stalled" ? (
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => void handleRefreshStatus()}
+              data-media-intelligence-refresh
+            >
+              Refresh status
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {ackError ? (
         <p className="evd-error" role="alert" data-media-intelligence-ack-error>
@@ -618,9 +704,11 @@ function humanAssetKind(kind: string): string {
 function PanelHeader({
   onRunAnalyzer,
   running,
+  phase,
 }: {
   onRunAnalyzer?: () => void | Promise<void>;
   running?: boolean;
+  phase?: string;
 } = {}) {
   return (
     <header className="evd-header">
@@ -639,7 +727,7 @@ function PanelHeader({
             void onRunAnalyzer();
           }}
         >
-          {running ? "Working…" : "Run analyzer"}
+          {phase === "queued" ? "Queued…" : phase === "running" ? "Running…" : "Run analyzer"}
         </button>
       ) : null}
     </header>
