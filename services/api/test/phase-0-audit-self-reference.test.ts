@@ -42,6 +42,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { CANONICAL, DIAGNOSTICS, ENGINE_GENERATED_PATHS, REPO } from "../scripts/audit/engine/registry.mjs";
+import { evaluateGovernance } from "../scripts/audit/engine/governance.mjs";
 
 const git = (...args: string[]) =>
   execFileSync("git", args, { cwd: REPO, encoding: "utf8", maxBuffer: 1 << 28 }) as string;
@@ -205,65 +206,106 @@ describe("phase-0 self-reference — deterministic and non-dirtying", () => {
 // 3. Real source drift is still detected
 // ---------------------------------------------------------------------------
 
+/**
+ * These drive `evaluateGovernance()` directly rather than the whole command.
+ *
+ * The change set is what the exclusion touches, and it is derived in that one
+ * function; spawning the full audit to observe it cost ~80s per assertion and
+ * pushed this file past four minutes, which timed out vitest's worker RPC and
+ * failed the suite while every test in it passed. It also WRITES the artifacts,
+ * so each probe needed a second run purely to put them back. Evaluating
+ * governance reads the tree and writes nothing, so the probe restores the file
+ * and the tree is exactly as it was found.
+ */
 describe("phase-0 self-reference — real drift still registers", () => {
-  it(
-    "a production-source change appears in the change set",
-    () => {
-      if (dirtyTracked().length > 0) {
-        console.warn("SKIPPED: worktree not clean; this mutates and restores a tracked file.");
-        return;
-      }
+  /** The live change set, derived the same way every Phase-0 gate derives it. */
+  function liveChangeSet() {
+    const g = evaluateGovernance() as unknown as {
+      phase0ExitCounters: Record<string, number>;
+      phase0ChangeSet: { entries: Array<{ path: string; status: string; class: string | null }> };
+    };
+    return { counters: g.phase0ExitCounters, entries: g.phase0ChangeSet.entries };
+  }
 
-      // A real production runtime file, temporarily modified and restored. The
-      // engine must notice — that is the coverage the exclusion must not cost.
-      const victim = "apps/web/app/(app)/evidence/[id]/page.tsx";
-      const abs = path.join(REPO, victim);
-      const original = readFileSync(abs, "utf8");
-      try {
-        writeFileSync(abs, `${original}\n// phase-0 drift probe\n`);
-        const run = runAudit();
-        const cs = bannerChangeSet(run.out);
-        expect(cs.changedPaths).toBeGreaterThan(0);
-        expect(cs.modified).toBeGreaterThan(0);
+  /** Mutates a tracked file, evaluates, and always restores it. */
+  function withDrift<T>(rel: string, mutate: (original: string) => string, assert: (cs: ReturnType<typeof liveChangeSet>) => T) {
+    if (dirtyTracked().length > 0) {
+      console.warn("SKIPPED: worktree not clean; this mutates and restores a tracked file.");
+      return;
+    }
+    const abs = path.join(REPO, rel);
+    const original = readFileSync(abs, "utf8");
+    try {
+      writeFileSync(abs, mutate(original));
+      assert(liveChangeSet());
+    } finally {
+      writeFileSync(abs, original);
+    }
+    expect(dirtyTracked(), "the probe must leave the tree exactly as it found it").toEqual([]);
+  }
+
+  it("a production-source change appears in the change set", () => {
+    // A real production runtime file. The engine must notice — that is the
+    // coverage the self-generated hold-out must not cost.
+    const victim = "apps/web/app/(app)/evidence/[id]/page.tsx";
+    withDrift(
+      victim,
+      (original) => `${original}\n// phase-0 drift probe\n`,
+      ({ counters, entries }) => {
+        expect(counters.phase0ChangedPaths).toBeGreaterThan(0);
+        expect(counters.phase0ModifiedPaths).toBeGreaterThan(0);
+        const entry = entries.find((e) => e.path === victim);
+        expect(entry, `${victim} must be in the change set`).toBeDefined();
+        expect(entry!.status).toBe("MODIFIED");
+        expect(entry!.class).toBe("PRODUCTION_RUNTIME");
         // ATTRIBUTION must NOT fire. The safety counter asks a narrower
         // question than "did this file change": it counts production runtime
         // files whose ADDED lines carry a Phase-0 authorship marker. An
         // unrelated edit is detected and classified but is not Phase-0's work,
-        // and a counter that rose here would be reporting a false positive.
-        expect(cs.productionRuntimeFilesModifiedByPhase0).toBe(0);
-      } finally {
-        writeFileSync(abs, original);
-        // Put the generated artifacts back the way the committed tree has them.
-        runAudit();
-      }
-      expect(dirtyTracked(), "the probe must leave the tree exactly as it found it").toEqual([]);
-    },
-    AUDIT_TIMEOUT * 2,
-  );
+        // and a counter that rose here would report a false positive.
+        expect(counters.productionRuntimeFilesModifiedByPhase0).toBe(0);
+      },
+    );
+  });
 
-  it(
-    "a change to the hand-maintained findings-ledger rows still registers",
-    () => {
-      if (dirtyTracked().length > 0) {
-        console.warn("SKIPPED: worktree not clean; this mutates and restores a tracked file.");
-        return;
-      }
+  it("a change to the hand-maintained findings-ledger rows still registers", () => {
+    // `audit-output/current/ledger/rows.json` sits under the SAME prefix as the
+    // engine's own outputs but is a governance SOURCE. A prefix-based exclusion
+    // would have hidden this, which is why the hold-out is a path list.
+    const rows = p0(CANONICAL.findingsLedger.rows);
+    withDrift(
+      rows,
+      (original) => `${original}\n`,
+      ({ counters, entries }) => {
+        expect(counters.phase0ChangedPaths).toBeGreaterThan(0);
+        expect(entries.some((e) => e.path === rows)).toBe(true);
+      },
+    );
+  });
 
-      // `audit-output/current/ledger/rows.json` sits under the same prefix as
-      // the engine's own outputs but is a governance SOURCE. A prefix-based
-      // exclusion would have hidden this.
-      const abs = path.join(REPO, p0(CANONICAL.findingsLedger.rows));
-      const original = readFileSync(abs, "utf8");
-      try {
-        writeFileSync(abs, `${original}\n`);
-        const run = runAudit();
-        expect(bannerChangeSet(run.out).changedPaths).toBeGreaterThan(0);
-      } finally {
-        writeFileSync(abs, original);
-        runAudit();
-      }
-      expect(dirtyTracked()).toEqual([]);
-    },
-    AUDIT_TIMEOUT * 2,
-  );
+  it("the engine's own outputs are the ONLY paths the change set omits", () => {
+    if (dirtyTracked().length > 0) {
+      console.warn("SKIPPED: worktree not clean.");
+      return;
+    }
+    // Dirty one declared output and one ordinary file at the same time. The
+    // first must vanish from the change set; the second must not.
+    const held = p0(CANONICAL.currentReport.path);
+    const ordinary = "apps/web/app/(app)/evidence/[id]/page.tsx";
+    const heldAbs = path.join(REPO, held);
+    const ordAbs = path.join(REPO, ordinary);
+    const heldOriginal = readFileSync(heldAbs, "utf8");
+    const ordOriginal = readFileSync(ordAbs, "utf8");
+    try {
+      writeFileSync(heldAbs, `${heldOriginal}\n<!-- probe -->\n`);
+      writeFileSync(ordAbs, `${ordOriginal}\n// probe\n`);
+      const { entries } = liveChangeSet();
+      expect(entries.some((e) => e.path === held), `${held} must be held out`).toBe(false);
+      expect(entries.some((e) => e.path === ordinary), `${ordinary} must be measured`).toBe(true);
+    } finally {
+      writeFileSync(heldAbs, heldOriginal);
+      writeFileSync(ordAbs, ordOriginal);
+    }
+    expect(dirtyTracked()).toEqual([]);
+  });
 });
