@@ -274,7 +274,7 @@ test("Fix 4 — the disclaimer + DISABLED block live inside the collapsed <detai
   // "AI categorization is not active" hint.
   assert.match(
     AI_PANEL,
-    /<details[\s\S]{0,400}<summary[^>]*>AI categorization<\/summary>/,
+    /<details[\s\S]{0,600}<summary[\s\S]{0,400}>AI categorization<\/span>/,
   );
 });
 

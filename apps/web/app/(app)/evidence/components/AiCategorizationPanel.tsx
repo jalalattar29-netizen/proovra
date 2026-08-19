@@ -1,8 +1,8 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useEffect, useState } from "react";
-import { Button } from "../../../../components/ui";
+import { ChevronDown, Sparkles } from "lucide-react";
+import { useId, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import type {
   EvidenceAiCategorization,
@@ -11,6 +11,7 @@ import type {
 
 export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +65,33 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
   };
 
   return (
-    <section className="evidence-library-panel">
+    <section className="evidence-detail-tool" data-evidence-tool="ai-categorization">
       <details open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
-        <summary className="evidence-library-expand-summary">AI categorization</summary>
+        <summary
+          className="evidence-detail-tool__summary"
+          aria-expanded={open}
+          aria-controls={panelId}
+        >
+          <Sparkles
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="evidence-detail-tool__icon"
+          />
+          <span className="evidence-detail-tool__title">AI categorization</span>
+          <ChevronDown
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="evidence-detail-tool__chevron"
+          />
+        </summary>
+        <div
+          id={panelId}
+          role="region"
+          aria-label="AI categorization"
+          className="evidence-detail-tool__panel"
+        >
         <p className="evidence-library-muted">
           AI categorization is advisory and metadata-only. It does not determine factual truth, authorship,
           integrity, or legal outcome.
@@ -87,10 +112,15 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
         ) : null}
 
         {!loading && (!data || data.status === "FAILED") ? (
-          <div className="evidence-library-panel__actions">
-            <Button onClick={() => void runCategorization()} disabled={running}>
+          <div className="evidence-detail-tool__actions">
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => void runCategorization()}
+              disabled={running}
+            >
               {running ? "Running..." : "Run metadata-only AI categorization"}
-            </Button>
+            </button>
           </div>
         ) : null}
 
@@ -106,17 +136,18 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
                 enforces per-user / per-evidence limits; the UI
                 surfaces 429 messages from that guard on retry. */}
             <div
-              className="evidence-library-panel__actions"
+              className="evidence-detail-tool__actions"
               data-ai-categorization-rerun
             >
-              <Button
-                variant="secondary"
+              <button
+                type="button"
+                className="app-secondary-action"
                 onClick={() => void runCategorization()}
                 disabled={running}
                 data-ai-categorization-rerun-button
               >
                 {running ? "Refreshing…" : "Re-run AI advisory review"}
-              </Button>
+              </button>
             </div>
           <div className="evidence-library-note-grid">
             <div className="evidence-library-note-card">
@@ -160,6 +191,7 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
           </div>
           </>
         ) : null}
+        </div>
       </details>
     </section>
   );

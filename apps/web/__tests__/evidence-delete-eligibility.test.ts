@@ -194,11 +194,14 @@ test("EvidenceReviewTab tags both action buttons with stable data attributes for
 test("EvidenceReviewTab promotes Archive to primary when trash is blocked AND archive is available", () => {
   assert.match(
     REVIEW_TAB,
-    /const archiveIsRecommended =\s*\n?\s*trashDisabled && !archiveDisabled;/,
+    /data-archive-recommended=\{\s*\n?\s*trashDisabled && !archiveDisabled \? "true" : "false"\s*\n?\s*\}/,
   );
   assert.match(
     REVIEW_TAB,
-    /variant=\{archiveIsRecommended \? "primary" : "secondary"\}/,
+    // Archive is now the FILLED neutral action in every state — a lifecycle
+    // operation must never wear the purple primary style. The recommendation
+    // is still surfaced, on the data attribute the previous variant drove.
+    /className="app-secondary-action app-secondary-action--filled"/,
   );
 });
 

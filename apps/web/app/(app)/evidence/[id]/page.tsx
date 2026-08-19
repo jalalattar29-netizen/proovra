@@ -87,6 +87,8 @@ import { EvidenceOverviewTab } from "./_tabs/EvidenceOverviewTab";
 import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
 import { EvidenceCustodyTab } from "./_tabs/EvidenceCustodyTab";
 import { EvidenceRecordRail } from "./_tabs/EvidenceRecordRail";
+import { Modal as PortalModal } from "../../../../components/cases-experience/matter-modals/Modal";
+import { AppListbox } from "../../../../components/app-primitives";
 import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
@@ -1417,26 +1419,31 @@ function EvidenceDetailPageInner() {
         </div>
       </div>
 
-      <Modal
-        isOpen={assignCaseOpen}
+      <PortalModal
+        open={assignCaseOpen}
+        testid="evidence-assign-case"
+        dismissDisabled={actionBusy}
         onClose={() => setAssignCaseOpen(false)}
         title="Assign evidence to case"
-        actions={
+        footer={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => setAssignCaseOpen(false)}
               disabled={actionBusy}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() => void assignCase()}
               disabled={actionBusy || !selectedCaseId || cases.length === 0}
               data-evidence-modal-action="confirm-assign-case"
             >
               Save assignment
-            </Button>
+            </button>
           </>
         }
       >
@@ -1455,21 +1462,17 @@ function EvidenceDetailPageInner() {
             No attachable cases are available in this workspace.
           </p>
         ) : (
-          <select
-            className="evidence-detail-select"
-            value={selectedCaseId}
-            onChange={(event) => setSelectedCaseId(event.target.value)}
-            data-evidence-assign-case-select
-          >
-            <option value="">Select case</option>
-            {cases.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+          <div data-evidence-assign-case-select>
+            <AppListbox
+              value={selectedCaseId || null}
+              placeholder="Select case"
+              ariaLabel="Select case"
+              options={cases.map((item) => ({ value: item.id, label: item.name }))}
+              onChange={(next) => setSelectedCaseId(next)}
+            />
+          </div>
         )}
-      </Modal>
+      </PortalModal>
 
       {/* Phase EVIDENCE-REVIEW-VISIBILITY — the reviewer-workflow
           modal is enterprise/team machinery (assignment, priority,
@@ -1479,79 +1482,81 @@ function EvidenceDetailPageInner() {
           state can never surface enterprise controls. Self-serve
           users keep the per-record review status + notes/comments
           panels in the Review tab body. */}
-      <Modal
-        isOpen={canSeeReviewerOps && workflowOpen}
+      <PortalModal
+        open={canSeeReviewerOps && workflowOpen}
+        testid="evidence-reviewer-workflow"
+        dismissDisabled={actionBusy}
         onClose={() => setWorkflowOpen(false)}
         title="Update reviewer workflow"
-        actions={
+        footer={
           <>
-            <Button variant="secondary" onClick={() => setWorkflowOpen(false)}>
+            <button type="button" className="app-secondary-action" onClick={() => setWorkflowOpen(false)}>
               Cancel
-            </Button>
-            <Button onClick={() => void saveWorkflow()} disabled={actionBusy}>
+            </button>
+            <button type="button" className="app-primary-action" onClick={() => void saveWorkflow()} disabled={actionBusy}>
               Save workflow
-            </Button>
+            </button>
           </>
         }
       >
         <div className="evidence-detail-modal-stack">
           <label className="evidence-detail-field">
             <span>Status</span>
-            <select
-              className="evidence-detail-select"
+            <AppListbox
               value={workflowStatusDraft}
-              onChange={(event) => setWorkflowStatusDraft(event.target.value)}
-            >
-              {/* PHASE 12 POINT 4 PASS C1 — ROUTING states only. A verdict
-                  (accept / reject / request more context) is recorded as a
-                  DECISION on the review surface; the server derives the
-                  resulting status from the immutable decision log, so this
-                  administrative control can no longer assign one. */}
-              {[
-                "NOT_STARTED",
-                "IN_REVIEW",
-                "READY_FOR_EXTERNAL_REVIEW",
-                "ESCALATED",
-                "CLOSED",
-              ].map((value) => (
-                <option key={value} value={value}>
-                  {value.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Status"
+              onChange={(next) => setWorkflowStatusDraft(next)}
+              // PHASE 12 POINT 4 PASS C1 — ROUTING states only. A verdict
+              // (accept / reject / request more context) is recorded as a
+              // DECISION on the review surface; the server derives the
+              // resulting status from the immutable decision log, so this
+              // administrative control can no longer assign one.
+              options={
+                [
+                  "NOT_STARTED",
+                  "IN_REVIEW",
+                  "READY_FOR_EXTERNAL_REVIEW",
+                  "ESCALATED",
+                  "CLOSED",
+                ].map((value) => ({ value, label: value.replace(/_/g, " ") }))
+              }
+            />
           </label>
 
           <label className="evidence-detail-field">
             <span>Priority</span>
-            <select
-              className="evidence-detail-select"
+            <AppListbox
               value={workflowPriorityDraft}
-              onChange={(event) => setWorkflowPriorityDraft(event.target.value)}
-            >
-              {["LOW", "NORMAL", "HIGH", "URGENT"].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Priority"
+              onChange={(next) => setWorkflowPriorityDraft(next)}
+              options={["LOW", "NORMAL", "HIGH", "URGENT"].map((value) => ({
+                value,
+                label: value,
+              }))}
+            />
           </label>
 
           <label className="evidence-detail-field">
             <span>Assigned reviewer</span>
-            <select
-              className="evidence-detail-select"
-              value={workflowAssigneeDraft}
-              onChange={(event) => setWorkflowAssigneeDraft(event.target.value)}
-            >
-              <option value="">Unassigned</option>
-              {workspace.reviewWorkflow.assignedTo ? (
-                <option value={workspace.reviewWorkflow.assignedTo.id}>
-                  {workspace.reviewWorkflow.assignedTo.displayName ||
-                    workspace.reviewWorkflow.assignedTo.email ||
-                    workspace.reviewWorkflow.assignedTo.id}
-                </option>
-              ) : null}
-            </select>
+            <AppListbox
+              value={workflowAssigneeDraft || null}
+              placeholder="Unassigned"
+              ariaLabel="Assigned reviewer"
+              onChange={(next) => setWorkflowAssigneeDraft(next)}
+              options={
+                workspace.reviewWorkflow.assignedTo
+                  ? [
+                      {
+                        value: workspace.reviewWorkflow.assignedTo.id,
+                        label:
+                          workspace.reviewWorkflow.assignedTo.displayName ||
+                          workspace.reviewWorkflow.assignedTo.email ||
+                          workspace.reviewWorkflow.assignedTo.id,
+                      },
+                    ]
+                  : []
+              }
+            />
             <p className="evidence-detail-muted">
               Reviewer assignment uses currently accessible reviewer identities from the
               loaded workflow state.
@@ -1577,23 +1582,27 @@ function EvidenceDetailPageInner() {
             />
           </label>
         </div>
-      </Modal>
+      </PortalModal>
 
-      <Modal
-        isOpen={relationshipOpen}
+      <PortalModal
+        open={relationshipOpen}
+        testid="evidence-relationship"
+        dismissDisabled={actionBusy}
         onClose={() => setRelationshipOpen(false)}
         title="Record evidence relationship"
-        actions={
+        footer={
           <>
-            <Button variant="secondary" onClick={() => setRelationshipOpen(false)}>
+            <button type="button" className="app-secondary-action" onClick={() => setRelationshipOpen(false)}>
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() => void saveRelationship()}
               disabled={actionBusy || !relationshipTargetId}
             >
               Save relationship
-            </Button>
+            </button>
           </>
         }
       >
@@ -1610,12 +1619,11 @@ function EvidenceDetailPageInner() {
           />
           <label className="evidence-detail-field">
             <span>Relationship type</span>
-            <select
-              className="evidence-detail-select"
+            <AppListbox
               value={relationshipType}
-              onChange={(event) => setRelationshipType(event.target.value)}
-            >
-              {[
+              ariaLabel="Relationship type"
+              onChange={(next) => setRelationshipType(next)}
+              options={[
                 "RELATED",
                 "SUPPORTS",
                 "DUPLICATE_OF",
@@ -1624,12 +1632,8 @@ function EvidenceDetailPageInner() {
                 "CONTRADICTS",
                 "REPLACES",
                 "REFERENCES",
-              ].map((value) => (
-                <option key={value} value={value}>
-                  {value.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              ].map((value) => ({ value, label: value.replace(/_/g, " ") }))}
+            />
           </label>
           <label className="evidence-detail-field">
             <span>Note</span>
@@ -1640,7 +1644,7 @@ function EvidenceDetailPageInner() {
             />
           </label>
         </div>
-      </Modal>
+      </PortalModal>
 
       {/* Phase EVIDENCE-LIFECYCLE-MODALS — close-on-success + refresh.
           Each lifecycle modal now closes automatically once the
@@ -1652,13 +1656,14 @@ function EvidenceDetailPageInner() {
         title="Lock evidence record"
         actions={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => setLockOpen(false)}
               disabled={actionBusy}
             >
               Cancel
-            </Button>
+            </button>
             <Button
               onClick={() =>
                 void runRecordAction(
@@ -1693,13 +1698,14 @@ function EvidenceDetailPageInner() {
         title="Unlock evidence record"
         actions={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => setUnlockOpen(false)}
               disabled={actionBusy}
             >
               Cancel
-            </Button>
+            </button>
             <Button
               onClick={() =>
                 void runRecordAction(
@@ -1761,20 +1767,25 @@ function EvidenceDetailPageInner() {
         </label>
       </Modal>
 
-      <Modal
-        isOpen={archiveOpen}
+      <PortalModal
+        open={archiveOpen}
+        testid="evidence-archive"
+        dismissDisabled={actionBusy}
         onClose={() => setArchiveOpen(false)}
         title="Archive evidence record"
-        actions={
+        footer={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => setArchiveOpen(false)}
               disabled={actionBusy}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() =>
                 void runRecordAction(
                   `/v1/evidence/${evidenceId}/archive`,
@@ -1786,7 +1797,7 @@ function EvidenceDetailPageInner() {
               data-evidence-modal-action="confirm-archive"
             >
               Archive evidence
-            </Button>
+            </button>
           </>
         }
       >
@@ -1794,7 +1805,7 @@ function EvidenceDetailPageInner() {
           Archive removes this record from Active evidence while preserving it
           under retention and keeping verification materials available.
         </p>
-      </Modal>
+      </PortalModal>
 
       {/* Phase EVIDENCE-LIFECYCLE-RESTORE-ARCHIVED — confirmation modal
           for restore so it follows the same close-and-refresh pattern
@@ -1805,13 +1816,14 @@ function EvidenceDetailPageInner() {
         title="Restore archived evidence"
         actions={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => setRestoreArchivedOpen(false)}
               disabled={actionBusy}
             >
               Cancel
-            </Button>
+            </button>
             <Button
               onClick={() =>
                 void runRecordAction(
@@ -1834,20 +1846,25 @@ function EvidenceDetailPageInner() {
         </p>
       </Modal>
 
-      <Modal
-        isOpen={trashOpen}
+      <PortalModal
+        open={trashOpen}
+        testid="evidence-trash"
+        dismissDisabled={actionBusy}
         onClose={() => setTrashOpen(false)}
         title="Move evidence to trash"
-        actions={
+        footer={
           <>
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={() => setTrashOpen(false)}
               disabled={actionBusy}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
+              className="app-secondary-action evidence-detail-destructive-action"
               onClick={() =>
                 void moveToTrash({ onSuccess: () => setTrashOpen(false) })
               }
@@ -1855,7 +1872,7 @@ function EvidenceDetailPageInner() {
               data-evidence-modal-action="confirm-trash"
             >
               Move to trash
-            </Button>
+            </button>
           </>
         }
       >
@@ -1863,7 +1880,7 @@ function EvidenceDetailPageInner() {
           Trash state is operational retention handling and must not be confused with
           technical integrity failure.
         </p>
-      </Modal>
+      </PortalModal>
     </div>
   );
 }

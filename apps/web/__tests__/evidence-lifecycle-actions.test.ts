@@ -267,7 +267,8 @@ test("EvidenceReviewTab passes canManageRelationships into EvidenceRelationships
 test("EvidenceRelationshipsSection: Manage button only renders when canManageRelationships is true", () => {
   assert.match(
     RELATIONSHIPS,
-    /\{canManageRelationships \? \(\s*\n?\s*<Button\s*\n?\s*onClick=\{onOpenRelationshipEditor\}/,
+    // Same gate; the legacy Button became the canonical action primitive.
+    /\{canManageRelationships \? \(\s*\n?\s*<button[\s\S]{0,160}onClick=\{onOpenRelationshipEditor\}/,
   );
 });
 

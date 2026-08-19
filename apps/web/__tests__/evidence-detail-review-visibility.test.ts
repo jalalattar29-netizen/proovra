@@ -108,7 +108,7 @@ test("Fix 2 — the Update Reviewer Workflow modal renders only when canSeeRevie
   // Space session can never surface enterprise controls.
   assert.match(
     PAGE,
-    /isOpen=\{canSeeReviewerOps && workflowOpen\}\s*[\s\S]{0,200}title="Update reviewer workflow"/,
+    /open=\{canSeeReviewerOps && workflowOpen\}\s*[\s\S]{0,240}title="Update reviewer workflow"/,
   );
 });
 
@@ -146,7 +146,7 @@ test("Fix 2 — Assign reviewer button is gated on canSeeReviewerOps inside the 
   assert.match(REVIEW, /data-evidence-review-actions/);
   assert.match(
     REVIEW,
-    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<Button[\s\S]{0,200}Assign reviewer/,
+    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<button[\s\S]{0,300}Assign reviewer/,
   );
 });
 

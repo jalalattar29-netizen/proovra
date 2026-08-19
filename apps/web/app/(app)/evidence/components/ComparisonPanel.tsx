@@ -1,7 +1,8 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useEffect, useState } from "react";
+import { ChevronDown, Columns2 } from "lucide-react";
+import { useId, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import type { EvidenceComparisonResponse } from "../lib/evidence-library-types";
 
@@ -126,6 +127,7 @@ function hasAnyMismatchFlag(group: Record<string, unknown> | null | undefined): 
 
 export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<EvidenceComparisonResponse | null>(null);
@@ -163,9 +165,33 @@ export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
   }, [evidenceId, open]);
 
   return (
-    <section className="evidence-library-panel">
+    <section className="evidence-detail-tool" data-evidence-tool="comparison">
       <details open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
-        <summary className="evidence-library-expand-summary">Comparison mode</summary>
+        <summary
+          className="evidence-detail-tool__summary"
+          aria-expanded={open}
+          aria-controls={panelId}
+        >
+          <Columns2
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="evidence-detail-tool__icon"
+          />
+          <span className="evidence-detail-tool__title">Comparison mode</span>
+          <ChevronDown
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="evidence-detail-tool__chevron"
+          />
+        </summary>
+        <div
+          id={panelId}
+          role="region"
+          aria-label="Comparison mode"
+          className="evidence-detail-tool__panel"
+        >
         <p className="evidence-library-muted">
           Comparison uses recorded metadata and export references only. It does not establish factual truth,
           authorship, or legal outcome.
@@ -194,6 +220,7 @@ export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
               : null}
           </div>
         ) : null}
+        </div>
       </details>
     </section>
   );

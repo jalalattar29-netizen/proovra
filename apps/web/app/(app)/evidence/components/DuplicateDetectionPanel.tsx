@@ -24,7 +24,8 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * kept on the wire for any other consumer.
  */
 
-import { useEffect, useState } from "react";
+import { ChevronDown, CopyCheck } from "lucide-react";
+import { useId, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import type {
   EvidenceDuplicateGroupedMatch,
@@ -189,6 +190,7 @@ function DuplicateRecordCard({ match }: { match: EvidenceDuplicateGroupedMatch }
 
 export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<EvidenceDuplicatesResponse | null>(null);
@@ -227,14 +229,36 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
   const totalRecords = data?.totalRecords ?? groupedMatches.length;
 
   return (
-    <section className="evidence-library-panel">
+    <section className="evidence-detail-tool" data-evidence-tool="duplicate-detection">
       <details
         open={open}
         onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}
       >
-        <summary className="evidence-library-expand-summary">
-          Duplicate detection
+        <summary
+          className="evidence-detail-tool__summary"
+          aria-expanded={open}
+          aria-controls={panelId}
+        >
+          <CopyCheck
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="evidence-detail-tool__icon"
+          />
+          <span className="evidence-detail-tool__title">Duplicate detection</span>
+          <ChevronDown
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="evidence-detail-tool__chevron"
+          />
         </summary>
+        <div
+          id={panelId}
+          role="region"
+          aria-label="Duplicate detection"
+          className="evidence-detail-tool__panel"
+        >
         <p className="evidence-library-muted">
           Duplicate detection is limited to accessible records and recorded
           hashes or metadata.
@@ -282,6 +306,7 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
             </div>
           </>
         ) : null}
+        </div>
       </details>
     </section>
   );

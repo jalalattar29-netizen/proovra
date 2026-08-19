@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "../../../../../components/ui";
+import { Unlink } from "lucide-react";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 
 type RelationshipItem = {
@@ -57,83 +57,133 @@ export function EvidenceRelationshipsSection({
 }) {
   const { confirm } = useConfirmAction();
   return (
-    <section id="relationships" className="evidence-detail-card">
-      <div className="evidence-detail-card-header">
-        <div>
-          <p className="evidence-detail-kicker">Case &amp; Relationships</p>
-          <h2>Operational linkage</h2>
-        </div>
-        <div className="evidence-detail-inline-actions">
-          <Button variant="secondary" onClick={onAssignCase}>
+    <section
+      id="relationships"
+      className="evidence-detail-review-section"
+      data-evidence-section="case-relationships"
+    >
+      {/* Case actions stay permission-gated exactly as before: Remove case is
+          rendered only when the parent supplies a handler (i.e. a case is
+          attached), Manage relationships only where the workspace can manage
+          them, and both disable while a mutation is in flight. */}
+      <div className="evidence-detail-review-head">
+        <h2 className="evidence-detail-review-head__title">Case &amp; relationships</h2>
+        <div className="evidence-detail-review-head__actions">
+          <button
+            type="button"
+            className="app-ghost-action"
+            onClick={onAssignCase}
+            data-evidence-action="assign-case"
+          >
             {caseName ? "Reassign case" : "Assign case"}
-          </Button>
+          </button>
           {onRemoveCase ? (
-            <Button variant="secondary" onClick={onRemoveCase} disabled={actionBusy}>
+            <button
+              type="button"
+              className="app-ghost-action evidence-detail-destructive-action"
+              onClick={onRemoveCase}
+              disabled={actionBusy}
+              data-evidence-action="remove-case"
+            >
               Remove case
-            </Button>
+            </button>
           ) : null}
           {canManageRelationships ? (
-            <Button
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={onOpenRelationshipEditor}
               disabled={actionBusy}
               data-evidence-action="manage-relationships"
             >
               Manage relationships
-            </Button>
+            </button>
           ) : null}
         </div>
       </div>
 
-      <div className="evidence-detail-data-grid">
-        <div className="evidence-detail-data-cell">
-          <span>Case assignment</span>
-          <strong>{caseName || "Unassigned"}</strong>
+      {/* Tracks come from the container, so a long case name wraps inside its
+          own card and can never widen the grid or push a neighbour. */}
+      <div className="evidence-detail-facts-grid" data-evidence-facts-grid>
+        <div className="evidence-detail-fact">
+          <span className="evidence-detail-fact__label">Case assignment</span>
+          <span className="evidence-detail-fact__value evidence-detail-fact__value--clamp">
+            {caseName || "Unassigned"}
+          </span>
         </div>
-        <div className="evidence-detail-data-cell">
-          <span>Related evidence in case</span>
-          <strong>{relatedEvidenceCount != null ? String(relatedEvidenceCount) : "Not available"}</strong>
+        <div className="evidence-detail-fact">
+          <span className="evidence-detail-fact__label">Related evidence</span>
+          <span className="evidence-detail-fact__value">
+            {relatedEvidenceCount != null
+              ? `${relatedEvidenceCount} item${relatedEvidenceCount === 1 ? "" : "s"}`
+              : "Not available"}
+          </span>
         </div>
-        <div className="evidence-detail-data-cell">
-          <span>Structure</span>
-          <strong>{multipart ? "Multipart package" : "Single record"}</strong>
+        <div className="evidence-detail-fact">
+          <span className="evidence-detail-fact__label">Structure</span>
+          <span className="evidence-detail-fact__value">
+            {multipart ? "Multipart package" : "Single record"}
+          </span>
         </div>
-        <div className="evidence-detail-data-cell">
-          <span>Item count</span>
-          <strong>{String(itemCount)}</strong>
+        <div className="evidence-detail-fact">
+          <span className="evidence-detail-fact__label">Item count</span>
+          <span className="evidence-detail-fact__value">{String(itemCount)}</span>
         </div>
       </div>
 
-      {note ? <p className="evidence-detail-muted">{note}</p> : null}
+      {note ? <p className="evidence-detail-review-note">{note}</p> : null}
 
-      <div className="evidence-detail-subsection">
-        <div className="evidence-detail-subsection__header">
-          <strong>Linked evidence relationships</strong>
-          <span>{items.length} recorded</span>
+      <div className="evidence-detail-linked">
+        <div className="evidence-detail-review-head evidence-detail-review-head--sub">
+          <h3 className="evidence-detail-review-head__title">
+            Linked evidence relationships
+          </h3>
+          <span className="evidence-detail-review-head__count">
+            {items.length} recorded
+          </span>
         </div>
         {items.length === 0 ? (
-          <p className="evidence-detail-muted">No linked evidence relationships recorded.</p>
+          // Canonical dashed empty state. It reports the absence; it never
+          // invents a relationship that the response does not carry.
+          <div className="evidence-detail-empty" data-evidence-linked-empty>
+            <Unlink size={26} strokeWidth={1.75} aria-hidden="true" />
+            <p>No linked evidence relationships recorded.</p>
+          </div>
         ) : (
-          <div className="evidence-detail-related-list">
+          <div className="evidence-detail-linked-list">
             {items.map((item) => (
-              <article key={item.id} className="evidence-detail-related-card">
-                <div className="evidence-detail-item-row">
-                  <strong>{item.linkedEvidence.title}</strong>
-                  <span className="evidence-detail-pill neutral">
+              <article key={item.id} className="evidence-detail-linked-card">
+                <div className="evidence-detail-linked-card__head">
+                  <h4 className="evidence-detail-linked-card__title">
+                    {item.linkedEvidence.title}
+                  </h4>
+                  <span className="app-chip">
                     {item.relationshipType.replace(/_/g, " ")}
                   </span>
                 </div>
-                <p>
-                  {item.direction === "outbound" ? "Links from this record" : "Links to this record"} •{" "}
+                <p className="evidence-detail-linked-card__meta">
+                  {item.direction === "outbound"
+                    ? "Links from this record"
+                    : "Links to this record"}{" "}
+                  •{" "}
                   {item.linkedEvidence.status.replace(/_/g, " ")}
                 </p>
-                {item.note ? <p>{item.note}</p> : null}
-                <div className="evidence-detail-inline-actions">
-                  <Button variant="secondary" onClick={() => onOpenLinkedEvidence(item.linkedEvidence.id)}>
+                {item.note ? (
+                  <p className="evidence-detail-linked-card__meta">{item.note}</p>
+                ) : null}
+                <div className="evidence-detail-linked-card__actions">
+                  <button
+                    type="button"
+                    className="app-secondary-action"
+                    onClick={() => onOpenLinkedEvidence(item.linkedEvidence.id)}
+                    aria-label={`Open linked evidence: ${item.linkedEvidence.title}`}
+                  >
                     Open linked evidence
-                  </Button>
+                  </button>
                   {onRemoveRelationship && canManageRelationships ? (
-                    <Button
-                      variant="secondary"
+                    <button
+                      type="button"
+                      className="app-ghost-action evidence-detail-destructive-action"
                       disabled={actionBusy}
                       data-evidence-relationship-remove={item.id}
                       onClick={() => {
@@ -154,7 +204,7 @@ export function EvidenceRelationshipsSection({
                       }}
                     >
                       Remove relationship
-                    </Button>
+                    </button>
                   ) : null}
                 </div>
               </article>

@@ -692,7 +692,6 @@ button.evidence-detail-item-card {
   padding: 56px 24px;
 }
 
-.evidence-detail-select,
 .evidence-detail-label-edit input,
 .evidence-detail-input,
 .evidence-detail-textarea,
@@ -707,7 +706,6 @@ button.evidence-detail-item-card {
   padding: 10px 13px;
 }
 
-.evidence-detail-select:focus,
 .evidence-detail-label-edit input:focus,
 .evidence-detail-input:focus,
 .evidence-detail-textarea:focus,
@@ -2289,4 +2287,465 @@ button.evidence-detail-item-card {
 }
 [dir="rtl"] .evidence-detail-side-block .evidence-detail-inline-link::after {
   transform: scaleX(-1);
+}
+
+/* ===========================================================================
+ * REVIEW TAB — hero, section heads, linked relationships, tools accordion,
+ * reviewer audit and lifecycle. No private palette: purple, operational blue
+ * and the semantic tones all come from the canonical tokens.
+ * =========================================================================== */
+
+/* A Review section is a LABELLED GROUP, not a card: the heading and its
+   cards sit directly on the page ground. Only the hero, the tool rows and
+   the lifecycle block carry card chrome of their own. */
+.evidence-detail-review-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+}
+
+/* ---- Section head -------------------------------------------------------- */
+.evidence-detail-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-review-head__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evidence-detail-review-head--sub .evidence-detail-review-head__title {
+  font-size: 11.5px;
+}
+.evidence-detail-review-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.evidence-detail-review-head__count {
+  font-size: 13px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-review-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* A destructive control keeps the neutral chrome of its primitive and takes
+   only the destructive INK, so it can never be mistaken for the purple
+   primary action while staying visually distinct from a neutral one. */
+.evidence-detail-destructive-action {
+  color: #b54738;
+}
+.evidence-detail-destructive-action:hover:not(:disabled) {
+  color: #8f3324;
+  border-color: rgba(181, 71, 56, 0.4);
+  background: rgba(181, 71, 56, 0.07);
+}
+
+/* ---- Review hero --------------------------------------------------------- */
+.evidence-detail-review-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  min-inline-size: 0;
+  padding: 20px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-review-hero__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  flex: none;
+  border-radius: 14px;
+  background: var(--accent-050);
+  color: var(--accent-600);
+}
+.evidence-detail-review-hero__copy {
+  min-inline-size: 0;
+}
+.evidence-detail-review-hero__titles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-review-hero__title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 27px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evidence-detail-review-hero__note {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-review-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-self: end;
+}
+/* Below the tablet threshold the actions drop under the copy and stretch,
+   rather than squeezing the title into a two-word column. */
+@media (max-width: 860px) {
+  .evidence-detail-review-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .evidence-detail-review-hero__actions {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+  .evidence-detail-review-hero__actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ---- A long case name clamps inside its own card ------------------------- */
+.evidence-detail-fact__value--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- Linked evidence relationships --------------------------------------- */
+.evidence-detail-linked {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  /* A labelled sub-group needs its own air above the cards it follows. */
+  margin-block-start: 6px;
+}
+.evidence-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 32px 20px;
+  border-radius: 16px;
+  border: 1px dashed var(--surface-translucent-border-strong);
+  color: var(--app-ink-secondary);
+  text-align: center;
+}
+.evidence-detail-empty p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-style: normal;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-linked-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.evidence-detail-linked-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.evidence-detail-linked-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evidence-detail-linked-card__title {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-linked-card__meta {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-linked-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: auto;
+  padding-block-start: 8px;
+}
+
+/* ---- Review tools accordion ----------------------------------------------
+ * Native <details>/<summary>: Enter/Space activation, focus and the
+ * expanded state are the browser's. The row adds only the anatomy — icon,
+ * title, chevron on the LOGICAL end — and an explicit aria-expanded plus a
+ * labelled region so assistive tech gets the relationship spelled out. */
+.evidence-detail-review-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.evidence-detail-tool {
+  min-inline-size: 0;
+  border-radius: 16px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-tool__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 16px;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+}
+.evidence-detail-tool__summary::-webkit-details-marker {
+  display: none;
+}
+.evidence-detail-tool__summary:hover {
+  background: var(--surface-translucent-inner-hover);
+}
+.evidence-detail-tool__summary:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
+}
+.evidence-detail-tool__icon {
+  flex: none;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-tool__title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+/* The chevron rotates; it is never a text glyph, so it cannot be read out
+   or reflowed as content. */
+.evidence-detail-tool__chevron {
+  flex: none;
+  color: var(--app-ink-secondary);
+  transition: transform 140ms ease;
+}
+.evidence-detail-tool[open] .evidence-detail-tool__chevron,
+details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
+  transform: rotate(180deg);
+}
+.evidence-detail-tool__panel {
+  padding: 0 20px 18px;
+  min-inline-size: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+}
+
+/* ---- Workspace review activity -------------------------------------------
+ * Same three-column anatomy as the Custody timeline rows, but a neutral
+ * marker: this is reviewer audit, deliberately NOT forensic custody. */
+.evidence-detail-audit-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+.evidence-detail-audit-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  padding-block: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-audit-row__marker {
+  justify-self: center;
+  margin-block-start: 6px;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: #98a2b3;
+}
+.evidence-detail-audit-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--app-ink-heading);
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-audit-row__actor {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-audit-row__time {
+  justify-self: end;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Lifecycle management ------------------------------------------------
+ * A soft-red header marks the destructive zone. The facts and actions sit on
+ * the neutral body so the red never reads as an error state for the record
+ * itself. */
+.evidence-detail-lifecycle {
+  min-inline-size: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(181, 71, 56, 0.22);
+  background: var(--surface-translucent-outer);
+  overflow: hidden;
+}
+.evidence-detail-lifecycle__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 14px 22px;
+  background: rgba(181, 71, 56, 0.07);
+  border-block-end: 1px solid rgba(181, 71, 56, 0.18);
+}
+.evidence-detail-lifecycle__icon {
+  display: inline-flex;
+  flex: none;
+  color: #b54738;
+}
+.evidence-detail-lifecycle__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #b54738;
+  font-style: normal;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.evidence-detail-lifecycle__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-inline-size: 0;
+  padding: 20px 22px 22px;
+}
+.evidence-detail-lifecycle__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-lifecycle__blocked {
+  margin: 0;
+  min-inline-size: 0;
+}
+.evidence-detail-lifecycle__blocked p {
+  margin: 4px 0 0;
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+@media (max-width: 560px) {
+  .evidence-detail-lifecycle__body {
+    padding: 16px;
+  }
+  .evidence-detail-review-hero {
+    padding: 16px;
+  }
+  .evidence-detail-lifecycle__head {
+    padding: 12px 16px;
+  }
+  .evidence-detail-tool__summary {
+    padding: 14px 16px;
+  }
+  .evidence-detail-tool__panel {
+    padding: 0 16px 16px;
+  }
+  /* The audit row stacks like the Custody row: the marker column survives,
+     the timestamp takes its own line. */
+  .evidence-detail-audit-row {
+    grid-template-columns: 18px minmax(0, 1fr);
+    row-gap: 2px;
+  }
+  .evidence-detail-audit-row__time {
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
+  }
+  .evidence-detail-lifecycle__actions > * {
+    flex: 1 1 auto;
+  }
+}
+
+/* Actions inside an expanded review tool panel. */
+.evidence-detail-tool__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 12px;
+  min-inline-size: 0;
 }

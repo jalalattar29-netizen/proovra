@@ -4,40 +4,34 @@
  * Human review workspace. Workflow status / case assignment / notes /
  * comments / annotations / reviewer actions / AI advisory.
  *
- * Phase REVIEW-TAB-STABILITY (this pass) — the Review tab now renders
- * the SAME sections in the SAME order regardless of reviewer status.
- * Previously, NOT_STARTED swapped the entire layout for a giant
- * empty-state card with a non-clickable suggested-action bullet list
- * (comments/legal-notes hints, risk-signal hints, report/package
- * download hints). Those bullets looked like buttons but weren't, and
- * the layout jump between statuses was disorienting. New shape:
- *   1. Review Workflow     — workflow card (or status box) + disclaimer
- *   2. Review Actions      — Attach to case + Open report (always wired)
- *   3. Case & Relationships
- *   4. Notes & annotations
- *   5. Audit / record actions
- * Reviewer status changes only swap the status badge/label — not the
- * page layout.
+ * Phase REVIEW-TAB-STABILITY — the Review tab renders the SAME sections in
+ * the SAME order regardless of reviewer status. Reviewer status changes only
+ * swap the hero's title and badge — never the page layout.
  *
- * Phase EVIDENCE-AI-CONSOLIDATION — there is ONE canonical AI
- * categorization surface: <AiCategorizationPanel>. The prior on-mount
- * wrapper card + duplicate hidden-feature panel mount are gone.
+ * Phase EVIDENCE-AI-CONSOLIDATION — there is ONE canonical AI categorization
+ * surface: <AiCategorizationPanel>.
  *
- * Phase 1 — "Workspace and record retention state" was duplicated by
- * the Integrity tab's "Verification & preservation" block; the
- * duplicate is removed from Review. Archive/trash controls stay here
- * because they're operational actions, not posture.
+ * Phase EVIDENCE-DETAIL-REDESIGN — presentation only. Review owns its own
+ * hero, section heads, notes boundary and lifecycle card rather than
+ * borrowing the generic SectionHeading/KeyValueGrid/note-box set, so a change
+ * here cannot ripple into the other six tabs. Every capability gate,
+ * eligibility check, disabled reason, confirmation and API call below is the
+ * one the previous build used.
+ *
+ * TRUTHFULNESS. The hero states in its own copy that reviewer status is an
+ * internal workflow marker: it does not change integrity results, public
+ * verification, authenticity, legal admissibility or factual truth. Lifecycle
+ * actions never present optimistically — Move to trash stays disabled with
+ * the server's own reason whenever retention or a legal hold blocks it, and
+ * the amber notice explains what Archive does WITHOUT claiming deletion.
  */
 
 "use client";
 
-import { ClipboardCheck } from "lucide-react";
-import {
-  KeyValueGrid,
-  SectionHeading,
-  type EvidenceDetailCtx,
-} from "./_lib";
-import { Button } from "../../../../../components/ui";
+import type { ReactNode } from "react";
+import { BadgeCheck, Trash2 } from "lucide-react";
+import type { EvidenceDetailCtx } from "./_lib";
+import { AppStatusBadge } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
@@ -48,6 +42,7 @@ import {
   formatReviewerStatusLabel,
   REVIEWER_STATUS_DISCLAIMER,
 } from "../../lib/reviewer-status";
+import { getWorkflowStatusTone } from "./_lib";
 import { ReviewerCommentsPanel } from "../../components/ReviewerCommentsPanel";
 import { LegalNotesPanel } from "../../components/LegalNotesPanel";
 import { AnnotationPanel } from "../../components/AnnotationPanel";
@@ -59,6 +54,30 @@ import { ReviewerWorkflowCard } from "../components/ReviewerWorkflowCard";
 import { EvidenceReviewActionsPanel } from "../components/EvidenceReviewActionsPanel";
 import { ReviewerAuditTrailSection } from "../components/ReviewerAuditTrailSection";
 import { EvidenceCopilotPanel } from "../../../../../components/ai-copilot/EvidenceCopilotPanel";
+
+/** Section head: an uppercase label at the logical start, actions at the end. */
+function ReviewSectionHead({
+  title,
+  actions,
+  ...rest
+}: {
+  title: string;
+  actions?: ReactNode;
+} & Record<`data-${string}`, string | undefined>) {
+  return (
+    <div className="evidence-detail-review-head" {...rest}>
+      <h2 className="evidence-detail-review-head__title">{title}</h2>
+      {actions ? (
+        <div className="evidence-detail-review-head__actions">{actions}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatValueDate(iso: string | null | undefined): string {
+  if (!iso) return "Not recorded";
+  return formatUserDateTime(iso) ?? "Not recorded";
+}
 
 export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -92,10 +111,17 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     existingRelationshipCount: workspace.relationships.items.length,
   });
 
-  // Phase REVIEW-TAB-STABILITY — surfaced for tests and for ops
-  // tooling. NOT_STARTED no longer causes the layout to swap; only
-  // the badge label flips.
   const reviewerStatus = workspace.reviewWorkflow?.status ?? "NOT_STARTED";
+
+  // "Open report" is offered only when a report artifact truthfully exists.
+  // Without one the control is disabled and says why, rather than routing the
+  // reviewer to a tab that has nothing to open.
+  const reportAvailable = workspace.artifactStatus.report.available === true;
+  const reportPending = workspace.artifactStatus.report.pending === true;
+
+  const eligibility = getEvidenceDeletionEligibility(evidence);
+  const trashDisabled = !eligibility.canMoveToTrash;
+  const archiveDisabled = evidence.deletedAt != null || evidence.archivedAt != null;
 
   return (
     <>
@@ -104,12 +130,88 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           report/package readiness). Never a truth/authenticity verdict. */}
       <EvidenceCopilotPanel
         evidenceId={evidenceId}
-        evidenceVersion={(evidence as { verificationPackageVersion?: number | null })?.verificationPackageVersion ?? 0}
+        evidenceVersion={
+          (evidence as { verificationPackageVersion?: number | null })
+            ?.verificationPackageVersion ?? 0
+        }
       />
 
-      {/* (1) Review Workflow — stable header always rendered. The
-          body inside is the enterprise workflow card when reviewer
-          ops are available, or a compact status row otherwise. */}
+      {/* (1) Review hero — the reviewer state, its boundary, and the two
+          wired actions. The layout is identical for every status. */}
+      <section
+        className="evidence-detail-review-hero"
+        data-evidence-section="review-status"
+        data-evidence-reviewer-status={reviewerStatus}
+      >
+        <span className="evidence-detail-review-hero__icon" aria-hidden="true">
+          <BadgeCheck size={22} strokeWidth={2} />
+        </span>
+        <div className="evidence-detail-review-hero__copy">
+          <div className="evidence-detail-review-hero__titles">
+            <h2 className="evidence-detail-review-hero__title">
+              {formatReviewerStatusLabel(reviewerStatus)}
+            </h2>
+            <AppStatusBadge tone={getWorkflowStatusTone(reviewerStatus)}>
+              {reviewerStatus.replace(/_/g, " ")}
+            </AppStatusBadge>
+          </div>
+          <p
+            className="evidence-detail-review-hero__note"
+            data-evidence-reviewer-disclaimer="true"
+          >
+            {REVIEWER_STATUS_DISCLAIMER}
+          </p>
+        </div>
+        <div
+          className="evidence-detail-review-hero__actions"
+          data-evidence-review-actions
+        >
+          <button
+            type="button"
+            className="app-primary-action"
+            onClick={() => {
+              setSelectedCaseId(workspace.relationships.caseId || "");
+              setAssignCaseOpen(true);
+            }}
+            data-evidence-action="attach-to-case"
+          >
+            Attach to case
+          </button>
+          {canSeeReviewerOps ? (
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => setWorkflowOpen(true)}
+              data-evidence-action="assign-reviewer"
+            >
+              Assign reviewer
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={() =>
+              routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)
+            }
+            disabled={!reportAvailable}
+            aria-disabled={!reportAvailable}
+            title={
+              reportAvailable
+                ? undefined
+                : reportPending
+                  ? "The report is still being generated."
+                  : "No report has been generated for this record yet."
+            }
+            data-evidence-action="open-report"
+            data-evidence-report-available={reportAvailable ? "true" : "false"}
+          >
+            Open report
+          </button>
+        </div>
+      </section>
+
+      {/* (2) The enterprise workflow card keeps its own controls; it renders
+          only where reviewer ops are reachable. */}
       {canSeeReviewerOps ? (
         <ReviewerWorkflowCard
           workflow={workspace.reviewWorkflow}
@@ -120,79 +222,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           onOpenEditor={() => setWorkflowOpen(true)}
           formatDateTime={formatUserDateTime}
         />
-      ) : (
-        <section
-          className="evidence-detail-section"
-          data-evidence-section="review-status"
-          data-evidence-reviewer-status={reviewerStatus}
-        >
-          <div className="evidence-detail-section-header">
-            <SectionHeading
-              kicker="Review"
-              title="Review status"
-              icon={ClipboardCheck}
-            />
-          </div>
-          <p>
-            <strong>{formatReviewerStatusLabel(reviewerStatus)}</strong>
-          </p>
-          <p
-            className="evidence-detail-muted"
-            data-evidence-reviewer-disclaimer="true"
-            style={{ fontSize: 12, marginTop: 4 }}
-          >
-            {REVIEWER_STATUS_DISCLAIMER}
-          </p>
-        </section>
-      )}
-
-      {/* (2) Review Actions — always rendered, only wired actions.
-          Attach to case + Open report (artifacts tab) are present
-          for every workspace. Reviewer-ops users additionally get
-          Assign reviewer to open the workflow editor. We deliberately
-          do NOT render unwired affordances — the four pseudo-action
-          bullets that used to live in the retired empty-state card
-          (comments hint, case-attach hint, risk-signal hint, report
-          download hint) are gone; the wired buttons stand alone. */}
-      <section
-        className="evidence-detail-section"
-        data-evidence-section="review-actions"
-      >
-        <div className="evidence-detail-section-header">
-          <SectionHeading
-            kicker="Review"
-            title="Review actions"
-            icon={ClipboardCheck}
-          />
-        </div>
-        <div
-          className="evidence-detail-inline-actions"
-          data-evidence-review-actions
-        >
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setSelectedCaseId(workspace.relationships.caseId || "");
-              setAssignCaseOpen(true);
-            }}
-          >
-            Attach to case
-          </Button>
-          {canSeeReviewerOps ? (
-            <Button variant="secondary" onClick={() => setWorkflowOpen(true)}>
-              Assign reviewer
-            </Button>
-          ) : null}
-          <Button
-            variant="secondary"
-            onClick={() =>
-              routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)
-            }
-          >
-            Open report
-          </Button>
-        </div>
-      </section>
+      ) : null}
 
       <EvidenceRelationshipsSection
         caseName={workspace.relationships.caseName}
@@ -224,54 +254,54 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         />
       ) : null}
 
-      <section className="evidence-detail-section">
-        <div className="evidence-detail-section-header">
-          <SectionHeading
-            kicker="Notes"
-            title="Private notes &amp; annotations"
-            icon={ClipboardCheck}
-          />
-        </div>
+      <section
+        className="evidence-detail-review-section"
+        data-evidence-section="private-notes"
+      >
+        <ReviewSectionHead title="Private notes &amp; annotations" />
 
-        <div className="evidence-detail-note-box">
-          <strong>Boundary</strong>
-          <p>
-            Private review notes are not included in public verification or external packages unless
-            explicitly exported.
+        <div className="evidence-detail-boundary-callout" role="note">
+          <span className="evidence-detail-boundary-callout__title">Boundary</span>
+          <p className="evidence-detail-boundary-callout__body">
+            Private review notes are not included in public verification or
+            external packages unless explicitly exported.
           </p>
         </div>
 
-        {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — the
-            governance note describes the reviewer/legal/annotation
-            posture for the three enterprise panels below. When those
-            panels are hidden for non-reviewer-ops workspaces, this
-            note has nothing to describe and is hidden with them. */}
+        {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — the governance
+            note describes the reviewer/legal/annotation posture for the three
+            enterprise panels below. When those panels are hidden for
+            non-reviewer-ops workspaces, this note has nothing to describe and
+            is hidden with them. */}
         {workspace.governance && canSeeReviewerOps ? (
-          <div className="evidence-detail-note-box">
-            <strong>Governance</strong>
-            <p>
+          <div className="evidence-detail-boundary-note">
+            <span className="evidence-detail-boundary-note__title">Governance</span>
+            <p className="evidence-detail-boundary-note__body">
               {workspace.governance.reviewerComments.label},{" "}
               {workspace.governance.legalNotes.label}, and{" "}
-              {workspace.governance.annotations.label} are internal workspace materials. They are not
-              included in public verification, the fixed PDF report, or the verification package.
+              {workspace.governance.annotations.label} are internal workspace
+              materials. They are not included in public verification, the fixed
+              PDF report, or the verification package.
             </p>
           </div>
         ) : null}
 
         {evidence.internalNotes ? (
-          <div className="evidence-detail-note-box">
-            <strong>Private session note</strong>
-            <p>{evidence.internalNotes}</p>
+          <div className="evidence-detail-boundary-note">
+            <span className="evidence-detail-boundary-note__title">
+              Private session note
+            </span>
+            <p className="evidence-detail-boundary-note__body">
+              {evidence.internalNotes}
+            </p>
           </div>
         ) : null}
 
-        {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — Reviewer
-            Comments, Legal Notes, and Annotations are enterprise /
-            collaboration / reviewer-ops features. Personal Space and
-            small-business workspaces without reviewer ops hide them
-            entirely. Backend authorization is unchanged — this is a
-            visibility cleanup only. The empty enterprise-only mounts
-            were noise on self-serve. */}
+        {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — Reviewer Comments,
+            Legal Notes and Annotations are enterprise / collaboration /
+            reviewer-ops features. Personal Space and small-business
+            workspaces without reviewer ops hide them entirely. Backend
+            authorization is unchanged — this is a visibility gate only. */}
         {canSeeReviewerOps ? (
           <div
             className="evidence-detail-embedded-panels"
@@ -279,160 +309,152 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           >
             <ReviewerCommentsPanel evidenceId={evidence.id} />
             <LegalNotesPanel evidenceId={evidence.id} />
-            <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
-            {/* Phase EVIDENCE-AI-CONSOLIDATION — AI categorization is
-                now rendered ONCE as <AiCategorizationPanel> below in
-                the Advanced review tools row. The duplicate
-                hidden-feature mount that used to live here is gone. */}
+            <AnnotationPanel
+              evidenceId={evidence.id}
+              defaultPartId={workspace.parts[0]?.id ?? null}
+            />
           </div>
         ) : null}
       </section>
 
-      {/* Phase EVIDENCE-IA — comparison / duplicate / AI advisory
-          panels. These are operational tools the reviewer uses inline;
-          they stay on the Review tab. AI categorization renders ONCE
-          here (was previously also mounted as a separate card above —
-          consolidated to a single panel with one disclaimer). */}
-      <ComparisonPanel evidenceId={evidence.id} />
-      <DuplicateDetectionPanel evidenceId={evidence.id} />
-      <AiCategorizationPanel evidenceId={evidence.id} />
+      {/* Phase EVIDENCE-IA — comparison / duplicate / AI advisory tools. Each
+          owns its own canonical disclosure; AI categorization renders ONCE. */}
+      <div className="evidence-detail-review-tools" data-evidence-review-tools>
+        <ComparisonPanel evidenceId={evidence.id} />
+        <DuplicateDetectionPanel evidenceId={evidence.id} />
+        <AiCategorizationPanel evidenceId={evidence.id} />
+      </div>
 
       <ReviewerAuditTrailSection
         items={workspace.reviewerAudit ?? []}
         formatDateTime={formatUserDateTime}
       />
 
-      {/* Phase 1 — kept ONLY the operational archive/trash actions
-          here; the full retention/object-lock detail moved to the
-          Integrity tab (single source of preservation posture). */}
+      {/* Phase 1 — ONLY the operational archive/trash actions live here; the
+          full retention/object-lock detail is on the Integrity tab (single
+          source of preservation posture). */}
       <section
-        className="evidence-detail-section"
+        className="evidence-detail-lifecycle"
         data-evidence-section="record-actions"
       >
-        <div className="evidence-detail-section-header">
-          <SectionHeading
-            kicker="Record actions"
-            title="Archive, restore, or move to trash"
-            icon={ClipboardCheck}
-          />
+        <div className="evidence-detail-lifecycle__head">
+          <span className="evidence-detail-lifecycle__icon" aria-hidden="true">
+            <Trash2 size={18} strokeWidth={2} />
+          </span>
+          <h2 className="evidence-detail-lifecycle__title">Lifecycle management</h2>
         </div>
-        <KeyValueGrid
-          items={[
-            { label: "Locked at", value: formatValueDate(evidence.lockedAt) },
-            { label: "Archived at", value: formatValueDate(evidence.archivedAt) },
-            { label: "Deleted at", value: formatValueDate(evidence.deletedAt) },
-            {
-              label: "Delete scheduled for",
-              value: formatValueDate(evidence.deleteScheduledForUtc),
-            },
-          ]}
-        />
-        {/* Phase EVIDENCE-DELETE-ELIGIBILITY — gate Move to trash on
-            the canonical helper so the button is disabled BEFORE the
-            user clicks rather than failing with a 409 toast. Archive
-            stays the recommended alternative; the helper text below
-            the disabled trash button says so. */}
-        {(() => {
-          const eligibility = getEvidenceDeletionEligibility(evidence);
-          const trashDisabled = !eligibility.canMoveToTrash;
-          const archiveDisabled =
-            evidence.deletedAt != null || evidence.archivedAt != null;
-          // When trash is blocked by retention and archive IS
-          // available, the spec asks us to make Archive visually
-          // recommended. We use the existing primary `variant`
-          // (default) for Archive in that case; otherwise keep the
-          // status quo secondary styling.
-          const archiveIsRecommended = trashDisabled && !archiveDisabled;
-          return (
-            <>
-              <div
-                className="evidence-detail-inline-actions"
-                data-evidence-record-actions
-              >
-                {evidence.archivedAt ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      void runRecordAction(
-                        `/v1/evidence/${evidence.id}/unarchive`,
-                        "Evidence restored from archive",
-                      )
-                    }
-                  >
-                    Restore archive
-                  </Button>
-                ) : (
-                  <Button
-                    variant={archiveIsRecommended ? "primary" : "secondary"}
-                    onClick={() => setArchiveOpen(true)}
-                    disabled={archiveDisabled}
-                    data-evidence-action="archive"
-                    data-archive-recommended={archiveIsRecommended ? "true" : "false"}
-                  >
-                    Archive evidence
-                  </Button>
-                )}
 
-                {evidence.deletedAt ? (
-                  <Button variant="secondary" onClick={() => void restoreTrash()}>
-                    Restore from trash
-                  </Button>
-                ) : (
-                  // Spec: keep the disabled control visible (consistent
-                  // affordance) but never let the click reach
-                  // setTrashOpen — that's exactly the "modal opens then
-                  // fails" UX we're killing.
-                  <span
-                    data-evidence-trash-wrapper
-                    data-evidence-trash-disabled={trashDisabled ? "true" : "false"}
-                    title={trashDisabled ? eligibility.message : undefined}
-                  >
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        if (trashDisabled) return;
-                        setTrashOpen(true);
-                      }}
-                      disabled={trashDisabled}
-                      aria-disabled={trashDisabled}
-                      aria-describedby={
-                        trashDisabled ? "evidence-trash-helper" : undefined
-                      }
-                      data-evidence-action="trash"
-                      data-evidence-trash-reason={
-                        eligibility.reasonCode ?? "ELIGIBLE"
-                      }
-                    >
-                      Move to trash
-                    </Button>
-                  </span>
-                )}
+        <div className="evidence-detail-lifecycle__body">
+          <div className="evidence-detail-facts-grid" data-evidence-facts-grid>
+            {[
+              { label: "Locked at", value: formatValueDate(evidence.lockedAt) },
+              { label: "Archived at", value: formatValueDate(evidence.archivedAt) },
+              { label: "Deleted at", value: formatValueDate(evidence.deletedAt) },
+              {
+                label: "Scheduled deletion",
+                value: formatValueDate(evidence.deleteScheduledForUtc),
+              },
+            ].map((fact) => (
+              <div key={fact.label} className="evidence-detail-fact">
+                <span className="evidence-detail-fact__label">{fact.label}</span>
+                <span className="evidence-detail-fact__value">{fact.value}</span>
               </div>
+            ))}
+          </div>
 
-              {trashDisabled && !evidence.deletedAt ? (
-                <div
-                  id="evidence-trash-helper"
-                  className="evidence-detail-note-box"
-                  data-evidence-trash-helper
-                  data-evidence-trash-reason={eligibility.reasonCode ?? "UNKNOWN"}
-                  style={{ marginTop: 10 }}
+          {/* Phase EVIDENCE-DELETE-ELIGIBILITY — Move to trash is gated on the
+              canonical helper so the control is disabled BEFORE the click
+              rather than failing with a 409 toast. Neither lifecycle action
+              uses the purple primary style: these are destructive or
+              near-destructive operations, so Archive is the neutral filled
+              action and trash stays a plain neutral control. */}
+          <div
+            className="evidence-detail-lifecycle__actions"
+            data-evidence-record-actions
+          >
+            {evidence.archivedAt ? (
+              <button
+                type="button"
+                className="app-secondary-action app-secondary-action--filled"
+                onClick={() =>
+                  void runRecordAction(
+                    `/v1/evidence/${evidence.id}/unarchive`,
+                    "Evidence restored from archive",
+                  )
+                }
+                data-evidence-action="restore-archive"
+              >
+                Restore archive
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="app-secondary-action app-secondary-action--filled"
+                onClick={() => setArchiveOpen(true)}
+                disabled={archiveDisabled}
+                data-evidence-action="archive"
+                data-archive-recommended={
+                  trashDisabled && !archiveDisabled ? "true" : "false"
+                }
+              >
+                Archive evidence
+              </button>
+            )}
+
+            {evidence.deletedAt ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => void restoreTrash()}
+                data-evidence-action="restore-trash"
+              >
+                Restore from trash
+              </button>
+            ) : (
+              // The disabled control stays visible (consistent affordance)
+              // but the click can never reach setTrashOpen — that is exactly
+              // the "modal opens then fails" behaviour this replaces.
+              <span
+                data-evidence-trash-wrapper
+                data-evidence-trash-disabled={trashDisabled ? "true" : "false"}
+                title={trashDisabled ? eligibility.message : undefined}
+              >
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  onClick={() => {
+                    if (trashDisabled) return;
+                    setTrashOpen(true);
+                  }}
+                  disabled={trashDisabled}
+                  aria-disabled={trashDisabled}
+                  aria-describedby={
+                    trashDisabled ? "evidence-trash-helper" : undefined
+                  }
+                  data-evidence-action="trash"
+                  data-evidence-trash-reason={eligibility.reasonCode ?? "ELIGIBLE"}
                 >
-                  <strong>Move to trash is unavailable</strong>
-                  <p>{eligibility.message}</p>
-                  {!archiveDisabled ? (
-                    <p style={{ marginTop: 4 }}>{ARCHIVE_AS_ALTERNATIVE_COPY}</p>
-                  ) : null}
-                </div>
-              ) : null}
-            </>
-          );
-        })()}
+                  Move to trash
+                </button>
+              </span>
+            )}
+          </div>
+
+          {trashDisabled && !evidence.deletedAt ? (
+            <div
+              id="evidence-trash-helper"
+              className="app-alert app-alert--warn evidence-detail-lifecycle__blocked"
+              role="status"
+              data-evidence-trash-helper
+              data-evidence-trash-reason={eligibility.reasonCode ?? "UNKNOWN"}
+            >
+              <strong>Move to trash is unavailable</strong>
+              <p>{eligibility.message}</p>
+              {!archiveDisabled ? <p>{ARCHIVE_AS_ALTERNATIVE_COPY}</p> : null}
+            </div>
+          ) : null}
+        </div>
       </section>
     </>
   );
-}
-
-function formatValueDate(iso: string | null | undefined): string {
-  if (!iso) return "Not recorded";
-  return formatUserDateTime(iso);
 }

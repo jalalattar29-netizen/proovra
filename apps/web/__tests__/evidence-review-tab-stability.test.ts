@@ -142,7 +142,12 @@ test("Review tab — fake non-clickable plain-text 'checklist' sentences are gon
 
 test("Review tab — always-rendered Review actions row has only wired buttons", () => {
   const src = read(REVIEW_TAB);
-  assert.match(src, /data-evidence-section="review-actions"/);
+  // The wired review actions moved INTO the review hero, so they sit beside
+  // the status they act on rather than in a separate stub section.
+  // `data-evidence-review-actions` remains the addressable contract, and the
+  // stability guarantee this test exists for is unchanged: the actions render
+  // for every reviewer status.
+  assert.match(src, /data-evidence-review-actions/);
   assert.match(src, /data-evidence-review-actions/);
   // Wired actions present.
   assert.match(src, /Attach to case/);
@@ -152,7 +157,8 @@ test("Review tab — always-rendered Review actions row has only wired buttons",
   // row, not in a status-swapped block.
   assert.match(
     src,
-    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<Button[\s\S]{0,200}Assign reviewer/,
+    // Same gate; the legacy Button became the canonical action primitive.
+    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<button[\s\S]{0,300}Assign reviewer/,
   );
 });
 

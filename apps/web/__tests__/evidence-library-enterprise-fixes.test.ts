@@ -236,7 +236,7 @@ test("FIX 6 — EvidenceReviewTab gates ReviewerComments/LegalNotes/Annotation p
   );
   assert.match(gateBlock, /<ReviewerCommentsPanel evidenceId=\{evidence\.id\} \/>/);
   assert.match(gateBlock, /<LegalNotesPanel evidenceId=\{evidence\.id\} \/>/);
-  assert.match(gateBlock, /<AnnotationPanel evidenceId=\{evidence\.id\}/);
+  assert.match(gateBlock, /<AnnotationPanel\s*\n?\s*evidenceId=\{evidence\.id\}/);
   // The wrapping conditional must be on canSeeReviewerOps.
   assert.match(
     REVIEW_TAB,

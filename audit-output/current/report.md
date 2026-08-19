@@ -22,8 +22,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | -------------- | ---------------------------------------------------------------- |
 | engineVersion  | audit-engine@1.0.0                                               |
 | engineHash     | b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea |
-| sourceRevision | 74b61ca8292120b98569ebe89be90d6ebe95eeac                         |
-| generatedAtUtc | 2026-08-19T01:09:00.504Z                                         |
+| sourceRevision | a71a097f969f76b6acf40636c9b86142cd09edd9                         |
+| generatedAtUtc | 2026-08-19T01:37:55.039Z                                         |
 | schemaVersion  | architecture-facts@1                                             |
 
 ## Measured surface
@@ -146,10 +146,10 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 | counter                                | value                                    |
 | -------------------------------------- | ---------------------------------------- |
 | baseline                               | GIT_COMMIT                               |
-| baselineRef                            | 74b61ca8292120b98569ebe89be90d6ebe95eeac |
-| changedPaths                           | 12                                       |
-| added                                  | 2                                        |
-| modified                               | 10                                       |
+| baselineRef                            | a71a097f969f76b6acf40636c9b86142cd09edd9 |
+| changedPaths                           | 20                                       |
+| added                                  | 1                                        |
+| modified                               | 19                                       |
 | deleted                                | 0                                        |
 | attributedToPhase0                     | 5                                        |
 | productionRuntimeFilesModifiedByPhase0 | 0                                        |
