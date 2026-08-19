@@ -1594,6 +1594,7 @@
         "services/api/scripts/audit/engine/facts.mjs",
         "services/api/scripts/audit/index.mjs",
         "services/api/test/phase-0-audit-engine-governance.test.ts",
+        "services/api/test/phase-0-audit-self-reference.test.ts",
         "services/api/test/phase-0-unique-evidence-guard.test.ts"
       ],
       "spawns": [],
@@ -2476,7 +2477,8 @@
       "role": "AUDIT_ENGINE_TEST",
       "reason": "Drives the canonical engine or validates a current artifact.",
       "imports": [
-        "services/api/scripts/audit/engine/registry.mjs"
+        "services/api/scripts/audit/engine/registry.mjs",
+        "services/api/scripts/audit/engine/governance.mjs"
       ],
       "importedBy": [],
       "spawns": [
