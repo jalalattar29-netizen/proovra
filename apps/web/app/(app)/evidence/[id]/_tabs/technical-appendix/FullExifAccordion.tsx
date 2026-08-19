@@ -10,6 +10,7 @@
 "use client";
 
 import { MetadataRows } from "./MetadataRow";
+import { TechnicalDisclosure } from "./TechnicalDisclosure";
 import type { AppendixRow } from "./types";
 
 export function FullExifAccordion({
@@ -21,18 +22,15 @@ export function FullExifAccordion({
 }) {
   if (rows.length === 0) return null;
   return (
-    <details className="ta-accordion" data-testid="ta-full-exif">
-      <summary className="ta-accordion-summary">View full EXIF</summary>
-      <div className="ta-accordion-body">
-        <MetadataRows rows={rows} empty="No EXIF metadata recorded." />
-        {multipart ? (
-          <p className="ta-advisory">
-            Representative EXIF is shown for the primary media item. Full
-            per-file EXIF for every part is included in the Verification
-            Package.
-          </p>
-        ) : null}
-      </div>
-    </details>
+    <TechnicalDisclosure title="View full EXIF" data-testid="ta-full-exif">
+      <MetadataRows rows={rows} empty="No EXIF metadata recorded." />
+      {multipart ? (
+        <p className="ta-advisory">
+          Representative EXIF is shown for the primary media item. Full
+          per-file EXIF for every part is included in the Verification
+          Package.
+        </p>
+      ) : null}
+    </TechnicalDisclosure>
   );
 }

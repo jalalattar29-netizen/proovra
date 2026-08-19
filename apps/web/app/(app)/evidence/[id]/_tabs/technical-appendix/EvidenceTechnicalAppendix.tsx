@@ -34,6 +34,7 @@ import {
 import { apiFetch } from "../../../../../../lib/api";
 import type { ReviewWorkspaceResponse } from "../../review-workspace-types";
 import { TechnicalAppendixCard } from "./TechnicalAppendixCard";
+import { TechnicalDisclosure } from "./TechnicalDisclosure";
 import {
   AdvisoryNote,
   AppendixBadge,
@@ -240,18 +241,16 @@ export function EvidenceTechnicalAppendix({
             empty="No browser metadata available for this evidence."
           />
           {clientAdvanced.length > 0 ? (
-            <details className="ta-accordion" data-testid="ta-client-advanced">
-              <summary className="ta-accordion-summary">
-                Advanced client details
-              </summary>
-              <div className="ta-accordion-body">
-                <MetadataRows rows={clientAdvanced} empty="Not recorded." />
-                <AdvisoryNote>
-                  The raw User-Agent and IP are never stored — only a hash and a
-                  masked IP are retained.
-                </AdvisoryNote>
-              </div>
-            </details>
+            <TechnicalDisclosure
+              title="Advanced client details"
+              data-testid="ta-client-advanced"
+            >
+              <MetadataRows rows={clientAdvanced} empty="Not recorded." />
+              <AdvisoryNote>
+                The raw User-Agent and IP are never stored — only a hash and a
+                masked IP are retained.
+              </AdvisoryNote>
+            </TechnicalDisclosure>
           ) : null}
         </TechnicalAppendixCard>
 

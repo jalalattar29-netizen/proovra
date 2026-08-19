@@ -178,12 +178,12 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "1ae67ba236e158f3167e68c24eb37c6d58111099",
+    "phase0BaselineRef": "2685a771ece4d8112854fb2baa58ec812b7342aa",
     "phase0ChangedPaths": 9,
-    "phase0AddedPaths": 1,
-    "phase0ModifiedPaths": 8,
+    "phase0AddedPaths": 3,
+    "phase0ModifiedPaths": 6,
     "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 5,
+    "phase0AttributedPaths": 0,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,11 +208,33 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "1ae67ba236e158f3167e68c24eb37c6d58111099",
+    "baseline": "2685a771ece4d8112854fb2baa58ec812b7342aa",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+        "path": "apps/web/__tests__/evidence-detail-cleanup-pass.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/__tests__/evidence-detail-ia-refactor.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -223,7 +245,18 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx",
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/EvidenceTechnicalAppendix.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/FullExifAccordion.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -245,64 +278,31 @@
         "attributedToPhase0": false
       },
       {
-        "path": "audit-output/current/architecture-facts.json",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/current/audit-governance-inventory.json",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/current/report.md",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/diagnostics/test-caller-diagnostic.json",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "docs/architecture/current-runtime-capability-map.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "apps/web/__tests__/evidence-artifacts-redesign.test.ts",
+        "path": "apps/web/__tests__/evidence-technical-appendix-redesign.test.ts",
         "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TechnicalDisclosure.tsx",
+        "status": "ADDED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary.tsx",
+        "status": "ADDED",
+        "class": "PRODUCTION_RUNTIME",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,

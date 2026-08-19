@@ -903,319 +903,354 @@ button.evidence-detail-item-card {
    Technical Evidence Context (Technical Appendix) — enterprise card grid.
    Prefix: .ta-*  (scoped to the appendix component set).
    ========================================================================= */
+/* ===========================================================================
+ * TECHNICAL APPENDIX — one card language for every technical-context card
+ * and every technical disclosure. Declares no private palette: the purple,
+ * the operational blue and the semantic tones all come from the canonical
+ * tokens, so a token change moves this surface with the rest of the product.
+ * =========================================================================== */
+
 .ta-root {
-  display: block;
-  margin: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
 }
+/* The section heading sits on the page ground, not inside a card. */
 .ta-intro {
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.ta-intro-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent-500);
+}
+.ta-intro-copy {
+  min-inline-size: 0;
 }
 .ta-intro-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 680;
-  color: var(--detail-ink, #162032);
-  letter-spacing: -0.01em;
+  font-size: 19px;
+  line-height: 27px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  overflow-wrap: break-word;
 }
 .ta-intro-sub {
   margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--detail-muted, #667085);
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
 }
+
+/* Cards share one grid, so they align at the top and stretch to one height
+   per row instead of each sizing itself from its own content. */
 .ta-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 12px;
+  align-items: stretch;
 }
 .ta-card {
-  border: 1px solid var(--detail-line, rgba(15, 23, 42, 0.09));
-  border-radius: 12px;
-  background: var(--detail-panel, #fff);
-  padding: 14px 16px 15px;
+  container-type: inline-size;
+  container-name: ta-card;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 18px 20px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
 }
+/* The badge wraps to its own line before the title is allowed to break
+   mid-word: a hyphenated card title reads as a defect, not as tidiness. */
 .ta-card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 9px;
-  margin-bottom: 10px;
+  gap: 8px 10px;
+  min-inline-size: 0;
 }
 .ta-card-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  border-radius: 8px;
-  background: var(--detail-subtle, #f8fbfa);
-  color: var(--detail-teal, #0f5c56);
+  inline-size: 32px;
+  block-size: 32px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--accent-050);
+  color: var(--accent-600);
 }
 .ta-card-titles {
   flex: 1 1 auto;
-  min-width: 0;
+  /* min-content, not 0: the title claims the width of its longest WORD, so a
+     long badge wraps to its own line instead of hyphenating the title. */
+  min-inline-size: min-content;
 }
 .ta-card-title {
   margin: 0;
-  font-size: 13.5px;
-  font-weight: 660;
-  color: var(--detail-ink, #162032);
+  font-size: 14.5px;
+  line-height: 21px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .ta-card-subtitle {
-  margin: 1px 0 0;
-  font-size: 11.5px;
-  color: var(--detail-muted, #667085);
+  margin: 3px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
 }
 .ta-card-badge {
-  flex: 0 0 auto;
+  flex: none;
+  margin-inline-start: auto;
 }
 .ta-card-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  min-inline-size: 0;
 }
 
-/* Rows */
+/* ---- Label / value rows --------------------------------------------------
+ * A stable label column at comfortable widths; below the card threshold the
+ * row stacks so a long hash or filename keeps a whole line to itself. */
 .ta-rows {
   display: flex;
   flex-direction: column;
+  min-inline-size: 0;
 }
 .ta-row {
   display: grid;
-  grid-template-columns: minmax(120px, 40%) minmax(0, 1fr);
-  gap: 10px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--detail-line, rgba(15, 23, 42, 0.06));
+  grid-template-columns: minmax(110px, 38%) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 12px;
+  padding-block: 7px;
+  border-block-end: 1px solid var(--surface-translucent-border-strong);
   font-size: 12.5px;
+  line-height: 18px;
+  min-inline-size: 0;
 }
 .ta-row:last-child {
-  border-bottom: none;
+  border-block-end: none;
 }
 .ta-row-label {
-  color: var(--detail-muted, #667085);
+  color: var(--app-ink-secondary);
+  overflow-wrap: break-word;
 }
 .ta-row-value {
-  color: var(--detail-ink, #162032);
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
   gap: 6px;
-  min-width: 0;
-  word-break: break-word;
-  font-weight: 520;
+  min-inline-size: 0;
+  font-weight: 600;
+  color: var(--app-ink-heading);
+  text-align: end;
 }
+/* The bidi scope belongs to the VALUE TEXT, so a hash or timestamp keeps its
+   written order in Arabic layout while the copy control stays in page flow. */
 .ta-row-value-text {
-  min-width: 0;
+  min-inline-size: 0;
   overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
 }
-.ta-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+.ta-mono .ta-row-value-text {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 11.5px;
+  letter-spacing: -0.01em;
+}
+@container ta-card (max-width: 300px) {
+  .ta-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ta-row-value {
+    justify-content: flex-start;
+    text-align: start;
+  }
 }
 
-/* Copy button */
 .ta-copy-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  border: 1px solid var(--detail-line, rgba(15, 23, 42, 0.12));
-  border-radius: 6px;
-  background: #fff;
-  color: var(--detail-muted, #667085);
+  inline-size: 24px;
+  block-size: 24px;
+  flex: none;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  color: var(--app-ink-secondary);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
 }
 .ta-copy-btn:hover {
-  color: var(--detail-teal, #0f5c56);
-  border-color: var(--detail-teal, #0f5c56);
+  border-color: var(--accent-500);
+  color: var(--accent-600);
+  background: var(--surface-translucent-inner-hover);
+}
+.ta-copy-btn:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
 }
 
-/* Badges */
+/* ---- Status badge --------------------------------------------------------
+ * Text plus tone, never tone alone. Tones match the app-status-badge family
+ * so a reader carries one colour vocabulary across the whole record. */
 .ta-badge {
-  display: inline-block;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
   border: 1px solid transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
-.ta-badge-success { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
-.ta-badge-info { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
-.ta-badge-warning { background: #fef3c7; color: #78350f; border-color: #fde68a; }
-.ta-badge-danger { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-.ta-badge-neutral { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.ta-badge-success { background: #E7F6EF; color: #167a5b; border-color: #BFE7D6; }
+.ta-badge-info { background: #EAF0FD; color: #2563EB; border-color: #C7D8FA; }
+.ta-badge-warning { background: #FDF3E4; color: #b8861f; border-color: #F2DFBB; }
+.ta-badge-danger { background: #FCEDEA; color: #b54738; border-color: #F4CFC8; }
+.ta-badge-neutral { background: #F1F3F7; color: var(--app-ink-secondary); border-color: #DDE2EA; }
 
-/* Empty + advisory */
+.ta-empty,
+.ta-advisory {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
 .ta-empty {
-  margin: 2px 0;
-  font-size: 12px;
-  color: var(--detail-soft, #98a2b3);
-  font-style: italic;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--surface-translucent-border-strong);
+  text-align: center;
 }
 .ta-advisory {
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--detail-muted, #667085);
-  background: var(--detail-subtle, #f8fbfa);
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-translucent-inner);
 }
 
-/* Sub-block (e.g. submitter & identity) */
 .ta-subblock {
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--detail-line, rgba(15, 23, 42, 0.12));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
 }
 .ta-subblock-title {
-  display: block;
-  margin-bottom: 4px;
+  margin: 0;
   font-size: 11px;
-  font-weight: 640;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--detail-soft, #98a2b3);
+  color: var(--app-ink-secondary);
+  font-style: normal;
 }
 
-/* Accordions */
+/* ---- Disclosure ----------------------------------------------------------
+ * Native <details>/<summary>: Enter/Space activation and focus are the
+ * browser's. The chevron is an SVG the component renders, never a text
+ * glyph — a glyph reflows as content and cannot mirror reliably. */
 .ta-accordion {
-  margin-top: 6px;
-  border-top: 1px solid var(--detail-line, rgba(15, 23, 42, 0.08));
-  padding-top: 6px;
+  min-inline-size: 0;
+  border-radius: 12px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
 }
 .ta-accordion-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 10px 14px;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--detail-teal, #0f5c56);
   list-style: none;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
 }
 .ta-accordion-summary::-webkit-details-marker { display: none; }
-.ta-accordion-summary::before { content: "▸ "; }
-.ta-accordion[open] > .ta-accordion-summary::before { content: "▾ "; }
-.ta-accordion-body {
-  margin-top: 8px;
+.ta-accordion-summary:hover { background: var(--surface-translucent-inner-hover); }
+.ta-accordion-summary:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
 }
-
-/* Per-part table */
-.ta-parts {
+.ta-accordion-summary__text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.ta-accordion-chevron {
+  flex: none;
+  color: var(--app-ink-secondary);
+  transition: transform 140ms ease;
+}
+details[open] > .ta-accordion-summary .ta-accordion-chevron {
+  transform: rotate(180deg);
+}
+.ta-accordion-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 0 14px 12px;
+  min-inline-size: 0;
 }
-.ta-part {
-  border: 1px solid var(--detail-line, rgba(15, 23, 42, 0.1));
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: var(--detail-subtle, #f8fbfa);
-}
-.ta-part-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ta-part-icon {
-  display: inline-flex;
-  color: var(--detail-teal, #0f5c56);
-  flex: 0 0 auto;
-}
-.ta-part-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 12.5px;
-  font-weight: 620;
-  color: var(--detail-ink, #162032);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ta-part-mapping {
-  margin: 4px 0 8px;
-  font-size: 11.5px;
-  color: var(--detail-muted, #667085);
-}
-.ta-part-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 6px 12px;
-}
-.ta-part-meta {
+
+/* ---- Per-part table ------------------------------------------------------ */
+.ta-parts {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: 8px;
+  min-inline-size: 0;
 }
-.ta-part-meta-label {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--detail-soft, #98a2b3);
-}
-.ta-part-meta-value {
+.ta-part {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
   font-size: 12px;
-  color: var(--detail-ink, #162032);
+  line-height: 17px;
+  color: var(--app-ink-secondary);
   overflow-wrap: anywhere;
 }
-.ta-part-hash {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--detail-line, rgba(15, 23, 42, 0.08));
-}
-.ta-part-hash-value {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--detail-ink, #162032);
-}
-
-/* Location actions + links */
-.ta-location-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-.ta-location-coords {
-  color: var(--detail-ink, #162032);
-}
-.ta-link-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border: 1px solid var(--detail-line-strong, rgba(15, 23, 42, 0.16));
-  border-radius: 7px;
-  background: #fff;
-  color: var(--detail-teal, #0f5c56);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-}
-.ta-link-btn:hover {
-  border-color: var(--detail-teal, #0f5c56);
+.ta-part strong {
+  color: var(--app-ink-heading);
+  unicode-bidi: plaintext;
 }
 .ta-custody-open {
-  margin-top: 8px;
   align-self: flex-start;
-}
-
-@media (max-width: 640px) {
-  .ta-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .ta-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
-  }
 }
 
 /* ===========================================================================
@@ -3055,4 +3090,473 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 }
 [dir="rtl"] .evidence-detail-verify-link > svg {
   transform: scaleX(-1);
+}
+
+/* ---- Technical Appendix: page shell --------------------------------------
+ * NOTE the name: `.evidence-detail-technical` is already taken by the hero
+ * meta line, where it pins a record id to LTR. Reusing it here silently
+ * inherited `direction: ltr` onto the ENTIRE appendix, so nothing in the tab
+ * mirrored in Arabic. This shell owns its own name. */
+.evidence-detail-appendix {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-inline-size: 0;
+}
+.ta-lede {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+.ta-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.ta-reasons {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.ta-reasons strong {
+  color: var(--app-ink-heading);
+}
+
+/* ---- Trust decision card -------------------------------------------------- */
+.ta-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-inline-size: 0;
+}
+.ta-decision-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-inline-size: 0;
+  padding: 20px 22px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.ta-decision-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.ta-decision-card__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent-500);
+}
+.ta-decision-card__title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 25px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+
+/* Decision facts. Tracks come from the container, so a long verdict or
+   anchoring label wraps inside its own cell and never widens the row. */
+.ta-decision-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 14px 18px;
+  align-items: start;
+  min-inline-size: 0;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--surface-translucent-border-strong);
+}
+.ta-decision-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-inline-size: 0;
+}
+.ta-decision-fact__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.ta-decision-fact__value {
+  min-inline-size: 0;
+  font-size: 14.5px;
+  line-height: 21px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* Signal totals. Each region carries its OWN semantic tone — a degraded or
+   failed count is never painted with the passed tone. */
+.ta-decision-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+  min-inline-size: 0;
+}
+.ta-decision-total {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+}
+.ta-decision-total__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ta-decision-total__value {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  unicode-bidi: plaintext;
+}
+.ta-decision-total[data-tone="success"] {
+  background: #E7F6EF;
+  border-color: #BFE7D6;
+  color: #167a5b;
+}
+.ta-decision-total[data-tone="warning"] {
+  background: #FDF3E4;
+  border-color: #F2DFBB;
+  color: #b8861f;
+}
+.ta-decision-total[data-tone="danger"] {
+  background: #FCEDEA;
+  border-color: #F4CFC8;
+  color: #b54738;
+}
+
+/* Explanations. Long returned text stays inside its own card. */
+.ta-decision-explanations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
+  align-items: stretch;
+  min-inline-size: 0;
+}
+.ta-decision-explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.ta-decision-explanation__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.ta-decision-explanation__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--app-ink-label);
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* The boundary of the conclusion, on the operational-blue ground so it reads
+   as informational rather than as a result. */
+.ta-decision-boundary {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: #EAF0FD;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: #1D3C87;
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+
+/* ---- Per-signal detail ---------------------------------------------------- */
+.ta-signals {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.ta-signals__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.ta-signals__title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 25px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+}
+.ta-signals__weighting {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+.ta-signals__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+/* A signal row is a disclosure with a trailing state group. The group is
+   `flex: none`, so a long signal name wraps rather than pushing the badge and
+   score into each other. */
+.ta-signal-trailing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  min-inline-size: 0;
+}
+.ta-signal-score {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+.ta-signal-summary,
+.ta-signal-detail {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 19px;
+  font-style: normal;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+}
+.ta-signal-summary {
+  color: var(--app-ink-heading);
+  font-weight: 600;
+}
+.ta-signal-detail {
+  color: var(--app-ink-secondary);
+}
+.ta-signals__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-inline-size: 0;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+}
+.ta-signals__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ta-signals__legend-item[data-tone="success"] { color: #167a5b; }
+.ta-signals__legend-item[data-tone="warning"] { color: #b8861f; }
+.ta-signals__legend-item[data-tone="danger"] { color: #b54738; }
+.ta-signals__legend-item[data-tone="info"] { color: #2563EB; }
+
+@media (max-width: 560px) {
+  .ta-decision-card {
+    padding: 16px;
+  }
+  .ta-card {
+    padding: 16px;
+  }
+  .ta-signal-trailing {
+    justify-content: flex-start;
+  }
+}
+
+/* ---- Per-part technical metadata ----------------------------------------
+ * Same card language as the rest of the appendix. A long part filename
+ * wraps rather than being clipped: a truncated filename in a forensic
+ * appendix is a lost identifier, not a tidy one. */
+.ta-part-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.ta-part-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent-600);
+}
+.ta-part-name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.ta-part-mapping {
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--app-ink-secondary);
+  font-style: normal;
+  overflow-wrap: break-word;
+}
+.ta-part-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
+  gap: 8px 14px;
+  min-inline-size: 0;
+}
+.ta-part-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.ta-part-meta-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.ta-part-meta-value {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.ta-part-hash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 8px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+  min-inline-size: 0;
+}
+.ta-part-hash-value {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.ta-part-sha256 {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+  flex: none;
+}
+.ta-part-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+/* ---- Location actions and inline links ----------------------------------- */
+.ta-location-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 8px;
+  min-inline-size: 0;
+}
+.ta-location-coords {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+  /* Coordinates keep their written order inside an Arabic page. */
+  unicode-bidi: plaintext;
+}
+.ta-link-btn,
+.ta-client-advanced {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  color: var(--app-ink-heading);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ta-link-btn:hover,
+.ta-client-advanced:hover {
+  border-color: var(--accent-500);
+  color: var(--accent-600);
+  background: var(--surface-translucent-inner-hover);
+}
+.ta-link-btn:focus-visible,
+.ta-client-advanced:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+.ta-client-advanced {
+  align-self: flex-start;
+  background: transparent;
+  border-color: transparent;
+  color: #2563EB;
+  padding-inline: 0;
+}
+.ta-client-advanced:hover {
+  background: transparent;
+  border-color: transparent;
+  text-decoration: underline;
 }

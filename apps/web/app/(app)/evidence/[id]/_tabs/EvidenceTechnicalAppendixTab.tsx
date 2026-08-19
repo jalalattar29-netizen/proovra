@@ -1,31 +1,31 @@
 /**
  * Phase EVIDENCE-IA-TECHNICAL — Technical Appendix tab.
  *
- * Phase 6 — the single home for advanced technical detail. Everything
- * here is collapsed by default so normal review never trips on raw
- * forensic structures. Forensic / technical auditors expand the
- * blocks they need.
+ * Phase 6 — the single home for advanced technical detail. Everything except
+ * the trust decision is collapsed by default so normal review never trips on
+ * raw forensic structures; technical auditors expand what they need.
  *
- * Phase EVIDENCE-TRUSTDECISION-STRUCTURED (this pass) — the raw
- * `trustDecisionSnapshot` JSON dump that previously sat at the
- * bottom of the page has been replaced by a structured
- * `TrustDecisionSummary` panel that uses the same `trustDecision`
- * object the worker generates. Reviewers now see the verdict +
- * score + per-signal rows instead of a `JSON.stringify(..., null, 2)`
- * blob. The raw JSON is GATED behind a `?debug=1` URL param so
- * support / dev can still inspect it on demand, but the production
- * UI no longer leaks the internal projection shape.
+ * Phase EVIDENCE-TRUSTDECISION-STRUCTURED — the raw `trustDecisionSnapshot`
+ * JSON dump that used to sit at the bottom was replaced by a structured
+ * summary built from the same `trustDecision` object the worker generates.
+ * The raw JSON is GATED behind `?debug=1` so support can still inspect it,
+ * but the production UI no longer leaks the internal projection shape.
  *
- * Contents (each behind its own `<details>`):
+ * Phase EVIDENCE-DETAIL-REDESIGN — presentation only. Every disclosure on
+ * this tab now uses ONE anatomy (TechnicalDisclosure) and the decision
+ * presentation moved into its own file, so the orchestrator orchestrates
+ * instead of carrying ~250 lines of inline-styled markup. No technical value
+ * is re-derived, re-thresholded or re-interpreted here.
  *
- *   1. Trust decision summary  — verdict, score, per-signal rows.
- *      Default-EXPANDED because it's the single most useful section.
- *   2. Manifest, TSA imprint, hash semantics.
- *   3. Forensic event counts at report time vs now + access events
- *      after report.
- *   4. Snapshot boundary divergence reasons.
- *   5. Custody chain raw mode + reason.
- *   6. Raw technical snapshot (DEV/SUPPORT only, behind ?debug=1).
+ * Live modules, in order:
+ *   1. Trust decision summary + per-signal detail (default-expanded)
+ *   2. Technical Evidence Context — the ten context cards
+ *   3. How verification hashes are computed
+ *   4. Event counts (forensic and access)
+ *   5. Boundary divergence detail (only when a divergence is recorded)
+ *   6. Custody chain detail
+ *   7. Raw technical snapshot (DEV/SUPPORT only, behind ?debug=1)
+ *   8. Media intelligence advisory panel (only with a projected workspace id)
  *
  * No copy here implies authenticity, court-readiness, or admissibility.
  */
@@ -34,227 +34,20 @@
 
 import { useSearchParams } from "next/navigation";
 import { FileText } from "lucide-react";
-import {
-  KeyValueGrid,
-  SectionHeading,
-  type EvidenceDetailCtx,
-} from "./_lib";
+import { type EvidenceDetailCtx } from "./_lib";
 import { EvidenceTechnicalAppendix } from "./technical-appendix/EvidenceTechnicalAppendix";
+import { TechnicalDisclosure } from "./technical-appendix/TechnicalDisclosure";
+import {
+  TrustDecisionSummary,
+  type TrustDecisionForRender,
+} from "./technical-appendix/TrustDecisionSummary";
+import { MetadataRows } from "./technical-appendix/MetadataRow";
 import MediaIntelligencePanel from "../../../../../components/media-intelligence/MediaIntelligencePanel";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
   PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
-
-type TrustSignalForRender = {
-  key: string;
-  label: string;
-  status: string;
-  tone: string;
-  points: number;
-  maxPoints: number;
-  summary: string;
-  detail: string;
-};
-
-type TrustDecisionForRender = {
-  verdictLabel?: string;
-  shortLabel?: string;
-  scoreLabel?: string;
-  score?: number;
-  maxScore?: number;
-  confidenceLabel?: string;
-  relianceLevel?: string;
-  anchoringStatusLabel?: string;
-  summary?: string;
-  primaryReason?: string;
-  reviewerAction?: string;
-  passedSignals?: number;
-  degradedSignals?: number;
-  failedSignals?: number;
-  signals?: TrustSignalForRender[];
-};
-
-/**
- * Phase EVIDENCE-TRUSTDECISION-STRUCTURED — structured replacement
- * for the prior raw-JSON dump. Reads the same `trustDecision`
- * object the worker generates (and the report renderer consumes)
- * and surfaces it as a verdict band + per-signal rows.
- *
- * Every signal row shows: label, status pill, points/maxPoints,
- * one-line summary, and a collapsed `<details>` with the longer
- * `detail` text. No raw JSON, no internal projection shape.
- *
- * If `trustDecision` is null/undefined the panel renders a single
- * neutral "Trust decision is not yet available" line — never an
- * empty card or a broken-looking grid.
- */
-function TrustDecisionSummary({ trust }: { trust: TrustDecisionForRender | null }) {
-  if (!trust || (!trust.verdictLabel && (trust.signals ?? []).length === 0)) {
-    return (
-      <p
-        className="evidence-detail-muted"
-        data-trust-summary-empty
-        style={{ marginTop: 8 }}
-      >
-        Trust decision is not yet available for this record.
-      </p>
-    );
-  }
-
-  const headerRows: Array<{ label: string; value: string }> = [];
-  if (trust.verdictLabel) headerRows.push({ label: "Verdict", value: trust.verdictLabel });
-  if (trust.scoreLabel) headerRows.push({ label: "Score", value: trust.scoreLabel });
-  if (trust.confidenceLabel) {
-    headerRows.push({ label: "Confidence", value: trust.confidenceLabel });
-  }
-  if (trust.relianceLevel) {
-    headerRows.push({ label: "Reliance level", value: capitalise(trust.relianceLevel) });
-  }
-  if (trust.anchoringStatusLabel) {
-    headerRows.push({ label: "Anchoring", value: trust.anchoringStatusLabel });
-  }
-
-  const counts: Array<{ label: string; value: string }> = [
-    { label: "Passed signals", value: String(trust.passedSignals ?? 0) },
-    { label: "Degraded signals", value: String(trust.degradedSignals ?? 0) },
-    { label: "Failed signals", value: String(trust.failedSignals ?? 0) },
-  ];
-
-  return (
-    <div data-trust-summary>
-      {headerRows.length > 0 ? <KeyValueGrid items={headerRows} /> : null}
-      <div style={{ marginTop: 12 }}>
-        <KeyValueGrid items={counts} />
-      </div>
-      {trust.primaryReason ? (
-        <div className="evidence-detail-note-box" data-trust-summary-primary-reason>
-          <strong>Primary reason</strong>
-          <p>{trust.primaryReason}</p>
-        </div>
-      ) : null}
-      {trust.reviewerAction ? (
-        <div className="evidence-detail-note-box" data-trust-summary-reviewer-action>
-          <strong>Reviewer next step</strong>
-          <p>{trust.reviewerAction}</p>
-        </div>
-      ) : null}
-      {trust.summary ? (
-        <p className="evidence-detail-muted" data-trust-summary-narrative style={{ marginTop: 8 }}>
-          {trust.summary}
-        </p>
-      ) : null}
-
-      {(trust.signals ?? []).length > 0 ? (
-        <div data-trust-summary-signals style={{ marginTop: 14 }}>
-          <h3 style={{ margin: "0 0 6px 0", fontSize: 13, fontWeight: 650 }}>
-            Per-signal detail
-          </h3>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
-            {(trust.signals ?? []).map((signal) => (
-              <li
-                key={signal.key}
-                data-trust-signal-key={signal.key}
-                data-trust-signal-status={signal.status}
-                style={{
-                  border: "1px solid rgba(15, 23, 42, 0.08)",
-                  borderRadius: 6,
-                  padding: "8px 10px",
-                  background: "#ffffff",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <strong style={{ fontSize: 13 }}>{signal.label}</strong>
-                  <span
-                    data-trust-signal-pill
-                    className={`evidence-detail-pill ${pillToneFromTrustTone(signal.tone)}`}
-                  >
-                    {humaniseStatus(signal.status)}
-                  </span>
-                  <span
-                    className="evidence-detail-muted"
-                    style={{ marginLeft: "auto", fontSize: 12 }}
-                  >
-                    {signal.points}/{signal.maxPoints}
-                  </span>
-                </div>
-                {signal.summary ? (
-                  <p style={{ margin: "4px 0 0 0", fontSize: 12.5, color: "#475569" }}>
-                    {signal.summary}
-                  </p>
-                ) : null}
-                {signal.detail ? (
-                  <details
-                    data-trust-signal-detail
-                    style={{ marginTop: 4 }}
-                  >
-                    <summary
-                      style={{
-                        fontSize: 12,
-                        color: "#475569",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Why this status
-                    </summary>
-                    <p style={{ margin: "4px 0 0 0", fontSize: 12.5, color: "#334155" }}>
-                      {signal.detail}
-                    </p>
-                  </details>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function capitalise(s: string): string {
-  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
-}
-
-function humaniseStatus(status: string): string {
-  switch (status) {
-    case "passed":
-      return "Passed";
-    case "partial":
-      return "Partial";
-    case "pending":
-      return "Pending";
-    case "missing":
-      return "Missing";
-    case "failed":
-      return "Failed";
-    default:
-      return status;
-  }
-}
-
-function pillToneFromTrustTone(tone: string | undefined): string {
-  // Map TrustDecisionTone → existing evidence-detail-pill classes.
-  // Keeps the visual taxonomy consistent across the page.
-  switch (tone) {
-    case "success":
-      return "success";
-    case "warning":
-      return "warning";
-    case "danger":
-      return "danger";
-    case "neutral":
-    default:
-      return "neutral";
-  }
-}
 
 export function EvidenceTechnicalAppendixTab({
   ctx,
@@ -264,17 +57,14 @@ export function EvidenceTechnicalAppendixTab({
   onGoToCustody?: () => void;
 }) {
   const { workspace, preservation, trustDecision, evidenceId } = ctx;
-  // Server-projected workspace id — the same field every other panel on
-  // this page uses. The frontend never derives tenancy itself.
+  // Server-projected workspace id — the same field every other panel on this
+  // page uses. The frontend never derives tenancy itself.
   const mediaIntelligenceTeamId = workspace.reviewWorkflow?.teamId ?? null;
   const searchParams = useSearchParams();
-  // Phase EVIDENCE-TRUSTDECISION-STRUCTURED — raw-JSON debug gate.
-  // The previous always-on raw-JSON dump exposed internal projection
-  // shape (signatureBase64, publicKeyPem, signingKeyId, etc.) to every
-  // viewer of the page. Now it only renders when `?debug=1` is on the
-  // URL, intended for PROOVRA support / dev who explicitly opted in.
-  // Normal users (Personal / Small Team / Professional / Enterprise
-  // Reviewer) never see it.
+  // Phase EVIDENCE-TRUSTDECISION-STRUCTURED — raw-JSON debug gate. The
+  // previous always-on dump exposed internal projection shape
+  // (signatureBase64, publicKeyPem, signingKeyId, …) to every viewer. It now
+  // renders only when `?debug=1` is on the URL, for support/dev who opted in.
   const showRawDebugJson = searchParams?.get("debug") === "1";
 
   const tm = (workspace.artifactVersions.technicalMaterials ?? {}) as {
@@ -293,59 +83,48 @@ export function EvidenceTechnicalAppendixTab({
 
   return (
     <section
-      className="evidence-detail-section"
+      className="evidence-detail-appendix"
       data-evidence-section="technical-appendix"
     >
-      <div className="evidence-detail-section-header">
-        <SectionHeading
-          kicker="Technical Appendix · Advanced"
-          title="Forensic and technical reviewer details"
-          icon={FileText}
-        />
+      <div className="ta-intro">
+        <span className="ta-intro-icon" aria-hidden="true">
+          <FileText size={20} strokeWidth={2} />
+        </span>
+        <div className="ta-intro-copy">
+          <h2 className="ta-intro-title">Technical Appendix • Advanced</h2>
+          <p className="ta-intro-sub">Forensic and technical reviewer details</p>
+        </div>
       </div>
-      <p
-        className="evidence-detail-muted"
-        style={{ marginTop: 4, marginBottom: 12, fontSize: 12.5 }}
-      >
-        Advanced detail for forensic or technical reviewers. None of
-        this is required to use the record — click each block below to
-        expand.
+      <p className="ta-lede">
+        Advanced detail for forensic or technical reviewers. None of this is
+        required to use the record — expand each block below for the underlying
+        material.
       </p>
 
-      {/* 1. Trust decision summary — structured, default-EXPANDED. */}
-      <details
-        data-evidence-technical-block="trust-decision-summary"
-        open
-        style={{ marginBottom: 8 }}
-      >
-        <summary className="evidence-detail-raw-summary">
-          Trust decision summary
-        </summary>
-        <div style={{ marginTop: 8 }}>
-          <TrustDecisionSummary trust={trustForRender ?? null} />
-        </div>
-      </details>
+      {/* 1. Trust decision summary + per-signal detail. */}
+      <TrustDecisionSummary trust={trustForRender ?? null} />
 
-      {/* Enterprise Technical Evidence Context — the primary reviewer-facing
-          source of truth for acquisition, device, camera/EXIF, exposure,
-          location, client environment, upload session, per-part technical
-          metadata, security & integrity, and custody summary. Mirrors the PDF
-          report + Verification Package. Self-fetches the privacy-safe internal
-          projection; location/integrity/custody come from the workspace. */}
+      {/* 2. Enterprise Technical Evidence Context — the primary
+          reviewer-facing source of truth for acquisition, device, camera/EXIF,
+          exposure, location, client environment, upload session, per-part
+          technical metadata, security & integrity, and custody summary.
+          Mirrors the PDF report + Verification Package. Self-fetches the
+          privacy-safe internal projection; location/integrity/custody come
+          from the workspace. */}
       <EvidenceTechnicalAppendix
         evidenceId={evidenceId}
         workspace={workspace}
         onOpenCustody={onGoToCustody}
       />
 
-      {/* 2. Manifest, TSA imprint, hash semantics */}
-      <details data-evidence-technical-block="hashes" style={{ marginBottom: 8 }}>
-        <summary className="evidence-detail-raw-summary">
-          How verification hashes are computed
-        </summary>
-        <div style={{ marginTop: 8 }}>
-          <KeyValueGrid
-            items={[
+      <div className="ta-blocks">
+        {/* 3. Manifest, TSA imprint, hash semantics. */}
+        <TechnicalDisclosure
+          title="How verification hashes are computed"
+          data-evidence-technical-block="hashes"
+        >
+          <MetadataRows
+            rows={[
               {
                 label: "Hash semantics",
                 value:
@@ -360,31 +139,34 @@ export function EvidenceTechnicalAppendixTab({
               {
                 label: "Multipart manifest SHA-256",
                 value: tm.multipartManifestSha256 ?? "Not applicable / not stored",
+                mono: Boolean(tm.multipartManifestSha256),
+                copyable: Boolean(tm.multipartManifestSha256),
               },
               {
                 label: "Time-stamp imprint (TSA accepted message imprint)",
                 value: tm.tsaInputDigestHex ?? "TSA token not present",
+                mono: Boolean(tm.tsaInputDigestHex),
+                copyable: Boolean(tm.tsaInputDigestHex),
               },
             ]}
+            empty="No hash material was recorded for this record."
           />
           {hasMultipartContext ? (
-            <p className="evidence-detail-muted" style={{ marginTop: 8 }}>
+            <p className="ta-advisory">
               {PROOVRA_MULTIPART_REVIEWER_EXPLANATION}{" "}
               {PROOVRA_MULTIPART_RECOMPUTATION_NOTE}{" "}
               {PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}
             </p>
           ) : null}
-        </div>
-      </details>
+        </TechnicalDisclosure>
 
-      {/* 3. Forensic event counts at report time vs now */}
-      <details data-evidence-technical-block="event-counts" style={{ marginBottom: 8 }}>
-        <summary className="evidence-detail-raw-summary">
-          Event counts (forensic and access)
-        </summary>
-        <div style={{ marginTop: 8 }}>
-          <KeyValueGrid
-            items={[
+        {/* 4. Forensic event counts at report time vs now. */}
+        <TechnicalDisclosure
+          title="Event counts (forensic and access)"
+          data-evidence-technical-block="event-counts"
+        >
+          <MetadataRows
+            rows={[
               {
                 label: "Forensic events at report time",
                 value: String(workspace.custodyDisplayCounts.forensicAtReportGeneration),
@@ -398,51 +180,50 @@ export function EvidenceTechnicalAppendixTab({
                 value: String(workspace.custodyDisplayCounts.accessAfterReportGeneration),
               },
             ]}
+            empty="No event counts were recorded for this record."
           />
-          <p className="evidence-detail-muted" style={{ marginTop: 8 }}>
-            Forensic custody events are technical chain events (creation, signature,
-            retention, timestamp). Access events are read-only views and downloads. The
-            two are kept separate so the chain is not diluted by analytics traffic.
+          <p className="ta-advisory">
+            Forensic custody events are technical chain events (creation,
+            signature, retention, timestamp). Access events are read-only views
+            and downloads. The two are kept separate so the chain is not diluted
+            by analytics traffic.
           </p>
-        </div>
-      </details>
+        </TechnicalDisclosure>
 
-      {/* 4. Snapshot boundary divergence reasons */}
-      {hasDivergence ? (
-        <details data-evidence-technical-block="divergence" style={{ marginBottom: 8 }}>
-          <summary className="evidence-detail-raw-summary">
-            Boundary divergence detail
-          </summary>
-          <div style={{ marginTop: 8 }}>
-            <p>
-              The trust decision shown elsewhere is sourced from the fixed snapshot
-              taken at report or package generation time. The reasons below explain
-              what changed later in the live state.
+        {/* 5. Snapshot boundary divergence reasons. */}
+        {hasDivergence ? (
+          <TechnicalDisclosure
+            title="Boundary divergence detail"
+            data-evidence-technical-block="divergence"
+          >
+            <p className="ta-advisory">
+              The trust decision shown elsewhere is sourced from the fixed
+              snapshot taken at report or package generation time. The reasons
+              below explain what changed later in the live state.
             </p>
             {consistency?.reasons?.length ? (
-              <ul>
+              <ul className="ta-reasons">
                 {consistency.reasons.map((reason, index) => (
                   <li key={`${reason.code ?? "reason"}-${index}`}>
                     <strong>{reason.label ?? "Snapshot difference detected"}.</strong>{" "}
-                    {reason.detail ?? "Review the live technical materials for the current state."}
+                    {reason.detail ??
+                      "Review the live technical materials for the current state."}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="evidence-detail-muted">No per-reason detail recorded.</p>
+              <p className="ta-empty">No per-reason detail recorded.</p>
             )}
-          </div>
-        </details>
-      ) : null}
+          </TechnicalDisclosure>
+        ) : null}
 
-      {/* 5. Custody chain raw */}
-      <details data-evidence-technical-block="custody-chain" style={{ marginBottom: 8 }}>
-        <summary className="evidence-detail-raw-summary">
-          Custody chain detail
-        </summary>
-        <div style={{ marginTop: 8 }}>
-          <KeyValueGrid
-            items={[
+        {/* 6. Custody chain raw. */}
+        <TechnicalDisclosure
+          title="Custody chain detail"
+          data-evidence-technical-block="custody-chain"
+        >
+          <MetadataRows
+            rows={[
               {
                 label: "Custody chain validity",
                 value: preservation.custodyChain.valid
@@ -450,52 +231,50 @@ export function EvidenceTechnicalAppendixTab({
                   : `Review required (${preservation.custodyChain.reason ?? "unknown"})`,
               },
             ]}
+            empty="No custody chain state was recorded for this record."
           />
-        </div>
-      </details>
+        </TechnicalDisclosure>
 
-      {/* 6. Raw technical snapshot — DEV/SUPPORT ONLY (behind ?debug=1).
-          The trust-decision summary above renders the same data in
-          structured form for everyone. The raw JSON exposes the
-          internal projection shape (signatureBase64, publicKeyPem,
-          signingKeyId, signingKeyVersion, tsaMessageImprint, etc.) and
-          is opaque to non-technical users; gating behind a query
-          parameter keeps it reachable for support investigations
-          without surfacing it to normal users. */}
-      {showRawDebugJson ? (
-        <details data-evidence-raw-appendix data-evidence-raw-debug-gated>
-          <summary className="evidence-detail-raw-summary">
-            Raw technical snapshot · debug
-          </summary>
-          <p
-            className="evidence-detail-muted"
-            style={{ marginTop: 4, marginBottom: 8, fontSize: 12 }}
+        {/* 7. Raw technical snapshot — DEV/SUPPORT ONLY (behind ?debug=1).
+            The structured summary above renders the same data for everyone.
+            The raw JSON exposes the internal projection shape
+            (signatureBase64, publicKeyPem, signingKeyId, signingKeyVersion,
+            tsaMessageImprint, …) and is opaque to non-technical users; gating
+            it behind a query parameter keeps it reachable for support
+            investigations without surfacing it to normal users. */}
+        {showRawDebugJson ? (
+          <TechnicalDisclosure
+            title="Raw technical snapshot · debug"
+            data-evidence-raw-appendix="true"
+            data-evidence-raw-debug-gated="true"
           >
-            Internal projection shape. Visible because the URL carries
-            <code> ?debug=1</code>. Not intended for normal review.
-          </p>
-          <pre className="evidence-detail-raw-block">
-            {JSON.stringify(
-              {
-                trustDecision,
-                trustDecisionConsistency: workspace.artifactVersions.trustDecisionConsistency,
-                technicalMaterials: workspace.artifactVersions.technicalMaterials,
-                preservationMatrix: preservation,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        </details>
-      ) : null}
+            <p className="ta-advisory">
+              Internal projection shape. Visible because the URL carries{" "}
+              <code>?debug=1</code>. Not intended for normal review.
+            </p>
+            <pre className="evidence-detail-raw-block">
+              {JSON.stringify(
+                {
+                  trustDecision,
+                  trustDecisionConsistency:
+                    workspace.artifactVersions.trustDecisionConsistency,
+                  technicalMaterials: workspace.artifactVersions.technicalMaterials,
+                  preservationMatrix: preservation,
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </TechnicalDisclosure>
+        ) : null}
+      </div>
 
-      {/* Phase 12 Point 4 — Honest-MI operator panel. `honest-mi-decision.md`
+      {/* 8. Phase 12 Point 4 — Honest-MI operator panel. `honest-mi-decision.md`
           records this panel as the evidence-detail surface for advisory
-          media-intelligence signals; it had lost its mount. Signals are
-          deterministic heuristics rendered with the catalog's safe
-          wording — the panel never claims extraction, authenticity, or a
-          forensic finding. It renders nothing actionable without a
-          server-projected workspace id. */}
+          media-intelligence signals. Signals are deterministic heuristics
+          rendered with the catalog's safe wording — the panel never claims
+          extraction, authenticity, or a forensic finding. It renders nothing
+          actionable without a server-projected workspace id. */}
       {mediaIntelligenceTeamId ? (
         <MediaIntelligencePanel
           evidenceId={evidenceId}

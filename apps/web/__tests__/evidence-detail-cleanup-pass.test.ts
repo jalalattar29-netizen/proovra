@@ -46,6 +46,10 @@ function src(rel: string, base: string = DETAIL_DIR): string {
 
 const REVIEW_TAB = src("_tabs/EvidenceReviewTab.tsx");
 const APPENDIX_TAB = src("_tabs/EvidenceTechnicalAppendixTab.tsx");
+// The decision presentation moved into its own responsibility file; the tab
+// orchestrates and mounts it. Assertions about the decision now read the file
+// that owns it.
+const DECISION = src("_tabs/technical-appendix/TrustDecisionSummary.tsx");
 const DUPLICATES_PANEL = readFileSync(
   resolve(COMPONENTS_DIR, "DuplicateDetectionPanel.tsx"),
   "utf8",
@@ -183,42 +187,37 @@ test("Fix 2 — guard treats null AND undefined as 'no flag set'", () => {
 // ===========================================================================
 
 test("Fix 3 — Technical Appendix mounts a structured TrustDecisionSummary", () => {
-  assert.match(APPENDIX_TAB, /function TrustDecisionSummary\(/);
-  assert.match(APPENDIX_TAB, /data-evidence-technical-block="trust-decision-summary"/);
-  // The summary block is default-expanded (it's the most useful
-  // forensic section on the page).
-  assert.match(
-    APPENDIX_TAB,
-    /data-evidence-technical-block="trust-decision-summary"\s*\n?\s*open/,
-  );
+  // The component moved into its own file; the tab mounts it.
+  assert.match(DECISION, /export function TrustDecisionSummary\(/);
+  assert.match(APPENDIX_TAB, /<TrustDecisionSummary trust=\{trustForRender \?\? null\} \/>/);
+  // It is no longer wrapped in a disclosure at all — it renders directly, so
+  // it is unconditionally visible rather than merely default-expanded. That
+  // is the same guarantee, more strongly held.
+  assert.doesNotMatch(APPENDIX_TAB, /<details[\s\S]{0,200}TrustDecisionSummary/);
+  assert.match(DECISION, /data-trust-summary/);
 });
 
 test("Fix 3 — TrustDecisionSummary renders verdict + score + signal counts + signals", () => {
-  assert.match(APPENDIX_TAB, /label:\s*"Verdict",\s*value:\s*trust\.verdictLabel/);
-  assert.match(APPENDIX_TAB, /label:\s*"Score",\s*value:\s*trust\.scoreLabel/);
-  assert.match(APPENDIX_TAB, /label:\s*"Passed signals"/);
-  assert.match(APPENDIX_TAB, /label:\s*"Degraded signals"/);
-  assert.match(APPENDIX_TAB, /label:\s*"Failed signals"/);
-  assert.match(APPENDIX_TAB, /data-trust-summary-signals/);
-  assert.match(APPENDIX_TAB, /data-trust-signal-key=\{signal\.key\}/);
-  assert.match(APPENDIX_TAB, /data-trust-signal-status=\{signal\.status\}/);
+  assert.match(DECISION, /label: "Verdict", value: trust\.verdictLabel/);
+  assert.match(DECISION, /label: "Score", value: trust\.scoreLabel/);
+  assert.match(DECISION, /label: "Passed signals"/);
+  assert.match(DECISION, /label: "Degraded signals"/);
+  assert.match(DECISION, /label: "Failed signals"/);
+  assert.match(DECISION, /data-trust-summary-signals/);
+  assert.match(DECISION, /data-trust-signal-key=\{signal\.key\}/);
+  assert.match(DECISION, /data-trust-signal-status=\{signal\.status\}/);
 });
 
 test("Fix 3 — per-signal detail is collapsed by default (`<details>` without `open`)", () => {
-  // The "Why this status" explanation per signal must be opt-in.
-  assert.match(
-    APPENDIX_TAB,
-    /data-trust-signal-detail\s*\n?\s*style/,
-  );
-  // The summary block itself opens by default (Fix 3 above), but
-  // the per-signal `<details>` blocks must NOT — they would
-  // generate dozens of expanded rows. Pin that the per-signal
-  // detail block does not carry `open`.
-  const perSignalDetailsRe =
-    /<details\s*\n?\s*data-trust-signal-detail[\s\S]{0,200}>/;
-  const match = APPENDIX_TAB.match(perSignalDetailsRe);
-  assert.ok(match, "per-signal <details> tag should exist");
-  assert.doesNotMatch(match![0], /\bopen\b/);
+  // Each signal row is now itself the disclosure — the summary line is the
+  // row and the explanation is its panel, instead of a `<details>` nested
+  // inside an always-visible row. The guarantee is unchanged and stronger:
+  // rows are collapsed unless `defaultOpen` is passed, and the decision never
+  // passes it, so dozens of expanded rows remain impossible.
+  const DISCLOSURE = src("_tabs/technical-appendix/TechnicalDisclosure.tsx");
+  assert.match(DISCLOSURE, /defaultOpen = false/);
+  assert.match(DECISION, /<TechnicalDisclosure\b/);
+  assert.doesNotMatch(DECISION, /defaultOpen/);
 });
 
 test("Fix 3 — raw JSON dump is gated behind ?debug=1 and not in normal UI", () => {
@@ -234,9 +233,9 @@ test("Fix 3 — raw JSON dump is gated behind ?debug=1 and not in normal UI", ()
 });
 
 test("Fix 3 — TrustDecisionSummary handles the null/empty case without rendering a broken card", () => {
-  assert.match(APPENDIX_TAB, /data-trust-summary-empty/);
+  assert.match(DECISION, /data-trust-summary-empty/);
   assert.match(
-    APPENDIX_TAB,
+    DECISION,
     /Trust decision is not yet available for this record\./,
   );
 });

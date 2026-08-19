@@ -329,13 +329,15 @@ test("Phase 6 — every Technical Appendix block is collapsed by default (`<deta
   // forensic-reviewer surface on the page. The exception is pinned
   // by data-attribute so future blocks must explicitly justify
   // adding themselves to the allowlist.
-  const TRUST_SUMMARY_BLOCK_ATTR = 'data-evidence-technical-block="trust-decision-summary"';
-  const detailsTags = APPENDIX.match(/<details[\s\S]*?>/g) ?? [];
-  assert.ok(detailsTags.length >= 3, "appendix should have multiple details blocks");
-  for (const tag of detailsTags) {
-    if (tag.includes(TRUST_SUMMARY_BLOCK_ATTR)) continue;
-    assert.doesNotMatch(tag, /\bopen\b/, `appendix <details> must be closed by default: ${tag}`);
-  }
+  // The appendix no longer hand-rolls `<details>`: every block is a
+  // TechnicalDisclosure, which defaults to collapsed. The guarantee is the
+  // same and now holds by construction — a block must pass `defaultOpen` to
+  // open, and none does. (The trust decision is no longer a disclosure at
+  // all; it renders directly, which is why the old allowlist is gone.)
+  const disclosures = APPENDIX.match(/<TechnicalDisclosure\b/g) ?? [];
+  assert.ok(disclosures.length >= 3, "appendix should have multiple technical blocks");
+  assert.doesNotMatch(APPENDIX, /<details/, "appendix must not hand-roll a disclosure");
+  assert.doesNotMatch(APPENDIX, /defaultOpen/, "appendix blocks must stay collapsed");
 });
 
 test("Phase 6 — AI categorization is rendered by ONE canonical panel that handles DISABLED inline", () => {
