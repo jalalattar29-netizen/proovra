@@ -305,18 +305,7 @@ function ResetPasswordPageContent() {
                       {/* NEW PASSWORD */}
                       <label
                         htmlFor={NEW_PASSWORD_ID}
-                        className="sr-only"
-                        style={{
-                          position: "absolute",
-                          width: 1,
-                          height: 1,
-                          padding: 0,
-                          margin: -1,
-                          overflow: "hidden",
-                          clip: "rect(0,0,0,0)",
-                          whiteSpace: "nowrap",
-                          border: 0,
-                        }}
+                        className="app-visually-hidden"
                       >
                         New password
                       </label>
@@ -503,18 +492,7 @@ function ResetPasswordPageContent() {
                       {/* CONFIRM PASSWORD */}
                       <label
                         htmlFor={CONFIRM_PASSWORD_ID}
-                        className="sr-only"
-                        style={{
-                          position: "absolute",
-                          width: 1,
-                          height: 1,
-                          padding: 0,
-                          margin: -1,
-                          overflow: "hidden",
-                          clip: "rect(0,0,0,0)",
-                          whiteSpace: "nowrap",
-                          border: 0,
-                        }}
+                        className="app-visually-hidden"
                       >
                         Confirm new password
                       </label>

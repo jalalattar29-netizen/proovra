@@ -255,7 +255,7 @@ export function EnterpriseSuccessModal({
         <div
           role="status"
           aria-live="polite"
-          className="sr-only"
+          className="app-visually-hidden"
         >
           {copy.title}. {copy.body}
         </div>

@@ -469,6 +469,11 @@ export async function buildFacts() {
     // Phase-0's own change set, derived from the HEAD baseline. Carried in the
     // facts so the report renders it from a record rather than from prose.
     phase0: {
+      note:
+        "Describes the WORKING TREE at the moment this artifact was generated, not the committed revision. " +
+        "It cannot be stable across a commit — the artifact is written while a change is uncommitted and read " +
+        "back after it is committed — so the checkout-dependent fields here are excluded from the staleness " +
+        "comparison. Every Phase-0 assertion is still raised from the live evaluation, never from this record.",
       baselineKind: governance.phase0ChangeSet?.baselineKind ?? null,
       baselineRef: governance.phase0ChangeSet?.baseline ?? null,
       changedPaths: governance.phase0ExitCounters.phase0ChangedPaths,
@@ -482,6 +487,14 @@ export async function buildFacts() {
       historicalMigrationsModifiedByPhase0:
         governance.phase0ExitCounters.historicalMigrationsModifiedByPhase0,
       derivedFromBaseline: governance.phase0ExitCounters.phase0ChangedPathsDerivedFromBaseline,
+      // The engine's own generated outputs are held out of the change set so a
+      // run cannot measure its own writes. Both numbers are recorded, and
+      // `undeclaredSelfGeneratedExclusions` is gated to 0 by the engine check,
+      // so the hold-out can never widen past the registry's declaration.
+      selfGeneratedPathsDeclared:
+        governance.phase0ExitCounters.phase0SelfGeneratedPathsDeclared,
+      undeclaredSelfGeneratedExclusions:
+        governance.phase0ExitCounters.phase0UndeclaredSelfGeneratedExclusions,
     },
     domainProofs,
     conservation,
@@ -524,6 +537,13 @@ export function engineProblems(f, governance) {
     problems.push(`STALE DOMAIN PROOF CREDITED: ${f.facts.proofFreshness.staleDomains.join(", ")}`);
   if (!f.facts.reachability.ok)
     problems.push(`REACHABILITY VERIFIER RED: ${f.facts.reachability.problemCount} problems`);
+  // The self-reference hold-out is bounded by the registry's declaration. If a
+  // path were ever dropped from the change set without being declared as engine
+  // output, that is an arbitrary exclusion and the engine refuses it.
+  if ((f.phase0?.undeclaredSelfGeneratedExclusions ?? 0) !== 0)
+    problems.push(
+      `UNDECLARED SELF-GENERATED EXCLUSION: ${f.phase0.undeclaredSelfGeneratedExclusions}`,
+    );
   problems.push(...governance.problems);
   return problems;
 }

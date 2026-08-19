@@ -108,6 +108,9 @@ declare module "*/audit/engine/registry.mjs" {
   export const DOMAIN_AUTHORITIES: ReadonlyArray<Record<string, string>>;
   export const DELEGATES: ReadonlyArray<Record<string, string>>;
   export const HISTORICAL_PREFIXES: ReadonlyArray<string>;
+  export const DIAGNOSTICS: ReadonlyArray<{ path: string; producer: string; why: string }>;
+  /** Paths the audit engine writes on every run — held out of its own change set. */
+  export const ENGINE_GENERATED_PATHS: ReadonlyArray<string>;
   export function isHistorical(rel: string): boolean;
 }
 

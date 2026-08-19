@@ -63,19 +63,76 @@ function writeArtifact(rel, value) {
 /**
  * Compare a regenerated artifact with the one on disk.
  *
+ * WHAT IS NORMALISED, AND WHY IT IS NOT A LOOPHOLE
+ * ---------------------------------------------------------------------------
  * `generatedAtUtc` moves on every run and `sourceRevision` moves on every
  * commit. Both are metadata about the run, not measurements of the tree, so
  * comparing them would make the gate fail for reasons that have nothing to do
  * with the artifact being stale — which is how a staleness gate gets disabled.
+ *
+ * The Phase-0 CHANGE SET is the same kind of value, and missing that cost this
+ * repository a permanently-failing gate. It answers "what differs between this
+ * WORKING TREE and HEAD" — a property of somebody's local checkout, exactly
+ * like the recovery manifest the registry already refuses to keep in the
+ * artifact tree. It cannot be stable across a commit by construction: the
+ * artifact is generated while the change is uncommitted (N paths differ) and
+ * read back after it is committed (0 differ). So an artifact recording it could
+ * never agree with the next run, at any commit, forever — and the only way to
+ * see the gate pass was to leave the worktree dirty.
+ *
+ * Normalising it here removes NOTHING from the gates. Every Phase-0 assertion —
+ * unclassified changed paths, a production runtime file carrying a Phase-0
+ * signal, a deleted product-behaviour test, a rewritten historical migration —
+ * is raised from the LIVE evaluation in `engineProblems()`, never from the
+ * artifact on disk. The values stay in the artifact so a developer can read
+ * their own change set; they simply stop being evidence of staleness.
+ *
+ * Everything that measures the SOURCE — route inventory, consumer inventory,
+ * authorization, tenant binding, capability classification, conservation,
+ * ledger, proof freshness, the audit system's own inventory — is compared byte
+ * for byte, unchanged.
  */
 const VOLATILE = /"(generatedAtUtc|sourceRevision)": "[^"]*"/g;
 const stripVolatile = (s) => s.replace(VOLATILE, '"$1": "-"');
 
+/** Keys inside `phase0ExitCounters` that describe the checkout, not the source. */
+const CHECKOUT_COUNTER = /^(phase0(BaselineRef|ChangedPaths|AddedPaths|ModifiedPaths|DeletedPaths|AttributedPaths)|productionRuntimeFilesModifiedByPhase0|productBehaviorTestsRemoved|historicalMigrationsModifiedByPhase0)$/;
+
+/** Keys inside the facts' `phase0` block that describe the checkout. */
+const CHECKOUT_FACT = /^(baselineRef|changedPaths|addedPaths|modifiedPaths|deletedPaths|attributedPaths|productionRuntimeFilesModifiedByPhase0|productBehaviorTestsRemoved|historicalMigrationsModifiedByPhase0)$/;
+
+function maskCheckoutState(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  const c = JSON.parse(JSON.stringify(parsed));
+  // architecture-facts.json
+  if (c.phase0 && typeof c.phase0 === "object") {
+    for (const k of Object.keys(c.phase0)) if (CHECKOUT_FACT.test(k)) c.phase0[k] = "-";
+  }
+  // audit-governance-inventory.json
+  if (c.phase0ChangeSet !== undefined) c.phase0ChangeSet = "-";
+  if (c.phase0ExitCounters && typeof c.phase0ExitCounters === "object") {
+    for (const k of Object.keys(c.phase0ExitCounters)) {
+      if (CHECKOUT_COUNTER.test(k)) c.phase0ExitCounters[k] = "-";
+    }
+  }
+  return c;
+}
+
+/** Serialised form used ONLY for the staleness comparison. */
+function comparable(value) {
+  return stripVolatile(serialize(maskCheckoutState(value)));
+}
+
 function staleness(rel, regenerated) {
   const target = abs(rel);
   if (!existsSync(target)) return `MISSING: ${rel} — run \`pnpm audit:architecture\` to generate it`;
-  const onDisk = readFileSync(target, "utf8").replace(/\r\n/g, "\n");
-  if (stripVolatile(onDisk) !== stripVolatile(serialize(regenerated)))
+  let onDisk;
+  try {
+    onDisk = JSON.parse(readFileSync(target, "utf8"));
+  } catch {
+    return `UNREADABLE: ${rel} — regenerate with \`pnpm audit:architecture\``;
+  }
+  if (comparable(onDisk) !== comparable(regenerated))
     return `STALE: ${rel} — regenerate with \`pnpm audit:architecture\``;
   return null;
 }

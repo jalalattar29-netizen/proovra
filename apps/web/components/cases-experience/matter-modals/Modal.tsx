@@ -217,7 +217,7 @@ export function Modal({
           <span
             id={descriptionId}
             data-matter-modal-description
-            className="sr-only"
+            className="app-visually-hidden"
           >
             {description}
           </span>

@@ -322,7 +322,8 @@
 /* ---- Compact filter controls ---------------------------------------------
  * Target anatomy: one control per filter reading "Scope: Active", eight across
  * at the design width. The visible prefix is decoration (aria-hidden); the real
- * <label> stays in the DOM as .sr-only so the select keeps its accessible name.
+ * <label> stays in the DOM under the canonical `.app-visually-hidden` utility
+ * so the select keeps its accessible name.
  * ------------------------------------------------------------------------- */
 .evidence-library-filters__grid {
   display: grid;

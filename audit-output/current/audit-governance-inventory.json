@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 274,
+    "AuditFilesInventoried": 275,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -178,12 +178,14 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "d9d62e9aefc461ce67083e457bcb4cfa8837d4fd",
-    "phase0ChangedPaths": 14,
-    "phase0AddedPaths": 1,
-    "phase0ModifiedPaths": 13,
+    "phase0BaselineRef": "056e5cbf1e9b6ca3c6949ab365b07884a234b2a6",
+    "phase0ChangedPaths": 17,
+    "phase0AddedPaths": 2,
+    "phase0ModifiedPaths": 15,
     "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 5,
+    "phase0AttributedPaths": 6,
+    "phase0SelfGeneratedPathsDeclared": 5,
+    "phase0UndeclaredSelfGeneratedExclusions": 0,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,11 +210,11 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "d9d62e9aefc461ce67083e457bcb4cfa8837d4fd",
+    "baseline": "056e5cbf1e9b6ca3c6949ab365b07884a234b2a6",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/app/(app)/evidence/[id]/evidence-detail.css",
+        "path": "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -223,7 +225,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx",
+        "path": "apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -245,7 +247,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx",
+        "path": "apps/web/app/register/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -256,7 +258,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/ai-copilot/CopilotCitation.tsx",
+        "path": "apps/web/app/reset-password/page.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -267,7 +269,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx",
+        "path": "apps/web/components/cases-experience/MatterWorkspace.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -278,7 +280,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/ai-copilot/ReviewerCopilotPanel.tsx",
+        "path": "apps/web/components/cases-experience/matter-modals/Modal.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -289,7 +291,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/app-primitives/app-primitives.css",
+        "path": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -300,9 +302,31 @@
         "attributedToPhase0": false
       },
       {
-        "path": "audit-output/current/architecture-facts.json",
+        "path": "apps/web/components/marketing/EnterpriseSuccessModal.tsx",
         "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/scripts/audit/engine/facts.mjs",
+        "status": "MODIFIED",
+        "class": "AUDIT_TOOLING",
+        "attribution": {
+          "byMarker": true,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "services/api/scripts/audit/engine/governance.mjs",
+        "status": "MODIFIED",
+        "class": "AUDIT_TOOLING",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,
@@ -311,9 +335,42 @@
         "attributedToPhase0": true
       },
       {
-        "path": "audit-output/current/audit-governance-inventory.json",
+        "path": "services/api/scripts/audit/engine/registry.mjs",
         "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
+        "class": "AUDIT_TOOLING",
+        "attribution": {
+          "byMarker": true,
+          "byEngineRef": false,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "services/api/scripts/audit/index.mjs",
+        "status": "MODIFIED",
+        "class": "AUDIT_TOOLING",
+        "attribution": {
+          "byMarker": true,
+          "byEngineRef": true,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
+      },
+      {
+        "path": "services/api/test/capability-authority-modules.d.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/phase-0-audit-engine-governance.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,
@@ -322,40 +379,7 @@
         "attributedToPhase0": true
       },
       {
-        "path": "audit-output/current/report.md",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/diagnostics/test-caller-diagnostic.json",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "docs/architecture/current-runtime-capability-map.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "apps/web/__tests__/render/copilot-citation-shared-presentation.render.test.tsx",
+        "path": "apps/web/__tests__/render/visually-hidden-accessibility.render.test.tsx",
         "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -364,8 +388,27 @@
           "byInventory": false
         },
         "attributedToPhase0": false
+      },
+      {
+        "path": "services/api/test/phase-0-audit-self-reference.test.ts",
+        "status": "ADDED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": true,
+          "byEngineRef": true,
+          "byInventory": true
+        },
+        "attributedToPhase0": true
       }
-    ]
+    ],
+    "selfGeneratedDeclared": [
+      "audit-output/current/architecture-facts.json",
+      "audit-output/current/audit-governance-inventory.json",
+      "audit-output/current/report.md",
+      "audit-output/diagnostics/test-caller-diagnostic.json",
+      "docs/architecture/current-runtime-capability-map.json"
+    ],
+    "undeclaredSelfGeneratedExclusions": 0
   },
   "reportRoles": {
     "counts": {
@@ -400,7 +443,7 @@
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
-    "AUDIT_ENGINE_TEST": 13
+    "AUDIT_ENGINE_TEST": 14
   },
   "problems": [],
   "duplicateClaims": [],
@@ -1851,6 +1894,7 @@
         "services/api/scripts/audit/engine/worktree.mjs",
         "services/api/scripts/audit/index.mjs",
         "services/api/test/phase-0-audit-engine-governance.test.ts",
+        "services/api/test/phase-0-audit-self-reference.test.ts",
         "services/api/test/phase-0-unique-evidence-guard.test.ts"
       ],
       "spawns": [],
@@ -2692,6 +2736,27 @@
       "writesArtifacts": [],
       "declaresArtifacts": [
         "docs/architecture/some-new-report.md"
+      ],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/phase-0-audit-self-reference.test.ts",
+      "role": "AUDIT_ENGINE_TEST",
+      "reason": "Drives the canonical engine or validates a current artifact.",
+      "imports": [
+        "services/api/scripts/audit/engine/registry.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [
+        "services/api/scripts/audit/index.mjs"
+      ],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [
+        "audit-output/current/ledger/rows.json"
       ],
       "packageScripts": [],
       "ciConsumers": [],

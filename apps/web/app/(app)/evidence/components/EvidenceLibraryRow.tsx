@@ -55,7 +55,7 @@ export function EvidenceLibraryRow({
           checked={checked}
           onChange={(event) => onToggleChecked(item.id, event.target.checked)}
         />
-        <label htmlFor={`evidence-select-${item.id}`} className="sr-only">
+        <label htmlFor={`evidence-select-${item.id}`} className="app-visually-hidden">
           Select evidence record {title}
         </label>
       </span>

@@ -225,7 +225,7 @@ export function SimpleCaseDetail({
     return (
       <CaseDetailPlane data-simple-case-detail-loading>
         <div className="app-panel app-panel__body">
-          <p className="sr-only" style={{ margin: 0 }}>
+          <p className="app-visually-hidden">
             Loading case…
           </p>
           <div

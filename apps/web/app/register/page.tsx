@@ -1126,18 +1126,7 @@ function RegisterPageContent() {
                               {/* EMAIL */}
                               <label
                                 htmlFor={EMAIL_FIELD_ID}
-                                className="sr-only"
-                                style={{
-                                  position: "absolute",
-                                  width: 1,
-                                  height: 1,
-                                  padding: 0,
-                                  margin: -1,
-                                  overflow: "hidden",
-                                  clip: "rect(0,0,0,0)",
-                                  whiteSpace: "nowrap",
-                                  border: 0,
-                                }}
+                                className="app-visually-hidden"
                               >
                                 Email address
                               </label>
@@ -1250,18 +1239,7 @@ function RegisterPageContent() {
                               {/* PASSWORD with show/hide */}
                               <label
                                 htmlFor={PASSWORD_FIELD_ID}
-                                className="sr-only"
-                                style={{
-                                  position: "absolute",
-                                  width: 1,
-                                  height: 1,
-                                  padding: 0,
-                                  margin: -1,
-                                  overflow: "hidden",
-                                  clip: "rect(0,0,0,0)",
-                                  whiteSpace: "nowrap",
-                                  border: 0,
-                                }}
+                                className="app-visually-hidden"
                               >
                                 Password
                               </label>
@@ -1462,18 +1440,7 @@ function RegisterPageContent() {
                               {/* CONFIRM PASSWORD with separate show/hide */}
                               <label
                                 htmlFor={PASSWORD_CONFIRM_FIELD_ID}
-                                className="sr-only"
-                                style={{
-                                  position: "absolute",
-                                  width: 1,
-                                  height: 1,
-                                  padding: 0,
-                                  margin: -1,
-                                  overflow: "hidden",
-                                  clip: "rect(0,0,0,0)",
-                                  whiteSpace: "nowrap",
-                                  border: 0,
-                                }}
+                                className="app-visually-hidden"
                               >
                                 Confirm password
                               </label>

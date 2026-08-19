@@ -21,9 +21,9 @@ Every number below is produced by an analyzer executed at generation time and re
 | field          | value                                                            |
 | -------------- | ---------------------------------------------------------------- |
 | engineVersion  | audit-engine@1.0.0                                               |
-| engineHash     | 0a6b28765e810ba9f7e475942f8b2aa421172c25f01751d346572f78b7ed2d2a |
-| sourceRevision | d9d62e9aefc461ce67083e457bcb4cfa8837d4fd                         |
-| generatedAtUtc | 2026-08-19T04:52:57.303Z                                         |
+| engineHash     | 4cb8e7d953694dc36e59616fb467cb7efb2acf8205e4be48d7bc476600b05137 |
+| sourceRevision | 056e5cbf1e9b6ca3c6949ab365b07884a234b2a6                         |
+| generatedAtUtc | 2026-08-19T05:29:33.181Z                                         |
 | schemaVersion  | architecture-facts@1                                             |
 
 ## Measured surface
@@ -77,7 +77,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 274   |
+| AuditFilesInventoried                      | 275   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -146,12 +146,12 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 | counter                                | value                                    |
 | -------------------------------------- | ---------------------------------------- |
 | baseline                               | GIT_COMMIT                               |
-| baselineRef                            | d9d62e9aefc461ce67083e457bcb4cfa8837d4fd |
-| changedPaths                           | 14                                       |
-| added                                  | 1                                        |
-| modified                               | 13                                       |
+| baselineRef                            | 056e5cbf1e9b6ca3c6949ab365b07884a234b2a6 |
+| changedPaths                           | 17                                       |
+| added                                  | 2                                        |
+| modified                               | 15                                       |
 | deleted                                | 0                                        |
-| attributedToPhase0                     | 5                                        |
+| attributedToPhase0                     | 6                                        |
 | productionRuntimeFilesModifiedByPhase0 | 0                                        |
 | productBehaviorTestsRemoved            | 0                                        |
 | historicalMigrationsModifiedByPhase0   | 0                                        |

@@ -131,6 +131,43 @@ export const DIAGNOSTICS = Object.freeze([
 ]);
 
 /**
+ * THE PATHS THIS ENGINE WRITES ON EVERY RUN.
+ *
+ * Why this exists
+ * ---------------------------------------------------------------------------
+ * The Phase-0 change set is derived from `git status --porcelain`, and the
+ * engine writes into the very tree that status describes. That made the change
+ * set self-referential in two separate ways, both observed at a CLEAN `HEAD`:
+ *
+ *   1. The engine's own five outputs appeared in the change set, so a tree with
+ *      no source change at all reported changed paths.
+ *   2. Worse, the number depended on WHEN during the run git was sampled.
+ *      `regenerate()` samples once for the inventory (0 artifacts written yet)
+ *      and again inside `buildFacts()` (3 written by then), while `engineCheck()`
+ *      samples after all 5 exist. So the recorded value was a function of write
+ *      order rather than of the tree, and could never equal what the next run
+ *      recomputed — the staleness gate fired on every single run, at every
+ *      commit, forever.
+ *
+ * Excluding exactly these paths from the change-set derivation makes it a pure
+ * function of the SOURCE tree: identical before the run, mid-run and after it.
+ *
+ * SCOPE IS DELIBERATELY NARROW. This is not the `audit-output/` prefix. The
+ * findings ledger rows under that prefix are a hand-maintained governance
+ * SOURCE, and drift in them must still be detected — so they are absent here,
+ * as is every production, test, config, migration and docs path. `governance.mjs`
+ * proves at run time that what it actually excluded equals this list, so the
+ * exclusion cannot quietly widen to cover an inconvenient dirty file.
+ */
+export const ENGINE_GENERATED_PATHS = Object.freeze([
+  CANONICAL.governanceInventory.path,
+  CANONICAL.currentFacts.path,
+  CANONICAL.currentReport.path,
+  CANONICAL.capabilityMap.path,
+  ...DIAGNOSTICS.map((d) => d.path),
+]);
+
+/**
  * Working-tree freeze / recovery metadata.
  *
  * It describes a LOCAL CHECKOUT, not the release, so it is not a current audit

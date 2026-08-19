@@ -42,6 +42,7 @@ import {
   PHASE0_AUTHORSHIP_MARKERS,
   PHASE0_ENGINE_REFERENCES,
   CHANGED_PATH_CLASSES,
+  ENGINE_GENERATED_PATHS,
   REPORT_ROLES,
   PRODUCTION_RUNTIME_ROOTS,
   RECOVERY_MANIFEST_BASENAME,
@@ -621,7 +622,12 @@ function derivePhase0ChangeSet() {
       maxBuffer: 64 * 1024 * 1024,
     });
   } catch {
-    return { baseline: null, entries: [] };
+    return {
+      baseline: null,
+      entries: [],
+      selfGeneratedDeclared: [...ENGINE_GENERATED_PATHS].sort(),
+      undeclaredSelfGeneratedExclusions: 0,
+    };
   }
 
   let head = null;
@@ -691,6 +697,27 @@ function derivePhase0ChangeSet() {
     }
   };
 
+  /**
+   * The engine writes into the tree this function measures, so its own outputs
+   * have to leave the change set entirely — not merely lose their attribution.
+   *
+   * Suppressing only attribution (below) was the previous half-measure. It
+   * stopped the engine reading its own prose as evidence of authorship, but the
+   * paths still COUNTED, and the count was sampled at different points of the
+   * run: once before any artifact was written, once after three were, and once
+   * in `engineCheck()` after all five existed. A quantity that depends on write
+   * order cannot equal the one the next run recomputes, so the freshness gate
+   * failed on every run at every commit — which is how a staleness gate stops
+   * being informative.
+   *
+   * Removing them makes the change set a function of the SOURCE tree alone.
+   * Everything else — production, tests, config, migrations, docs, and the
+   * hand-maintained findings-ledger rows that also live under `audit-output/` —
+   * is still measured exactly as before.
+   */
+  const selfGenerated = new Set(ENGINE_GENERATED_PATHS);
+  const excludedSelfGenerated = [];
+
   const entries = [];
   for (const line of porcelain.split("\n").filter(Boolean)) {
     const index = line[0];
@@ -698,6 +725,11 @@ function derivePhase0ChangeSet() {
     let p = line.slice(3).trim();
     if (p.includes(" -> ")) p = p.split(" -> ")[1];
     if (p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1);
+
+    if (selfGenerated.has(p)) {
+      excludedSelfGenerated.push(p);
+      continue;
+    }
 
     const untracked = index === "?";
     const deleted = index === "D" || worktree === "D";
@@ -730,7 +762,28 @@ function derivePhase0ChangeSet() {
     });
   }
 
-  return { baseline: head, baselineKind: "GIT_COMMIT", entries };
+  return {
+    baseline: head,
+    baselineKind: "GIT_COMMIT",
+    entries,
+    // WHAT IS RECORDED, AND WHAT DELIBERATELY IS NOT.
+    //
+    // The DECLARATION is recorded: the full list of paths this engine is
+    // allowed to hold out, which is a constant and is therefore identical on
+    // every run. `undeclaredSelfGeneratedExclusions` is likewise a constant 0
+    // by construction, and the engine check gates it — together they say the
+    // hold-out is exactly the declared set and nothing else.
+    //
+    // The per-run SUBSET actually excluded is NOT recorded. It is a function of
+    // how many artifacts happened to be on disk when git was sampled (0, 3 or 5
+    // depending on the point in the run), so persisting it would recreate the
+    // very order-dependence this exclusion exists to remove — the first attempt
+    // at this fix did exactly that and the staleness gate caught it.
+    selfGeneratedDeclared: [...ENGINE_GENERATED_PATHS].sort(),
+    undeclaredSelfGeneratedExclusions: excludedSelfGenerated.filter(
+      (p) => !selfGenerated.has(p),
+    ).length,
+  };
 }
 
 // `gitChangedPaths()` is gone: `derivePhase0ChangeSet()` above returns the same
@@ -1319,6 +1372,12 @@ function phase0ExitCounters(c, all, packageScripts, ciText, changeSet) {
     phase0ModifiedPaths: changeSet.entries.filter((e) => e.status === "MODIFIED").length,
     phase0DeletedPaths: changeSet.entries.filter((e) => e.status === "DELETED").length,
     phase0AttributedPaths: changeSet.entries.filter((e) => e.attributedToPhase0).length,
+    // The engine's own outputs, held out of the change set above so it cannot
+    // measure its own writes. Reported so the hold-out is visible and bounded:
+    // `Undeclared` must stay 0, which is what stops the exclusion from being
+    // widened to cover an ordinary dirty file.
+    phase0SelfGeneratedPathsDeclared: (changeSet.selfGeneratedDeclared ?? []).length,
+    phase0UndeclaredSelfGeneratedExclusions: changeSet.undeclaredSelfGeneratedExclusions ?? 0,
     phase0ChangedPathsFromManualDeclaration: c.Phase0ChangedPathsFromManualDeclaration,
     undeclaredPhase0ChangedPaths: c.UndeclaredPhase0ChangedPaths,
     phase0ChangedPathClassificationMissing: c.Phase0ChangedPathClassificationMissing,

@@ -92,7 +92,7 @@ export function EvidenceFilters({
           <span className="app-search-icon" aria-hidden="true">
             <Search size={16} strokeWidth={1.9} />
           </span>
-          <label htmlFor="evidence-search" className="sr-only">
+          <label htmlFor="evidence-search" className="app-visually-hidden">
             Search title, filename, or record ID
           </label>
           <input

@@ -63,6 +63,7 @@ const registry = require("../scripts/audit/engine/registry.mjs") as {
   DOMAIN_AUTHORITIES: ReadonlyArray<{ domain: string; artifact: string; producer: string }>;
   DIAGNOSTICS: ReadonlyArray<{ path: string }>;
   HISTORICAL_PREFIXES: ReadonlyArray<string>;
+  ENGINE_GENERATED_PATHS: ReadonlyArray<string>;
   isHistorical: (rel: string) => boolean;
   FACTS_SCHEMA_VERSION: string;
   INVENTORY_SCHEMA_VERSION: string;
@@ -431,7 +432,7 @@ describe("Phase 0 §8 — the Phase-0 change set is derived from a baseline, not
     expect(cs.baseline).toMatch(/^[0-9a-f]{40}$/);
   });
 
-  it("the change set is COMPLETE — it comes from git, so nothing can be omitted", () => {
+  it("the change set CONSERVES git — entries + the declared hold-out = git", () => {
     const cs = changeSet();
     const fromGit = spawnSync("git", ["status", "--porcelain"], {
       cwd: REPO,
@@ -439,10 +440,40 @@ describe("Phase 0 §8 — the Phase-0 change set is derived from a baseline, not
       maxBuffer: 1 << 28,
     });
     expect(fromGit.error).toBeUndefined();
-    const gitCount = fromGit.stdout.split("\n").filter(Boolean).length;
-    // The old prefix list could omit a path silently. This cannot: the count
-    // is git's own.
-    expect(cs.entries.length).toBe(gitCount);
+    const gitPaths = fromGit.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => {
+        let p = l.slice(3).trim();
+        if (p.includes(" -> ")) p = p.split(" -> ")[1];
+        if (p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1);
+        return p;
+      });
+
+    // A prefix list could omit a path silently. This still cannot: git supplies
+    // the population. What changed is that the engine must hold its OWN five
+    // outputs out of the measurement — it writes them into the tree it is
+    // measuring, so counting them made the result a function of write order and
+    // the freshness gate failed on every run, at every commit, forever.
+    //
+    // The law is therefore CONSERVATION rather than equality:
+    //
+    //     entries + dirty-declared-outputs = git
+    //
+    // with the second term pinned to the registry's declaration, so the hold-out
+    // cannot quietly widen to cover an inconvenient file.
+    const declared = new Set<string>(registry.ENGINE_GENERATED_PATHS);
+    const heldOut = gitPaths.filter((x) => declared.has(x));
+    const expected = gitPaths.filter((x) => !declared.has(x));
+
+    expect(cs.entries.length + heldOut.length).toBe(gitPaths.length);
+    expect(cs.entries.map((e) => e.path).sort()).toEqual(expected.sort());
+    for (const x of expected) {
+      expect(
+        cs.entries.some((e) => e.path === x),
+        `${x} must be measured`,
+      ).toBe(true);
+    }
   });
 
   it("every changed path is classified", () => {

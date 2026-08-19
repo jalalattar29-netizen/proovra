@@ -568,7 +568,7 @@ export function MatterWorkspace({
     return (
       <PageShell width="full" className="cc-page matter-workspace matter-workspace--loading">
         <div className="app-panel app-panel__body">
-          <p className="sr-only" style={{ margin: 0 }}>
+          <p className="app-visually-hidden">
             Loading matter workspace…
           </p>
           <div
@@ -709,7 +709,7 @@ export function MatterWorkspace({
           <span className="app-search-icon" aria-hidden="true">
             <Search size={16} strokeWidth={1.9} />
           </span>
-          <label htmlFor="matter-workspace-filter" className="sr-only">
+          <label htmlFor="matter-workspace-filter" className="app-visually-hidden">
             Filter {activeTab}
           </label>
           <input
