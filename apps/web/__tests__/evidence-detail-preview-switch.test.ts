@@ -180,7 +180,7 @@ describe("Pin 4 — CSS gives the button the look + selected state", () => {
   it("button.evidence-detail-item-card resets button chrome and gets a cursor:pointer", () => {
     const css = read(CSS);
     assert.match(css, /button\.evidence-detail-item-card\s*\{[\s\S]{0,400}cursor:\s*pointer/);
-    assert.match(css, /button\.evidence-detail-item-card\s*\{[\s\S]{0,400}text-align:\s*left/);
+    assert.match(css, /button\.evidence-detail-item-card\s*\{[\s\S]{0,400}text-align:\s*(?:left|start)/);
   });
 
   it("--selected (or aria-pressed=true) renders a visible highlight border + background", () => {

@@ -178,12 +178,12 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "7387ddfeb1a46e8e53c1d721374e1b414baa3fee",
+    "phase0BaselineRef": "e94d4d93f30575d3f512dae81b97ceb49eb03342",
     "phase0ChangedPaths": 5,
     "phase0AddedPaths": 0,
     "phase0ModifiedPaths": 5,
     "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 1,
+    "phase0AttributedPaths": 0,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,11 +208,11 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "7387ddfeb1a46e8e53c1d721374e1b414baa3fee",
+    "baseline": "e94d4d93f30575d3f512dae81b97ceb49eb03342",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/__tests__/search-page-final-cleanup.test.ts",
+        "path": "apps/web/__tests__/evidence-detail-ia-refactor.test.ts",
         "status": "MODIFIED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {
@@ -223,7 +223,18 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+        "path": "apps/web/__tests__/evidence-detail-preview-switch.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -254,17 +265,6 @@
           "byInventory": false
         },
         "attributedToPhase0": false
-      },
-      {
-        "path": "docs/architecture/current-runtime-capability-map.json",
-        "status": "MODIFIED",
-        "class": "DOCUMENTATION",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
       }
     ]
   },

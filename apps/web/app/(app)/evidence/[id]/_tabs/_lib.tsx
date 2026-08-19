@@ -747,7 +747,9 @@ export function PreviewWorkspace({
       >
         <strong>Preview is not available for this file type.</strong>
         <p>
-          <em>{selectedItem.originalFileName || selectedItem.label}</em>
+          <span className="evidence-detail-preview-filename">
+            {selectedItem.originalFileName || selectedItem.label}
+          </span>
           {" — "}
           {selectedItem.kind}
           {selectedItem.sizeBytes

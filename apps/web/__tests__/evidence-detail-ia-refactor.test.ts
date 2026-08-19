@@ -258,10 +258,16 @@ test("Phase 4 — Overview renders a single consolidated Record summary", () => 
 // ---------------------------------------------------------------------------
 
 test("Phase 5 — Integrity uses 'Verification & Preservation' (not 'Preservation Matrix')", () => {
-  // The new kicker exists as a JSX prop value. The old "Preservation
-  // Matrix" string must not survive as a `kicker=` prop literal,
-  // though the JSDoc may still reference it as historical context.
-  assert.match(INTEGRITY, /kicker="Verification &amp; Preservation"/);
+  // The heading exists as a JSX prop value. Integrity now owns its own
+  // section presentation (`title=` on its IntegritySection) instead of the
+  // shared SectionHeading's `kicker=`, so accept either spelling — the
+  // guarantee is that the section is headed "Verification & Preservation".
+  // The old "Preservation Matrix" string must not survive as a prop
+  // literal, though the JSDoc may still reference it as historical context.
+  assert.match(
+    INTEGRITY,
+    /(?:kicker|title)="Verification &amp; Preservation"/,
+  );
   assert.doesNotMatch(INTEGRITY, /kicker="Preservation Matrix"/);
 });
 
@@ -282,7 +288,13 @@ test("Phase 5 — Integrity uses plain 'Record boundary noted' (not 'Snapshot bo
   // visible JSX text. The forensic "Snapshot boundary update"
   // heading is gone from Integrity's visible JSX (only comments may
   // mention it as historical context).
-  assert.match(INTEGRITY, />Record boundary noted</);
+  // The banner is now a named BoundaryNote whose heading is a prop, so the
+  // literal may appear as JSX text or as `title="…"`. Either way the
+  // visible heading is the same plain string.
+  assert.match(
+    INTEGRITY,
+    />Record boundary noted<|title="Record boundary noted"/,
+  );
   assert.doesNotMatch(INTEGRITY, />Snapshot boundary update</);
 });
 
