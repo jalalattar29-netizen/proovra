@@ -601,14 +601,6 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   text-decoration: underline;
 }
 
-.evidence-detail-flat-list {
-  display: grid;
-  gap: 6px;
-  margin: 8px 0 0;
-  padding-left: 18px;
-  color: var(--detail-muted);
-}
-
 .evidence-detail-loading,
 .evidence-detail-error-card {
   text-align: center;
@@ -1315,4 +1307,245 @@ button.evidence-detail-item-card[aria-pressed="true"] {
 .evidence-detail-sidebar,
 .evidence-detail-side-block {
   min-inline-size: 0;
+}
+
+/* ===========================================================================
+ * OVERVIEW TAB — canonical surfaces, five-card summary, record grid.
+ * Reuses the translucent hierarchy and tokens established by the Evidence
+ * Library; this tab declares no private palette.
+ * =========================================================================== */
+
+.evidence-detail-section-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+  font-style: normal;
+}
+
+/* ---- Five-card operational summary --------------------------------------
+ * Tracks are derived from the container, never from card content, so all
+ * five cards resolve the same width and height and reflow deliberately. */
+.evidence-detail-summary-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.evidence-detail-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.evidence-detail-summary-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-summary-card__value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  font-size: 14.5px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+}
+.evidence-detail-summary-card__value-text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.evidence-detail-summary-card__ok {
+  flex: none;
+  color: #167a5b;
+}
+@media (max-width: 1240px) {
+  .evidence-detail-summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .evidence-detail-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .evidence-detail-summary-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+.evidence-detail-template-missing {
+  margin-block-start: 12px;
+}
+
+/* ---- Record Summary ------------------------------------------------------ */
+.evidence-detail-record-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.evidence-detail-record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.evidence-detail-record-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+}
+/* A long workspace, case or filename clamps inside its own card and can never
+   widen the grid. The full value stays in the DOM for assistive tech. */
+.evidence-detail-record-card__value {
+  min-inline-size: 0;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 1240px) {
+  .evidence-detail-record-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .evidence-detail-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .evidence-detail-record-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Recommended next actions -------------------------------------------
+ * Purple rail on the LOGICAL start edge, so it mirrors in Arabic. */
+.evidence-detail-next-actions {
+  border-inline-start: 4px solid var(--accent-500);
+  border-radius: 0 14px 14px 0;
+  padding: 16px 20px;
+  background: var(--surface-translucent-inner);
+}
+[dir="rtl"] .evidence-detail-next-actions {
+  border-radius: 14px 0 0 14px;
+}
+.evidence-detail-next-actions__title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-600);
+  font-style: normal;
+}
+.evidence-detail-next-actions__list {
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+}
+
+/* ---- Capture note -------------------------------------------------------- */
+.evidence-detail-capture-note {
+  margin: 0 0 8px;
+  unicode-bidi: plaintext;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
+  font-style: normal;
+}
+.evidence-detail-capture-note__hint {
+  font-size: 12px;
+}
+
+/* ---- Mixed-direction text inside an RTL page -----------------------------
+ * Values are server-formatted and may be Latin ("13.80 MB", "image/jpeg",
+ * "04 Jul 2026, 04:17:17 Africa/Cairo") or Arabic. `plaintext` resolves each
+ * value's direction from its own first strong character, so a Latin value
+ * keeps its written order in Arabic layout without hard-coding LTR and
+ * without reversing a genuinely Arabic value. Alignment still follows the
+ * page, so the column edge stays intact. */
+.evidence-detail-record-card__value,
+.evidence-detail-summary-card__value-text,
+.evidence-detail-next-actions__list > li {
+  unicode-bidi: plaintext;
+}
+
+/* ---- Section head (heading + inline actions) -----------------------------
+ * Replaces the kicker/icon SectionHeading treatment on Overview. The actions
+ * wrap under the heading before they can ever push the row wider. */
+.evidence-detail-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 12px;
+  min-inline-size: 0;
+}
+.evidence-detail-section-head .evidence-detail-section-title {
+  margin: 0;
+}
+.evidence-detail-section-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- Extracted content cards --------------------------------------------
+ * Same canonical card treatment as Record Summary, so Overview has exactly
+ * one card language instead of a second inline-styled one. */
+.evidence-detail-extract-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin-block-start: 12px;
+}
+.evidence-detail-extract-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+  overflow-wrap: anywhere;
+}
+.evidence-detail-extract-card__kind {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+.evidence-detail-extract-card__line {
+  unicode-bidi: plaintext;
+}
+.evidence-detail-extract-disclaimer {
+  margin-block-start: 8px;
+  /* Server-authored prose: resolve its own direction like the values above. */
+  unicode-bidi: plaintext;
 }

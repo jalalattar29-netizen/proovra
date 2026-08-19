@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -22,8 +22,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | -------------- | ---------------------------------------------------------------- |
 | engineVersion  | audit-engine@1.0.0                                               |
 | engineHash     | b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea |
-| sourceRevision | d9f40034c5232a0837a5a20ac287661e5a4a35de                         |
-| generatedAtUtc | 2026-08-18T22:32:32.392Z                                         |
+| sourceRevision | 7387ddfeb1a46e8e53c1d721374e1b414baa3fee                         |
+| generatedAtUtc | 2026-08-19T00:03:08.017Z                                         |
 | schemaVersion  | architecture-facts@1                                             |
 
 ## Measured surface
@@ -47,11 +47,11 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | counter                                        | value |
 | ---------------------------------------------- | ----- |
 | DynamicUnresolvedRouteRegistrations            | 0     |
-| DynamicUnresolvedConsumers                     | 0     |
+| DynamicUnresolvedConsumers                     | 2     |
 | UnreviewedOriginConsumers                      | 0     |
 | AmbiguousConsumerSites                         | 0     |
 | UnmatchedConsumerCalls                         | 0     |
-| ClassificationConflicts                        | 0     |
+| ClassificationConflicts                        | 2     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
 | TenantBindingUnresolved                        | 0     |
@@ -146,12 +146,12 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 | counter                                | value                                    |
 | -------------------------------------- | ---------------------------------------- |
 | baseline                               | GIT_COMMIT                               |
-| baselineRef                            | d9f40034c5232a0837a5a20ac287661e5a4a35de |
+| baselineRef                            | 7387ddfeb1a46e8e53c1d721374e1b414baa3fee |
 | changedPaths                           | 7                                        |
 | added                                  | 0                                        |
 | modified                               | 7                                        |
 | deleted                                | 0                                        |
-| attributedToPhase0                     | 5                                        |
+| attributedToPhase0                     | 3                                        |
 | productionRuntimeFilesModifiedByPhase0 | 0                                        |
 | productBehaviorTestsRemoved            | 0                                        |
 | historicalMigrationsModifiedByPhase0   | 0                                        |
@@ -206,8 +206,11 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- INSTRUMENT: DynamicUnresolvedConsumers = 2
+- INSTRUMENT: ClassificationConflicts = 2
 
 ### Product closure
 
-_(none)_
+- INSTRUMENT: DynamicUnresolvedConsumers = 2
+- INSTRUMENT: ClassificationConflicts = 2
+- CHECKPOINT: 1 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 2

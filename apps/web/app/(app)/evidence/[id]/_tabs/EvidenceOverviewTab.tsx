@@ -25,12 +25,10 @@
 
 "use client";
 
-import { FileText } from "lucide-react";
 import {
   CaptureTemplateCard,
-  KeyValueGrid,
   PreviewWorkspace,
-  SectionHeading,
+  RecordSummaryGrid,
   type EvidenceDetailCtx,
 } from "./_lib";
 import ExternalIntakeSourceCard from "../components/ExternalIntakeSourceCard";
@@ -135,15 +133,9 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           className="evidence-detail-section"
           data-evidence-section="capture-note"
         >
-          <div className="evidence-detail-section-header">
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 650 }}>
-              Capture note (private)
-            </h3>
-          </div>
-          <p style={{ margin: "4px 0 8px 0", whiteSpace: "pre-wrap" }}>
-            {evidence.internalNotes}
-          </p>
-          <p className="evidence-detail-muted" style={{ fontSize: 12 }}>
+          <h2 className="evidence-detail-section-title">Capture note (private)</h2>
+          <p className="evidence-detail-capture-note">{evidence.internalNotes}</p>
+          <p className="evidence-detail-muted evidence-detail-capture-note__hint">
             Visible only inside the signed-in app. Excluded
             from public verification, the fixed PDF report, and
             the verification package.
@@ -164,36 +156,33 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           tab still surfaces workflow detail; the Integrity tab still
           owns verification posture. */}
       <section className="evidence-detail-section" data-evidence-section="record-summary">
-        <div className="evidence-detail-section-header">
-          <SectionHeading
-            kicker="Record summary"
-            title="At a glance"
-            icon={FileText}
-          />
-        </div>
-        <KeyValueGrid items={overviewMetadataItems} />
-
-        {workspace.reviewDecision.nextActions.length > 0 ? (
-          <div className="evidence-detail-note-box">
-            <strong>Recommended next actions</strong>
-            <ul className="evidence-detail-flat-list">
-              {workspace.reviewDecision.nextActions.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        <h2 className="evidence-detail-section-title">Record Summary</h2>
+        <RecordSummaryGrid items={overviewMetadataItems} />
       </section>
+
+      {/* Recommended next actions — purple logical-start callout. Rendered
+          only from the server-derived list, so it never invents guidance. */}
+      {workspace.reviewDecision.nextActions.length > 0 ? (
+        <section
+          className="evidence-detail-next-actions"
+          data-evidence-section="next-actions"
+        >
+          <h2 className="evidence-detail-next-actions__title">
+            Recommended next actions
+          </h2>
+          <ul className="evidence-detail-next-actions__list">
+            {workspace.reviewDecision.nextActions.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {canSeeIntelligence ? (
         <section className="evidence-detail-section">
-          <div className="evidence-detail-section-header">
-            <SectionHeading
-              kicker="Extracted content"
-              title="Entities and content summaries"
-              icon={FileText}
-            />
-          </div>
+          <h2 className="evidence-detail-section-title">
+            Entities and content summaries
+          </h2>
           {!intelligenceLoaded ? (
             <p className="evidence-detail-muted">
               Loading extracted entity summary…
@@ -204,14 +193,10 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                 entities={intelligence?.entities ?? []}
                 emptyMessage="No entities have been extracted from this record yet."
               />
-              <div
-                style={{
-                  marginTop: 12,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                  gap: 8,
-                }}
-              >
+              {/* Extraction cards use the same canonical card treatment as
+                  Record Summary. The previous build styled them inline with a
+                  private slate palette; that presentation is retired. */}
+              <div className="evidence-detail-extract-grid">
                 {(intelligence?.extractedTexts ?? []).length === 0 ? (
                   <p className="evidence-detail-muted">
                     No OCR or transcript extraction has been recorded yet for
@@ -219,35 +204,22 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   </p>
                 ) : (
                   (intelligence?.extractedTexts ?? []).map((text) => (
-                    <div
-                      key={text.id}
-                      style={{
-                        border: "1px solid var(--border-default, #e2e8f0)",
-                        borderRadius: "var(--radius-md, 8px)",
-                        padding: 10,
-                        background: "var(--surface-muted, #f8fafc)",
-                        fontSize: 12,
-                        color: "var(--ink-primary, #0f172a)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <strong style={{ fontSize: 11, color: "var(--ink-secondary, #334155)" }}>
+                    <div key={text.id} className="evidence-detail-extract-card">
+                      <span className="evidence-detail-extract-card__kind">
                         {text.kind.replace(/_/g, " ")}
-                      </strong>
-                      <span style={{ color: "var(--ink-secondary, #475569)" }}>
+                      </span>
+                      <span className="evidence-detail-extract-card__line">
                         Provider: {text.provider}
                         {text.providerVersion ? ` (${text.providerVersion})` : ""}
                       </span>
-                      <span style={{ color: "var(--ink-secondary, #475569)" }}>
+                      <span className="evidence-detail-extract-card__line">
                         Status: {text.status}
                         {text.wordCount != null
                           ? ` · ${text.wordCount} words`
                           : ""}
                       </span>
                       {text.confidence != null ? (
-                        <span style={{ color: "var(--ink-secondary, #475569)" }}>
+                        <span className="evidence-detail-extract-card__line">
                           Confidence:{" "}
                           {Math.round(
                             Math.max(0, Math.min(1, text.confidence)) * 100,
@@ -260,7 +232,7 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                 )}
               </div>
               {intelligence?.disclaimer ? (
-                <p className="evidence-detail-muted" style={{ marginTop: 8 }}>
+                <p className="evidence-detail-muted evidence-detail-extract-disclaimer">
                   {intelligence.disclaimer}
                 </p>
               ) : null}

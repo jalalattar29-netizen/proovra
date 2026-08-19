@@ -178,12 +178,12 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "d9f40034c5232a0837a5a20ac287661e5a4a35de",
-    "phase0ChangedPaths": 7,
+    "phase0BaselineRef": "7387ddfeb1a46e8e53c1d721374e1b414baa3fee",
+    "phase0ChangedPaths": 5,
     "phase0AddedPaths": 0,
-    "phase0ModifiedPaths": 7,
+    "phase0ModifiedPaths": 5,
     "phase0DeletedPaths": 0,
-    "phase0AttributedPaths": 5,
+    "phase0AttributedPaths": 1,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
     "phase0ChangedPathClassificationMissing": 0,
@@ -208,11 +208,22 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "d9f40034c5232a0837a5a20ac287661e5a4a35de",
+    "baseline": "7387ddfeb1a46e8e53c1d721374e1b414baa3fee",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
-        "path": "apps/web/app/(app)/evidence/evidence-library.css",
+        "path": "apps/web/__tests__/search-page-final-cleanup.test.ts",
+        "status": "MODIFIED",
+        "class": "PRODUCT_BEHAVIOR_TEST",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -223,7 +234,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/capture-v2/capture-v2.css",
+        "path": "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -234,48 +245,15 @@
         "attributedToPhase0": false
       },
       {
-        "path": "audit-output/current/architecture-facts.json",
+        "path": "apps/web/app/(app)/evidence/[id]/evidence-detail.css",
         "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
+        "class": "PRODUCTION_RUNTIME",
         "attribution": {
           "byMarker": false,
           "byEngineRef": false,
-          "byInventory": true
+          "byInventory": false
         },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/current/audit-governance-inventory.json",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/current/report.md",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
-      },
-      {
-        "path": "audit-output/diagnostics/test-caller-diagnostic.json",
-        "status": "MODIFIED",
-        "class": "AUDIT_ARTIFACT",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": true
-        },
-        "attributedToPhase0": true
+        "attributedToPhase0": false
       },
       {
         "path": "docs/architecture/current-runtime-capability-map.json",

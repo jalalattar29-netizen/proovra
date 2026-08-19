@@ -39,6 +39,10 @@ const DETAIL = resolve(
   REPO_ROOT,
   "apps/web/app/(app)/evidence/[id]/page.tsx",
 );
+const HERO_ICON_ACTIONS = resolve(
+  REPO_ROOT,
+  "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+);
 
 function read(p: string): string {
   return readFileSync(p, "utf8");
@@ -115,10 +119,18 @@ test("B) Trash banner — Restore button calls the real backend endpoint, with l
 
 test("B) Trash banner — every mutation button on the page is still disabled when deletedAt is set (no regression)", () => {
   const src = read(DETAIL);
-  // The existing guards must remain. Pin the literal disabled
-  // expression — there are 4 mutation buttons in the hero that
-  // need this.
-  const matches = [...src.matchAll(/disabled=\{evidence\.deletedAt != null\}/g)];
+  const lib = read(HERO_ICON_ACTIONS);
+  // The existing guards must remain. The orchestrator is under a byte-size
+  // guard, so the hero icon group now lives in the shared _tabs/_lib
+  // authority and reads the trash state through a `deleted` prop. Assert
+  // the GUARANTEE — the state is derived from deletedAt and every hero
+  // mutation button is gated on it — instead of the pre-extraction spelling.
+  assert.match(src, /const deleted = evidence\?\.deletedAt != null;/);
+  assert.match(src, /deleted=\{deleted\}/);
+  const matches = [
+    ...src.matchAll(/disabled=\{evidence\.deletedAt != null\}/g),
+    ...lib.matchAll(/disabled=\{deleted\b/g),
+  ];
   assert.ok(
     matches.length >= 3,
     `expected ≥3 hero buttons gated on deletedAt, got ${matches.length}`,

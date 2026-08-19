@@ -1,7 +1,7 @@
 {
   "schemaVersion": "architecture-facts@1",
-  "generatedAtUtc": "2026-08-18T22:32:32.392Z",
-  "sourceRevision": "d9f40034c5232a0837a5a20ac287661e5a4a35de",
+  "generatedAtUtc": "2026-08-19T00:03:08.017Z",
+  "sourceRevision": "7387ddfeb1a46e8e53c1d721374e1b414baa3fee",
   "releaseCandidateId": null,
   "engineVersion": "audit-engine@1.0.0",
   "engineHash": "b4f26b26dff28bc79b96420f2eac7610e7f55fcbd4b372329bb74554ff4f7fea",
@@ -79,7 +79,7 @@
       "machineOnlyConsumerRoutes": 4,
       "noConsumerRoutes": 224,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "39c1845b7c3d9e18571eecd003f7b7f4e3de19d7cd5b4af426d9a18aa05fb5f4"
+      "consumerInventoryHash": "3cdec3052e322034d9f81bad4cb5e3769b296b086564550b9d33aded2d2e52e0"
     },
     "capabilities": {
       "totalRoutes": 1087,
@@ -142,11 +142,11 @@
     },
     "instrumentIntegrity": {
       "DynamicUnresolvedRouteRegistrations": 0,
-      "DynamicUnresolvedConsumers": 0,
+      "DynamicUnresolvedConsumers": 2,
       "UnreviewedOriginConsumers": 0,
       "AmbiguousConsumerSites": 0,
       "UnmatchedConsumerCalls": 0,
-      "ClassificationConflicts": 0,
+      "ClassificationConflicts": 2,
       "WrongOriginConsumers": 0,
       "AuthorizationUnresolved": 0,
       "TenantBindingUnresolved": 0,
@@ -305,12 +305,12 @@
   },
   "phase0": {
     "baselineKind": "GIT_COMMIT",
-    "baselineRef": "d9f40034c5232a0837a5a20ac287661e5a4a35de",
+    "baselineRef": "7387ddfeb1a46e8e53c1d721374e1b414baa3fee",
     "changedPaths": 7,
     "addedPaths": 0,
     "modifiedPaths": 7,
     "deletedPaths": 0,
-    "attributedPaths": 5,
+    "attributedPaths": 3,
     "productionRuntimeFilesModifiedByPhase0": 0,
     "productBehaviorTestsRemoved": 0,
     "historicalMigrationsModifiedByPhase0": 0,
@@ -551,6 +551,8 @@
     "staleNextCommands": 0,
     "duplicateActiveStateSections": 0,
     "scalarsChecked": 48,
-    "violations": []
+    "violations": [
+      "SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 2"
+    ]
   }
 }

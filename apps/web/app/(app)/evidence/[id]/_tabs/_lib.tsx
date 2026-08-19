@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
-  ImageIcon,
+  CircleCheck,
   Link2,
   Lock,
   LockOpen,
@@ -26,7 +26,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
-import { Button } from "../../../../../components/ui";
 import { formatUserDateTime } from "../../../../../lib/date";
 import type {
   ReviewWorkspaceResponse,
@@ -762,19 +761,26 @@ export function PreviewWorkspace({
 
   return (
     <section className="evidence-detail-section">
-      <div className="evidence-detail-section-header">
-        <SectionHeading
-          kicker="Evidence Preview"
-          title="Primary review surface"
-          icon={ImageIcon}
-        />
-        <div className="evidence-detail-inline-actions">
-          <Button variant="secondary" onClick={onOpenOriginal}>
+      {/* Canonical section head: plain heading + canonical secondary
+          actions. The former kicker/icon SectionHeading presentation is
+          retired here, so the tab has one heading treatment throughout. */}
+      <div className="evidence-detail-section-head">
+        <h2 className="evidence-detail-section-title">Evidence Preview</h2>
+        <div className="evidence-detail-section-head__actions">
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onOpenOriginal}
+          >
             Open original
-          </Button>
-          <Button variant="secondary" onClick={onDownloadOriginal}>
+          </button>
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onDownloadOriginal}
+          >
             Download
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -864,6 +870,60 @@ export function PreviewWorkspace({
   );
 }
 
+/**
+ * Overview summary-card row — the five operational facts the record header
+ * cannot carry. Cards share one grid so they keep equal height and reflow
+ * 5 -> 3 -> 2 -> 1 without any card sizing itself from its own content.
+ */
+export function SummaryCardRow({
+  items,
+}: {
+  items: Array<{ label: string; value: string; ok?: boolean }>;
+}) {
+  return (
+    <div className="evidence-detail-summary-row" data-evidence-summary-row>
+      {items.map((item) => (
+        <div key={item.label} className="evidence-detail-summary-card">
+          <span className="evidence-detail-summary-card__label">{item.label}</span>
+          <span className="evidence-detail-summary-card__value">
+            <span className="evidence-detail-summary-card__value-text">{item.value}</span>
+            {item.ok ? (
+              <CircleCheck
+                size={16}
+                strokeWidth={2}
+                aria-hidden="true"
+                className="evidence-detail-summary-card__ok"
+              />
+            ) : null}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Record Summary — the same field/value pairs as KeyValueGrid, laid out as
+ * discrete cards. Values wrap or clamp inside their own card, so a long
+ * workspace, case or filename can never widen the grid.
+ */
+export function RecordSummaryGrid({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="evidence-detail-record-grid" data-evidence-record-grid>
+      {items.map((item) => (
+        <div key={item.label} className="evidence-detail-record-card">
+          <span className="evidence-detail-record-card__label">{item.label}</span>
+          <span className="evidence-detail-record-card__value">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function KeyValueGrid({ items }: { items: Array<{ label: string; value: string }> }) {
   return (
     <div className="evidence-detail-data-grid">
@@ -922,12 +982,7 @@ export function CaptureTemplateCard({
       className="evidence-detail-section"
       data-evidence-section="capture-template"
     >
-      <div className="evidence-detail-section-header">
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 650 }}>
-          Capture template
-        </h3>
-      </div>
-      <KeyValueGrid
+      <SummaryCardRow
         items={[
           { label: "Template", value: templateName || templateId || "Not recorded" },
           {
@@ -940,14 +995,17 @@ export function CaptureTemplateCard({
                   : (mode ?? "Not recorded"),
           },
           {
-            label: "Required steps mapped",
+            label: "Required steps",
             value:
               required.length === 0
                 ? "None declared"
                 : `${requiredMappedCount} of ${required.length}`,
+            // The tick is truthful: it appears only when every declared
+            // required step is actually mapped to preserved content.
+            ok: required.length > 0 && requiredMappedCount === required.length,
           },
           {
-            label: "Optional steps declared",
+            label: "Optional steps",
             value: optional.length === 0 ? "None" : String(optional.length),
           },
           {
@@ -966,15 +1024,8 @@ export function CaptureTemplateCard({
       {requiredMissing.length > 0 ? (
         <div
           data-capture-template-missing
-          style={{
-            marginTop: 8,
-            padding: "8px 10px",
-            background: "#fef3c7",
-            border: "1px solid #fcd34d",
-            borderRadius: 6,
-            fontSize: 12.5,
-            color: "#78350f",
-          }}
+          className="app-alert app-alert--warn evidence-detail-template-missing"
+          role="status"
         >
           <strong>Unmapped required step{requiredMissing.length === 1 ? "" : "s"}:</strong>{" "}
           {requiredMissing.map((s) => s.title || s.id || "Untitled").join(" · ")}
