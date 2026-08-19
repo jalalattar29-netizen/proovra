@@ -4804,3 +4804,39 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 }
 
 /* The expanded panel gets a real hierarchy instead of two loose paragraphs. */
+
+/* ---- Media Intelligence -------------------------------------------------
+ * One stable observation grid on the shared translucent surface, and controls
+ * that read as controls. */
+.mi-action-help {
+  margin: 0 0 4px;
+  max-inline-size: 88ch;
+}
+
+/* Dismiss sat beside an outlined Acknowledge as a bare ghost control, which
+   read as static text rather than an action. */
+.mi-dismiss {
+  border-color: var(--surface-translucent-border-strong);
+  color: var(--app-ink-label);
+}
+
+.mi-dismiss:hover:not(:disabled) {
+  background: var(--surface-translucent-inner-hover);
+  border-color: var(--app-ink-secondary);
+  color: var(--app-ink-heading);
+}
+
+/* The run-state region keeps its message and its action on one line until
+   there is no room. */
+.mi-runstate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.mi-runstate > p {
+  margin: 0;
+  min-inline-size: 0;
+}

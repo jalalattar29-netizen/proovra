@@ -413,7 +413,13 @@ describe("Media Intelligence — what the section says", () => {
       ).not.toBeNull(),
     );
     const text = document.body.textContent ?? "";
-    expect(text).toMatch(/marks this observation as reviewed/i);
+    // Stated ONCE for the section, not repeated inside every observation:
+    // with several open observations the same paragraph rendered every time.
+    expect(text).toMatch(/marks an observation as reviewed/i);
+    expect(
+      document.querySelectorAll("#mi-action-help"),
+      "the action help is declared once",
+    ).toHaveLength(1);
     expect(text).toMatch(/does not verify the evidence/i);
     expect(text).toMatch(/does not delete the evidence or its audit history/i);
   });

@@ -376,6 +376,15 @@ export default function MediaIntelligencePanel({
       ) : null}
 
       {openSignals.length > 0 ? (
+        <p className="evd-muted evd-muted--small mi-action-help" id="mi-action-help">
+          <strong>Acknowledge</strong> marks an observation as reviewed for
+          workflow purposes; it does not verify the evidence.{" "}
+          <strong>Dismiss</strong> marks it as not actionable; it does not delete
+          the evidence or its audit history.
+        </p>
+      ) : null}
+
+      {openSignals.length > 0 ? (
         <ul className="evd-list" data-media-intelligence-group="open">
           {openSignals.map((signal) => (
             <SignalRow
@@ -396,7 +405,6 @@ export default function MediaIntelligencePanel({
         <details
           className="evd-stack"
           data-media-intelligence-group="resolved"
-          open={resolvedSignals.length <= 3}
         >
           <summary className="evd-disclosure-summary">
             Resolved observations ({resolvedSignals.length})
@@ -744,7 +752,8 @@ function SignalRow({
   onAck: (action: Extract<ClientStatus, "ACKNOWLEDGED" | "DISMISSED">) => void;
 }) {
   const isOpen = signal.status === "PENDING";
-  const helpId = `mi-help-${signal.id}`;
+  // One section-level description, referenced by every row's controls.
+  const helpId = "mi-action-help";
   return (
     <li className="evd-card">
       <div className="evd-card-header" data-media-intelligence-statuses>
@@ -778,7 +787,7 @@ function SignalRow({
             </button>
             <button
               type="button"
-              className="app-ghost-action"
+              className="app-secondary-action mi-dismiss"
               onClick={() => onAck("DISMISSED")}
               disabled={pending}
               aria-busy={pending}
@@ -791,13 +800,7 @@ function SignalRow({
         ) : null}
       </div>
 
-      {isOpen ? (
-        <p className="evd-muted evd-muted--small" id={helpId}>
-          Acknowledge marks this observation as reviewed for workflow purposes;
-          it does not verify the evidence. Dismiss marks it as not actionable;
-          it does not delete the evidence or its audit history.
-        </p>
-      ) : null}
+
     </li>
   );
 }
