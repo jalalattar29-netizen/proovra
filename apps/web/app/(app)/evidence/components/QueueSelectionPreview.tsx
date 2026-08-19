@@ -270,7 +270,7 @@ function ArtifactStatusRow({ row }: { row: ArtifactRow }) {
       {/* The state is announced to assistive tech but is carried VISUALLY by
           the icon tone and the card treatment, matching the reference, which
           has no trailing pill on these rows. */}
-      <span className="sr-only">{STATE_LABEL[row.state]}</span>
+      <span className="app-visually-hidden">{STATE_LABEL[row.state]}</span>
     </li>
   );
 }

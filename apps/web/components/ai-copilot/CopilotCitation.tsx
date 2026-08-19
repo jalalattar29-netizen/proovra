@@ -5,6 +5,13 @@
  * citations (the backend already dropped invalid/stale/cross-tenant/invented
  * ones). Uses the server-generated `route` — never a model URL. If a route is
  * missing it renders as plain text ("source unavailable"), never a broken link.
+ *
+ * PRESENTATION AUTHORITY. This component is shared by four copilot surfaces
+ * (evidence detail, case, reviewer ops, operations intelligence), so its
+ * styling lives in the shared `app-primitives.css` authority as
+ * `.app-copilot-citation*` — never in a route stylesheet, which would leave
+ * the other three consumers unstyled. No inline style remains here: every
+ * declaration was static, so none of it needed to be computed in JS.
  */
 import Link from "next/link";
 
@@ -39,15 +46,15 @@ export function CopilotCitation({ citation }: { citation: CopilotCitationData })
   const linkable = Boolean(citation.route) && SAFE_ROUTE.test(citation.route);
 
   const inner = (
-    <span className="app-chip" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-      <span className="app-chip__tag" style={{ fontWeight: 600, opacity: 0.7 }}>{typeLabel}</span>
-      <span>{label}</span>
+    <span className="app-chip app-copilot-citation">
+      <span className="app-chip__tag app-copilot-citation__type">{typeLabel}</span>
+      <span className="app-copilot-citation__label">{label}</span>
     </span>
   );
 
   if (!linkable) {
     return (
-      <span title="Source no longer available" style={{ opacity: 0.6 }}>
+      <span title="Source no longer available" className="app-copilot-citation--unavailable">
         {inner}
       </span>
     );
@@ -61,10 +68,10 @@ export function CopilotCitation({ citation }: { citation: CopilotCitationData })
 
 export function CopilotCitationList({ citations }: { citations: CopilotCitationData[] }) {
   if (!citations || citations.length === 0) {
-    return <span style={{ opacity: 0.6, fontSize: 12 }}>No validated sources.</span>;
+    return <span className="app-copilot-citation-empty">No validated sources.</span>;
   }
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+    <div className="app-copilot-citation-list">
       {citations.map((c) => (
         <CopilotCitation key={`${c.type}:${c.objectId}:${c.objectVersion ?? ""}`} citation={c} />
       ))}

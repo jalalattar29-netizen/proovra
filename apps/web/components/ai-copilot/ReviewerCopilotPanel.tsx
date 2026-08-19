@@ -523,7 +523,7 @@ function ResultView(props: {
       })}
       <div>
         <strong>Validated sources</strong>
-        <div style={{ marginTop: 4 }}><CopilotCitationList citations={data.citations} /></div>
+        <div className="app-copilot-sources"><CopilotCitationList citations={data.citations} /></div>
         {result.droppedCitations ? <p style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>{result.droppedCitations} unverifiable citation(s) were removed.</p> : null}
       </div>
       <p style={{ fontSize: 12, opacity: 0.7, borderTop: "1px solid var(--app-border,#eee)", paddingTop: 8 }}>

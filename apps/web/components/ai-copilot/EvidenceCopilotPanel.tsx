@@ -194,7 +194,7 @@ export function EvidenceCopilotPanel({
         <button className="app-primary-action" onClick={run} disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Analyzing…" : state.kind === "result" ? "Re-run" : "Run Evidence Copilot"}
         </button>
-        <span aria-live="polite" className="evd-sr-only">
+        <span aria-live="polite" className="app-visually-hidden">
           {state.kind === "loading" ? "Analyzing evidence record" : state.kind === "result" ? "Evidence Copilot result ready" : ""}
         </span>
       </div>
@@ -237,7 +237,7 @@ function ResultView({ result, serverActions }: { result: RunResult; serverAction
       })}
       <div>
         <strong>Validated sources</strong>
-        <div className="evd-block--tight"><CopilotCitationList citations={data.citations} /></div>
+        <div className="app-copilot-sources"><CopilotCitationList citations={data.citations} /></div>
         {result.droppedCitations ? <p className="evd-muted evd-muted--small evd-block--tight">{result.droppedCitations} unverifiable citation(s) were removed.</p> : null}
       </div>
       <ConfirmedActionBar evidenceId={evidenceIdOfResult(result)} serverActions={serverActions} />

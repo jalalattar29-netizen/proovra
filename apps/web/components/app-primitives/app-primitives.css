@@ -1165,3 +1165,84 @@ textarea.app-form-input {
   flex-direction: column;
   gap: 16px;
 }
+
+/* ---- Copilot citations ----------------------------------------------------
+ * `CopilotCitation` is shared by FOUR surfaces — evidence detail, case,
+ * reviewer ops and operations intelligence. Its presentation therefore has to
+ * live in this shared authority: a route-scoped home (`evd-*`) would style one
+ * consumer and silently unstyle the other three.
+ *
+ * These carry their own family rather than reusing `.app-chip-row` because a
+ * citation list is inline prose reference, not a chip toolbar: the row is an
+ * 8px-gap list-reset for `<ul>` chips, and adopting it would reflow all four
+ * surfaces. Everything else reuses `.app-chip` / `.app-chip__tag` unchanged.
+ */
+.app-copilot-citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+/* `.app-chip` is `white-space: nowrap`, which let a long citation label escape
+   its container (measured: an 821px chip inside a 366px column at 390px wide).
+   A citation label is arbitrary record text, so citations wrap instead. */
+.app-copilot-citation {
+  max-inline-size: 100%;
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.app-copilot-citation__type {
+  font-weight: 600;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Technical references (record ids, routes, `· v12`) must keep their own
+   direction when the surrounding label is RTL. */
+.app-copilot-citation__label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.app-copilot-citation--unavailable {
+  opacity: 0.6;
+}
+
+.app-copilot-citation-empty {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* ---- Visually hidden ------------------------------------------------------
+ * THE canonical visually-hidden utility. It previously lived in the Evidence
+ * Detail route stylesheet under this same `app-*` name, which made a shared
+ * utility unavailable to every other route and led a later pass to add a
+ * second one (`evd-sr-only`). Both are now this one rule.
+ *
+ * Standard clipping: still in the accessibility tree and still announced,
+ * removed from the visual layer without `display:none` (which would also
+ * remove it from assistive technology).
+ */
+.app-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The "Validated sources" block each copilot surface puts its citation list
+   in. It exists so the shared component is not wrapped in a ROUTE-scoped
+   spacing class on one surface and an ad-hoc inline offset on the others —
+   which is how Evidence Detail had drifted to 6px against the other three
+   surfaces' 4px. */
+.app-copilot-sources {
+  margin-block-start: 4px;
+}

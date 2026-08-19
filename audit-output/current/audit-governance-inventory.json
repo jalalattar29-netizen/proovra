@@ -178,7 +178,7 @@
     "ambiguousReportRoles": 0,
     "phase0ChangedPathsDerivedFromBaseline": true,
     "phase0BaselineKind": "GIT_COMMIT",
-    "phase0BaselineRef": "d5f36ba4f7eb7a7aa6f4fcb0b100168919c88d83",
+    "phase0BaselineRef": "d9d62e9aefc461ce67083e457bcb4cfa8837d4fd",
     "phase0ChangedPaths": 14,
     "phase0AddedPaths": 1,
     "phase0ModifiedPaths": 13,
@@ -208,7 +208,7 @@
     "ciEngineCheckInstalled": true
   },
   "phase0ChangeSet": {
-    "baseline": "d5f36ba4f7eb7a7aa6f4fcb0b100168919c88d83",
+    "baseline": "d9d62e9aefc461ce67083e457bcb4cfa8837d4fd",
     "baselineKind": "GIT_COMMIT",
     "entries": [
       {
@@ -223,7 +223,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
+        "path": "apps/web/app/(app)/evidence/components/QueueSelectionPreview.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -234,7 +234,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/components/ComparisonPanel.tsx",
+        "path": "apps/web/app/(app)/evidence/evidence-library.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -245,7 +245,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/components/DuplicateDetectionPanel.tsx",
+        "path": "apps/web/components/ai-copilot/CaseCopilotPanel.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -256,18 +256,7 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/app/(app)/evidence/components/LegalNotesPanel.tsx",
-        "status": "MODIFIED",
-        "class": "PRODUCTION_RUNTIME",
-        "attribution": {
-          "byMarker": false,
-          "byEngineRef": false,
-          "byInventory": false
-        },
-        "attributedToPhase0": false
-      },
-      {
-        "path": "apps/web/app/(app)/evidence/components/ReviewerCommentsPanel.tsx",
+        "path": "apps/web/components/ai-copilot/CopilotCitation.tsx",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -289,7 +278,18 @@
         "attributedToPhase0": false
       },
       {
-        "path": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",
+        "path": "apps/web/components/ai-copilot/ReviewerCopilotPanel.tsx",
+        "status": "MODIFIED",
+        "class": "PRODUCTION_RUNTIME",
+        "attribution": {
+          "byMarker": false,
+          "byEngineRef": false,
+          "byInventory": false
+        },
+        "attributedToPhase0": false
+      },
+      {
+        "path": "apps/web/components/app-primitives/app-primitives.css",
         "status": "MODIFIED",
         "class": "PRODUCTION_RUNTIME",
         "attribution": {
@@ -355,7 +355,7 @@
         "attributedToPhase0": true
       },
       {
-        "path": "apps/web/__tests__/render/evidence-detail-workspace-convergence.render.test.tsx",
+        "path": "apps/web/__tests__/render/copilot-citation-shared-presentation.render.test.tsx",
         "status": "ADDED",
         "class": "PRODUCT_BEHAVIOR_TEST",
         "attribution": {

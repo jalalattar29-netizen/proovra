@@ -1239,14 +1239,10 @@
 }
 
 /* The visually-hidden state label must not claim a grid cell — when it did,
-   the artifact icon was pushed out of its column on the compact host. */
-.evidence-library-artifact > .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
+   the artifact icon was pushed out of its column on the compact host. The
+   clipping itself is now the shared `.app-visually-hidden` utility
+   (app-primitives.css); this rule only supplies the positioning context that
+   its `position: absolute` needs. */
 .evidence-library-artifact {
   position: relative;
 }

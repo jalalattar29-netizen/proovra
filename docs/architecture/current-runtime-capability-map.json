@@ -4,7 +4,7 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "3eabd2496ab56e595f331d3c8ea09b0e6cc9128a2985b407931612298febb02e",
-  "sourceRevision": "d5f36ba4f7eb7a7aa6f4fcb0b100168919c88d83",
+  "sourceRevision": "d9d62e9aefc461ce67083e457bcb4cfa8837d4fd",
   "routeInventoryHash": "a22d8c1ae81f43a123dd1d03e1aeccc0f6b47b77d8bce9e53755c3af2c7a8145",
   "consumerInventoryHash": "da6fab46bd35dd9b34171b5c6b7a40cd6d285946853a8b04aff29a39ca7cfd61",
   "dispositionsHash": "f895235e9099c451e4abc916b970432888abdaf59814a29c2d09f768d93f5f1e",

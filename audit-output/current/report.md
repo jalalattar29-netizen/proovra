@@ -22,8 +22,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | -------------- | ---------------------------------------------------------------- |
 | engineVersion  | audit-engine@1.0.0                                               |
 | engineHash     | 0a6b28765e810ba9f7e475942f8b2aa421172c25f01751d346572f78b7ed2d2a |
-| sourceRevision | d5f36ba4f7eb7a7aa6f4fcb0b100168919c88d83                         |
-| generatedAtUtc | 2026-08-19T04:32:40.648Z                                         |
+| sourceRevision | d9d62e9aefc461ce67083e457bcb4cfa8837d4fd                         |
+| generatedAtUtc | 2026-08-19T04:52:57.303Z                                         |
 | schemaVersion  | architecture-facts@1                                             |
 
 ## Measured surface
@@ -146,7 +146,7 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 | counter                                | value                                    |
 | -------------------------------------- | ---------------------------------------- |
 | baseline                               | GIT_COMMIT                               |
-| baselineRef                            | d5f36ba4f7eb7a7aa6f4fcb0b100168919c88d83 |
+| baselineRef                            | d9d62e9aefc461ce67083e457bcb4cfa8837d4fd |
 | changedPaths                           | 14                                       |
 | added                                  | 1                                        |
 | modified                               | 13                                       |
