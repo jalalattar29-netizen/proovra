@@ -225,8 +225,12 @@ describe("phase-0 self-reference — real drift still registers", () => {
         const cs = bannerChangeSet(run.out);
         expect(cs.changedPaths).toBeGreaterThan(0);
         expect(cs.modified).toBeGreaterThan(0);
-        // And it is attributed to the production runtime, not swallowed.
-        expect(cs.productionRuntimeFilesModifiedByPhase0).toBeGreaterThan(0);
+        // ATTRIBUTION must NOT fire. The safety counter asks a narrower
+        // question than "did this file change": it counts production runtime
+        // files whose ADDED lines carry a Phase-0 authorship marker. An
+        // unrelated edit is detected and classified but is not Phase-0's work,
+        // and a counter that rose here would be reporting a false positive.
+        expect(cs.productionRuntimeFilesModifiedByPhase0).toBe(0);
       } finally {
         writeFileSync(abs, original);
         // Put the generated artifacts back the way the committed tree has them.
