@@ -37,7 +37,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -49,17 +50,27 @@ const git = (...args: string[]) =>
 
 const AUDIT_TIMEOUT = 240_000;
 
-function runAudit(): { code: number; out: string } {
+/**
+ * ASYNC on purpose. A full audit takes ~40s, and `execFileSync` blocks the
+ * worker's event loop for the whole of it — so the worker cannot answer the
+ * reporter's `onTaskUpdate` RPC, vitest raises "Timeout calling onTaskUpdate"
+ * as an UNHANDLED ERROR, and `pnpm -r test` exits non-zero while every one of
+ * the 22,226 tests passes. A blocking child in a worker is the same trap as
+ * asserting on a `spawnSync` result whose own timeout can never fire.
+ */
+const execFileAsync = promisify(execFile);
+
+async function runAudit(): Promise<{ code: number; out: string }> {
   try {
-    const out = execFileSync("node", ["services/api/scripts/audit/index.mjs"], {
+    const { stdout } = await execFileAsync("node", ["services/api/scripts/audit/index.mjs"], {
       cwd: REPO,
       encoding: "utf8",
       maxBuffer: 1 << 28,
     });
-    return { code: 0, out };
+    return { code: 0, out: stdout };
   } catch (err) {
-    const e = err as { status?: number; stdout?: string; stderr?: string };
-    return { code: e.status ?? 1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
+    const e = err as { code?: number; stdout?: string; stderr?: string };
+    return { code: e.code ?? 1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
   }
 }
 
@@ -152,7 +163,7 @@ describe("phase-0 self-reference — the hold-out is bounded by the registry", (
 describe("phase-0 self-reference — deterministic and non-dirtying", () => {
   it(
     "passes twice from a clean tree and changes no tracked file",
-    () => {
+    async () => {
       // The property under test only exists on a clean tree; on a dirty one the
       // engine is SUPPOSED to report the difference. Skipping rather than
       // asserting keeps this honest during local development instead of turning
@@ -165,14 +176,14 @@ describe("phase-0 self-reference — deterministic and non-dirtying", () => {
         return;
       }
 
-      const first = runAudit();
+      const first = await runAudit();
       expect(first.out, "first run must pass").toContain("AuditEngineIntegrity = PASS");
       expect(first.code).toBe(0);
       expect(dirtyTracked(), "first run must not dirty the tree").toEqual([]);
       const firstFacts = facts();
       const afterFirst = artifactBytes();
 
-      const second = runAudit();
+      const second = await runAudit();
       expect(second.out, "second run must pass").toContain("AuditEngineIntegrity = PASS");
       expect(second.code).toBe(0);
       expect(dirtyTracked(), "second run must not dirty the tree").toEqual([]);

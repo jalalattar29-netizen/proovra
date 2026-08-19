@@ -2481,9 +2481,7 @@
         "services/api/scripts/audit/engine/governance.mjs"
       ],
       "importedBy": [],
-      "spawns": [
-        "services/api/scripts/audit/index.mjs"
-      ],
+      "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
       "declaresArtifacts": [
