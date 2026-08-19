@@ -25,6 +25,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, X } from "lucide-react";
 
 import { useMediaIntelligence } from "../../lib/media-intelligence/useMediaIntelligence";
 import { type AppTone } from "../app-primitives";
@@ -81,8 +82,21 @@ export default function MediaIntelligencePanel({
     runId: string | null;
     /** Observation count when the run was accepted, to report what changed. */
     baseline: number | null;
+    /** New observations this run produced, and the total now on the record. */
+    added: number | null;
+    total: number | null;
+    completedAtUtc: string | null;
     polls: number;
-  }>({ phase: "idle", message: null, runId: null, baseline: null, polls: 0 });
+  }>({
+    phase: "idle",
+    message: null,
+    runId: null,
+    baseline: null,
+    added: null,
+    total: null,
+    completedAtUtc: null,
+    polls: 0,
+  });
 
   /** Signals with an acknowledge/dismiss request in flight. */
   const [pendingAcks, setPendingAcks] = useState<Record<string, boolean>>({});
@@ -133,7 +147,11 @@ export default function MediaIntelligencePanel({
       phase: "queued",
       message: "Starting the analyzer…",
       runId: null,
+      // The list as it stands NOW is the baseline this run is measured against.
       baseline: state.data?.signals.length ?? 0,
+      added: null,
+      total: null,
+      completedAtUtc: null,
       polls: 0,
     });
     const result = await runAsync();
@@ -196,17 +214,19 @@ export default function MediaIntelligencePanel({
     }
 
     if (latest.status === "COMPLETED") {
-      const now = state.data?.signals.length ?? 0;
-      const added = run.baseline === null ? null : now - run.baseline;
+      // Counts come from the COMPLETED run's own projection and the list it
+      // produced — never from stale client state. `added` is the delta against
+      // the list as it stood when this run was accepted.
+      const total = state.data?.signals.length ?? 0;
+      const added = run.baseline === null ? null : Math.max(0, total - run.baseline);
       setRun((prev) => ({
         ...prev,
         phase: "completed",
         runId: latest.runId,
-        // Zero new observations is a real, visible completion — not silence.
-        message:
-          added === null || added === 0
-            ? `Analysis complete. No new observations; ${now} recorded in total.`
-            : `Analysis complete. ${added} new observation${added === 1 ? "" : "s"}; ${now} recorded in total.`,
+        completedAtUtc: latest.completedAtUtc,
+        added,
+        total,
+        message: null,
       }));
       return;
     }
@@ -325,9 +345,37 @@ export default function MediaIntelligencePanel({
           aria-live="polite"
           data-media-intelligence-run-state={run.phase}
         >
-          <p className={run.phase === "failed" ? "evd-error" : "evd-muted evd-muted--small"}>
-            {run.message}
-          </p>
+          {run.phase === "completed" ? (
+            <div className="mi-result" data-media-intelligence-result>
+              <p className="mi-result__head">
+                <Check size={15} strokeWidth={2.4} aria-hidden="true" />
+                Analysis complete
+              </p>
+              <p className="mi-result__line" data-media-intelligence-new={run.added ?? 0}>
+                {run.added === 0 || run.added === null
+                  ? "No new observations were found."
+                  : `${run.added} new observation${run.added === 1 ? "" : "s"} ${run.added === 1 ? "was" : "were"} recorded.`}
+              </p>
+              <p className="mi-result__line" data-media-intelligence-total={run.total ?? 0}>
+                {/* The total is stated on its own line so it can never be read
+                    as the number this run produced. */}
+                {run.total === 0
+                  ? "No observations are recorded for this evidence."
+                  : run.added === 0 || run.added === null
+                    ? `${run.total} existing observation${run.total === 1 ? "" : "s"} remain available for review.`
+                    : `${run.total} observation${run.total === 1 ? " is" : "s are"} now recorded in total.`}
+              </p>
+              {run.completedAtUtc ? (
+                <p className="mi-result__line mi-result__line--meta">
+                  Completed {formatTimestamp(run.completedAtUtc)}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className={run.phase === "failed" ? "evd-error" : "evd-muted evd-muted--small"}>
+              {run.message}
+            </p>
+          )}
           {run.phase === "failed" ? (
             <button
               type="button"
@@ -776,14 +824,21 @@ function SignalRow({
           <div className="evd-actions">
             <button
               type="button"
-              className="app-secondary-action"
+              className="app-secondary-action mi-acknowledge"
               onClick={() => onAck("ACKNOWLEDGED")}
               disabled={pending}
               aria-busy={pending}
               aria-describedby={helpId}
               data-media-intelligence-action="acknowledge"
             >
-              {pending ? "Working…" : "Acknowledge"}
+              {pending ? (
+                "Working…"
+              ) : (
+                <>
+                  <Check size={15} strokeWidth={2.2} aria-hidden="true" />
+                  Acknowledge
+                </>
+              )}
             </button>
             <button
               type="button"
@@ -794,7 +849,14 @@ function SignalRow({
               aria-describedby={helpId}
               data-media-intelligence-action="dismiss"
             >
-              {pending ? "Working…" : "Dismiss"}
+              {pending ? (
+                "Working…"
+              ) : (
+                <>
+                  <X size={15} strokeWidth={2.2} aria-hidden="true" />
+                  Dismiss
+                </>
+              )}
             </button>
           </div>
         ) : null}
@@ -822,7 +884,11 @@ function severityTone(severity: ClientSeverity): AppTone {
 }
 
 function statusTone(status: ClientStatus): AppTone {
+  // The resolved states carry the tone of the action that produced them —
+  // the canonical success green for Acknowledged, the canonical danger red
+  // for Dismissed — so the badge and the button that set it read as one
+  // workflow. They remain badges: text, never a control.
   if (status === "ACKNOWLEDGED") return "green";
-  if (status === "DISMISSED") return "slate";
+  if (status === "DISMISSED") return "red";
   return "blue";
 }

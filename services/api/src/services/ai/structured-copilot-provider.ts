@@ -9,6 +9,7 @@
 import OpenAI from "openai";
 
 import { getSecret } from "../../config/runtime-secrets.js";
+import { COPILOT_BOUNDS } from "./ai-copilot-schemas.js";
 import { openAiClientPrivacyOptions, openAiRequestStore } from "./provider-privacy.service.js";
 import { buildProductKnowledgePromptSection } from "./proovra-product-knowledge.js";
 import { UNTRUSTED_DATA_INSTRUCTION } from "./prompt-context-sanitizer.service.js";
@@ -20,18 +21,33 @@ export class CopilotProviderUnavailable extends Error {
 export const ADVISORY_BOUNDARY_TEXT =
   "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.";
 
-const strArr = { type: "array", items: { type: "string" } } as const;
+/**
+ * The JSON schema handed to the provider carries the VALIDATOR's bounds.
+ *
+ * It previously declared unbounded strings and arrays, so the model was told
+ * "any length" and then measured against the validator's limits — every
+ * thorough answer was produced legally and discarded as SCHEMA_MISMATCH.
+ * `objectVersion` was `number` here and `int` in the validator, so a decimal
+ * version was another legal-then-rejected shape.
+ */
+const strArr = {
+  type: "array",
+  maxItems: COPILOT_BOUNDS.listMaxItems,
+  items: { type: "string", maxLength: COPILOT_BOUNDS.listItemMaxChars },
+} as const;
+
 export const CITATION_JSON_ITEMS = {
   type: "array",
+  maxItems: COPILOT_BOUNDS.citationsMaxItems,
   items: {
     type: "object",
     additionalProperties: false,
     properties: {
-      type: { type: "string" },
-      objectId: { type: "string" },
-      displayLabel: { type: "string" },
-      route: { type: "string" },
-      objectVersion: { type: ["number", "null"] },
+      type: { type: "string", maxLength: COPILOT_BOUNDS.citationTypeMaxChars },
+      objectId: { type: "string", maxLength: COPILOT_BOUNDS.citationObjectIdMaxChars },
+      displayLabel: { type: "string", maxLength: COPILOT_BOUNDS.citationLabelMaxChars },
+      route: { type: "string", maxLength: COPILOT_BOUNDS.citationRouteMaxChars },
+      objectVersion: { type: ["integer", "null"] },
     },
     required: ["type", "objectId", "displayLabel", "route", "objectVersion"],
   },
@@ -40,9 +56,11 @@ export const CITATION_JSON_ITEMS = {
 /** Build a strict json_schema body from string fields + citations + boundary. */
 export function buildCopilotJsonSchema(name: string, stringField: string, listFields: string[]) {
   const properties: Record<string, unknown> = {
-    [stringField]: { type: "string" },
+    [stringField]: { type: "string", maxLength: COPILOT_BOUNDS.summaryMaxChars },
     citations: CITATION_JSON_ITEMS,
-    advisoryBoundary: { type: "string" },
+    // The validator requires this EXACT sentence; pinning it in the schema too
+    // means the model cannot legally return anything else.
+    advisoryBoundary: { type: "string", enum: [ADVISORY_BOUNDARY_TEXT] },
   };
   for (const f of listFields) properties[f] = strArr;
   return {

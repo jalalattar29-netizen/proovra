@@ -42,7 +42,6 @@
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
 }
 
-.evidence-library-definition-grid span,
 .evidence-library-list-shell__meta span {
   font-size: 12px;
   color: rgba(35, 55, 59, 0.68);
@@ -98,7 +97,6 @@
   flex-direction: column;
 }
 
-.evidence-library-definition-grid,
 .evidence-library-key-grid,
 .evidence-library-note-grid {
   display: grid;
@@ -107,8 +105,7 @@
 }
 
 .evidence-library-alert,
-.evidence-library-note-card,
-.evidence-library-definition-grid > div {
+.evidence-library-note-card {
   padding: 14px;
   border-radius: 16px;
   border: 1px solid rgba(58, 93, 97, 0.08);
@@ -116,8 +113,7 @@
 }
 
 .evidence-library-alert strong,
-.evidence-library-note-card strong,
-.evidence-library-definition-grid strong {
+.evidence-library-note-card strong {
   display: block;
   margin-top: 6px;
   color: #1f3136;

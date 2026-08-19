@@ -25,6 +25,21 @@ import type { AiPolicyDecision } from "./workspace-ai-policy.service.js";
 
 const NON_PROSE = new Set(["advisoryBoundary", "citations"]);
 
+/**
+ * Bounded validation telemetry: WHICH contract broke, on which surface, at
+ * which attempt. Never the prompt, the evidence, or the discarded output.
+ */
+function logCopilotValidation(surface: string, category: string, attempt: number): void {
+  try {
+    // eslint-disable-next-line no-console
+    console.info(
+      JSON.stringify({ kind: "ai.copilot_validation", surface, category, attempt }),
+    );
+  } catch {
+    /* telemetry is best-effort */
+  }
+}
+
 export type GroundedCopilotStatus =
   | "ok"
   | "no_selection"
@@ -36,6 +51,8 @@ export type GroundedCopilotResult = {
   status: GroundedCopilotStatus;
   decision?: string;
   data?: unknown;
+  /** Bounded reason a response was rejected. Safe to log; never model text. */
+  validationCategory?: string;
   droppedCitations?: number;
   advisoryBoundary: string;
   versionMeta: {
@@ -84,10 +101,30 @@ export async function runGroundedCopilot(input: {
       versionMeta,
     };
   }
-  const raw = await input.callProvider();
-  const validated = validateCopilotOutput(input.surface, raw);
+  let raw = await input.callProvider();
+  let validated = validateCopilotOutput(input.surface, raw);
+
+  // ONE bounded repair attempt, for FORMATTING and SHAPE failures only.
+  //
+  // A prohibited claim never reaches here — it is detected after a SUCCESSFUL
+  // parse, below, and is never retried into acceptance. The repair carries no
+  // model text and no evidence: it is the same request again, and the second
+  // answer is validated by exactly the same schema.
+  if (!validated.ok && validated.repairable) {
+    logCopilotValidation(input.surface, validated.category, 1);
+    raw = await input.callProvider();
+    validated = validateCopilotOutput(input.surface, raw);
+  }
+
   if (!validated.ok) {
-    return { status: "schema_error", advisoryBoundary: ADVISORY_BOUNDARY_TEXT, versionMeta };
+    logCopilotValidation(input.surface, validated.category, 2);
+    return {
+      status: "schema_error",
+      // The CATEGORY only — never the discarded model output.
+      validationCategory: validated.category,
+      advisoryBoundary: ADVISORY_BOUNDARY_TEXT,
+      versionMeta,
+    };
   }
   const data = validated.data as Record<string, unknown>;
 

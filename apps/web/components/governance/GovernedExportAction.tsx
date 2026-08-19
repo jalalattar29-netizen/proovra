@@ -208,13 +208,27 @@ export function GovernedExportAction({
       data-governed-export-outcome={outcome}
       data-governed-export-action={actionLabel}
       data-governed-export-allowed={allowed ? "true" : "false"}
-      style={{
-        border: `1px solid ${tone.border}`,
-        background: compactWhenAllowed && allowed ? "transparent" : tone.bg,
-        color: compactWhenAllowed && allowed ? "inherit" : tone.fg,
-        borderRadius: 8,
-        padding: "0.75rem 1rem",
-      }}
+      /**
+       * COMPACT-ALLOWED IS A PASS-THROUGH.
+       *
+       * This wrapper used to keep `border: 1px solid ${tone.border}` in every
+       * outcome. With `compactWhenAllowed` the background and text were cleared
+       * but the BORDER survived, so an ALLOWED export drew `#bbf7d0` — a thin
+       * green rectangle around the download control, applied for no reason
+       * other than the file being available. A blocked outcome still needs its
+       * surface, because it carries the gate and its next-step copy.
+       */
+      style={
+        compactWhenAllowed && allowed
+          ? { border: "none", background: "transparent", color: "inherit", padding: 0 }
+          : {
+              border: `1px solid ${tone.border}`,
+              background: tone.bg,
+              color: tone.fg,
+              borderRadius: 8,
+              padding: "0.75rem 1rem",
+            }
+      }
     >
       {!(compactWhenAllowed && allowed) ? (
         <header style={{ marginBottom: 8 }}>

@@ -7618,7 +7618,16 @@ await appendCustodyEvent({
     const latestReport = await prisma.report.findFirst({
       where: { evidenceId: id },
       orderBy: { version: "desc" },
-      select: { version: true, generatedAtUtc: true, verificationPackageVersion: true },
+      select: {
+        version: true,
+        generatedAtUtc: true,
+        verificationPackageVersion: true,
+        // The report snapshots the trust decision as it stood when the report
+        // was generated; the verification package snapshots it again when the
+        // package was built. Comparison mode aligns the two, which it cannot
+        // do while only one side is projected.
+        trustDecisionSnapshot: true,
+      },
     });
     const latestPackage = await prisma.verificationPackage.findFirst({
       where: { evidenceId: id },
@@ -7646,6 +7655,7 @@ await appendCustodyEvent({
             version: latestReport.version,
             generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
             verificationPackageVersion: latestReport.verificationPackageVersion ?? null,
+            trustDecisionSnapshot: toJsonSafe(latestReport.trustDecisionSnapshot),
           }
         : null,
       verificationPackage: latestPackage

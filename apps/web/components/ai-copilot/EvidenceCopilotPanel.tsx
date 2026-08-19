@@ -204,15 +204,42 @@ export function EvidenceCopilotPanel({
           {state.message} <span className="evd-muted">({state.code})</span>
         </div>
       ) : null}
-      {state.kind === "result" ? <ResultView result={state.result} serverActions={state.serverActions} /> : null}
+      {state.kind === "result" ? (
+        <ResultView result={state.result} serverActions={state.serverActions} onRetry={run} />
+      ) : null}
     </section>
   );
 }
 
-function ResultView({ result, serverActions }: { result: RunResult; serverActions: ServerAction[] }) {
+function ResultView({
+  result,
+  serverActions,
+  onRetry,
+}: {
+  result: RunResult;
+  serverActions: ServerAction[];
+  onRetry?: () => void;
+}) {
   if (result.status === "provider_unavailable") return <div className="app-alert evd-block">AI is currently unavailable. Evidence workflows are unaffected.</div>;
   if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace ({result.decision}).</div>;
-  if (result.status === "schema_error") return <div className="app-alert app-alert--warn evd-block">The AI response could not be validated and was discarded. Please try again.</div>;
+  if (result.status === "schema_error") {
+    // The response is DISCARDED and never rendered. The user gets an actionable
+    // control rather than a dead end; the internal category is logged
+    // server-side and deliberately not shown here.
+    return (
+      <div className="app-alert app-alert--warn evd-block" role="alert" data-copilot-schema-error>
+        <p className="evd-paragraph">
+          The AI response did not meet PROOVRA&apos;s output contract and was
+          discarded. Nothing from it was saved or shown.
+        </p>
+        {onRetry ? (
+          <button type="button" className="app-secondary-action" onClick={onRetry} data-copilot-retry>
+            Try again
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   const data = result.data;
   if (result.status === "blocked_prohibited_claim" || !data) {
     return <div className="app-alert app-alert--warn evd-block">The AI output contained language PROOVRA cannot present and was blocked.</div>;

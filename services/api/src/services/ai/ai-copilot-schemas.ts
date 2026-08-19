@@ -22,8 +22,63 @@ const CitationRef = z.object({
   objectVersion: z.number().int().nullable(),
 });
 
-const boundedStr = z.string().max(1000);
-const boundedList = z.array(z.string().max(600)).max(50);
+/** Which bound a rejected response broke — for safe telemetry, never for the user. */
+export type CopilotValidationCategory =
+  | "MALFORMED_JSON"
+  | "MISSING_FIELD"
+  | "TOO_LONG"
+  | "WRONG_TYPE"
+  | "BOUNDARY_TEXT"
+  | "OTHER";
+
+/**
+ * Classify a zod failure into a bounded category.
+ *
+ * A category is safe to log: it names the CONTRACT that broke, never the model
+ * text, the prompt or any evidence field.
+ */
+export function classifyValidationFailure(issues: z.ZodIssue[]): CopilotValidationCategory {
+  for (const i of issues) {
+    if (i.path.join(".") === "advisoryBoundary") return "BOUNDARY_TEXT";
+  }
+  for (const i of issues) {
+    if (i.code === "too_big") return "TOO_LONG";
+    if (i.code === "invalid_type" && /required|undefined/i.test(i.message)) return "MISSING_FIELD";
+  }
+  for (const i of issues) {
+    if (i.code === "invalid_type") return "WRONG_TYPE";
+  }
+  return "OTHER";
+}
+
+/**
+ * THE OUTPUT BOUNDS — one definition, shared by the validator AND the JSON
+ * schema handed to the provider.
+ *
+ * They used to exist only here. The provider schema declared
+ * `{ type: "string" }` with no `maxLength` and `{ type: "array" }` with no
+ * `maxItems`, so the model was told "any length" and then checked against
+ * "at most 1000 characters". A thorough operational summary is longer than
+ * that, so the response was valid against the schema the model was given and
+ * invalid against the schema it was measured with — and every such run was
+ * discarded as SCHEMA_MISMATCH. Exporting the numbers is what keeps the prompt,
+ * the provider call and the validator on one contract.
+ */
+export const COPILOT_BOUNDS = {
+  summaryMaxChars: 1000,
+  listItemMaxChars: 600,
+  listMaxItems: 50,
+  citationsMaxItems: 100,
+  citationTypeMaxChars: 40,
+  citationObjectIdMaxChars: 80,
+  citationLabelMaxChars: 200,
+  citationRouteMaxChars: 200,
+} as const;
+
+const boundedStr = z.string().max(COPILOT_BOUNDS.summaryMaxChars);
+const boundedList = z
+  .array(z.string().max(COPILOT_BOUNDS.listItemMaxChars))
+  .max(COPILOT_BOUNDS.listMaxItems);
 
 // Phase P6 — the unused SupportChatSchema was REMOVED: the support chat's
 // canonical bounded contract is AiResultSchema (ai-types.ts), enforced end to
@@ -106,7 +161,14 @@ export function schemaKeys(surface: CopilotSurface): string[] {
 
 export type CopilotValidation<T> =
   | { ok: true; data: T }
-  | { ok: false; fallback: { advisoryBoundary: string; error: "SCHEMA_MISMATCH" } };
+  | {
+      ok: false;
+      /** Bounded, non-sensitive reason the response was rejected. */
+      category: CopilotValidationCategory;
+      /** True when a single re-ask could plausibly fix it (formatting/shape). */
+      repairable: boolean;
+      fallback: { advisoryBoundary: string; error: "SCHEMA_MISMATCH" };
+    };
 
 /** Strict parse with a safe, bounded fallback (never raw passthrough). */
 export function validateCopilotOutput<S extends CopilotSurface>(
@@ -117,8 +179,17 @@ export function validateCopilotOutput<S extends CopilotSurface>(
   if (parsed.success) {
     return { ok: true, data: parsed.data as z.infer<(typeof COPILOT_SCHEMAS)[S]> };
   }
+  const category =
+    raw && typeof raw === "object" && (raw as { _malformed?: boolean })._malformed
+      ? "MALFORMED_JSON"
+      : classifyValidationFailure(parsed.error.issues);
   return {
     ok: false,
+    category,
+    // Formatting and shape failures are worth ONE re-ask. A prohibited claim is
+    // not a formatting problem and never reaches here — it is caught after a
+    // SUCCESSFUL parse and is never retried into acceptance.
+    repairable: category !== "OTHER",
     fallback: {
       advisoryBoundary:
         "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.",

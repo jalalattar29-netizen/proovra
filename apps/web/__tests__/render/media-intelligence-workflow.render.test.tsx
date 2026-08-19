@@ -192,6 +192,93 @@ describe("Run analyzer — a lifecycle with a terminal outcome", () => {
     },
   );
 
+  // -------------------------------------------------------------------------
+  // "No new observations; 23 recorded in total" was legitimate but ambiguous:
+  // it could be read as an error, as an unfinished run, or as 23 observations
+  // this run had just created. These two tests pin the DIFFERENCE between the
+  // two situations that produce the same total.
+  // -------------------------------------------------------------------------
+
+  const manySignals = (count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      signal({ id: `sig-${i + 1}`, safeSummary: `Observation ${i + 1}.` }),
+    );
+
+  it(
+    "new = 0 and total = 23 reads as a complete run that found nothing new",
+    { timeout: 20_000 },
+    async () => {
+      // 23 observations already on the record; the re-run adds none.
+      responders["/media-intelligence?"] = () => listResponse(manySignals(23));
+      mount();
+      await waitFor(() => expect(runButton()).toBeTruthy());
+      await act(async () => {
+        runButton().click();
+      });
+      responders["/media-intelligence?"] = () =>
+        listResponse(manySignals(23), runRow("COMPLETED"));
+
+      await waitFor(() => expect(runState()).toBe("completed"), { timeout: 15_000 });
+
+      const result = document.querySelector("[data-media-intelligence-result]");
+      expect(result, "a completed run renders a result, not a bare sentence").not.toBeNull();
+      // The counts come from the completed run's projection, stated separately.
+      expect(
+        result!.querySelector("[data-media-intelligence-new]")!.getAttribute(
+          "data-media-intelligence-new",
+        ),
+      ).toBe("0");
+      expect(
+        result!.querySelector("[data-media-intelligence-total]")!.getAttribute(
+          "data-media-intelligence-total",
+        ),
+      ).toBe("23");
+      const text = result!.textContent ?? "";
+      expect(text).toMatch(/Analysis complete/);
+      expect(text).toMatch(/No new observations were found\./);
+      expect(text).toMatch(/23 existing observations remain available for review\./);
+      // It must NOT read as 23 newly created observations.
+      expect(text).not.toMatch(/23 new observations/);
+      // It is a completion, not a failure and not an unfinished run.
+      expect(text).not.toMatch(/error|failed|still processing/i);
+      // The completion time is shown when the API provides one.
+      expect(text).toMatch(/Completed /);
+    },
+  );
+
+  it(
+    "new = 23 and total = 23 reads as 23 observations this run recorded",
+    { timeout: 20_000 },
+    async () => {
+      // A first run on a record with nothing on it yet.
+      responders["/media-intelligence?"] = () => listResponse([]);
+      mount();
+      await waitFor(() => expect(runButton()).toBeTruthy());
+      await act(async () => {
+        runButton().click();
+      });
+      responders["/media-intelligence?"] = () =>
+        listResponse(manySignals(23), runRow("COMPLETED"));
+
+      await waitFor(() => expect(runState()).toBe("completed"), { timeout: 15_000 });
+
+      const result = document.querySelector("[data-media-intelligence-result]")!;
+      expect(
+        result.querySelector("[data-media-intelligence-new]")!.getAttribute(
+          "data-media-intelligence-new",
+        ),
+      ).toBe("23");
+      expect(
+        result.querySelector("[data-media-intelligence-total]")!.getAttribute(
+          "data-media-intelligence-total",
+        ),
+      ).toBe("23");
+      const text = result.textContent ?? "";
+      expect(text).toMatch(/23 new observations were recorded\./);
+      expect(text).not.toMatch(/No new observations/);
+    },
+  );
+
   it("a failed run shows the server's own reason and offers Retry", { timeout: 20_000 }, async () => {
     mount();
     await waitFor(() => expect(runButton()).toBeTruthy());

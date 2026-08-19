@@ -5,13 +5,7 @@ import { ChevronDown, Columns2 } from "lucide-react";
 import { useId, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import type { EvidenceComparisonResponse } from "../lib/evidence-library-types";
-
-function renderValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "Not available";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number" || typeof value === "string") return String(value);
-  return JSON.stringify(value);
-}
+import { StructuredSnapshot } from "./StructuredSnapshot";
 
 /**
  * Phase EVIDENCE-COMPARISON-CLEANUP (FIX 4) — humanise the comparison
@@ -58,6 +52,12 @@ function summariseGroup(group: Record<string, unknown> | null | undefined): stri
 function renderGroup(
   title: string,
   group: Record<string, unknown> | null | undefined,
+  /**
+   * The equivalent fields the other artifact recorded, when one exists. Only
+   * the keys it carries are aligned and marked, so a field with no counterpart
+   * is never reported as a difference.
+   */
+  compare?: { fields: Record<string, unknown>; label: string },
 ) {
   if (!group) {
     return (
@@ -74,22 +74,26 @@ function renderGroup(
       <p className="evd-muted evd-block--tight">
         {summariseGroup(group)}
       </p>
-      {/* FIX 4 — the raw key/value grid moves behind a collapsed
-          `<details>` so the comparison card no longer dumps the full
-          backend payload (and any stray `JSON.stringify(...)` cell
-          value) into the default view. Engineering can still expand
-          it on demand; the data is preserved, just one click deeper. */}
+      {/* FIX 4 — the full payload sits behind a collapsed `<details>` so the
+          comparison card does not dump it into the default view. The data is
+          preserved, just one click deeper.
+
+          It is rendered by StructuredSnapshot: labelled facts, bounded
+          sections for nested objects and lists for arrays. The previous
+          `renderValue` ended in `JSON.stringify(value)`, which turned
+          `trustDecisionSnapshot` into a single symbolic wall and anything
+          nested inside it into `[object Object]`. */}
       <details data-comparison-technical-details>
         <summary className="evd-disclosure-summary">
           Technical details
         </summary>
-        <div className="evidence-library-definition-grid evd-block--tight">
-          {Object.entries(group).map(([key, value]) => (
-            <div key={key}>
-              <span>{key}</span>
-              <strong>{renderValue(value)}</strong>
-            </div>
-          ))}
+        <div className="evd-block--tight">
+          <StructuredSnapshot
+            name={title}
+            data={group}
+            compareWith={compare?.fields}
+            compareLabel={compare?.label}
+          />
         </div>
       </details>
     </div>
@@ -110,6 +114,25 @@ function renderGroup(
  * NOT a backend change — backend stays exactly as it is. We just
  * stop surfacing the scaffolding in the UI.
  */
+/**
+ * The report artifact's recorded trust decision, as the counterpart for the
+ * verification package card.
+ *
+ * Both artifacts snapshot the decision as it stood when they were generated,
+ * so a difference between them is a real finding about the record — not a
+ * presentation artefact. Only fields the report actually carries are returned:
+ * a package field with no counterpart must render unmarked rather than as a
+ * difference we cannot support.
+ */
+function trustDecisionCounterpart(
+  data: EvidenceComparisonResponse,
+): { fields: Record<string, unknown>; label: string } | undefined {
+  const report = data.reportArtifact as Record<string, unknown> | null | undefined;
+  const snapshot = report?.trustDecisionSnapshot;
+  if (snapshot === null || snapshot === undefined) return undefined;
+  return { fields: { trustDecisionSnapshot: snapshot }, label: "the report artifact" };
+}
+
 function hasAnyMismatchFlag(group: Record<string, unknown> | null | undefined): boolean {
   if (!group) return false;
   for (const value of Object.values(group)) {
@@ -203,7 +226,13 @@ export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
             {renderGroup("Report artifact", data.reportArtifact as Record<string, unknown> | null)}
             {renderGroup(
               "Verification package",
-              data.verificationPackage as Record<string, unknown> | null
+              data.verificationPackage as Record<string, unknown> | null,
+              // The report and the package each record the trust decision as
+              // it stood when that artifact was generated. Aligning the two is
+              // the comparison this surface exists for; the alignment is by
+              // field, structurally, so a snapshot re-serialised with its keys
+              // in a different order does not read as a difference.
+              trustDecisionCounterpart(data)
             )}
             {hasAnyMismatchFlag(data.mismatchFlags as Record<string, unknown> | null)
               ? renderGroup(
