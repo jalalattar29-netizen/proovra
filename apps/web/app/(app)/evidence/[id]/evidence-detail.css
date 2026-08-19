@@ -8,8 +8,6 @@
      kickers, active tabs, primary buttons, focus rings and inline
      links match Home/Cases. The variable names are kept to avoid a
      risky rename across ~20 call sites. */
-  --detail-teal: #4f46e5;
-  --detail-teal-soft: #f3f0ff;
   --detail-bronze: #8d6438;
   --detail-green: #16794a;
   --detail-green-soft: #ebf7ef;
@@ -97,9 +95,15 @@
   gap: 8px;
   align-items: center;
 }
-
 .evidence-detail-hero-meta {
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
 }
 
 .evidence-detail-pill {
@@ -139,82 +143,30 @@
   background: #f8fafc;
   border-color: rgba(15, 23, 42, 0.08);
 }
-
-.evidence-detail-hero-meta .evidence-detail-pill:nth-child(2) {
-  color: var(--detail-teal);
-  background: var(--detail-teal-soft);
-  border-color: rgba(79, 70, 229, 0.14);
-}
-
-.evidence-detail-hero-meta .evidence-detail-pill:nth-child(4) {
-  color: #6b4b1d;
-  background: #fff7ea;
-  border-color: rgba(141, 100, 56, 0.18);
-}
-
 .evidence-detail-boundary {
   border-left: 3px solid rgba(141, 100, 56, 0.38);
   padding: 10px 0 10px 14px;
-}
-
-.evidence-detail-boundary {
   max-width: 900px;
   color: #475467;
   font-size: 0.92rem;
   line-height: 1.58;
 }
-
 .evidence-detail-hero-actions {
-  display: grid;
+  display: flex;
   gap: 10px;
   align-content: start;
-}
-
-.evidence-detail-tab {
-  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.09);
-  background: #f8fafc;
-  color: #344054;
-  cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 800;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
 }
-
-.evidence-detail-tab svg {
-  color: var(--detail-teal);
-}
-
-.evidence-detail-tab:hover {
-  background: #ffffff;
-  border-color: rgba(79, 70, 229, 0.2);
-  transform: translateY(-1px);
-}
-
-.evidence-detail-tab.is-active {
-  background: var(--detail-teal);
-  border-color: var(--detail-teal);
-  color: #ffffff;
-}
-
-.evidence-detail-tab.is-active svg {
-  color: #ffffff;
-}
-
 .evidence-detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 36px;
   align-items: start;
+  min-block-size: 0;
 }
 
 .evidence-detail-main {
@@ -244,11 +196,17 @@
   padding-bottom: 28px;
   border-bottom: 1px solid var(--detail-line);
 }
-
 .evidence-detail-side-block {
   padding-bottom: 22px;
   margin-bottom: 22px;
   border-bottom: 1px solid var(--detail-line);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-inline-size: 0;
+  padding-block: 18px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
 }
 
 .evidence-detail-section-header,
@@ -275,8 +233,8 @@
   flex: 0 0 auto;
   border-radius: 11px;
   border: 1px solid rgba(79, 70, 229, 0.16);
-  background: var(--detail-teal-soft);
-  color: var(--detail-teal);
+  background: var(--accent-050);
+  color: var(--accent-600);
 }
 
 .evidence-detail-heading-copy {
@@ -307,14 +265,14 @@
   padding: 12px 14px 13px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--surface-translucent-inner);
   display: grid;
   gap: 7px;
   align-content: start;
 }
 
 .evidence-detail-data-cell span {
-  color: var(--detail-teal);
+  color: var(--accent-600);
   font-size: 0.68rem;
   font-weight: 850;
   letter-spacing: 0.11em;
@@ -404,11 +362,9 @@
 .evidence-library-panel {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--surface-translucent-inner);
   padding: 14px;
-}
-
-/* P0 fix — content-item cards are now <button> elements that select
+}/* P0 fix — content-item cards are now <button> elements that select
    which file the main preview renders. Reset the default button
    chrome (alignment, font, cursor) so the card layout is unchanged
    from the previous <div>, and add visible hover / focus / selected
@@ -422,9 +378,13 @@
   background: var(--surface-translucent-inner);
   padding: 14px;
   min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  block-size: 100%;
 }
 button.evidence-detail-item-card {
-  display: block;
+  display: flex;
   width: 100%;
   text-align: start;
   font: inherit;
@@ -452,18 +412,6 @@ button.evidence-detail-item-card[aria-pressed="true"] {
 .evidence-detail-item-card p,
 .evidence-detail-signal-card p {
   margin: 6px 0 0;
-}
-/* Cards share one grid row, so they resolve one height regardless of how
-   many optional rows (private capture role, source, private note) an
-   individual item carries. */
-.evidence-detail-item-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  block-size: 100%;
-}
-button.evidence-detail-item-card {
-  display: flex;
 }
 .evidence-detail-item-card > .evidence-detail-item-row {
   flex-direction: row;
@@ -602,7 +550,7 @@ button.evidence-detail-item-card {
   height: 9px;
   margin-top: 7px;
   border-radius: 999px;
-  background: var(--detail-teal);
+  background: var(--accent-600);
 }
 
 .evidence-detail-timeline-item strong {
@@ -616,7 +564,7 @@ button.evidence-detail-item-card {
 .evidence-detail-inline-link {
   display: inline-flex;
   margin-top: 12px;
-  color: var(--detail-teal);
+  color: var(--accent-600);
   font-weight: 800;
   text-decoration: none;
 }
@@ -651,7 +599,7 @@ button.evidence-detail-item-card {
 .evidence-library-textarea:focus,
 .evidence-library-panel select:focus {
   outline: none;
-  border-color: #4f46e5;
+  border-color: var(--accent-500);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 
@@ -661,9 +609,12 @@ button.evidence-detail-item-card {
   gap: 10px;
   max-width: 860px;
 }
-
 .evidence-detail-map-shell {
   margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
 }
 
 .evidence-detail-raw-summary,
@@ -713,7 +664,7 @@ button.evidence-detail-item-card {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 12px;
   padding: 12px;
-  background: #ffffff;
+  background: var(--surface-translucent-inner);
 }
 
 .evidence-detail-subsection {
@@ -822,10 +773,6 @@ button.evidence-detail-item-card {
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 10px;
-  }
-
-  .evidence-detail-tab {
-    flex: 0 0 auto;
   }
 
   .evidence-detail-data-grid,
@@ -999,12 +946,13 @@ button.evidence-detail-item-card {
   color: var(--app-ink-heading);
   text-align: end;
 }
-/* The bidi scope belongs to the VALUE TEXT, so a hash or timestamp keeps its
-   written order in Arabic layout while the copy control stays in page flow. */
 .ta-row-value-text {
+  unicode-bidi: plaintext;
+  color: var(--app-ink-heading);
   min-inline-size: 0;
   overflow-wrap: anywhere;
-  unicode-bidi: plaintext;
+  /* Values take primary ink and wrap only inside their own value column;
+     technical values keep their own direction inside an RTL card. */
 }
 .ta-mono .ta-row-value-text {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
@@ -1232,17 +1180,6 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   color: var(--app-ink-heading);
   font-weight: 650;
 }
-
-/* ---- Identity ------------------------------------------------------------ */
-.evidence-detail-hero-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-inline-size: 0;
-  font-size: 12.5px;
-  color: var(--app-ink-secondary);
-}
 .evidence-detail-meta-item {
   display: inline-flex;
   align-items: center;
@@ -1258,23 +1195,11 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   unicode-bidi: isolate;
   text-align: start;
   font-variant-numeric: tabular-nums;
-}
-
-/* ---- Action toolbar ------------------------------------------------------ */
-.evidence-detail-hero-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(15, 23, 42, 0.07);
-}
-/* Icon actions sit at the LOGICAL end, so they mirror correctly in RTL. */
+}/* Icon actions sit at the LOGICAL end, so they mirror correctly in RTL. */
 .evidence-detail-hero-icon-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   margin-inline-start: auto;
 }
 .evidence-detail-icon-action {
@@ -1288,27 +1213,33 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.evidence-detail-tabs::-webkit-scrollbar {
+  display: none;
+}
 
-/* ---- Tabs ----------------------------------------------------------------
- * Layout only. Appearance is the canonical `.app-tabs` / `.app-tab`
- * authority; this route no longer carries a second tab system. */
 .evidence-detail-tabs {
+  /* Static, in normal flow: the bar does not follow the reader.
+
+     `overflow-x: auto` with `overflow-y: visible` COMPUTES to auto on BOTH
+     axes, which is where the internal vertical scrollbar came from
+     (scrollHeight 62 against clientHeight 42). Pinning `overflow-y: hidden` is
+     the fix. The horizontal scrollbar is hidden visually while wheel, touch and
+     keyboard scrolling are untouched. */
+  position: static;
+  z-index: auto;
   margin: 18px 0 0;
+  padding: 4px;
+  border-bottom: none;
+  background: var(--surface-translucent-outer);
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .evidence-detail-tabs .app-tab {
   flex: none;
   white-space: nowrap;
-}
-
-/* ---- Layout + right rail -------------------------------------------------
- * The rail begins below the canonical top bar and uses the remaining DYNAMIC
- * viewport height, with one internal scroll region. Every ancestor carries
- * min-block-size: 0 so the rail can actually scroll instead of stretching. */
-.evidence-detail-layout {
-  min-block-size: 0;
 }
 .evidence-detail-layout > * {
   min-inline-size: 0;
@@ -1778,17 +1709,7 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
 }
 @media (max-width: 700px) {
   .evidence-detail-matrix { grid-template-columns: minmax(0, 1fr); }
-}
-
-/* ---- Capture location panel host ---------------------------------------- */
-.evidence-detail-map-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-inline-size: 0;
-}
-
-/* ---- Boundary notes ------------------------------------------------------
+}/* ---- Boundary notes ------------------------------------------------------
  * The informational row is a neutral card; "Boundary updated" is the purple
  * logical-start callout, so it mirrors in Arabic. Neither is italic. */
 .evidence-detail-boundary-note {
@@ -1918,18 +1839,6 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   line-height: 18px;
   unicode-bidi: plaintext;
 }
-
-/* Each rail section is its own stacked block; a hairline between sections
-   makes the four groups readable as four groups. */
-.evidence-detail-side-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  min-inline-size: 0;
-  padding-block: 18px;
-  border-block-start: 1px solid var(--surface-translucent-border-strong);
-}
 .evidence-detail-side-block:first-child {
   padding-block-start: 0;
   border-block-start: 0;
@@ -2027,6 +1936,7 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   block-size: 12px;
   border-radius: 50%;
   background: var(--accent-500);
+  position: relative;
 }
 /* Access activity is a neutral chronology: same anatomy, slate rail. */
 [data-timeline-tone="access"] .evidence-detail-chrono-marker {
@@ -2216,12 +2126,6 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
 .evidence-detail-raw-disclosure > .evidence-detail-raw-summary:hover {
   color: #1D4ED8;
   text-decoration: underline;
-}
-
-/* The rail is continuous: the day marker carries the segment that bridges
-   the head's own leading down to the first event row. */
-.evidence-detail-chrono-marker {
-  position: relative;
 }
 .evidence-detail-chrono-marker::after {
   content: "";
@@ -2776,15 +2680,15 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   .evidence-detail-verify-card__reason {
     grid-column: 1 / -1;
   }
-}
-
-/* ---- Artifacts & Versions ------------------------------------------------
+}/* ---- Artifacts & Versions ------------------------------------------------
  * The heading sits on the page ground; only the family cards are carded. */
 .evidence-detail-artifacts {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-inline-size: 0;
+  --evidence-artifact-icon: 40px;
+  --evidence-artifact-action-w: 248px;
 }
 .evidence-detail-artifacts__head,
 .evidence-detail-sharing__head {
@@ -2837,8 +2741,16 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   background: var(--surface-translucent-outer);
 }
 .evidence-detail-artifact-card__head {
+  /* FIXED tracks. Content-sized tracks made both the icon and the action
+     column depend on each card own content, so a family with no download
+     collapsed its third track while a long label pushed its own out —
+     measured at 1440, one action began at x=1033 and another at x=800 on the
+     same page. */
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns:
+    var(--evidence-artifact-icon, 40px)
+    minmax(0, 1fr)
+    var(--evidence-artifact-action-w, 248px);
   align-items: center;
   gap: 12px;
   min-inline-size: 0;
@@ -2847,12 +2759,13 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 40px;
-  block-size: 40px;
-  flex: none;
-  border-radius: 13px;
+  inline-size: var(--evidence-artifact-icon, 40px);
+  block-size: var(--evidence-artifact-icon, 40px);
+  border-radius: 10px;
+  border: 1px solid var(--accent-200);
   background: var(--accent-050);
   color: var(--accent-600);
+  flex: 0 0 auto;
 }
 .evidence-detail-artifact-card__title {
   margin: 0;
@@ -2866,7 +2779,12 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   overflow-wrap: break-word;
 }
 .evidence-detail-artifact-card__action {
-  justify-self: end;
+  /* Stretched to its fixed track, so every download starts AND ends on one
+     axis. `justify-self: end` sized this to its own content, which put a long
+     label and a missing label on different axes — measured x=800 against
+     x=1033 on the same page. */
+  justify-self: stretch;
+  display: flex;
   min-inline-size: 0;
 }
 .evidence-detail-artifact-card__reason,
@@ -2912,11 +2830,11 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-/* The bidi scope belongs to the VALUE, not to the box. Applying it to the
-   box made the whole item an LTR paragraph, which threw the decorative
-   separator to the wrong side of the item in Arabic layout. */
 .evidence-detail-artifact-version__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
   unicode-bidi: plaintext;
+  /* Long package and version names wrap inside their own region. */
 }
 /* Separator dots are drawn, not typed, so they never reorder in RTL. */
 .evidence-detail-artifact-version__meta::before {
@@ -3332,17 +3250,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   .ta-signal-trailing {
     justify-content: flex-start;
   }
-}
-
-/* ---- Per-part technical metadata ----------------------------------------
- * Same card language as the rest of the appendix. A long part filename
- * wraps rather than being clipped: a truncated filename in a forensic
- * appendix is a lost identifier, not a tidy one. */
-.ta-part-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-inline-size: 0;
 }
 .ta-part-icon {
   display: inline-flex;
@@ -4140,12 +4047,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   align-items: start;
   min-inline-size: 0;
 }
-.evd-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-inline-size: 0;
-}
 .evd-field__label {
   font-size: 11px;
   font-weight: 700;
@@ -4458,54 +4359,12 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
     font-size: clamp(1.625rem, 6vw, 1.875rem);
     line-height: 1.22;
   }
-}
-
-/* ---- Tabs ----------------------------------------------------------------
- * Static, in normal flow. The bar no longer follows the reader, and it can no
- * longer scroll vertically: `overflow-x: auto` with `overflow-y: visible`
- * COMPUTES to `auto` on both axes, which is where the internal vertical
- * scrollbar came from (scrollHeight 62 vs clientHeight 42). Pinning
- * `overflow-y: hidden` is the fix; the visual scrollbar is hidden on the
- * remaining axis while touch and keyboard scrolling are untouched. */
-.evidence-detail-page .evidence-detail-tabs {
-  position: static;
-  z-index: auto;
-  margin: 18px 0 0;
-  padding: 4px;
-  border-bottom: none;
-  background: var(--surface-translucent-outer);
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.evidence-detail-page .evidence-detail-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-/* ---- Right rail: tonal hierarchy -----------------------------------------
+}/* ---- Right rail: tonal hierarchy -----------------------------------------
  * Four deliberate levels instead of one near-black. */
 .evidence-detail-sidebar .evidence-detail-rail-heading {
   color: var(--app-ink-label);
   font-weight: 700;
 }
-
-.evidence-detail-sidebar .evidence-detail-field-label,
-.evidence-detail-sidebar dt,
-.evidence-detail-sidebar .evidence-detail-muted {
-  color: var(--app-ink-secondary);
-  font-weight: 500;
-}
-
-.evidence-detail-sidebar .evidence-detail-field-value,
-.evidence-detail-sidebar dd,
-.evidence-detail-sidebar strong {
-  color: var(--app-ink-heading);
-  font-weight: 550;
-}
-
 .evidence-detail-sidebar .evidence-detail-side-block {
   border-block-end: 1px solid var(--surface-translucent-border-strong);
 }
@@ -4525,14 +4384,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   background: var(--surface-translucent-inner);
   border: 1px solid var(--surface-translucent-border-strong);
   border-radius: 12px;
-}
-
-.evidence-detail-page .evd-card[data-selected="true"] {
-  background: var(--surface-translucent-selected);
-}
-
-/* A viewing field has to be stable, so the preview grounds stay opaque. */
-.evidence-detail-page .evidence-detail-preview-stage,
+}/* A viewing field has to be stable, so the preview grounds stay opaque. */
 .evidence-detail-page .evidence-detail-preview-placeholder,
 .evidence-detail-page .evd-thumb-frame,
 .evidence-detail-page .evd-thumb-button {
@@ -4545,7 +4397,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   .evidence-detail-page .evidence-detail-section,
   .evidence-detail-page .evidence-detail-card,
   .evidence-detail-page .evd-card,
-  .evidence-detail-page .evidence-detail-tabs {
+  .evidence-detail-tabs {
     background: var(--surface-card);
     backdrop-filter: none;
   }
@@ -4555,7 +4407,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   .evidence-detail-page .evidence-detail-section,
   .evidence-detail-page .evidence-detail-card,
   .evidence-detail-page .evd-card,
-  .evidence-detail-page .evidence-detail-tabs {
+  .evidence-detail-tabs {
     background: Canvas;
     border-color: CanvasText;
     forced-color-adjust: none;
@@ -4577,14 +4429,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   overflow-wrap: break-word;
   unicode-bidi: plaintext;
 }
-
-/* ---- Icon action group ---------------------------------------------------
- * Equal targets, one shared border and radius, so the group reads as one
- * control set rather than as icons floating at different weights. */
-.evidence-detail-hero-icon-actions {
-  gap: 8px;
-}
-
 .evidence-detail-page .evidence-detail-icon-action {
   inline-size: 40px;
   block-size: 40px;
@@ -4603,17 +4447,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   background: var(--accent-050);
   border-color: var(--accent-200);
   color: var(--accent-600);
-}
-
-/* A destructive icon control keeps destructive semantics. It is never purple —
-   the hover above is scoped so this rule wins for the destructive one. */
-.evidence-detail-page .evidence-detail-icon-action[data-destructive="true"]:hover:not(:disabled) {
-  background: rgba(201, 54, 62, 0.07);
-  border-color: rgba(201, 54, 62, 0.24);
-  color: #a9222b;
-}
-
-/* The sticky rail scrolls independently, which is deliberate — but its thumb
+}/* The sticky rail scrolls independently, which is deliberate — but its thumb
    sat in the middle of the page against the content edge. Scrolling by wheel,
    touch and keyboard is unchanged; only the painted thumb goes. */
 @media (min-width: 1100px) {
@@ -4625,60 +4459,10 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
     display: none;
   }
 }
-
-/* ---- Artifact family cards: one shared anatomy ---------------------------
- * ANATOMY:  icon chip | title + version metadata | download action
- *
- * The head was `grid-template-columns: auto minmax(0, 1fr) auto`, so both the
- * icon and the action track were sized by their own card's CONTENT. A family
- * with no download collapsed its third track to zero while a family with a long
- * label pushed its own out — measured at 1440: one action began at x=1033 and
- * the other at x=800 on the same page. The tracks are now fixed, so every card
- * places its icon, its title and its action on the same axes whatever the
- * content is. */
-.evidence-detail-artifacts {
-  --evidence-artifact-icon: 40px;
-  --evidence-artifact-action-w: 248px;
-}
-
-.evidence-detail-artifacts .evidence-detail-artifact-card__head {
-  grid-template-columns:
-    var(--evidence-artifact-icon)
-    minmax(0, 1fr)
-    var(--evidence-artifact-action-w);
-  align-items: center;
-  gap: 12px;
-}
-
-.evidence-detail-artifacts .evidence-detail-artifact-card__icon {
-  inline-size: var(--evidence-artifact-icon);
-  block-size: var(--evidence-artifact-icon);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  border: 1px solid var(--accent-200);
-  background: var(--accent-050);
-  color: var(--accent-600);
-  flex: 0 0 auto;
-}
-
 .evidence-detail-artifacts .evidence-detail-artifact-card__title {
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-
-/* The action fills its fixed track, so buttons start AND end on one axis. */
-.evidence-detail-artifacts .evidence-detail-artifact-card__action {
-  /* `justify-self: end` (line ~2879) sized this to its own content and pinned
-     it to the track end, which is why a long label and a missing label put
-     their buttons on different axes. Stretching it to the fixed track is what
-     puts every download on one start axis and one end axis. */
-  justify-self: stretch;
-  display: flex;
-  min-inline-size: 0;
-}
-
 .evidence-detail-artifacts .evidence-detail-artifact-card__action > * {
   inline-size: 100%;
   justify-content: center;
@@ -4688,15 +4472,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
    neighbour. */
 .evidence-detail-artifacts .evidence-detail-artifact-version {
   min-inline-size: 0;
-}
-
-.evidence-detail-artifacts .evidence-detail-artifact-version__text {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  unicode-bidi: plaintext;
-}
-
-/* Mobile stacks icon/title/action deliberately rather than squeezing three
+}/* Mobile stacks icon/title/action deliberately rather than squeezing three
    tracks into 390px. */
 @media (max-width: 760px) {
   .evidence-detail-artifacts .evidence-detail-artifact-card__head {
@@ -4840,18 +4616,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 
 .ta-grid .ta-row-label {
   color: var(--app-ink-secondary);
-}
-
-.ta-grid .ta-row-value-text {
-  color: var(--app-ink-heading);
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  /* Technical values keep their own direction inside an RTL card, and may wrap
-     only inside their own value column. */
-  unicode-bidi: plaintext;
-}
-
-/* The card head was a WRAPPING flex row, so a wide badge could push the title
+}/* The card head was a WRAPPING flex row, so a wide badge could push the title
    block onto a second line and start it 40px below the same-row neighbours.
    Three tracks instead: the icon, the titles, and the badge, so the title
    always begins on one axis whatever the badge contains. */
@@ -4961,15 +4726,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   gap: 10px;
   min-inline-size: 0;
 }
-
-/* A full SHA-256 may never push the page sideways. */
-.ta-part-hash-value {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-
 .ta-parts-toggle {
   justify-self: start;
   margin-block-start: 4px;

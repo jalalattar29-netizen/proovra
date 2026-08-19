@@ -32,12 +32,19 @@ const PAGE = readFileSync(
   "utf8",
 );
 
-/** The rule body for a selector, or null. */
+/** The body of the ONE rule declaring `selector`, or null. */
 function rule(selector: string): string | null {
   const idx = CSS.indexOf(`\n${selector} {`);
   if (idx < 0) return null;
   const start = CSS.indexOf("{", idx);
-  return CSS.slice(start + 1, CSS.indexOf("}", start));
+  let depth = 1;
+  let i = start + 1;
+  while (i < CSS.length && depth > 0) {
+    if (CSS[i] === "{") depth += 1;
+    else if (CSS[i] === "}") depth -= 1;
+    i += 1;
+  }
+  return CSS.slice(start + 1, i - 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -121,13 +128,17 @@ test("the downloads use the canonical action hierarchy", () => {
 
 test("the tab bar does not follow the reader", () => {
   assert.ok(!CSS.includes("position: sticky;\n  top: 72px"));
-  const body = rule(".evidence-detail-page .evidence-detail-tabs");
+  // ONE declaration, on the canonical selector. The cleanup removed the
+  // `.evidence-detail-page ...` override that used to carry these.
+  assert.equal(CSS.split("\n.evidence-detail-tabs {").length - 1, 1);
+  assert.ok(!CSS.includes(".evidence-detail-page .evidence-detail-tabs {"));
+  const body = rule(".evidence-detail-tabs");
   assert.ok(body, "the corrected tab rule must exist");
   assert.match(body!, /position:\s*static/);
 });
 
 test("the tab bar cannot scroll vertically", () => {
-  const body = rule(".evidence-detail-page .evidence-detail-tabs")!;
+  const body = rule(".evidence-detail-tabs")!;
   // `overflow-x: auto` with `overflow-y: visible` COMPUTES to auto on both
   // axes — that is where the internal vertical scrollbar came from. Pinning
   // `hidden` is the fix.
@@ -135,7 +146,7 @@ test("the tab bar cannot scroll vertically", () => {
   assert.match(body, /overflow-y:\s*hidden/);
   // The horizontal scrollbar is hidden visually; scrolling itself is intact.
   assert.match(body, /scrollbar-width:\s*none/);
-  assert.ok(CSS.includes(".evidence-detail-page .evidence-detail-tabs::-webkit-scrollbar"));
+  assert.ok(CSS.includes(".evidence-detail-tabs::-webkit-scrollbar"));
 });
 
 test("the tab bar keeps its tablist semantics", () => {
@@ -159,13 +170,19 @@ test("headings are no longer painted near-black by an element selector", () => {
 });
 
 test("the rail declares four deliberate tonal levels", () => {
+  // Headings: medium dark neutral, not full primary black.
   assert.match(
     rule(".evidence-detail-sidebar .evidence-detail-rail-heading")!,
     /color:\s*var\(--app-ink-label\)/,
   );
+  // Labels muted, values primary ink — on the rail's REAL classes. An earlier
+  // pass added rules for `evidence-detail-field-label` / `-value`, which the
+  // rail never renders, so they styled nothing and have been deleted.
+  assert.match(rule(".evidence-detail-rail-field__label")!, /color:\s*var\(--app-ink-secondary\)/);
+  assert.match(rule(".evidence-detail-rail-field__value")!, /color:\s*var\(--app-ink-heading\)/);
   assert.ok(
-    CSS.includes(".evidence-detail-sidebar .evidence-detail-field-label"),
-    "field labels must take the muted token",
+    !CSS.includes("evidence-detail-field-label"),
+    "the invented label class must not come back",
   );
   // No blanket opacity on the rail or a section.
   assert.ok(!/\.evidence-detail-sidebar\s*\{[^}]*opacity:/.test(CSS));
@@ -204,18 +221,26 @@ test("no page-wide opacity is used to fake translucency", () => {
 // ---------------------------------------------------------------------------
 
 test("artifact family cards share fixed grid tracks", () => {
-  const body = rule(".evidence-detail-artifacts .evidence-detail-artifact-card__head")!;
+  const body = rule(".evidence-detail-artifact-card__head")!;
   // Content-sized tracks put one card's action at x=1033 and another's at
   // x=800 on the same page. Fixed tracks are what share the axes.
-  assert.match(body, /var\(--evidence-artifact-icon\)/);
-  assert.match(body, /var\(--evidence-artifact-action-w\)/);
+  assert.match(body, /var\(--evidence-artifact-icon/);
+  assert.match(body, /var\(--evidence-artifact-action-w/);
   assert.ok(!/grid-template-columns:\s*auto minmax\(0, 1fr\) auto/.test(body));
+  // The tracks live on the canonical rule, not on a more-specific override.
+  assert.ok(
+    !CSS.includes("\n.evidence-detail-artifacts .evidence-detail-artifact-card__head {"),
+    "the head override must be folded in, not stacked",
+  );
 });
 
 test("the download action fills its track so buttons share both axes", () => {
-  assert.match(
-    rule(".evidence-detail-artifacts .evidence-detail-artifact-card__action")!,
-    /justify-self:\s*stretch/,
+  assert.match(rule(".evidence-detail-artifact-card__action")!, /justify-self:\s*stretch/);
+  // And the TOP-LEVEL override that used to carry it is gone, not merely
+  // out-cascaded. The copy inside `@media (max-width: 760px)` stays: that one
+  // is the mobile stack, a responsive variant rather than a duplicate.
+  assert.ok(
+    !CSS.includes("\n.evidence-detail-artifacts .evidence-detail-artifact-card__action {"),
   );
 });
 
