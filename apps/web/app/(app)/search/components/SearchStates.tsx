@@ -23,7 +23,18 @@ import {
   ServerCrash,
 } from "lucide-react";
 
-function State({
+/**
+ * The shared anatomy every state below is built from.
+ *
+ * Exported because three of this console's states are described by the
+ * workspace DIAGNOSTICS envelope rather than by the search request — "this
+ * workspace has no records", "the index has not been built", "the index is
+ * still catching up". Their copy has to name real counts, so it lives beside
+ * the envelope in the console; only the anatomy is shared from here. That is
+ * the opposite of the old `emptyStateStyle`, which shared the LOOK and let
+ * every state borrow the wrong words.
+ */
+export function SearchState({
   kind,
   icon,
   title,
@@ -55,14 +66,14 @@ function State({
  */
 export function SearchPristineState() {
   return (
-    <State
+    <SearchState
       kind="pristine"
       icon={<SearchIcon size={34} strokeWidth={1.8} />}
       title="Search across this workspace"
     >
       Search evidence, cases, reports, verification packages and notes. OCR and
       transcript text appear in results where a record provides them.
-    </State>
+    </SearchState>
   );
 }
 
@@ -70,18 +81,26 @@ export function SearchPristineState() {
 export function SearchNoResultsState({
   onClearFilters,
   filtersActive,
+  title,
   detail,
 }: {
   onClearFilters?: () => void;
   filtersActive: boolean;
+  /**
+   * The console's own headline, when it knows something more specific than
+   * "nothing matched" — e.g. "No Evidence records match" when the type filter
+   * is what removed them, or the workspace name when a wrong-workspace
+   * mistake is the likely cause.
+   */
+  title?: string;
   /** The console's own truthful explanation, when it has one. */
   detail?: string;
 }) {
   return (
-    <State
+    <SearchState
       kind="no-results"
       icon={<SearchX size={34} strokeWidth={1.8} />}
-      title="No matching results"
+      title={title ?? "No matching results"}
       actions={
         filtersActive && onClearFilters ? (
           <button
@@ -98,7 +117,7 @@ export function SearchNoResultsState({
     >
       {detail ??
         "Nothing matched this query. Try different words, or change the filters on the left."}
-    </State>
+    </SearchState>
   );
 }
 
@@ -118,7 +137,7 @@ export function SearchUnavailableState({
   supportHref: string;
 }) {
   return (
-    <State
+    <SearchState
       kind="unavailable"
       icon={<SearchX size={34} strokeWidth={1.8} />}
       title="Search is temporarily unavailable"
@@ -142,7 +161,7 @@ export function SearchUnavailableState({
     >
       The secure connection to the data indexing service was interrupted. Try
       refreshing the page or checking your network status.
-    </State>
+    </SearchState>
   );
 }
 
@@ -175,35 +194,47 @@ export function SearchUnavailableAlert() {
  */
 export function SearchRestrictedState({ message }: { message?: string }) {
   return (
-    <State
+    <SearchState
       kind="restricted"
       icon={<Lock size={32} strokeWidth={1.8} />}
       title="Search is not available for this workspace"
     >
       {message ??
         "Your current access does not include search in this workspace. Ask a workspace admin if you need it."}
-    </State>
+    </SearchState>
   );
 }
 
 /**
  * G. Part of the index answered.
  *
- * A degraded source is reported beside the results it could not cover — it is
- * never promoted into a total failure.
+ * Reported BESIDE the results it could not cover, never promoted into a total
+ * failure: rows came back, they are real, and they are incomplete.
+ *
+ * The parameters are the real coverage numbers from the workspace diagnostics
+ * envelope. An earlier draft of this component took a list of degraded SOURCE
+ * names — but no endpoint in this product reports one, so any list passed to
+ * it would have been invented. Index coverage is the incompleteness this
+ * console can actually observe, so it is the incompleteness it reports.
  */
-export function SearchDegradedNotice({ sources }: { sources: string[] }) {
-  if (sources.length === 0) return null;
+export function SearchDegradedNotice({
+  indexed,
+  total,
+}: {
+  indexed: number;
+  total: number;
+}) {
+  if (total <= 0 || indexed >= total) return null;
   return (
     <div
       className="app-alert app-alert--warn"
       role="status"
-      data-search-degraded={sources.join(",")}
+      data-search-degraded={`${indexed}/${total}`}
     >
       <ServerCrash size={15} strokeWidth={2} aria-hidden="true" />{" "}
-      {sources.length === 1
-        ? `${sources[0]} results are unavailable right now. Everything else below is complete.`
-        : `${sources.join(", ")} results are unavailable right now. Everything else below is complete.`}
+      The search index is still catching up — {indexed} of {total} records are
+      searchable so far. What is below is real; a very recent record may not be
+      in it yet.
     </div>
   );
 }

@@ -42,6 +42,10 @@ import "./search.css";
 // renders the OS popup, cannot be styled and cannot be keyboard-audited;
 // AppListbox is the one accessible listbox for every internal surface.
 import { AppListbox } from "../../../components/app-primitives/AppListbox";
+import {
+  AppStatusBadge,
+  type AppTone,
+} from "../../../components/app-primitives/AppStatusBadge";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
@@ -59,7 +63,21 @@ import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
 // search-operator vs. search-actor), so it is surfaced as a scope tab
 // on this console rather than folded into the content query.
 import { SearchAuditLogPanel } from "../../../components/search/SearchAuditLogPanel";
-import { Info, Search as SearchGlyph } from "lucide-react";
+import { Info, Inbox, Layers, Search as SearchGlyph } from "lucide-react";
+// The console's distinct states. Each one is its own component with its own
+// words, so "you have not searched yet", "your query matched nothing" and "the
+// service did not answer" can never be rendered as one another. The outage
+// wording lives in exactly one of them.
+import {
+  SearchDegradedNotice,
+  SearchNoResultsState,
+  SearchPristineState,
+  SearchRestrictedState,
+  SearchResultSkeletons,
+  SearchState,
+  SearchUnavailableAlert,
+  SearchUnavailableState,
+} from "./components/SearchStates";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -325,6 +343,71 @@ const SORT_MODES: { value: SortMode; label: string }[] = [
 
 const DEFAULT_LIMIT = 25;
 
+// The one in-product support destination — the same route `(app)/error` and
+// `(app)/not-found` send operators to. Passed to the state components so
+// "Contact support" can never become a second, divergent link.
+const SUPPORT_HREF = "/support";
+
+/**
+ * Why the search request produced no answer.
+ *
+ * The console used to keep a single `error` string that EVERY failure wrote
+ * into — a failed saved-view rename included — and the empty-state branch
+ * turned any non-null value into "Search is temporarily unavailable". So a
+ * refused permission, a rename that hit a validation error, and an actual
+ * network outage all claimed the search service was down.
+ *
+ *   restricted  — the workspace declined the request. The same request with
+ *                 the same grant will be declined again, so this state offers
+ *                 no retry and makes no claim about connectivity.
+ *   unavailable — the service or the connection genuinely could not answer.
+ *                 Only this kind may use connection-failure language.
+ */
+type SearchFailure = { kind: "restricted" | "unavailable"; message?: string };
+
+function classifySearchFailure(err: unknown): SearchFailure {
+  const e = err as { code?: unknown; statusCode?: unknown } | null;
+  const status = typeof e?.statusCode === "number" ? e.statusCode : null;
+  const code = typeof e?.code === "string" ? e.code : null;
+  // 403 is the search gate refusing the actor; 404 is the same refusal worded
+  // so it cannot be used to enumerate workspaces. Neither is an outage.
+  if (
+    status === 403 ||
+    status === 404 ||
+    code === "permission_denied" ||
+    code === "not_found"
+  ) {
+    return { kind: "restricted" };
+  }
+  return { kind: "unavailable" };
+}
+
+/**
+ * The one lifecycle fact that leads a result row.
+ *
+ * A row can carry half a dozen badges at once. Rendering them as an
+ * undifferentiated soup meant a legal hold — the most consequential thing this
+ * product can say about a record — sat wherever the backend happened to put it
+ * in the array. The first match below is promoted to the row's status slot, on
+ * the same axis for every card; the rest render after the summary.
+ */
+const STATUS_BADGE_PRECEDENCE = [
+  "legal-hold",
+  "governance-restricted",
+  "in_trash",
+  "visibility-restricted",
+  "export-restricted",
+  "locked",
+  "archived",
+] as const;
+
+function primaryStatusBadge(badges: ReadonlyArray<string>): string | null {
+  for (const candidate of STATUS_BADGE_PRECEDENCE) {
+    if (badges.includes(candidate)) return candidate;
+  }
+  return null;
+}
+
 // -----------------------------------------------------------------------------
 // Page component
 // -----------------------------------------------------------------------------
@@ -394,7 +477,11 @@ function SearchInner() {
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Why the SEARCH failed, if it did. Never written by anything else.
+  const [searchFailure, setSearchFailure] = useState<SearchFailure | null>(null);
+  // Why an ACTION failed (save / rename / delete a view, load another page).
+  // Rendered as a banner beside the results; it never becomes a search state.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ResultRow | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(
     null
@@ -618,7 +705,7 @@ function SearchInner() {
           );
         }
         setResults(r);
-        setError(null);
+        setSearchFailure(null);
         if (!r.rows.find((x) => x.documentId === selected?.documentId)) {
           setSelected(r.rows[0] ?? null);
         }
@@ -651,9 +738,11 @@ function SearchInner() {
           reloadHealth(filter.q);
         }
       })
-      .catch((err: { message?: string }) => {
+      .catch((err: unknown) => {
         if (cancelled) return;
-        setError(toSafeUserError(err, { message: "Search failed." }).message);
+        // The state components own the copy; all this decides is WHICH state
+        // is true, from the transport's own answer.
+        setSearchFailure(classifySearchFailure(err));
         setResults({
           rows: [],
           nextCursor: null,
@@ -927,11 +1016,26 @@ function SearchInner() {
             : r
         );
       })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Search failed." }).message)
+      .catch((err: unknown) =>
+        setActionError(
+          toSafeUserError(err, { message: "Could not load more results." })
+            .message,
+        ),
       )
       .finally(() => setLoading(false));
   }, [filter, results?.nextCursor]);
+
+  /**
+   * Re-run the current filter unchanged.
+   *
+   * A new envelope identity is what the search effect watches, so cloning the
+   * live filter re-issues exactly the request that failed — no filter is
+   * silently widened to manufacture a result.
+   */
+  const retrySearch = useCallback(() => {
+    setSearchFailure(null);
+    setFilter((prev) => (prev ? { ...prev } : prev));
+  }, []);
 
   const applySavedView = useCallback((view: SavedView) => {
     setFilter({ ...view.query, cursor: undefined });
@@ -958,7 +1062,7 @@ function SearchInner() {
         setSavedViews((prev) => (prev ? [res.view, ...prev] : [res.view]));
       }
     } catch (err) {
-      setError(
+      setActionError(
         toSafeUserError(err, { message: "Could not save view." }).message
       );
     } finally {
@@ -988,7 +1092,7 @@ function SearchInner() {
           prev ? prev.filter((v) => v.id !== id) : prev
         );
       } catch (err) {
-        setError(
+        setActionError(
           toSafeUserError(err, { message: "Could not delete view." }).message
         );
       }
@@ -1024,7 +1128,7 @@ function SearchInner() {
             : prev,
         );
       } catch (err) {
-        setError(
+        setActionError(
           toSafeUserError(err, { message: "Could not rename view." }).message,
         );
       }
@@ -1032,17 +1136,44 @@ function SearchInner() {
     [teamId],
   );
 
+  /**
+   * What is narrowing this result set — the filters only.
+   *
+   * The query itself is deliberately absent: this console's standing rule is
+   * that a search string is never echoed back outside the input box, and this
+   * summary was quoting it verbatim into the results header.
+   */
   const filterSummary = useMemo(() => {
     if (!filter) return null;
     const parts: string[] = [];
-    if (filter.q) parts.push(`"${filter.q}"`);
-    if (filter.documentTypes?.length)
-      parts.push(`${filter.documentTypes.length} types`);
+    const types = filter.documentTypes?.length ?? 0;
+    if (types > 0) parts.push(`${types} record type${types === 1 ? "" : "s"}`);
+    const kinds = filter.evidenceTypes?.length ?? 0;
+    if (kinds > 0) parts.push(`${kinds} evidence kind${kinds === 1 ? "" : "s"}`);
     if (filter.workflowLinked) parts.push("workflow-linked");
-    if (filter.onLegalHold) parts.push("legal-hold");
+    if (filter.onLegalHold) parts.push("legal hold");
     if (filter.exportRestricted) parts.push("export-restricted");
-    return parts.length > 0 ? parts.join(" · ") : "all rows";
+    if (filter.incidentLinked) parts.push("incident-linked");
+    if (filter.contributorScoped) parts.push("contributor-scoped");
+    if (filter.updatedSinceUtc || filter.updatedUntilUtc)
+      parts.push("an updated-date range");
+    return parts.length > 0
+      ? `narrowed by ${parts.join(", ")}`
+      : "no filters applied";
   }, [filter]);
+
+  /**
+   * Records the workspace withheld. Counted, never listed — the count is the
+   * honest statement that something exists that this actor may not see.
+   */
+  const withheldSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (results?.filteredByVisibility)
+      parts.push(`${results.filteredByVisibility} withheld by visibility`);
+    if (results?.filteredByGovernance)
+      parts.push(`${results.filteredByGovernance} withheld by governance`);
+    return parts.length > 0 ? parts.join(" · ") : null;
+  }, [results?.filteredByVisibility, results?.filteredByGovernance]);
 
   // Phase 16 — semantic availability prefers the dedicated status
   // endpoint when present (workspace-scoped, capability-aware). When
@@ -1468,13 +1599,17 @@ function SearchInner() {
         <SearchAuditLogPanel teamId={teamId} />
       ) : (
       <>
-      {error ? (
-        <Card variant="status" tone="risk" padding="compact" style={{ marginTop: 12 }}>
-          <span style={{ fontSize: 13, color: "var(--status-risk-fg, #991b1b)" }}>
-            {error}
-          </span>
-        </Card>
+      {/* An ACTION failed — saving a view, loading another page. It is
+          reported where it happened and never becomes a search state. The
+          message is already bounded by toSafeUserError. */}
+      {actionError ? (
+        <div className="app-alert app-alert--danger" role="alert" data-search-action-error>
+          {actionError}
+        </div>
       ) : null}
+
+      {/* The outage banner accompanies the outage state and nothing else. */}
+      {searchFailure?.kind === "unavailable" ? <SearchUnavailableAlert /> : null}
 
       {/* Filters | Results | Inspector. The three regions are sized from the
           console's own inline size, not the viewport: this surface sits beside
@@ -1706,239 +1841,256 @@ function SearchInner() {
 
         {/* ----------------------------- CENTER ----------------------------- */}
         <div className="search-col search-col--results">
-        <Card variant="summary" padding="compact">
-          <div style={resultsHeaderStyle}>
-            <div style={mutedStyle}>
+          {/* Rows came back AND the index is still being built: the result set
+              is real but incomplete. Reported beside the results, never
+              promoted into a failure. */}
+          {searchHealth?.health === "partial_index" &&
+          results &&
+          results.rows.length > 0 ? (
+            <SearchDegradedNotice
+              indexed={searchHealth.index.evidenceIndexed}
+              total={searchHealth.index.evidenceTotal}
+            />
+          ) : null}
+
+          <div className="search-results__head" data-search-results-head>
+            <span className="search-results__count" aria-live="polite">
               {loading
                 ? "Searching…"
                 : `${results?.totalReturned ?? 0} result${
                     (results?.totalReturned ?? 0) === 1 ? "" : "s"
-                  } · ${filterSummary}`}
-            </div>
-            <div style={mutedStyle}>
-              {results?.filteredByVisibility
-                ? `${results.filteredByVisibility} visibility-restricted`
-                : null}
-              {results?.filteredByGovernance
-                ? ` · ${results.filteredByGovernance} governance-restricted`
-                : null}
-            </div>
+                  }`}
+            </span>
+            <span>{filterSummary}</span>
+            {withheldSummary ? (
+              <span data-search-withheld>{withheldSummary}</span>
+            ) : null}
           </div>
+
           {!results || results.rows.length === 0 ? (
             <div
-              className="cases-empty"
-              style={emptyStateStyle}
               data-search-empty-state
               data-search-empty-state-filters-active={
                 hasNarrowingFilters(filter) ? "true" : "false"
               }
             >
               {loading ? (
-                <div data-search-empty-state-kind="loading">Searching…</div>
-              ) : error ? (
-                // Phase SEARCH-REMEDIATION-3 — distinct error state.
-                // Never surface the raw `error` string (which may
-                // carry a stack frame); always show the bounded copy.
+                // The result geometry, before the results — so nothing jumps
+                // when the rows land.
+                <div data-search-empty-state-kind="loading">
+                  <SearchResultSkeletons />
+                </div>
+              ) : searchFailure?.kind === "restricted" ? (
+                // The workspace declined the request. No retry: the same
+                // request with the same grant is declined again, and the copy
+                // never confirms whether anything exists behind the refusal.
+                <div data-search-empty-state-kind="restricted">
+                  <SearchRestrictedState message={searchFailure.message} />
+                </div>
+              ) : searchFailure ? (
+                // ONLY a transport or service failure reaches this branch, so
+                // this is the only place connection language may appear.
                 <div data-search-empty-state-kind="error">
-                  <strong>Search is temporarily unavailable</strong>
-                  <p style={{ marginTop: 6 }}>
-                    Try again. If this continues, contact support.
-                  </p>
+                  <SearchUnavailableState
+                    onRetry={retrySearch}
+                    retrying={loading}
+                    supportHref={SUPPORT_HREF}
+                  />
                 </div>
               ) : !filter?.q ? (
-                // Phase SEARCH-REMEDIATION-3 — no query yet. Replaces
-                // the legacy "0 results" placeholder for the
-                // first-paint state where the user hasn't typed yet.
+                // Nothing has been asked yet. This is the resting state, not a
+                // zero-result answer and not an error.
                 <div data-search-empty-state-kind="idle">
-                  <strong>Start searching</strong>
-                  <p style={{ marginTop: 6 }}>
-                    Search evidence, cases, reports, packages, notes,
-                    OCR text and transcripts when available.
-                  </p>
+                  <SearchPristineState />
                 </div>
               ) : hasNarrowingFilters(filter) ? (
-                // Search-filter-audit — when a non-trivial filter is
-                // active (document type, evidence kind, status,
-                // dates, etc.) and the result set is empty, the cause
-                // is "the filter narrowed everything away", NOT "the
-                // workspace is empty" or "the index is preparing".
-                //
-                // Per-type truthful copy:
-                //   When the user has selected one or more document
-                //   types AND the diagnostics queryProbe reports
-                //   that OTHER types DID match the same query,
-                //   render an explicit "selected types had no
-                //   matches — but other types did" message naming
-                //   the matching types. Drives the user to clear
-                //   the type filter instead of doubting search.
-                //
-                //   When queryProbe is unavailable (older backend,
-                //   never fetched) or every type matched 0, fall
-                //   back to the generic clear-filters hint.
+                // A filter narrowed everything away. This must stay AHEAD of
+                // the workspace/index branches: with an EVIDENCE filter active,
+                // "the index is empty" would be a false explanation.
                 (() => {
                   const hint = describeFilterEmpty(filter, searchHealth);
                   return (
                     <div data-search-empty-state-kind="no-match-filtered">
-                      <strong>
-                        {hint.headline}
-                        {searchHealth?.workspace?.name
-                          ? ` in "${searchHealth.workspace.name}"`
-                          : ""}
-                      </strong>
-                      <p style={{ marginTop: 6 }}>{hint.detail}</p>
+                      <SearchNoResultsState
+                        title={`${hint.headline}${
+                          searchHealth?.workspace?.name
+                            ? ` in "${searchHealth.workspace.name}"`
+                            : ""
+                        }`}
+                        detail={hint.detail}
+                        filtersActive
+                        onClearFilters={clearNarrowingFilters}
+                      />
                     </div>
                   );
                 })()
               ) : searchHealth?.health === "empty_workspace" ? (
-                // Search-runtime-diagnostics — the workspace itself
-                // has no evidence yet. Searching anything will return
-                // 0, but the cause is "no records exist in this
-                // workspace", not "your query didn't match." Distinct
-                // copy + a hint to switch workspaces if the user
-                // expected records here.
+                // The workspace itself holds no records. Searching anything
+                // returns nothing, but the cause is not the query.
                 <div data-search-empty-state-kind="empty-workspace">
-                  <strong>
-                    Workspace
-                    {searchHealth.workspace.name
-                      ? ` "${searchHealth.workspace.name}"`
-                      : ""}{" "}
-                    has no records yet
-                  </strong>
-                  <p style={{ marginTop: 6 }}>
-                    Add evidence, cases, reports, packages, or notes —
-                    or switch to a workspace that has them. The
-                    current workspace contains 0 records.
-                  </p>
+                  <SearchState
+                    kind="empty-workspace"
+                    icon={<Inbox size={34} strokeWidth={1.8} />}
+                    title={`Workspace${
+                      searchHealth.workspace.name
+                        ? ` "${searchHealth.workspace.name}"`
+                        : ""
+                    } has no records yet`}
+                  >
+                    Add evidence, cases, reports, packages or notes — or switch
+                    to a workspace that has them. This workspace contains 0
+                    records.
+                  </SearchState>
                 </div>
               ) : searchHealth?.health === "empty_index" ? (
-                // Search-runtime-diagnostics — workspace has records
-                // but the search index is empty (lifecycle hook never
-                // ran, or backfill not started). Distinct copy so the
-                // user understands the records exist; they just
-                // aren't searchable yet.
+                // The records exist; they are not searchable yet.
                 <div data-search-empty-state-kind="empty-index">
-                  <strong>Search index is preparing</strong>
-                  <p style={{ marginTop: 6 }}>
+                  <SearchState
+                    kind="empty-index"
+                    icon={<Layers size={34} strokeWidth={1.8} />}
+                    title="Search index is preparing"
+                  >
                     This workspace has {searchHealth.index.evidenceTotal}{" "}
-                    records, but none have been indexed yet. Indexing
-                    runs automatically; reload in a moment. If this
-                    persists, contact support.
-                  </p>
+                    records, and none have been indexed yet. Indexing runs
+                    automatically; reload in a moment. If this persists,
+                    contact support.
+                  </SearchState>
                 </div>
               ) : searchHealth?.health === "partial_index" ? (
-                // Search-runtime-diagnostics — backfill in progress.
-                // The user MAY get 0 results because their record
-                // hasn't been indexed yet. Tell them so.
+                // Backfill still running: a recent record may genuinely not be
+                // searchable yet, so a zero result is not proof of absence.
                 <div data-search-empty-state-kind="partial-index">
-                  <strong>No matching results yet</strong>
-                  <p style={{ marginTop: 6 }}>
-                    Search index is still catching up
-                    ({searchHealth.index.evidenceIndexed} of{" "}
-                    {searchHealth.index.evidenceTotal} records indexed).
-                    Reload in a moment if you expected a recent
-                    record.
-                  </p>
+                  <SearchState
+                    kind="partial-index"
+                    icon={<Layers size={34} strokeWidth={1.8} />}
+                    title="No matching results yet"
+                  >
+                    The search index is still catching up —{" "}
+                    {searchHealth.index.evidenceIndexed} of{" "}
+                    {searchHealth.index.evidenceTotal} records are searchable so
+                    far. Reload in a moment if you expected a recent record.
+                  </SearchState>
                 </div>
               ) : (
-                // Search-runtime-diagnostics — fully indexed, query
-                // truly has no hits in THIS workspace. Surface the
-                // workspace name so a wrong-workspace mistake is
-                // visible.
+                // Fully indexed, no filters, and the query genuinely has no
+                // hits in THIS workspace — named, so a wrong-workspace mistake
+                // is visible.
                 <div data-search-empty-state-kind="no-match">
-                  <strong>
-                    No matches
-                    {searchHealth?.workspace?.name
-                      ? ` in "${searchHealth.workspace.name}"`
-                      : ""}
-                  </strong>
-                  <p style={{ marginTop: 6 }}>
-                    Try a different filename, case name, report title,
-                    note, or record ID.
-                  </p>
-                  {searchHealth?.workspace?.name ? (
-                    <p style={{ marginTop: 6 }}>
-                      Or switch workspace if the record lives elsewhere.
-                    </p>
-                  ) : null}
+                  <SearchNoResultsState
+                    title={`No matches${
+                      searchHealth?.workspace?.name
+                        ? ` in "${searchHealth.workspace.name}"`
+                        : ""
+                    }`}
+                    detail="Try a different filename, case name, report title, note, or record ID."
+                    filtersActive={false}
+                  />
                 </div>
               )}
             </div>
           ) : (
-            <ul style={resultListStyle}>
-              {results.rows.map((row) => (
-                <li
-                  key={row.documentId}
-                  style={resultRowStyle(selected?.documentId === row.documentId)}
-                  onClick={() => setSelected(row)}
-                >
-                  <div
-                    style={resultRowHeaderStyle}
-                    data-search-result-row={row.documentType}
-                  >
-                    <Badge
-                      tone={docTypeTone(row.documentType)}
-                      data-search-result-type={row.documentType}
+            <ul className="search-results__list" data-search-results>
+              {results.rows.map((row) => {
+                const isSelected = selected?.documentId === row.documentId;
+                const status = primaryStatusBadge(row.badges);
+                const otherBadges = row.badges.filter((x) => x !== status);
+                return (
+                  <li key={row.documentId}>
+                    {/* A real button: the row used to be an <li onClick>, which
+                        no keyboard could reach at all. Selection changes colour
+                        and border only — the geometry is identical in both
+                        states, so nothing shifts when a row is chosen. */}
+                    <button
+                      type="button"
+                      className="search-result"
+                      aria-current={isSelected ? "true" : undefined}
+                      onClick={() => setSelected(row)}
+                      data-search-result-row={row.documentType}
                     >
-                      {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-                    </Badge>
-                    <span style={resultTitleStyle}>{row.title}</span>
-                  </div>
-                  {/* Phase 15 — match-reason badges. Backend annotates
-                      each row with the signals that contributed to the
-                      match (e.g. "Matched OCR text", "Semantically
-                      similar"). Pre-Phase-15 responses omit the field
-                      and the badge row is skipped. */}
-                  {row.matchReasons && row.matchReasons.length > 0 ? (
-                    <div style={matchReasonRowStyle}>
-                      {row.matchReasons.map((reason) => (
-                        <span key={reason} style={matchReasonBadgeStyle}>
-                          {reason}
+                      <span className="search-result__head">
+                        {/* The document type classifies the row; it is not a
+                            status, so it does not wear a status colour. */}
+                        <span
+                          className="app-chip"
+                          data-search-result-type={row.documentType}
+                        >
+                          {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
                         </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {row.subtitle ? (
-                    <div style={resultSubtitleStyle}>{row.subtitle}</div>
-                  ) : null}
-                  {row.summary ? (
-                    <div style={resultSummaryStyle}>{row.summary}</div>
-                  ) : null}
-                  <div style={resultMetaStyle}>
-                    {row.badges.length > 0 ? (
-                      <div style={badgeRowStyle}>
-                        {row.badges.map((b) => (
-                          <Badge
-                            key={b}
-                            tone={badgeTone(b)}
-                            subtle
-                            data-search-result-badge={b}
+                        <span className="search-result__title">{row.title}</span>
+                        {status ? (
+                          <AppStatusBadge
+                            className="search-result__status"
+                            tone={badgeTone(status)}
+                            data-search-result-status={status}
+                            data-search-result-badge={status}
                           >
-                            {renderBadgeLabel(b)}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
-                    <span style={mutedStyle}>
-                      updated {formatDateTime(row.updatedAtUtc)}
-                    </span>
-                  </div>
-                </li>
-              ))}
+                            {renderBadgeLabel(status)}
+                          </AppStatusBadge>
+                        ) : null}
+                      </span>
+
+                      {/* Why the backend says this row matched. Pre-Phase-15
+                          responses omit the field and the row is skipped. */}
+                      {row.matchReasons && row.matchReasons.length > 0 ? (
+                        <span className="search-result__reasons">
+                          {row.matchReasons.map((reason) => (
+                            <span
+                              key={reason}
+                              className="app-chip"
+                              data-search-match-reason={reason}
+                            >
+                              {reason}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+
+                      {row.subtitle ? (
+                        <span className="search-result__meta">{row.subtitle}</span>
+                      ) : null}
+                      {row.summary ? (
+                        <span className="search-result__meta">{row.summary}</span>
+                      ) : null}
+
+                      {otherBadges.length > 0 ? (
+                        <span className="search-result__reasons">
+                          {otherBadges.map((b) => (
+                            <AppStatusBadge
+                              key={b}
+                              tone={badgeTone(b)}
+                              data-search-result-badge={b}
+                            >
+                              {renderBadgeLabel(b)}
+                            </AppStatusBadge>
+                          ))}
+                        </span>
+                      ) : null}
+
+                      {/* A timestamp reads left-to-right inside an RTL card. */}
+                      <span className="search-result__time">
+                        updated {formatDateTime(row.updatedAtUtc)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
+
           {results?.nextCursor ? (
-            <Button
-              variant="secondary"
-              onClick={loadMore}
-              disabled={loading}
-              loading={loading}
-              fullWidth
-              style={{ marginTop: 12 }}
-            >
-              {loading ? "Loading…" : "Load more"}
-            </Button>
+            <div className="search-results__more">
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={loadMore}
+                disabled={loading}
+                aria-busy={loading}
+                data-search-load-more
+              >
+                {loading ? "Loading…" : "Load more"}
+              </button>
+            </div>
           ) : null}
-        </Card>
         </div>
 
         {/* ----------------------------- RIGHT ----------------------------- */}
@@ -2000,57 +2152,39 @@ function SearchInner() {
  * (the rendered chip text is bounded by the allowed-badge catalog
  * anyway).
  */
-// Phase 7C — map the search page's document-type + backend-badge
-// vocabularies onto the shared Badge tone set. Presentation only; the
-// wire tokens (data-search-result-type / data-search-result-badge)
-// are preserved unchanged on every chip.
-function docTypeTone(type: DocumentType): BadgeTone {
-  switch (type) {
-    case "EVIDENCE":
-      return "info";
-    case "CASE":
-    case "CASE_TIMELINE":
-      return "info";
-    case "REPORT":
-    case "REVIEW_EVENT":
-      return "pending";
-    case "PACKAGE":
-    case "AUDIT_EVENT":
-      return "governance";
-    case "NOTE":
-    case "COMMUNICATION":
-      return "neutral";
-    case "WORKFLOW":
-      return "info";
-    case "WORKFLOW_STEP":
-      return "verified";
-    case "INCIDENT":
-      return "risk";
-    default:
-      return "neutral";
-  }
-}
-
-function badgeTone(badge: string): BadgeTone {
+/**
+ * A backend badge's tone, in the canonical vocabulary.
+ *
+ * `docTypeTone` used to sit beside this and dress the DOCUMENT TYPE in status
+ * colours — so a report read as "pending" and a package as "governance" purely
+ * because of what kind of record it was. A type is a classification, not a
+ * status; it now renders as a neutral chip and the tone vocabulary is reserved
+ * for facts that are genuinely about state.
+ */
+function badgeTone(badge: string): AppTone {
   switch (badge) {
+    // Red is reserved for the facts that stop work.
     case "legal-hold":
     case "governance-restricted":
     case "incident-linked":
-      return "risk";
+      return "red";
+    // Amber: the record is restricted, held back, or not in its normal place.
     case "export-restricted":
-    case "review-linked":
-      return "pending";
     case "visibility-restricted":
-      return "governance";
-    case "contributor-scoped":
-      return "verified";
+    case "review-linked":
+    case "in_trash":
+    case "locked":
+    case "archived":
+      return "amber";
+    // Blue: operational / informational links to other records.
     case "workflow-linked":
-    case "integrity record":
-      return "info";
     case "communication-linked":
-      return "pending";
+    case "integrity record":
+    case "matched metadata":
+    case "related evidence":
+      return "blue";
     default:
-      return "neutral";
+      return "slate";
   }
 }
 
@@ -2171,12 +2305,9 @@ function Inspector({
   return (
     <div>
       <div style={inspectorHeaderStyle}>
-        <Badge
-          tone={docTypeTone(row.documentType)}
-          data-search-inspector-type={row.documentType}
-        >
+        <span className="app-chip" data-search-inspector-type={row.documentType}>
           {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-        </Badge>
+        </span>
         <h2 style={inspectorTitleStyle}>{row.title}</h2>
         {row.subtitle ? (
           <p style={inspectorSubtitleStyle}>{row.subtitle}</p>
@@ -2197,14 +2328,13 @@ function Inspector({
         <Section label="Signals">
           <div style={badgeRowStyle}>
             {row.badges.map((b) => (
-              <Badge
+              <AppStatusBadge
                 key={b}
                 tone={badgeTone(b)}
-                subtle
                 data-search-inspector-badge={b}
               >
                 {renderBadgeLabel(b)}
-              </Badge>
+              </AppStatusBadge>
             ))}
           </div>
         </Section>
@@ -2872,115 +3002,16 @@ function formatDateTime(iso: string): string {
 // -----------------------------------------------------------------------------
 // Styles.
 //
-// REDESIGN/SEARCH — the page, header, search form, three-region workspace and
-// the entire filter rail are described by `search.css` and the canonical
-// `app-*` primitives. Their 26 `React.CSSProperties` objects (pageStyle,
-// pageShellStyle, loadingScreenStyle, titleStyle, searchFormStyle,
-// searchInputStyle, threeColStyle, leftRailStyle, centerColStyle,
-// rightRailStyle, filterSection/label/body, chipGroupStyle, the two scope-tab
-// helpers, chipButtonStyle, selectStyle, toggleRowStyle, fieldLabelStyle,
-// inputStyle, filterApplyPanelStyle and the five saved-view/icon-button
-// objects) are deleted, not hidden — nothing below overrides them.
+// REDESIGN/SEARCH — the page, header, search form, three-region workspace,
+// the filter rail, the result list and every operational state are described
+// by `search.css`, `components/SearchStates.tsx` and the canonical `app-*`
+// primitives. Their 37 `React.CSSProperties` objects are deleted, not hidden;
+// nothing below overrides them.
 //
-// What remains describes the result list and the inspector, and is deleted by
-// Checkpoints 2B and 2C.
+// What remains describes the inspector and the admin runtime strip, and is
+// deleted by Checkpoints 2C and 2D.
 // -----------------------------------------------------------------------------
 
-const resultsHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "4px 4px 10px",
-  borderBottom: "1px solid #f1f5f9",
-  flexWrap: "wrap",
-  gap: 8,
-};
-
-// Phase 7C — the honest empty-state branches (loading / error / idle /
-// no-match / no-match-filtered / empty-workspace / empty-index /
-// partial-index) keep their pinned `data-search-empty-state-kind`
-// markup; this container gives them the shared design system's centered,
-// token-framed placeholder treatment (matching the Card `empty` variant
-// language).
-// Surface (background / border / radius) is owned by the canonical
-// `.cases-empty` class applied at the call site; this object keeps the
-// center-column spacing + typography the honest empty-state branches rely
-// on. The former dashed-placeholder surface props were removed so the
-// canonical translucent surface shows through.
-const emptyStateStyle: React.CSSProperties = {
-  justifyContent: "center",
-  gap: 4,
-  padding: "48px 24px",
-  margin: "8px 0",
-  fontSize: 13.5,
-  lineHeight: 1.6,
-};
-
-const resultListStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: "8px 0 0",
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-// Phase 7C — result rows read as premium interactive cards: token
-// surface, rounded corners, a hairline separation via gap on the list,
-// and a governance-accent left rail + tinted fill when selected.
-function resultRowStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "12px 14px",
-    borderRadius: "var(--radius-md, 12px)",
-    cursor: "pointer",
-    border: active
-      ? "1px solid var(--status-info-border, #bfdbfe)"
-      : "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-    background: active
-      ? "var(--status-info-bg, #eff6ff)"
-      : "var(--surface-card, #ffffff)",
-    borderLeft: active
-      ? "3px solid var(--status-info-solid, #2563eb)"
-      : "3px solid transparent",
-    boxShadow: active
-      ? "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))"
-      : "none",
-    transition: "border-color 160ms ease, background-color 160ms ease",
-  };
-}
-const resultRowHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  flexWrap: "wrap",
-};
-const resultTitleStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
-};
-const resultSubtitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#475569",
-  marginTop: 2,
-};
-const resultSummaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-  marginTop: 4,
-  display: "-webkit-box",
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden",
-};
-const resultMetaStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  marginTop: 6,
-  flexWrap: "wrap",
-  gap: 6,
-};
 const badgeRowStyle: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
@@ -3128,24 +3159,6 @@ const mutedStyle: React.CSSProperties = {
 // `searchModeButtonStyle` removed alongside the SearchModeSelector
 // component above. Keep the section header so future style helpers
 // have a home.
-
-const matchReasonRowStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 4,
-  marginTop: 4,
-};
-
-const matchReasonBadgeStyle: React.CSSProperties = {
-  padding: "1px 6px",
-  fontSize: 10,
-  fontWeight: 500,
-  borderRadius: 4,
-  background: "#eff6ff",
-  color: "#1e40af",
-  border: "1px solid #bfdbfe",
-  whiteSpace: "nowrap",
-};
 
 // Phase SEARCH-REMEDIATION-3 — `noResultsHelpStyle`,
 // `noResultsLeadStyle`, `noResultsListStyle` removed alongside

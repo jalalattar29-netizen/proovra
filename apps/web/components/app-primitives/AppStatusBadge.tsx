@@ -35,6 +35,14 @@ export interface AppStatusBadgeProps {
   dot?: boolean;
   className?: string;
   title?: string;
+  /**
+   * Contract hooks. Surfaces pin `data-*` attributes on their status chips so
+   * end-to-end probes can read state out of the DOM; without a passthrough
+   * every such call site has to wrap the badge in a second span purely to
+   * carry the attribute. Only `data-` keys are accepted — this is not a
+   * general prop escape hatch.
+   */
+  [dataAttr: `data-${string}`]: unknown;
 }
 
 export function AppStatusBadge({
@@ -43,12 +51,14 @@ export function AppStatusBadge({
   dot = false,
   className,
   title,
+  ...dataAttrs
 }: AppStatusBadgeProps) {
   return (
     <span
       className={`app-status-badge${className ? ` ${className}` : ""}`}
       data-tone={tone}
       title={title}
+      {...dataAttrs}
     >
       {dot ? <span className="app-status-badge__dot" aria-hidden /> : null}
       {children}

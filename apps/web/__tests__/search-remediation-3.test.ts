@@ -56,6 +56,9 @@ function src(rel: string): string {
 }
 
 const SEARCH_PAGE = src("apps/web/app/(app)/search/page.tsx");
+const SEARCH_STATES = src(
+  "apps/web/app/(app)/search/components/SearchStates.tsx",
+);
 const SEARCH_ROUTES = src("services/api/src/routes/search.routes.ts");
 const SAVED_SEARCH = src(
   "services/api/src/services/search/saved-search.service.ts",
@@ -151,29 +154,88 @@ test("Center empty state has four distinct rendered branches with stable data-ki
 });
 
 test("Error empty state shows a bounded message (does NOT inline the raw error string)", () => {
-  // The four-branch ternary surfaces the bounded copy unconditionally.
-  // The raw `error` value is never interpolated into the JSX text.
+  // REDESIGN/SEARCH — the branch mounts the canonical SearchUnavailableState
+  // instead of hand-rolling <strong>…</strong> copy. The invariants are
+  // unchanged and stronger: the copy is bounded and lives in one place, and
+  // the transport's own message can still never reach the screen.
   assert.match(
     SEARCH_PAGE,
-    /data-search-empty-state-kind="error"[\s\S]{0,400}?<strong>Search is temporarily unavailable<\/strong>/,
+    /data-search-empty-state-kind="error"[\s\S]{0,400}?<SearchUnavailableState/,
   );
-  // The raw error value cannot reach this block as text.
+  assert.match(
+    SEARCH_STATES,
+    /title="Search is temporarily unavailable"/,
+  );
+  // Nothing from the failure envelope is interpolated into this branch.
   const errorBlockStart = SEARCH_PAGE.indexOf(
     'data-search-empty-state-kind="error"',
   );
   const errorBlockEnd = SEARCH_PAGE.indexOf("</div>", errorBlockStart);
   const errorBlock = SEARCH_PAGE.slice(errorBlockStart, errorBlockEnd);
   assert.doesNotMatch(errorBlock, /\{error\}/);
+  assert.doesNotMatch(errorBlock, /searchFailure\.message/);
 });
 
-test("Idle empty state ('Start searching') fires when there is no query yet", () => {
-  // The branch is guarded by `!filter?.q ? ( ... )`. Pin the guard
-  // separately from the rendered copy to stay robust to
-  // intermediate JSX whitespace.
+test("Connection-failure language is reachable ONLY from a real transport/service failure", () => {
+  // A refusal is not an outage. The classifier decides which state is true
+  // from the transport's own answer, and only the `unavailable` kind may
+  // use connection language — the restricted branch renders a different
+  // component entirely, and the outage banner is gated on the same kind.
+  assert.match(SEARCH_PAGE, /function classifySearchFailure\(/);
+  assert.match(SEARCH_PAGE, /status === 403[\s\S]{0,200}?kind: "restricted"/);
+  assert.match(
+    SEARCH_PAGE,
+    /searchFailure\?\.kind === "unavailable" \? <SearchUnavailableAlert \/> : null/,
+  );
+  // The copy itself lives on the unavailable state and nowhere else.
+  const connectionCopy = [
+    ...SEARCH_STATES.matchAll(/secure connection to the data indexing service/g),
+  ];
+  assert.equal(connectionCopy.length, 1);
+  assert.doesNotMatch(SEARCH_PAGE, /could not reach the search service/i);
+});
+
+test("Restricted state offers no Retry — retrying the same grant cannot change the answer", () => {
+  assert.match(
+    SEARCH_PAGE,
+    /data-search-empty-state-kind="restricted"[\s\S]{0,300}?<SearchRestrictedState/,
+  );
+  const start = SEARCH_STATES.indexOf("export function SearchRestrictedState");
+  assert.ok(start > 0, "SearchRestrictedState must exist");
+  const end = SEARCH_STATES.indexOf("\nexport ", start + 1);
+  const body = SEARCH_STATES.slice(start, end === -1 ? undefined : end);
+  assert.doesNotMatch(body, /onRetry|Retry/);
+});
+
+test("Pristine empty state fires when there is no query yet, and is not a zero-result answer", () => {
+  // REDESIGN/SEARCH — the branch mounts the canonical SearchPristineState.
+  // The guard is unchanged; what is pinned additionally is the semantic that
+  // motivated the state in the first place: nothing has been ASKED yet, so
+  // the copy must not claim a count or a failure.
   assert.match(SEARCH_PAGE, /!filter\?\.q \? \(/);
   assert.match(
     SEARCH_PAGE,
-    /<div data-search-empty-state-kind="idle">[\s\S]{0,400}?<strong>Start searching<\/strong>/,
+    /<div data-search-empty-state-kind="idle">[\s\S]{0,200}?<SearchPristineState \/>/,
+  );
+  const start = SEARCH_STATES.indexOf("export function SearchPristineState");
+  assert.ok(start > 0, "SearchPristineState must exist");
+  const end = SEARCH_STATES.indexOf("\nexport ", start + 1);
+  const body = SEARCH_STATES.slice(start, end === -1 ? undefined : end);
+  assert.match(body, /kind="pristine"/);
+  assert.doesNotMatch(body, /0 results|No matching|unavailable/i);
+});
+
+test("Filtered no-match and empty-workspace are distinct states, in that order", () => {
+  // With a filter active, "this workspace has no records" is a false
+  // explanation for an empty result — the filter is what removed them.
+  const filtered = SEARCH_PAGE.indexOf('data-search-empty-state-kind="no-match-filtered"');
+  const workspace = SEARCH_PAGE.indexOf('data-search-empty-state-kind="empty-workspace"');
+  assert.ok(filtered > 0 && workspace > 0);
+  assert.ok(filtered < workspace);
+  // They render different components with different words.
+  assert.match(
+    SEARCH_PAGE,
+    /data-search-empty-state-kind="empty-workspace"[\s\S]{0,400}?has no records yet/,
   );
 });
 
