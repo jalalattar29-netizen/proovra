@@ -44,7 +44,7 @@ import { CANONICAL, REPO } from "../scripts/audit/engine/registry.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** The real generated facts artifact — so the renderer runs over real inputs. */
-function realFacts(): Record<string, any> {
+function realFacts(): Record<string, unknown> {
   return JSON.parse(
     readFileSync(resolve(REPO, CANONICAL.currentFacts.path as string), "utf8"),
   );
@@ -57,7 +57,22 @@ function realFacts(): Record<string, any> {
  * SHAPE is complete: if the engine ever drops a field again, the assertions
  * below that read it will fail rather than the engine crashing in production.
  */
-function refusedLedger(): Record<string, any> {
+type RefusedLedger = {
+  actionable: { total: unknown; closed: unknown; open: unknown };
+  verifiedClosures: { total: unknown; ids: string[] };
+  unknownBlocked: { total: unknown; ids: string[] };
+  trackedInventory: { total: number; ids: string[]; releaseBlocking: boolean };
+  openIds: string[];
+  conservationEquation: string;
+  rowCount: unknown;
+  problems: string[];
+  valid: false;
+  path: unknown;
+  producer: unknown;
+  rowsHash: string;
+};
+
+function refusedLedger(): RefusedLedger {
   return {
     path: CANONICAL.findingsLedger.rows,
     producer: CANONICAL.findingsLedger.producer,
@@ -257,8 +272,10 @@ describe("a VALID ledger restores normal reporting", () => {
     // flipped to a value the Point-7 artifact does not derive.
     const rowsPath = resolve(REPO, CANONICAL.findingsLedger.rows as string);
     const rows = JSON.parse(readFileSync(rowsPath, "utf8"));
-    const list = Array.isArray(rows) ? rows : rows.rows;
-    const target = list.find((r: any) => r?.id === "NEW-027");
+    const list = (Array.isArray(rows) ? rows : rows.rows) as Array<
+      { id?: string; browserVerified?: string }
+    >;
+    const target = list.find((r) => r?.id === "NEW-027");
     assert.ok(target, "NEW-027 is not in the ledger");
     const original = target.browserVerified;
     target.browserVerified = original === "PASS" ? "NOT_EXECUTED" : "PASS";
