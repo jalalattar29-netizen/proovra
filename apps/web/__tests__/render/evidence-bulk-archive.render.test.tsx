@@ -29,7 +29,7 @@
 
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, act, waitFor, within } from "@testing-library/react";
+import { render, screen, act, waitFor, within } from "@testing-library/react";
 
 type Call = { path: string; method: string; body: unknown };
 
@@ -43,6 +43,12 @@ const H = vi.hoisted(() => ({
   bulkResponse: null as null | ((body: Record<string, unknown>) => unknown),
   /** Resolves the bulk call only when released. */
   gateBulk: null as null | { promise: Promise<void>; release: () => void },
+  /** Cases the support endpoint answers with. */
+  cases: [] as Array<Record<string, unknown>>,
+  /** Every bulk body, as the API's own schema judged it. */
+  validation: [] as Array<
+    { ok: true } | { ok: false; issues: Array<{ path: string; code: string }> }
+  >,
 }));
 
 function pathOf(url: string): string {
@@ -63,7 +69,28 @@ vi.mock("../../lib/api", () => ({
 
     if (path === "/v1/evidence/bulk") {
       if (H.gateBulk) await H.gateBulk.promise;
-      const request = (body ?? {}) as { action: string; evidenceIds: string[] };
+      // THE CONTRACT, not a hand-written stand-in. The previous double
+      // accepted whatever the page sent, which is exactly why a payload the
+      // real API rejects with a 400 passed every test.
+      const parsed = EvidenceBulkRequestSchema.safeParse(body);
+      H.validation.push(
+        parsed.success
+          ? { ok: true }
+          : {
+              ok: false,
+              issues: parsed.error.issues.map((i) => ({
+                path: i.path.join("."),
+                code: i.code,
+              })),
+            },
+      );
+      if (!parsed.success) {
+        throw Object.assign(new Error("Invalid input"), {
+          statusCode: 400,
+          code: "INVALID_INPUT",
+        });
+      }
+      const request = parsed.data;
       if (H.bulkResponse) return H.bulkResponse(request as Record<string, unknown>);
       const results = request.evidenceIds.map((id) => ({ evidenceId: id, ok: true }));
       // The server archives, so the rows it echoes back carry archivedAt and
@@ -88,7 +115,7 @@ vi.mock("../../lib/api", () => ({
       return { totals: { all: active.length } };
     }
     if (path === "/v1/evidence/saved-views") return { views: [] };
-    if (path === "/v1/cases") return { items: [] };
+    if (path === "/v1/cases") return { items: H.cases };
     if (path === "/v1/billing/overview") return { plan: { tier: "PRO" } };
     return {};
   },
@@ -108,6 +135,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/evidence",
 }));
 
+import { EvidenceBulkRequestSchema } from "@proovra/shared";
 import EvidenceLibraryPage from "../../app/(app)/evidence/page";
 import { PlatformContextProvider } from "../../lib/platform-context";
 import { ToastProvider } from "../../components/ui";
@@ -134,6 +162,13 @@ const ENVELOPE = {
   },
   diagnostics: { requestId: "t" },
 };
+
+// jsdom implements no layout, so it has no `scrollIntoView`; the canonical
+// listbox keeps the active option in view with it. Filling the gap here keeps
+// the real component under test instead of stubbing it.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
 
 // ---------------------------------------------------------------------------
 // Fictional, contract-valid records.
@@ -213,6 +248,8 @@ const bulkCalls = (): Call[] => H.calls.filter((c) => c.path === "/v1/evidence/b
 
 beforeEach(() => {
   H.calls = [];
+  H.cases = [];
+  H.validation = [];
   H.failures = {};
   H.bulkResponse = null;
   H.gateBulk = null;
@@ -237,6 +274,77 @@ describe("Archive bulk action — the request", () => {
     expect(body.action).toBe("ARCHIVE");
     expect(body.evidenceIds).toEqual([uuid(1), uuid(2), uuid(3)]);
     expect(new Set(body.evidenceIds).size).toBe(body.evidenceIds.length);
+  });
+
+  // -------------------------------------------------------------------------
+  // THE CONTRACT TEST. The page's own bytes, judged by the schema the API
+  // validates with. The previous suite asserted on a hand-authored body, which
+  // is why `caseId: null` — rejected by that schema with a 400 before any
+  // record was read — passed every test while production failed.
+  // -------------------------------------------------------------------------
+
+  it("emits a body the API's own schema accepts, with no case selected", async () => {
+    await openConfirm(3);
+    await act(async () => {
+      confirmArchive().click();
+    });
+    await waitFor(() => expect(bulkCalls().length).toBe(1));
+
+    const body = bulkCalls()[0]!.body as Record<string, unknown>;
+    // The exact wire shape.
+    expect(Object.keys(body).sort()).toEqual(["action", "evidenceIds"]);
+    expect(typeof body.action).toBe("string");
+    expect(Array.isArray(body.evidenceIds)).toBe(true);
+    // An absent optional is OMITTED, never sent as null.
+    expect("caseId" in body).toBe(false);
+
+    // And the schema itself agrees.
+    const verdict = EvidenceBulkRequestSchema.safeParse(body);
+    expect(
+      verdict.success ? [] : verdict.error.issues.map((i) => `${i.path.join(".")}:${i.code}`),
+    ).toEqual([]);
+    expect(H.validation).toEqual([{ ok: true }]);
+  });
+
+  it("carries a real caseId when the action targets a case", async () => {
+    const CASE_ID = "00000000-0000-4000-8000-0000000000aa";
+    H.cases = [{ id: CASE_ID, name: "Fictional matter", teamId: "team-1" }];
+    await mountLibrary();
+    await selectRows(2);
+
+    // Choose ADD_TO_CASE, then the case.
+    const actionListbox = document.querySelector<HTMLButtonElement>(
+      "[aria-label='Bulk action']",
+    )!;
+    await act(async () => {
+      actionListbox.click();
+    });
+    await act(async () => {
+      screen.getByRole("option", { name: "Add to Case" }).click();
+    });
+    const caseListbox = document.querySelector<HTMLButtonElement>(
+      "[aria-label='Target case']",
+    )!;
+    await act(async () => {
+      caseListbox.click();
+    });
+    await act(async () => {
+      screen.getByRole("option", { name: "Fictional matter" }).click();
+    });
+
+    await act(async () => {
+      runBulkButton().click();
+    });
+    await waitFor(() => expect(confirmDialog()).not.toBeNull());
+    await act(async () => {
+      within(confirmDialog()!).getByRole("button", { name: /^add to case$/i }).click();
+    });
+
+    await waitFor(() => expect(bulkCalls().length).toBe(1));
+    const body = bulkCalls()[0]!.body as Record<string, unknown>;
+    expect(body.action).toBe("ADD_TO_CASE");
+    expect(body.caseId).toBe(CASE_ID);
+    expect(EvidenceBulkRequestSchema.safeParse(body).success).toBe(true);
   });
 
   it("carries all 50 selected records in one request", async () => {
@@ -436,6 +544,62 @@ describe("Archive bulk action — outcomes", () => {
     expect(text).not.toMatch(/BLOCKED_BY|ALREADY_ARCHIVED/);
     // …and neither are the record identifiers.
     expect(text).not.toMatch(/00000000-0000/);
+  });
+
+  it("a record that is already archived is reported, not silently skipped", async () => {
+    seed(2);
+    H.bulkResponse = (body) => {
+      const ids = (body as { evidenceIds: string[] }).evidenceIds;
+      return {
+        successCount: 1,
+        failedCount: 1,
+        results: [
+          { evidenceId: ids[0], ok: true },
+          { evidenceId: ids[1], ok: false, reason: "ALREADY_ARCHIVED" },
+        ],
+        items: [],
+      };
+    };
+    await openConfirm(2);
+    await act(async () => {
+      confirmArchive().click();
+    });
+    const summary = await waitFor(() => {
+      const node = document.querySelector("[data-bulk-result-summary]");
+      expect(node).not.toBeNull();
+      return node as HTMLElement;
+    });
+    expect(summary.textContent).toMatch(/1 record archived/i);
+    expect(summary.textContent).toMatch(/Already archived/);
+  });
+
+  it("a request the server refuses as invalid says so, and keeps the selection", async () => {
+    // The production symptom: a 400 before any record was examined. The generic
+    // "review your input" is meaningless for an action whose only input is a
+    // selection, so this action states its own outcome.
+    H.failures["POST /v1/evidence/bulk"] = { statusCode: 400, code: "INVALID_INPUT" };
+    await openConfirm(3);
+    await act(async () => {
+      confirmArchive().click();
+    });
+
+    const error = await waitFor(() => {
+      const node = document.querySelector("[data-bulk-error]");
+      expect(node).not.toBeNull();
+      return node as HTMLElement;
+    });
+    expect(error.textContent).toMatch(
+      /archive request was invalid and was not applied/i,
+    );
+    expect(error.textContent).toMatch(/retry, or refresh the selected records/i);
+    // Nothing from the server's validation internals reaches the operator.
+    expect(error.textContent).not.toMatch(/caseId|evidenceIds|invalid_type|zod/i);
+    // The dialog stays open with the selection intact.
+    expect(confirmDialog()).not.toBeNull();
+    expect(document.querySelectorAll("[data-evidence-row]").length).toBe(3);
+    expect(runBulkButton().closest(".evidence-library-bulk-toolbar")!.textContent).toMatch(
+      /3 selected/,
+    );
   });
 
   it("keeps every selected record when the network never answered", async () => {

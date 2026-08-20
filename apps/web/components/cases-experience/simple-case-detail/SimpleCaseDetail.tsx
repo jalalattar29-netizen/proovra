@@ -802,9 +802,15 @@ function OverviewTab({
           data-simple-case-actions
         >
           <h2 className="case-detail-rail-title">Quick actions</h2>
+          {/* THE EVIDENCE INSPECTOR IS THE AUTHORITY for this pair. Its two
+              downloads rank the same work the same way, so the case rail
+              adopts the same two canonical treatments rather than flattening
+              both to the outlined secondary: the leading action is the purple
+              primary, the report action the dark filled secondary. Both come
+              from app-primitives; `--block` is layout only. */}
           <button
             type="button"
-            className="app-secondary-action app-secondary-action--block"
+            className="app-primary-action app-primary-action--block"
             onClick={onAddEvidence}
             disabled={!viewer.canLinkEvidence}
             title={viewer.disabledReasons.linkEvidence ?? undefined}
@@ -817,7 +823,7 @@ function OverviewTab({
               with an explanatory tooltip. */}
           <button
             type="button"
-            className="app-secondary-action app-secondary-action--block"
+            className="app-secondary-action app-secondary-action--filled app-secondary-action--block"
             onClick={() => onGoToTab("reports")}
             disabled={evidenceCount === 0}
             title={

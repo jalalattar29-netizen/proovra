@@ -3,6 +3,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { buildEvidenceBulkRequest } from "@proovra/shared";
 import { X } from "lucide-react";
 import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
@@ -1149,13 +1150,16 @@ function EvidenceLibraryPageInner() {
       caseId?: string
     ): Promise<EvidenceBulkActionResponse> => {
       const evidenceIds = Array.from(selectedIds);
+      // THE SHARED CONTRACT builds the body. This used to serialise
+      // `caseId: caseId ?? null`, and the API's schema declares `caseId`
+      // optional but NOT nullable — so every action without a target case
+      // (Archive above all) was rejected with a 400 before a single record was
+      // read. The builder omits an absent optional and de-duplicates the ids.
       const response = (await apiFetch("/v1/evidence/bulk", {
         method: "POST",
-        body: JSON.stringify({
-          action,
-          evidenceIds,
-          caseId: caseId ?? null,
-        }),
+        body: JSON.stringify(
+          buildEvidenceBulkRequest({ action, evidenceIds, caseId }),
+        ),
       })) as EvidenceBulkActionResponse;
 
       if (response.csv) {

@@ -660,17 +660,17 @@ export function QueueSelectionPreview({
 
     footer = (
       <>
-        {/* THE SAME CANONICAL ACTION as Case Details "Add evidence" and
-            "Generate report": `app-secondary-action`, straight from
-            app-primitives. These two carried a filled accent and a filled
-            neutral instead, so the Evidence Inspector spoke a third action
-            language for the same kind of operational control. The Evidence
-            download icons stay; only the treatment is shared. The stacked
-            full-width layout continues to come from the Inspector's own
-            footer rule, not from the button. */}
+        {/* THE ACTION HIERARCHY of this footer, and the authority Case
+            Details now follows: the report download is the canonical purple
+            primary, the package download the canonical dark filled secondary.
+            Two ranks, two treatments, both from app-primitives — a previous
+            pass flattened both to the outlined secondary, which erased the
+            hierarchy and made the two downloads indistinguishable. The stacked
+            full-width layout continues to come from the Inspector's own footer
+            rule, not from the button. */}
         <button
           type="button"
-          className="app-secondary-action"
+          className="app-primary-action"
           onClick={onDownloadReport}
           disabled={Boolean(reportDisabledReason)}
           title={reportDisabledReason}
@@ -682,7 +682,7 @@ export function QueueSelectionPreview({
         </button>
         <button
           type="button"
-          className="app-secondary-action"
+          className="app-secondary-action app-secondary-action--filled"
           onClick={onDownloadVerificationPackage}
           disabled={Boolean(packageDisabledReason)}
           title={packageDisabledReason}

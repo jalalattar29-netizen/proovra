@@ -21,6 +21,7 @@
  * excludes the `.integration.test.ts` suffix, and this project runs it.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildEvidenceBulkRequest } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -68,12 +69,23 @@ describe("Evidence bulk ARCHIVE — persisted lifecycle (live PostgreSQL 16)", (
     return row.id;
   }
 
+  /**
+   * The payload is built by the SAME function the browser uses, so this suite
+   * exercises the bytes the page sends rather than a hand-authored body that
+   * happens to be valid. A hand-authored body is precisely what let a
+   * `caseId: null` from the real client fail in production while every test
+   * here passed.
+   */
   async function bulkArchive(ids: string[], token: string) {
     const res = await harness.app.inject({
       method: "POST",
       url: "/v1/evidence/bulk",
       headers: { authorization: `Bearer ${token}` },
-      payload: { action: "ARCHIVE", evidenceIds: ids },
+      payload: buildEvidenceBulkRequest({
+        action: "ARCHIVE",
+        evidenceIds: ids,
+        caseId: null,
+      }),
     });
     return { status: res.statusCode, body: res.json() as {
       successCount: number;
@@ -216,6 +228,50 @@ describe("Evidence bulk ARCHIVE — persisted lifecycle (live PostgreSQL 16)", (
     });
     expect(row.archivedAt).toBeNull();
     expect(row.teamId).toBe(harness.fixtures.teamA.teamId);
+  });
+
+  it("accepts the browser's own payload for an action with no target case", async () => {
+    const id = await seedRecord();
+    // Exactly what the page serialises: no `caseId` key at all.
+    const payload = buildEvidenceBulkRequest({
+      action: "ARCHIVE",
+      evidenceIds: [id],
+      caseId: null,
+    });
+    expect(Object.keys(payload).sort()).toEqual(["action", "evidenceIds"]);
+
+    const res = await harness.app.inject({
+      method: "POST",
+      url: "/v1/evidence/bulk",
+      headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}` },
+      payload,
+    });
+    expect(res.statusCode).toBe(200);
+    const row = await prisma.evidence.findUniqueOrThrow({
+      where: { id },
+      select: { archivedAt: true },
+    });
+    expect(row.archivedAt).not.toBeNull();
+  });
+
+  it("refuses the payload the browser used to send (caseId: null)", async () => {
+    const id = await seedRecord();
+    const res = await harness.app.inject({
+      method: "POST",
+      url: "/v1/evidence/bulk",
+      headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}` },
+      // The pre-fix body, verbatim. It is invalid against the canonical
+      // contract, and the API must keep saying so rather than being widened
+      // to accept it.
+      payload: { action: "ARCHIVE", evidenceIds: [id], caseId: null },
+    });
+    expect(res.statusCode).toBe(400);
+    const row = await prisma.evidence.findUniqueOrThrow({
+      where: { id },
+      select: { archivedAt: true },
+    });
+    // Nothing was applied.
+    expect(row.archivedAt).toBeNull();
   });
 
   it("rejects a batch larger than the documented bound instead of truncating it", async () => {

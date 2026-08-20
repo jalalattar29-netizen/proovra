@@ -234,7 +234,20 @@ test("BulkActionsToolbar computes protectedSelected only for action TRASH", () =
 
 test("BulkActionsToolbar disables Run when ALL selected are retention-protected", () => {
   assert.match(BULK_TOOLBAR, /allSelectedProtected/);
-  assert.match(BULK_TOOLBAR, /disabled=\{\s*\n?\s*selectedCount === 0 \|\|\s*\n?\s*\(needsCase && !caseId\) \|\|\s*\n?\s*allSelectedProtected\s*\n?\s*\}/);
+  // The guard list is asserted term by term rather than as one frozen
+  // expression: a LATER pass added the contract's id bound to the same
+  // condition, and a literal match would have read that addition as a
+  // regression. Each term that must still disable the control is checked.
+  const guard = BULK_TOOLBAR.slice(
+    BULK_TOOLBAR.indexOf("disabled={", BULK_TOOLBAR.indexOf("data-evidence-run-bulk") - 900),
+  ).slice(0, 240);
+  for (const term of [
+    "selectedCount === 0",
+    "(needsCase && !caseId)",
+    "allSelectedProtected",
+  ]) {
+    assert.ok(guard.includes(term), `Run Bulk Action must stay disabled on: ${term}`);
+  }
 });
 
 test("BulkActionsToolbar surfaces a helper count when some/all selections are protected", () => {

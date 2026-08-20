@@ -12,6 +12,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  EVIDENCE_BULK_ACTIONS,
+  EVIDENCE_BULK_MAX_IDS,
+  EvidenceBulkRequestSchema,
+} from "@proovra/shared";
 
 const routesSrc = readFileSync(
   fileURLToPath(new URL("../src/routes/evidence.routes.ts", import.meta.url)),
@@ -37,11 +42,63 @@ function caseBlock(region: string, label: string): string {
 describe("bulk ARCHIVE — request bounds and per-record isolation", () => {
   const region = bulkHandlerRegion();
 
+  it("validates with the SHARED contract, not a restatement of it", () => {
+    // The route used to declare its own schema. The browser declared the same
+    // request by hand, the two drifted, and `caseId: null` — valid to nobody —
+    // was rejected with a 400 before any record was read.
+    expect(routesSrc).toContain("const BulkEvidenceActionBody = EvidenceBulkRequestSchema");
+    expect(routesSrc).not.toMatch(/const BulkEvidenceActionBody = z\.object\(/);
+  });
+
   it("bounds the batch and de-duplicates the ids before touching anything", () => {
-    expect(routesSrc).toContain(
-      "evidenceIds: z.array(z.string().uuid()).min(1).max(100)",
+    expect(EVIDENCE_BULK_MAX_IDS).toBe(100);
+    const ids = Array.from({ length: EVIDENCE_BULK_MAX_IDS + 1 }, (_, i) =>
+      `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
     );
+    expect(
+      EvidenceBulkRequestSchema.safeParse({ action: "ARCHIVE", evidenceIds: ids }).success,
+    ).toBe(false);
     expect(region).toContain("const uniqueIds = [...new Set(body.evidenceIds)]");
+  });
+
+  it("`caseId` is optional and NOT nullable — the exact drift that broke Archive", () => {
+    const base = {
+      action: "ARCHIVE" as const,
+      evidenceIds: ["00000000-0000-4000-8000-000000000001"],
+    };
+    // What the browser sends now.
+    expect(EvidenceBulkRequestSchema.safeParse(base).success).toBe(true);
+    // What it used to send.
+    const rejected = EvidenceBulkRequestSchema.safeParse({ ...base, caseId: null });
+    expect(rejected.success).toBe(false);
+    expect(
+      rejected.success ? [] : rejected.error.issues.map((i) => `${i.path.join(".")}:${i.code}`),
+    ).toEqual(["caseId:invalid_type"]);
+    // A real case id is accepted.
+    expect(
+      EvidenceBulkRequestSchema.safeParse({
+        ...base,
+        action: "ADD_TO_CASE",
+        caseId: "00000000-0000-4000-8000-0000000000aa",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("the action vocabulary is one list, in one casing", () => {
+    expect([...EVIDENCE_BULK_ACTIONS]).toContain("ARCHIVE");
+    for (const action of EVIDENCE_BULK_ACTIONS) {
+      expect(action).toBe(action.toUpperCase());
+      // Every action the toolbar can choose is a request the schema accepts.
+      expect(
+        EvidenceBulkRequestSchema.safeParse({
+          action,
+          evidenceIds: ["00000000-0000-4000-8000-000000000001"],
+          ...(action === "ADD_TO_CASE"
+            ? { caseId: "00000000-0000-4000-8000-0000000000aa" }
+            : {}),
+        }).success,
+      ).toBe(true);
+    }
   });
 
   it("authorizes ARCHIVE per record against the persisted tenant", () => {

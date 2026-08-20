@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import {
+  EVIDENCE_BULK_ACTIONS,
+  EVIDENCE_BULK_MAX_IDS,
+  evidenceBulkActionRequiresCase,
+  type EvidenceBulkActionName,
+} from "@proovra/shared";
 import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 import { AppListbox } from "../../../../components/app-primitives";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -13,17 +19,27 @@ import type {
 } from "../lib/evidence-library-types";
 import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
 
-const ACTION_OPTIONS = [
-  { value: "ADD_TO_CASE", label: "Add to Case" },
-  { value: "REMOVE_FROM_CASE", label: "Remove from Case" },
-  { value: "ARCHIVE", label: "Archive" },
-  { value: "RESTORE_ARCHIVED", label: "Restore Archived" },
-  { value: "TRASH", label: "Move to Trash" },
-  { value: "RESTORE_TRASH", label: "Restore from Trash" },
-  { value: "EXPORT_METADATA_CSV", label: "Export Metadata CSV" },
-] as const;
+/**
+ * The toolbar's options are DERIVED from the shared action vocabulary, so a
+ * label can never carry an action name the API does not know and the casing
+ * cannot drift. Only the operator-facing wording lives here.
+ */
+const ACTION_LABELS: Record<EvidenceBulkActionName, string> = {
+  ADD_TO_CASE: "Add to Case",
+  REMOVE_FROM_CASE: "Remove from Case",
+  ARCHIVE: "Archive",
+  RESTORE_ARCHIVED: "Restore Archived",
+  TRASH: "Move to Trash",
+  RESTORE_TRASH: "Restore from Trash",
+  EXPORT_METADATA_CSV: "Export Metadata CSV",
+};
 
-type ActionValue = (typeof ACTION_OPTIONS)[number]["value"];
+const ACTION_OPTIONS = EVIDENCE_BULK_ACTIONS.map((value) => ({
+  value,
+  label: ACTION_LABELS[value],
+}));
+
+type ActionValue = EvidenceBulkActionName;
 
 /**
  * How each action reads while it is COMMITTING, and what it says AFTERWARDS.
@@ -81,6 +97,21 @@ export function categoriseBulkFailure(reason: string | undefined | null): {
   return hit ? { key: hit.key, label: hit.label } : { key: "unknown", label: "Unknown server failure" };
 }
 
+/**
+ * A request the server rejected before executing anything.
+ *
+ * Bounded to the status/code the API answers with; anything else keeps the
+ * canonical mapping in `toSafeUserError`.
+ */
+function isRequestValidationFailure(error: unknown): boolean {
+  const e = (error && typeof error === "object" ? error : {}) as {
+    statusCode?: unknown;
+    code?: unknown;
+  };
+  const code = typeof e.code === "string" ? e.code.toUpperCase() : "";
+  return e.statusCode === 400 || code === "INVALID_INPUT" || code === "VALIDATION_ERROR";
+}
+
 /** `queued`/`accepted` means the work was ACCEPTED, not that it completed. */
 function isQueued(result: EvidenceBulkActionResponse): boolean {
   return Boolean(result.queued || result.accepted) && result.successCount === 0 && result.failedCount === 0;
@@ -120,11 +151,11 @@ export function BulkActionsToolbar({
   const [running, setRunning] = useState(false);
   const errorRef = useRef<HTMLDivElement | null>(null);
 
-  const needsCase = action === "ADD_TO_CASE";
-  const confirmLabel = useMemo(() => {
-    const option = ACTION_OPTIONS.find((item) => item.value === action);
-    return option?.label ?? action;
-  }, [action]);
+  const needsCase = evidenceBulkActionRequiresCase(action);
+  const confirmLabel = ACTION_LABELS[action];
+  // The id bound belongs to the contract, so the operator meets it HERE —
+  // before submitting — instead of as an opaque 400 from the server.
+  const overSelectionLimit = selectedCount > EVIDENCE_BULK_MAX_IDS;
   const verb = ACTION_VERB[action];
 
   // A failure must be announced, not merely rendered: the operator pressed a
@@ -199,10 +230,18 @@ export function BulkActionsToolbar({
       // THE PATH THAT WAS MISSING. A rejected request used to escape a
       // `void runAction()` as an unhandled rejection: the dialog sat there
       // unchanged and the operator was told nothing at all.
+      //
+      // A request the server REFUSED AS INVALID gets its own sentence: the
+      // generic "review your input" is meaningless for an action whose only
+      // input is a selection the operator cannot edit. Nothing from the
+      // server's validation detail is shown — the field is named in the
+      // server's own log, not here.
       setError(
-        toSafeUserError(runError, {
-          message: `${confirmLabel} could not be completed. No records were changed.`,
-        }).message,
+        isRequestValidationFailure(runError)
+          ? `The ${confirmLabel.toLowerCase()} request was invalid and was not applied. Please retry, or refresh the selected records.`
+          : toSafeUserError(runError, {
+              message: `${confirmLabel} could not be completed. No records were changed.`,
+            }).message,
       );
     } finally {
       setRunning(false);
@@ -240,8 +279,9 @@ export function BulkActionsToolbar({
             action === "TRASH" ? "app-danger-action" : "app-primary-action"
           }
           onClick={() => {
-            // An empty selection never opens the dialog.
-            if (selectedCount === 0) return;
+            // An empty selection — or one the contract cannot carry — never
+            // opens the dialog.
+            if (selectedCount === 0 || overSelectionLimit) return;
             setResult(null);
             setError(null);
             setConfirmOpen(true);
@@ -249,13 +289,17 @@ export function BulkActionsToolbar({
           disabled={
             selectedCount === 0 ||
             (needsCase && !caseId) ||
-            allSelectedProtected
+            allSelectedProtected ||
+            overSelectionLimit
           }
           title={
             allSelectedProtected
               ? "All selected records are protected by retention or legal hold."
-              : undefined
+              : overSelectionLimit
+                ? `A bulk action can carry at most ${EVIDENCE_BULK_MAX_IDS} records.`
+                : undefined
           }
+          data-bulk-over-limit={overSelectionLimit ? "true" : "false"}
           data-bulk-trash-blocked={allSelectedProtected ? "true" : "false"}
           data-evidence-run-bulk
         >
@@ -270,6 +314,22 @@ export function BulkActionsToolbar({
           Clear Selection
         </button>
       </div>
+      {overSelectionLimit ? (
+        <div
+          className="app-alert app-alert--warn evidence-library-bulk-helper"
+          role="status"
+          data-bulk-limit-helper
+        >
+          <strong>
+            {selectedCount} records selected — a bulk action can carry at most{" "}
+            {EVIDENCE_BULK_MAX_IDS}
+          </strong>
+          <p className="app-hint">
+            Narrow the selection to {EVIDENCE_BULK_MAX_IDS} records or fewer and run the action
+            again. Nothing has been submitted.
+          </p>
+        </div>
+      ) : null}
       {action === "TRASH" && protectedCount > 0 ? (
         <div
           className="app-alert app-alert--warn evidence-library-bulk-helper"

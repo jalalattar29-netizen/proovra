@@ -47,6 +47,7 @@ import {
   // emits the same boundary copy as the snapshot outputs (Report PDF
   // and Verification Package) will in Phase 3.
   buildCanonicalLegalBoundaryMaterial,
+  EvidenceBulkRequestSchema,
   formatTimestampForReportUtc,
   type EvidenceIntelligence,
   type ReviewerArtifactRole,
@@ -288,19 +289,14 @@ const RestoreDeletedEvidenceBody = z.object({
 // Phase G4.5 — `SavedViewFiltersSchema`, `CreateSavedViewBody`, and
 // `UpdateSavedViewBody` moved to `evidence.saved-views.routes.ts`.
 
-const BulkEvidenceActionBody = z.object({
-  action: z.enum([
-    "ADD_TO_CASE",
-    "REMOVE_FROM_CASE",
-    "ARCHIVE",
-    "RESTORE_ARCHIVED",
-    "TRASH",
-    "RESTORE_TRASH",
-    "EXPORT_METADATA_CSV",
-  ]),
-  evidenceIds: z.array(z.string().uuid()).min(1).max(100),
-  caseId: z.string().uuid().optional(),
-});
+/**
+ * The bulk request contract is the SHARED one — the same module the browser
+ * builds its payload with. It used to be restated here, and the two
+ * definitions drifted: the client serialised `caseId: null` for every action
+ * without a target case, which this schema (optional, not nullable) rejected
+ * with a 400 before any record was examined.
+ */
+const BulkEvidenceActionBody = EvidenceBulkRequestSchema;
 
 const ReviewerCommentBody = z.object({
   body: z.string().trim().min(1).max(4000),

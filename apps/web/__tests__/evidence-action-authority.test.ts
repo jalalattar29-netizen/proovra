@@ -1,16 +1,19 @@
 /**
- * ONE action authority across Case Details and the Evidence Library Inspector.
+ * ONE action authority across the Evidence Library Inspector and Case Details.
  *
- * The Inspector's two downloads used to carry their own treatments — the
- * accent-filled primary for `Download Report` and the filled neutral for
- * `Download Verification Package` — while the accepted Case Details actions
- * (`Add evidence`, `Generate report`) are the canonical secondary action. Three
- * treatments for the same kind of operational control on two surfaces of the
- * same product.
+ * The Inspector footer is the authority, and it carries two RANKS for two
+ * kinds of work: the canonical purple primary for `Download Report`, the
+ * canonical dark filled secondary for `Download Verification Package`. Case
+ * Details adopts exactly that pair for `Add evidence` and `Generate report`.
  *
- * These assertions pin the SHARED class, not a colour: the treatment itself
- * lives in `app-primitives.css`, so neither surface can drift without the
- * other, and neither may reintroduce a local palette.
+ * An earlier pass flattened both Inspector downloads to the outlined
+ * secondary, which erased the rank difference and made the two downloads
+ * indistinguishable. These assertions exist so that cannot recur in either
+ * direction.
+ *
+ * They pin the SHARED class, not a colour: both treatments live in
+ * `app-primitives.css`, so neither surface can drift without the other, and
+ * neither may reintroduce a local palette.
  */
 
 import assert from "node:assert/strict";
@@ -50,26 +53,53 @@ function buttonBlockFor(src: string, label: string): string {
   }
 }
 
-test("the accepted Case Details actions are the canonical secondary action", () => {
-  for (const label of ["Add evidence", "Generate report"]) {
-    const block = buttonBlockFor(CASE_DETAIL, label);
-    assert.match(
+/** The two ranks, and the control that carries each on both surfaces. */
+const PAIRS = [
+  {
+    rank: "purple primary",
+    classes: ["app-primary-action"],
+    forbidden: "app-secondary-action",
+    evidence: "Download Report",
+    caseAction: "Add evidence",
+  },
+  {
+    rank: "dark filled secondary",
+    classes: ["app-secondary-action", "app-secondary-action--filled"],
+    forbidden: "app-primary-action",
+    evidence: "Download Verification Package",
+    caseAction: "Generate report",
+  },
+] as const;
+
+test("the Inspector downloads carry two distinct canonical ranks", () => {
+  for (const pair of PAIRS) {
+    const block = buttonBlockFor(INSPECTOR, pair.evidence);
+    for (const cls of pair.classes) {
+      assert.match(
+        block,
+        new RegExp(`\\b${cls.replace("--", "--")}\\b`),
+        `${pair.evidence} must carry ${cls} (${pair.rank})`,
+      );
+    }
+    assert.doesNotMatch(
       block,
-      /className="app-secondary-action app-secondary-action--block"/,
-      `${label} must keep the canonical secondary action`,
+      new RegExp(`\\b${pair.forbidden}\\b`),
+      `${pair.evidence} must not also be the other rank`,
     );
+    // The Evidence download icon survives, and stays decorative.
+    assert.match(block, /<Download size=\{16\}[\s\S]*?aria-hidden="true"/);
   }
 });
 
-test("the Inspector downloads reuse that same canonical action", () => {
-  for (const label of ["Download Report", "Download Verification Package"]) {
-    const block = buttonBlockFor(INSPECTOR, label);
-    assert.match(block, /className="app-secondary-action"/, `${label} treatment`);
-    // NOT the accent primary, and not the filled neutral variant.
-    assert.doesNotMatch(block, /app-primary-action/);
-    assert.doesNotMatch(block, /app-secondary-action--filled/);
-    // The Evidence download icon survives, and stays decorative.
-    assert.match(block, /<Download size=\{16\}[\s\S]*?aria-hidden="true"/);
+test("Case Details adopts the Inspector's ranks, laid out block", () => {
+  for (const pair of PAIRS) {
+    const block = buttonBlockFor(CASE_DETAIL, pair.caseAction);
+    for (const cls of pair.classes) {
+      assert.match(block, new RegExp(`\\b${cls}\\b`), `${pair.caseAction} must carry ${cls}`);
+    }
+    assert.doesNotMatch(block, new RegExp(`\\b${pair.forbidden}\\b`));
+    // Layout only — the rail stacks; the treatment is unchanged.
+    assert.match(block, /--block/, `${pair.caseAction} keeps the rail layout`);
   }
 });
 
@@ -81,16 +111,26 @@ test("a disabled download exposes its real reason, not only a title attribute", 
     const block = buttonBlockFor(INSPECTOR, label);
     assert.match(block, new RegExp(`aria-describedby=\\{[a-zA-Z]*DisabledReason \\? ${id}`));
   }
-  // …and the reason is rendered as text with that id.
   assert.match(INSPECTOR, /id=\{REPORT_REASON_ID\}/);
   assert.match(INSPECTOR, /id=\{PACKAGE_REASON_ID\}/);
 });
 
-test("the treatment lives in the canonical primitive, not in Evidence CSS", () => {
-  assert.match(PRIMITIVES, /\.app-secondary-action \{/);
-  assert.match(PRIMITIVES, /\.app-secondary-action:hover:not\(:disabled\)/);
-  assert.match(PRIMITIVES, /\.app-secondary-action:focus-visible/);
-  assert.match(PRIMITIVES, /\.app-secondary-action:disabled/);
+test("both treatments live in the canonical primitive, not in Evidence CSS", () => {
+  for (const base of ["app-primary-action", "app-secondary-action"]) {
+    assert.match(PRIMITIVES, new RegExp(`\\.${base} \\{`));
+    assert.match(PRIMITIVES, new RegExp(`\\.${base}:hover:not\\(:disabled\\)`));
+    assert.match(PRIMITIVES, new RegExp(`\\.${base}:focus-visible`));
+    assert.match(PRIMITIVES, new RegExp(`\\.${base}:disabled`));
+  }
+  assert.match(PRIMITIVES, /\.app-secondary-action--filled \{/);
+  // The dark filled hover must WIN over the base hover. At equal specificity
+  // that means being declared after it — a white label on the lilac base hover
+  // is unreadable.
+  assert.ok(
+    PRIMITIVES.indexOf(".app-secondary-action--filled:hover") >
+      PRIMITIVES.indexOf(".app-secondary-action:hover"),
+    "the filled hover must be declared after the base hover",
+  );
   // The Evidence route never repaints the download controls locally.
   assert.doesNotMatch(
     LIBRARY_CSS,
@@ -104,16 +144,38 @@ test("Case Details styling is not imported into the Evidence Library", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Bulk action — the states the confirm dialog must carry.
+// Bulk action — the request contract and the states the dialog must carry.
 // ---------------------------------------------------------------------------
 
 const TOOLBAR = read("app/(app)/evidence/components/BulkActionsToolbar.tsx");
+const PAGE = read("app/(app)/evidence/page.tsx");
+
+test("the page serialises the bulk request through the shared contract", () => {
+  assert.match(PAGE, /buildEvidenceBulkRequest\(\{ action, evidenceIds, caseId \}\)/);
+  assert.match(PAGE, /from "@proovra\/shared"/);
+  // The null the API's schema has no word for is gone from the SERIALISER.
+  // (The comment recording the defect stays in the source deliberately.)
+  const serialiser = PAGE.slice(
+    PAGE.indexOf('apiFetch("/v1/evidence/bulk"'),
+    PAGE.indexOf('apiFetch("/v1/evidence/bulk"') + 400,
+  );
+  assert.doesNotMatch(serialiser, /caseId: caseId \?\? null/);
+  assert.doesNotMatch(serialiser, /caseId: null/);
+});
+
+test("the toolbar derives its vocabulary and its bound from that contract", () => {
+  assert.match(TOOLBAR, /EVIDENCE_BULK_ACTIONS/);
+  assert.match(TOOLBAR, /EVIDENCE_BULK_MAX_IDS/);
+  assert.match(TOOLBAR, /evidenceBulkActionRequiresCase\(action\)/);
+  // The bound is enforced before submission, with an explanation.
+  assert.match(TOOLBAR, /overSelectionLimit/);
+  assert.match(TOOLBAR, /data-bulk-limit-helper/);
+});
 
 test("the confirm control names the action, then the committing state", () => {
   assert.match(TOOLBAR, /ARCHIVE: \{ pending: "Archiving…"/);
   assert.match(TOOLBAR, /aria-busy=\{running\}/);
   assert.match(TOOLBAR, /disabled=\{running\}/);
-  // The spinner is the canonical one, and it is decorative.
   assert.match(TOOLBAR, /className="app-spinner"/);
   assert.match(TOOLBAR, /<Loader2[\s\S]{0,120}aria-hidden="true"/);
 });
@@ -122,9 +184,15 @@ test("a committing dialog cannot be dismissed, and a rejected request is caught"
   assert.match(TOOLBAR, /dismissDisabled=\{running\}/);
   assert.match(TOOLBAR, /catch \(runError\)/);
   assert.match(TOOLBAR, /toSafeUserError\(/);
-  // The failure is announced, not merely rendered.
   assert.match(TOOLBAR, /role="alert"/);
   assert.match(TOOLBAR, /errorRef\.current\?\.focus\(\)/);
+});
+
+test("a refused request states what happened to THIS action", () => {
+  assert.match(TOOLBAR, /function isRequestValidationFailure\(/);
+  assert.match(TOOLBAR, /request was invalid and was not applied/);
+  // …and never echoes the server's validation internals.
+  assert.doesNotMatch(TOOLBAR, /zodFields|issues|\.path\b/);
 });
 
 test("the second results modal is gone — one dialog carries the whole action", () => {

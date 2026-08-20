@@ -230,16 +230,20 @@
   border-color: var(--app-ink-heading);
   color: #ffffff;
 }
-.app-secondary-action--filled:hover:not(:disabled) {
-  background: #0F1723;
-  border-color: #0F1723;
-  color: #ffffff;
-}
 
 .app-secondary-action:hover:not(:disabled) {
   background: #F2ECFE;
   border-color: #D9C7FB;
   color: var(--app-ink-heading);
+}
+/* AFTER the base hover deliberately. Both selectors carry the same
+   specificity, so while this rule sat above it the dark filled action took the
+   light lilac hover — a white label on a near-white surface. Source order is
+   the fix; an `!important` or a deeper selector would only hide it. */
+.app-secondary-action--filled:hover:not(:disabled) {
+  background: #0F1723;
+  border-color: #0F1723;
+  color: #ffffff;
 }
 .app-secondary-action:focus-visible {
   outline: none;

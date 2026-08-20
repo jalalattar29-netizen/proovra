@@ -2235,3 +2235,8 @@ export * from "./tenant-url.js";
 // job names, payload schema + version, deterministic job ids, retry policy,
 // terminal vocabulary and the single enqueue helper both processes import.
 export * from "./queue-integrity/index.js";
+
+// The ONE `POST /v1/evidence/bulk` request contract: action vocabulary, the
+// id bound the client must respect, and the builder that omits an absent
+// optional instead of serialising a null the API's schema has no word for.
+export * from "./evidence-bulk-actions.js";
