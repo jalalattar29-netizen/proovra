@@ -58,18 +58,27 @@ test("Selection state is a Set<string> (multi-select), not a single string", () 
   );
 });
 
-test("`toggleSelected(id)` is the single canonical mutator (used by row click + per-row Select button)", () => {
+test("`toggleSelected(id)` is the single canonical mutator", () => {
   // The helper exists with the canonical add/delete shape.
   assert.match(
     SIMPLE_DETAIL,
     /const toggleSelected = useCallback\(\(id: string\) => \{[\s\S]{0,400}?if \(next\.has\(id\)\) next\.delete\(id\);\s*\n?\s*else next\.add\(id\);/,
   );
-  // Both row-li onClick AND per-row button onClick call it.
-  const rowClicks = SIMPLE_DETAIL.match(/toggleSelected\(c\.id\)/g) ?? [];
-  assert.ok(
-    rowClicks.length >= 2,
-    `expected toggleSelected(c.id) to be wired in at least 2 places (row + button), found ${rowClicks.length}`,
+  // ONE call site now, not two.
+  //
+  // The row used to be a clickable <li> containing a `pointer-events: none`
+  // checkbox AND a separate "Select" button — two affordances for one action,
+  // one of them unreachable by keyboard and neither of them the checkbox. The
+  // row is a <label> wrapping the real checkbox, so the checkbox's own
+  // onChange is the only mutator and the whole row is its target.
+  const callSites = SIMPLE_DETAIL.match(/toggleSelected\(c\.id\)/g) ?? [];
+  assert.equal(
+    callSites.length,
+    1,
+    `toggleSelected(c.id) must be wired exactly once, found ${callSites.length}`,
   );
+  // …and no per-row button survives beside it.
+  assert.doesNotMatch(SIMPLE_DETAIL, /data-simple-case-attach-row-select/);
 });
 
 // ===========================================================================
@@ -113,11 +122,16 @@ test("Live selection counter is exposed via data-simple-case-attach-selected-cou
 // Row UI — checkbox + selected highlight + isSelected via Set.has
 // ===========================================================================
 
-test("Each row exposes a checkbox bound to membership in selectedIds", () => {
+test("Each row exposes the CANONICAL checkbox bound to membership in selectedIds", () => {
+  // `.app-checkbox` is the one checkbox authority — accent, border, checked
+  // mark, hover, focus ring and disabled state all come from it. The row used
+  // to inline a private 16px native checkbox with no focus treatment at all.
   assert.match(
     SIMPLE_DETAIL,
-    /<input\s*\n?\s*type="checkbox"\s*\n?\s*checked=\{isSelected\}[\s\S]{0,400}?data-simple-case-attach-row-checkbox=\{c\.id\}/,
+    /<input\s*\n?\s*type="checkbox"\s*\n?\s*className="app-checkbox"[\s\S]{0,400}?data-simple-case-attach-row-checkbox=\{c\.id\}/,
   );
+  // It is a REAL control: no `readOnly`, no `pointerEvents: "none"`.
+  assert.doesNotMatch(SIMPLE_DETAIL, /pointerEvents: "none"/);
   // Membership test is via Set.has, not equality.
   assert.match(SIMPLE_DETAIL, /const isSelected = selectedIds\.has\(c\.id\);/);
 });
@@ -137,23 +151,24 @@ test("Picker does NOT filter candidates by reportReady / packageReady (eligibili
   assert.doesNotMatch(modalBody, /filter\([^)]*packageReady/);
 });
 
-test("Readiness badges render in neutral muted color (so they don't look like eligibility errors)", () => {
-  // The amber `#92400e` previously used for "missing" badges
-  // implied "blocked". Both badges now render in the same neutral
-  // `#475569` slate so the eye doesn't read them as errors.
+test("Readiness is stated as TEXT, never as a success-coloured pill", () => {
+  // A record with no report is still linkable, so report/package availability
+  // must not read as an eligibility error — and "missing" must never wear a
+  // success tone. Both are plain text carrying a `data-state`, styled by the
+  // stylesheet rather than by an inline hex.
   assert.match(
     SIMPLE_DETAIL,
-    /data-simple-case-attach-row-report=\{[\s\S]{0,200}?style=\{\{ color: "#475569" \}\}/,
+    /data-simple-case-attach-row-report=\{[\s\S]{0,120}?data-state=\{c\.reportReady \? "ready" : "missing"\}/,
   );
   assert.match(
     SIMPLE_DETAIL,
-    /data-simple-case-attach-row-package=\{[\s\S]{0,200}?style=\{\{ color: "#475569" \}\}/,
+    /data-simple-case-attach-row-package=\{[\s\S]{0,120}?data-state=\{c\.packageReady \? "ready" : "missing"\}/,
   );
-  // The previous amber error color is gone from the modal block.
-  const modalStart = SIMPLE_DETAIL.indexOf("function AttachEvidenceModal(");
-  const modalEnd = SIMPLE_DETAIL.indexOf("\nfunction ", modalStart + 1);
-  const modalBody = SIMPLE_DETAIL.slice(modalStart, modalEnd);
-  assert.doesNotMatch(modalBody, /#92400e/);
+  // Only "ready" is given a positive colour; "missing" inherits the muted
+  // group colour and is never green.
+  const css = src("apps/web/components/cases-experience/cases-experience.css");
+  assert.match(css, /\.attach-evidence__row-deliverables \[data-state="ready"\]/);
+  assert.doesNotMatch(css, /\[data-state="missing"\][^{]*\{[^}]*#167A5B/);
 });
 
 // ===========================================================================

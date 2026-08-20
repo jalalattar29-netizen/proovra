@@ -2525,7 +2525,7 @@ function Inspector({
       <h2 className="search-inspector__title">{row.title}</h2>
       {lifecycle ? (
         <AppStatusBadge
-          className="search-type-badge"
+          className="search-inspector__lifecycle"
           tone={searchLifecycleTone(lifecycle)}
           dot
           data-search-inspector-lifecycle={lifecycle}

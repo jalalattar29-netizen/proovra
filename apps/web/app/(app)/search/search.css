@@ -662,16 +662,64 @@
  * in a block context instead. Padding, height and radius come from
  * `.app-status-badge` untouched, so every type is identical in size and only
  * the tone differs. */
+/* ---- The TYPE label ----------------------------------------------------- *
+ *
+ * A record TYPE is a classification, and the reference renders it as a compact
+ * SOLID rectangle in the type colour with white text — visually distinct from
+ * every STATE chip on the surface, which stay soft-tinted capsules.
+ *
+ * This overrides only shape and fill on top of `.app-status-badge`; the colour
+ * still arrives as `data-tone` from the ONE mapping in `searchTones.ts`, so a
+ * type cannot be coloured here and differently in the Inspector.
+ *
+ * It is applied to the TYPE and to nothing else. The Inspector's lifecycle
+ * badge used to borrow this class for its containment alone, which would now
+ * have given a lifecycle state a filled type slab. */
 .search-type-badge {
   flex: 0 0 auto;
   justify-self: start;
   align-self: start;
+  /* Content-sized, always. Inside the Inspector's grid a stretched badge
+     became a full-width rounded slab that read as an input field. */
   inline-size: fit-content;
-  /* An unknown or very long type label is bounded rather than allowed to widen
-     the column it sits in. */
   max-inline-size: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  /* A rectangle, not a capsule. */
+  border-radius: 4px;
+  border-color: transparent;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.45;
+  /* Identical height and typography for every type: the box is sized by its
+     own padding and line-height, never by the row it sits in. */
+  white-space: nowrap;
+}
+
+/* SOLID FILL + WHITE TEXT, per tone. Colours are the same hues the soft chips
+   use, taken to their solid weight; nothing new enters the palette. */
+.search-type-badge[data-tone="blue"] { background: #1D4ED8; color: #FFFFFF; }
+.search-type-badge[data-tone="orange"] { background: #C2570C; color: #FFFFFF; }
+.search-type-badge[data-tone="indigo"] { background: #6D28D9; color: #FFFFFF; }
+.search-type-badge[data-tone="green"] { background: #167A5B; color: #FFFFFF; }
+.search-type-badge[data-tone="red"] { background: #B23442; color: #FFFFFF; }
+.search-type-badge[data-tone="amber"] { background: #A86612; color: #FFFFFF; }
+/* Neutral is the FALLBACK an unknown type resolves to, so it must be a real
+   declaration rather than whatever the base class happens to paint. */
+.search-type-badge[data-tone="slate"] { background: #475569; color: #FFFFFF; }
+
+/* The Inspector's LIFECYCLE chip. A STATE, so it keeps the soft capsule every
+   other state on this surface wears — only its containment is set here, which
+   is all it ever borrowed from the type class. */
+.search-inspector__lifecycle {
+  justify-self: start;
+  align-self: start;
+  inline-size: fit-content;
+  max-inline-size: 100%;
 }
 
 /* ---- Index readiness ---------------------------------------------------- *
@@ -1290,4 +1338,72 @@
    * guidance, not an action, so it must not read as a disabled button. */
   font-size: 12.5px;
   color: var(--app-ink-muted, rgba(35, 55, 59, 0.68));
+}
+
+/* ---- Readiness panel ---------------------------------------------------- *
+ *
+ * The recovery control used to be a SIBLING of the explanation inside
+ * `.app-alert`, which is a block of running text — so the button was laid out
+ * as another inline run and appeared in the middle of the sentence. It read as
+ * an accident, and it interrupted the explanation before it finished for
+ * anyone reading linearly.
+ *
+ * The panel stacks: heading, explanation, optional bounded reason, then a
+ * SEPARATE actions row. A control never sits inside a sentence. */
+.search-readiness-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.search-readiness-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.search-readiness-panel__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.search-readiness-panel__heading {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.search-readiness-panel__body,
+.search-readiness-panel__reason {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.search-readiness-panel__reason {
+  /* A bounded category the server chose. Kept on its own line and isolated so
+     a value that begins with a digit cannot be reordered by an RTL paragraph. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 12.5px;
+  opacity: 0.86;
+}
+
+/* The action row. Its own line, below the copy, and it stacks on a narrow
+   viewport rather than crushing the control against the guidance beside it. */
+.search-readiness-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-block-start: 2px;
+}
+
+@media (max-width: 560px) {
+  .search-readiness-panel__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .search-readiness-panel__actions > * {
+    inline-size: 100%;
+  }
 }

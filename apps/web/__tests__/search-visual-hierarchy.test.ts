@@ -176,24 +176,47 @@ test("8b. no tone changes the control's geometry", () => {
 // 9. The compact type badge
 // ===========================================================================
 
-test("9. the Inspector type badge is content-sized and cannot stretch", () => {
-  // ROOT CAUSE: `.search-inspector` is a grid, and a grid item is stretched to
-  // its column unless it says otherwise. The badge is the SAME class in both
-  // places, so the two can never drift apart in size.
+test("9. the type label is ONE authority, compact, filled, and never stretched", () => {
+  // ROOT CAUSE of the original defect: `.search-inspector` is a grid, and a
+  // grid item is stretched to its column unless it says otherwise — which is
+  // how the Inspector's type label became a full-width rounded slab that read
+  // as an input field.
   assert.match(CSS, /\.search-inspector \{[\s\S]{0,200}?display: grid;/);
+
   const badge = CSS.slice(
     CSS.indexOf(".search-type-badge {"),
     CSS.indexOf("}", CSS.indexOf(".search-type-badge {")),
   );
+
+  // Content-sized in every container.
   assert.match(badge, /justify-self: start;/);
   assert.match(badge, /inline-size: fit-content;/);
   assert.match(badge, /max-inline-size: 100%;/);
-  // Both render sites use it.
-  assert.equal([...PAGE.matchAll(/className="search-type-badge"/g)].length, 3);
+
+  // A compact RECTANGLE, not a capsule. `.app-status-badge` is 999px; the type
+  // label overrides that to a small radius and takes tighter padding.
+  assert.match(badge, /border-radius: 4px;/);
+  assert.doesNotMatch(badge, /border-radius: 999px/);
+  assert.match(badge, /padding: 3px 7px;/);
+  assert.match(badge, /text-transform: uppercase;/);
+
+  // SOLID FILL + WHITE TEXT for every tone the mapping can produce, including
+  // the neutral fallback an unknown type resolves to.
+  for (const tone of ["blue", "orange", "indigo", "slate"]) {
+    const rule = new RegExp(
+      `\\.search-type-badge\\[data-tone="${tone}"\\] \\{[^}]*color: #FFFFFF;`,
+    );
+    assert.match(CSS, rule, `${tone} is not a filled white-text label`);
+  }
+
+  // BOTH type render sites use the one class: the result row and the Inspector
+  // header. The Inspector's LIFECYCLE chip does not — it is a state, and a
+  // state must not wear the filled type shape.
+  assert.equal([...PAGE.matchAll(/className="search-type-badge"/g)].length, 2);
+  assert.match(PAGE, /className="search-inspector__lifecycle"/);
+
   // The fix is at the layout source, not a later override.
   assert.doesNotMatch(CSS, /!important/);
-  // Every type shares one padding/height because none of them touches it.
-  assert.doesNotMatch(badge, /padding|height/);
 });
 
 // ===========================================================================

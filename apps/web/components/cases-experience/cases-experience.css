@@ -48,7 +48,10 @@
 }
 .cases-search-icon {
   position: absolute;
-  left: 14px;
+  /* Logical, not `left`. The icon used to stay pinned to the physical left in
+     an RTL locale while the input text ran right — so the glyph sat on top of
+     the first characters the user typed. */
+  inset-inline-start: 14px;
   display: inline-flex;
   color: #8793A6;
   pointer-events: none;
@@ -59,8 +62,10 @@
   width: 100%;
   min-width: 200px;
   height: 42px;
-  /* room for the leading search icon */
-  padding: 0 14px 0 38px;
+  /* Room for the leading search icon, on the logical inline axis so the
+     reserved space follows the icon when the document mirrors. */
+  padding-block: 0;
+  padding-inline: 38px 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
@@ -1061,4 +1066,212 @@ a.cases-row-title:hover {
 .case-detail-kv-val,
 .app-kpi-card__value {
   unicode-bidi: plaintext;
+}
+
+/* ===========================================================================
+ * ADD EVIDENCE — the case-linking dialog.
+ *
+ * This surface described itself with ~40 inline style objects: a hand-rolled
+ * fixed overlay, a private three-tone pill palette, a native checkbox with
+ * `pointer-events: none` beside a duplicate "Select" button, and hover states
+ * assigned by mutating `e.currentTarget.style`. None of it could be themed,
+ * audited, or reasoned about — and it was the reason the dialog still looked
+ * pre-redesign while the page behind it did not.
+ *
+ * The dialog CHROME is now the canonical `.app-dialog` anatomy (see
+ * `matter-modals/Modal.tsx`). Only the LIST is described here, because only the
+ * list is specific to this surface.
+ * ======================================================================== */
+
+.attach-evidence__lede {
+  margin: 0 0 12px;
+  color: var(--app-ink-secondary);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.attach-evidence__search {
+  /* The dialog gives the field its full width; the shared class is sized for a
+     toolbar, where it shares a row with filters. */
+  display: flex;
+  max-width: 100%;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.attach-evidence__error {
+  margin: 0 0 12px;
+}
+
+/* The ONE scrolling region.
+ *
+ * `min-block-size: 0` is what makes it the scroller rather than the page: a
+ * flex child defaults to `min-height: auto`, so without it the list grows to
+ * its content, the dialog grows with it, and the footer is pushed off-screen —
+ * which is precisely the "footer scrolls away" failure this bounds. */
+.attach-evidence__list {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  overflow-y: auto;
+  min-block-size: 120px;
+  max-block-size: min(46vh, 420px);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.attach-evidence__state {
+  margin: 0;
+  padding: 20px 16px;
+  color: var(--app-ink-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.attach-evidence__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.attach-evidence__row + .attach-evidence__row {
+  border-block-start: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+/* SELECTION MUST NOT MOVE ANYTHING.
+ *
+ * The selected surface is a background and an INSET ring, never an added
+ * border or padding: an outset border would resize the row and shift every
+ * row beneath it on each toggle. */
+.attach-evidence__row[data-selected="true"] {
+  background: rgba(243, 240, 255, 0.62);
+  box-shadow: inset 3px 0 0 0 #6D28D9;
+}
+
+/* The whole row is the control. One <label>, one checkbox, no nested
+   interactive element and therefore exactly one tab stop per row. */
+.attach-evidence__row-control {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  /* Comfortably above the 24px pointer-target floor even before padding. */
+  min-block-size: 44px;
+}
+
+.attach-evidence__row-control:hover {
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.attach-evidence__row[data-selected="true"] .attach-evidence__row-control:hover {
+  background: transparent;
+}
+
+/* The checkbox is `.app-checkbox` — the canonical control, with the canonical
+   accent, ring and disabled state. Only its alignment within the row is set
+   here, and only because the row is top-aligned to a two-line title. */
+.attach-evidence__row-control .app-checkbox {
+  margin-block-start: 2px;
+}
+
+.attach-evidence__row-control:focus-within .app-checkbox {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+}
+
+.attach-evidence__row-body {
+  display: grid;
+  gap: 6px;
+  /* Without this a grid/flex child refuses to shrink below its content, and a
+     long filename widens the row instead of wrapping inside it. */
+  min-inline-size: 0;
+  flex: 1;
+}
+
+/* The primary value. Two lines, then clamped — and the full value survives in
+   `title`, so the clamp hides nothing permanently. */
+.attach-evidence__row-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+}
+
+/* Metadata GROUPS, on their own axes. The previous row ran type, id,
+   integrity, report and package together as one wrapped sentence. */
+.attach-evidence__row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+/* A short record id is a technical identifier an operator copies. It stays
+   left-to-right in every locale: `plaintext` would take its direction from the
+   first strong character, and a hex fragment beginning with a digit would
+   inherit the paragraph's RTL and render its halves reversed. */
+.attach-evidence__row-id {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+/* Deliverable availability is INFORMATIONAL — a record with no report is still
+   linkable. Stated as text so it cannot read as an eligibility error, and
+   "missing" is muted rather than successful. */
+.attach-evidence__row-deliverables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--app-ink-secondary);
+}
+
+.attach-evidence__row-deliverables [data-state="ready"] {
+  color: var(--success-ink);
+}
+
+.attach-evidence__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.attach-evidence__count {
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+}
+
+.attach-evidence__footer-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .attach-evidence__footer,
+  .attach-evidence__footer-actions {
+    /* The actions take the full width rather than crushing to two 90px stubs. */
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .attach-evidence__count {
+    order: -1;
+  }
+  .attach-evidence__list {
+    max-block-size: 52vh;
+  }
 }

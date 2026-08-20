@@ -158,57 +158,70 @@ test("Picker has a real search input (Search evidence by name, type, or record I
   assert.match(SIMPLE_DETAIL, /data-simple-case-attach-search/);
 });
 
-test("Picker renders one row per candidate via getDisplayTitle (not the raw type — status — shortId string)", () => {
-  // Row title is wrapped in a data-attribute marker and renders
-  // `getDisplayTitle(c)`.
+test("Picker renders one row per candidate via getDisplayTitle, with the full name preserved", () => {
+  // The row's primary value is the display title, clamped to two lines with
+  // the full value retained in `title` — nothing is destroyed by the clamp.
   assert.match(
     SIMPLE_DETAIL,
-    /data-simple-case-attach-row-title[\s\S]{0,200}?\{getDisplayTitle\(c\)\}/,
+    /const fullTitle = getDisplayTitle\(c\);/,
   );
-  // The old "${c.type} — ${c.status} — ${c.id.slice(0, 8)}"
-  // template is gone from the modal.
-  assert.doesNotMatch(
+  assert.match(
     SIMPLE_DETAIL,
-    /\{c\.type\} — \{c\.status\} — \{c\.id\.slice\(0,\s*8\)\}/,
+    /title=\{fullTitle\}[\s\S]{0,200}?data-simple-case-attach-row-title/,
   );
+  // The old one-line "type — status — shortId" composite is gone: metadata
+  // lives in its own separated groups.
+  assert.doesNotMatch(SIMPLE_DETAIL, /\$\{c\.type\} — \$\{c\.status\}/);
 });
 
-test("Picker exposes per-row Select buttons + row-click toggle (multi-select)", () => {
-  // Row-click TOGGLES selection (multi-select), not assigns.
+test("The whole row toggles selection through ONE control, with no nested interactive", () => {
+  // A <label> wrapping the real checkbox makes every pixel of the row a target
+  // for it — one tab stop per row, no click-swallowing child, and no second
+  // affordance that can disagree with the first.
   assert.match(
     SIMPLE_DETAIL,
-    /data-simple-case-attach-row=\{c\.id\}[\s\S]{0,400}?onClick=\{\(\) => toggleSelected\(c\.id\)\}/,
+    /<label className="attach-evidence__row-control">/,
   );
-  // Per-row Select button still present + also toggles.
-  assert.match(SIMPLE_DETAIL, /data-simple-case-attach-row-select=\{c\.id\}/);
+  assert.doesNotMatch(SIMPLE_DETAIL, /data-simple-case-attach-row-select/);
+  // The <li> is no longer itself clickable.
+  assert.doesNotMatch(
+    SIMPLE_DETAIL,
+    /data-simple-case-attach-row=\{c\.id\}[\s\S]{0,200}?onClick=/,
+  );
 });
 
 test("Footer confirm button is disabled when no rows are selected and shows a count-aware label", () => {
-  // The disabled predicate now reads from `selectedCount`, not
-  // a single-string selection. Label varies by count.
+  // The footer is the canonical Modal's, so it is stable and does not scroll
+  // with the list.
   assert.match(
     SIMPLE_DETAIL,
-    /disabled=\{selectedCount === 0 \|\| busy\}\s*\n?\s*data-simple-case-attach-confirm/,
+    /disabled=\{selectedCount === 0 \|\| busy\}[\s\S]{0,240}?data-simple-case-attach-confirm/,
   );
-  // Single-select label preserved for the 1-selected case.
   assert.match(SIMPLE_DETAIL, /"Link selected evidence"/);
-  // Multi-select label includes the count.
   assert.match(
     SIMPLE_DETAIL,
     /`Link \$\{selectedCount\} selected evidence records`/,
   );
 });
 
-test("Loading / no-candidates / no-match empty states each have spec-locked copy + data-attributes", () => {
-  assert.match(SIMPLE_DETAIL, /data-simple-case-attach-loading[\s\S]{0,200}?Loading available evidence/);
-  assert.match(
-    SIMPLE_DETAIL,
-    /data-simple-case-attach-empty-list[\s\S]{0,200}?No available evidence to link\. Upload or capture\s*\n?\s*evidence first, then return to this case\./,
-  );
-  assert.match(
-    SIMPLE_DETAIL,
-    /data-simple-case-attach-no-match[\s\S]{0,200}?No matching evidence found\. Try a different name or\s*\n?\s*record ID\./,
-  );
+test("Loading / restricted / error / no-candidates / no-match are five DISTINCT states", () => {
+  // The previous handler set `candidates = []` for every load failure, so a
+  // workspace the actor may not read announced "no available evidence to
+  // link" — a confident statement about a population it never saw.
+  for (const attr of [
+    "data-simple-case-attach-loading",
+    "data-simple-case-attach-restricted",
+    "data-simple-case-attach-error",
+    "data-simple-case-attach-empty-list",
+    "data-simple-case-attach-no-match",
+  ]) {
+    assert.ok(
+      SIMPLE_DETAIL.includes(attr),
+      `missing distinct state: ${attr}`,
+    );
+  }
+  // A refusal is classified from the STATUS, not from the message text.
+  assert.match(SIMPLE_DETAIL, /status === 401 \|\| status === 403/);
 });
 
 test("Search filters by name/type/status/short-id (haystack includes title, displayFileName, originalFileName, id, slice(0,8))", () => {

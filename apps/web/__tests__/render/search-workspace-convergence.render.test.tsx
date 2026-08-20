@@ -48,6 +48,13 @@ type Scenario = {
   searchFails?: boolean;
   savedViews?: Array<Record<string, unknown>>;
   semanticAvailable?: boolean;
+  /**
+   * What `POST /v1/search/reconcile` answers.
+   *
+   * 202-with-an-active-run and 200-completed are different facts, and the
+   * console must not report the first as the second.
+   */
+  reconcile?: Record<string, unknown>;
 };
 
 let scenario: Scenario = { readiness: null, rows: [] };
@@ -184,7 +191,7 @@ function respond(path: string): unknown {
     return { rows: [], nextCursor: null };
   }
   if (path.startsWith("/v1/search/reconcile")) {
-    return { accepted: true, status: "COMPLETED" };
+    return scenario.reconcile ?? { accepted: true, status: "COMPLETED" };
   }
   if (path.startsWith("/v1/search?")) {
     if (scenario.searchFails) throw new Error("search unavailable");
@@ -402,6 +409,7 @@ function scenarioFor(key: ContextKey, over: Partial<Scenario> = {}): Scenario {
     }),
     rows: [makeRow()],
     semanticAvailable: key !== "enterpriseNoSemantic",
+    reconcile: { accepted: true, status: "COMPLETED" },
     ...over,
   };
 }
@@ -922,6 +930,290 @@ describe("convergence — behaviour is preserved, not just presentation", () => 
 // ===========================================================================
 // 8. The coverage table — every branch has a fixture
 // ===========================================================================
+
+// ===========================================================================
+// 9. Recovery is an ACTION ROW, never a word inside a sentence
+// ===========================================================================
+
+describe("polish — the recovery action has its own row", () => {
+  const stalled = makeReadiness({
+    state: "STALLED",
+    indexedCount: 1,
+    outstandingCount: 3,
+    runStatus: null,
+    resultsAreComplete: false,
+    canRecover: true,
+  });
+
+  it("18. the control lives in a dedicated actions row, outside the explanation", async () => {
+    await mountRendered("platformAdmin", { readiness: stalled });
+
+    const button = document.querySelector(
+      "[data-search-readiness-recover]",
+    ) as HTMLElement;
+    expect(button, "no recovery control rendered").not.toBeNull();
+
+    // It is inside the ACTIONS row…
+    const actions = button.closest("[data-search-readiness-actions]");
+    expect(actions, "the control is not in an actions row").not.toBeNull();
+
+    // …and the actions row is a SIBLING of the copy, not a descendant of it.
+    // This is the defect precisely: the button used to be laid out as another
+    // inline run inside the explanatory block, so it appeared mid-sentence.
+    const panel = document.querySelector(
+      "[data-search-readiness='STALLED']",
+    ) as HTMLElement;
+    const body = panel.querySelector(".search-readiness-panel__body");
+    expect(body, "the panel has no explanation block").not.toBeNull();
+    expect(body!.contains(button)).toBe(false);
+
+    // The heading, the explanation and the actions are three separate blocks,
+    // in reading order.
+    const children = Array.from(panel.children);
+    const headIdx = children.findIndex((c) =>
+      c.classList.contains("search-readiness-panel__head"),
+    );
+    const bodyIdx = children.findIndex((c) =>
+      c.classList.contains("search-readiness-panel__body"),
+    );
+    const actionsIdx = children.findIndex((c) =>
+      c.hasAttribute("data-search-readiness-actions"),
+    );
+    expect(headIdx).toBeGreaterThanOrEqual(0);
+    expect(bodyIdx).toBeGreaterThan(headIdx);
+    expect(actionsIdx).toBeGreaterThan(bodyIdx);
+  });
+
+  it("18b. a bounded failure reason gets its own line, never the sentence", async () => {
+    await mountRendered("platformAdmin", {
+      readiness: makeReadiness({
+        state: "FAILED",
+        indexedCount: 1,
+        outstandingCount: 3,
+        runStatus: "FAILED",
+        failureReason: "timeout",
+        resultsAreComplete: false,
+        canRecover: true,
+      }),
+    });
+    const reason = document.querySelector(
+      "[data-search-readiness-reason]",
+    ) as HTMLElement;
+    expect(reason).not.toBeNull();
+    expect(reason.textContent).toContain("timeout");
+    // Not concatenated into the explanation, where a long value would push the
+    // action further out of reach.
+    const body = document.querySelector(".search-readiness-panel__body");
+    expect(body?.textContent).not.toContain("timeout");
+  });
+
+  it("19. an unauthorized actor never receives the control, in any terminal state", async () => {
+    for (const state of ["STALLED", "FAILED"]) {
+      await mountRendered("authorizedNonAdmin", {
+        readiness: makeReadiness({
+          state,
+          indexedCount: 1,
+          outstandingCount: 3,
+          runStatus: state === "FAILED" ? "FAILED" : null,
+          resultsAreComplete: false,
+          canRecover: false,
+        }),
+      });
+      expect(
+        document.querySelector("[data-search-readiness-recover]"),
+        `${state} offered recovery to an unauthorized actor`,
+      ).toBeNull();
+      // …and they are told who can act, rather than left at a dead end.
+      expect(
+        document.querySelector("[data-search-readiness-recover-unavailable]"),
+      ).not.toBeNull();
+    }
+  });
+
+  it("20. accepted is not reported as completed", async () => {
+    await mountRendered("platformAdmin", { readiness: stalled });
+    const button = document.querySelector(
+      "[data-search-readiness-recover]",
+    ) as HTMLButtonElement;
+
+    // The server answers 202 with an already-running run.
+    scenario.reconcile = { accepted: true, status: "RUNNING", alreadyRunning: true };
+    await act(async () => {
+      button.click();
+      await Promise.resolve();
+    });
+    await settle();
+
+    const status = document.querySelector(
+      "[data-search-readiness-recover-status]",
+    ) as HTMLElement;
+    expect(status, "no status was announced").not.toBeNull();
+    expect(status.getAttribute("aria-live")).toBe("polite");
+    // "already running" — never "finished".
+    expect(status.textContent?.toLowerCase()).toContain("already running");
+    expect(status.textContent?.toLowerCase()).not.toContain("finished");
+  });
+
+  it("20b. a completed run is reported as completed, and only then", async () => {
+    await mountRendered("platformAdmin", { readiness: stalled });
+    scenario.reconcile = { accepted: true, status: "COMPLETED" };
+    await act(async () => {
+      (
+        document.querySelector("[data-search-readiness-recover]") as HTMLElement
+      ).click();
+      await Promise.resolve();
+    });
+    await settle();
+    expect(
+      document.querySelector("[data-search-readiness-recover-status]")
+        ?.textContent,
+    ).toContain("finished");
+  });
+
+  it("21. a workspace that cannot answer never shows a plain result count", async () => {
+    for (const state of ["INITIALIZING", "STALLED", "EMPTY_WORKSPACE"]) {
+      await mountRendered("organization", {
+        rows: [],
+        readiness: makeReadiness({
+          state,
+          indexedCount: 0,
+          eligibleCount: state === "EMPTY_WORKSPACE" ? 0 : 4,
+          outstandingCount: state === "EMPTY_WORKSPACE" ? 0 : 4,
+          runStatus: state === "INITIALIZING" ? "RUNNING" : null,
+          progressing: state === "INITIALIZING",
+          shouldPoll: state === "INITIALIZING",
+          resultsAreComplete: false,
+        }),
+      });
+      // "0 results" beside "Search is being set up" told users their records
+      // were gone. The count is withheld until it is a claim worth making.
+      expect(
+        document.body.textContent,
+        `${state} rendered a bare result count`,
+      ).not.toContain("0 results");
+      cleanup();
+    }
+  });
+});
+
+// ===========================================================================
+// 10. The type label — ONE authority, two render sites
+// ===========================================================================
+
+describe("polish — the type label is one authority", () => {
+  const TYPES: Array<[string, string]> = [
+    ["CASE", "blue"],
+    ["REPORT", "orange"],
+    ["EVIDENCE", "orange"],
+    ["PACKAGE", "indigo"],
+    ["NOTE", "slate"],
+  ];
+
+  it("22. every canonical type resolves through the one mapping", async () => {
+    for (const [type, tone] of TYPES) {
+      await mountRendered("organization", { rows: [makeRow({ documentType: type })] });
+      const rowBadge = document.querySelector(
+        "[data-search-result-type]",
+      ) as HTMLElement;
+      expect(rowBadge, `${type} rendered no type label`).not.toBeNull();
+      expect(rowBadge.getAttribute("data-tone"), `${type} tone`).toBe(tone);
+      cleanup();
+    }
+  });
+
+  it("23. the result row and the Inspector render the SAME label authority", async () => {
+    for (const [type, tone] of TYPES) {
+      await mountRendered("organization", { rows: [makeRow({ documentType: type })] });
+      const rowBadge = document.querySelector(
+        "[data-search-result-type]",
+      ) as HTMLElement;
+      const inspectorBadge = document.querySelector(
+        "[data-search-inspector-type]",
+      ) as HTMLElement;
+      expect(inspectorBadge, `${type} has no Inspector label`).not.toBeNull();
+      // Same class, same tone — so the two can never drift apart.
+      expect(inspectorBadge.className).toBe(rowBadge.className);
+      expect(inspectorBadge.getAttribute("data-tone")).toBe(tone);
+      expect(inspectorBadge.className).toContain("search-type-badge");
+      cleanup();
+    }
+  });
+
+  it("26. an unknown type falls back to the neutral label, not to the last branch", async () => {
+    await mountRendered("organization", {
+      rows: [makeRow({ documentType: "SOMETHING_NEW" })],
+    });
+    expect(
+      (document.querySelector("[data-search-result-type]") as HTMLElement)
+        ?.getAttribute("data-tone"),
+    ).toBe("slate");
+    expect(
+      (document.querySelector("[data-search-inspector-type]") as HTMLElement)
+        ?.getAttribute("data-tone"),
+    ).toBe("slate");
+  });
+
+  it("27. lifecycle tone is a SEPARATE authority from type tone", async () => {
+    // A Case is blue whether it is open or closed; the lifecycle chip carries
+    // the state colour and does NOT wear the filled type shape.
+    for (const [lifecycle, tone] of [
+      ["OPEN", "green"],
+      ["CLOSED", "slate"],
+    ] as Array<[string, string]>) {
+      await mountRendered("organization", {
+        rows: [makeRow({ documentType: "CASE", workflowState: lifecycle })],
+      });
+      const type = document.querySelector(
+        "[data-search-inspector-type]",
+      ) as HTMLElement;
+      const life = document.querySelector(
+        "[data-search-inspector-lifecycle]",
+      ) as HTMLElement;
+      expect(type.getAttribute("data-tone")).toBe("blue");
+      expect(life, `${lifecycle} rendered no lifecycle chip`).not.toBeNull();
+      expect(life.getAttribute("data-tone")).toBe(tone);
+      // The lifecycle chip is NOT a type label: a state must not wear the
+      // filled classification slab.
+      expect(life.className).not.toContain("search-type-badge");
+      cleanup();
+    }
+  });
+
+  it("28. selecting a row changes no class on either label", async () => {
+    await mountRendered("organization", {
+      rows: [makeRow({ documentType: "CASE" }), makeRow({ documentId: "doc-2" })],
+    });
+    const before = (
+      document.querySelector("[data-search-result-type]") as HTMLElement
+    ).className;
+
+    const row = document.querySelector("[data-search-result-row]") as HTMLElement;
+    await act(async () => {
+      (row.querySelector("button") ?? row).click();
+      await Promise.resolve();
+    });
+    await settle();
+
+    const after = (
+      document.querySelector("[data-search-result-type]") as HTMLElement
+    ).className;
+    // Same class set → same box. Selection cannot resize a label.
+    expect(after).toBe(before);
+  });
+
+  it("29. the typeahead still mounts on the canonical overlay layer", async () => {
+    await mountRendered("organization");
+    const input = document.querySelector(
+      "[data-search-input]",
+    ) as HTMLInputElement;
+    expect(input, "the query field is gone").not.toBeNull();
+    // The overlay primitive is still the one the console composes with; the
+    // label work must not have disturbed the popup layer.
+    const page = document.querySelector("[data-search-page]") as HTMLElement;
+    expect(page.querySelector("[data-search-typeahead-overlay]")).toBeNull();
+    expect(input.getAttribute("aria-autocomplete")).toBe("list");
+  });
+});
 
 describe("coverage", () => {
   it("every declared context is exercised by this file", () => {

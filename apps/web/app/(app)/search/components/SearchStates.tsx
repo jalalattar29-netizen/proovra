@@ -280,6 +280,86 @@ function SearchRecoveryUnavailableHint() {
   );
 }
 
+/**
+ * The readiness disclosure, as a PANEL rather than a sentence.
+ *
+ * WHAT WAS WRONG
+ *
+ * `.app-alert` is a block of running text. The icon, the explanation and the
+ * recovery button were siblings inside it, so the button was laid out as
+ * another inline run — it appeared in the MIDDLE of the sentence, between
+ * "…until indexing is restarted." and the status line. It read as an accident,
+ * and it broke the reading order for anyone using a screen reader or a
+ * magnifier: the explanation was interrupted by a control before it finished.
+ *
+ * The anatomy is now explicit and the same for every state that has an action:
+ *
+ *   heading        what state this is, in three or four words
+ *   explanation    what it means, as one complete sentence
+ *   reason         optional, bounded, only when the server supplied one
+ *   ─── actions ─── a SEPARATE row, below the copy
+ *   status         what the last recovery request actually did
+ *
+ * A control never sits inside a sentence, and the actions row exists only when
+ * there is something to put in it.
+ */
+function SearchReadinessPanel({
+  state,
+  tone,
+  icon,
+  heading,
+  children,
+  reason,
+  actions,
+  status,
+  role = "status",
+}: {
+  state: SearchReadinessState;
+  tone: "warn" | "danger";
+  icon: ReactNode;
+  heading: string;
+  children: ReactNode;
+  reason?: string | null;
+  actions?: ReactNode;
+  status?: ReactNode;
+  role?: "status" | "alert";
+}) {
+  return (
+    <section
+      // STATIC class names, not a composed one. `app-alert--${tone}` is
+      // invisible to the convergence audit, which reads the classes a file
+      // NAMES: it can neither confirm the class exists nor tell a typo from a
+      // valid tone. A two-entry map costs nothing and keeps the surface
+      // greppable.
+      className={`app-alert ${tone === "danger" ? "app-alert--danger" : "app-alert--warn"} search-readiness-panel`}
+      role={role}
+      data-search-readiness={state}
+    >
+      <p className="search-readiness-panel__head">
+        <span className="search-readiness-panel__icon" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="search-readiness-panel__heading">{heading}</span>
+      </p>
+      <p className="search-readiness-panel__body">{children}</p>
+      {reason ? (
+        <p className="search-readiness-panel__reason" data-search-readiness-reason>
+          {reason}
+        </p>
+      ) : null}
+      {actions ? (
+        <div
+          className="search-readiness-panel__actions"
+          data-search-readiness-actions
+        >
+          {actions}
+        </div>
+      ) : null}
+      {status}
+    </section>
+  );
+}
+
 export function SearchReadinessNotice({
   state,
   indexedCount,
@@ -363,29 +443,29 @@ export function SearchReadinessNotice({
     // The honest version of the sentence this product used to show. Nothing is
     // running, so the copy must not imply that waiting will help.
     return (
-      <div
-        className="app-alert app-alert--warn"
-        role="status"
-        data-search-readiness="STALLED"
+      <SearchReadinessPanel
+        state="STALLED"
+        tone="warn"
+        icon={<AlertCircle size={15} strokeWidth={2} />}
+        heading="Indexing is not progressing"
+        actions={
+          canRecover && onRecover ? (
+            <SearchRecoveryAction
+              label="Rebuild index"
+              pendingLabel="Starting…"
+              onRecover={onRecover}
+              recovering={recovering === true}
+            />
+          ) : (
+            <SearchRecoveryUnavailableHint />
+          )
+        }
+        status={status}
       >
-        <AlertCircle size={15} strokeWidth={2} aria-hidden="true" />
-        <span>
-          Indexing is not progressing — {indexedCount} of {eligibleCount} records
-          are searchable. What is below is real and complete for what has been
-          indexed; the rest will not appear until indexing is restarted.
-        </span>
-        {canRecover && onRecover ? (
-          <SearchRecoveryAction
-            label="Rebuild index"
-            pendingLabel="Starting…"
-            onRecover={onRecover}
-            recovering={recovering === true}
-          />
-        ) : (
-          <SearchRecoveryUnavailableHint />
-        )}
-        {status}
-      </div>
+        {indexedCount} of {eligibleCount} records are searchable. What is below
+        is real and complete for what has been indexed; the rest will not appear
+        until indexing is restarted.
+      </SearchReadinessPanel>
     );
   }
 
@@ -394,43 +474,71 @@ export function SearchReadinessNotice({
     // terminal. A run that is still inside its lease is neither, and offering
     // "retry" against it would ask for a second run of work already in hand.
     return (
-      <div
-        className="app-alert app-alert--danger"
+      <SearchReadinessPanel
+        state="FAILED"
+        tone="danger"
         role="alert"
-        data-search-readiness="FAILED"
+        icon={<AlertCircle size={15} strokeWidth={2} />}
+        heading="The last indexing run did not finish"
+        // A BOUNDED category the server chose, on its own line. Never a stack,
+        // never SQL, and never concatenated into the sentence above — where a
+        // long value would have pushed the action further out of reach.
+        reason={failureReason ? `Reason: ${failureReason}` : null}
+        actions={
+          canRecover && onRecover ? (
+            <SearchRecoveryAction
+              label="Retry indexing"
+              pendingLabel="Starting…"
+              onRecover={onRecover}
+              recovering={recovering === true}
+            />
+          ) : (
+            <SearchRecoveryUnavailableHint />
+          )
+        }
+        status={status}
       >
-        <AlertCircle size={15} strokeWidth={2} aria-hidden="true" />
-        <span>
-          The last indexing run did not finish
-          {failureReason ? `: ${failureReason}` : ""}. {indexedCount} of{" "}
-          {eligibleCount} records are searchable.
-        </span>
-        {canRecover && onRecover ? (
-          <SearchRecoveryAction
-            label="Retry indexing"
-            pendingLabel="Starting…"
-            onRecover={onRecover}
-            recovering={recovering === true}
-          />
-        ) : (
-          <SearchRecoveryUnavailableHint />
-        )}
-        {status}
-      </div>
+        {indexedCount} of {eligibleCount} records are searchable. The rest will
+        not appear until indexing runs again.
+      </SearchReadinessPanel>
     );
   }
 
   // DEGRADED — search itself works. Name only what does not.
+  //
+  // No recovery action: rebuilding the index would not repair a secondary
+  // capability, and offering it here would be a control that cannot help.
   if (state === "DEGRADED") {
     return (
-      <div
-        className="app-alert app-alert--warn"
-        role="status"
-        data-search-readiness="DEGRADED"
+      <SearchReadinessPanel
+        state="DEGRADED"
+        tone="warn"
+        icon={<ServerCrash size={15} strokeWidth={2} />}
+        heading="Search is working"
+        status={status}
       >
-        <ServerCrash size={15} strokeWidth={2} aria-hidden="true" />{" "}
-        Search is working. One secondary capability is unavailable right now.
-      </div>
+        One secondary capability is unavailable right now. Everything below is
+        complete for the search you ran.
+      </SearchReadinessPanel>
+    );
+  }
+
+  // UNAVAILABLE — the service could not be reached at all. Nothing is known
+  // about the index, so nothing is claimed about it, and a rebuild cannot be
+  // requested through a transport that is not answering.
+  if (state === "UNAVAILABLE") {
+    return (
+      <SearchReadinessPanel
+        state="UNAVAILABLE"
+        tone="danger"
+        role="alert"
+        icon={<ServerCrash size={15} strokeWidth={2} />}
+        heading="Search is temporarily unavailable"
+        status={status}
+      >
+        The search service could not be reached, so nothing can be said about
+        this workspace&apos;s index right now. Try again shortly.
+      </SearchReadinessPanel>
     );
   }
 

@@ -70,6 +70,12 @@
      the canonical amber for warning TEXT: same family, 5.02:1 on #FFFFFF.
      Use `--warning` for decoration and `--warning-ink` for words. */
   --warning-ink: #B45309;
+  /* Readable success INK, on the `--warning-ink` precedent. `--success`
+     (#10B981) is the DECORATIVE green — as text it measures 2.5:1 on white and
+     fails WCAG AA. #167A5B is the green the status badges have always used for
+     words; it simply had no name, so every surface that wanted readable green
+     text wrote the hex out by hand. 5.4:1 on #FFFFFF. */
+  --success-ink: #167A5B;
   --error: #DC2626;
   --error-050: #FEF2F2;
   --info: #2563EB;

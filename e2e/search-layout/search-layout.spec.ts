@@ -373,3 +373,168 @@ test.describe("recovery control geometry", () => {
     expect(visible?.ring, "a focused control with no visible indicator").toBe(true);
   });
 });
+
+// ===========================================================================
+// POLISH — the type label's real painted shape
+//
+// jsdom reports no computed background, no radius and no box. Every assertion
+// here needs a layout engine and a real cascade, which is the whole reason this
+// project exists.
+// ===========================================================================
+
+test.describe("type labels are compact filled rectangles", () => {
+  for (const viewport of VIEWPORTS) {
+    test(`${viewport.name}px — filled background, white text, small radius`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await openSearch(page, "admin");
+
+      const measured = await page.evaluate(() => {
+        const el = document.querySelector(
+          "[data-search-result-type]",
+        ) as HTMLElement | null;
+        if (!el) return null;
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return {
+          background: s.backgroundColor,
+          color: s.color,
+          radius: parseFloat(s.borderTopLeftRadius),
+          transform: s.textTransform,
+          width: r.width,
+          height: r.height,
+        };
+      });
+
+      expect(measured, "no type label rendered").not.toBeNull();
+      // SOLID: a real colour, not the soft tint the state chips wear.
+      expect(measured!.background).not.toBe("rgba(0, 0, 0, 0)");
+      expect(measured!.background).not.toBe("transparent");
+      // WHITE text on it.
+      expect(measured!.color).toBe("rgb(255, 255, 255)");
+      // A RECTANGLE. `.app-status-badge` is 999px; a capsule this size would
+      // report roughly half its own height.
+      expect(measured!.radius).toBeLessThanOrEqual(6);
+      expect(measured!.radius).toBeLessThan(measured!.height / 2);
+      expect(measured!.transform).toBe("uppercase");
+      // Compact: content-sized, never a slab.
+      expect(measured!.height).toBeLessThanOrEqual(28);
+      expect(measured!.width).toBeLessThanOrEqual(140);
+    });
+  }
+
+  test("the Inspector label is content-sized, not a full-width field", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openSearch(page, "admin");
+    await page.locator("[data-search-result-row]").first().click();
+    await page.waitForSelector("[data-search-inspector]");
+
+    const measured = await page.evaluate(() => {
+      const badge = document.querySelector(
+        "[data-search-inspector-type]",
+      ) as HTMLElement | null;
+      const panel = document.querySelector(
+        "[data-search-inspector]",
+      ) as HTMLElement | null;
+      if (!badge || !panel) return null;
+      return {
+        badge: badge.getBoundingClientRect().width,
+        panel: panel.getBoundingClientRect().width,
+        background: getComputedStyle(badge).backgroundColor,
+        color: getComputedStyle(badge).color,
+      };
+    });
+
+    expect(measured, "the Inspector rendered no type label").not.toBeNull();
+    // THE DEFECT IN THE REFERENCE SCREENSHOT: a grid item stretches to its
+    // column unless told otherwise, so the label filled the panel and read as
+    // an input field. It must be a small fraction of the panel.
+    expect(measured!.badge).toBeLessThan(measured!.panel * 0.5);
+    // …and it is the same filled label as the row's.
+    expect(measured!.color).toBe("rgb(255, 255, 255)");
+    expect(measured!.background).not.toBe("rgba(0, 0, 0, 0)");
+  });
+
+  test("every type renders at the same height", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openSearch(page, "admin");
+    const heights = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>("[data-search-result-type]"),
+      ).map((el) => Math.round(el.getBoundingClientRect().height)),
+    );
+    expect(heights.length).toBeGreaterThan(1);
+    expect(new Set(heights).size, `heights differ: ${heights.join(",")}`).toBe(1);
+  });
+
+  test("selecting a row does not resize its type label", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openSearch(page, "admin");
+    const first = page.locator("[data-search-result-type]").first();
+    const before = await first.boundingBox();
+    await page.locator("[data-search-result-row]").first().click();
+    await page.waitForSelector("[data-search-inspector]");
+    const after = await first.boundingBox();
+    expect(before).not.toBeNull();
+    expect(after).not.toBeNull();
+    expect(Math.round(after!.height)).toBe(Math.round(before!.height));
+    expect(Math.round(after!.width)).toBe(Math.round(before!.width));
+  });
+});
+
+// ===========================================================================
+// POLISH — the recovery action occupies its own row
+// ===========================================================================
+
+test.describe("the recovery action is below the copy", () => {
+  for (const viewport of VIEWPORTS) {
+    for (const dir of DIRECTIONS) {
+      test(`${viewport.name}px ${dir} — the action row sits under the explanation`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
+        await openSearch(page, "admin", {
+          readiness: {
+            state: "STALLED",
+            indexedCount: 3,
+            outstandingCount: 9,
+            resultsAreComplete: false,
+            runStatus: null,
+            canRecover: true,
+          },
+        });
+        await setDirection(page, dir);
+
+        const geometry = await page.evaluate(() => {
+          const body = document.querySelector(
+            ".search-readiness-panel__body",
+          ) as HTMLElement | null;
+          const actions = document.querySelector(
+            "[data-search-readiness-actions]",
+          ) as HTMLElement | null;
+          if (!body || !actions) return null;
+          const rb = body.getBoundingClientRect();
+          const ra = actions.getBoundingClientRect();
+          return { bodyBottom: rb.bottom, actionsTop: ra.top, actionsHeight: ra.height };
+        });
+
+        expect(geometry, "the panel did not render both blocks").not.toBeNull();
+        // BELOW, not beside and not inside: the action row starts at or after
+        // the explanation ends. Inline placement — the defect — would put the
+        // control's top well above the paragraph's bottom.
+        expect(geometry!.actionsTop).toBeGreaterThanOrEqual(
+          geometry!.bodyBottom - 1,
+        );
+        expect(geometry!.actionsHeight).toBeGreaterThan(0);
+        // And the page still does not scroll sideways with it.
+        expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+      });
+    }
+  }
+});

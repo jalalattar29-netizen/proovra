@@ -42,7 +42,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
  *     evidence rows survive.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 // CANONICAL ICON AUTHORITY. `lucide-react` is the repository's single icon
@@ -71,6 +71,18 @@ import { CaseCopilotPanel } from "../../ai-copilot/CaseCopilotPanel";
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
+// THE canonical dialog for this experience: portal, focus trap, Escape with
+// pending-state protection, focus restoration, scroll lock and the shared
+// `.app-dialog` anatomy. The Add-evidence dialog described all of that with
+// inline hex styles, which is what made it the last surface still wearing the
+// pre-redesign modal language.
+import { Modal } from "../matter-modals/Modal";
+// The one status chip. Tone is its only colour input; the row previously
+// carried a private three-tone palette built by hand.
+import {
+  AppStatusBadge,
+  type AppTone,
+} from "../../app-primitives/AppStatusBadge";
 // CANONICAL PRESENTATION AUTHORITIES (no component imports needed — these are
 // classes, not a second component library):
 //   surface / card ..... .app-panel / .app-inner-surface  (app-primitives.css)
@@ -1194,36 +1206,47 @@ type AttachCandidate = {
   packageReady: boolean;
 };
 
-// §18 — compact semantic pill style for the Add-evidence row metadata.
-// Neutral = slate structure; success/warning use the semantic palette.
-// Purple is intentionally NOT used here so no single pill dominates.
-function attachBadgeStyle(
-  tone: "neutral" | "success" | "warning",
-): React.CSSProperties {
-  const palette: Record<string, { bg: string; border: string; color: string }> = {
-    neutral: {
-      bg: "rgba(248,250,252,0.68)",
-      border: "rgba(15,23,42,0.08)",
-      color: "#5F6B7D",
-    },
-    success: { bg: "#EAF7F1", border: "#C7EBDD", color: "#167A5B" },
-    warning: { bg: "#FFF6E5", border: "#F2D8A8", color: "#A86612" },
-  };
-  const p = palette[tone];
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "1px 7px",
-    borderRadius: 999,
-    background: p.bg,
-    border: `1px solid ${p.border}`,
-    color: p.color,
-    fontSize: 11,
-    fontWeight: 600,
-    lineHeight: 1.5,
-    whiteSpace: "nowrap",
-  };
+/**
+ * How an evidence KIND is labelled. Classification, never health.
+ *
+ * `PHOTO`, `DOCUMENT`, `VIDEO`, `AUDIO` say what a record IS. They wear the
+ * neutral classification tone, so no kind can be mistaken for a state — the
+ * previous row rendered them in the same pill shape as the integrity result,
+ * which made "DOCUMENT" and "recorded integrity verified" look like two
+ * readings of the same thing.
+ */
+function attachKindLabel(type: string | null | undefined): string {
+  return (type ?? "RECORD").replace(/_/g, " ");
 }
+
+/**
+ * What the integrity/preservation state MEANS, as a tone.
+ *
+ * Derived from the state, never from the copy. `FAILED` is red rather than
+ * amber: a failed preservation check is not a caution, and the previous row
+ * collapsed it onto the same amber as `REVIEW_REQUIRED`, so a broken record
+ * and a record awaiting a human read identically.
+ */
+function attachIntegrityTone(status: string | null | undefined): AppTone {
+  if (!status) return "slate";
+  if (status === "FAILED") return "red";
+  if (status === "REVIEW_REQUIRED") return "amber";
+  if (status.startsWith("RECORDED")) return "green";
+  return "slate";
+}
+
+function attachIntegrityLabel(status: string): string {
+  return status.replace(/_/g, " ").toLowerCase();
+}
+
+/** What went wrong loading the candidate list, reduced to a rendered state. */
+type AttachLoadState =
+  | { kind: "loading" }
+  | { kind: "ready" }
+  /** The actor may not see this workspace's evidence. Not an empty workspace. */
+  | { kind: "restricted" }
+  /** Anything else. Bounded copy; never the transport's own message. */
+  | { kind: "error" };
 
 function AttachEvidenceModal({
   caseId,
@@ -1242,9 +1265,26 @@ function AttachEvidenceModal({
   onError: (message: string) => void;
 }) {
   const [candidates, setCandidates] = useState<AttachCandidate[] | null>(null);
+  const [loadState, setLoadState] = useState<AttachLoadState>({ kind: "loading" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  /**
+   * Why the last submission failed, in the dialog.
+   *
+   * A toast is not enough for a failure the operator has to act on: the
+   * selection they need to retry is inside this dialog, and a toast that has
+   * already faded leaves a set of checked rows with no explanation.
+   */
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  /**
+   * The client half of duplicate-submission protection.
+   *
+   * `busy` disables the button, but a ref rejects a re-entrant call the
+   * disabled attribute cannot catch — Enter held down, a synthetic dispatch,
+   * or a second click landing in the same frame as the first state update.
+   */
+  const submitInFlight = useRef(false);
 
   const toggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -1273,10 +1313,22 @@ function AttachEvidenceModal({
           (i) => !existingEvidenceIds.has(i.id),
         );
         setCandidates(filtered);
-      } catch {
+        setLoadState({ kind: "ready" });
+      } catch (err) {
         if (cancelled) return;
-        onError("Could not load available evidence.");
+        // A REFUSAL and an OUTAGE are different answers and must not render
+        // the same. The previous handler set `candidates = []` for both, so a
+        // workspace the actor may not read announced "no available evidence
+        // to link" — a confident statement about a population it never saw.
+        const status = (err as { status?: number } | null)?.status;
+        const restricted = status === 401 || status === 403;
         setCandidates([]);
+        setLoadState({ kind: restricted ? "restricted" : "error" });
+        onError(
+          restricted
+            ? "You do not have access to this workspace's evidence."
+            : "Could not load available evidence.",
+        );
       }
     })();
     return () => {
@@ -1304,8 +1356,14 @@ function AttachEvidenceModal({
   });
 
   const handleAttach = useCallback(async () => {
+    // Three independent controls, none trusted alone: the button is disabled,
+    // this ref rejects re-entry, and the backend attach is idempotent per
+    // (case, evidence).
+    if (submitInFlight.current) return;
     if (selectedIds.size === 0) return;
+    submitInFlight.current = true;
     setBusy(true);
+    setSubmitError(null);
     const ids = Array.from(selectedIds);
     // Backend has no batch attach endpoint (audit confirmed —
     // POST /v1/cases/:id/evidence takes a single evidenceId).
@@ -1334,329 +1392,55 @@ function AttachEvidenceModal({
       });
       setQuery("");
     }
+    if (failed > 0) {
+      // The rows that failed are STILL SELECTED, so the message names what is
+      // left to retry rather than what was lost.
+      setSubmitError(
+        failed === 1
+          ? "One evidence record could not be linked. It is still selected — try again."
+          : `${failed} evidence records could not be linked. They are still selected — try again.`,
+      );
+    }
+    submitInFlight.current = false;
     setBusy(false);
     await onAttached({ succeeded, failed });
   }, [caseId, selectedIds, onAttached]);
 
+  const countMessage =
+    selectedCount === 0
+      ? "Select one or more evidence records"
+      : selectedCount === 1
+        ? "1 evidence record selected"
+        : `${selectedCount} evidence records selected`;
+
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="attach-evidence-title"
-      data-simple-case-attach-modal
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.4)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 50,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: "var(--surface-card, #ffffff)",
-          padding: 20,
-          borderRadius: 18,
-          width: "min(560px, 92vw)",
-          maxHeight: "82vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 24px 60px rgba(15,23,42,0.24)",
-          border: "1px solid rgba(15, 23, 42, 0.06)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3
-          id="attach-evidence-title"
-          style={{ margin: "0 0 4px 0", color: "#172033" }}
-        >
-          Link evidence to case
-        </h3>
-        <p
-          className="cc-muted"
-          style={{ margin: "0 0 12px 0", color: "#475569" }}
-        >
-          Choose an existing evidence record from this workspace.
-        </p>
-
-        {/* §7C — full-width 42px search with the leading icon the class
-            already reserves left padding for. */}
-        <div className="cases-search-field" style={{ display: "flex", width: "100%", maxWidth: "100%", marginBottom: 12 }}>
-          <span aria-hidden className="cases-search-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-          </span>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search evidence by name, type, or record ID"
-            aria-label="Search attachable evidence"
-            data-simple-case-attach-search
-            className="cases-filter-search"
-            style={{ width: "100%", height: 42 }}
-            disabled={busy}
-          />
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            border: "1px solid rgba(15, 23, 42, 0.08)",
-            borderRadius: 12,
-            minHeight: 120,
-          }}
-          data-simple-case-attach-list
-        >
-          {candidates === null ? (
-            <p
-              className="cc-muted"
-              data-simple-case-attach-loading
-              style={{ padding: 16 }}
-            >
-              Loading available evidence…
-            </p>
-          ) : candidates.length === 0 ? (
-            <p
-              className="cc-muted"
-              data-simple-case-attach-empty-list
-              style={{ padding: 16 }}
-            >
-              No available evidence to link. Upload or capture
-              evidence first, then return to this case.
-            </p>
-          ) : visibleCandidates.length === 0 ? (
-            <p
-              className="cc-muted"
-              data-simple-case-attach-no-match
-              style={{ padding: 16 }}
-            >
-              No matching evidence found. Try a different name or
-              record ID.
-            </p>
-          ) : (
-            <ul
-              style={{
-                listStyle: "none",
-                margin: 0,
-                padding: 0,
-              }}
-            >
-              {visibleCandidates.map((c) => {
-                const isSelected = selectedIds.has(c.id);
-                return (
-                  <li
-                    key={c.id}
-                    data-simple-case-attach-row={c.id}
-                    data-selected={isSelected ? "true" : "false"}
-                    onClick={() => toggleSelected(c.id)}
-                    onMouseEnter={(e) => {
-                      if (!isSelected)
-                        e.currentTarget.style.background =
-                          "rgba(248,250,252,0.78)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected)
-                        e.currentTarget.style.background = "transparent";
-                    }}
-                    style={{
-                      padding: "10px 12px",
-                      cursor: "pointer",
-                      // §18 — subtle selected row (not a saturated fill);
-                      // unselected transparent; hover a faint slate wash.
-                      background: isSelected
-                        ? "rgba(243,240,255,0.56)"
-                        : "transparent",
-                      borderLeft: isSelected
-                        ? "2px solid rgba(126,107,255,0.55)"
-                        : "2px solid transparent",
-                      borderBottom: "1px solid rgba(15,23,42,0.06)",
-                      boxShadow: isSelected
-                        ? "inset 0 0 0 1px rgba(126,107,255,0.24)"
-                        : "none",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        readOnly
-                        aria-label={`Select ${getDisplayTitle(c)}`}
-                        data-simple-case-attach-row-checkbox={c.id}
-                        disabled={busy}
-                        style={{
-                          width: 16,
-                          height: 16,
-                          flexShrink: 0,
-                          cursor: "pointer",
-                          pointerEvents: "none",
-                        }}
-                      />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div
-                          title={getDisplayTitle(c)}
-                          style={{
-                            fontWeight: 600,
-                            color: "#172033",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          data-simple-case-attach-row-title
-                        >
-                          {getDisplayTitle(c)}
-                        </div>
-                        {/* §18 + Phase CASES-ATTACH-PICKER-MULTI — line 2
-                            is type + short record ID (mono) + integrity +
-                            report + package as compact semantic badges
-                            (not all purple). The report / package badges
-                            are INFORMATIONAL only: a record with "Report
-                            missing" / "Package missing" is still
-                            attachable (backend has no readiness filter),
-                            so they render in neutral slate `#475569` — not
-                            a colour that reads as an eligibility error. */}
-                        <div
-                          className="cc-muted"
-                          style={{
-                            fontSize: 12,
-                            marginTop: 4,
-                            display: "flex",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span style={attachBadgeStyle("neutral")}>{c.type}</span>
-                          <span
-                            style={{
-                              ...attachBadgeStyle("neutral"),
-                              fontFamily:
-                                'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-                            }}
-                          >
-                            {c.id.slice(0, 8)}
-                          </span>
-                          {c.verificationStatus ? (
-                            <span
-                              style={attachBadgeStyle(
-                                c.verificationStatus === "FAILED" ||
-                                  c.verificationStatus === "REVIEW_REQUIRED"
-                                  ? "warning"
-                                  : "success",
-                              )}
-                            >
-                              {c.verificationStatus
-                                .replace(/_/g, " ")
-                                .toLowerCase()}
-                            </span>
-                          ) : null}
-                          <span
-                            data-simple-case-attach-row-report={
-                              c.reportReady ? "ready" : "missing"
-                            }
-                            style={{ color: "#475569" }}
-                          >
-                            {c.reportReady ? "Report ready" : "Report missing"}
-                          </span>
-                          <span
-                            data-simple-case-attach-row-package={
-                              c.packageReady ? "ready" : "missing"
-                            }
-                            style={{ color: "#475569" }}
-                          >
-                            {c.packageReady ? "Package ready" : "Package missing"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    {/* §18 — the redundant filled "Selected" pill is
-                        gone; selection is shown by the checkbox + the
-                        subtle selected-row wash. This affordance is kept
-                        (testid + toggle wiring) but demoted to a subtle
-                        text toggle so it no longer competes with the
-                        primary footer CTA. */}
-                    {/* §1/§7B — for an already-linked (selected) record the
-                        action is destructive removal → shared danger class.
-                        For an unselected record it is a neutral "Select". */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSelected(c.id);
-                      }}
-                      data-simple-case-attach-row-select={c.id}
-                      aria-pressed={isSelected}
-                      disabled={busy}
-                      className={isSelected ? "cases-remove-action" : undefined}
-                      style={
-                        isSelected
-                          ? { flexShrink: 0 }
-                          : {
-                              border: "none",
-                              background: "transparent",
-                              color: "#8793A6",
-                              borderRadius: 8,
-                              padding: "4px 10px",
-                              cursor: "pointer",
-                              fontSize: 12.5,
-                              fontWeight: 600,
-                              flexShrink: 0,
-                            }
-                      }
-                    >
-                      {isSelected ? "Remove" : "Select"}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
+    <Modal
+      open
+      testid="attach-evidence"
+      title="Link evidence to case"
+      description="Choose an existing evidence record from this workspace to link to this case."
+      onClose={onClose}
+      // Pending-state dismissal protection: while requests are in flight the
+      // overlay, Escape and the close control all stand down, so a half-
+      // committed batch cannot be abandoned without its result being shown.
+      dismissDisabled={busy}
+      footer={
+        <div className="attach-evidence__footer">
           <span
-            className="cc-muted"
+            className="attach-evidence__count"
             data-simple-case-attach-selected-count={selectedCount}
-            style={{ fontSize: 12 }}
+            aria-live="polite"
           >
-            {selectedCount === 0
-              ? "Select one or more evidence records"
-              : selectedCount === 1
-                ? "1 evidence record selected"
-                : `${selectedCount} evidence records selected`}
+            {countMessage}
           </span>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="attach-evidence__footer-actions">
             <CaseButton variant="secondary" onClick={onClose} disabled={busy}>
               Cancel
             </CaseButton>
             <CaseButton
               onClick={() => void handleAttach()}
               disabled={selectedCount === 0 || busy}
+              aria-busy={busy}
               data-simple-case-attach-confirm
             >
               {busy
@@ -1667,8 +1451,199 @@ function AttachEvidenceModal({
             </CaseButton>
           </div>
         </div>
+      }
+    >
+      <p className="attach-evidence__lede" data-simple-case-attach-lede>
+        Choose an existing evidence record from this workspace.
+      </p>
+
+      <div className="cases-search-field attach-evidence__search">
+        <span aria-hidden className="cases-search-icon">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+        </span>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search evidence by name, type, or record ID"
+          aria-label="Search attachable evidence"
+          data-simple-case-attach-search
+          className="cases-filter-search"
+          disabled={busy}
+        />
       </div>
-    </div>
+
+      {submitError ? (
+        <p
+          className="app-alert app-alert--danger attach-evidence__error"
+          role="alert"
+          data-simple-case-attach-submit-error
+        >
+          {submitError}
+        </p>
+      ) : null}
+
+      <div className="attach-evidence__list" data-simple-case-attach-list>
+        {loadState.kind === "loading" ? (
+          <p
+            className="attach-evidence__state"
+            data-simple-case-attach-loading
+            role="status"
+          >
+            Loading available evidence…
+          </p>
+        ) : loadState.kind === "restricted" ? (
+          <p
+            className="attach-evidence__state"
+            data-simple-case-attach-restricted
+            role="status"
+          >
+            You do not have access to this workspace&apos;s evidence. Ask a
+            workspace administrator for access.
+          </p>
+        ) : loadState.kind === "error" ? (
+          <p
+            className="attach-evidence__state"
+            data-simple-case-attach-error
+            role="status"
+          >
+            Could not load available evidence. Close this dialog and try again.
+          </p>
+        ) : (candidates ?? []).length === 0 ? (
+          <p
+            className="attach-evidence__state"
+            data-simple-case-attach-empty-list
+            role="status"
+          >
+            No available evidence to link. Upload or capture evidence first,
+            then return to this case.
+          </p>
+        ) : visibleCandidates.length === 0 ? (
+          <p
+            className="attach-evidence__state"
+            data-simple-case-attach-no-match
+            role="status"
+          >
+            No matching evidence found. Try a different name or record ID.
+          </p>
+        ) : (
+          <ul className="attach-evidence__rows">
+            {visibleCandidates.map((c) => {
+              const isSelected = selectedIds.has(c.id);
+              const fullTitle = getDisplayTitle(c);
+              return (
+                <li
+                  key={c.id}
+                  className="attach-evidence__row"
+                  data-simple-case-attach-row={c.id}
+                  data-selected={isSelected ? "true" : "false"}
+                >
+                  {/*
+                    ONE control for the whole row.
+                    A <label> makes every pixel of the row a target for the
+                    checkbox it wraps, with no nested interactive element to
+                    trap a click, swallow a keystroke or produce a second
+                    tab stop. The previous row was a clickable <li> containing
+                    a pointer-events:none checkbox AND a separate button — two
+                    affordances for one action, one of them unreachable by
+                    keyboard.
+                  */}
+                  <label className="attach-evidence__row-control">
+                    <input
+                      type="checkbox"
+                      className="app-checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelected(c.id)}
+                      disabled={busy}
+                      data-simple-case-attach-row-checkbox={c.id}
+                    />
+                    <span className="attach-evidence__row-body">
+                      {/*
+                        The primary value. Clamped to two lines so a 120-
+                        character filename cannot push the metadata out of the
+                        row, and carrying the full value in `title` so nothing
+                        is destroyed by the clamp.
+                      */}
+                      <span
+                        className="attach-evidence__row-title"
+                        title={fullTitle}
+                        data-simple-case-attach-row-title
+                      >
+                        {fullTitle}
+                      </span>
+
+                      {/* Classification and identity. */}
+                      <span className="attach-evidence__row-meta">
+                        <AppStatusBadge
+                          tone="slate"
+                          className="attach-evidence__kind"
+                          data-simple-case-attach-row-kind={c.type}
+                        >
+                          {attachKindLabel(c.type)}
+                        </AppStatusBadge>
+                        <code
+                          className="attach-evidence__row-id"
+                          data-simple-case-attach-row-id={c.id}
+                        >
+                          {c.id.slice(0, 8)}
+                        </code>
+                        {c.verificationStatus ? (
+                          <AppStatusBadge
+                            tone={attachIntegrityTone(c.verificationStatus)}
+                            data-simple-case-attach-row-integrity={
+                              c.verificationStatus
+                            }
+                          >
+                            {attachIntegrityLabel(c.verificationStatus)}
+                          </AppStatusBadge>
+                        ) : null}
+                      </span>
+
+                      {/*
+                        Deliverable availability. INFORMATIONAL: a record with
+                        no report is still linkable, so this is stated as text
+                        rather than as a pill that would read as an eligibility
+                        error. "Missing" is muted, never a success tone.
+                      */}
+                      <span className="attach-evidence__row-deliverables">
+                        <span
+                          data-simple-case-attach-row-report={
+                            c.reportReady ? "ready" : "missing"
+                          }
+                          data-state={c.reportReady ? "ready" : "missing"}
+                        >
+                          {c.reportReady ? "Report ready" : "Report missing"}
+                        </span>
+                        <span
+                          data-simple-case-attach-row-package={
+                            c.packageReady ? "ready" : "missing"
+                          }
+                          data-state={c.packageReady ? "ready" : "missing"}
+                        >
+                          {c.packageReady ? "Package ready" : "Package missing"}
+                        </span>
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Modal>
   );
 }
 

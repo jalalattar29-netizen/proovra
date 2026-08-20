@@ -241,6 +241,11 @@ export async function setDirection(page: Page, dir: "ltr" | "rtl"): Promise<void
 export const VIEWPORTS = [
   { name: "1440", width: 1440, height: 900 },
   { name: "1024", width: 1024, height: 800 },
+  /** The tablet breakpoint, where the two-column workspace collapses. */
+  { name: "768", width: 768, height: 1024 },
+  /** A large phone. */
+  { name: "430", width: 430, height: 932 },
+  /** The narrowest viewport the product supports. */
   { name: "390", width: 390, height: 844 },
 ] as const;
 
