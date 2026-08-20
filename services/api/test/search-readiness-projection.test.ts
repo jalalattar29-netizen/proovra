@@ -99,25 +99,53 @@ describe("Search readiness — state from persisted facts", () => {
     expect(ROUTES).toMatch(/lastIndexedAtUtc: Date \| null = null;/);
   });
 
-  it("the projection carries what the client needs to avoid guessing", () => {
-    const payload = ROUTES.slice(
-      ROUTES.indexOf("readiness: {"),
-      ROUTES.indexOf("},", ROUTES.indexOf("readiness: {")),
+  it("the projection is assembled by the SHARED projector, not by hand", () => {
+    // The route used to build the readiness object literal itself, and the
+    // console declared a matching type of its own. Two declarations of one
+    // wire contract is how a field is added on the server and read as
+    // `undefined` in the client — for a readiness projection that means the
+    // page falls back to inventing a state.
+    expect(ROUTES).toMatch(/readiness: projectSearchReadiness\(readiness, \{/);
+    // …and no hand-assembled literal survives beside it.
+    expect(ROUTES).not.toMatch(/readiness: \{\s*state: readiness\.state/);
+  });
+
+  it("the shared projection declares every field the client needs", () => {
+    // Asserted against the TYPE, which is what both sides compile against —
+    // not against a slice of the route body, which measured whichever fields
+    // happened to be typed out at that call site.
+    const shape = READINESS.slice(
+      READINESS.indexOf("export type SearchReadinessProjection = {"),
+      READINESS.indexOf("export function projectSearchReadiness"),
     );
+    expect(shape.length).toBeGreaterThan(0);
     for (const field of [
       "state",
       "eligibleCount",
       "indexedCount",
       "outstandingCount",
+      "unresolvedRemovals",
       "lastIndexedAtUtc",
       "progressing",
+      "runStatus",
+      "runStartedAtUtc",
+      "runFinishedAtUtc",
       "failureReason",
+      "degradedCapabilities",
       "shouldPoll",
       "resultsAreComplete",
       "canRecover",
     ]) {
-      expect(payload).toContain(field);
+      expect(shape).toContain(field);
     }
+  });
+
+  it("the console imports that type instead of restating it", () => {
+    const page = code("apps/web/app/(app)/search/page.tsx");
+    // It is imported from the shared package…
+    expect(page).toMatch(/type SearchReadinessProjection,/);
+    // …and no local declaration of the same contract survives.
+    expect(page).not.toMatch(/type SearchReadinessProjection = \{/);
   });
 
   it("the recovery control is gated on a server-side capability", () => {

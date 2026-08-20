@@ -48,6 +48,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -67,6 +68,163 @@ export function repoRoot(): string {
 export const SERVER_SCENARIO_DIR = "services/api/test/point7";
 export const BROWSER_SCENARIO_DIR = "e2e/point7";
 export const PROOF_ARTIFACT = "docs/architecture/point7-proven-scenarios.json";
+
+/**
+ * How much a recorded proof is worth.
+ *
+ * THE DEFECT THIS ENCODES AGAINST
+ *
+ * `recordProvenScenarios` wrote each suite's record with a blind
+ * `suites[key] = {...}` — last writer wins, unconditionally. The runtime mode
+ * and CSP flag were RECORDED from `P7_WEB_RUNTIME_MODE` / `P7_STRICT_CSP` but
+ * never COMPARED against what was already on disk, and both default to their
+ * weak values when unset.
+ *
+ * `scripts/point7-run.mjs` sets them. `pnpm test:integration` does not — and it
+ * runs the same suites. So a routine integration run silently replaced 18
+ * scenarios proven under `next build` + strict CSP with a dev-server run that
+ * proves nothing about the failure modes only a production build exhibits.
+ * The findings ledger then refused NEW-027/028/029, because `browserVerified:
+ * PASS` no longer matched an artifact deriving NOT_EXECUTED.
+ *
+ * A newer proof is not a stronger proof. Strength is ordered, and promotion is
+ * monotonic: a candidate may only replace a record of equal or lower strength.
+ */
+export type ProofStrength = 0 | 1 | 2;
+
+/** Diagnostic: a dev server, or a run that did not declare its runtime. */
+export const PROOF_STRENGTH_DIAGNOSTIC: ProofStrength = 1;
+/** Authoritative: production build AND strict CSP. What the gate requires. */
+export const PROOF_STRENGTH_AUTHORITATIVE: ProofStrength = 2;
+
+/**
+ * Classify a record by what it actually ran against.
+ *
+ * Reads only fields the RUNNER recorded from its own environment — never a
+ * hand-written claim.
+ */
+export function proofStrengthOf(record: {
+  webRuntimeMode?: string;
+  strictCsp?: boolean;
+}): ProofStrength {
+  if (record.webRuntimeMode === "production-build" && record.strictCsp === true) {
+    return PROOF_STRENGTH_AUTHORITATIVE;
+  }
+  return PROOF_STRENGTH_DIAGNOSTIC;
+}
+
+/** Why a promotion was refused, for the runner to report. */
+export type PromotionRefusal = {
+  suite: string;
+  existingStrength: ProofStrength;
+  candidateStrength: ProofStrength;
+  reason: string;
+};
+
+/**
+ * Where a run of a given strength is ALLOWED to write.
+ *
+ * The strength guard alone was not enough. It stopped a dev run from
+ * OVERWRITING an authoritative record, but a diagnostic run could still create
+ * the record for a suite the authoritative run had not yet reached, and it
+ * still opened, rewrote and renamed the canonical file on every suite — so the
+ * canonical artifact's mtime, and its every byte, remained a function of
+ * whatever ran last.
+ *
+ * So strength now decides the DESTINATION, not merely the comparison. An
+ * ordinary `pnpm test:integration` writes run-scoped evidence under the
+ * gitignored `.p7tmp/` and never opens the canonical artifact at all. Only a
+ * production-build + strict-CSP run addresses
+ * `docs/architecture/point7-proven-scenarios.json`.
+ */
+export const DIAGNOSTIC_PROOF_DIR = ".p7tmp";
+
+export function proofArtifactPathFor(
+  strength: ProofStrength,
+  runId: string,
+  root = repoRoot(),
+): string {
+  if (strength === PROOF_STRENGTH_AUTHORITATIVE) {
+    return resolve(root, PROOF_ARTIFACT);
+  }
+  return resolve(
+    root,
+    DIAGNOSTIC_PROOF_DIR,
+    `point7-diagnostic-${runId}.json`,
+  );
+}
+
+/**
+ * May `candidate` replace `existing`?
+ *
+ * Pure, and exported, so the contract can be driven directly rather than
+ * asserted about the source text of the function that applies it.
+ *
+ * Two independent refusals, and neither one consults a clock. Recency is not
+ * strength, and it is not completeness either.
+ */
+export function decidePromotion(input: {
+  suite: string;
+  existing: ProvenScenarioRecord | undefined;
+  candidate: ProvenScenarioRecord;
+  /** Ids the manifest still requires for this layer. */
+  requiredIds: ReadonlyArray<string>;
+}): PromotionRefusal | null {
+  const { existing, candidate } = input;
+  if (!existing) return null;
+
+  const existingStrength = proofStrengthOf(existing);
+  const candidateStrength = proofStrengthOf(candidate);
+
+  // (1) A newer proof is not a stronger proof.
+  if (candidateStrength < existingStrength) {
+    return {
+      suite: input.suite,
+      existingStrength,
+      candidateStrength,
+      reason:
+        `refused: a ${candidate.webRuntimeMode}/strictCsp=${candidate.strictCsp} ` +
+        `run cannot replace a ${existing.webRuntimeMode}/strictCsp=${existing.strictCsp} ` +
+        "proof. Promote with scripts/point7-run.mjs (production build + strict CSP).",
+    };
+  }
+
+  // (2) An INCOMPLETE run is not a promotion either, at any strength.
+  //
+  // A scenario id is appended only after its assertions pass, so a run in
+  // which a scenario failed simply records fewer ids. Writing that record
+  // would quietly convert a failure into "not executed" and shrink the
+  // denominator the ledger reasons about.
+  //
+  // Compared only over ids the manifest STILL requires: a scenario deliberately
+  // retired from the manifest must not pin the artifact forever. Retiring one
+  // changes `proofBindingHash`, which invalidates every record anyway — this
+  // just keeps the refusal from being the thing that reports it.
+  //
+  // Compared only when the suite's BYTES are unchanged: an edited suite is a
+  // different body of work, and its old record is already stale by sha.
+  if (existing.sha256 === candidate.sha256) {
+    const stillRequired = new Set(input.requiredIds);
+    const have = new Set(candidate.scenarios);
+    const lost = (existing.scenarios ?? []).filter(
+      (id) => stillRequired.has(id) && !have.has(id),
+    );
+    if (lost.length > 0) {
+      return {
+        suite: input.suite,
+        existingStrength,
+        candidateStrength,
+        reason:
+          `refused: this run proved ${candidate.scenarios.length} of the ` +
+          `${existing.scenarios.length} scenarios already recorded for an unchanged ` +
+          `suite. Missing: ${lost.slice(0, 6).join(", ")}${lost.length > 6 ? ", …" : ""}. ` +
+          "An incomplete run leaves the existing proof exactly as it found it.",
+      };
+    }
+  }
+
+  return null;
+}
 
 /**
  * The PRODUCTION files whose behaviour Point 7 credits.
@@ -744,7 +902,12 @@ export function recordScenarioProof(input: {
    * read that process's in-memory observability state.
    */
   isolation?: IsolationLedger;
-}): void {
+  /**
+   * Destination override, for tests that drive the promotion contract against
+   * a scratch artifact rather than the repository's own.
+   */
+  artifactPath?: string;
+}): PromotionRefusal | null {
   const root = input.root ?? repoRoot();
   const abs = resolve(root, input.suiteRelPath);
   if (!existsSync(abs)) {
@@ -772,20 +935,7 @@ export function recordScenarioProof(input: {
   // attribute.
   const scenarios = [...new Set(collected.filter((id) => required.has(id)))].sort();
 
-  const artifactPath = resolve(root, PROOF_ARTIFACT);
-  let suites: Record<string, ProvenScenarioRecord> = {};
-  if (existsSync(artifactPath)) {
-    try {
-      const parsed = JSON.parse(
-        readFileSync(artifactPath, "utf8"),
-      ) as ProvenScenariosArtifact;
-      if (parsed && typeof parsed === "object" && parsed.suites) suites = parsed.suites;
-    } catch {
-      // A corrupt artifact carries no guarantee worth preserving.
-    }
-  }
-
-  suites[input.suiteRelPath] = {
+  const candidate: ProvenScenarioRecord = {
     sha256: createHash("sha256").update(readFileSync(abs)).digest("hex"),
     layer: input.layer,
     scenarios,
@@ -804,6 +954,54 @@ export function recordScenarioProof(input: {
     isolation: input.isolation ?? readIsolationLedger(root),
   };
 
+  // STRENGTH DECIDES THE DESTINATION.
+  //
+  // A diagnostic run — `pnpm test:integration`, which sets neither
+  // `P7_WEB_RUNTIME_MODE` nor `P7_STRICT_CSP` — does not open the canonical
+  // artifact at all. It writes run-scoped evidence under the gitignored
+  // `.p7tmp/`, so its record still exists and can still be inspected, but the
+  // file the closure gate and the findings ledger read is untouched: not
+  // rewritten with identical bytes, not re-dated, not opened.
+  //
+  // The comparison below stays as well. Two independent controls, because the
+  // destination split protects the CURRENT strengths and the comparison
+  // protects any strength added later.
+  const artifactPath =
+    input.artifactPath ??
+    proofArtifactPathFor(proofStrengthOf(candidate), runId, root);
+
+  let suites: Record<string, ProvenScenarioRecord> = {};
+  if (existsSync(artifactPath)) {
+    try {
+      const parsed = JSON.parse(
+        readFileSync(artifactPath, "utf8"),
+      ) as ProvenScenariosArtifact;
+      if (parsed && typeof parsed === "object" && parsed.suites) suites = parsed.suites;
+    } catch {
+      // A corrupt artifact carries no guarantee worth preserving.
+    }
+  }
+
+  // MONOTONIC PROMOTION.
+  //
+  // The existing record is only replaced by a candidate that is at least as
+  // strong AND at least as complete. A refused candidate leaves the artifact
+  // exactly as it found it — byte for byte — and says so, rather than
+  // overwriting it and leaving the ledger to discover the loss.
+  const refusal = decidePromotion({
+    suite: input.suiteRelPath,
+    existing: suites[input.suiteRelPath],
+    candidate,
+    requiredIds: [...required],
+  });
+  if (refusal) {
+    // Visible, not silent: a refusal is information the runner needs.
+    // eslint-disable-next-line no-console
+    console.warn(`[point7] ${refusal.reason}`);
+    return refusal;
+  }
+  suites[input.suiteRelPath] = candidate;
+
   const artifact: ProvenScenariosArtifact = {
     $comment:
       "PHASE 12 POINT 7 — machine-written record of which product-behaviour " +
@@ -817,5 +1015,13 @@ export function recordScenarioProof(input: {
   };
 
   mkdirSync(dirname(artifactPath), { recursive: true });
-  writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+  // Temp + rename, so a crash between open and flush cannot leave the
+  // authoritative proof truncated. `writeFileSync` straight to the
+  // destination had exactly that window, and `renameSync` within one
+  // directory is atomic on every filesystem this runs on.
+  const tmp = `${artifactPath}.${runId}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(artifact, null, 2)}
+`, "utf8");
+  renameSync(tmp, artifactPath);
+  return null;
 }

@@ -15,6 +15,13 @@
  *     still flips the row to FAILED and records the error summary.
  *
  * PHASE 12 POINT 5 — where the lock actually lives.
+ *
+ * REDESIGN/SEARCH (2026-08-20) — this module moved from
+ * `services/worker/src/governance/` into `@proovra/shared-runtime`. Search
+ * reconciliation can start from the worker's scheduler OR from the API's
+ * `POST /v1/search/reconcile`, and a lock only excludes callers that go
+ * through the same wrapper. Both hosts already depend on shared-runtime, which
+ * exists for precisely this: Prisma-using logic neither service may own alone.
  * ---------------------------------------------------------------------------
  * The header used to describe an "advisory + RUNNING-row check". There was no
  * advisory lock: the module read for a RUNNING row and then, if it found
@@ -38,7 +45,28 @@ import * as prismaPkg from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
-import { logger } from "../logger.js";
+/**
+ * The minimum a host's logger has to offer.
+ *
+ * This module moved out of `services/worker` so the API's reconcile endpoint
+ * and the worker's scheduler resolve through ONE run wrapper — two wrappers
+ * over one lock is the same as no lock. It therefore cannot import either
+ * host's logger; each passes its own, and the default is silence rather than
+ * console noise in a library.
+ */
+export type ReconciliationLogger = {
+  info: (obj: unknown, msg?: string) => void;
+  warn: (obj: unknown, msg?: string) => void;
+  error: (obj: unknown, msg?: string) => void;
+};
+
+const SILENT: ReconciliationLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
+
+
 
 /**
  * How long a RUNNING row may hold the lock before it is treated as crashed.
@@ -118,6 +146,7 @@ export async function runGovernanceReconciliation<T>(
   client: PrismaClient,
   input: RunGovernanceReconciliationInput<T>,
   bumpCounter?: (name: string) => void,
+  log: ReconciliationLogger = SILENT,
 ): Promise<ReconciliationRunResult<T>> {
   const lockKey = buildLockKey(input.kind, input.teamId ?? null, input.lockKey);
   const trigger = input.trigger.slice(0, 32);
@@ -153,7 +182,7 @@ export async function runGovernanceReconciliation<T>(
         },
       });
       if (released.count > 0) {
-        logger.warn(
+        log.warn(
           { runId: existing.id, lockKey, ageMs },
           "governance.reconciliation.stale_lock_force_failed",
         );
@@ -193,7 +222,7 @@ export async function runGovernanceReconciliation<T>(
       },
       select: { id: true },
     });
-    logger.info(
+    log.info(
       { lockKey, kind: input.kind, existingRunId: holder?.id ?? null },
       "governance.reconciliation.lock_held",
     );
@@ -282,7 +311,7 @@ export async function runGovernanceReconciliation<T>(
     bumpCounter?.("governance_reconciliation_run_partial_total");
   }
 
-  logger.info(
+  log.info(
     {
       runId: run.id,
       kind: input.kind,

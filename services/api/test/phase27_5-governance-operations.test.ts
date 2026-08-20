@@ -406,7 +406,7 @@ describe("Phase 27.5 — Worker wiring", () => {
     "../../worker/src/governance/immutable-storage-reconciliation.worker.ts",
   );
   const runLockSrc = readSource(
-    "../../worker/src/governance/reconciliation-run.ts",
+    "../../../packages/shared-runtime/src/reconciliation-run.ts",
   );
   const workerIndexSrc = readSource("../../worker/src/index.ts");
 

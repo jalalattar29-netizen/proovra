@@ -45,6 +45,11 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { indexEvidence } from "./evidence-indexing.service.js";
 import { indexCase } from "./case-indexing.service.js";
 import { searchIndexableLifecycleSql } from "@proovra/shared";
+// The ONE durable reconciliation authority. Claiming the slot HERE — rather
+// than at each caller — is what makes it impossible to reach the scan/index
+// lifecycle without the lock: the CLI, the internal endpoint and any future
+// caller all arrive through this function.
+import { reconcileSearchIndex } from "@proovra/shared-runtime";
 import {
   indexNote,
   indexPackage,
@@ -72,6 +77,8 @@ export type WorkspaceReindexInput = {
   /** When true, do not write — only enumerate orphans and return the
    *  plan. Used by the CLI `--dry-run` flag and by tests. */
   dryRun?: boolean;
+  /** Which caller claimed the durable run slot. Recorded on the run row. */
+  trigger?: "scheduler" | "api" | "cli" | "retry";
 };
 
 export type ReindexLogger = {
@@ -109,10 +116,82 @@ function emptyBucket(): ReindexBucket {
 }
 
 /**
+ * What a caller that did NOT win the lock reports.
+ *
+ * Zero everywhere, because this caller reconciled nothing. It is not a claim
+ * that there was nothing to reconcile — the holder of the slot is doing it.
+ */
+function emptyResult(teamId: string): WorkspaceReindexResult {
+  return {
+    teamId,
+    evidence: emptyBucket(),
+    cases: emptyBucket(),
+    reports: emptyBucket(),
+    packages: emptyBucket(),
+    notes: emptyBucket(),
+    durationMs: 0,
+    dryRun: false,
+  };
+}
+
+/**
  * Run a full workspace reindex. Returns counts per source-type
  * (evidence + cases + reports + packages + notes). Idempotent.
  */
+/**
+ * Run a workspace reindex under the durable per-workspace lock.
+ *
+ * Every production caller of the reindex lifecycle resolves through here, so
+ * the cron sweep, the API endpoint, the internal reindex route and the backfill
+ * CLI all contend for one slot. Contention is a truthful no-op — the returned
+ * result reports zero work because this caller did none, not because there was
+ * none to do.
+ */
 export async function runWorkspaceReindex(
+  input: WorkspaceReindexInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<WorkspaceReindexResult> {
+  let inner: WorkspaceReindexResult | null = null;
+  const outcome = await reconcileSearchIndex(client, {
+    teamId: input.teamId,
+    trigger: input.trigger ?? "cli",
+    body: async () => {
+      inner = await runWorkspaceReindexUnlocked(input, client);
+      return {
+        scanned:
+          inner.evidence.orphans +
+          inner.cases.orphans +
+          inner.reports.orphans +
+          inner.packages.orphans +
+          inner.notes.orphans,
+        indexed:
+          inner.evidence.indexed +
+          inner.cases.indexed +
+          inner.reports.indexed +
+          inner.packages.indexed +
+          inner.notes.indexed,
+        removed: 0,
+        failed:
+          inner.evidence.failed +
+          inner.cases.failed +
+          inner.reports.failed +
+          inner.packages.failed +
+          inner.notes.failed,
+      };
+    },
+  });
+
+  if (inner) return inner;
+  // Another caller holds the slot, or the body never ran. An empty result is
+  // the honest report: THIS caller reconciled nothing.
+  (input.log ?? NULL_LOGGER).info(
+    { teamId: input.teamId, outcome: outcome.kind },
+    "search.reindex.skipped_locked",
+  );
+  return emptyResult(input.teamId);
+}
+
+async function runWorkspaceReindexUnlocked(
   input: WorkspaceReindexInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<WorkspaceReindexResult> {

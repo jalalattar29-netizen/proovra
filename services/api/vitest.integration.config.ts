@@ -110,16 +110,32 @@ export default defineConfig({
       RUN_LIVE_INTEGRATION: "1",
       POINT5_RUN_ID,
       POINT7_RUN_ID,
-      // PHASE 12 — POINT 7 (final pass): the PRODUCT-RUN outbound ledger.
+      // PHASE 12 — POINT 7 (final pass): the outbound ledger, RUN-SCOPED.
       //
       // One file for the whole product run — the server matrix here and the
-      // browser matrix's API process — so the closure gate reads a single
-      // record of what this run reached for. The isolation canary writes to a
-      // DIFFERENT file, because its one deliberate forbidden attempt must
-      // never be able to excuse or accuse a product run.
+      // browser matrix API process — so the closure gate reads a single record
+      // of what THAT run reached for.
+      //
+      // The default is run-scoped for the same reason the proof artifact is
+      // strength-scoped. It used to be a fixed shared path, so every ordinary
+      // `pnpm test:integration` APPENDED its own connections to the canonical
+      // Point-7 product ledger under a fresh run id — and the gate, correctly,
+      // refused the whole proof with "N ledger record(s) belong to a different
+      // run id". A diagnostic run must not be able to invalidate an
+      // authoritative one by merely existing.
+      //
+      // `scripts/point7-run.mjs` NAMES the canonical path explicitly and clears
+      // it at the start of the run, so the one workflow that is entitled to
+      // write the canonical ledger still does.
       P7_NETWORK_LEDGER:
-        process.env.P7_NETWORK_LEDGER ?? "../../.p7tmp/product-run-network.jsonl",
-      P7_CANARY_LEDGER: "../../.p7tmp/canary-network.jsonl",
+        process.env.P7_NETWORK_LEDGER ??
+        `../../.p7tmp/product-run-network.${POINT7_RUN_ID}.jsonl`,
+      // The isolation canary writes to a DIFFERENT file, because its one
+      // deliberate forbidden attempt must never be able to excuse or accuse a
+      // product run. Run-scoped for the same reason as above.
+      P7_CANARY_LEDGER:
+        process.env.P7_CANARY_LEDGER ??
+        `../../.p7tmp/canary-network.${POINT7_RUN_ID}.jsonl`,
       P7_PHASE: "product",
       P7_PROCESS: "vitest-integration",
       // The local recording email provider's mailbox for this run.

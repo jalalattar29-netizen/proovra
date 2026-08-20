@@ -35,30 +35,16 @@ import net from "node:net";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-/** Hosts that are always local. */
-const LOOPBACK = new Set([
-  "127.0.0.1",
-  "::1",
-  "0.0.0.0",
-  "localhost",
-  "::ffff:127.0.0.1",
-]);
-
 /**
- * Additional destinations this run explicitly started.
+ * Loopback and this run's declared extras come from THE canonical authority.
  *
- * Supplied as `P7_ALLOWED_HOSTS` (comma-separated). Deliberately NOT a
- * wildcard: "the disposable services I started" is a list of three, and it is
- * the operator's job to say which three.
+ * This module used to keep its own `LOOPBACK` set and its own
+ * `P7_ALLOWED_HOSTS` parser, as did `test-bootstrap.mjs` and the Point-7
+ * closure gate. Three copies of an allowlist is three allowlists: a destination
+ * one copy permits while another does not recognise produces either a spurious
+ * failure or unearned credit, and neither is visible from any single copy.
  */
-function extraAllowed() {
-  return new Set(
-    (process.env.P7_ALLOWED_HOSTS ?? "")
-      .split(",")
-      .map((h) => h.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
+import { isAllowedHost } from "./local-hosts.mjs";
 
 /** Where the attempted-destination ledger is written. */
 const LEDGER = process.env.P7_NETWORK_LEDGER ?? "";
@@ -75,12 +61,9 @@ function record(entry) {
   }
 }
 
+/** Loopback, plus the disposable services this run declared. */
 function isAllowed(host) {
-  if (!host) return true; // a unix socket or an already-connected handle
-  const h = String(host).toLowerCase();
-  if (LOOPBACK.has(h)) return true;
-  if (h.endsWith(".localhost")) return true;
-  return extraAllowed().has(h);
+  return isAllowedHost(host);
 }
 
 let installed = false;

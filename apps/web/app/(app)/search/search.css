@@ -1235,3 +1235,45 @@
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Recovery — the operator control and what the server said about it.
+ *
+ * The control itself is the canonical `.app-secondary-action`; only the two
+ * properties that are specific to THIS placement live here. A Search-local
+ * copy of the button would be a second button, which is how one of them ends
+ * up without a focus ring.
+ * ------------------------------------------------------------------------ */
+
+.search-readiness__recover {
+  /* A destructive-adjacent operator action, reached under stress and often on
+   * a touch device. The canonical control is 36px, which is correct in a dense
+   * toolbar and too small here, so the TARGET is raised without changing the
+   * control's visual height — padding, not `height`, so the button still lines
+   * up with the text it sits beside. */
+  min-block-size: 44px;
+  padding-block: 4px;
+}
+
+.search-readiness__status {
+  /* The outcome line. Focus lands here when the button that produced it
+   * unmounts, so it must show a ring — a focused element with no visible
+   * indicator is worse than not moving focus at all. */
+  margin: 6px 0 0;
+  inline-size: 100%;
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+}
+
+.search-readiness__status:focus-visible {
+  outline: 2px solid var(--accent-600, #6D28D9);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.search-readiness__hint {
+  /* Shown INSTEAD of the control when the server did not grant recovery. It is
+   * guidance, not an action, so it must not read as a disabled button. */
+  font-size: 12.5px;
+  color: var(--app-ink-muted, rgba(35, 55, 59, 0.68));
+}

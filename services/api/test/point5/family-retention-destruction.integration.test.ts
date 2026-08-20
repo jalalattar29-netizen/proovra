@@ -1483,9 +1483,10 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
   // =========================================================================
 
   it("the governance run lock admits exactly one concurrent run per (kind, key)", async () => {
-    const { runGovernanceReconciliation } = await import(
-      "../../../worker/src/governance/reconciliation-run.js"
-    );
+    // The run authority moved into @proovra/shared-runtime so the API and the
+    // worker resolve through ONE wrapper — two wrappers over one lock exclude
+    // nothing. The lock semantics this test pins are unchanged.
+    const { runGovernanceReconciliation } = await import("@proovra/shared-runtime");
     const lockKey = `point5-lock-${randomUUID()}`;
     let bodiesEntered = 0;
     const release: Array<() => void> = [];

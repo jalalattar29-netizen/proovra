@@ -34,7 +34,7 @@ import * as prismaPkg from "@prisma/client";
 import { newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
-import { runGovernanceReconciliation } from "./reconciliation-run.js";
+import { runGovernanceReconciliation } from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
 

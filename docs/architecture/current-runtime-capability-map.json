@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
   "routeInventoryHash": "a22d8c1ae81f43a123dd1d03e1aeccc0f6b47b77d8bce9e53755c3af2c7a8145",
-  "consumerInventoryHash": "9302a0d12b519a2c27d85c2058490a4168b31e137a54ecec48c79705beedaf46",
+  "consumerInventoryHash": "9efd12ae687558686e7d6c8d2c0f89dee7cfa1a7c4a63ebf6fcb760c60040beb",
   "dispositionsHash": "e6c29ce2e6f9d44469f62dbff1faff8f87ae2d55fbd42d8c550b1774eef77e02",
   "totals": {
     "RegisteredRoutes": 1087,
@@ -98,8 +98,8 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1084,
-      "JOB_ATTRIBUTED_REACHABLE": 117,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1087,
+      "JOB_ATTRIBUTED_REACHABLE": 114,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 9,
@@ -121,8 +121,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7730,
-      "UNRESOLVED_IDENTIFIER": 982
+      "METHOD_ON_VALUE": 7739,
+      "UNRESOLVED_IDENTIFIER": 983
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -11268,7 +11268,7 @@
       "method": "GET",
       "route": "/v1/search",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:3226",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:3271",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11280,7 +11280,7 @@
       "method": "GET",
       "route": "/v1/search/saved-views",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:669",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:658",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11292,7 +11292,7 @@
       "method": "POST",
       "route": "/v1/search/saved-views",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1226",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1267",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11304,7 +11304,7 @@
       "method": "DELETE",
       "route": "/v1/search/saved-views/:id",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1260",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1301",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11316,7 +11316,7 @@
       "method": "PATCH",
       "route": "/v1/search/saved-views/:id",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1293",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1334",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11328,7 +11328,7 @@
       "method": "GET",
       "route": "/v1/search/relationships/:evidenceId",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:925",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:966",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11376,7 +11376,7 @@
       "method": "GET",
       "route": "/v1/search/audit",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/components/search/SearchAuditLogPanel.tsx:83",
+      "productConsumer": "apps/web/components/search/SearchAuditLogPanel.tsx:84",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11388,7 +11388,7 @@
       "method": "POST",
       "route": "/v1/search/semantic/backfill",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1387",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1428",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11400,7 +11400,7 @@
       "method": "GET",
       "route": "/v1/search/semantic/status",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:692",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:681",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11412,7 +11412,7 @@
       "method": "GET",
       "route": "/v1/search/suggest",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1138",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1179",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11424,7 +11424,7 @@
       "method": "POST",
       "route": "/v1/search/reconcile",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:814",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:828",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11436,7 +11436,7 @@
       "method": "GET",
       "route": "/v1/search/diagnostics",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:742",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:731",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14410,6 +14410,153 @@
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.create@202",
+      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:202",
+      "file": "packages/shared-runtime/src/reconciliation-run.ts",
+      "enclosingDeclaration": "runGovernanceReconciliation",
+      "kind": "DATABASE",
+      "target": "governanceReconciliationRun",
+      "mutationKind": "create",
+      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/internal/search/reindex",
+        "POST /v1/search/reconcile"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
+        "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/search-index-reconciler.ts#runSearchIndexReconciler"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/internal-reindex.routes.ts",
+        "MODULE services/api/src/routes/search.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1062#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1112#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:988#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1006#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1080#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1136#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:921#startSearchIndexReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "unique_constraint",
+        "retrySemantics": "SWEEP",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.update@289",
+      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:289",
+      "file": "packages/shared-runtime/src/reconciliation-run.ts",
+      "enclosingDeclaration": "runGovernanceReconciliation",
+      "kind": "DATABASE",
+      "target": "governanceReconciliationRun",
+      "mutationKind": "update",
+      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/internal/search/reindex",
+        "POST /v1/search/reconcile"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
+        "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/search-index-reconciler.ts#runSearchIndexReconciler"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/internal-reindex.routes.ts",
+        "MODULE services/api/src/routes/search.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1062#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1112#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:988#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1006#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1080#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1136#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:921#startSearchIndexReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "unique_constraint",
+        "retrySemantics": "SWEEP",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.updateMany@173",
+      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:173",
+      "file": "packages/shared-runtime/src/reconciliation-run.ts",
+      "enclosingDeclaration": "runGovernanceReconciliation",
+      "kind": "DATABASE",
+      "target": "governanceReconciliationRun",
+      "mutationKind": "updateMany",
+      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/internal/search/reindex",
+        "POST /v1/search/reconcile"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
+        "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation",
+        "SWEEP services/worker/src/search-index-reconciler.ts#runSearchIndexReconciler"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/internal-reindex.routes.ts",
+        "MODULE services/api/src/routes/search.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1062#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1112#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:988#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1006#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1080#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1136#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:921#startSearchIndexReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "unique_constraint",
+        "retrySemantics": "SWEEP",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
       }
     },
     {
@@ -61039,129 +61186,6 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/reconciliation-run.ts#governanceReconciliationRun.create@173",
-      "terminalLocation": "services/worker/src/governance/reconciliation-run.ts:173",
-      "file": "services/worker/src/governance/reconciliation-run.ts",
-      "enclosingDeclaration": "runGovernanceReconciliation",
-      "kind": "DATABASE",
-      "target": "governanceReconciliationRun",
-      "mutationKind": "create",
-      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
-        "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
-        "SWEEP services/worker/src/governance/reconciliation-run.ts#runGovernanceReconciliation",
-        "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation"
-      ],
-      "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1062#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1112#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:988#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1006#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1080#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1136#startImmutableStorageReconciliationScheduler"
-      ],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "unique_constraint",
-        "retrySemantics": "SWEEP",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
-      "writerId": "services/worker/src/governance/reconciliation-run.ts#governanceReconciliationRun.update@260",
-      "terminalLocation": "services/worker/src/governance/reconciliation-run.ts:260",
-      "file": "services/worker/src/governance/reconciliation-run.ts",
-      "enclosingDeclaration": "runGovernanceReconciliation",
-      "kind": "DATABASE",
-      "target": "governanceReconciliationRun",
-      "mutationKind": "update",
-      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
-        "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
-        "SWEEP services/worker/src/governance/reconciliation-run.ts#runGovernanceReconciliation",
-        "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation"
-      ],
-      "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1062#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1112#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:988#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1006#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1080#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1136#startImmutableStorageReconciliationScheduler"
-      ],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "unique_constraint",
-        "retrySemantics": "SWEEP",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
-      "writerId": "services/worker/src/governance/reconciliation-run.ts#governanceReconciliationRun.updateMany@144",
-      "terminalLocation": "services/worker/src/governance/reconciliation-run.ts:144",
-      "file": "services/worker/src/governance/reconciliation-run.ts",
-      "enclosingDeclaration": "runGovernanceReconciliation",
-      "kind": "DATABASE",
-      "target": "governanceReconciliationRun",
-      "mutationKind": "updateMany",
-      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
-        "SWEEP services/worker/src/governance/immutable-storage-reconciliation.worker.ts#runImmutableStorageReconciliation",
-        "SWEEP services/worker/src/governance/reconciliation-run.ts#runGovernanceReconciliation",
-        "SWEEP services/worker/src/governance/retention-reconciliation.worker.ts#runRetentionReconciliation"
-      ],
-      "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1062#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1112#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:988#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1006#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1080#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1136#startImmutableStorageReconciliationScheduler"
-      ],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "unique_constraint",
-        "retrySemantics": "SWEEP",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
       "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#destructionReview.create@249",
       "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:249",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
@@ -63315,8 +63339,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-index-reconciler.ts#evidenceSearchDocument.deleteMany@247",
-      "terminalLocation": "services/worker/src/search-index-reconciler.ts:247",
+      "writerId": "services/worker/src/search-index-reconciler.ts#evidenceSearchDocument.deleteMany@442",
+      "terminalLocation": "services/worker/src/search-index-reconciler.ts:442",
       "file": "services/worker/src/search-index-reconciler.ts",
       "enclosingDeclaration": "sweepIneligibleDocuments",
       "kind": "DATABASE",
@@ -65970,7 +65994,7 @@
       "method": "DELETE",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:433",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:448",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -65981,7 +66005,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1260,
+          "line": 1301,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -65991,7 +66015,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1260 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1301 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92492,7 +92516,7 @@
       "method": "GET",
       "path": "/v1/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:279",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:294",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92503,7 +92527,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 3226,
+          "line": 3271,
           "caller": "runSearch",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92513,7 +92537,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:3226 (runSearch, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:3271 (runSearch, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92549,7 +92573,7 @@
       "method": "GET",
       "path": "/v1/search/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:632",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:647",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92560,7 +92584,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/search/SearchAuditLogPanel.tsx",
-          "line": 83,
+          "line": 84,
           "caller": "SearchAuditLogPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92570,7 +92594,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/search/SearchAuditLogPanel.tsx:83 (SearchAuditLogPanel, WEB)",
+      "dispositionEvidence": "apps/web/components/search/SearchAuditLogPanel.tsx:84 (SearchAuditLogPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92604,7 +92628,7 @@
       "method": "GET",
       "path": "/v1/search/diagnostics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:1063",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:1204",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92615,7 +92639,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 742,
+          "line": 731,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92625,7 +92649,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:742 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:731 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92639,8 +92663,10 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "evidenceSearchDocument",
+        "governanceReconciliationRun",
         "team",
-        "teamMember"
+        "teamMember",
+        "workspaceAiPolicy"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -92662,7 +92688,7 @@
       "method": "GET",
       "path": "/v1/search/relationships/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:488",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:503",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92673,7 +92699,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 925,
+          "line": 966,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92683,7 +92709,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:925 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:966 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92719,7 +92745,7 @@
       "method": "GET",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:365",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:380",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92730,7 +92756,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 669,
+          "line": 658,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92740,7 +92766,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:669 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:658 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92775,7 +92801,7 @@
       "method": "GET",
       "path": "/v1/search/semantic/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:730",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:745",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92786,7 +92812,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 692,
+          "line": 681,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92796,7 +92822,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:692 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:681 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92831,7 +92857,7 @@
       "method": "GET",
       "path": "/v1/search/suggest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:764",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:779",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92842,7 +92868,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1138,
+          "line": 1179,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92852,7 +92878,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1138 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1179 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -98468,7 +98494,7 @@
       "method": "PATCH",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:459",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:474",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98479,7 +98505,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1293,
+          "line": 1334,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -98489,7 +98515,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1293 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1334 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120339,6 +120365,7 @@
         "evidenceExtractedText",
         "evidenceSearchDocument",
         "evidenceWorkflowInstanceEvidence",
+        "governanceReconciliationRun",
         "report",
         "teamMember",
         "verificationPackage"
@@ -120346,24 +120373,28 @@
       "modelsWritten": [
         "adminAuditLog",
         "evidenceSearchDocument",
+        "governanceReconciliationRun",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/middleware/cron-secret.ts: teamMember.findFirst paired with a lifecycle-status predicate (services/api/src/middleware/cron-secret.ts)",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.findFirst — no tenant or self predicate",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.findFirst — no tenant or self predicate",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.update — no tenant or self predicate",
         "services/api/src/services/search/evidence-indexing.service.ts: evidenceExtractedText.findMany — no tenant or self predicate",
         "services/api/src/services/search/evidence-indexing.service.ts: evidenceEntity.findMany — no tenant or self predicate",
         "services/api/src/services/search/case-indexing.service.ts: caseComment.findMany — no tenant or self predicate",
         "services/api/src/services/search/artifact-indexing.service.ts: report.findUnique — no tenant or self predicate",
         "services/api/src/services/search/artifact-indexing.service.ts: evidenceSearchDocument.deleteMany — no tenant or self predicate",
-        "services/api/src/services/search/artifact-indexing.service.ts: verificationPackage.findUnique — no tenant or self predicate",
-        "services/api/src/services/search/artifact-indexing.service.ts: caseComment.findUnique — no tenant or self predicate",
-        "services/api/src/services/search/artifact-indexing.service.ts: evidenceSearchDocument.deleteMany — no tenant or self predicate"
+        "services/api/src/services/search/artifact-indexing.service.ts: verificationPackage.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refusal raised by the named authority",
       "tenantStampingInsertSites": [
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.create",
         "services/api/src/services/search/case-indexing.service.ts: evidenceSearchDocument.create",
         "services/api/src/services/search/artifact-indexing.service.ts: evidenceSearchDocument.create"
       ],
@@ -130889,7 +130920,7 @@
       "method": "POST",
       "path": "/v1/search/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:870",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:885",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130900,7 +130931,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 814,
+          "line": 828,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130910,7 +130941,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:814 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:828 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130927,23 +130958,31 @@
         "evidenceEntity",
         "evidenceExtractedText",
         "evidenceWorkflowInstanceEvidence",
+        "governanceReconciliationRun",
         "teamMember"
       ],
       "modelsWritten": [
         "evidenceSearchDocument",
+        "governanceReconciliationRun",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.findFirst — no tenant or self predicate",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.findFirst — no tenant or self predicate",
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.update — no tenant or self predicate",
         "services/api/src/services/search/evidence-indexing.service.ts: evidenceExtractedText.findMany — no tenant or self predicate",
         "services/api/src/services/search/evidence-indexing.service.ts: evidenceEntity.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "packages/shared-runtime/src/reconciliation-run.ts: governanceReconciliationRun.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -130951,7 +130990,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:570",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:585",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131004,7 +131043,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/workflow/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:596",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:611",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131052,7 +131091,7 @@
       "method": "POST",
       "path": "/v1/search/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:515",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:530",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131102,7 +131141,7 @@
       "method": "POST",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:389",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:404",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131113,7 +131152,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1226,
+          "line": 1267,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131123,7 +131162,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1226 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1267 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131162,7 +131201,7 @@
       "method": "POST",
       "path": "/v1/search/semantic/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:691",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:706",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -131175,7 +131214,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1387,
+          "line": 1428,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131185,7 +131224,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1387 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1428 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

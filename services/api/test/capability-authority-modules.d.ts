@@ -85,6 +85,16 @@ declare module "*/audit/engine/facts.mjs" {
   export function closureProblems(facts: unknown): string[];
   export function releaseBlockingProblems(facts: unknown): string[];
   export function architectureBacklogProblems(facts: unknown): string[];
+  /** What a refused findings ledger reports in place of every countable scalar. */
+  export const LEDGER_REFUSED: string;
+}
+
+declare module "*/audit/engine/report.mjs" {
+  export function renderReport(
+    facts: unknown,
+    engineProblems: string[],
+    closureProblems: string[],
+  ): string;
 }
 
 declare module "*/audit/engine/governance.mjs" {

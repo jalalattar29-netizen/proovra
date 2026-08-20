@@ -49,8 +49,8 @@ AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (ten disjoint buckets, identity asserted)
 TerminalWriters                             1213
-ROUTE_ATTRIBUTED_REACHABLE                  1084
-JOB_ATTRIBUTED_REACHABLE                     117
+ROUTE_ATTRIBUTED_REACHABLE                  1087
+JOB_ATTRIBUTED_REACHABLE                     114
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                           9

@@ -49,7 +49,7 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
     // breakdown landed (search-inclusion-audit). Widen the slice
     // so we still capture the response envelope + health
     // classifier + runtime block.
-    const slice = src.slice(idx, idx + 16000);
+    const slice = src.slice(idx, idx + 24000);
     // The single send() in the handler must include the canonical
     // envelope keys the UI relies on.
     expect(slice).toMatch(/workspace:\s*\{/);
@@ -69,7 +69,7 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
     // breakdown landed (search-inclusion-audit). Widen the slice
     // so we still capture the response envelope + health
     // classifier + runtime block.
-    const slice = src.slice(idx, idx + 16000);
+    const slice = src.slice(idx, idx + 24000);
     expect(slice).toMatch(/["']healthy["']/);
     expect(slice).toMatch(/["']partial_index["']/);
     expect(slice).toMatch(/["']empty_index["']/);
@@ -82,7 +82,7 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
     // breakdown landed (search-inclusion-audit). Widen the slice
     // so we still capture the response envelope + health
     // classifier + runtime block.
-    const slice = src.slice(idx, idx + 16000);
+    const slice = src.slice(idx, idx + 24000);
     expect(slice).toMatch(/queryProbe/);
     expect(slice).toMatch(/title:\s*\{\s*contains:/);
     expect(slice).toMatch(/subtitle:\s*\{\s*contains:/);

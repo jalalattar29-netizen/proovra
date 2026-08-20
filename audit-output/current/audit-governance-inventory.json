@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 276,
+    "AuditFilesInventoried": 279,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -137,7 +137,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 159
+    "ProductBehaviorTestsInventoried": 161
   },
   "reportRoles": {
     "counts": {
@@ -156,7 +156,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 159,
+    "PRODUCT_BEHAVIOR_TEST": 161,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -172,7 +172,7 @@
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
-    "AUDIT_ENGINE_TEST": 14
+    "AUDIT_ENGINE_TEST": 15
   },
   "problems": [],
   "duplicateClaims": [],
@@ -1545,7 +1545,9 @@
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
       "imports": [],
-      "importedBy": [],
+      "importedBy": [
+        "services/api/test/audit-refused-ledger.test.ts"
+      ],
       "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
@@ -1638,6 +1640,7 @@
         "services/api/scripts/audit/engine/test-caller-diagnostic.mjs",
         "services/api/scripts/audit/engine/worktree.mjs",
         "services/api/scripts/audit/index.mjs",
+        "services/api/test/audit-refused-ledger.test.ts",
         "services/api/test/phase-0-audit-engine-governance.test.ts",
         "services/api/test/phase-0-audit-self-reference.test.ts",
         "services/api/test/phase-0-unique-evidence-guard.test.ts"
@@ -1690,7 +1693,8 @@
         "services/api/scripts/audit/engine/registry.mjs"
       ],
       "importedBy": [
-        "services/api/scripts/audit/index.mjs"
+        "services/api/scripts/audit/index.mjs",
+        "services/api/test/audit-refused-ledger.test.ts"
       ],
       "spawns": [],
       "readsArtifacts": [],
@@ -2322,6 +2326,25 @@
         "docs/architecture/current-runtime-capability-map.json",
         "audit-output/current/architecture-facts.json"
       ],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/audit-refused-ledger.test.ts",
+      "role": "AUDIT_ENGINE_TEST",
+      "reason": "Drives the canonical engine or validates a current artifact.",
+      "imports": [
+        "services/api/scripts/audit/engine/checkpoint-truth.mjs",
+        "services/api/scripts/audit/engine/report.mjs",
+        "services/api/scripts/audit/engine/registry.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
       "writesArtifacts": [],
       "declaresArtifacts": [],
       "packageScripts": [],
@@ -4364,10 +4387,27 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/point7-proof-promotion.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/point7/closure-gate.ts",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
-      "imports": [],
+      "imports": [
+        "services/api/test/setup/local-hosts.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [
@@ -4504,6 +4544,21 @@
     },
     {
       "path": "services/api/test/public-verify-consistency.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/search-durable-reconciliation.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

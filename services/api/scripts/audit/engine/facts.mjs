@@ -358,13 +358,60 @@ async function reachabilityFacts() {
   };
 }
 
+/**
+ * What a refused ledger reports in place of every countable scalar.
+ *
+ * A string, so no arithmetic and no `=== 0` comparison anywhere downstream can
+ * quietly treat "unreadable" as "zero".
+ */
+export const LEDGER_REFUSED = "REFUSED";
+
 async function ledgerFacts() {
   const rowsPath = CANONICAL.findingsLedger.rows;
   const mod = await importRel(CANONICAL.findingsLedger.producer);
   const rowsRaw = readRel(rowsPath);
   const result = mod.evaluateRows(JSON.parse(rowsRaw));
   if (!result.ok) {
-    return { path: rowsPath, rowsHash: sha256(rowsRaw), valid: false, problems: result.problems };
+    /**
+     * A REFUSED ledger is a controlled finding, not a missing field.
+     *
+     * This branch used to return four keys. Every downstream consumer —
+     * `derivedScalars` reading `.actionable.open`, the report's counter table,
+     * the checkpoint comparison — then read `.actionable` off an object that
+     * did not have one and threw a TypeError. So the audit's response to
+     * "the findings ledger disagrees with the Point-7 proof" was a stack trace
+     * from a completely different module, which says nothing about the
+     * refusal and hides it behind an engine crash.
+     *
+     * The shape is therefore COMPLETE and deliberately UNUSABLE. Every field a
+     * consumer reads exists, so nothing throws; every field that could be
+     * mistaken for progress carries {@link LEDGER_REFUSED} rather than a
+     * number, so nothing can be credited. `open === 0` — the one comparison
+     * that decides `ReleaseBlockingClosure` — is false against a string, which
+     * means a refused ledger reports OPEN by construction and cannot report
+     * PASS by accident.
+     */
+    return {
+      path: rowsPath,
+      producer: CANONICAL.findingsLedger.producer,
+      rowsHash: sha256(rowsRaw),
+      valid: false,
+      problems: result.problems,
+      rowCount: LEDGER_REFUSED,
+      actionable: {
+        total: LEDGER_REFUSED,
+        closed: LEDGER_REFUSED,
+        open: LEDGER_REFUSED,
+      },
+      verifiedClosures: { total: LEDGER_REFUSED, ids: [] },
+      unknownBlocked: { total: LEDGER_REFUSED, ids: [] },
+      trackedInventory: { total: 0, ids: [], releaseBlocking: false },
+      // NOT an empty list. "No open findings" and "the ledger could not be
+      // read" must never render the same, and `releaseBlockingProblems` reads
+      // this to decide whether a release is blocked.
+      openIds: ["LEDGER_REFUSED"],
+      conservationEquation: `${LEDGER_REFUSED} — the ledger did not validate`,
+    };
   }
   const l = result.ledger;
   return {

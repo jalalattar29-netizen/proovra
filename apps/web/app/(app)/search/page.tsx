@@ -94,7 +94,7 @@ import {
 // state; it never decides which state is true.
 import {
   searchReadinessHasUsableResults,
-  type SearchReadinessState,
+  type SearchReadinessProjection,
 } from "@proovra/shared";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
@@ -190,24 +190,13 @@ type SearchResponse = {
 /**
  * The canonical readiness projection.
  *
- * Everything the client needs to choose a state, so it never has to infer one
- * from a zero result count, a missing field or a plan name — each of which
- * this console has used as a proxy at some point, and each of which lied in
- * some workspace.
+ * IMPORTED, not restated. This type used to be declared here as well as
+ * implied by the route's reply object — two declarations of one wire
+ * contract, which is how a field gets added on the server and read as
+ * `undefined` in the console. For a readiness projection that means the page
+ * falls back to whatever its own default happens to be, i.e. it invents a
+ * state, which is the entire defect this projection exists to end.
  */
-type SearchReadinessProjection = {
-  state: SearchReadinessState;
-  eligibleCount: number;
-  indexedCount: number;
-  outstandingCount: number;
-  lastIndexedAtUtc: string | null;
-  progressing: boolean;
-  failureReason: string | null;
-  shouldPoll: boolean;
-  resultsAreComplete: boolean;
-  canRecover: boolean;
-};
-
 type SearchDiagnostics = {
   workspace: { id: string; name: string | null; isPersonal: boolean | null };
   /**
@@ -806,27 +795,79 @@ function SearchInner() {
       : searchReadinessHasUsableResults(readiness.state) &&
         readiness.state !== "STALLED";
 
+  /**
+   * The recovery action.
+   *
+   * ACCEPTED IS NOT COMPLETED. The endpoint answers 202 when a run is already
+   * under way (a duplicate click, a cron tick that landed first, another
+   * operator) and 200 only when THIS request held the durable slot and its body
+   * ran. Reporting both as "done" would tell an operator the index was rebuilt
+   * by a request that rebuilt nothing — which is the same class of untrue
+   * reassurance the readiness state model exists to remove.
+   *
+   * DUPLICATE CLICKS cannot start two runs, and are stopped in three
+   * independent places: the button is `disabled` while pending, a ref guard
+   * rejects a re-entrant call the disabled attribute cannot catch (Enter held
+   * down, a synthetic dispatch), and the server's per-workspace slot refuses a
+   * second run even if both got through.
+   */
   const [rebuilding, setRebuilding] = useState(false);
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+  const rebuildInFlight = useRef(false);
+  const recoveryStatusRef = useRef<HTMLParagraphElement | null>(null);
+
   const rebuildIndex = useCallback(async () => {
+    // The client-side half of "one run per workspace". The server half is the
+    // durable slot; neither is trusted alone.
+    if (rebuildInFlight.current) return;
     if (!teamId || readiness?.canRecover !== true) return;
+    rebuildInFlight.current = true;
     setRebuilding(true);
+    setRecoveryNotice(null);
     try {
-      await apiFetch("/v1/search/reconcile", {
+      const response = (await apiFetch("/v1/search/reconcile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId }),
-      });
+      })) as { status?: string; alreadyRunning?: boolean } | null;
+
+      // What the SERVER said happened, not what was asked for.
+      setRecoveryNotice(
+        response?.alreadyRunning === true
+          ? "Indexing is already running for this workspace."
+          : response?.status === "COMPLETED"
+            ? "Indexing finished."
+            : "Indexing started.",
+      );
       reloadHealth(filter?.q);
     } catch (err) {
+      setRecoveryNotice(null);
       setActionError(
         toSafeUserError(err, {
           message: "Could not start the index rebuild.",
         }).message,
       );
     } finally {
+      rebuildInFlight.current = false;
       setRebuilding(false);
     }
   }, [teamId, readiness?.canRecover, reloadHealth, filter?.q]);
+
+  /**
+   * FOCUS SURVIVES THE STATE CHANGE.
+   *
+   * A successful rebuild moves readiness from STALLED/FAILED to
+   * INITIALIZING/PARTIAL, and the button the operator just pressed unmounts
+   * with it. Focus would land back on `<body>` — a keyboard or screen-reader
+   * user would lose their place entirely, right at the moment something they
+   * did produced a result. It is moved to the status line instead, which is
+   * where the answer is.
+   */
+  useEffect(() => {
+    if (!recoveryNotice) return;
+    recoveryStatusRef.current?.focus();
+  }, [recoveryNotice]);
+
 
   // Run query on filter change.
   useEffect(() => {
@@ -2024,6 +2065,8 @@ function SearchInner() {
               canRecover={readiness.canRecover}
               onRecover={() => void rebuildIndex()}
               recovering={rebuilding}
+              recoveryNotice={recoveryNotice}
+              recoveryStatusRef={recoveryStatusRef}
             />
           ) : null}
 
@@ -2107,6 +2150,8 @@ function SearchInner() {
                       canRecover={readiness!.canRecover}
                       onRecover={() => void rebuildIndex()}
                       recovering={rebuilding}
+                      recoveryNotice={recoveryNotice}
+                      recoveryStatusRef={recoveryStatusRef}
                     />
                   </div>
                 )

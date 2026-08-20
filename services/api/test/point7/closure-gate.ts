@@ -39,6 +39,7 @@ import {
   type ProofLayer,
   type ProvenScenariosArtifact,
 } from "./scenario-manifest.js";
+import { isLoopbackHost } from "../setup/local-hosts.mjs";
 
 /**
  * A destination a local run is permitted to have reached.
@@ -46,18 +47,18 @@ import {
  * Loopback only, plus the `*.localhost` form. Anything else — a Sentry ingest
  * host, an Upstash endpoint, an S3 region, `api.proovra.com` — makes the proof
  * that recorded it invalid, whatever its scenarios say.
+ *
+ * Resolved from THE canonical authority rather than restated here. The guard
+ * that BLOCKS a destination and the gate that JUDGES the record of it must
+ * agree by construction: a host the guard permitted but this gate did not
+ * recognise would fail a genuinely hermetic run, and one this gate recognised
+ * but the guard did not would be blocked at runtime and then credited as fine.
+ *
+ * Note what is deliberately NOT imported: `isAllowedHost`, which also honours
+ * `P7_ALLOWED_HOSTS`. An operator-allowlisted REMOTE host is still remote, and
+ * a proof that reached one is still invalid.
  */
-function isLocalHost(host: string): boolean {
-  const h = host.toLowerCase();
-  return (
-    h === "127.0.0.1" ||
-    h === "::1" ||
-    h === "0.0.0.0" ||
-    h === "localhost" ||
-    h === "::ffff:127.0.0.1" ||
-    h.endsWith(".localhost")
-  );
-}
+const isLocalHost = isLoopbackHost;
 
 // ===========================================================================
 // The outbound ledgers

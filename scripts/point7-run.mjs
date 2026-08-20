@@ -90,6 +90,19 @@ const WEB_BASE = `http://${STACK.host}:${STACK.webPort}`;
 
 /** Absolute, because four processes with four working directories append here. */
 const PRODUCT_LEDGER = resolve(TMP, "product-run-network.jsonl");
+/**
+ * The canary's ledger, NAMED here rather than left to a default.
+ *
+ * Both canonical ledger paths are now declared by this runner, because the
+ * vitest project's defaults became RUN-SCOPED. They had been fixed shared
+ * paths, so every ordinary `pnpm test:integration` appended its own
+ * connections to the canonical PRODUCT ledger under a fresh run id — and the
+ * closure gate, correctly, refused the whole proof with "N ledger record(s)
+ * belong to a different run id". A diagnostic run must not be able to
+ * invalidate an authoritative one by merely existing, so the workflow that IS
+ * entitled to write the canonical ledgers is the one that names them.
+ */
+const CANARY_LEDGER = resolve(TMP, "canary-network.jsonl");
 const BROWSER_LEDGER = resolve(TMP, "browser-network.jsonl");
 const EMAIL_RECORDER = resolve(TMP, "recorded-emails.jsonl");
 /**
@@ -239,6 +252,7 @@ function commonEnv(runId) {
     POINT7: "1",
     POINT7_RUN_ID: runId,
     P7_NETWORK_LEDGER: PRODUCT_LEDGER,
+    P7_CANARY_LEDGER: CANARY_LEDGER,
     P7_WEB_RUNTIME_MODE: "production-build",
     P7_STRICT_CSP: "true",
     EMAIL_RECORDER_FILE: EMAIL_RECORDER,
@@ -575,7 +589,7 @@ async function main() {
     // file; the ledgers are cleared here so an old run's entries cannot be read
     // as this one's isolation evidence.
     mkdirSync(TMP, { recursive: true });
-    for (const f of [PRODUCT_LEDGER, BROWSER_LEDGER, EMAIL_RECORDER, MESSAGING_RECORDER]) {
+    for (const f of [PRODUCT_LEDGER, CANARY_LEDGER, BROWSER_LEDGER, EMAIL_RECORDER, MESSAGING_RECORDER]) {
       rmSync(f, { force: true });
     }
     recreateDatabase();

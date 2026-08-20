@@ -77,7 +77,7 @@ export function ingestCorrelationId(input: unknown): string {
 //
 // Every worker invocation that touches authoritative state should
 // thread one of these envelopes. The reconciliation-run helper in
-// `services/worker/src/governance/reconciliation-run.ts` already
+// `packages/shared-runtime/src/reconciliation-run.ts` already
 // records each invocation — this contract names the in-memory shape so
 // future workers wire identically.
 // -----------------------------------------------------------------------------

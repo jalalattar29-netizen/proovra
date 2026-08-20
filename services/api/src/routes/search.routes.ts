@@ -12,8 +12,16 @@ import { z } from "zod";
 // the denominator can never measure different populations.
 import {
   deriveSearchReadiness,
+  projectSearchReadiness,
   searchIndexableLifecycleSql,
 } from "@proovra/shared";
+// The ONE durable reconciliation-run authority. Readiness reads the run row;
+// the reconcile endpoint starts runs through the same wrapper the worker's
+// scheduler uses, so the two cannot work one workspace at the same time.
+import {
+  latestSearchRun,
+  reconcileSearchIndex,
+} from "@proovra/shared-runtime";
 
 const ELIGIBLE_SQL = searchIndexableLifecycleSql("lifecycle_state");
 import {
@@ -51,13 +59,20 @@ import {
 } from "../services/search/search-audit.service.js";
 // Phase 16 — semantic search admin surface (backfill + status).
 import { runSemanticBackfill } from "../services/search/semantic-backfill.service.js";
-import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+import {
+  evaluateWorkspaceAiPolicy,
+  resolveWorkspaceAiPolicy,
+} from "../services/ai/workspace-ai-policy.service.js";
 import { getSemanticUsageSummary } from "../services/search/semantic-budget.service.js";
 import {
   isSemanticReadyAtRuntime,
   resolveEmbeddingProviderFromEnv,
 } from "../services/search/embedding-provider.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+// The canonical limiter. Shares its store, window semantics and test-reset
+// path with every other rate-limited route, so a workspace rebuild cannot be
+// throttled by a second, differently-behaved implementation.
+import { enforceRateLimit } from "../services/rate-limit.js";
 
 function readUserAgent(req: FastifyRequest): string | null {
   const ua = req.headers["user-agent"];
@@ -871,171 +886,297 @@ export async function searchRoutes(app: FastifyInstance) {
     "/v1/search/reconcile",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = z
+      const parsed = z
         .object({
           teamId: z.string().uuid(),
           // Hard ceiling: never process more than 1k rows per
           // request; large workspaces can call repeatedly.
           batch: z.coerce.number().int().min(1).max(1000).optional(),
         })
-        .parse(req.body ?? {});
-      const actor = await requireSearchActor(req, reply, body.teamId);
-      if (!actor) return;
+        .safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: { code: "validation_error", detail: parsed.error.flatten() },
+        });
+      }
+      const body = parsed.data;
+      // OPERATOR gate, not the actor gate.
+      //
+      // This endpoint rebuilds a whole workspace's index. It previously ran
+      // `requireSearchActor` (identity.member.read), so ANY member could
+      // trigger it — while the UI hid the control behind `canRecover`, which
+      // is projected from `isReviewerCapable`. A control hidden in the client
+      // and open on the wire is not authorized; it is merely inconvenient to
+      // find. The two now resolve through the same capability.
+      //
+      // `requireSearchOperator` also answers 404 for a non-member before it
+      // answers 403 for an unauthorized one, so the endpoint cannot be used to
+      // discover which workspace ids exist.
+      const operator = await requireSearchOperator(req, reply, body.teamId);
+      if (!operator) return;
       const limit = body.batch ?? 500;
 
-      const { indexEvidence } = await import(
-        "../services/search/evidence-indexing.service.js"
-      );
-      const { indexCase } = await import(
-        "../services/search/case-indexing.service.js"
-      );
-      // Phase SEARCH-REMEDIATION-2 — extend reconcile to cover the
-      // remaining workspace entities: reports, packages, and notes.
-      const { indexReport, indexPackage, indexNote } = await import(
-        "../services/search/artifact-indexing.service.js"
-      );
-
-      // Find orphaned evidence — every INDEXABLE row (active +
-      // archived + locked + trash) that has no matching search
-      // document. Search-inclusion-audit (trash decision): only
-      // lifecycle DESTROYED / PENDING_DESTRUCTION are excluded;
-      // soft-deleted (deletedAt IS NOT NULL) records belong in
-      // the index with an "in_trash" tag.
-      // The eligibility clause is emitted from the shared authority, so the
-      // scan that FINDS outstanding work and the count that REPORTS it can
-      // never describe different populations.
-      const orphanEvidence = await prisma.$queryRawUnsafe<
-        Array<{ id: string }>
-      >(
-        `SELECT e.id::text AS id
-         FROM evidence e
-         LEFT JOIN evidence_search_documents esd
-           ON esd.team_id = e.team_id
-          AND esd.document_type = 'EVIDENCE'
-          AND esd.source_id = e.id
-         WHERE ${searchIndexableLifecycleSql("e.lifecycle_state")}
-           AND e.team_id = $1::uuid
-           AND esd.id IS NULL
-         LIMIT $2`,
-        body.teamId,
-        limit,
-      );
-
-      const orphanCases = await prisma.$queryRaw<
-        Array<{ id: string }>
-      >`SELECT c.id::text AS id
-         FROM cases c
-         LEFT JOIN evidence_search_documents esd
-           ON esd.team_id = c.team_id
-          AND esd.document_type = 'CASE'
-          AND esd.source_id = c.id
-         WHERE c.team_id = ${body.teamId}::uuid
-           AND esd.id IS NULL
-         LIMIT ${limit}`;
-
-      const orphanReports = await prisma.$queryRaw<
-        Array<{ id: string }>
-      >`SELECT r.id::text AS id
-         FROM reports r
-         JOIN evidence e ON e.id = r.evidence_id
-         LEFT JOIN evidence_search_documents esd
-           ON esd.team_id = e.team_id
-          AND esd.document_type = 'REPORT'
-          AND esd.source_id = r.id
-         WHERE e.deleted_at IS NULL
-           AND e.team_id = ${body.teamId}::uuid
-           AND esd.id IS NULL
-         LIMIT ${limit}`;
-
-      const orphanPackages = await prisma.$queryRaw<
-        Array<{ id: string }>
-      >`SELECT p.id::text AS id
-         FROM verification_packages p
-         JOIN evidence e ON e.id = p.evidence_id
-         LEFT JOIN evidence_search_documents esd
-           ON esd.team_id = e.team_id
-          AND esd.document_type = 'PACKAGE'
-          AND esd.source_id = p.id
-         WHERE e.deleted_at IS NULL
-           AND e.team_id = ${body.teamId}::uuid
-           AND esd.id IS NULL
-         LIMIT ${limit}`;
-
-      const orphanNotes = await prisma.$queryRaw<
-        Array<{ id: string }>
-      >`SELECT cc.id::text AS id
-         FROM case_comments cc
-         LEFT JOIN evidence_search_documents esd
-           ON esd.team_id = cc.team_id
-          AND esd.document_type = 'NOTE'
-          AND esd.source_id = cc.id
-         WHERE cc.team_id = ${body.teamId}::uuid
-           AND esd.id IS NULL
-         LIMIT ${limit}`;
-
-      let evidenceIndexed = 0;
-      let evidenceFailed = 0;
-      for (const row of orphanEvidence) {
-        const r = await indexEvidence({ teamId: body.teamId, evidenceId: row.id });
-        if (r.ok) evidenceIndexed += 1;
-        else evidenceFailed += 1;
-      }
-      let caseIndexed = 0;
-      let caseFailed = 0;
-      for (const row of orphanCases) {
-        const r = await indexCase({ teamId: body.teamId, caseId: row.id });
-        if (r.ok) caseIndexed += 1;
-        else caseFailed += 1;
-      }
-      let reportIndexed = 0;
-      let reportFailed = 0;
-      for (const row of orphanReports) {
-        const r = await indexReport({ reportId: row.id });
-        if (r.ok) reportIndexed += 1;
-        else reportFailed += 1;
-      }
-      let packageIndexed = 0;
-      let packageFailed = 0;
-      for (const row of orphanPackages) {
-        const r = await indexPackage({ packageId: row.id });
-        if (r.ok) packageIndexed += 1;
-        else packageFailed += 1;
-      }
-      let noteIndexed = 0;
-      let noteFailed = 0;
-      for (const row of orphanNotes) {
-        const r = await indexNote({ noteId: row.id });
-        if (r.ok) noteIndexed += 1;
-        else noteFailed += 1;
+      // ABUSE PROTECTION, after authorization and before any tenant work.
+      //
+      // A full workspace rebuild is the most expensive thing this service
+      // will do on request. The limiter is keyed by (workspace, actor) rather
+      // than by actor alone: one operator holding two workspaces must not have
+      // one of them starve the other, and one workspace must not be rebuildable
+      // in a loop by rotating operators. The canonical helper is used so this
+      // shares the store, the window semantics and the test reset path with
+      // every other limited route.
+      const rate = await enforceRateLimit({
+        key: `ratelimit:search:reconcile:${body.teamId}:${operator.userId}`,
+        max: 6,
+        windowSec: 60,
+      });
+      if (!rate.allowed) {
+        // No lock key, no run id, no counts — a refusal reveals nothing about
+        // the workspace beyond the fact that this actor asked too often.
+        return reply.code(429).send({
+          error: { code: "rate_limited", retryAfterMs: Math.max(0, rate.resetAtMs - Date.now()) },
+        });
       }
 
-      return reply.code(200).send({
+      // EVERY production caller of Search reconciliation resolves through
+      // `reconcileSearchIndex`, which claims the same per-workspace slot in
+      // `governance_reconciliation_runs` that the worker's scheduler and the
+      // CLI claim. Before this, the endpoint executed the scan/index loops
+      // directly, so a cron tick landing mid-request worked the same workspace
+      // at the same time and neither knew about the other.
+      //
+      // Contention is ACCEPTED, not an error: the work is already in hand.
+      let detail: Record<string, unknown> | null = null;
+      const outcome = await reconcileSearchIndex(prisma, {
         teamId: body.teamId,
-        evidence: {
-          orphans: orphanEvidence.length,
-          indexed: evidenceIndexed,
-          failed: evidenceFailed,
+        trigger: "api",
+        triggeredByUserId: operator.userId,
+        log: {
+          info: (o, m) => req.log.info(o as object, m ?? ""),
+          warn: (o, m) => req.log.warn(o as object, m ?? ""),
+          error: (o, m) => req.log.error(o as object, m ?? ""),
         },
-        cases: {
-          orphans: orphanCases.length,
-          indexed: caseIndexed,
-          failed: caseFailed,
+        body: async () => {
+          const { indexEvidence } = await import(
+            "../services/search/evidence-indexing.service.js"
+          );
+          const { indexCase } = await import(
+            "../services/search/case-indexing.service.js"
+          );
+          // Phase SEARCH-REMEDIATION-2 — extend reconcile to cover the
+          // remaining workspace entities: reports, packages, and notes.
+          const { indexReport, indexPackage, indexNote } = await import(
+            "../services/search/artifact-indexing.service.js"
+          );
+
+          // Find orphaned evidence — every INDEXABLE row (active +
+          // archived + locked + trash) that has no matching search
+          // document. Search-inclusion-audit (trash decision): only
+          // lifecycle DESTROYED / PENDING_DESTRUCTION are excluded;
+          // soft-deleted (deletedAt IS NOT NULL) records belong in
+          // the index with an "in_trash" tag.
+          // The eligibility clause is emitted from the shared authority, so the
+          // scan that FINDS outstanding work and the count that REPORTS it can
+          // never describe different populations.
+          const orphanEvidence = await prisma.$queryRawUnsafe<
+            Array<{ id: string }>
+          >(
+            `SELECT e.id::text AS id
+             FROM evidence e
+             LEFT JOIN evidence_search_documents esd
+               ON esd.team_id = e.team_id
+              AND esd.document_type = 'EVIDENCE'
+              AND esd.source_id = e.id
+             WHERE ${searchIndexableLifecycleSql("e.lifecycle_state")}
+               AND e.team_id = $1::uuid
+               AND esd.id IS NULL
+             LIMIT $2`,
+            body.teamId,
+            limit,
+          );
+
+          const orphanCases = await prisma.$queryRaw<
+            Array<{ id: string }>
+          >`SELECT c.id::text AS id
+             FROM cases c
+             LEFT JOIN evidence_search_documents esd
+               ON esd.team_id = c.team_id
+              AND esd.document_type = 'CASE'
+              AND esd.source_id = c.id
+             WHERE c.team_id = ${body.teamId}::uuid
+               AND esd.id IS NULL
+             LIMIT ${limit}`;
+
+          const orphanReports = await prisma.$queryRaw<
+            Array<{ id: string }>
+          >`SELECT r.id::text AS id
+             FROM reports r
+             JOIN evidence e ON e.id = r.evidence_id
+             LEFT JOIN evidence_search_documents esd
+               ON esd.team_id = e.team_id
+              AND esd.document_type = 'REPORT'
+              AND esd.source_id = r.id
+             WHERE e.deleted_at IS NULL
+               AND e.team_id = ${body.teamId}::uuid
+               AND esd.id IS NULL
+             LIMIT ${limit}`;
+
+          const orphanPackages = await prisma.$queryRaw<
+            Array<{ id: string }>
+          >`SELECT p.id::text AS id
+             FROM verification_packages p
+             JOIN evidence e ON e.id = p.evidence_id
+             LEFT JOIN evidence_search_documents esd
+               ON esd.team_id = e.team_id
+              AND esd.document_type = 'PACKAGE'
+              AND esd.source_id = p.id
+             WHERE e.deleted_at IS NULL
+               AND e.team_id = ${body.teamId}::uuid
+               AND esd.id IS NULL
+             LIMIT ${limit}`;
+
+          const orphanNotes = await prisma.$queryRaw<
+            Array<{ id: string }>
+          >`SELECT cc.id::text AS id
+             FROM case_comments cc
+             LEFT JOIN evidence_search_documents esd
+               ON esd.team_id = cc.team_id
+              AND esd.document_type = 'NOTE'
+              AND esd.source_id = cc.id
+             WHERE cc.team_id = ${body.teamId}::uuid
+               AND esd.id IS NULL
+             LIMIT ${limit}`;
+
+          let evidenceIndexed = 0;
+          let evidenceFailed = 0;
+          for (const row of orphanEvidence) {
+            const r = await indexEvidence({ teamId: body.teamId, evidenceId: row.id });
+            if (r.ok) evidenceIndexed += 1;
+            else evidenceFailed += 1;
+          }
+          let caseIndexed = 0;
+          let caseFailed = 0;
+          for (const row of orphanCases) {
+            const r = await indexCase({ teamId: body.teamId, caseId: row.id });
+            if (r.ok) caseIndexed += 1;
+            else caseFailed += 1;
+          }
+          let reportIndexed = 0;
+          let reportFailed = 0;
+          for (const row of orphanReports) {
+            const r = await indexReport({ reportId: row.id });
+            if (r.ok) reportIndexed += 1;
+            else reportFailed += 1;
+          }
+          let packageIndexed = 0;
+          let packageFailed = 0;
+          for (const row of orphanPackages) {
+            const r = await indexPackage({ packageId: row.id });
+            if (r.ok) packageIndexed += 1;
+            else packageFailed += 1;
+          }
+          let noteIndexed = 0;
+          let noteFailed = 0;
+          for (const row of orphanNotes) {
+            const r = await indexNote({ noteId: row.id });
+            if (r.ok) noteIndexed += 1;
+            else noteFailed += 1;
+          }
+
+
+          detail = {
+            teamId: body.teamId,
+            evidence: {
+              orphans: orphanEvidence.length,
+              indexed: evidenceIndexed,
+              failed: evidenceFailed,
+            },
+            cases: {
+              orphans: orphanCases.length,
+              indexed: caseIndexed,
+              failed: caseFailed,
+            },
+            reports: {
+              orphans: orphanReports.length,
+              indexed: reportIndexed,
+              failed: reportFailed,
+            },
+            packages: {
+              orphans: orphanPackages.length,
+              indexed: packageIndexed,
+              failed: packageFailed,
+            },
+            notes: {
+              orphans: orphanNotes.length,
+              indexed: noteIndexed,
+              failed: noteFailed,
+            },
+              };
+
+          return {
+            scanned:
+              orphanEvidence.length +
+              orphanCases.length +
+              orphanReports.length +
+              orphanPackages.length +
+              orphanNotes.length,
+            indexed:
+              evidenceIndexed +
+              caseIndexed +
+              reportIndexed +
+              packageIndexed +
+              noteIndexed,
+            // The endpoint reconciles missing documents; removing ineligible
+            // ones is the worker sweep's responsibility.
+            removed: 0,
+            failed:
+              evidenceFailed +
+              caseFailed +
+              reportFailed +
+              packageFailed +
+              noteFailed,
+          };
         },
-        reports: {
-          orphans: orphanReports.length,
-          indexed: reportIndexed,
-          failed: reportFailed,
-        },
-        packages: {
-          orphans: orphanPackages.length,
-          indexed: packageIndexed,
-          failed: packageFailed,
-        },
-        notes: {
-          orphans: orphanNotes.length,
-          indexed: noteIndexed,
-          failed: noteFailed,
-        },
+      });
+
+      if (outcome.kind === "already_running") {
+        // 202 ACCEPTED — the request was taken and a run is under way. A 200
+        // with counts would claim a rebuild this request did not perform, and
+        // an error would claim nothing is happening when something is.
+        //
+        // The EXISTING run's state is reported, not this request's: a duplicate
+        // click, a cron tick landing mid-request and a second operator all get
+        // the same truthful answer about the same run. Only the safe
+        // projection — status and start time. No run id, no lock key, no
+        // trigger user: the first two are internal, the third is another
+        // person's action.
+        const active = await latestSearchRun(prisma, body.teamId);
+        return reply.code(202).send({
+          teamId: body.teamId,
+          accepted: true,
+          status: active?.status ?? "RUNNING",
+          runStartedAtUtc: active?.startedAtUtc ?? null,
+          alreadyRunning: true,
+        });
+      }
+      if (outcome.kind === "failed") {
+        // A bounded category. Never a stack, never SQL, never a lock key, and
+        // never a row id — `safeFailureCategory` reduces whatever was thrown to
+        // one of a small closed set, so a Postgres error string cannot reach a
+        // browser through this path.
+        return reply.code(500).send({
+          error: { code: "reconcile_failed", reason: outcome.reason },
+        });
+      }
+
+      // 200 only here: this request held the slot and its body ran to
+      // completion. A completed run that found nothing to do is still a
+      // completed run, and reports zero counts rather than pretending it is
+      // still working.
+      return reply.code(200).send({
+        ...(detail ?? { teamId: body.teamId }),
+        accepted: true,
+        status: "COMPLETED",
       });
     },
   );
@@ -1282,8 +1423,32 @@ export async function searchRoutes(app: FastifyInstance) {
               ? "partial_index"
               : "healthy";
 
+      // SECONDARY CAPABILITIES this workspace has TURNED ON and which are not
+      // currently answering.
+      //
+      // "Configured and broken" is the only thing DEGRADED may mean. A
+      // workspace that never enabled semantic search is running the product it
+      // chose, not a degraded one — so workspace INTENT (the persisted policy)
+      // and runtime AVAILABILITY (the provider) are read separately. Asking the
+      // combined policy gate instead would answer `allowed: false` for both
+      // cases and make "switched off" indistinguishable from "broken".
+      //
+      // Deterministic search is unaffected either way, which is why this can
+      // only ever qualify a converged index and never mask an unconverged one.
+      const degradedCapabilities: string[] = [];
+      {
+        const aiPolicy = await resolveWorkspaceAiPolicy(teamId);
+        if (aiPolicy.aiEnabled && aiPolicy.semanticSearchEnabled) {
+          const provider = resolveEmbeddingProviderFromEnv();
+          if (!isSemanticReadyAtRuntime() || provider.name === "disabled") {
+            degradedCapabilities.push("semantic_search");
+          }
+        }
+      }
+
       // CANONICAL READINESS — derived from persisted facts only: the eligible
-      // population, what the index holds, and when the index last advanced.
+      // population, what the index holds, what is awaiting removal, and the
+      // durable run row.
       //
       // The legacy `health` field above is retained for older clients, but it
       // cannot express the distinction that matters: `partial_index` covered
@@ -1292,11 +1457,52 @@ export async function searchRoutes(app: FastifyInstance) {
       //
       // Reaching this line means the actor already passed `requireSearchActor`,
       // so authorization is settled; an unauthorized actor never sees a count.
+      // The durable run row for THIS workspace is tenant-bound in the query,
+      // and only reachable after that gate.
+      const runSnapshot = await latestSearchRun(prisma, teamId);
+
+      // Drift in the OTHER direction: documents whose source row is gone or has
+      // become ineligible. Invisible to `indexed` vs `eligible` — a destroyed
+      // record's leftover document keeps the counts converged while Search is
+      // still answering for a record governance decided no longer exists.
+      // Tenant-bound, and the same eligibility authority the counts above use.
+      const unresolvedRemovalRows = await prisma.$queryRawUnsafe<
+        Array<{ pending: number }>
+      >(
+        `SELECT COUNT(*)::int AS pending
+           FROM evidence_search_documents d
+           LEFT JOIN evidence e ON e.id = d.source_id
+          WHERE d.team_id = $1::uuid
+            AND d.document_type = 'EVIDENCE'
+            AND (e.id IS NULL OR NOT (${searchIndexableLifecycleSql("e.lifecycle_state")}))`,
+        teamId,
+      );
+      const unresolvedRemovals = unresolvedRemovalRows[0]?.pending ?? 0;
+
       const readiness = deriveSearchReadiness({
         eligibleCount: evidenceIndexable,
         indexedCount: indexedEvidence,
+        unresolvedRemovals,
+        // Informational only. It is projected as `lastIndexedAt` and decides
+        // nothing — the run row decides whether work is in progress.
         lastIndexedAtUtc,
+        run: runSnapshot
+          ? {
+              status: runSnapshot.status,
+              leaseValid: runSnapshot.leaseValid,
+              failureCategory: runSnapshot.failureCategory,
+            }
+          : null,
         authorized: true,
+        // This handler reached the database, so the service IS reachable. The
+        // UNAVAILABLE state is produced by the CLIENT when this endpoint could
+        // not be called at all — a server that answers cannot honestly report
+        // that it could not be reached.
+        serviceReachable: true,
+        // Secondary capabilities that are CONFIGURED for this workspace and are
+        // not answering. Deterministic search is unaffected, so this qualifies
+        // a working index and can never mask a broken one.
+        degradedCapabilities,
         now: new Date(),
       });
 
@@ -1308,24 +1514,19 @@ export async function searchRoutes(app: FastifyInstance) {
           name: team?.name ?? null,
           isPersonal: team?.isPersonal ?? null,
         },
-        // The canonical projection. Carries enough for the client to pick a
-        // state without inferring one from a zero result count, a missing
-        // field, or a plan name.
-        readiness: {
-          state: readiness.state,
-          eligibleCount: readiness.eligibleCount,
-          indexedCount: readiness.indexedCount,
-          outstandingCount: readiness.outstandingCount,
-          lastIndexedAtUtc: readiness.lastIndexedAtUtc,
-          progressing: readiness.progressing,
-          failureReason: readiness.failureReason,
-          shouldPoll: readiness.shouldPoll,
-          resultsAreComplete: readiness.resultsAreComplete,
-          // Whether THIS actor may run the recovery path. Reindex is an
-          // operator action, so a viewer is told the truth about the state
-          // without being offered a control that would refuse them.
+        // THE canonical projection, assembled by the SHARED projector rather
+        // than by hand here. The console imports the same type; a field added
+        // on one side and missed on the other is what makes a readiness
+        // console silently fall back to inventing a state.
+        readiness: projectSearchReadiness(readiness, {
+          runStartedAtUtc: runSnapshot?.startedAtUtc ?? null,
+          runFinishedAtUtc: runSnapshot?.finishedAtUtc ?? null,
+          // Whether THIS actor may start a rebuild. Reindex is an operator
+          // action and  enforces the SAME
+          // capability, so a viewer is told the truth about the state without
+          // being offered a control the wire would refuse.
           canRecover: actor.isReviewerCapable === true,
-        },
+        }),
         // Pre-existing top-level fields — kept for client
         // back-compat. NEW callers should prefer the per-state
         // breakdown under `index.breakdown` so they don't conflate

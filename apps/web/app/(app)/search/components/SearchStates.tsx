@@ -13,7 +13,7 @@
  * which learns it from the server. Nothing here infers a state.
  */
 
-import type { ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import {
   AlertCircle,
   Filter,
@@ -219,6 +219,67 @@ export function SearchRestrictedState({ message }: { message?: string }) {
  * The state is the SERVER's, derived from persisted facts. This component
  * chooses words for it and nothing else; it never infers a state from a count.
  */
+/**
+ * The recovery control.
+ *
+ * ONE declaration, used by every state that offers recovery, so STALLED and
+ * FAILED cannot drift into two differently-behaved buttons — which is how one
+ * of them ends up without `aria-busy`, or with a label that claims completion.
+ *
+ * It renders ONLY when the server projected `canRecover === true`. Not when the
+ * workspace is Enterprise, not when the client thinks the user looks like an
+ * admin: the endpoint behind this button enforces the same capability, so a
+ * button shown to anyone else would be a control that exists only to be
+ * refused.
+ */
+function SearchRecoveryAction({
+  label,
+  pendingLabel,
+  onRecover,
+  recovering,
+}: {
+  label: string;
+  /** Says the run STARTED. Never that it finished — it has not. */
+  pendingLabel: string;
+  onRecover: () => void;
+  recovering: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="app-secondary-action search-readiness__recover"
+      onClick={onRecover}
+      // Disabled the instant it is pressed, so a second click cannot start a
+      // second run. The console also holds a re-entrancy ref and the server
+      // holds a durable per-workspace slot; none of the three is trusted alone.
+      disabled={recovering}
+      aria-busy={recovering}
+      data-search-readiness-recover
+    >
+      {recovering ? pendingLabel : label}
+    </button>
+  );
+}
+
+/**
+ * What to say when the index needs an operator and this actor is not one.
+ *
+ * Silence here was the worse option: a viewer saw "indexing is not
+ * progressing" and no indication that anything could be done about it by
+ * anyone. Naming who can act turns a dead end into a next step, and it does it
+ * without offering a control the wire would refuse.
+ */
+function SearchRecoveryUnavailableHint() {
+  return (
+    <span
+      className="search-readiness__hint"
+      data-search-readiness-recover-unavailable
+    >
+      Ask a workspace administrator to restart indexing.
+    </span>
+  );
+}
+
 export function SearchReadinessNotice({
   state,
   indexedCount,
@@ -227,16 +288,48 @@ export function SearchReadinessNotice({
   canRecover,
   onRecover,
   recovering,
+  recoveryNotice,
+  recoveryStatusRef,
 }: {
   state: SearchReadinessState;
   indexedCount: number;
   eligibleCount: number;
   failureReason: string | null;
-  /** Whether THIS actor may run the recovery path. */
+  /** Whether THIS actor may run the recovery path. Server-projected. */
   canRecover: boolean;
   onRecover?: () => void;
   recovering?: boolean;
+  /**
+   * What the SERVER said happened to the last recovery request.
+   *
+   * "Started" and "already running" are different facts and neither of them is
+   * "finished". Announced through a live region so a screen-reader user learns
+   * the outcome of a button that is about to unmount.
+   */
+  recoveryNotice?: string | null;
+  recoveryStatusRef?: MutableRefObject<HTMLParagraphElement | null>;
 }) {
+  /**
+   * The outcome line, shared by every state that offers recovery.
+   *
+   * `tabIndex={-1}` so the console can move focus here when the button that
+   * produced it unmounts: focus would otherwise fall to `<body>` at the exact
+   * moment the operator's action produced a result.
+   */
+  const status =
+    recoveryNotice ? (
+      <p
+        className="search-readiness__status"
+        role="status"
+        aria-live="polite"
+        tabIndex={-1}
+        ref={recoveryStatusRef}
+        data-search-readiness-recover-status
+      >
+        {recoveryNotice}
+      </p>
+    ) : null;
+
   // READY has nothing to disclose, and neither has a state whose whole
   // message belongs in the results region rather than beside them.
   if (state === "READY" || state === "EMPTY_WORKSPACE" || state === "RESTRICTED") {
@@ -246,17 +339,23 @@ export function SearchReadinessNotice({
   if (state === "PARTIAL" || state === "INITIALIZING") {
     // Compact and beside the results summary — the work IS progressing, so
     // this is a disclosure, not an alarm. It disappears on its own.
+    //
+    // No recovery control: a run is already holding this workspace's slot, so
+    // a button here could only ever produce "already running".
     return (
-      <p
-        className="search-readiness search-readiness--progress"
-        role="status"
-        data-search-readiness={state}
-      >
-        <Loader2 size={14} strokeWidth={2} aria-hidden="true" />
-        {state === "INITIALIZING"
-          ? "Preparing workspace search…"
-          : `Indexing in progress — ${indexedCount} of ${eligibleCount} records searchable. Recent records may not appear yet.`}
-      </p>
+      <>
+        <p
+          className="search-readiness search-readiness--progress"
+          role="status"
+          data-search-readiness={state}
+        >
+          <Loader2 size={14} strokeWidth={2} aria-hidden="true" />
+          {state === "INITIALIZING"
+            ? "Preparing workspace search…"
+            : `Indexing in progress — ${indexedCount} of ${eligibleCount} records searchable. Recent records may not appear yet.`}
+        </p>
+        {status}
+      </>
     );
   }
 
@@ -276,22 +375,24 @@ export function SearchReadinessNotice({
           indexed; the rest will not appear until indexing is restarted.
         </span>
         {canRecover && onRecover ? (
-          <button
-            type="button"
-            className="app-secondary-action"
-            onClick={onRecover}
-            disabled={recovering}
-            aria-busy={recovering}
-            data-search-readiness-recover
-          >
-            {recovering ? "Rebuilding…" : "Rebuild index"}
-          </button>
-        ) : null}
+          <SearchRecoveryAction
+            label="Rebuild index"
+            pendingLabel="Starting…"
+            onRecover={onRecover}
+            recovering={recovering === true}
+          />
+        ) : (
+          <SearchRecoveryUnavailableHint />
+        )}
+        {status}
       </div>
     );
   }
 
   if (state === "FAILED") {
+    // Retry is offered HERE and in STALLED, and nowhere else: both are
+    // terminal. A run that is still inside its lease is neither, and offering
+    // "retry" against it would ask for a second run of work already in hand.
     return (
       <div
         className="app-alert app-alert--danger"
@@ -305,17 +406,16 @@ export function SearchReadinessNotice({
           {eligibleCount} records are searchable.
         </span>
         {canRecover && onRecover ? (
-          <button
-            type="button"
-            className="app-secondary-action"
-            onClick={onRecover}
-            disabled={recovering}
-            aria-busy={recovering}
-            data-search-readiness-recover
-          >
-            {recovering ? "Retrying…" : "Retry indexing"}
-          </button>
-        ) : null}
+          <SearchRecoveryAction
+            label="Retry indexing"
+            pendingLabel="Starting…"
+            onRecover={onRecover}
+            recovering={recovering === true}
+          />
+        ) : (
+          <SearchRecoveryUnavailableHint />
+        )}
+        {status}
       </div>
     );
   }
@@ -401,12 +501,16 @@ export function SearchStalledState({
   canRecover,
   onRecover,
   recovering,
+  recoveryNotice,
+  recoveryStatusRef,
 }: {
   indexedCount: number;
   eligibleCount: number;
   canRecover: boolean;
   onRecover?: () => void;
   recovering?: boolean;
+  recoveryNotice?: string | null;
+  recoveryStatusRef?: MutableRefObject<HTMLParagraphElement | null>;
 }) {
   return (
     <SearchState
@@ -414,17 +518,16 @@ export function SearchStalledState({
       icon={<AlertCircle size={32} strokeWidth={1.8} />}
       title="Search indexing is not progressing"
       actions={
+        // The SAME control the inline notice mounts. Two hand-written buttons
+        // for one action is how one of them loses , or keeps a
+        // pending label that claims the rebuild finished.
         canRecover && onRecover ? (
-          <button
-            type="button"
-            className="app-primary-action"
-            onClick={onRecover}
-            disabled={recovering}
-            aria-busy={recovering}
-            data-search-readiness-recover
-          >
-            {recovering ? "Rebuilding…" : "Rebuild index"}
-          </button>
+          <SearchRecoveryAction
+            label="Rebuild index"
+            pendingLabel="Starting…"
+            onRecover={onRecover}
+            recovering={recovering === true}
+          />
         ) : null
       }
     >
@@ -432,7 +535,19 @@ export function SearchStalledState({
       searchable, and no indexing run is currently making progress.{" "}
       {canRecover
         ? "Rebuilding will index the outstanding records."
-        : "Ask a workspace admin to rebuild the search index."}
+        : "Ask a workspace administrator to restart indexing."}
+      {recoveryNotice ? (
+        <p
+          className="search-readiness__status"
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+          ref={recoveryStatusRef}
+          data-search-readiness-recover-status
+        >
+          {recoveryNotice}
+        </p>
+      ) : null}
     </SearchState>
   );
 }

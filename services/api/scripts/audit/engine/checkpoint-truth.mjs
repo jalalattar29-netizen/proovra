@@ -129,7 +129,16 @@ export function derivedScalars(doc) {
       doc.conservation.capabilityProjectionMatchesRouteCount,
 
     // ------------------------------------------------------------ closure ---
-    OpenActionableFindings: doc.findingsLedgerRef.actionable.open,
+    /**
+     * Defensive on purpose, as well as structurally supplied.
+     *
+     * `ledgerFacts()` now always returns an `actionable` object, refused or
+     * not. This read stays optional anyway: a facts document handed in by the
+     * ADVERSARIAL gate is deliberately corrupted, and the evaluator's whole
+     * value is that it refuses such input rather than crashing on it. A
+     * TypeError here would be indistinguishable from the engine being broken.
+     */
+    OpenActionableFindings: doc.findingsLedgerRef?.actionable?.open ?? "REFUSED",
     StaleDomainProofs: f.proofFreshness.stale,
     /**
      * The release verdict, DERIVED rather than declared.
@@ -140,7 +149,7 @@ export function derivedScalars(doc) {
      * to be zero.
      */
     ReleaseBlockingClosure:
-      doc.findingsLedgerRef.actionable.open === 0 && f.capabilities.undisposed === 0
+      doc.findingsLedgerRef?.actionable?.open === 0 && f.capabilities.undisposed === 0
         ? "PASS"
         : "OPEN",
 

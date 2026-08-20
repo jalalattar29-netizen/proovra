@@ -82,16 +82,41 @@ function browserIsolation() {
 
 const isolation = browserIsolation();
 
+/**
+ * A refused promotion is a FAILED run, not a quiet no-op.
+ *
+ * The recorder is only ever executed by `scripts/point7-run.mjs`, which
+ * declares production-build + strict CSP. At that strength the only remaining
+ * reason to be refused is that this run proved fewer scenarios than the record
+ * already on disk — i.e. something failed. Exiting zero there would leave the
+ * canonical artifact correct (it is untouched) and the run looking successful,
+ * which is the exact pair of facts that produced the original downgrade.
+ */
+const refusals: string[] = [];
+
 for (const [suite, scenarios] of bySuite) {
-  recordScenarioProof({
+  const refusal = recordScenarioProof({
     suiteRelPath: suite,
     layer: "BROWSER",
     scenarios,
     root,
     isolation,
   });
+  if (refusal) {
+    refusals.push(`${refusal.suite}: ${refusal.reason}`);
+    continue;
+  }
   // eslint-disable-next-line no-console
   console.log(
     `point7: recorded ${new Set(scenarios).size} browser scenarios for ${suite}`,
   );
+}
+
+if (refusals.length > 0) {
+  // eslint-disable-next-line no-console
+  console.error(
+    `point7: ${refusals.length} suite record(s) refused promotion:` +
+      refusals.map((r) => `\n  ${r}`).join(""),
+  );
+  process.exitCode = 1;
 }

@@ -37,6 +37,15 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// THE canonical local-host authority. This file, the `--import` outbound
+// guard and the Point-7 closure gate used to keep three copies of the same
+// loopback set and the same `P7_ALLOWED_HOSTS` parser — three allowlists,
+// disagreeing silently. One definition, three importers.
+import {
+  isAllowedHost,
+  isLoopbackHost,
+} from "./local-hosts.mjs";
+
 const require_ = createRequire(import.meta.url);
 
 // ===========================================================================
@@ -522,10 +531,6 @@ export function applySafeTestEnvironment() {
 // 2. The outbound guard
 // ===========================================================================
 
-const LOOPBACK = new Set([
-  "127.0.0.1", "::1", "0.0.0.0", "localhost", "::ffff:127.0.0.1",
-]);
-
 /**
  * Destination categories, for the ledger.
  *
@@ -552,7 +557,7 @@ function categorize(host) {
   // "unknown-external" invites exactly the wrong conclusion about where this
   // process was talking.
   const h = String(host ?? "").toLowerCase();
-  if (LOOPBACK.has(h) || h.endsWith(".localhost")) return "loopback-disposable";
+  if (isLoopbackHost(h)) return "loopback-disposable";
   // NOT `isLocal`: that also returns true for anything an operator put in
   // `P7_ALLOWED_HOSTS`, and an explicitly allowlisted REMOTE host must keep
   // its own category in the record rather than be filed as loopback.
@@ -560,19 +565,9 @@ function categorize(host) {
   return "unknown-external";
 }
 
-function allowedHosts() {
-  return new Set(
-    (process.env.P7_ALLOWED_HOSTS ?? "")
-      .split(",")
-      .map((h) => h.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
+/** Loopback, plus the disposable services this run declared. */
 function isLocal(host) {
-  if (!host) return true;
-  const h = String(host).toLowerCase();
-  return LOOPBACK.has(h) || h.endsWith(".localhost") || allowedHosts().has(h);
+  return isAllowedHost(host);
 }
 
 const BLOCKED = [];

@@ -10,6 +10,12 @@
  */
 
 export { registerPrisma, getRegisteredPrisma } from "./prisma-registry.js";
+// The ONE durable reconciliation-run authority: DB-enforced per-lock-key
+// exclusion, a lease, and terminal transitions. Both hosts start runs.
+export * from "./reconciliation-run.js";
+// The Search-shaped face of that authority. Every entry point that can
+// start a Search reconciliation resolves through it.
+export * from "./search-index-reconciliation.js";
 
 export * from "./signing/index.js";
 

@@ -8421,6 +8421,10 @@ enum GovernanceReconciliationKind {
   IMMUTABLE_STORAGE
   LIFECYCLE_DRIFT
   DESTRUCTION_SWEEP
+  /// Search index reconciliation for one workspace. Shares this authority
+  /// deliberately: a second run table would be a second lock, and two locks
+  /// over one population exclude nothing.
+  SEARCH_INDEX
 }
 
 enum GovernanceReconciliationStatus {
