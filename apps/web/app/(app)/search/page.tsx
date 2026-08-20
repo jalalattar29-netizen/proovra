@@ -55,6 +55,7 @@ import {
 import {
   isLifecycleValue,
   searchBadgeTone,
+  searchMatchReasonTone,
   searchLifecycleLabel,
   searchLifecycleTone,
   searchTypeTone,
@@ -2269,7 +2270,8 @@ function SearchInner() {
                           {row.matchReasons.map((reason) => (
                             <span
                               key={reason}
-                              className="app-chip"
+                              className="search-match-reason"
+                              data-match-tone={searchMatchReasonTone(reason)}
                               data-search-match-reason={reason}
                             >
                               {reason}
@@ -2540,8 +2542,9 @@ function Inspector({
           one: the panel already has a primary subject — the record — and a
           filled purple slab competed with it. It stays an <a> so the
           browser's own middle-click and cmd-click open-in-new-tab keep
-          working, and it takes the tone of the record it opens, so an
-          Evidence panel does not put a purple control on an orange record. */}
+          working, and it takes the tone of the record it opens — derived from
+          the same `searchTypeTone` the label uses — so a Report panel does not
+          put a purple control on an orange record. */}
       {openAction ? (
         <a
           href={openAction.href}

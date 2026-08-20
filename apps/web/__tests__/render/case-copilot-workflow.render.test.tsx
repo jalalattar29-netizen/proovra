@@ -95,7 +95,13 @@ const RouteBody = z.object({
     .array(z.string().uuid())
     .min(COPILOT_SELECTION_MIN)
     .max(COPILOT_SELECTION_MAX),
-  selectedEvidenceVersions: z.record(z.string(), z.number().int()).optional(),
+  // NULLABLE, exactly as the route declares it. `null` is the real projected
+  // value for a record with no verification package and is a different
+  // statement from version 0 — the schema had no way to express it, so the
+  // client sent a fabricated 0 instead.
+  selectedEvidenceVersions: z
+    .record(z.string(), z.number().int().nullable())
+    .optional(),
   processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
   question: z.string().max(500).optional(),
   idempotencyKey: z.string().max(COPILOT_IDEMPOTENCY_KEY_MAX).optional(),
@@ -109,7 +115,9 @@ const PHOTO: CaseCopilotEvidence = {
   id: "c6bb29e3-1111-4111-8111-111111111111",
   title: "Joint Scene Examination by Fire Investigators.jpg",
   type: "PHOTO",
-  version: 0,
+  // `null` = no verification package yet. NOT `0`: the old fixture said 0
+  // because the client fabricated 0, which is the defect this file now pins.
+  version: null,
   status: "REPORTED",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -119,7 +127,7 @@ const VIDEO: CaseCopilotEvidence = {
   id: "1e00f0d6-2222-4222-8222-222222222222",
   title: "Scene walkthrough.mp4",
   type: "VIDEO",
-  version: 0,
+  version: null,
   status: "REPORTED",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -129,6 +137,7 @@ const DOCUMENT: CaseCopilotEvidence = {
   id: "41a074bb-3333-4333-8333-333333333333",
   title: "Incident statement.pdf",
   type: "DOCUMENT",
+  // A package-ready record: a REAL version the projection now carries.
   version: 2,
   status: "SIGNED",
   lifecycleState: "ACTIVE",
@@ -139,7 +148,7 @@ const UPLOADING: CaseCopilotEvidence = {
   id: "9a9a9a9a-4444-4444-8444-444444444444",
   title: "Body-cam clip.mp4",
   type: "VIDEO",
-  version: 0,
+  version: null,
   status: "UPLOADING",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -247,7 +256,7 @@ describe("the two-record production selection", () => {
     const legacyKey = `${CASE_ID}:${[PHOTO.id, VIDEO.id].sort().join(",")}`;
     const legacy = RouteBody.safeParse({
       selectedEvidenceIds: [PHOTO.id, VIDEO.id],
-      selectedEvidenceVersions: { [PHOTO.id]: 0, [VIDEO.id]: 0 },
+      selectedEvidenceVersions: { [PHOTO.id]: null, [VIDEO.id]: null },
       processingMode: "METADATA_ONLY",
       idempotencyKey: legacyKey,
     });
@@ -283,9 +292,10 @@ describe("the two-record production selection", () => {
 
     // The exact contract.
     expect(req!.body.selectedEvidenceIds).toEqual([PHOTO.id, VIDEO.id]);
+    // The REAL projected value, not a fabricated zero.
     expect(req!.body.selectedEvidenceVersions).toEqual({
-      [PHOTO.id]: 0,
-      [VIDEO.id]: 0,
+      [PHOTO.id]: null,
+      [VIDEO.id]: null,
     });
     expect(req!.body.processingMode).toBe("METADATA_ONLY");
     expect(String(req!.body.idempotencyKey).length).toBeLessThanOrEqual(
@@ -393,22 +403,45 @@ describe("eligibility is explicit before selection", () => {
     expect(H.requests.at(-1)!.body.selectedEvidenceIds).toEqual([PHOTO.id]);
   });
 
-  it("7. a record with no stable version is still analyzable, and says so in words", async () => {
-    // `v0` is not an error: it means no verification package exists yet. It is
-    // contract data, so it is stated rather than deleted — and stated in words,
-    // because "v0" told an operator nothing.
+  it("7. the three version states are distinct, and none of them is a fabricated v0", async () => {
+    // WHAT WENT WRONG: the projection never carried
+    // `verificationPackageVersion`, the client read `undefined` through a cast
+    // and defaulted it to `0`, and EVERY record rendered "v0" — including
+    // records the same page reported as "Package ready".
+
+    // null → no verification package yet. A legitimate, stable state.
     mount([PHOTO]);
     await settle();
-    const version = document.querySelector("[data-case-copilot-version]")!;
-    expect(version.getAttribute("data-case-copilot-version")).toBe("0");
+    let version = document.querySelector("[data-case-copilot-version]")!;
+    expect(version.getAttribute("data-case-copilot-version")).toBe("null");
     expect(version.textContent).toBe("No package yet");
     expect(rows()[0]!.getAttribute("data-eligible")).toBe("true");
 
+    // a real number → stated as the real number.
     mount([DOCUMENT]);
     await settle();
+    version = document.querySelector("[data-case-copilot-version]")!;
+    expect(version.getAttribute("data-case-copilot-version")).toBe("2");
+    expect(version.textContent).toBe("Package v2");
+    expect(rows()[0]!.getAttribute("data-eligible")).toBe("true");
+
+    // undefined → the projection carried nothing. FAIL CLOSED: the record is
+    // refused rather than sent with a guess.
+    mount([{ ...PHOTO, version: undefined }]);
+    await settle();
+    version = document.querySelector("[data-case-copilot-version]")!;
+    expect(version.getAttribute("data-case-copilot-version")).toBe("unknown");
+    expect(version.textContent).toBe("Version unavailable");
+    expect(rows()[0]!.getAttribute("data-eligible")).toBe("false");
+    expect(boxes()[0]!.disabled).toBe(true);
     expect(
-      document.querySelector("[data-case-copilot-version]")!.textContent,
-    ).toBe("Package v2");
+      document
+        .querySelector("[data-case-copilot-reason]")!
+        .getAttribute("data-case-copilot-reason"),
+    ).toBe("no_selection_version");
+
+    // A fabricated v0 can no longer be produced from any of the three.
+    expect(document.body.textContent).not.toContain("Package v0");
   });
 
   it("8. a record not linked to this case is refused", () => {

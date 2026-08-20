@@ -87,10 +87,25 @@ function toneForKind(kind: SearchStateKind): AppTone {
  * and the Inspector iterate different collections, so anything positional
  * would colour the same record differently in each.
  */
+/**
+ * EVIDENCE and CASE share ONE token, deliberately.
+ *
+ * Evidence used to wear the REPORT orange, which made a piece of evidence and
+ * the report ABOUT it read as the same kind of thing. They are the two halves
+ * of a record's life, not one category. Evidence now takes the same blue as a
+ * Case — the same constant, not a second blue that happens to match, so the two
+ * cannot drift apart later.
+ *
+ * The labels stay distinguishable by their WORDS. Colour here says "this is a
+ * primary record"; the word says which one. Orange is left to REPORT alone,
+ * where it now means one thing.
+ */
+const CLASSIFICATION_BLUE: AppTone = "blue";
+
 const TYPE_TONE: Readonly<Record<string, AppTone>> = {
-  CASE: "blue",
+  CASE: CLASSIFICATION_BLUE,
+  EVIDENCE: CLASSIFICATION_BLUE,
   REPORT: "orange",
-  EVIDENCE: "orange",
   PACKAGE: "indigo",
   NOTE: "slate",
 };
@@ -225,4 +240,44 @@ export function searchLifecycleLabel(value: string | null | undefined): string {
  */
 export function isLifecycleValue(value: string | null | undefined): boolean {
   return searchLifecycleKind(value) !== "neutral";
+}
+
+// ---------------------------------------------------------------------------
+// 4. Match reasons — why the backend says a row matched
+// ---------------------------------------------------------------------------
+
+/**
+ * A match reason's presentation tone.
+ *
+ * A FOURTH vocabulary, and separate from the other three for the same reason
+ * they are separate from each other: "matched title" is neither a record
+ * classification nor a lifecycle state nor a governance signal. It says which
+ * part of the record the query hit.
+ *
+ * Keyed by the operator-readable sentence the backend emits
+ * (`buildMatchReasonsForRow`), because that string IS the contract — there is
+ * no separate code. Every reason resolves through this one table, and one it
+ * has never seen resolves to `neutral` rather than to whatever the last branch
+ * returned.
+ */
+export type SearchMatchTone = "title" | "summary" | "workflow" | "semantic" | "neutral";
+
+const MATCH_REASON_TONE: Readonly<Record<string, SearchMatchTone>> = {
+  "Matched title": "title",
+  "Matched summary": "summary",
+  "Workflow-linked": "workflow",
+  "Semantically similar": "semantic",
+};
+
+/**
+ * The tone for one match reason.
+ *
+ * Never derived from array position: the row and the Inspector iterate the same
+ * list but a positional rule would still colour a one-reason row differently
+ * from a two-reason row. Never derived from the rendered text either — the
+ * lookup is exact, and anything unrecognised is neutral.
+ */
+export function searchMatchReasonTone(reason: string | null | undefined): SearchMatchTone {
+  if (!reason) return "neutral";
+  return MATCH_REASON_TONE[reason] ?? "neutral";
 }

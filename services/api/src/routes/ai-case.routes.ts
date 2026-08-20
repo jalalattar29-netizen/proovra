@@ -14,6 +14,8 @@ import {
   COPILOT_SELECTION_MIN,
   buildCopilotIdempotencyKey,
   evaluateCopilotEvidenceEligibility,
+  evidenceSelectionVersion,
+  evidenceSelectionVersionsMatch,
 } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
@@ -59,7 +61,17 @@ const Body = z.object({
     .array(z.string().uuid())
     .min(COPILOT_SELECTION_MIN)
     .max(COPILOT_SELECTION_MAX),
-  selectedEvidenceVersions: z.record(z.string(), z.number().int()).optional(),
+  /**
+   * The selection snapshot, per record.
+   *
+   * NULLABLE: `null` is the real projected value for a record with no
+   * verification package, and it is a different statement from version 0. The
+   * schema accepted only `number`, so the client had nowhere to express it and
+   * sent a fabricated `0` instead — which the comparison then rejected.
+   */
+  selectedEvidenceVersions: z
+    .record(z.string(), z.number().int().nullable())
+    .optional(),
   processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
   question: z.string().max(500).optional(),
   idempotencyKey: z.string().max(80).optional(),
@@ -153,12 +165,35 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       });
     }
 
-    // Stale-version rejection.
+    // STALE-VERSION REJECTION, against ONE nullable authority.
+    //
+    // This compared `expected !== (r.verificationPackageVersion ?? 0)`. The
+    // `?? 0` made "no verification package" indistinguishable from "version
+    // 0", so a record could match for the wrong reason as easily as it could
+    // mismatch for one — and the client, which fabricated its own 0 from a
+    // field the projection never sent, mismatched every package-ready record.
+    //
+    // Both sides now compare the raw nullable value through the shared
+    // authority. A snapshot the client could not determine is `undefined`,
+    // which never matches: not knowing is not agreement.
     if (body.selectedEvidenceVersions) {
       for (const r of rows) {
-        const expected = body.selectedEvidenceVersions[r.id];
-        if (expected != null && expected !== (r.verificationPackageVersion ?? 0)) {
-          return reply.code(409).send({ error: { code: "stale_evidence_version", evidenceId: r.id } });
+        const snapshot = Object.prototype.hasOwnProperty.call(
+          body.selectedEvidenceVersions,
+          r.id,
+        )
+          ? body.selectedEvidenceVersions[r.id]
+          : undefined;
+        // A caller that sends no snapshot for a record is not asserting
+        // anything about it, which stays permitted — the field is optional.
+        if (snapshot === undefined) continue;
+        const current = evidenceSelectionVersion({
+          verificationPackageVersion: r.verificationPackageVersion,
+        });
+        if (!evidenceSelectionVersionsMatch(snapshot, current)) {
+          return reply
+            .code(409)
+            .send({ error: { code: "stale_evidence_version", evidenceId: r.id } });
         }
       }
     }

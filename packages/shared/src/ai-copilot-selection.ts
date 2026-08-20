@@ -138,7 +138,14 @@ export type CopilotIneligibility =
   /** Not linked to the case being analyzed. */
   | "not_linked_to_case"
   /** The listed version is no longer the record's version. */
-  | "changed_since_listed";
+  | "changed_since_listed"
+  /**
+   * The projection carried no selection version, so nothing can be compared.
+   *
+   * FAIL CLOSED. The alternative — defaulting to `0` — is precisely what made
+   * every case record arrive as `v0` and be refused as stale.
+   */
+  | "no_selection_version";
 
 export type CopilotEligibility =
   | { eligible: true }
@@ -160,6 +167,15 @@ export type CopilotEvidenceFacts = {
   caseLinked?: boolean;
   /** True when the listed version no longer matches the record's. */
   stale?: boolean;
+  /**
+   * The canonical selection version, as projected.
+   *
+   * `undefined` means the projection did not carry one — which is a refusal,
+   * not a zero.
+   */
+  selectionVersion?: EvidenceSelectionVersion | undefined;
+  /** Whether the caller is able to supply `selectionVersion` at all. */
+  selectionVersionKnown?: boolean;
 };
 
 /** Statuses whose bytes and preservation state are settled enough to compare. */
@@ -207,6 +223,12 @@ export function evaluateCopilotEvidenceEligibility(
   if (facts.caseLinked === false) {
     return { eligible: false, reason: "not_linked_to_case" };
   }
+  // The projection must be able to answer "has this changed". If it cannot,
+  // the record is refused rather than sent with a fabricated version — the
+  // defect this whole module exists to end.
+  if (facts.selectionVersionKnown === true && facts.selectionVersion === undefined) {
+    return { eligible: false, reason: "no_selection_version" };
+  }
   // Last: the listing itself is out of date. This is recoverable by refreshing,
   // which is why it is checked after the facts that are not.
   if (facts.stale === true) {
@@ -236,6 +258,8 @@ export function copilotIneligibilityReason(reason: CopilotIneligibility): string
       return "Not linked to this case";
     case "changed_since_listed":
       return "Changed — refresh to re-select";
+    case "no_selection_version":
+      return "Version unavailable — refresh";
     default:
       return "Unavailable";
   }
@@ -251,3 +275,92 @@ export function copilotIneligibilityReason(reason: CopilotIneligibility): string
  */
 export const COPILOT_SELECTION_REFRESH_MESSAGE =
   "Some selected records are no longer available for analysis. The list has been refreshed — review the selection and try again.";
+
+// ---------------------------------------------------------------------------
+// 4. The selection version — one concurrency authority
+// ---------------------------------------------------------------------------
+
+/**
+ * "Has this evidence changed since the operator selected it?"
+ *
+ * THE DEFECT THIS ENCODES AGAINST
+ *
+ * The AI routes have always answered that question with
+ * `Evidence.verificationPackageVersion`. The CASE evidence projection never
+ * emitted it — the query did not select it, the DTO did not declare it, and the
+ * client read it through a cast that could only ever produce `undefined`:
+ *
+ *     version: (it as { verificationPackageVersion?: number | null })
+ *                 .verificationPackageVersion ?? 0
+ *
+ * So every record arrived at the Copilot as `v0`, including records the same
+ * page reported as "Package ready" — and the route compared that fabricated 0
+ * against a real version of 2 and answered "a selected record changed while you
+ * were choosing". Nothing had changed. The client had never been told the
+ * version in the first place.
+ *
+ * `null` and `undefined` are DIFFERENT answers here and the distinction is the
+ * whole point:
+ *
+ *   number      a versioned artifact exists, and this is its version
+ *   null        no versioned artifact exists yet — a legitimate, stable state
+ *   undefined   the projection did not carry a version, so nothing is known
+ *
+ * Collapsing any of those into `0` is what produced the defect, so nothing in
+ * this module does it.
+ */
+export type EvidenceSelectionVersion = number | null;
+
+/** The persisted authority a selection version is read from. */
+export type EvidenceVersionFacts = {
+  /** `Evidence.verificationPackageVersion`. Nullable in the schema. */
+  verificationPackageVersion?: number | null;
+};
+
+/**
+ * The canonical selection version, or `undefined` when it was not projected.
+ *
+ * `undefined` is not a value to compare — it means the caller cannot answer,
+ * and every caller must fail closed rather than guess. That is exactly the
+ * branch the old `?? 0` removed.
+ */
+export function evidenceSelectionVersion(
+  facts: EvidenceVersionFacts,
+): EvidenceSelectionVersion | undefined {
+  const raw = facts.verificationPackageVersion;
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  return Number.isInteger(raw) ? raw : undefined;
+}
+
+/**
+ * Do a captured snapshot and the current record agree?
+ *
+ * Compared as nullable values on BOTH sides. The route used to compare
+ * `expected !== (current ?? 0)`, which made "no package" indistinguishable
+ * from "version 0" — so a record could match for the wrong reason as easily as
+ * it could mismatch for one.
+ *
+ * A snapshot of `undefined` never matches: not knowing is not agreement.
+ */
+export function evidenceSelectionVersionsMatch(
+  snapshot: EvidenceSelectionVersion | undefined,
+  current: EvidenceSelectionVersion | undefined,
+): boolean {
+  if (snapshot === undefined || current === undefined) return false;
+  return snapshot === current;
+}
+
+/**
+ * How a version reads to an operator.
+ *
+ * `v0` was shown for every record and meant nothing — it was the fabrication,
+ * not a value. These say what is actually true.
+ */
+export function evidenceSelectionVersionLabel(
+  version: EvidenceSelectionVersion | undefined,
+): string {
+  if (version === undefined) return "Version unavailable";
+  if (version === null) return "No package yet";
+  return `Package v${version}`;
+}

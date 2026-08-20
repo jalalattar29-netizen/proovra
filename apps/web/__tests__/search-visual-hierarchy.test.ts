@@ -35,15 +35,41 @@ const PRIM_CSS = read("apps/web/components/app-primitives/app-primitives.css");
 const TOKENS = read("apps/web/lib/design-tokens/tokens.css");
 const OVERLAY = read("apps/web/components/app-primitives/AppAnchoredOverlay.tsx");
 
-/** The mapping table body, so a tone is read from the authority itself. */
+/**
+ * The mapping table body, so a tone is read from the authority itself.
+ *
+ * An entry may name a shared CONSTANT rather than a literal — that is how CASE
+ * and EVIDENCE are held to one blue instead of two that happen to match — so an
+ * identifier is resolved back to the literal it is declared with. Resolving it
+ * here, rather than accepting any identifier, keeps the tests measuring the
+ * colour that actually ships.
+ */
 function typeToneOf(type: string): string {
   const block = TONES.slice(
     TONES.indexOf("const TYPE_TONE"),
     TONES.indexOf("export function searchTypeTone"),
   );
-  const m = block.match(new RegExp(`${type}:\\s*"(\\w+)"`));
+  const m = block.match(new RegExp(`${type}:\\s*("?)([\\w]+)\\1,`));
   assert.ok(m, `TYPE_TONE has no entry for ${type}`);
-  return m![1];
+  if (m![1] === '"') return m![2]!;
+
+  const constant = m![2]!;
+  const decl = TONES.match(
+    new RegExp(`const ${constant}: AppTone = "(\\w+)";`),
+  );
+  assert.ok(decl, `${type} names ${constant}, which is not declared as a tone`);
+  return decl![1]!;
+}
+
+/** The identifier an entry is written with, or null when it is a literal. */
+function typeToneConstantOf(type: string): string | null {
+  const block = TONES.slice(
+    TONES.indexOf("const TYPE_TONE"),
+    TONES.indexOf("export function searchTypeTone"),
+  );
+  const m = block.match(new RegExp(`${type}:\\s*("?)([\\w]+)\\1,`));
+  assert.ok(m, `TYPE_TONE has no entry for ${type}`);
+  return m![1] === '"' ? null : m![2]!;
 }
 
 function kindToneOf(kind: string): string {
@@ -77,8 +103,28 @@ test("2. a Report reads orange", () => {
   assert.notEqual(typeToneOf("REPORT"), "amber");
 });
 
-test("3. Evidence reads orange", () => {
-  assert.equal(typeToneOf("EVIDENCE"), "orange");
+test("3. Evidence reads the SAME blue as a Case, from the same constant", () => {
+  // Evidence used to wear the REPORT orange, which made a piece of evidence and
+  // the report ABOUT it read as one category. They are the two halves of a
+  // record's life.
+  assert.equal(typeToneOf("EVIDENCE"), "blue");
+  assert.equal(typeToneOf("EVIDENCE"), typeToneOf("CASE"));
+
+  // ONE constant, not two literals that happen to agree today. A second `"blue"`
+  // would render identically and drift the moment either is touched.
+  const evidence = typeToneConstantOf("EVIDENCE");
+  assert.ok(evidence, "EVIDENCE must name the shared constant, not a literal");
+  assert.equal(
+    evidence,
+    typeToneConstantOf("CASE"),
+    "Case and Evidence must resolve through the same constant",
+  );
+
+  // Orange is left to REPORT alone, so it now means one thing.
+  const orange = ["CASE", "REPORT", "EVIDENCE", "PACKAGE", "NOTE"].filter(
+    (t) => typeToneOf(t) === "orange",
+  );
+  assert.deepEqual(orange, ["REPORT"], "orange must classify exactly one type");
 });
 
 test("4. a Package reads purple", () => {
@@ -151,8 +197,14 @@ test("7. the default Open action is purple-outlined, not a solid button", () => 
   );
 });
 
-test("8. Open evidence is orange-outlined, matching the record it opens", () => {
+test("8. the Open action takes the tone of the record it opens", () => {
+  // Derived from the SAME `searchTypeTone` the label uses, so the control and
+  // the label can never disagree about what kind of record this is. Since
+  // EVIDENCE moved to blue this reaches REPORT — the test names the mechanism,
+  // not one type, so a future remapping does not silently make it vacuous.
   assert.match(PAGE, /searchTypeTone\(row\.documentType\) === "orange"\s*\n?\s*\? "app-secondary-action--orange"/);
+  assert.equal(typeToneOf("REPORT"), "orange");
+  assert.notEqual(typeToneOf("EVIDENCE"), "orange");
   assert.match(
     PRIM_CSS,
     /\.app-secondary-action--orange \{[\s\S]{0,200}?--orange-ink/,
@@ -182,37 +234,66 @@ function token(name: string): string {
   return m![1]!.toUpperCase();
 }
 
-test("8c. the classification orange is LIGHTER than it was, and still AA on white", () => {
-  const orange = token("orange-ink");
+/**
+ * THE ONE RECORDED CONTRAST EXCEPTION.
+ *
+ * The classification orange is taken from the design reference rather than
+ * derived from a contrast target, and white on it does NOT meet WCAG AA. That
+ * is a decision, so it is pinned here as a value: the tests below state the
+ * measured ratio instead of asserting a threshold it does not meet, and any
+ * OTHER fill that fails still fails. Changing the token changes the measurement
+ * and breaks 8c, which forces the decision to be made again rather than
+ * inherited silently.
+ */
+const APPROVED_LOW_CONTRAST_FILL = {
+  token: "orange-fill",
+  value: "#F97316",
+  measured: 2.8,
+} as const;
 
-  // MEASURED, not judged by eye. White label text on a solid fill is normal-size
-  // text, so it needs 4.5:1 — an 11px uppercase label is not "large text".
+test("8c. the classification orange is the exact reference fill, and its contrast is recorded as measured", () => {
+  const orange = token(APPROVED_LOW_CONTRAST_FILL.token);
+
+  // The EXACT fill sampled from the design reference — not an approximation
+  // chosen to clear a threshold, which is what the two previous values were.
+  assert.equal(
+    orange,
+    APPROVED_LOW_CONTRAST_FILL.value,
+    "the classification orange must be the exact reference fill",
+  );
+
+  // MEASURED, and reported as what it is. White on #F97316 is ~2.80:1, below
+  // the 4.5:1 AA floor for normal-size text. This asserts the measurement, not
+  // a pass: if the token moves, this number moves and the test fails.
   const ratio = contrast(orange, "#FFFFFF");
   assert.ok(
-    ratio >= 4.5,
-    `white on ${orange} measures ${ratio.toFixed(3)}:1 — below WCAG AA 4.5:1`,
+    Math.abs(ratio - APPROVED_LOW_CONTRAST_FILL.measured) < 0.01,
+    `white on ${orange} measures ${ratio.toFixed(3)}:1, not the recorded ${APPROVED_LOW_CONTRAST_FILL.measured}:1`,
   );
+  assert.ok(ratio < 4.5, "the recorded exception is no longer an exception — re-check 8d");
 
-  // Lighter than the value it replaced. #C2410C measured 5.18:1 and read closer
-  // to brown than orange as a solid fill.
+  // The exception is BOUNDED. It buys a fill, not a licence: the readable
+  // orange used for TEXT is a separate token and still has to be AA.
+  const ink = token("orange-ink");
+  assert.notEqual(ink, orange, "the ink and the fill must stay separate tokens");
   assert.ok(
-    luminance(orange) > luminance("#C2410C"),
-    `${orange} is not lighter than the #C2410C it replaced`,
+    contrast(ink, "#FFFFFF") >= 4.5,
+    `orange TEXT (${ink}) is not AA on white`,
   );
 
-  // Still ORANGE. Amber means caution and a record type is not a caution, so the
-  // green channel must stay in the orange ramp rather than drifting toward
+  // Still ORANGE. Amber means caution and a record type is not a caution, so
+  // the green channel must stay in the orange ramp rather than drifting toward
   // `--warning` (G/R ≈ 0.62) or toward red (G/R ≈ 0.2).
   const r = parseInt(orange.substr(1, 2), 16);
   const g = parseInt(orange.substr(3, 2), 16);
   const ratioGR = g / r;
   assert.ok(
-    ratioGR > 0.3 && ratioGR < 0.42,
+    ratioGR > 0.3 && ratioGR < 0.5,
     `${orange} has left the orange ramp (G/R = ${ratioGR.toFixed(3)})`,
   );
 });
 
-test("8d. every filled type label pairs a canonical token with white, and every pair is AA", () => {
+test("8d. every filled type label pairs a canonical token with white, and only the recorded fill is not AA", () => {
   // The fills were private literals — including a `#C2570C` that existed
   // nowhere else and differed from `--orange-ink`, so "one type-tone mapping"
   // was one mapping in TypeScript and a second, drifted one in CSS.
@@ -221,19 +302,32 @@ test("8d. every filled type label pairs a canonical token with white, and every 
   )];
   assert.equal(fills.length, 7, "every tone must declare a filled pairing");
 
+  const exceptions: string[] = [];
   for (const [, tone, tokenName, ink] of fills) {
     assert.equal(ink, "#FFFFFF", `${tone} does not use white text`);
     const ratio = contrast(token(tokenName!), ink!);
+    if (tokenName === APPROVED_LOW_CONTRAST_FILL.token) {
+      exceptions.push(tone!);
+      continue;
+    }
     assert.ok(
       ratio >= 4.5,
       `${tone} (--${tokenName}) measures ${ratio.toFixed(3)}:1 against white`,
     );
   }
 
+  // EXACTLY ONE. A list of approved exceptions that can grow is not an
+  // exception, so the count is asserted rather than the membership.
+  assert.deepEqual(
+    exceptions,
+    ["orange"],
+    "only the recorded classification orange may miss AA",
+  );
+
   // No private literal survives as a fill.
   assert.doesNotMatch(
     CSS,
-    /.search-type-badge[data-tone="w+"] { background: #[0-9A-Fa-f]{6}/,
+    /\.search-type-badge\[data-tone="\w+"\] \{ background: #[0-9A-Fa-f]{6}/,
   );
 });
 

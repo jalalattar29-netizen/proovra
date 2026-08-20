@@ -709,14 +709,16 @@
  *
  * Each pairing was measured against #FFFFFF for WCAG AA at normal text size:
  *   blue   --info          5.17:1
- *   orange --orange-ink    4.55:1
+ *   orange --orange-fill   2.80:1  — see the token's note: an approved
+ *                                    visual-reference decision, recorded as
+ *                                    measured rather than as a pass
  *   indigo --accent-600    7.11:1
  *   green  --success-ink   5.29:1
  *   red    --error         4.83:1
  *   amber  --warning-ink   5.02:1
  *   slate  --ink-secondary 7.58:1 */
 .search-type-badge[data-tone="blue"] { background: var(--info); color: #FFFFFF; }
-.search-type-badge[data-tone="orange"] { background: var(--orange-ink); color: #FFFFFF; }
+.search-type-badge[data-tone="orange"] { background: var(--orange-fill); color: #FFFFFF; }
 .search-type-badge[data-tone="indigo"] { background: var(--accent-600); color: #FFFFFF; }
 .search-type-badge[data-tone="green"] { background: var(--success-ink); color: #FFFFFF; }
 .search-type-badge[data-tone="red"] { background: var(--error); color: #FFFFFF; }
@@ -1419,4 +1421,79 @@
   .search-readiness-panel__actions > * {
     inline-size: 100%;
   }
+}
+
+/* ---- Match reasons ------------------------------------------------------ *
+ *
+ * Why the backend says this row matched. Compact filled-tint rectangles, on the
+ * same anatomy as the type label — content-sized, small radius, tight padding,
+ * one height — so a row carrying both "Matched title" and "Matched summary"
+ * cannot shift when the second appears.
+ *
+ * These were `.app-chip`: one neutral treatment for every reason, so a title
+ * hit and a summary hit were indistinguishable. Tone arrives as `data-match-tone`
+ * from `searchMatchReasonTone` — the one Search authority — so the row and the
+ * Inspector cannot colour the same reason differently.
+ *
+ * Colours are the Figma reference fills, sampled from the design rather than
+ * chosen here. MEASURED against their own backgrounds:
+ *
+ *   title    #7C3AED on #F5EEFF  5.04:1  — WCAG AA
+ *   summary  #2563EB on #DBEAFE  4.24:1  — BELOW AA (4.5:1)
+ *   neutral  #475569 on #F1F5F9  6.92:1  — WCAG AA
+ *
+ * The summary pair is recorded as a deliberate visual-reference decision, not
+ * as a passing measurement: the design is the authority for this label and the
+ * figure is stated rather than rounded up. The reason is never carried by
+ * colour alone — each label states its meaning in words — so the shortfall
+ * costs legibility margin, not information. Nothing else on this surface is
+ * relaxed to accommodate it. */
+.search-match-reason {
+  display: inline-flex;
+  align-items: center;
+  /* Content-sized, never stretched by a flex or grid parent. */
+  flex: 0 0 auto;
+  justify-self: start;
+  align-self: center;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  /* A rectangle, not a capsule — the same restrained radius the type label
+     uses, so the two read as one system. */
+  border-radius: 4px;
+  border: 1px solid transparent;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* TINT + FOREGROUND, per tone — the base above carries geometry only, the same
+   split `.search-type-badge` uses, so a tone can never move a label. Every
+   reason resolves to one of these through `searchMatchReasonTone`. */
+.search-match-reason[data-match-tone="title"] {
+  background: #F5EEFF;
+  color: #7C3AED;
+}
+
+.search-match-reason[data-match-tone="summary"] {
+  background: #DBEAFE;
+  color: #2563EB;
+}
+
+/* Neutral is the FALLBACK an unrecognised reason resolves to, so it is a real
+   declaration rather than whatever the base happens to paint.
+
+   Workflow and semantic share it deliberately: inventing a colour for a reason
+   nobody has designed is how a fifth vocabulary starts. They stay visually
+   distinct from title and summary, and each still states its meaning in
+   words. */
+.search-match-reason[data-match-tone="workflow"],
+.search-match-reason[data-match-tone="semantic"],
+.search-match-reason[data-match-tone="neutral"] {
+  background: #F1F5F9;
+  color: #475569;
 }

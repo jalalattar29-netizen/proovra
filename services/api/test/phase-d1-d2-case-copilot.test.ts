@@ -260,10 +260,15 @@ describe("eligibility is one authority, enforced server-side", () => {
       resolve(REPO_ROOT, "services/api/src/routes/ai-case.routes.ts"),
       "utf8",
     );
-    const block = src.slice(
-      src.indexOf('code: "evidence_not_analyzable"'),
-      src.indexOf("// Stale-version rejection."),
-    );
+    const start = src.indexOf('code: "evidence_not_analyzable"');
+    const end = src.indexOf("STALE-VERSION REJECTION", start);
+    // ASSERT THE BOUNDS. This previously anchored on a comment that was later
+    // reworded: `indexOf` returned -1, `slice` ran to the end of the file, and
+    // the test failed on tenancy words a thousand lines away. An unfound anchor
+    // must fail as an unfound anchor, not as the thing being measured.
+    expect(start, "the refusal block was not found").toBeGreaterThan(0);
+    expect(end, "the block's end anchor was not found").toBeGreaterThan(start);
+    const block = src.slice(start, end);
     expect(block).toMatch(/evidenceId: x\.id/);
     expect(block).toMatch(/reason:/);
     expect(block).not.toMatch(/teamId|workspace|membership/);

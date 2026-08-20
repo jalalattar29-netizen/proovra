@@ -48,7 +48,9 @@ import {
   buildCopilotIdempotencyKey,
   copilotIneligibilityReason,
   evaluateCopilotEvidenceEligibility,
+  evidenceSelectionVersionLabel,
   type CopilotEligibility,
+  type EvidenceSelectionVersion,
 } from "@proovra/shared";
 
 import { apiFetch, ApiError } from "../../lib/api";
@@ -60,7 +62,15 @@ export type CaseCopilotEvidence = {
   id: string;
   title: string;
   type: string;
-  version: number;
+  /**
+   * The canonical selection/concurrency version, exactly as projected.
+   *
+   * `null` = no verification package yet. `undefined` = the projection did not
+   * carry one, which is a REFUSAL — the previous shape was `number` and every
+   * caller reached it through a `?? 0`, so a record the server knew as v2
+   * arrived here as v0 and was rejected as concurrently changed.
+   */
+  version: EvidenceSelectionVersion | undefined;
   status: string;
   /** `EvidenceLifecycleState`. Absent on an older projection. */
   lifecycleState?: string | null;
@@ -194,6 +204,10 @@ export function CaseCopilotPanel({
           // the case's own evidence.
           caseLinked: e.caseLinked,
           stale: e.stale,
+          // FAIL CLOSED on a version this panel cannot determine, rather than
+          // sending a guess the route will refuse.
+          selectionVersion: e.version,
+          selectionVersionKnown: true,
         }) as CopilotEligibility,
       })),
     [linkedEvidence],
@@ -243,8 +257,13 @@ export function CaseCopilotPanel({
     setState({ kind: "loading" });
 
     const ids = selectedList.map((e) => e.id);
-    const versions: Record<string, number> = {};
-    for (const e of selectedList) versions[e.id] = e.version;
+    // Only records whose version is KNOWN reach here — eligibility refuses the
+    // rest — so every snapshot is a real projected value, including `null` for
+    // a record with no verification package yet.
+    const versions: Record<string, number | null> = {};
+    for (const e of selectedList) {
+      if (e.version !== undefined) versions[e.id] = e.version;
+    }
 
     try {
       const res = (await apiFetch(`/v1/ai/case/${caseId}/copilot`, {
@@ -397,13 +416,20 @@ export function CaseCopilotPanel({
                   </span>
                 </label>
                 {/*
-                  The version is CONTRACT data an operator can act on only when
-                  a package exists. `v0` said "no package yet" in a form nobody
-                  could read, so it is stated in words and kept in full for a
-                  screen reader rather than deleted.
+                  The version is CONTRACT data, and it is now the REAL one.
+                  Every record used to read `v0` — including records the same
+                  page reported as "Package ready" — because the projection never
+                  carried the field and the client defaulted it to zero. The
+                  label is derived from the shared authority so "no package yet"
+                  and "version unavailable" can never render as the same thing.
                 */}
-                <span className="case-copilot__row-version" data-case-copilot-version={e.version}>
-                  {e.version > 0 ? `Package v${e.version}` : "No package yet"}
+                <span
+                  className="case-copilot__row-version"
+                  data-case-copilot-version={
+                    e.version === undefined ? "unknown" : String(e.version)
+                  }
+                >
+                  {evidenceSelectionVersionLabel(e.version)}
                 </span>
               </li>
             );

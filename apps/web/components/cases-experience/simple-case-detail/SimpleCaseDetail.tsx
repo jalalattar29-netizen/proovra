@@ -389,7 +389,16 @@ export function SimpleCaseDetail({
               id: it.id,
               title: getDisplayTitle(it),
               type: (it as { type?: string }).type ?? "EVIDENCE",
-              version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
+              // THE CANONICAL SELECTION VERSION, carried as projected.
+              //
+              // This was `(it as {...}).verificationPackageVersion ?? 0` — a
+              // cast through a field the DTO did not declare, so it always read
+              // `undefined` and always fabricated `0`. The route compared that
+              // 0 against the real version and refused every package-ready
+              // record as "changed while you were choosing". The cast is gone
+              // because the field is real now, and the `?? 0` is gone because a
+              // missing version must fail closed, not become a zero.
+              version: it.verificationPackageVersion,
               status: (it as { status?: string }).status ?? "",
               // ELIGIBILITY IS DERIVED FROM PERSISTED FIELDS, so the fields it
               // reads are carried rather than defaulted. `lifecycleState` was

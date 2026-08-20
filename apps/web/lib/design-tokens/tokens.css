@@ -93,15 +93,30 @@
   --orange-050: #FFF7ED;
   --orange-200: #FED7AA;
   --orange-500: #EA580C;
-  /* LIGHTENED 2026-08-20. #C2410C measured 5.18:1 on white — comfortably AA,
-     and visibly heavy as a solid fill behind white label text: a REPORT chip
-     read closer to brown than to orange. #D0480E is 18% lighter in relative
-     luminance, holds the same G/R ratio (0.35) so it stays in the orange ramp
-     rather than drifting to red or amber, and measures 4.55:1 on white — AA
-     for normal-size text with margin. Chosen by evaluating the ramp
-     programmatically, not by eye; #D04A0C, the obvious neighbour, measures
-     exactly 4.500 and is not safely AA. */
-  --orange-ink: #D0480E;
+  /* THE CLASSIFICATION ORANGE, sampled from the design reference.
+     #F97316 is the exact fill the Figma REPORT label uses. It replaces two
+     earlier attempts — #C2410C, which read closer to brown as a solid fill,
+     and #D0480E, which was chosen to hold WCAG AA and was still visibly darker
+     than the design.
+
+     MEASURED HONESTLY: white on #F97316 is 2.80:1. That is BELOW the 4.5:1 AA
+     threshold for normal-size text, and it is recorded here as an approved
+     visual-reference decision rather than presented as a pass. The design is
+     the authority for this classification label; the measurement is stated so
+     the trade is visible rather than discovered later.
+
+     The exposure is bounded to the filled TYPE label, whose word is a
+     redundant restatement of information the row already carries in words.
+     Nothing else is relaxed.
+
+     A FILL AND AN INK ARE DIFFERENT JOBS, which is why they are now different
+     tokens. `--orange-ink` had been lightened to #D0480E only to serve this
+     badge; with the badge on its own token it returns to #C2410C — 5.18:1 on
+     white — for its actual job, orange TEXT on a light surface in
+     `.app-secondary-action--orange`, its only consumer, whose own fallback
+     literal is already #C2410C. */
+  --orange-fill: #F97316;
+  --orange-ink: #C2410C;
 
   /* ------------------------------------------------------------------
    * LAYERS

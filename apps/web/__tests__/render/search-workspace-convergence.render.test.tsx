@@ -1101,10 +1101,14 @@ describe("polish — the recovery action has its own row", () => {
 // ===========================================================================
 
 describe("polish — the type label is one authority", () => {
+  // EVIDENCE moved off the REPORT orange: a piece of evidence and the report
+  // ABOUT it were reading as one category. Evidence now takes the SAME blue as
+  // a Case — the two halves of a record's life — and orange is left to REPORT
+  // alone, where it means one thing.
   const TYPES: Array<[string, string]> = [
     ["CASE", "blue"],
+    ["EVIDENCE", "blue"],
     ["REPORT", "orange"],
-    ["EVIDENCE", "orange"],
     ["PACKAGE", "indigo"],
     ["NOTE", "slate"],
   ];
@@ -1137,6 +1141,23 @@ describe("polish — the type label is one authority", () => {
       expect(inspectorBadge.className).toContain("search-type-badge");
       cleanup();
     }
+  });
+
+  it("23b. a Case and a piece of Evidence render the identical label treatment", async () => {
+    // Rendered, not read from the mapping table: the point is that the two
+    // reach the DOM with the same class and the same tone, so no per-type
+    // override can make them differ while the table still says they agree.
+    const seen: Array<{ className: string; tone: string | null }> = [];
+    for (const type of ["CASE", "EVIDENCE"]) {
+      await mountRendered("organization", { rows: [makeRow({ documentType: type })] });
+      const badge = document.querySelector(
+        "[data-search-result-type]",
+      ) as HTMLElement;
+      seen.push({ className: badge.className, tone: badge.getAttribute("data-tone") });
+      cleanup();
+    }
+    expect(seen[0]!.tone).toBe("blue");
+    expect(seen[1]).toEqual(seen[0]);
   });
 
   it("26. an unknown type falls back to the neutral label, not to the last branch", async () => {

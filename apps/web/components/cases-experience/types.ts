@@ -172,6 +172,16 @@ export type MatterWorkspaceEnvelope = {
         verificationStatus: string | null;
         lifecycleState: string | null;
         createdAt: string;
+        /**
+         * The canonical selection/concurrency version, from
+         * `Evidence.verificationPackageVersion`.
+         *
+         * `null` = no verification package yet. The Case Copilot compares this
+         * against the persisted value; it was absent from this type entirely,
+         * so the client read `undefined` through a cast and defaulted it to
+         * `0` — which the route then rejected as a concurrent change.
+         */
+        verificationPackageVersion: number | null;
         reportReady: boolean;
         packageReady: boolean;
         /**

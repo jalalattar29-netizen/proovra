@@ -147,6 +147,15 @@ export type MatterWorkspaceEnvelope = {
         verificationStatus: string | null;
         lifecycleState: string | null;
         createdAt: string;
+        /**
+         * The canonical selection/concurrency version.
+         *
+         * `null` = no verification package exists yet. Never `0` as a stand-in
+         * for "unknown": the Copilot compares this against the persisted value,
+         * and a fabricated zero is what produced a false "record changed"
+         * rejection on every package-ready record.
+         */
+        verificationPackageVersion: number | null;
         reportReady: boolean;
         packageReady: boolean;
         /**
@@ -657,6 +666,15 @@ async function runEvidenceBoard(
         verificationStatus: true,
         lifecycleState: true,
         createdAt: true,
+        // THE SELECTION/CONCURRENCY VERSION.
+        //
+        // The AI routes have always answered "has this evidence changed since
+        // the operator selected it?" with `verificationPackageVersion`. This
+        // projection never read it, so the Case Copilot received `undefined`,
+        // fabricated `0` through a `?? 0`, and the route compared that 0
+        // against a real version of 2 — reporting a concurrent change that
+        // never happened, on every package-ready record.
+        verificationPackageVersion: true,
         _count: {
           select: {
             parts: true,
@@ -707,6 +725,10 @@ async function runEvidenceBoard(
           : null,
         lifecycleState: e.lifecycleState ? String(e.lifecycleState) : null,
         createdAt: e.createdAt.toISOString(),
+        // Carried as the nullable value it is. `null` means "no verification
+        // package yet" — a legitimate, stable state — and is NOT the same
+        // statement as version 0. Collapsing the two is the defect.
+        verificationPackageVersion: e.verificationPackageVersion ?? null,
         ...deriveCanonicalArtifactAvailability({
           reportAvailable: e._count.reports > 0,
           verificationPackageAvailable: e._count.verificationPackages > 0,
