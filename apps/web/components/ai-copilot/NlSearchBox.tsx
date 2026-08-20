@@ -4,6 +4,12 @@
  * Phase F1 (UI) — Enterprise natural-language search box.
  * Deterministic NL→filter translation server-side; results are links into
  * existing authorized surfaces. Unsupported filters are refused honestly.
+ *
+ * REDESIGN/SEARCH — this component is rendered by exactly one surface, the
+ * /search console, so it is part of that console's presentation and is
+ * described by `search.css` (`.search-nl*`) alongside it. Its own fourteen
+ * inline style objects are deleted; the one class it named that nothing
+ * declared (`.app-link`) is replaced by a rule that actually exists.
  */
 import { useState } from "react";
 import Link from "next/link";
@@ -42,14 +48,20 @@ export function NlSearchBox() {
 
   if (!teamId) return null;
   return (
-    <section className="app-panel app-panel__body" style={{ marginBottom: 16 }} aria-label="Ask in plain language">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <h3 style={{ margin: 0 }}>Ask in plain language</h3>
+    <section
+      className="app-panel app-panel__body search-nl"
+      aria-label="Ask in plain language"
+      data-search-nl
+    >
+      <div className="search-nl__head">
+        <h2 className="search-nl__title">Ask in plain language</h2>
+        {/* The translation is deterministic and the ranking is advisory — the
+            same statement the console's own header makes. */}
         <span className="app-chip">Deterministic filters · Advisory</span>
       </div>
       <form
         onSubmit={(e) => { e.preventDefault(); void run(query); }}
-        style={{ display: "flex", gap: 8, marginTop: 8 }}
+        className="search-nl__form"
       >
         <input
           value={query}
@@ -57,18 +69,30 @@ export function NlSearchBox() {
           placeholder='e.g. "Find TSA pending" or "Show pending reviews"'
           aria-label="Natural language search"
           maxLength={300}
-          style={{ flex: 1, padding: "8px 10px" }}
+          className="app-form-input"
         />
         <button className="app-primary-action" type="submit" disabled={state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Searching…" : "Search"}
         </button>
       </form>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+      <div className="search-nl__examples">
         {EXAMPLES.map((e) => (
-          <button key={e} className="app-secondary-action" style={{ fontSize: 12 }} onClick={() => { setQuery(e); void run(e); }}>{e}</button>
+          <button
+            key={e}
+            type="button"
+            className="app-secondary-action search-nl__example"
+            onClick={() => { setQuery(e); void run(e); }}
+          >
+            {e}
+          </button>
         ))}
       </div>
-      {state.kind === "error" ? <div className="app-alert app-alert--warn" style={{ marginTop: 10 }} role="alert">Search is unavailable right now. Standard search below remains fully functional.</div> : null}
+      {state.kind === "error" ? (
+        <div className="app-alert app-alert--warn" role="alert">
+          Search is unavailable right now. Standard search below remains fully
+          functional.
+        </div>
+      ) : null}
       <div aria-live="polite">
         {state.kind === "done" ? <Results res={state.res} /> : null}
       </div>
@@ -77,22 +101,24 @@ export function NlSearchBox() {
 }
 
 function Results({ res }: { res: NlResponse }) {
+  // A refusal is the server declining to translate the question, not a
+  // failure to find records. Both are stated in the server's own bounded words.
   if (res.kind === "REFUSED" || res.kind === "UNSUPPORTED_FILTER") {
-    return <div className="app-alert" style={{ marginTop: 10 }}>{res.message}</div>;
+    return <div className="app-alert">{res.message}</div>;
   }
   if (res.rows.length === 0) {
-    return <div className="app-alert" style={{ marginTop: 10 }}>No matching records.</div>;
+    return <div className="app-alert">No matching records.</div>;
   }
   return (
-    <div style={{ marginTop: 10 }}>
-      <p style={{ fontSize: 12, opacity: 0.65, margin: "0 0 6px" }}>
+    <div className="search-nl">
+      <p className="search-nl__meta">
         {res.kind === "STATE_QUERY" ? `Operational filter applied · ${res.total} total` : `Text search · ${res.total} shown`}
       </p>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+      <ul className="search-nl__list">
         {res.rows.map((r) => (
-          <li key={`${r.route}:${r.id}`} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}>
+          <li key={`${r.route}:${r.id}`} className="search-nl__row">
             <span className="app-chip">{r.badge}</span>
-            <Link href={r.route} className="app-link">{r.title}</Link>
+            <Link href={r.route} className="search-nl__link">{r.title}</Link>
           </li>
         ))}
       </ul>

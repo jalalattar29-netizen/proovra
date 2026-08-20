@@ -7,8 +7,13 @@
  * surface each left a residue that the next one had to find by reading three
  * thousand lines. This file makes the end state assertable.
  *
- * It measures the console — `app/(app)/search/**` plus `components/search/**`,
- * the panel that only this route renders — against six properties:
+ * It measures the console — every module the route OWNS: `app/(app)/search/**`,
+ * plus the two components no other surface renders (`components/search/` and
+ * the plain-language box). Ownership is by reachability and sole consumption,
+ * not by directory: the plain-language box lives under `components/ai-copilot/`
+ * and was missed by a directory-scoped sweep precisely because of that.
+ *
+ * Six properties:
  *
  *   1. no presentation objects and no presentation `style={…}` sites,
  *   2. no private colour palette; colour comes from tokens and primitives,
@@ -32,6 +37,12 @@ const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const WEB = resolve(REPO_ROOT, "apps/web");
 const ROUTE = resolve(WEB, "app/(app)/search");
 const PANEL_DIR = resolve(WEB, "components/search");
+/**
+ * Rendered by the Search page and by nothing else, so its presentation is this
+ * console's to own. Kept as an explicit entry rather than a directory sweep —
+ * that is exactly the shape of file a directory sweep misses.
+ */
+const NL_BOX = resolve(WEB, "components/ai-copilot/NlSearchBox.tsx");
 const CSS_PATH = join(ROUTE, "search.css");
 
 function read(p: string): string {
@@ -52,6 +63,7 @@ function walk(dir: string, match: RegExp): string[] {
 const CONSOLE_FILES = [
   ...walk(ROUTE, /\.tsx?$/),
   ...walk(PANEL_DIR, /\.tsx?$/),
+  NL_BOX,
 ];
 const CONSOLE_SOURCE = CONSOLE_FILES.map(read).join("\n");
 
@@ -267,5 +279,67 @@ test("a failure is not reported as a count", () => {
   assert.match(
     page,
     /\{searchFailure \? null : <span>\{filterSummary\}<\/span>\}/,
+  );
+});
+
+// ===========================================================================
+// 8. Guarantees the re-baselining review found unpinned
+//
+// Reviewing the twelve re-pinned assertions surfaced three load-bearing
+// properties of this console that no suite asserted — two of them in code
+// this migration edited. They are pinned here at the guarantee itself, not
+// at the markup that happens to express it.
+// ===========================================================================
+
+test("a superseded in-flight search cannot overwrite newer state", () => {
+  // Every request-issuing effect closes over a `cancelled` flag and returns a
+  // cleanup that sets it. Without this, a slow response for an ABANDONED
+  // query lands after a newer one and silently replaces the visible results —
+  // and, since this migration, would also resurrect a cleared failure state.
+  const page = read(join(ROUTE, "page.tsx"));
+  const effects = [...page.matchAll(/let cancelled = false;/g)];
+  assert.ok(
+    effects.length >= 3,
+    `expected the search, saved-views, semantic-status and relationships ` +
+      `effects to guard against a superseded response; found ${effects.length}`,
+  );
+  // The guard is armed on teardown…
+  assert.match(page, /return \(\) => \{\s*\n?\s*cancelled = true;\s*\n?\s*\};/);
+  // …and every handler in the search effect actually reads it before writing.
+  const searchEffect = page.slice(page.indexOf("// Run query on filter change."));
+  const block = searchEffect.slice(0, searchEffect.indexOf("// Relationships for"));
+  assert.ok((block.match(/if \(cancelled\) return;/g) ?? []).length >= 2);
+  assert.match(block, /if \(!cancelled\) setLoading\(false\)/);
+});
+
+test("records the workspace withheld are counted, never listed", () => {
+  // The API reports how many rows governance and visibility removed. Showing
+  // the COUNT is the honest statement that something exists the actor may not
+  // see; showing the rows would defeat the rule that produced the count.
+  const page = read(join(ROUTE, "page.tsx"));
+  assert.match(page, /filteredByVisibility[\s\S]{0,120}?withheld by visibility/);
+  assert.match(page, /filteredByGovernance[\s\S]{0,120}?withheld by governance/);
+  // The withheld figures reach the header only as a summary string; no branch
+  // renders rows from them.
+  assert.match(page, /<span data-search-withheld>\{withheldSummary\}<\/span>/);
+  assert.doesNotMatch(page, /filteredBy\w+\.map\(/);
+});
+
+test("enterprise-only pivots are gated on server-projected access, never a client plan", () => {
+  // The Inspector links out to /workflows and /investigation/*, which are
+  // ENTERPRISE_ONLY surfaces. The gate is the server-projected
+  // enterprise-experience boolean; deriving it from a plan NAME in the client
+  // is how a self-serve user gets shown a link that lands on a bounded 404.
+  const page = read(join(ROUTE, "page.tsx"));
+  assert.match(page, /const enterpriseSurfaces = useEnterpriseSurfaceAccess\(\);/);
+  assert.match(page, /canSeeWorkflows = enterpriseSurfaces/);
+  assert.match(page, /canSeeInvestigation = enterpriseSurfaces/);
+  // Both pivots are actually behind the gate, not merely near it.
+  assert.match(page, /canSeeInvestigation && \(row\.evidenceId \|\| row\.caseId\) \? \(/);
+  assert.match(page, /canSeeWorkflows \? \(/);
+  // …and no plan name is compared anywhere in the console.
+  assert.doesNotMatch(
+    stripComments(CONSOLE_SOURCE),
+    /\b\w*[Pp]lan\w*\s*[=!]==\s*["'](FREE|PAYG|PRO|TEAM|ENTERPRISE)["']/,
   );
 });

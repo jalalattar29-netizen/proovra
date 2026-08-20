@@ -77,7 +77,10 @@ import {
 } from "./components/SearchStates";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
-import { SearchGuidancePanel } from "./components/SearchGuidance";
+import {
+  SearchGuidancePanel,
+  type SavedSearchEntry,
+} from "./components/SearchGuidance";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -1064,7 +1067,7 @@ function SearchInner() {
    * preserved as "not loaded / no authority" so the panel can say so rather
    * than rendering an empty list as if the operator had saved nothing.
    */
-  const savedViewEntries = useMemo(
+  const savedViewEntries = useMemo<readonly SavedSearchEntry[] | null>(
     () =>
       savedViews === null
         ? null

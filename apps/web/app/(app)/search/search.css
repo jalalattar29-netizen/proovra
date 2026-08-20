@@ -65,6 +65,108 @@
   white-space: nowrap;
 }
 
+/* ---- Plain-language box -------------------------------------------------- *
+ * Sits above the console proper. It is a DIFFERENT question — "what do I want
+ * to see" rather than "what words are in the record" — so it keeps its own
+ * panel rather than pretending to be a second search field. Its own presentation
+ * used to be fourteen inline objects, including an undeclared `.app-link` that
+ * styled nothing at all. */
+.search-nl {
+  display: grid;
+  gap: 8px;
+  margin-block-end: 16px;
+  min-inline-size: 0;
+}
+
+.search-nl__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.search-nl__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+}
+
+.search-nl__form {
+  display: flex;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.search-nl__form .app-form-input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.search-nl__examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+/* An example is a shortcut, not a primary action: it stays quieter than the
+   Search control it fills in. */
+.search-nl__example {
+  font-size: 12px;
+  min-block-size: 30px;
+  padding-inline: 10px;
+}
+
+/* What the server did with the question, stated before the rows it produced. */
+.search-nl__meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-ink-secondary);
+}
+
+.search-nl__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+
+.search-nl__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 4px;
+  min-inline-size: 0;
+}
+
+/* The result link had no rule at all — it carried an `.app-link` class that
+   nothing declares, so it rendered as a default browser link. */
+.search-nl__link {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-600, #6d28d9);
+  text-decoration: none;
+}
+
+.search-nl__link:hover {
+  text-decoration: underline;
+}
+
+.search-nl__link:focus-visible {
+  outline: none;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
 /* ---- The search form ---------------------------------------------------- */
 .search-form-panel {
   padding: 14px 16px;
