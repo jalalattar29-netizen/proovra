@@ -51,7 +51,7 @@ environment, and the collector deliberately refuses to fall back to
 
 ## 2. Release A — prerequisites and Expand/Repair · `SAFE_TO_APPLY_NOW`
 
-18 migrations. **No destructive statement. No pre-existing row is mutated.**
+19 migrations. **No destructive statement. No pre-existing row is mutated.**
 Every one is backward-compatible with the currently deployed build.
 
 | migration | class | safe before code deploy |
@@ -82,6 +82,7 @@ Every one is backward-compatible with the currently deployed build.
 | `20271127000000_org_membership_lifecycle_backfill` | BACKFILL | yes — states ACTIVE explicitly; invents no suspension, revocation or actor |
 | `20271129000000_automation_runtime_durability_expand` | EXPAND | yes — widens two VARCHAR(20) status columns to (32), adds nullable/defaulted fence + ambiguity columns and partial indexes, and WIDENS two status CHECKs. Widening a CHECK or a VARCHAR can never invalidate an existing row |
 | `20271130000000_automation_runtime_durability_backfill` | BACKFILL | yes — deterministic, re-runnable; leaves historical source-event ids NULL and historical RUNNING runs unresolved rather than inventing either |
+| `20271215000000_search_index_reconciliation_kind` | EXPAND | yes — one `ALTER TYPE … ADD VALUE IF NOT EXISTS` on `GovernanceReconciliationKind`. Idempotent, additive, and unread by the deployed build until the Search reconciliation code ships |
 | `email_password_auth` | EXPAND | yes — proven byte-identical no-op twin |
 
 > **PHASE 12 CORRECTIVE PASS §2/§3/§5.2 (2026-08-06).**

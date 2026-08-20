@@ -1045,6 +1045,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // the sealed-destination columns on `mfa_factors`). Not attributable to
       // Phase 32.7.2; permitted by name, like every entry above.
       "20271201000000_new058_verified_contact_factors",
+      // REDESIGN/SEARCH — adds SEARCH_INDEX to `GovernanceReconciliationKind`,
+      // so Search reconciliation claims the SAME per-workspace slot the
+      // governance families already use. One `ADD VALUE IF NOT EXISTS`; no
+      // table, no column, no security-event mapping. Not attributable to
+      // Phase 32.7.2; permitted by name, like every entry above.
+      "20271215000000_search_index_reconciliation_kind",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
