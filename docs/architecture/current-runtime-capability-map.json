@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
-    "TerminalWriters": 1212,
-    "ReachableSensitiveMutations": 1206,
-    "ClassifiedSensitiveMutations": 1206,
+    "TerminalWriters": 1213,
+    "ReachableSensitiveMutations": 1207,
+    "ClassifiedSensitiveMutations": 1207,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 6,
@@ -76,7 +76,7 @@
       "WORKSPACE": 45,
       "WORKSPACE_MEMBERSHIP_INVITATION": 62,
       "CASE": 85,
-      "EVIDENCE_CUSTODY_FINALIZATION": 285,
+      "EVIDENCE_CUSTODY_FINALIZATION": 286,
       "LEGAL_HOLD_RETENTION_DELETION": 49,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 47,
@@ -99,7 +99,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1084,
-      "JOB_ATTRIBUTED_REACHABLE": 116,
+      "JOB_ATTRIBUTED_REACHABLE": 117,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 9,
@@ -121,7 +121,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7729,
+      "METHOD_ON_VALUE": 7730,
       "UNRESOLVED_IDENTIFIER": 982
     },
     "MutationFixpointRounds": 9,
@@ -63299,6 +63299,41 @@
       ],
       "entryModules": [],
       "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/search-index-reconciler.ts#evidenceSearchDocument.deleteMany@247",
+      "terminalLocation": "services/worker/src/search-index-reconciler.ts:247",
+      "file": "services/worker/src/search-index-reconciler.ts",
+      "enclosingDeclaration": "sweepIneligibleDocuments",
+      "kind": "DATABASE",
+      "target": "evidenceSearchDocument",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/search-index-reconciler.ts#runSearchIndexReconciler",
+        "SWEEP services/worker/src/search-index-reconciler.ts#sweepIneligibleDocuments"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:921#startSearchIndexReconcilerScheduler"
+      ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
         "authorizationBeforeMutation": "NOT_APPLICABLE",

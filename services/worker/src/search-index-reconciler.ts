@@ -67,6 +67,12 @@ export type SearchIndexReconcileResult = {
   scanned: number;
   missing: number;
   stale: number;
+  /**
+   * Documents removed because their source row is gone or is no longer
+   * eligible. See `sweepIneligibleDocuments` — this direction was never
+   * scanned, so a destroyed or hard-deleted record stayed searchable.
+   */
+  removed: number;
   reEnqueued: number;
   collapsed: number;
   failed: number;
@@ -93,6 +99,7 @@ export async function runSearchIndexReconciler(
     scanned: 0,
     missing: 0,
     stale: 0,
+    removed: 0,
     reEnqueued: 0,
     collapsed: 0,
     failed: 0,
@@ -134,6 +141,7 @@ export async function runSearchIndexReconciler(
       batchSize,
     )) as Array<{ evidence_id: string; is_missing: boolean }>;
 
+    result.removed = await sweepIneligibleDocuments(batchSize);
     result.scanned = drifted.length;
 
     if (drifted.length === 0) {
@@ -186,6 +194,83 @@ export async function runSearchIndexReconciler(
 
   result.durationMs = Date.now() - startedAt;
   return result;
+}
+
+/**
+ * Remove index documents whose source row is gone or no longer eligible.
+ *
+ * WHY THIS EXISTS
+ *
+ * The drift scan walks `evidence LEFT JOIN evidence_search_documents` — it
+ * finds evidence WITHOUT a document, and documents that are STALE. It never
+ * walked the other direction, so nothing ever noticed a document whose source
+ * had disappeared or become ineligible. Two consequences, both live:
+ *
+ *   - A HARD-DELETED record left its document behind. Its title, subtitle,
+ *     summary and extracted OCR text stayed searchable indefinitely, for a
+ *     record the product had permanently deleted.
+ *   - A DESTROYED or PENDING_DESTRUCTION record did the same. Those states are
+ *     `deleteFromIndex: true` in the projection builder, but the builder only
+ *     runs when something re-indexes the row — and the drift scan EXCLUDES
+ *     ineligible rows, so nothing ever did.
+ *
+ * Governance decided those records are gone. Search was still answering for
+ * them.
+ *
+ * The delete is keyed by (team_id, document_type, source_id) — the same upsert
+ * key the projection writes — so it can only ever remove the document that
+ * belongs to the row it just judged ineligible.
+ */
+export async function sweepIneligibleDocuments(
+  batchSize: number,
+): Promise<number> {
+  // Bounded, like the drift scan: a workspace with a large destruction batch
+  // must not turn one tick into an unbounded delete.
+  const orphans = (await prisma.$queryRawUnsafe(
+    `SELECT d."team_id"      AS team_id,
+             d."document_type" AS document_type,
+             d."source_id"     AS source_id
+        FROM "evidence_search_documents" d
+        LEFT JOIN "evidence" e
+               ON e."id" = d."source_id"
+       WHERE d."document_type" = 'EVIDENCE'
+         AND (e."id" IS NULL OR NOT (${ELIGIBLE_SQL}))
+       LIMIT $1`,
+    batchSize,
+  )) as Array<{ team_id: string; document_type: string; source_id: string }>;
+
+  if (orphans.length === 0) return 0;
+
+  let removed = 0;
+  for (const row of orphans) {
+    try {
+      await prisma.evidenceSearchDocument.deleteMany({
+        where: {
+          teamId: row.team_id,
+          documentType: row.document_type,
+          sourceId: row.source_id,
+        },
+      });
+      removed += 1;
+    } catch (err) {
+      // One undeletable document must not abandon the rest of the sweep.
+      logger.warn(
+        {
+          reconciler: "search-index",
+          teamId: row.team_id,
+          sourceId: row.source_id,
+          err,
+        },
+        "worker.search_index.sweep_failed",
+      );
+    }
+  }
+
+  logger.info(
+    { reconciler: "search-index", removed },
+    "worker.search_index.swept_ineligible",
+  );
+  return removed;
 }
 
 /**
