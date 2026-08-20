@@ -33,3 +33,10 @@ export * from "./billing/seat-occupancy.js";
 // readiness contract.
 export * from "./config/secrets-authority.js";
 export * from "./config/secrets-recording-provider.js";
+
+// THE evidence analysis revision — the one server-owned answer to
+// "has anything that can affect this Copilot operation changed since the
+// operator selected this evidence?". It lives here rather than in
+// @proovra/shared precisely because the browser bundle cannot import this
+// package: a client may CARRY a revision and may never compute one.
+export * from "./evidence-analysis-revision.js";

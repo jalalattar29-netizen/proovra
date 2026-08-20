@@ -27,7 +27,16 @@ type CriteriaSetOption = {
 export type ReviewerCopilotEvidence = {
   id: string;
   title: string;
-  version: number;
+  /**
+   * THE CONCURRENCY AUTHORITY — opaque, server-computed, carried verbatim.
+   *
+   * This was `version: number`, and the one page that mounts this panel
+   * passed a literal `0` — so the field said nothing, and the route it fed
+   * had no concurrency guard to say it to. `undefined` means the projection
+   * carried no revision, which makes the record ineligible rather than
+   * analyzable against a guess.
+   */
+  analysisRevision: string | undefined;
   status: string;
   stale?: boolean;
 };
@@ -54,7 +63,7 @@ type RunResult = {
   versionMeta?: {
     outputSchemaVersion?: string;
     criteriaVersion?: string;
-    contextObjectVersions?: Array<{ id: string; version: number | null }>;
+    contextObjectRevisions?: Array<{ id: string; revision: string }>;
   };
 };
 
@@ -153,7 +162,13 @@ export function ReviewerCopilotPanel({
     return () => { cancelled = true; };
   }, [teamId]);
 
-  const selectable = evidence.filter((e) => !e.stale);
+  // A record with no revision cannot be compared, so it cannot be selected.
+  // FAIL CLOSED: the alternative is offering a selection the server will
+  // refuse, which is how an operator learns about a contract by being
+  // blocked by it.
+  const selectable = evidence.filter(
+    (e) => !e.stale && e.analysisRevision !== undefined,
+  );
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -221,6 +236,15 @@ export function ReviewerCopilotPanel({
 
   async function run() {
     if (selected.size === 0 || state.kind === "loading") return;
+    // Only records whose revision is known may be sent. A record without one
+    // cannot be compared, so sending it would ask the server to analyze
+    // something nobody can say is current.
+    const revisions: Record<string, string> = {};
+    for (const e of evidence) {
+      if (selected.has(e.id) && e.analysisRevision !== undefined) {
+        revisions[e.id] = e.analysisRevision;
+      }
+    }
     setState({ kind: "loading" });
     setReviews({});
     setRunId(null);
@@ -232,6 +256,9 @@ export function ReviewerCopilotPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           selectedEvidenceIds: [...selected],
+          // Every selected record's revision. The route requires one per id
+          // and refuses the run otherwise.
+          selectedEvidenceRevisions: revisions,
           criteriaVersion,
           ...(criteriaSetId ? { criteriaSetId } : {}),
           // BOUNDED, by the same authority the Case panel uses. This built
@@ -244,6 +271,9 @@ export function ReviewerCopilotPanel({
             scope: "reviewer",
             scopeId: reviewId,
             selection: [...selected],
+            // REVISION-AWARE, so a retry after a genuine change cannot be
+            // de-duplicated into the answer from the previous state.
+            revisions,
             qualifier: criteriaSetId || String(criteriaVersion),
           }),
         }),
@@ -286,11 +316,27 @@ export function ReviewerCopilotPanel({
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
             {evidence.map((e) => (
-              <li key={e.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", opacity: e.stale ? 0.5 : 1 }}>
-                <input type="checkbox" checked={selected.has(e.id)} disabled={e.stale} onChange={() => toggle(e.id)} aria-label={`Select ${e.title}`} />
+              <li key={e.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", opacity: e.stale || e.analysisRevision === undefined ? 0.5 : 1 }}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(e.id)}
+                  // A record with no revision cannot be compared, so it cannot
+                  // be selected. This rendered `v{e.version}` from a literal
+                  // `0` the page hard-coded, which said nothing about anything.
+                  disabled={e.stale || e.analysisRevision === undefined}
+                  onChange={() => toggle(e.id)}
+                  aria-label={`Select ${e.title}`}
+                />
                 <span style={{ flex: 1 }}>{e.title}</span>
-                <span className="app-chip">v{e.version}</span>
                 <span className="app-chip">{e.status}</span>
+                {/*
+                  The revision itself is never shown: it is a digest, and an
+                  operator cannot act on one. What they can act on is whether
+                  this record is currently comparable.
+                */}
+                {e.analysisRevision === undefined ? (
+                  <span className="app-chip app-chip--warn">state unavailable</span>
+                ) : null}
                 {e.stale ? <span className="app-chip app-chip--warn">stale</span> : null}
               </li>
             ))}
@@ -545,7 +591,7 @@ function ResultView(props: {
       <details>
         <summary style={{ cursor: "pointer", fontSize: 12, opacity: 0.7 }}>Technical details</summary>
         <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-          Output schema v{result.versionMeta?.outputSchemaVersion ?? "1"} · criteria {result.versionMeta?.criteriaVersion ?? "v1"} · analyzed {result.versionMeta?.contextObjectVersions?.length ?? 0} object version(s)
+          Output schema v{result.versionMeta?.outputSchemaVersion ?? "1"} · criteria {result.versionMeta?.criteriaVersion ?? "v1"} · analyzed {result.versionMeta?.contextObjectRevisions?.length ?? 0} record revision(s)
         </div>
       </details>
     </div>

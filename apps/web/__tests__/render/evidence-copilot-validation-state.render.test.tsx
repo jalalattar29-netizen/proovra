@@ -33,6 +33,11 @@ vi.mock("../../lib/api", () => ({
 import { EvidenceCopilotPanel } from "../../components/ai-copilot/EvidenceCopilotPanel";
 
 const EVIDENCE_ID = "ev-copilot-1";
+// A well-formed opaque revision, shaped like a real one: this product's
+// prefix plus a full-length base64url digest. The panel refuses to run
+// without one, which is the point — it was `evidenceVersion={2}`, built by
+// the caller with `?? 0`.
+const REVISION = "ear1_" + "e".repeat(43);
 const BOUNDARY =
   "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.";
 
@@ -67,7 +72,7 @@ describe("Evidence Copilot — validated result", () => {
       serverActions: [],
     });
 
-    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} evidenceVersion={2} />);
+    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} analysisRevision={REVISION} />);
     await act(async () => {
       runButton().click();
     });
@@ -93,7 +98,7 @@ describe("Evidence Copilot — a response that failed validation", () => {
       serverActions: [],
     });
 
-    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} evidenceVersion={2} />);
+    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} analysisRevision={REVISION} />);
     await act(async () => {
       runButton().click();
     });
@@ -127,7 +132,7 @@ describe("Evidence Copilot — a response that failed validation", () => {
       data: { status: "schema_error", validationCategory: "WRONG_TYPE", advisoryBoundary: BOUNDARY },
       serverActions: [],
     });
-    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} />);
+    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} analysisRevision={REVISION} />);
     await act(async () => {
       runButton().click();
     });
@@ -135,5 +140,22 @@ describe("Evidence Copilot — a response that failed validation", () => {
       expect(document.querySelector("[data-copilot-schema-error]")).not.toBeNull(),
     );
     expect(document.body.textContent).not.toMatch(/Operational summary/);
+  });
+});
+
+describe("Evidence Copilot — no analysis revision", () => {
+  it("FAILS CLOSED: without a revision nothing is sent at all", async () => {
+    // The panel used to be mounted with `evidenceVersion={...verificationPackageVersion ?? 0}`,
+    // so a record whose version the projection had not carried was analyzed
+    // against a fabricated zero. Now a record nobody can say is current is not
+    // sent: the request never leaves, so no budget is reserved and no provider
+    // is called, rather than the server refusing after the fact.
+    const before = calls.length;
+    render(<EvidenceCopilotPanel evidenceId={EVIDENCE_ID} />);
+    await act(async () => {
+      runButton().click();
+    });
+    expect(calls.length).toBe(before);
+    expect(document.querySelector("[data-copilot-schema-error]")).toBeNull();
   });
 });

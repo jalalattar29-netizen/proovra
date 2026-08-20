@@ -26,7 +26,17 @@ export async function persistCopilotRun(input: {
   workspacePolicyVersion: number;
   criteriaVersion?: string | null;
   processingMode: string;
-  selectedObjectVersions: Array<{ id: string; version: number | null }>;
+  /**
+   * WHICH REVISION of each selected record this run was grounded in.
+   *
+   * The column is `selected_object_versions_json` and stays that way — renaming
+   * a persisted column to match a type is a migration this contract does not
+   * need. What it holds changes: it recorded a package VERSION, which moved for
+   * one of the fourteen fields the model was shown, so a defensibility record
+   * claiming to pin the state behind a conclusion usually pinned a counter that
+   * had not moved at all.
+   */
+  selectedObjectRevisions: Array<{ id: string; revision: string }>;
   status: string;
   boundedResult?: unknown;
   validatedCitations?: unknown;
@@ -56,7 +66,7 @@ export async function persistCopilotRun(input: {
         workspacePolicyVersion: input.workspacePolicyVersion,
         criteriaVersion: input.criteriaVersion ?? null,
         processingMode: input.processingMode,
-        selectedObjectVersionsJson: input.selectedObjectVersions as never,
+        selectedObjectVersionsJson: input.selectedObjectRevisions as never,
         boundedResultJson: (input.boundedResult ?? undefined) as never,
         validatedCitationsJson: (input.validatedCitations ?? undefined) as never,
         status: input.status,

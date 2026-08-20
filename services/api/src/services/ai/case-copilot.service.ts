@@ -45,7 +45,15 @@ export type CaseCopilotResult = {
   advisoryBoundary: string;
   versionMeta: {
     outputSchemaVersion: string;
-    contextObjectVersions: Array<{ id: string; version: number | null }>;
+    /**
+     * WHICH REVISION of each selected record this conclusion was drawn from.
+     *
+     * This recorded `{ id, version: number | null }` — the package version —
+     * so the defensibility record claimed to pin the state behind a conclusion
+     * while storing a counter that moved for one of the fourteen fields the
+     * model was shown. An opaque revision pins all of them.
+     */
+    contextObjectRevisions: Array<{ id: string; revision: string }>;
   };
 };
 
@@ -63,6 +71,14 @@ export type RunCaseCopilotInput = {
   caseContext: CaseContext;
   /** D2 — explicitly selected, already-authorized evidence contexts. */
   selectedEvidence: EvidenceContext[];
+  /**
+   * The analysis revision of each selected record, by id.
+   *
+   * Supplied by the route from the FROZEN snapshot it validated, rather than
+   * re-derived here from the context object: the run must record the exact
+   * revision that was accepted, not one recomputed from a partial view.
+   */
+  selectionRevisions: Readonly<Record<string, string>>;
   policyDecision: AiPolicyDecision;
   provider: CaseCopilotProvider;
   resolveCitation: CitationResolver;
@@ -87,9 +103,9 @@ export async function runCaseCopilot(
 ): Promise<CaseCopilotResult> {
   const versionMeta = {
     outputSchemaVersion: COPILOT_SCHEMA_VERSION,
-    contextObjectVersions: input.selectedEvidence.map((e) => ({
+    contextObjectRevisions: input.selectedEvidence.map((e) => ({
       id: e.objectId ?? "",
-      version: e.objectVersion,
+      revision: input.selectionRevisions[e.objectId ?? ""] ?? "",
     })),
   };
 

@@ -86,7 +86,7 @@ function orchestrate(
   const result = runGroundedCopilot({
     surface: "EVIDENCE",
     teamId: "ws-1",
-    selectionVersions: [{ id: "ev-1", version: 2 }],
+    selectionRevisions: [{ id: "ev-1", revision: "ear1_" + "x".repeat(43) }],
     requireSelection: true,
     policyDecision: policyAllowed,
     callProvider,

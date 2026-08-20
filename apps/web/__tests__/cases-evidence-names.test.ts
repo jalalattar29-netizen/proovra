@@ -205,7 +205,16 @@ test("Backward compatibility — every previously-emitted evidence field is stil
   const start = MATTER_WORKSPACE_SERVICE.indexOf(
     "items: items.map((e) => ({",
   );
-  const block = MATTER_WORKSPACE_SERVICE.slice(start, start + 2400);
+  // BOUNDED BY THE REAL END OF THE MAP, not by a character count. This was
+  // `start + 2400`, so adding a field to the projection pushed the later
+  // assignments out of the window and the test failed as "no longer emitted"
+  // when they were emitted three lines further down. A window that measures
+  // length instead of structure reports the wrong thing the moment the code
+  // grows.
+  const end = MATTER_WORKSPACE_SERVICE.indexOf("      })),", start);
+  assert.ok(start > 0, "the evidence map was not found");
+  assert.ok(end > start, "the end of the evidence map was not found");
+  const block = MATTER_WORKSPACE_SERVICE.slice(start, end);
   for (const field of [
     "id: e.id",
     "type:",

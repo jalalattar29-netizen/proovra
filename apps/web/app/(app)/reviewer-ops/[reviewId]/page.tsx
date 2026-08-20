@@ -102,6 +102,13 @@ type WorkspaceResponse = {
     assignedToUserId: string | null;
   };
   allowedLifecycleTransitions: LifecycleState[];
+  /**
+   * The opaque analysis revision for this review's evidence.
+   *
+   * Optional so an older API degrades to a panel that offers no selection
+   * rather than one that selects records nobody can say are current.
+   */
+  analysisRevision?: string | null;
   // Phase B-2 — additive governance signals from the workspace
   // endpoint. Optional so older API versions degrade gracefully.
   governance?: {
@@ -117,6 +124,22 @@ type WorkspaceResponse = {
     requiresRedactionFieldCount: number;
   };
 };
+
+/**
+ * The reviewer-ops actions this page can POST.
+ *
+ * A CLOSED set, matching the registered
+ * `POST /v1/reviewer-ops/reviews/:workflowId/<action>` routes one-for-one. Typed
+ * as a union rather than `string` so the call site resolves statically: the
+ * route-consumer analyzer can then prove exactly which routes this page
+ * consumes instead of reporting an unresolvable dynamic call.
+ */
+type ReviewerOpsAction =
+  | "start"
+  | "approve"
+  | "reject"
+  | "pause"
+  | "request-info";
 
 // Phase 38.12 — wrap in canonical PageRouteGate.
 export default function ReviewWorkspacePage() {
@@ -194,14 +217,28 @@ function ReviewWorkspacePageInner() {
   }, [load]);
 
   const post = useCallback(
-    async (label: string, path: string, body: Record<string, unknown>) => {
+    // `action` is the TRAILING SEGMENT of a reviewer-ops action route, and the
+    // set is CLOSED — typed as the union rather than as `string`.
+    //
+    // Two things were wrong with `path: string`. It collided by name with the
+    // unrelated `const path` in `ReviewerCrossSurfaceLinks` below, and the
+    // route-consumer analyzer — which resolves interpolated calls by
+    // identifier — read that other variable's literal union and spliced the
+    // two into a route that does not exist. Renaming it removed the accident
+    // and exposed the real problem underneath: as a bare `string` this call
+    // site is genuinely unresolvable, so the analyzer cannot prove which
+    // routes the page consumes.
+    //
+    // The union fixes both, and makes a typo a compile error rather than a
+    // 404 discovered by a reviewer.
+    async (label: string, action: ReviewerOpsAction, body: Record<string, unknown>) => {
       if (!teamId) return;
       setBusy(label);
       try {
         await apiFetch(
           `/v1/reviewer-ops/reviews/${encodeURIComponent(
             workflowId,
-          )}/${path}`,
+          )}/${action}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -457,7 +494,10 @@ function ReviewWorkspacePageInner() {
             {
               id: p.evidenceId,
               title: `Evidence ${p.evidenceId.slice(0, 8)}…`,
-              version: 0,
+              // THE PROJECTED REVISION. This was a literal `0`, so the panel
+              // asserted a version it had never been told and the route it
+              // fed had no guard to check it against.
+              analysisRevision: data.analysisRevision ?? undefined,
               status: p.lifecycleState,
             },
           ]}

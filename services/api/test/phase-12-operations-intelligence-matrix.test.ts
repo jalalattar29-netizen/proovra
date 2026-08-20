@@ -647,7 +647,7 @@ vi.mock("../src/services/ai/reviewer-copilot-provider.js", () => ({
 }));
 
 vi.mock("../src/services/ai/reviewer-copilot.service.js", () => ({
-  runReviewerCopilot: async () => ({ status: "ok", data: {}, versionMeta: { contextObjectVersions: [] } }),
+  runReviewerCopilot: async () => ({ status: "ok", data: {}, versionMeta: { contextObjectRevisions: [] } }),
 }));
 
 import { opsRoutes } from "../src/routes/ops.routes.js";

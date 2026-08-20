@@ -20,6 +20,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { evidenceAnalysisRevisionFor } from "../ai/evidence-analysis-snapshot.service.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import {
   computeCaseRisk,
@@ -156,6 +157,13 @@ export type MatterWorkspaceEnvelope = {
          * rejection on every package-ready record.
          */
         verificationPackageVersion: number | null;
+        /**
+         * The OPAQUE analysis revision, bound to this case.
+         *
+         * The client carries it back with a Copilot selection and never reads
+         * it. The server recomputes and compares.
+         */
+        analysisRevision: string;
         reportReady: boolean;
         packageReady: boolean;
         /**
@@ -666,20 +674,38 @@ async function runEvidenceBoard(
         verificationStatus: true,
         lifecycleState: true,
         createdAt: true,
-        // THE SELECTION/CONCURRENCY VERSION.
+        // EVERY FIELD THE ANALYSIS REVISION COVERS.
         //
-        // The AI routes have always answered "has this evidence changed since
-        // the operator selected it?" with `verificationPackageVersion`. This
-        // projection never read it, so the Case Copilot received `undefined`,
-        // fabricated `0` through a `?? 0`, and the route compared that 0
-        // against a real version of 2 — reporting a concurrent change that
-        // never happened, on every package-ready record.
+        // The AI routes used to answer "has this evidence changed since the
+        // operator selected it?" with `verificationPackageVersion`, and this
+        // projection did not even read that — so the Case Copilot received
+        // `undefined`, fabricated `0`, and the route compared that 0 against a
+        // real 2 and reported a concurrent change that never happened.
+        //
+        // Projecting the package version fixed the false rejections and left
+        // the real problem: a package counter moves for ONE of the fourteen
+        // fields a copilot is shown. The concurrency authority is now an opaque
+        // revision over all of them, computed here from the same fields the
+        // route recomputes it from.
+        //
+        // `verificationPackageVersion` stays, for the truthful thing it always
+        // was: showing an operator which package version exists.
         verificationPackageVersion: true,
+        captureMethod: true,
+        tsaStatus: true,
+        otsStatus: true,
+        latestReportVersion: true,
+        teamId: true,
+        deletedAt: true,
+        archivedAt: true,
+        caseLinks: { select: { caseId: true } },
         _count: {
           select: {
             parts: true,
             reports: true,
             verificationPackages: true,
+            custodyEvents: true,
+            caseLinks: true,
           },
         },
         // Phase CASES-EVIDENCE-NAMES — expose the same filename
@@ -725,10 +751,45 @@ async function runEvidenceBoard(
           : null,
         lifecycleState: e.lifecycleState ? String(e.lifecycleState) : null,
         createdAt: e.createdAt.toISOString(),
-        // Carried as the nullable value it is. `null` means "no verification
-        // package yet" — a legitimate, stable state — and is NOT the same
-        // statement as version 0. Collapsing the two is the defect.
+        // DISPLAY. Carried as the nullable value it is: `null` means "no
+        // verification package yet" — a legitimate, stable state — and is NOT
+        // the same statement as version 0.
         verificationPackageVersion: e.verificationPackageVersion ?? null,
+        // CONCURRENCY. Context-bound to THIS case, so a record unlinked from
+        // it yields a different revision even when every evidence field is
+        // identical. The client carries this opaque value back and never
+        // interprets it.
+        analysisRevision: evidenceAnalysisRevisionFor(
+          {
+            id: e.id,
+            teamId: e.teamId,
+            title: e.title,
+            type: e.type === null ? null : String(e.type),
+            mimeType: e.mimeType,
+            status: e.status === null ? null : String(e.status),
+            verificationStatus:
+              e.verificationStatus === null ? null : String(e.verificationStatus),
+            captureMethod: e.captureMethod === null ? null : String(e.captureMethod),
+            tsaStatus: e.tsaStatus,
+            otsStatus: e.otsStatus,
+            createdAt: e.createdAt,
+            lifecycleState:
+              e.lifecycleState === null ? null : String(e.lifecycleState),
+            deletedAt: e.deletedAt,
+            archivedAt: e.archivedAt,
+            latestReportVersion: e.latestReportVersion,
+            verificationPackageVersion: e.verificationPackageVersion,
+            caseLinks: e.caseLinks,
+            _count: {
+              parts: e._count.parts,
+              custodyEvents: e._count.custodyEvents,
+              caseLinks: e._count.caseLinks,
+              reports: e._count.reports,
+              verificationPackages: e._count.verificationPackages,
+            },
+          },
+          { scope: "case", scopeId: caseId },
+        ),
         ...deriveCanonicalArtifactAvailability({
           reportAvailable: e._count.reports > 0,
           verificationPackageAvailable: e._count.verificationPackages > 0,

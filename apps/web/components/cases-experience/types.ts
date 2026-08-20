@@ -173,15 +173,28 @@ export type MatterWorkspaceEnvelope = {
         lifecycleState: string | null;
         createdAt: string;
         /**
-         * The canonical selection/concurrency version, from
-         * `Evidence.verificationPackageVersion`.
+         * PRESENTATION. Which verification package exists, if any.
          *
-         * `null` = no verification package yet. The Case Copilot compares this
-         * against the persisted value; it was absent from this type entirely,
-         * so the client read `undefined` through a cast and defaulted it to
-         * `0` — which the route then rejected as a concurrent change.
+         * `null` = no package yet, which is a different statement from version
+         * 0. No longer the concurrency authority — see `analysisRevision` — but
+         * still a true thing to show an operator.
          */
         verificationPackageVersion: number | null;
+        /**
+         * CONCURRENCY. The opaque, server-computed analysis revision, bound to
+         * this case.
+         *
+         * The client CARRIES this back with a Copilot selection and never
+         * interprets it: it is not parsed, not ordered, and compared only by
+         * the server, which recomputes it from persisted state.
+         *
+         * It replaced `verificationPackageVersion` in that role. A package
+         * counter moves for ONE of the fourteen fields a copilot is shown, so
+         * renaming a record, correcting its MIME type, unlinking it from the
+         * case or publishing a report all changed the analysis while the guard
+         * reported no change at all.
+         */
+        analysisRevision: string;
         reportReady: boolean;
         packageReady: boolean;
         /**

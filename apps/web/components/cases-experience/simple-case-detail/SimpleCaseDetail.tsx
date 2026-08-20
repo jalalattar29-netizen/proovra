@@ -389,16 +389,23 @@ export function SimpleCaseDetail({
               id: it.id,
               title: getDisplayTitle(it),
               type: (it as { type?: string }).type ?? "EVIDENCE",
-              // THE CANONICAL SELECTION VERSION, carried as projected.
+              // THE CONCURRENCY AUTHORITY, carried opaquely.
               //
               // This was `(it as {...}).verificationPackageVersion ?? 0` — a
               // cast through a field the DTO did not declare, so it always read
-              // `undefined` and always fabricated `0`. The route compared that
-              // 0 against the real version and refused every package-ready
-              // record as "changed while you were choosing". The cast is gone
-              // because the field is real now, and the `?? 0` is gone because a
-              // missing version must fail closed, not become a zero.
-              version: it.verificationPackageVersion,
+              // `undefined` and always fabricated `0`, and the route refused
+              // every package-ready record as "changed while you were
+              // choosing". Projecting the real package version ended those
+              // false rejections and left the deeper problem: the package
+              // version is not what changes when a record is renamed,
+              // re-typed, unlinked from this case or archived.
+              //
+              // The panel now carries an opaque revision it cannot compute and
+              // never reads.
+              analysisRevision: it.analysisRevision,
+              // PRESENTATION ONLY, and deliberately a separate prop: a fill and
+              // a guard are different jobs.
+              packageVersion: it.verificationPackageVersion,
               status: (it as { status?: string }).status ?? "",
               // ELIGIBILITY IS DERIVED FROM PERSISTED FIELDS, so the fields it
               // reads are carried rather than defaulted. `lifecycleState` was

@@ -1,28 +1,31 @@
 /**
- * THE SELECTION VERSION — one authority, proven against live PostgreSQL.
+ * THE CASE COPILOT'S CONCURRENCY GUARD — driven against live PostgreSQL 16.
  *
- * WHAT WENT WRONG
+ * WHAT THIS FILE PROVED, AND WHY ITS SUBJECT WIDENED
  * ---------------------------------------------------------------------------
- * After the idempotency-key fix, every Case Copilot run answered:
+ * It began as proof that the CASE projection carried
+ * `Evidence.verificationPackageVersion` and that both sides compared it as a
+ * nullable value rather than through `?? 0`. Every Case Copilot run had been
+ * answering "a selected record changed while you were choosing" when nothing
+ * had changed: the projection never emitted the column, the client read
+ * `undefined` through a cast and defaulted it to `0`, and the route compared
+ * that fabricated 0 against a real 2.
  *
- *     A selected record changed while you were choosing.
+ * That contract was true and INSUFFICIENT. The fields a Copilot is actually
+ * shown are fixed by the two context allowlists, and their union is fourteen —
+ * of which exactly ONE moves the package version. Renaming a record,
+ * correcting its MIME type, completing its integrity check, unlinking it from
+ * the case, publishing a report, adding a part, archiving it or sending it to
+ * trash all changed what the model would be told while the guard reported no
+ * change whatsoever.
  *
- * Nothing had changed. `Evidence.verificationPackageVersion` is the concurrency
- * authority the AI routes have always compared against, and the CASE evidence
- * projection never carried it:
+ * So the subject widened from a package VERSION to an opaque analysis
+ * REVISION, and these tests widened with it. The file keeps its path: the
+ * coverage was superseded IN PLACE rather than deleted, because a deleted
+ * behaviour test and lost coverage look identical from the outside.
  *
- *   - the query did not `select` the column,
- *   - the DTO did not declare it,
- *   - the client read it through a cast that could only return `undefined`,
- *     then defaulted it with `?? 0`.
- *
- * So a record the database knew as v2 arrived at the panel as `v0` — visibly,
- * beside a "Package ready" badge on the same page — and the route compared the
- * fabricated 0 against the real 2 and refused it as a concurrent change.
- *
- * These tests drive the REAL route against REAL rows. A source-regex test could
- * not have caught the original defect and cannot prove this one is fixed: the
- * markup was always correct; the projected DATA was not.
+ * The MUTATION side — proving the revision actually moves when the product
+ * changes a record — is in `evidence-analysis-revision.integration.test.ts`.
  */
 
 import { randomUUID } from "node:crypto";
@@ -33,36 +36,42 @@ import type { IntegrationHarness } from "./integration-harness.js";
 
 /**
  * The provider is the ONE external boundary substituted here. Everything the
- * test reasons about — the projection, the schema, the version comparison, the
- * eligibility gate, the budget reservation — is production code.
+ * test reasons about — the projection, the schema, the revision computation,
+ * the eligibility gate, the budget reservation, the TOCTOU re-check — is
+ * production code.
  */
+const ADVISORY =
+  "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.";
+
+let providerCalls = 0;
+
 vi.mock("../src/services/ai/case-copilot-provider.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    buildCaseCopilotProvider: () => async () => ({
-      caseSummary: "Two records describe the same scene.",
-      timelineHighlights: [],
-      missingEvidenceCategories: [],
-      workflowGaps: [],
-      conflictingMetadata: [],
-      reviewerPreparation: [],
-      disclosureChecklist: [],
-      unresolvedQuestions: [],
-      citations: [],
-      // The EXACT literal `CaseCopilotSchema` requires. Anything else is
-      // discarded as `schema_error` — which is the output contract doing its
-      // job, and would have made every "ok" below unreachable.
-      advisoryBoundary:
-        "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.",
-    }),
+    buildCaseCopilotProvider: () => async () => {
+      providerCalls += 1;
+      return {
+        caseSummary: "Two records describe the same scene.",
+        timelineHighlights: [],
+        missingEvidenceCategories: [],
+        workflowGaps: [],
+        conflictingMetadata: [],
+        reviewerPreparation: [],
+        disclosureChecklist: [],
+        unresolvedQuestions: [],
+        citations: [],
+        advisoryBoundary: ADVISORY,
+      };
+    },
   };
 });
 
-describe("Case Copilot selection version (live PostgreSQL 16)", () => {
+describe("Case Copilot concurrency guard (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let workspace: typeof import("../src/services/cases/matter-workspace.service.js");
+  let snapshots: typeof import("../src/services/ai/evidence-analysis-snapshot.service.js");
 
   let teamId: string;
   let ownerUserId: string;
@@ -77,6 +86,7 @@ describe("Case Copilot selection version (live PostgreSQL 16)", () => {
     const runtime = await import("@proovra/shared-runtime");
     runtime.registerPrisma(prisma as never);
     workspace = await import("../src/services/cases/matter-workspace.service.js");
+    snapshots = await import("../src/services/ai/evidence-analysis-snapshot.service.js");
 
     teamId = harness.fixtures.teamA.teamId;
     ownerUserId = harness.fixtures.teamA.ownerUserId;
@@ -88,13 +98,10 @@ describe("Case Copilot selection version (live PostgreSQL 16)", () => {
     });
     organizationId = team.organizationId;
 
-    /**
-     * CASE_COPILOT is default-DENY (`caseCopilotEnabled: false`), which is
-     * correct — and it means a run answers 200 with `status: "policy_denied"`
-     * rather than failing. Enabling it here is the fixture, not a relaxation:
-     * every assertion below checks the RESULT status, so a denied policy could
-     * not masquerade as a successful run.
-     */
+    // CASE_COPILOT is default-DENY, which is correct — and means a run answers
+    // 200 with `status: "policy_denied"` rather than failing. Enabling it is
+    // the fixture, not a relaxation: every success assertion below checks the
+    // RESULT status, so a denied policy could not masquerade as a run.
     await prisma.workspaceAiPolicy.upsert({
       where: { teamId },
       create: { teamId, aiEnabled: true, caseCopilotEnabled: true },
@@ -107,41 +114,54 @@ describe("Case Copilot selection version (live PostgreSQL 16)", () => {
   });
 
   beforeEach(async () => {
-    // Every case starts from a case with no linked evidence of its own.
     await prisma.caseEvidenceLink.deleteMany({ where: { caseId } });
+    providerCalls = 0;
   });
 
   // =========================================================================
   // Helpers — production authorities only
   // =========================================================================
 
-  /** Create evidence in this workspace and link it to the case. */
-  async function linkedEvidence(input: {
-    packageVersion: number | null;
-    status?: string;
-    lifecycleState?: string;
-  }): Promise<string> {
+  async function makeEvidence(
+    over: Record<string, unknown> = {},
+  ): Promise<string> {
     const row = await prisma.evidence.create({
       data: {
-        title: `copilot-version-${randomUUID()}`,
+        title: `revision-${randomUUID()}`,
         type: "PHOTO",
-        status: (input.status ?? "REPORTED") as never,
-        lifecycleState: (input.lifecycleState ?? "ACTIVE") as never,
+        status: "REPORTED" as never,
+        lifecycleState: "ACTIVE" as never,
         teamId,
         organizationId,
         ownerUserId,
-        verificationPackageVersion: input.packageVersion,
+        ...over,
       },
       select: { id: true },
-    });
-    await prisma.caseEvidenceLink.create({
-      data: { caseId, evidenceId: row.id, teamId, linkedByUserId: ownerUserId },
     });
     return row.id;
   }
 
+  async function link(evidenceId: string): Promise<void> {
+    await prisma.caseEvidenceLink.create({
+      data: { caseId, evidenceId, teamId, linkedByUserId: ownerUserId },
+    });
+  }
+
+  async function linked(over: Record<string, unknown> = {}): Promise<string> {
+    const id = await makeEvidence(over);
+    await link(id);
+    return id;
+  }
+
   /** The REAL list projection the Case page renders from. */
-  async function projectedEvidence() {
+  async function projected(): Promise<
+    Array<{
+      id: string;
+      analysisRevision: string;
+      verificationPackageVersion: number | null;
+      status: string;
+    }>
+  > {
     const envelope = await workspace.buildMatterWorkspace({
       caseId,
       userId: ownerUserId,
@@ -153,8 +173,8 @@ describe("Case Copilot selection version (live PostgreSQL 16)", () => {
           evidence: {
             items: Array<{
               id: string;
+              analysisRevision: string;
               verificationPackageVersion: number | null;
-              packageReady: boolean;
               status: string;
             }>;
           };
@@ -163,7 +183,16 @@ describe("Case Copilot selection version (live PostgreSQL 16)", () => {
     ).sections.evidence.items;
   }
 
-  /** The REAL route, through the harness's Fastify instance. */
+  /** The revision as the ROUTE would recompute it, for one record. */
+  async function currentRevision(id: string): Promise<string | undefined> {
+    const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({
+      ids: [id],
+      teamId,
+      scope: { scope: "case", scopeId: caseId },
+    });
+    return snap?.revision;
+  }
+
   async function runCopilot(
     body: Record<string, unknown>,
     token = ownerToken,
@@ -183,366 +212,572 @@ describe("Case Copilot selection version (live PostgreSQL 16)", () => {
     return { status: res.statusCode, body: parsed };
   }
 
-  /** The copilot's own verdict, which a 200 alone does not establish. */
+  /** Run with each record's CURRENT revision — the healthy path. */
+  async function runCurrent(
+    ids: string[],
+    over: Record<string, unknown> = {},
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    const revisions: Record<string, string> = {};
+    for (const id of ids) {
+      const r = await currentRevision(id);
+      if (r) revisions[id] = r;
+    }
+    return runCopilot({
+      selectedEvidenceIds: ids,
+      selectedEvidenceRevisions: revisions,
+      processingMode: "METADATA_ONLY",
+      ...over,
+    });
+  }
+
   function resultStatus(res: { body: Record<string, unknown> }): string | undefined {
     return (res.body as { data?: { status?: string } }).data?.status;
   }
 
-  /**
-   * Every AI usage row for this workspace — proof that a refused selection
-   * consumed no operation. Counted rather than inspected: the guarantee is
-   * that the number does not move.
-   */
+  function errorCode(res: { body: Record<string, unknown> }): string | undefined {
+    return (res.body as { error?: { code?: string } }).error?.code;
+  }
+
+  /** Every AI usage row for this workspace — proof that nothing was spent. */
   async function ledgerCount(): Promise<number> {
-    return prisma.aiUsageEvent
-      .count({ where: { workspaceId: teamId } })
-      .catch(() => 0);
+    return prisma.aiUsageEvent.count({ where: { workspaceId: teamId } }).catch(() => 0);
   }
 
   // =========================================================================
-  // 1–4. The projection carries the canonical version
+  // PART 2 — THE CONCURRENCY MATRIX
   // =========================================================================
 
-  it("1/2. a package-ready record projects its REAL version, not a fabricated zero", async () => {
-    const id = await linkedEvidence({ packageVersion: 2 });
-    const items = await projectedEvidence();
-    const item = items.find((i) => i.id === id);
-
-    expect(item, "the record is not in the projection").toBeTruthy();
-    // THE DEFECT: this field did not exist, so the client read `undefined`.
-    expect(item).toHaveProperty("verificationPackageVersion");
-    expect(item!.verificationPackageVersion).toBe(2);
-    // …and it is genuinely a package-ready record, which is what made the
-    // fabricated `v0` visibly wrong on the same page.
-    expect(item!.packageReady).toBe(false); // no VerificationPackage rows exist
-  });
-
-  it("3. a record with no package projects null — never 0", async () => {
-    const id = await linkedEvidence({ packageVersion: null });
-    const items = await projectedEvidence();
-    const item = items.find((i) => i.id === id);
-    expect(item!.verificationPackageVersion).toBeNull();
-    // `null` and `0` are different statements and the projection keeps them so.
-    expect(item!.verificationPackageVersion).not.toBe(0);
-  });
-
-  it("3b. a genuine recorded zero survives as zero", async () => {
-    const id = await linkedEvidence({ packageVersion: 0 });
-    const items = await projectedEvidence();
-    expect(
-      items.find((i) => i.id === id)!.verificationPackageVersion,
-    ).toBe(0);
-  });
-
-  // =========================================================================
-  // 5–9. The round trip
-  // =========================================================================
-
-  it("5. a matching snapshot runs — the two-record production selection succeeds", async () => {
-    // The exact production shape: two REPORTED records, neither with a package.
-    const a = await linkedEvidence({ packageVersion: null });
-    const b = await linkedEvidence({ packageVersion: null });
-    const items = await projectedEvidence();
-    const versions = Object.fromEntries(
-      items
-        .filter((i) => [a, b].includes(i.id))
-        .map((i) => [i.id, i.verificationPackageVersion]),
-    );
-    expect(versions).toEqual({ [a]: null, [b]: null });
-
-    const res = await runCopilot({
-      selectedEvidenceIds: [a, b],
-      selectedEvidenceVersions: versions,
-      processingMode: "METADATA_ONLY",
+  describe("the route enforces the revision", () => {
+    it("1. one eligible record with a current revision runs", async () => {
+      const id = await linked();
+      const res = await runCurrent([id]);
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(resultStatus(res)).toBe("ok");
     });
 
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    // A real result, not merely a cleared pending state.
-    const data = (res.body as { data?: { status?: string } }).data;
-    expect(data?.status).toBe("ok");
-  });
-
-  it("5b. a package-ready record with its real version runs too", async () => {
-    const id = await linkedEvidence({ packageVersion: 3 });
-    const items = await projectedEvidence();
-    const version = items.find((i) => i.id === id)!.verificationPackageVersion;
-    expect(version).toBe(3);
-
-    const res = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: version },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(resultStatus(res)).toBe("ok");
-  });
-
-  it("6/13. a GENUINE change after selection is still refused", async () => {
-    const id = await linkedEvidence({ packageVersion: 1 });
-    const snapshot = (await projectedEvidence()).find((i) => i.id === id)!
-      .verificationPackageVersion;
-    expect(snapshot).toBe(1);
-
-    // A verification package is generated between selecting and running.
-    await prisma.evidence.update({
-      where: { id },
-      data: { verificationPackageVersion: 2 },
+    it("2. two eligible PHOTO/VIDEO records run — the production selection", async () => {
+      const a = await linked();
+      const b = await linked({ type: "VIDEO" as never, verificationPackageVersion: 3 });
+      const res = await runCurrent([a, b]);
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(resultStatus(res)).toBe("ok");
     });
 
-    const res = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: snapshot },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status).toBe(409);
-    expect(
-      (res.body as { error?: { code?: string } }).error?.code,
-    ).toBe("stale_evidence_version");
-  });
-
-  it("7/8/9. refreshing returns the new version, and re-running succeeds", async () => {
-    const id = await linkedEvidence({ packageVersion: 1 });
-    await prisma.evidence.update({
-      where: { id },
-      data: { verificationPackageVersion: 2 },
+    it("3. the maximum selection is accepted", async () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 50; i += 1) ids.push(await linked());
+      const res = await runCurrent(ids);
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(resultStatus(res)).toBe("ok");
     });
 
-    // The refresh the panel performs after a mismatch.
-    const refreshed = (await projectedEvidence()).find((i) => i.id === id)!;
-    expect(refreshed.verificationPackageVersion).toBe(2);
+    it("4. selection ORDER is irrelevant — the same operation, not two", async () => {
+      const { buildCopilotIdempotencyKey } = await import("@proovra/shared");
+      const a = await linked();
+      const b = await linked();
+      const revA = (await currentRevision(a))!;
+      const revB = (await currentRevision(b))!;
+      const revisions = { [a]: revA, [b]: revB };
 
-    // Re-selecting from the refreshed record runs, with no page reload.
-    const res = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: refreshed.verificationPackageVersion },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(resultStatus(res)).toBe("ok");
-  });
+      // Order-independent by construction: the ids are sorted and each
+      // travels with its own revision.
+      const forwardKey = buildCopilotIdempotencyKey({
+        scope: "case",
+        scopeId: caseId,
+        selection: [a, b],
+        revisions,
+        mode: "METADATA_ONLY",
+      });
+      const reverseKey = buildCopilotIdempotencyKey({
+        scope: "case",
+        scopeId: caseId,
+        selection: [b, a],
+        revisions,
+        mode: "METADATA_ONLY",
+      });
+      expect(reverseKey).toBe(forwardKey);
 
-  it("null and 0 are not interchangeable in the comparison", async () => {
-    const id = await linkedEvidence({ packageVersion: null });
-    // Sending 0 for a record whose version is null must NOT match — that
-    // equivalence is exactly what the old `?? 0` created on both sides.
-    const wrong = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: 0 },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(wrong.status).toBe(409);
+      const forward = await runCurrent([a, b]);
+      expect(resultStatus(forward)).toBe("ok");
 
-    const right = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: null },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(right.status, JSON.stringify(right.body)).toBe(200);
-    expect(resultStatus(right)).toBe("ok");
-  });
-
-  it("12. two records with DIFFERENT versions both round-trip", async () => {
-    const a = await linkedEvidence({ packageVersion: null });
-    const b = await linkedEvidence({ packageVersion: 4 });
-    const items = await projectedEvidence();
-    const versions = Object.fromEntries(
-      items
-        .filter((i) => [a, b].includes(i.id))
-        .map((i) => [i.id, i.verificationPackageVersion]),
-    );
-    expect(versions[a]).toBeNull();
-    expect(versions[b]).toBe(4);
-
-    const res = await runCopilot({
-      selectedEvidenceIds: [a, b],
-      selectedEvidenceVersions: versions,
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(resultStatus(res)).toBe("ok");
-  });
-
-  // =========================================================================
-  // 14–17. The other guards are untouched
-  // =========================================================================
-
-  it("14. a lifecycle change after selection is refused as ineligible, not as stale", async () => {
-    const id = await linkedEvidence({ packageVersion: null });
-    const snapshot = (await projectedEvidence()).find((i) => i.id === id)!
-      .verificationPackageVersion;
-
-    await prisma.evidence.update({
-      where: { id },
-      data: { lifecycleState: "PENDING_DESTRUCTION" },
+      // …and because it IS the same operation, the second submission is
+      // de-duplicated rather than run and billed again. That is the guard
+      // working, not a failure: clicking Run twice must not cost twice.
+      const callsAfterFirst = providerCalls;
+      const reverse = await runCurrent([b, a]);
+      expect(reverse.status).toBe(429);
+      expect(providerCalls).toBe(callsAfterFirst);
     });
 
-    const res = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: snapshot },
-      processingMode: "METADATA_ONLY",
-    });
-    // A different situation gets a different answer.
-    expect(res.status).toBe(422);
-    const body = res.body as {
-      error?: { code?: string; records?: Array<{ reason?: string }> };
-    };
-    expect(body.error?.code).toBe("evidence_not_analyzable");
-    expect(body.error?.records?.[0]?.reason).toBe("record_unavailable");
-  });
+    it("5/6. the same snapshot reuses an identity; changed metadata does not", async () => {
+      const { buildCopilotIdempotencyKey } = await import("@proovra/shared");
+      const id = await linked();
+      const first = (await currentRevision(id))!;
+      const keyA = buildCopilotIdempotencyKey({
+        scope: "case",
+        scopeId: caseId,
+        selection: [id],
+        revisions: { [id]: first },
+        mode: "METADATA_ONLY",
+      });
+      const keyRetry = buildCopilotIdempotencyKey({
+        scope: "case",
+        scopeId: caseId,
+        selection: [id],
+        revisions: { [id]: first },
+        mode: "METADATA_ONLY",
+      });
+      expect(keyRetry).toBe(keyA);
 
-  it("14b. an UPLOADING record is refused before anything is spent", async () => {
-    const id = await linkedEvidence({
-      packageVersion: null,
-      status: "UPLOADING",
-    });
-    const before = await ledgerCount();
-    const res = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: null },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status).toBe(422);
-    // 16. NO AI OPERATION IS CONSUMED on an ineligible selection.
-    expect(await ledgerCount()).toBe(before);
-  });
-
-  it("16b. a stale selection consumes no AI operation either", async () => {
-    const id = await linkedEvidence({ packageVersion: 1 });
-    await prisma.evidence.update({
-      where: { id },
-      data: { verificationPackageVersion: 9 },
-    });
-    const before = await ledgerCount();
-    const res = await runCopilot({
-      selectedEvidenceIds: [id],
-      selectedEvidenceVersions: { [id]: 1 },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status).toBe(409);
-    expect(await ledgerCount()).toBe(before);
-  });
-
-  it("15. a record from another workspace is refused without enumeration", async () => {
-    // Belongs to team B, and is not linked to this case. `organizationId` is
-    // supplied because `evidence_team_implies_org_chk` requires it — the
-    // constraint is part of the tenancy model, not an obstacle to it.
-    const teamB = await prisma.team.findUniqueOrThrow({
-      where: { id: harness.fixtures.teamB.teamId },
-      select: { organizationId: true },
-    });
-    const foreign = await prisma.evidence.create({
-      data: {
-        title: `foreign-${randomUUID()}`,
-        type: "PHOTO",
-        status: "REPORTED" as never,
-        lifecycleState: "ACTIVE" as never,
-        teamId: harness.fixtures.teamB.teamId,
-        organizationId: teamB.organizationId,
-        ownerUserId: harness.fixtures.teamB.ownerUserId,
-        verificationPackageVersion: 1,
-      },
-      select: { id: true },
+      await prisma.evidence.update({ where: { id }, data: { title: "Renamed.jpg" } });
+      const second = (await currentRevision(id))!;
+      expect(second).not.toBe(first);
+      const keyB = buildCopilotIdempotencyKey({
+        scope: "case",
+        scopeId: caseId,
+        selection: [id],
+        revisions: { [id]: second },
+        mode: "METADATA_ONLY",
+      });
+      // THE GUARANTEE: a persisted result keyed by `keyA` can never be returned
+      // for the request the operator is now making.
+      expect(keyB).not.toBe(keyA);
     });
 
-    const res = await runCopilot({
-      selectedEvidenceIds: [foreign.id],
-      selectedEvidenceVersions: { [foreign.id]: 1 },
-      processingMode: "METADATA_ONLY",
-    });
-    expect(res.status).toBe(403);
-    // The refusal says nothing about what exists elsewhere.
-    expect(JSON.stringify(res.body)).not.toMatch(/team|workspace|tenant/i);
-  });
-
-  it("15b. a record in THIS workspace but not linked to THIS case is refused", async () => {
-    const unlinked = await prisma.evidence.create({
-      data: {
-        title: `unlinked-${randomUUID()}`,
-        type: "PHOTO",
-        status: "REPORTED" as never,
-        lifecycleState: "ACTIVE" as never,
-        teamId,
-        organizationId,
-        ownerUserId,
-        verificationPackageVersion: null,
-      },
-      select: { id: true },
+    it("7. a genuinely stale revision is refused", async () => {
+      const id = await linked();
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({ where: { id }, data: { title: "Changed.jpg" } });
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
+      expect(errorCode(res)).toBe("stale_evidence_revision");
     });
 
-    const res = await runCopilot({
-      selectedEvidenceIds: [unlinked.id],
-      selectedEvidenceVersions: { [unlinked.id]: null },
-      processingMode: "METADATA_ONLY",
+    it("8. a MISSING revision fails closed", async () => {
+      const id = await linked();
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: {},
+        processingMode: "METADATA_ONLY",
+      });
+      // Not "permitted because unstated". Not knowing is not agreement.
+      expect(res.status).toBe(409);
+      expect(errorCode(res)).toBe("stale_evidence_revision");
     });
-    expect(res.status).toBe(422);
-    expect(
-      (res.body as { error?: { records?: Array<{ reason?: string }> } }).error
-        ?.records?.[0]?.reason,
-    ).toBe("not_linked_to_case");
-  });
 
-  it("17. the version contract is identical in a PERSONAL workspace", async () => {
-    // Driven against the harness's real personal workspace rather than by
-    // flipping `isPersonal` on an organization team — `teams_personal_is_flagged_chk`
-    // refuses that, correctly, and a mutated row would not have been a personal
-    // workspace anyway.
-    //
-    // The route reads ONE column for every workspace and branches on no plan,
-    // tier or workspace kind, so this is the same contract exercised through a
-    // different tenancy shape.
-    const personal = harness.fixtures.personal;
-    await prisma.workspaceAiPolicy.upsert({
-      where: { teamId: personal.teamId },
-      create: { teamId: personal.teamId, aiEnabled: true, caseCopilotEnabled: true },
-      update: { aiEnabled: true, caseCopilotEnabled: true },
+    it("9. a package version is not a revision, and zero is not a revision", async () => {
+      const id = await linked({ verificationPackageVersion: 2 });
+      for (const forged of ["2", "0", "", "null"]) {
+        const res = await runCopilot({
+          selectedEvidenceIds: [id],
+          selectedEvidenceRevisions: { [id]: forged },
+          processingMode: "METADATA_ONLY",
+        });
+        expect(res.status, `accepted ${JSON.stringify(forged)}`).toBe(409);
+      }
     });
-    await prisma.evidence.update({
-      where: { id: personal.evidenceId },
-      data: { verificationPackageVersion: 5, status: "REPORTED" as never },
+
+    it("10. a FORGED but well-formed revision is refused", async () => {
+      const id = await linked();
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: `ear1_${"A".repeat(43)}` },
+        processingMode: "METADATA_ONLY",
+      });
+      // Shape is not authority. The server recomputes from persisted state.
+      expect(res.status).toBe(409);
+      expect(errorCode(res)).toBe("stale_evidence_revision");
     });
-    // The link's unique key is (caseId, evidenceId, role) — a record may be
-    // linked in more than one role.
-    const existingLink = await prisma.caseEvidenceLink.findFirst({
-      where: { caseId: personal.caseId, evidenceId: personal.evidenceId },
-      select: { id: true },
+
+    it("10b. another record's CURRENT revision cannot be replayed onto this one", async () => {
+      const a = await linked();
+      const b = await linked();
+      const revB = (await currentRevision(b))!;
+      const res = await runCopilot({
+        selectedEvidenceIds: [a],
+        selectedEvidenceRevisions: { [a]: revB },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
     });
-    if (!existingLink) {
-      await prisma.caseEvidenceLink.create({
+
+    it("11. a package version change alone is caught", async () => {
+      const id = await linked({ verificationPackageVersion: 1 });
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({
+        where: { id },
+        data: { verificationPackageVersion: 2 },
+      });
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
+    });
+
+    /**
+     * 12–15. THE CASES THE OLD AUTHORITY COULD NOT SEE.
+     *
+     * Every one of these leaves `verificationPackageVersion` untouched, so the
+     * previous guard reported "no change" while the prompt the model would be
+     * given had changed.
+     */
+    it("12. a TITLE change with no package version change is caught", async () => {
+      const id = await linked({ verificationPackageVersion: 2 });
+      const stale = (await currentRevision(id))!;
+      const before = await prisma.evidence.findUniqueOrThrow({
+        where: { id },
+        select: { verificationPackageVersion: true },
+      });
+      await prisma.evidence.update({ where: { id }, data: { title: "Renamed.jpg" } });
+      const after = await prisma.evidence.findUniqueOrThrow({
+        where: { id },
+        select: { verificationPackageVersion: true },
+      });
+      expect(after.verificationPackageVersion).toBe(before.verificationPackageVersion);
+
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it("13. a STATUS change with no package version change is caught", async () => {
+      const id = await linked({ verificationPackageVersion: 2 });
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({ where: { id }, data: { status: "SIGNED" as never } });
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it("14. a case UNLINK with no package version change is caught", async () => {
+      const id = await linked({ verificationPackageVersion: 2 });
+      const stale = (await currentRevision(id))!;
+      await prisma.caseEvidenceLink.deleteMany({ where: { caseId, evidenceId: id } });
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      // Refused as INELIGIBLE — no longer part of this case's population — which
+      // is a more useful answer than "stale", and is checked first.
+      expect([409, 422]).toContain(res.status);
+      expect(providerCalls).toBe(0);
+    });
+
+    it("15. a REPORT becoming ready with no package version change is caught", async () => {
+      const id = await linked({ verificationPackageVersion: 2 });
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({ where: { id }, data: { latestReportVersion: 1 } });
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it("16/17. refreshing returns the NEW revision, and re-running succeeds", async () => {
+      const id = await linked();
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({ where: { id }, data: { title: "Renamed.jpg" } });
+
+      const refused = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(refused.status).toBe(409);
+
+      // REFRESH — through the same projection the page re-renders from.
+      const item = (await projected()).find((i) => i.id === id);
+      expect(item?.analysisRevision).toBeTruthy();
+      expect(item!.analysisRevision).not.toBe(stale);
+
+      const retry = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: item!.analysisRevision },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(retry.status, JSON.stringify(retry.body)).toBe(200);
+      expect(resultStatus(retry)).toBe("ok");
+    });
+
+    it("18/19. a mismatch spends NO budget and calls NO provider", async () => {
+      const id = await linked();
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({ where: { id }, data: { title: "Renamed.jpg" } });
+
+      const before = await ledgerCount();
+      providerCalls = 0;
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(409);
+      expect(providerCalls).toBe(0);
+      expect(await ledgerCount()).toBe(before);
+    });
+
+    it("20. a cross-workspace record is refused WITHOUT enumerating it", async () => {
+      const teamB = await prisma.team.findUniqueOrThrow({
+        where: { id: harness.fixtures.teamB.teamId },
+        select: { organizationId: true },
+      });
+      const foreign = await prisma.evidence.create({
         data: {
+          title: `foreign-${randomUUID()}`,
+          type: "PHOTO",
+          status: "REPORTED" as never,
+          lifecycleState: "ACTIVE" as never,
+          teamId: harness.fixtures.teamB.teamId,
+          organizationId: teamB.organizationId,
+          ownerUserId: harness.fixtures.teamB.ownerUserId,
+        },
+        select: { id: true },
+      });
+      const res = await runCopilot({
+        selectedEvidenceIds: [foreign.id],
+        selectedEvidenceRevisions: { [foreign.id]: `ear1_${"A".repeat(43)}` },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(res.status).toBe(403);
+      // The response says nothing about whether the id exists.
+      expect(JSON.stringify(res.body)).not.toContain(foreign.id);
+      expect(errorCode(res)).toBe("unauthorized_or_missing_evidence");
+    });
+
+    it("21. a record in THIS workspace but not linked to THIS case is refused", async () => {
+      const id = await makeEvidence();
+      const res = await runCurrent([id]);
+      expect(res.status).toBe(422);
+      expect(errorCode(res)).toBe("evidence_not_analyzable");
+      expect(providerCalls).toBe(0);
+    });
+
+    it("22. an AI-disabled workspace refuses without analyzing", async () => {
+      const id = await linked();
+      await prisma.workspaceAiPolicy.update({
+        where: { teamId },
+        data: { aiEnabled: false },
+      });
+      try {
+        const res = await runCurrent([id]);
+        expect(res.status).toBe(200);
+        expect(resultStatus(res)).toBe("policy_denied");
+        expect(providerCalls).toBe(0);
+      } finally {
+        await prisma.workspaceAiPolicy.update({
+          where: { teamId },
+          data: { aiEnabled: true, caseCopilotEnabled: true },
+        });
+      }
+    });
+
+    it("23. a missing CAPABILITY projection fails closed", async () => {
+      const id = await linked();
+      await prisma.workspaceAiPolicy.update({
+        where: { teamId },
+        data: { caseCopilotEnabled: false },
+      });
+      try {
+        const res = await runCurrent([id]);
+        expect(resultStatus(res)).toBe("policy_denied");
+        expect(providerCalls).toBe(0);
+      } finally {
+        await prisma.workspaceAiPolicy.update({
+          where: { teamId },
+          data: { caseCopilotEnabled: true },
+        });
+      }
+    });
+
+    it("24. TOCTOU — a change after validation cannot reach the provider", async () => {
+      // The frozen snapshot covers validation through the budget reservation.
+      // This proves the remaining window is closed: the route re-reads and
+      // recomputes immediately before the spend.
+      const id = await linked();
+      const current = (await currentRevision(id))!;
+
+      // Commit a change DURING the request, from outside it.
+      const inflight = runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: current },
+        processingMode: "METADATA_ONLY",
+      });
+      await prisma.evidence.update({
+        where: { id },
+        data: { title: `raced-${randomUUID()}` },
+      });
+      const res = await inflight;
+
+      // Either the route saw the change at validation (409) or the TOCTOU
+      // re-check caught it before the spend (409). What must NEVER happen is a
+      // successful run whose prompt was built from state that is no longer
+      // true — and the drift check is what makes that unreachable.
+      if (res.status === 200) {
+        // The write landed after the re-check: the run is grounded in the exact
+        // snapshot that was accepted, which is the guarantee. Prove the drift
+        // detector itself is live rather than trivially passing.
+        const drifted = await snapshots.findDriftedSnapshot({
+          snapshots: [
+            {
+              row: { id } as never,
+              revision: current,
+              linkedToScope: true,
+            },
+          ],
+          teamId,
+          scope: { scope: "case", scopeId: caseId },
+        });
+        expect(drifted).toBe(id);
+      } else {
+        expect(res.status).toBe(409);
+      }
+    });
+
+    it("25. the contract is identical in a PERSONAL workspace", async () => {
+      const personal = harness.fixtures.personal;
+      await prisma.workspaceAiPolicy.upsert({
+        where: { teamId: personal.teamId },
+        create: { teamId: personal.teamId, aiEnabled: true, caseCopilotEnabled: true },
+        update: { aiEnabled: true, caseCopilotEnabled: true },
+      });
+      await prisma.evidence.update({
+        where: { id: personal.evidenceId },
+        data: { status: "REPORTED" as never, verificationPackageVersion: 5 },
+      });
+      await prisma.caseEvidenceLink.upsert({
+        where: {
+          caseId_evidenceId_role: {
+            caseId: personal.caseId,
+            evidenceId: personal.evidenceId,
+            role: "SUPPORTING",
+          },
+        },
+        create: {
           caseId: personal.caseId,
           evidenceId: personal.evidenceId,
           linkedByUserId: personal.userId,
         },
+        update: {},
       });
-    }
 
-    const envelope = await workspace.buildMatterWorkspace({
-      caseId: personal.caseId,
-      userId: personal.userId,
-      role: "OWNER",
+      const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({
+        ids: [personal.evidenceId],
+        teamId: personal.teamId,
+        scope: { scope: "case", scopeId: personal.caseId },
+      });
+      expect(snap?.revision).toBeTruthy();
+
+      const res = await harness.app.inject({
+        method: "POST",
+        url: `/v1/ai/case/${personal.caseId}/copilot`,
+        headers: { authorization: `Bearer ${personal.token}` },
+        payload: {
+          selectedEvidenceIds: [personal.evidenceId],
+          selectedEvidenceRevisions: { [personal.evidenceId]: snap!.revision },
+          processingMode: "METADATA_ONLY",
+        },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      expect((res.json() as { data?: { status?: string } }).data?.status).toBe("ok");
     });
-    const item = (
-      envelope as unknown as {
-        sections: {
-          evidence: {
-            items: Array<{ id: string; verificationPackageVersion: number | null }>;
-          };
-        };
-      }
-    ).sections.evidence.items.find((i) => i.id === personal.evidenceId);
-    expect(item!.verificationPackageVersion).toBe(5);
 
-    const res = await harness.app.inject({
-      method: "POST",
-      url: `/v1/ai/case/${personal.caseId}/copilot`,
-      headers: { authorization: `Bearer ${personal.token}` },
-      payload: {
-        selectedEvidenceIds: [personal.evidenceId],
-        selectedEvidenceVersions: { [personal.evidenceId]: 5 },
+    it("26. a hard-deleted record cannot be analyzed", async () => {
+      const id = await linked();
+      const revision = (await currentRevision(id))!;
+      await prisma.caseEvidenceLink.deleteMany({ where: { evidenceId: id } });
+      await prisma.evidence.delete({ where: { id } });
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: revision },
         processingMode: "METADATA_ONLY",
-      },
+      });
+      expect(res.status).toBe(403);
+      expect(providerCalls).toBe(0);
     });
-    expect(res.statusCode, res.body).toBe(200);
-    expect((res.json() as { data?: { status?: string } }).data?.status).toBe("ok");
+
+    it("27. an INELIGIBLE record is refused before the revision is even consulted", async () => {
+      // Order matters: "still uploading" is a more useful answer than "stale",
+      // and it costs nothing to give.
+      const id = await linked({ status: "UPLOADING" as never });
+      const res = await runCurrent([id]);
+      expect(res.status).toBe(422);
+      expect(errorCode(res)).toBe("evidence_not_analyzable");
+      expect(providerCalls).toBe(0);
+    });
+
+    it("28. a trashed record is refused rather than analyzed", async () => {
+      const id = await linked();
+      await prisma.evidence.update({ where: { id }, data: { deletedAt: new Date() } });
+      const res = await runCurrent([id]);
+      expect([409, 422]).toContain(res.status);
+      expect(providerCalls).toBe(0);
+    });
+
+    it("29. provider, schema and policy failures stay distinct from staleness", async () => {
+      // A stale selection is a 409 with its own code. A policy refusal is a 200
+      // with a status. They are never reported as one another — which is what
+      // "Invalid selection." did to a key-length problem.
+      const id = await linked();
+      const stale = (await currentRevision(id))!;
+      await prisma.evidence.update({ where: { id }, data: { title: "Renamed.jpg" } });
+      const staleRes = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: stale },
+        processingMode: "METADATA_ONLY",
+      });
+      expect(staleRes.status).toBe(409);
+      expect(errorCode(staleRes)).toBe("stale_evidence_revision");
+
+      await prisma.workspaceAiPolicy.update({
+        where: { teamId },
+        data: { aiEnabled: false },
+      });
+      try {
+        const policyRes = await runCurrent([id]);
+        expect(policyRes.status).toBe(200);
+        expect(resultStatus(policyRes)).toBe("policy_denied");
+        expect(errorCode(policyRes)).toBeUndefined();
+      } finally {
+        await prisma.workspaceAiPolicy.update({
+          where: { teamId },
+          data: { aiEnabled: true, caseCopilotEnabled: true },
+        });
+      }
+    });
+
+    it("30. no refusal leaks a table, a column or a mechanism", async () => {
+      const id = await linked();
+      const res = await runCopilot({
+        selectedEvidenceIds: [id],
+        selectedEvidenceRevisions: { [id]: `ear1_${"A".repeat(43)}` },
+        processingMode: "METADATA_ONLY",
+      });
+      const text = JSON.stringify(res.body);
+      for (const leak of [
+        "verification_package_version",
+        "prisma",
+        "SELECT",
+        "case_evidence_links",
+        "teamId",
+        "sha256",
+      ]) {
+        expect(text, `refusal leaked ${leak}`).not.toContain(leak);
+      }
+    });
   });
 });

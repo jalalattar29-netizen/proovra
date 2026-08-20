@@ -7,6 +7,18 @@ import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import {
+  EVIDENCE_ANALYSIS_SELECT,
+  findDriftedSnapshot,
+  toSnapshot,
+  type EvidenceAnalysisRow,
+} from "../services/ai/evidence-analysis-snapshot.service.js";
+import {
+  buildCopilotIdempotencyKey,
+  evaluateCopilotEvidenceEligibility,
+  evidenceAnalysisRevisionsMatch,
+  sha256Base64Url,
+} from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -28,7 +40,18 @@ import { classifyChatScope } from "../services/ai/chat-scope-classifier.service.
 import { buildSuggestedAction } from "../services/ai/ai-suggested-action.service.js";
 
 const Body = z.object({
-  evidenceVersion: z.number().int().optional(),
+  /**
+   * The OPAQUE analysis revision the operator's view was built from.
+   *
+   * This was `evidenceVersion: z.number().int().optional()`, compared against
+   * `verificationPackageVersion ?? 0`. Both sides collapsed identically, so no
+   * false rejection was reachable — but the guard answered a question about a
+   * package counter while this route shows the model thirteen other fields,
+   * and it silently did nothing when omitted.
+   *
+   * Required now, and compared against a server-recomputed revision.
+   */
+  evidenceRevision: z.string().max(64),
   processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
   question: z.string().max(400).optional(),
   idempotencyKey: z.string().max(80).optional(),
@@ -57,17 +80,15 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     const body = Body.parse(req.body ?? {});
 
     // Canonical tenant-scoped load (deleted/inaccessible rejected).
-    const ev = await prisma.evidence.findUnique({
+    //
+    // Read through the SAME select every Copilot surface uses, so the fields
+    // the revision covers and the fields this route shows the model cannot
+    // drift apart. Tenancy is applied after authorization below, because this
+    // route resolves the record before it knows the team.
+    const ev = (await prisma.evidence.findUnique({
       where: { id: evidenceId },
-      select: {
-        id: true, teamId: true, deletedAt: true, title: true, type: true, mimeType: true,
-        status: true, verificationStatus: true, captureMethod: true, createdAt: true,
-        caseLinks: { select: { caseId: true }, take: 1 },
-        latestReportVersion: true, verificationPackageVersion: true,
-        tsaStatus: true, otsStatus: true,
-        _count: { select: { custodyEvents: true } },
-      },
-    });
+      select: EVIDENCE_ANALYSIS_SELECT,
+    })) as unknown as EvidenceAnalysisRow | null;
     if (!ev?.teamId || ev.deletedAt) return reply.code(404).send({ error: { code: "evidence_not_found" } });
     // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
     // against the RESOURCE's team (ACTIVE membership + org lifecycle +
@@ -87,9 +108,33 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     });
     if (!membership) return reply.code(404).send({ error: { code: "not_found" } });
     const teamId = ev.teamId;
-    const currentVersion = ev.verificationPackageVersion ?? 0;
-    if (body.evidenceVersion != null && body.evidenceVersion !== currentVersion) {
-      return reply.code(409).send({ error: { code: "stale_evidence_version" } });
+    // THE frozen snapshot. Eligibility, the revision comparison, the request
+    // identity and the model's prompt all read this one object.
+    const analysisScope = { scope: "evidence" as const, scopeId: null };
+    const snapshot = toSnapshot(ev, analysisScope);
+
+    // SERVER-AUTHORITATIVE ELIGIBILITY. This route had none: a record still
+    // uploading, one whose integrity check had failed, or one scheduled for
+    // destruction was analyzed and paid for like any other.
+    const verdict = evaluateCopilotEvidenceEligibility({
+      status: snapshot.row.status,
+      lifecycleState: snapshot.row.lifecycleState,
+    });
+    if (!verdict.eligible) {
+      return reply.code(422).send({
+        error: {
+          code: "evidence_not_analyzable",
+          records: [{ evidenceId: ev.id, reason: verdict.reason }],
+        },
+      });
+    }
+
+    // STALE-REVISION REJECTION, against the same authority the Case surface
+    // uses. A revision from the CASE surface can never satisfy this one: the
+    // scope is part of the digest, so a snapshot cannot be replayed across
+    // surfaces.
+    if (!evidenceAnalysisRevisionsMatch(body.evidenceRevision, snapshot.revision)) {
+      return reply.code(409).send({ error: { code: "stale_evidence_revision" } });
     }
     // Optional question must itself be in the Evidence-Operations domain.
     if (body.question) {
@@ -102,9 +147,22 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     const policyDecision = await evaluateWorkspaceAiPolicy({
       teamId, feature: "EVIDENCE_CATEGORIZATION", dataClass: "METADATA", userRole: membership.role,
     });
+    // The server builds the identity from the revision it just recomputed, so
+    // a client cannot buy a cache hit by sending a key from a previous state.
+    const requestIdentity = buildCopilotIdempotencyKey({
+      scope: "evidence",
+      scopeId: evidenceId,
+      selection: [evidenceId],
+      revisions: { [evidenceId]: snapshot.revision },
+      mode: body.processingMode,
+      qualifier: body.question ? sha256Base64Url(body.question).slice(0, 16) : null,
+    });
     const guard = await enforceAiEndpointGuard({
       feature: "evidence-copilot", userId, ip: req.ip,
-      dedupeKey: body.idempotencyKey ?? `${evidenceId}:${currentVersion}:${body.question ?? ""}`,
+      // ONE bounded builder, as on every other surface. This concatenated the
+      // id and a package version, so a retry after a genuine metadata change
+      // produced the SAME key and could be de-duplicated into the old answer.
+      dedupeKey: requestIdentity,
       dedupeWindowSec: 20,
     });
     if (!guard.allowed) {
@@ -114,7 +172,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     const ledger = await tryReserveAiBudget({
       teamId, userId, feature: "EVIDENCE_COPILOT",
       model: process.env.OPENAI_EVIDENCE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
-      requestId: `${body.idempotencyKey ?? `evidence:${evidenceId}:${currentVersion}`}:${Date.now()}`,
+      requestId: `${requestIdentity}:${Date.now()}`,
       estimatedCostUsdMicros: 250_000n,
     });
     if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
@@ -123,22 +181,36 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
 
     // C3 — allowlisted sanitized context (deterministic signals included).
     const base = await buildBaseContext({ route: `/evidence/${evidenceId}`, routeClass: "EVIDENCE", role: membership.role, teamId, dataMode: body.processingMode });
+    // From the FROZEN snapshot. `reportVersion` and `packageVersion` were
+    // `?? 0`, which told the model a record with no package had package
+    // version zero — a package that does not exist is not a package at
+    // version 0, and the model was being asked to explain the difference.
     const fields = buildAllowlistedFields(
       {
-        title: ev.title, type: ev.type, mimeType: ev.mimeType, status: ev.status,
-        verificationStatus: ev.verificationStatus, captureMethod: ev.captureMethod,
-        caseLinked: ev.caseLinks.length > 0, createdAtUtc: ev.createdAt?.toISOString?.() ?? null,
-        reportVersion: ev.latestReportVersion ?? 0, packageVersion: ev.verificationPackageVersion ?? 0,
-        tsaStatus: ev.tsaStatus ?? "NOT_REQUESTED", otsStatus: ev.otsStatus ?? "NOT_REQUESTED",
-        custodyEventCount: ev._count.custodyEvents,
+        title: snapshot.row.title,
+        type: snapshot.row.type,
+        mimeType: snapshot.row.mimeType,
+        status: snapshot.row.status,
+        verificationStatus: snapshot.row.verificationStatus,
+        captureMethod: snapshot.row.captureMethod,
+        caseLinked: snapshot.row._count.caseLinks > 0,
+        createdAtUtc: snapshot.row.createdAt?.toISOString() ?? null,
+        reportVersion: snapshot.row.latestReportVersion,
+        packageVersion: snapshot.row.verificationPackageVersion,
+        tsaStatus: snapshot.row.tsaStatus ?? "NOT_REQUESTED",
+        otsStatus: snapshot.row.otsStatus ?? "NOT_REQUESTED",
+        custodyEventCount: snapshot.row._count.custodyEvents,
       },
       EVIDENCE_DETAIL_ALLOWLIST,
     );
     const evidenceContext = {
-      ...base, objectType: "EVIDENCE_RECORD", objectId: ev.id, objectVersion: currentVersion,
-      allowedActions: [], fields,
-    };
-    const resolveCitation = buildCitationResolver(buildWorkspaceCitationLookups(prisma as unknown as CitationPrisma, teamId));
+      ...base,
+      objectType: "EVIDENCE_RECORD",
+      objectId: ev.id,
+      objectVersion: snapshot.row.verificationPackageVersion,
+      allowedActions: [],
+      fields,
+    };    const resolveCitation = buildCitationResolver(buildWorkspaceCitationLookups(prisma as unknown as CitationPrisma, teamId));
     const callProvider = buildStructuredCopilotCall({
       modelEnvVar: "OPENAI_EVIDENCE_COPILOT_MODEL",
       jsonSchema: EVIDENCE_SCHEMA,
@@ -161,11 +233,23 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       });
     };
 
+    // TOCTOU CLOSE — reserving budget is a round trip, and another writer can
+    // commit inside it. Re-read and recompute before anything is spent.
+    const drifted = await findDriftedSnapshot({ snapshots: [snapshot], teamId, scope: analysisScope });
+    if (drifted) {
+      if (ledger.reservationId) {
+        await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(
+          () => undefined,
+        );
+      }
+      return reply.code(409).send({ error: { code: "stale_evidence_revision" } });
+    }
+
     let result;
     try {
       result = await runGroundedCopilot({
         surface: "EVIDENCE", teamId,
-        selectionVersions: [{ id: ev.id, version: currentVersion }],
+        selectionRevisions: [{ id: ev.id, revision: snapshot.revision }],
         requireSelection: true,
         policyDecision,
         callProvider: () => callProvider({
@@ -190,11 +274,11 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     });
     const run = await persistCopilotRun({
       workspaceId: teamId, userId, feature: "EVIDENCE_COPILOT",
-      requestId: `${body.idempotencyKey ?? `evidence:${evidenceId}:${currentVersion}`}`,
+      requestId: requestIdentity,
       model: process.env.OPENAI_EVIDENCE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: policyDecision.policyVersion,
       processingMode: body.processingMode,
-      selectedObjectVersions: result.versionMeta.contextObjectVersions,
+      selectedObjectRevisions: result.versionMeta.contextObjectRevisions,
       status: result.status,
       boundedResult: result.status === "ok" ? result.data : undefined,
       validatedCitations: result.status === "ok" ? (result.data as { citations?: unknown })?.citations : undefined,
@@ -202,14 +286,21 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     // Phase P3(actions) — SERVER-derived executable actions. Deterministic
     // eligibility from real record state; the model never invents these.
     const serverActions = [];
+    //
+    // A REPORT EXISTS or it does not, and the artifact answers that — not a
+    // version column read through `?? 0`, which cannot tell "no report" from
+    // "report version 0" and is the derivation the lifecycle contract forbids.
+    const hasReport = snapshot.row._count.reports > 0;
     try {
-      if ((ev.latestReportVersion ?? 0) > 0) {
+      if (hasReport) {
         serverActions.push(buildSuggestedAction({
           actionType: "RETRY_ELIGIBLE_REPORT",
           displayLabel: "Regenerate Report",
           reason: "A newer report version can be generated for this record.",
-          affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: currentVersion },
-          proposedChange: { reportVersion: (ev.latestReportVersion ?? 0) + 1 },
+          affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: snapshot.row.verificationPackageVersion },
+          // The NEXT version, from the recorded one. A record with a report
+          // always has a version, so there is nothing to default here.
+          proposedChange: { reportVersion: (snapshot.row.latestReportVersion ?? 1) + 1 },
           requiredPermission: "evidence.report.generate",
           citations: [], versionMeta: {
             promptVersion: "1.0.0", modelVersion: "structured-copilot",
@@ -217,12 +308,12 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
           },
         }));
       }
-      if ((ev.latestReportVersion ?? 0) === 0 && ev.status === "SIGNED") {
+      if (!hasReport && snapshot.row.status === "SIGNED") {
         serverActions.push(buildSuggestedAction({
           actionType: "GENERATE_REPORT",
           displayLabel: "Generate Report",
           reason: "This signed record has no report yet.",
-          affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: currentVersion },
+          affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: snapshot.row.verificationPackageVersion },
           proposedChange: { reportVersion: 1 },
           requiredPermission: "evidence.report.generate",
           citations: [], versionMeta: {
@@ -235,7 +326,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
         actionType: "OPEN_MISSING_METADATA",
         displayLabel: "Open metadata section",
         reason: "Review and complete this record's metadata.",
-        affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: currentVersion },
+        affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: snapshot.row.verificationPackageVersion },
         proposedChange: {},
         requiredPermission: "evidence.read",
         citations: [], versionMeta: {
@@ -255,7 +346,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
             actionType: "OPEN_REVIEWER_ASSIGNMENT",
             displayLabel: "Open reviewer assignment",
             reason: "This signed record has no review workflow yet.",
-            affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: currentVersion },
+            affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: snapshot.row.verificationPackageVersion },
             proposedChange: {},
             requiredPermission: "review.assign",
             citations: [], versionMeta: {

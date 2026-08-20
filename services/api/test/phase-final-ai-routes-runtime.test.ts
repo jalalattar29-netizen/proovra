@@ -19,6 +19,8 @@
  */
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
+
+import { toSnapshot } from "../src/services/ai/evidence-analysis-snapshot.service.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +76,18 @@ vi.mock("../src/db.js", () => ({
     securityEvent: { create: async () => ({ id: "se-1" }) },
     evidence: {
       findUnique: async () => H.evidenceRow,
-      findMany: async () => H.evidenceRows,
+      // The TOCTOU re-check re-reads the SAME ids through `findMany`, so this
+      // double has to answer for the single mocked row too. Returning only
+      // `H.evidenceRows` made every run look like the record had vanished
+      // between validation and the spend — which is the drift detector working
+      // correctly against a fixture that was lying to it.
+      findMany: async (args?: { where?: { id?: { in?: string[] } } }) => {
+        const ids = args?.where?.id?.in;
+        if (ids && H.evidenceRow && ids.includes(H.evidenceRow.id as string)) {
+          return [H.evidenceRow];
+        }
+        return H.evidenceRows;
+      },
       count: async () => H.evidenceRows.length,
     },
     evidenceReviewWorkflow: { findMany: async () => [], count: async () => 0 },
@@ -176,9 +189,38 @@ function signedEvidenceRow(over: Record<string, unknown> = {}) {
     createdAt: new Date("2026-07-01T00:00:00Z"),
     latestReportVersion: 2, verificationPackageVersion: 1,
     tsaStatus: "CONFIRMED", otsStatus: "PENDING",
-    _count: { custodyEvents: 4 },
+    // Every field the canonical analysis select projects. The route reads
+    // ONE row shape now, so a fixture that carries less is a fixture that
+    // does not exercise the route.
+    lifecycleState: "ACTIVE", archivedAt: null,
+    _count: {
+      custodyEvents: 4,
+      parts: 1,
+      caseLinks: 0,
+      reports: 1,
+      verificationPackages: 1,
+    },
     ...over,
   };
+}
+
+/**
+ * The revision the ROUTE will recompute for the current mocked row.
+ *
+ * Derived from the fixture through the production builder rather than
+ * hard-coded: a literal would pass while the route rejected every real
+ * request, which is the class of defect this whole contract exists to end.
+ */
+function currentRevision(): string {
+  // A fixture with no row is testing the 404 path; the schema still requires a
+  // well-formed revision, so send one this product could have issued rather
+  // than skipping the field and failing on validation instead of on the
+  // behaviour under test.
+  if (!H.evidenceRow) return `ear1_${"A".repeat(43)}`;
+  return toSnapshot(H.evidenceRow as never, {
+    scope: "evidence",
+    scopeId: null,
+  }).revision;
 }
 
 const VALID_COPILOT_OUTPUT = {
@@ -218,7 +260,10 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     const res = await app.inject({
       method: "POST",
       url: `/v1/ai/evidence/${EVIDENCE_ID}/copilot`,
-      payload: body,
+      // The revision is REQUIRED now — a client that cannot say what it saw
+      // is not analyzed. Supplied by default so each test can exercise its
+      // own subject rather than restating the concurrency contract.
+      payload: { evidenceRevision: currentRevision(), ...body },
     });
     await app.close();
     return { status: res.statusCode, body: JSON.parse(res.body) };
@@ -244,7 +289,20 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
   });
 
   it("unreported SIGNED record → GENERATE_REPORT derived (never both)", async () => {
-    H.evidenceRow = signedEvidenceRow({ latestReportVersion: 0 });
+    // "Unreported" is NO REPORT ARTIFACT, which is what the fixture now says.
+    // It said `latestReportVersion: 0` — a version column standing in for
+    // readiness, which cannot distinguish "no report" from "report version 0"
+    // and is the derivation the lifecycle contract forbids.
+    H.evidenceRow = signedEvidenceRow({
+      latestReportVersion: null,
+      _count: {
+        custodyEvents: 4,
+        parts: 1,
+        caseLinks: 0,
+        reports: 0,
+        verificationPackages: 1,
+      },
+    });
     const { body } = await run();
     const types = (body.serverActions as Array<{ actionType: string }>).map((a) => a.actionType);
     expect(types).toContain("GENERATE_REPORT");
@@ -340,8 +398,14 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     expect(H.audits.some((e) => e.outcome === "success")).toBe(false);
   });
 
-  it("stale evidenceVersion → 409", async () => {
-    const { status } = await run({ evidenceVersion: 999 });
+  it("a stale revision → 409, and a package version is not a revision", async () => {
+    // `999` used to be a plausible-looking stale VERSION. Against an opaque
+    // token there is no such thing as a plausible-looking value: anything
+    // this product did not issue simply is not a revision.
+    expect((await run({ evidenceRevision: "999" })).status).toBe(409);
+    const { status } = await run({
+      evidenceRevision: `ear1_${"A".repeat(43)}`,
+    });
     expect(status).toBe(409);
   });
 });

@@ -38,7 +38,15 @@ export type ReviewerCopilotResult = {
   versionMeta: {
     outputSchemaVersion: string;
     criteriaVersion: string;
-    contextObjectVersions: Array<{ id: string; version: number | null }>;
+    /**
+     * WHICH REVISION of each selected record this conclusion was drawn from.
+     *
+     * This recorded `{ id, version: number | null }` — the package version —
+     * so the defensibility record claimed to pin the state behind a conclusion
+     * while storing a counter that moved for one of the fourteen fields the
+     * model was shown. An opaque revision pins all of them.
+     */
+    contextObjectRevisions: Array<{ id: string; revision: string }>;
   };
 };
 
@@ -52,6 +60,8 @@ export type RunReviewerCopilotInput = {
   teamId: string;
   reviewerContext: ReviewerContext;
   selectedEvidence: EvidenceContext[];
+  /** The analysis revision of each selected record, by id. */
+  selectionRevisions: Readonly<Record<string, string>>;
   criteriaVersion: string;
   policyDecision: AiPolicyDecision;
   provider: ReviewerCopilotProvider;
@@ -74,7 +84,10 @@ export async function runReviewerCopilot(
   const versionMeta = {
     outputSchemaVersion: COPILOT_SCHEMA_VERSION,
     criteriaVersion: input.criteriaVersion,
-    contextObjectVersions: input.selectedEvidence.map((e) => ({ id: e.objectId ?? "", version: e.objectVersion })),
+    contextObjectRevisions: input.selectedEvidence.map((e) => ({
+      id: e.objectId ?? "",
+      revision: input.selectionRevisions[e.objectId ?? ""] ?? "",
+    })),
   };
   if (input.selectedEvidence.length === 0) {
     return { status: "no_selection", advisoryBoundary: ADVISORY_BOUNDARY, versionMeta };

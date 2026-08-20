@@ -177,7 +177,9 @@ export async function aiOperationsRoutes(app: FastifyInstance) {
     try {
       result = await runGroundedCopilot({
         surface: "OPERATIONS", teamId,
-        selectionVersions: [], requireSelection: false,
+        // The Operations copilot analyzes workspace-level counters, never
+        // selected evidence, so there is nothing to hold a revision for.
+        selectionRevisions: [], requireSelection: false,
         policyDecision: opsDecision,
         callProvider: () => callProvider({ operationType: body.operationType, snapshot }),
         resolveCitation,
@@ -210,7 +212,7 @@ export async function aiOperationsRoutes(app: FastifyInstance) {
       model: process.env.OPENAI_OPERATIONS_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: opsDecision.policyVersion,
       processingMode: "METADATA_ONLY",
-      selectedObjectVersions: [],
+      selectedObjectRevisions: [],
       status: result.status,
       boundedResult: result.status === "ok" ? result.data : undefined,
     });

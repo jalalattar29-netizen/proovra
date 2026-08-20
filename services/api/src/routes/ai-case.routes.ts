@@ -14,12 +14,16 @@ import {
   COPILOT_SELECTION_MIN,
   buildCopilotIdempotencyKey,
   evaluateCopilotEvidenceEligibility,
-  evidenceSelectionVersion,
-  evidenceSelectionVersionsMatch,
+  deriveCanonicalArtifactAvailability,
+  evidenceAnalysisRevisionsMatch,
 } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import {
+  findDriftedSnapshot,
+  loadEvidenceAnalysisSnapshots,
+} from "../services/ai/evidence-analysis-snapshot.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -62,16 +66,22 @@ const Body = z.object({
     .min(COPILOT_SELECTION_MIN)
     .max(COPILOT_SELECTION_MAX),
   /**
-   * The selection snapshot, per record.
+   * The selection snapshot: one OPAQUE analysis revision per selected record.
    *
-   * NULLABLE: `null` is the real projected value for a record with no
-   * verification package, and it is a different statement from version 0. The
-   * schema accepted only `number`, so the client had nowhere to express it and
-   * sent a fabricated `0` instead — which the comparison then rejected.
+   * REQUIRED, and required for EVERY selected id. It was optional and carried a
+   * nullable package version, which meant a client could decline to state what
+   * it had seen and be analyzed anyway — and the one thing it could state,
+   * `verificationPackageVersion`, moved for one of the fourteen fields the
+   * model is actually shown.
+   *
+   * The server never trusts the value: it recomputes the revision from
+   * persisted state and compares. A forged or replayed token therefore gets
+   * exactly as far as a stale one.
    */
-  selectedEvidenceVersions: z
-    .record(z.string(), z.number().int().nullable())
-    .optional(),
+  selectedEvidenceRevisions: z.record(
+    z.string().uuid(),
+    z.string().max(64),
+  ),
   processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
   question: z.string().max(500).optional(),
   idempotencyKey: z.string().max(80).optional(),
@@ -112,20 +122,16 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     if (ids.length !== body.selectedEvidenceIds.length) {
       return reply.code(400).send({ error: { code: "duplicate_evidence_ids" } });
     }
-    const rows = await prisma.evidence.findMany({
-      where: { id: { in: ids }, teamId, deletedAt: null },
-      select: {
-        id: true, teamId: true, title: true, type: true, mimeType: true, status: true,
-        verificationStatus: true, verificationPackageVersion: true, latestReportVersion: true,
-        // Eligibility is derived from PERSISTED state, so the fields it reads
-        // are selected here rather than inferred from what the client sent.
-        lifecycleState: true,
-        caseLinks: { select: { caseId: true } },
-      },
-    });
-    if (rows.length !== ids.length) {
+    // ONE READ, FROZEN. Eligibility, the revision comparison, the idempotency
+    // key and the model's prompt are all derived from these exact objects, so
+    // "the snapshot whose revision was accepted" and "the snapshot the model
+    // was shown" are the same thing by construction rather than by discipline.
+    const scope = { scope: "case" as const, scopeId: caseRow.id };
+    const snapshots = await loadEvidenceAnalysisSnapshots({ ids, teamId, scope });
+    if (snapshots.length !== ids.length) {
       return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
     }
+
     // FINAL, SERVER-AUTHORITATIVE ELIGIBILITY.
     //
     // The panel runs the same function over the same fields, so this normally
@@ -138,13 +144,16 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // The refusal names WHICH records and WHY, using the shared bounded reason
     // vocabulary — never a table, a column or a status code. The client
     // refreshes and re-derives; it does not parse prose.
-    const ineligible = rows
-      .map((r) => ({
-        id: r.id,
+    const ineligible = snapshots
+      .map((s) => ({
+        id: s.row.id,
         verdict: evaluateCopilotEvidenceEligibility({
-          status: r.status,
-          lifecycleState: r.lifecycleState,
-          caseLinked: r.caseLinks.some((l) => l.caseId === caseRow.id),
+          status: s.row.status,
+          lifecycleState: s.row.lifecycleState,
+          // Trash is not a lifecycle state, so it is asserted separately —
+          // a trashed record is unavailable however ACTIVE its state column says
+          // it is.
+          caseLinked: s.linkedToScope === true && s.row.deletedAt === null,
         }),
       }))
       .filter((x) => !x.verdict.eligible);
@@ -165,36 +174,30 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       });
     }
 
-    // STALE-VERSION REJECTION, against ONE nullable authority.
+    // STALE-REVISION REJECTION, against the ONE comprehensive authority.
     //
-    // This compared `expected !== (r.verificationPackageVersion ?? 0)`. The
-    // `?? 0` made "no verification package" indistinguishable from "version
-    // 0", so a record could match for the wrong reason as easily as it could
-    // mismatch for one — and the client, which fabricated its own 0 from a
-    // field the projection never sent, mismatched every package-ready record.
+    // This compared `expected !== (r.verificationPackageVersion ?? 0)`, then —
+    // once the projection was fixed — the raw nullable package version. Both
+    // answered a narrower question than the one that matters: a package counter
+    // moves for ONE of the fields the model is shown. Renaming a record,
+    // correcting its MIME type, unlinking it from this case, publishing a
+    // report or archiving it all changed the prompt while the guard reported no
+    // change at all.
     //
-    // Both sides now compare the raw nullable value through the shared
-    // authority. A snapshot the client could not determine is `undefined`,
-    // which never matches: not knowing is not agreement.
-    if (body.selectedEvidenceVersions) {
-      for (const r of rows) {
-        const snapshot = Object.prototype.hasOwnProperty.call(
-          body.selectedEvidenceVersions,
-          r.id,
-        )
-          ? body.selectedEvidenceVersions[r.id]
-          : undefined;
-        // A caller that sends no snapshot for a record is not asserting
-        // anything about it, which stays permitted — the field is optional.
-        if (snapshot === undefined) continue;
-        const current = evidenceSelectionVersion({
-          verificationPackageVersion: r.verificationPackageVersion,
-        });
-        if (!evidenceSelectionVersionsMatch(snapshot, current)) {
-          return reply
-            .code(409)
-            .send({ error: { code: "stale_evidence_version", evidenceId: r.id } });
-        }
+    // The comparison is now an opaque revision over the whole snapshot,
+    // recomputed here from persisted state. A revision the client could not
+    // supply is `undefined`, which never matches: not knowing is not agreement.
+    for (const snap of snapshots) {
+      const claimed = Object.prototype.hasOwnProperty.call(
+        body.selectedEvidenceRevisions,
+        snap.row.id,
+      )
+        ? body.selectedEvidenceRevisions[snap.row.id]
+        : undefined;
+      if (!evidenceAnalysisRevisionsMatch(claimed, snap.revision)) {
+        return reply
+          .code(409)
+          .send({ error: { code: "stale_evidence_revision", evidenceId: snap.row.id } });
       }
     }
 
@@ -217,11 +220,39 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // C3 context (authorized rows only; allowlisted/sanitized/versioned).
     const base = await buildBaseContext({ route: `/cases/${caseId}`, routeClass: "CASE", role: membership.role, teamId, dataMode: body.processingMode });
     const caseContext = buildCaseContext(base, { id: caseRow.id, title: caseRow.name, status: caseRow.status });
-    const selectedEvidence = rows.map((r) =>
+    // Built from the FROZEN snapshot — not from a second query, and not from
+    // fields reassembled later. Every key the allowlist accepts is supplied:
+    // `itemCount`, `reportReady` and `packageReady` were simply never passed,
+    // so the allowlist silently dropped three of the ten fields it exists to
+    // permit and the model was told less than the product believed.
+    const selectedEvidence = snapshots.map((snap) =>
       buildEvidenceContext({ ...base, routeClass: "EVIDENCE" }, {
-        id: r.id, teamId: r.teamId, title: r.title, type: r.type, mimeType: r.mimeType,
-        status: r.status, verificationStatus: r.verificationStatus, caseLinked: r.caseLinks.length > 0,
-        verificationPackageVersion: r.verificationPackageVersion, latestReportVersion: r.latestReportVersion,
+        id: snap.row.id,
+        teamId: snap.row.teamId,
+        title: snap.row.title,
+        type: snap.row.type,
+        mimeType: snap.row.mimeType,
+        status: snap.row.status,
+        verificationStatus: snap.row.verificationStatus,
+        // "Linked to THE CASE BEING ANALYZED" — this said
+        // `caseLinks.length > 0`, so a record linked to some OTHER case was
+        // reported to the model as linked to this one.
+        caseLinked: snap.linkedToScope === true,
+        itemCount: snap.row._count.parts,
+        createdAtUtc: snap.row.createdAt?.toISOString() ?? null,
+        // READINESS COMES FROM THE ARTIFACT, not from a version column.
+        //
+        // `latestReportVersion !== null` is the derivation the lifecycle
+        // contract forbids: a version is a snapshot-only material and never
+        // a "this is ready" proxy — which is how a record could report a
+        // version while the artifact it names did not exist. The canonical
+        // authority answers from the presence of the rows themselves.
+        ...deriveCanonicalArtifactAvailability({
+          reportAvailable: snap.row._count.reports > 0,
+          verificationPackageAvailable: snap.row._count.verificationPackages > 0,
+          latestReportVersion: snap.row.latestReportVersion,
+          verificationPackageVersion: snap.row.verificationPackageVersion,
+        }),
       }),
     );
 
@@ -233,9 +264,24 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // The request's identity, bounded. The fallback used to concatenate every
     // id, which is the same unbounded shape that made the CLIENT's key exceed
     // this route's own `max(80)` at two selections.
-    const requestIdentity =
-      body.idempotencyKey ??
-      buildCopilotIdempotencyKey({ scope: "case", scopeId: caseId, selection: ids });
+    //
+    // REVISION-AWARE. The key used to be the case id plus the sorted evidence
+    // ids, which identifies a SELECTION rather than an OPERATION: retrying
+    // after a record genuinely changed produced the SAME key and could be
+    // served the answer computed from the OLD snapshot.
+    //
+    // The server builds its own from the revisions it just recomputed, and
+    // ignores the client's when they disagree about anything that matters —
+    // a client cannot buy a cache hit by sending a key from a previous state.
+    const serverRevisions: Record<string, string> = {};
+    for (const snap of snapshots) serverRevisions[snap.row.id] = snap.revision;
+    const requestIdentity = buildCopilotIdempotencyKey({
+      scope: "case",
+      scopeId: caseId,
+      selection: ids,
+      revisions: serverRevisions,
+      mode: body.processingMode,
+    });
     const ledgerRequestId = `${requestIdentity}:${Date.now()}`;
     const ledger = await tryReserveAiBudget({
       teamId, userId, feature: "CASE_COPILOT",
@@ -246,10 +292,37 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       return reply.code(429).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
     }
 
+    // TOCTOU CLOSE.
+    //
+    // The frozen snapshot covers everything up to here, but reserving budget is
+    // a round trip, and another writer can commit inside it. One indexed re-read
+    // of ids already known asks whether anything moved; if it did, the
+    // reservation is released and nothing is spent on a prompt built from state
+    // that is no longer true.
+    const drifted = await findDriftedSnapshot({ snapshots, teamId, scope });
+    if (drifted) {
+      if (ledger.reservationId) {
+        await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(
+          () => undefined,
+        );
+      }
+      await auditCase(req, userId, "blocked", caseId, teamId, {
+        status: "stale_evidence_revision",
+        selectedCount: ids.length,
+      });
+      return reply
+        .code(409)
+        .send({ error: { code: "stale_evidence_revision", evidenceId: drifted } });
+    }
+
     let result;
     try {
       result = await runCaseCopilot({
         teamId, caseContext, selectedEvidence, policyDecision,
+        // The revisions THIS run was grounded in — the exact ones accepted
+        // above, so the defensibility record pins the state the conclusion
+        // was actually drawn from.
+        selectionRevisions: serverRevisions,
         provider: buildCaseCopilotProvider(), resolveCitation,
       });
     } catch (err) {
@@ -274,7 +347,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       model: process.env.OPENAI_CASE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: policyDecision.policyVersion,
       processingMode: body.processingMode,
-      selectedObjectVersions: result.versionMeta.contextObjectVersions,
+      selectedObjectRevisions: result.versionMeta.contextObjectRevisions,
       status: result.status,
       boundedResult: result.status === "ok" ? result.data : undefined,
       validatedCitations: result.status === "ok" ? (result.data as { citations?: unknown })?.citations : undefined,

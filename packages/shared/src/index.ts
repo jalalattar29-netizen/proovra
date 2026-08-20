@@ -842,6 +842,11 @@ export {
 export * from "./search-readiness.js";
 // ONE copilot selection authority: eligibility derived from persisted fields,
 // and a BOUNDED idempotency key. Both the panel and the AI routes read it.
+// SHA-256, one implementation. Imported by the copilot idempotency key in
+// the browser AND by the server-side evidence analysis revision, so the two
+// cannot drift into being different digests of the same contract.
+export * from "./canonical-digest.js";
+
 export * from "./ai-copilot-selection.js";
 
 // -----------------------------------------------------------------------------

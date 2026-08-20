@@ -38,7 +38,7 @@ describe("D4 — persistence never blocks the response", () => {
       model: "gpt-4.1-mini",
       workspacePolicyVersion: 1,
       processingMode: "METADATA_ONLY",
-      selectedObjectVersions: [],
+      selectedObjectRevisions: [],
       status: "ok",
     });
     expect(r).toBeNull(); // no DB in test env → graceful null, no throw

@@ -207,6 +207,14 @@ export type TimelineEvent = {
 
 export type ReviewWorkspaceResponse = {
   evidence: EvidenceRecord & {
+    /**
+     * The OPAQUE analysis revision, bound to the Evidence surface.
+     *
+     * Carried to the Evidence Copilot and never interpreted here. `null` from
+     * an older API, which disables the run rather than sending a record
+     * nobody can say is current.
+     */
+    analysisRevision?: string | null;
     contentItems?: ReviewWorkspaceEvidenceContentItem[] | null;
     contentSummary?: EvidenceContentSummary | null;
     evidenceIntelligence?: EvidenceIntelligence | null;

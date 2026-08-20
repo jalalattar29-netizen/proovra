@@ -48,9 +48,9 @@ import {
   buildCopilotIdempotencyKey,
   copilotIneligibilityReason,
   evaluateCopilotEvidenceEligibility,
-  evidenceSelectionVersionLabel,
+  evidencePackageVersionLabel,
   type CopilotEligibility,
-  type EvidenceSelectionVersion,
+  type EvidenceAnalysisRevision,
 } from "@proovra/shared";
 
 import { apiFetch, ApiError } from "../../lib/api";
@@ -63,14 +63,24 @@ export type CaseCopilotEvidence = {
   title: string;
   type: string;
   /**
-   * The canonical selection/concurrency version, exactly as projected.
+   * THE CONCURRENCY AUTHORITY — opaque, server-computed, carried verbatim.
    *
-   * `null` = no verification package yet. `undefined` = the projection did not
-   * carry one, which is a REFUSAL — the previous shape was `number` and every
-   * caller reached it through a `?? 0`, so a record the server knew as v2
-   * arrived here as v0 and was rejected as concurrently changed.
+   * `undefined` means the projection did not carry one, which makes the record
+   * INELIGIBLE rather than analyzable against a guess.
+   *
+   * Nothing in this component parses, orders or compares it. That is the
+   * point: a client that cannot compute a revision cannot fabricate one, and
+   * fabricating one is precisely what `?? 0` did.
    */
-  version: EvidenceSelectionVersion | undefined;
+  analysisRevision: EvidenceAnalysisRevision | undefined;
+  /**
+   * PRESENTATION ONLY: which verification package exists, if any.
+   *
+   * A separate prop from the revision, deliberately. These were one value
+   * doing two jobs, which is how a package counter ended up guarding a
+   * fourteen-field prompt.
+   */
+  packageVersion: number | null | undefined;
   status: string;
   /** `EvidenceLifecycleState`. Absent on an older projection. */
   lifecycleState?: string | null;
@@ -100,7 +110,7 @@ type RunResult = {
   advisoryBoundary?: string;
   versionMeta?: {
     outputSchemaVersion?: string;
-    contextObjectVersions?: Array<{ id: string; version: number | null }>;
+    contextObjectRevisions?: Array<{ id: string; revision: string }>;
   };
 };
 
@@ -206,8 +216,8 @@ export function CaseCopilotPanel({
           stale: e.stale,
           // FAIL CLOSED on a version this panel cannot determine, rather than
           // sending a guess the route will refuse.
-          selectionVersion: e.version,
-          selectionVersionKnown: true,
+          analysisRevision: e.analysisRevision,
+          analysisRevisionKnown: true,
         }) as CopilotEligibility,
       })),
     [linkedEvidence],
@@ -257,12 +267,13 @@ export function CaseCopilotPanel({
     setState({ kind: "loading" });
 
     const ids = selectedList.map((e) => e.id);
-    // Only records whose version is KNOWN reach here — eligibility refuses the
-    // rest — so every snapshot is a real projected value, including `null` for
-    // a record with no verification package yet.
-    const versions: Record<string, number | null> = {};
+    // Only records whose REVISION is known reach here — eligibility refuses
+    // the rest — so this cannot send a record without one. The server requires
+    // a revision for EVERY selected id and refuses the run otherwise, which is
+    // the guarantee that matters; this is the client half of it.
+    const revisions: Record<string, string> = {};
     for (const e of selectedList) {
-      if (e.version !== undefined) versions[e.id] = e.version;
+      if (e.analysisRevision !== undefined) revisions[e.id] = e.analysisRevision;
     }
 
     try {
@@ -271,7 +282,7 @@ export function CaseCopilotPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           selectedEvidenceIds: ids,
-          selectedEvidenceVersions: versions,
+          selectedEvidenceRevisions: revisions,
           processingMode: "METADATA_ONLY",
           // BOUNDED. The previous key concatenated every id and exceeded the
           // route's own `max(80)` at two selections, which is what produced
@@ -280,6 +291,11 @@ export function CaseCopilotPanel({
             scope: "case",
             scopeId: caseId,
             selection: ids,
+            // REVISION-AWARE. Without this, a retry after a record genuinely
+            // changed produced the SAME key as the run before it and could be
+            // de-duplicated into an answer computed from the old snapshot.
+            revisions,
+            mode: "METADATA_ONLY",
           }),
         }),
       })) as { data?: RunResult; status?: string };
@@ -416,20 +432,28 @@ export function CaseCopilotPanel({
                   </span>
                 </label>
                 {/*
-                  The version is CONTRACT data, and it is now the REAL one.
-                  Every record used to read `v0` — including records the same
-                  page reported as "Package ready" — because the projection never
-                  carried the field and the client defaulted it to zero. The
-                  label is derived from the shared authority so "no package yet"
-                  and "version unavailable" can never render as the same thing.
+                  THE PACKAGE STATE, which is what an operator actually wants to
+                  read. Every record used to say `v0` — including records the
+                  same page called "Package ready" — because the projection never
+                  carried the field and the client defaulted it to zero.
+
+                  This is presentation, NOT the concurrency guard: the opaque
+                  revision decides staleness and is never rendered, because an
+                  operator cannot act on a digest. The two were one value doing
+                  both jobs, and that is exactly how the defect survived.
                 */}
                 <span
                   className="case-copilot__row-version"
-                  data-case-copilot-version={
-                    e.version === undefined ? "unknown" : String(e.version)
+                  data-case-copilot-package={
+                    e.packageVersion === undefined
+                      ? "unknown"
+                      : String(e.packageVersion)
+                  }
+                  data-case-copilot-revision={
+                    e.analysisRevision === undefined ? "unknown" : "known"
                   }
                 >
-                  {evidenceSelectionVersionLabel(e.version)}
+                  {evidencePackageVersionLabel(e.packageVersion)}
                 </span>
               </li>
             );
@@ -656,7 +680,7 @@ function ResultView({ result }: { result: RunResult }) {
         <summary>Technical details</summary>
         <p>
           Output schema v{result.versionMeta?.outputSchemaVersion ?? "1"} ·
-          analyzed {result.versionMeta?.contextObjectVersions?.length ?? 0} object
+          analyzed {result.versionMeta?.contextObjectRevisions?.length ?? 0} object
           version(s)
         </p>
       </details>

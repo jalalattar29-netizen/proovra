@@ -130,10 +130,14 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           report/package readiness). Never a truth/authenticity verdict. */}
       <EvidenceCopilotPanel
         evidenceId={evidenceId}
-        evidenceVersion={
-          (evidence as { verificationPackageVersion?: number | null })
-            ?.verificationPackageVersion ?? 0
-        }
+        // THE CONCURRENCY AUTHORITY, carried opaquely.
+        //
+        // This was a cast to a field the declared type already had, then
+        // `?? 0` — which told the route that a record with no verification
+        // package was at package version zero. The route collapsed the same
+        // way, so nothing broke; it just meant the guard answered a question
+        // about a package counter while the panel shows fourteen fields.
+        analysisRevision={evidence.analysisRevision ?? undefined}
       />
 
       {/* (1) Review hero — the reviewer state, its boundary, and the two

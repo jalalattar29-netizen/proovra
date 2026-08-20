@@ -46,6 +46,7 @@ import {
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   cronSecretMatches,
@@ -821,8 +822,25 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               ])
             : [0, null, null];
 
+        // THE ANALYSIS REVISION for the record this review is about.
+        //
+        // The Reviewer Copilot panel was mounted with a hard-coded
+        // `version: 0` and had no concurrency guard at all: it selected
+        // evidence, built a prompt and spent on a provider without ever
+        // asking whether the record still looked the way the reviewer saw it.
+        //
+        // Bound to the REVIEW, so a revision from the Case or Evidence
+        // surface can never satisfy this one.
+        const analysisSnapshots = evidenceId
+          ? await loadEvidenceAnalysisSnapshots({
+              ids: [evidenceId],
+              teamId: q.teamId,
+              scope: { scope: "reviewer", scopeId: workflowId },
+            })
+          : [];
         return reply.code(200).send({
           ...ws,
+          analysisRevision: analysisSnapshots[0]?.revision ?? null,
           // Phase B-2 — additive governance block. Existing consumers
           // ignore this; new consumers (the reviewer detail page UI)
           // render it as a small read-only badge strip.

@@ -28,21 +28,21 @@ const valid = {
 
 describe("D3 — reviewer copilot orchestration", () => {
   it("no selection → no_selection", async () => {
-    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [], criteriaVersion: "v1", policyDecision: ALLOW, provider: async () => valid, resolveCitation: resolver });
+    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [], selectionRevisions: {}, criteriaVersion: "v1", policyDecision: ALLOW, provider: async () => valid, resolveCitation: resolver });
     expect(r.status).toBe("no_selection");
   });
   it("policy-denied → no provider call", async () => {
     let called = false;
-    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [ev], criteriaVersion: "v1", policyDecision: DENY, provider: async () => { called = true; return valid; }, resolveCitation: resolver });
+    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [ev], selectionRevisions: {}, criteriaVersion: "v1", policyDecision: DENY, provider: async () => { called = true; return valid; }, resolveCitation: resolver });
     expect(r.status).toBe("policy_denied"); expect(called).toBe(false);
   });
   it("prohibited claim → blocked; no final-decision field", async () => {
-    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [ev], criteriaVersion: "v1", policyDecision: ALLOW, provider: async () => ({ ...valid, reviewBrief: "The claimant is liable and this is authentic." }), resolveCitation: resolver });
+    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [ev], selectionRevisions: {}, criteriaVersion: "v1", policyDecision: ALLOW, provider: async () => ({ ...valid, reviewBrief: "The claimant is liable and this is authentic." }), resolveCitation: resolver });
     expect(r.status).toBe("blocked_prohibited_claim");
     expect(JSON.stringify(r.data)).not.toMatch(/finalReviewerDecision|finalDecision/);
   });
   it("valid → ok, invalid citation dropped, criteriaVersion tracked", async () => {
-    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [ev], criteriaVersion: "v2", policyDecision: ALLOW,
+    const r = await runReviewerCopilot({ teamId: "ws-1", reviewerContext: rc, selectedEvidence: [ev], selectionRevisions: {}, criteriaVersion: "v2", policyDecision: ALLOW,
       provider: async () => ({ ...valid, citations: [...valid.citations, { ...valid.citations[0], objectId: "invented", route: "/evidence/invented" }] }), resolveCitation: resolver });
     expect(r.status).toBe("ok");
     expect(r.droppedCitations).toBe(1);

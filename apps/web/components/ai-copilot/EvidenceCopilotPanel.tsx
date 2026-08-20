@@ -5,6 +5,7 @@
  * Structured Evidence-Operations assistant for ONE authorized record.
  * Advisory only; deterministic integrity facts are explained, never decided.
  */
+import { buildCopilotIdempotencyKey } from "@proovra/shared";
 import { useState } from "react";
 
 import { apiFetch, ApiError } from "../../lib/api";
@@ -31,7 +32,7 @@ type RunResult = {
   decision?: string;
   data?: EvidenceCopilotData;
   droppedCitations?: number;
-  versionMeta?: { outputSchemaVersion?: string; contextObjectVersions?: Array<{ id: string; version: number | null }> };
+  versionMeta?: { outputSchemaVersion?: string; contextObjectRevisions?: Array<{ id: string; revision: string }> };
 };
 
 type ServerAction = {
@@ -141,26 +142,46 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
 
 export function EvidenceCopilotPanel({
   evidenceId,
-  evidenceVersion,
+  analysisRevision,
   aiEnabled = true,
 }: {
   evidenceId: string;
-  evidenceVersion?: number;
+  /**
+   * THE CONCURRENCY AUTHORITY — opaque, server-computed, carried verbatim.
+   *
+   * This was `evidenceVersion?: number`, built by the caller with `?? 0`.
+   * `undefined` now means the projection carried no revision, which disables
+   * the run rather than analyzing a record nobody can say is current.
+   */
+  analysisRevision?: string;
   aiEnabled?: boolean;
 }) {
   const [state, setState] = useState<UiState>({ kind: "idle" });
 
   async function run() {
     if (state.kind === "loading") return;
+    // FAIL CLOSED. Without a revision there is nothing to compare, so the
+    // run is not attempted at all rather than sent for the server to refuse.
+    if (analysisRevision === undefined) return;
     setState({ kind: "loading" });
     try {
       const res = (await apiFetch(`/v1/ai/evidence/${evidenceId}/copilot`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          evidenceVersion,
+          evidenceRevision: analysisRevision,
           processingMode: "METADATA_ONLY",
-          idempotencyKey: `${evidenceId}:${evidenceVersion ?? 0}`,
+          // ONE bounded builder, as on every other surface. This was
+          // `${evidenceId}:${evidenceVersion ?? 0}` — a key that did not
+          // change when the record did, so a retry after a genuine change
+          // could be de-duplicated into the previous answer.
+          idempotencyKey: buildCopilotIdempotencyKey({
+            scope: "evidence",
+            scopeId: evidenceId,
+            selection: [evidenceId],
+            revisions: { [evidenceId]: analysisRevision },
+            mode: "METADATA_ONLY",
+          }),
         }),
       })) as { data?: RunResult; status?: string; serverActions?: ServerAction[] };
       setState({ kind: "result", result: res.data ?? (res as RunResult), serverActions: res.serverActions ?? [] });
@@ -274,7 +295,7 @@ function ResultView({
 }
 
 function evidenceIdOfResult(result: RunResult): string {
-  return result.versionMeta?.contextObjectVersions?.[0]?.id ?? "";
+  return result.versionMeta?.contextObjectRevisions?.[0]?.id ?? "";
 }
 
 function friendly(status: number): string {

@@ -52,7 +52,7 @@ const validOutput = {
 describe("D2 — never process the whole case without explicit selection", () => {
   it("returns no_selection when no evidence is selected", async () => {
     const r = await runCaseCopilot({
-      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [], policyDecision: ALLOW,
+      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [], selectionRevisions: {}, policyDecision: ALLOW,
       provider: async () => validOutput, resolveCitation: resolver,
     });
     expect(r.status).toBe("no_selection");
@@ -63,7 +63,7 @@ describe("D1 — policy gate, schema, claims, citations", () => {
   it("policy-denied → no provider call", async () => {
     let called = false;
     const r = await runCaseCopilot({
-      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], policyDecision: DENY,
+      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], selectionRevisions: {}, policyDecision: DENY,
       provider: async () => { called = true; return validOutput; }, resolveCitation: resolver,
     });
     expect(r.status).toBe("policy_denied");
@@ -73,7 +73,7 @@ describe("D1 — policy gate, schema, claims, citations", () => {
 
   it("schema mismatch → safe fallback (no raw passthrough)", async () => {
     const r = await runCaseCopilot({
-      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], policyDecision: ALLOW,
+      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], selectionRevisions: {}, policyDecision: ALLOW,
       provider: async () => ({ caseSummary: 123 }), resolveCitation: resolver,
     });
     expect(r.status).toBe("schema_error");
@@ -81,7 +81,7 @@ describe("D1 — policy gate, schema, claims, citations", () => {
 
   it("prohibited claim in output → blocked + safe rewrite", async () => {
     const r = await runCaseCopilot({
-      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], policyDecision: ALLOW,
+      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], selectionRevisions: {}, policyDecision: ALLOW,
       provider: async () => ({ ...validOutput, caseSummary: "This evidence is authentic and the claimant is liable." }),
       resolveCitation: resolver,
     });
@@ -91,7 +91,7 @@ describe("D1 — policy gate, schema, claims, citations", () => {
 
   it("valid output → ok, invalid citations dropped, no verdict fields", async () => {
     const r = await runCaseCopilot({
-      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], policyDecision: ALLOW,
+      teamId: "ws-1", caseContext: caseCtx, selectedEvidence: [ev], selectionRevisions: {}, policyDecision: ALLOW,
       provider: async () => ({
         ...validOutput,
         citations: [
@@ -250,9 +250,13 @@ describe("eligibility is one authority, enforced server-side", () => {
     expect(check).toBeLessThan(reserve);
     expect(check).toBeLessThan(provider);
     // It reads PERSISTED fields, so it cannot be satisfied by what the client
-    // claimed about a record.
-    expect(src).toMatch(/lifecycleState: true,/);
-    expect(src).toMatch(/caseLinked: r\.caseLinks\.some\(/);
+    // claimed about a record. Those fields now arrive through ONE frozen
+    // snapshot rather than a per-route `select`, so this checks that the
+    // route judges eligibility on the snapshot rather than on the request.
+    expect(src).toMatch(/loadEvidenceAnalysisSnapshots\(\{/);
+    expect(src).toMatch(/status: s\.row\.status,/);
+    expect(src).toMatch(/lifecycleState: s\.row\.lifecycleState,/);
+    expect(src).toMatch(/caseLinked: s\.linkedToScope === true/);
   });
 
   it("the refusal names records and reasons, never tenancy", () => {
@@ -261,7 +265,7 @@ describe("eligibility is one authority, enforced server-side", () => {
       "utf8",
     );
     const start = src.indexOf('code: "evidence_not_analyzable"');
-    const end = src.indexOf("STALE-VERSION REJECTION", start);
+    const end = src.indexOf("STALE-REVISION REJECTION", start);
     // ASSERT THE BOUNDS. This previously anchored on a comment that was later
     // reworded: `indexOf` returned -1, `slice` ran to the end of the file, and
     // the test failed on tenancy words a thousand lines away. An unfound anchor

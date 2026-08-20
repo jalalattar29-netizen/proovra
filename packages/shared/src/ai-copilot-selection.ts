@@ -35,9 +35,21 @@
  * copilot can meaningfully compare.
  */
 
+import { SHA256_BASE64URL_LENGTH, sha256Base64Url } from "./canonical-digest.js";
+
 // ---------------------------------------------------------------------------
 // 1. Selection size
 // ---------------------------------------------------------------------------
+
+/**
+ * The copilot REQUEST CONTRACT version.
+ *
+ * Part of every idempotency key's canonical input, so that changing what a
+ * request MEANS — a new field, a different comparison — cannot let a new
+ * request be served an old request's answer. Bump it when the contract
+ * changes, not when an implementation detail does.
+ */
+export const COPILOT_REQUEST_CONTRACT_VERSION = "2";
 
 /**
  * How many records one copilot run may consider.
@@ -62,37 +74,48 @@ export const COPILOT_SELECTION_MAX = 50;
 export const COPILOT_IDEMPOTENCY_KEY_MAX = 80;
 
 /**
- * FNV-1a, 32-bit, run twice over different seeds for a 64-bit digest.
+ * The digest length this builder spends on identity.
  *
- * Deliberately not `crypto`: this module is imported by the browser bundle and
- * by the API, and a Node-only import would fork it into two modules. The digest
- * is an identity for de-duplication, never a security boundary — a collision
- * costs one deduplicated retry inside a 20-second window, not a wrong answer.
+ * The key must fit `z.string().max(80)` alongside a scope and a uuid, so the
+ * digest is the part that can be sized. 32 base64url characters carry 192 bits
+ * — vastly stronger than the 64-bit FNV-1a this replaced, and enough that two
+ * genuinely different requests colliding inside a 20-second dedupe window is
+ * not a thing that happens.
  */
-function digest(input: string): string {
-  const fnv = (seed: number): number => {
-    let h = seed;
-    for (let i = 0; i < input.length; i += 1) {
-      h ^= input.charCodeAt(i);
-      h = Math.imul(h, 0x01000193) >>> 0;
-    }
-    return h >>> 0;
-  };
-  const a = fnv(0x811c9dc5);
-  const b = fnv(0x0f4b39c7);
-  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
-}
+const IDEMPOTENCY_DIGEST_LENGTH = 32;
 
 /**
  * A stable, bounded identity for one copilot request.
  *
- * DETERMINISTIC: the same scope and the same set of ids produce the same key,
- * whatever order the user clicked them in, so a double submission is
- * recognised as a duplicate rather than billed twice.
+ * WHAT THE KEY IS FOR. Two submissions of the SAME request must be recognised
+ * as one, so a double-click is not billed twice and does not run the model
+ * twice. Two submissions of DIFFERENT requests must not be, or the second gets
+ * the first's answer.
  *
- * BOUNDED: the selection is digested rather than concatenated, so the key's
- * length does not grow with the selection. That growth is exactly what broke
- * the two-record case.
+ * THE DEFECT THIS REPLACES. The key was built from the case id and the sorted
+ * evidence ids. Those identify a SELECTION, not an OPERATION — so once the
+ * guard could detect that a record's metadata had changed, the key still could
+ * not: retrying after a real change produced the SAME key and could be served
+ * the result computed from the OLD snapshot. A stale answer about evidence is
+ * worse than no answer.
+ *
+ * So the canonical input now carries everything that changes the MEANING of the
+ * run: the operation kind, the context it runs in, which records, WHICH
+ * REVISION of each of those records, the mode that shapes the output, and the
+ * request-contract version. Change any of them and the key changes.
+ *
+ * ORDER-INDEPENDENT: ids are de-duplicated and sorted, and each id travels with
+ * its own revision, so clicking the same two records in the other order is the
+ * same request.
+ *
+ * BOUNDED: the canonical input is digested, never concatenated. Concatenation
+ * is what broke this originally — a case id plus two evidence ids is 110
+ * characters against a `max(80)` schema, so selecting two records, the entire
+ * point of a cross-record copilot, always failed validation with
+ * "Invalid selection." Fifty records each carrying a revision would be some
+ * 4,000 characters.
+ *
+ * The persisted key therefore contains no uuid list and no revision list.
  */
 export function buildCopilotIdempotencyKey(input: {
   /** Which copilot. Short and stable, e.g. `case`, `reviewer`. */
@@ -101,15 +124,35 @@ export function buildCopilotIdempotencyKey(input: {
   scopeId: string;
   /** Every selected record. Order-independent; duplicates collapse. */
   selection: ReadonlyArray<string>;
+  /**
+   * The analysis revision for each selected record, by id.
+   *
+   * A record whose revision is absent contributes `~none` rather than being
+   * skipped: "I could not determine this record's revision" is itself part of
+   * the request's identity and must not silently collide with a request that
+   * knew it.
+   */
+  revisions?: Readonly<Record<string, EvidenceAnalysisRevision | undefined>>;
+  /** The processing mode, where it changes the output. */
+  mode?: string | null;
   /** Anything else that changes the MEANING of the run (a criteria set). */
   qualifier?: string | null;
 }): string {
-  const canonical = [...new Set(input.selection)].sort().join(",");
-  const key = `${input.scope}:${input.scopeId}:${digest(
-    `${input.qualifier ?? ""}|${canonical}`,
+  const ids = [...new Set(input.selection)].sort();
+  const canonical = [
+    `k=${input.scope}`,
+    `c=${input.scopeId}`,
+    `m=${input.mode ?? ""}`,
+    `q=${input.qualifier ?? ""}`,
+    `x=${COPILOT_REQUEST_CONTRACT_VERSION}`,
+    `s=${ids.map((id) => `${id}@${input.revisions?.[id] ?? "~none"}`).join(",")}`,
+  ].join("|");
+  const key = `${input.scope}:${input.scopeId}:${sha256Base64Url(canonical).slice(
+    0,
+    IDEMPOTENCY_DIGEST_LENGTH,
   )}`;
-  // A scope of ~10 + a uuid of 36 + two colons + a 16-char digest is 64. The
-  // slice is a guarantee, not an expectation: a caller passing a long scope
+  // A scope of ~10 + a uuid of 36 + two colons + 32 digest characters is 80.
+  // The slice is a guarantee, not an expectation: a caller passing a long scope
   // must still produce a key the route accepts.
   return key.slice(0, COPILOT_IDEMPOTENCY_KEY_MAX);
 }
@@ -140,12 +183,12 @@ export type CopilotIneligibility =
   /** The listed version is no longer the record's version. */
   | "changed_since_listed"
   /**
-   * The projection carried no selection version, so nothing can be compared.
+   * The projection carried no analysis revision, so nothing can be compared.
    *
    * FAIL CLOSED. The alternative — defaulting to `0` — is precisely what made
    * every case record arrive as `v0` and be refused as stale.
    */
-  | "no_selection_version";
+  | "no_analysis_revision";
 
 export type CopilotEligibility =
   | { eligible: true }
@@ -165,17 +208,17 @@ export type CopilotEvidenceFacts = {
   lifecycleState?: string | null;
   /** Whether the record is linked to the case under analysis. */
   caseLinked?: boolean;
-  /** True when the listed version no longer matches the record's. */
+  /** True when the listed revision no longer matches the record's. */
   stale?: boolean;
   /**
-   * The canonical selection version, as projected.
+   * The canonical analysis revision, as projected.
    *
    * `undefined` means the projection did not carry one — which is a refusal,
-   * not a zero.
+   * not a default.
    */
-  selectionVersion?: EvidenceSelectionVersion | undefined;
-  /** Whether the caller is able to supply `selectionVersion` at all. */
-  selectionVersionKnown?: boolean;
+  analysisRevision?: EvidenceAnalysisRevision | undefined;
+  /** Whether the caller is able to supply `analysisRevision` at all. */
+  analysisRevisionKnown?: boolean;
 };
 
 /** Statuses whose bytes and preservation state are settled enough to compare. */
@@ -225,9 +268,13 @@ export function evaluateCopilotEvidenceEligibility(
   }
   // The projection must be able to answer "has this changed". If it cannot,
   // the record is refused rather than sent with a fabricated version — the
-  // defect this whole module exists to end.
-  if (facts.selectionVersionKnown === true && facts.selectionVersion === undefined) {
-    return { eligible: false, reason: "no_selection_version" };
+  // defect this whole module exists to end. A MALFORMED revision is treated as
+  // no revision: a token this product did not issue answers nothing.
+  if (
+    facts.analysisRevisionKnown === true &&
+    !isEvidenceAnalysisRevision(facts.analysisRevision)
+  ) {
+    return { eligible: false, reason: "no_analysis_revision" };
   }
   // Last: the listing itself is out of date. This is recoverable by refreshing,
   // which is why it is checked after the facts that are not.
@@ -258,8 +305,8 @@ export function copilotIneligibilityReason(reason: CopilotIneligibility): string
       return "Not linked to this case";
     case "changed_since_listed":
       return "Changed — refresh to re-select";
-    case "no_selection_version":
-      return "Version unavailable — refresh";
+    case "no_analysis_revision":
+      return "Record state unavailable — refresh";
     default:
       return "Unavailable";
   }
@@ -277,90 +324,120 @@ export const COPILOT_SELECTION_REFRESH_MESSAGE =
   "Some selected records are no longer available for analysis. The list has been refreshed — review the selection and try again.";
 
 // ---------------------------------------------------------------------------
-// 4. The selection version — one concurrency authority
+// 4. The analysis revision — one comprehensive concurrency authority
 // ---------------------------------------------------------------------------
 
 /**
  * "Has this evidence changed since the operator selected it?"
  *
- * THE DEFECT THIS ENCODES AGAINST
+ * WHAT THIS REPLACED, AND WHY IT HAD TO BE REPLACED TWICE
  *
- * The AI routes have always answered that question with
- * `Evidence.verificationPackageVersion`. The CASE evidence projection never
- * emitted it — the query did not select it, the DTO did not declare it, and the
- * client read it through a cast that could only ever produce `undefined`:
+ * The AI routes first answered that question with
+ * `Evidence.verificationPackageVersion`, read through a cast that could only
+ * ever produce `undefined` and defaulted with `?? 0`. Every record arrived as
+ * `v0` — including records the same page called "Package ready" — and the
+ * server compared that fabricated 0 against a real 2 and refused. Fixing the
+ * projection ended the false rejections but left the deeper problem: a package
+ * counter is not a concurrency authority.
  *
- *     version: (it as { verificationPackageVersion?: number | null })
- *                 .verificationPackageVersion ?? 0
+ * The fields a Copilot actually sees are fixed by the server's context
+ * allowlists, and only ONE of them moves the package version. Renaming a
+ * record, correcting its MIME type, completing its integrity check, unlinking
+ * it from the case, publishing a report, adding a part, archiving it or sending
+ * it to trash all changed what the model would be told while the guard reported
+ * no change whatsoever.
  *
- * So every record arrived at the Copilot as `v0`, including records the same
- * page reported as "Package ready" — and the route compared that fabricated 0
- * against a real version of 2 and answered "a selected record changed while you
- * were choosing". Nothing had changed. The client had never been told the
- * version in the first place.
+ * So the authority is now an OPAQUE, SERVER-COMPUTED REVISION over the whole
+ * relevant snapshot — `ear1_<43-character base64url SHA-256>` — built in
+ * `@proovra/shared-runtime`, a package the browser bundle cannot import.
  *
- * `null` and `undefined` are DIFFERENT answers here and the distinction is the
- * whole point:
+ * The client CARRIES it and never interprets it. There is nothing here that
+ * parses a revision into fields, compares them, or reasons about ordering:
+ * revisions are equal or they are not, and only the server decides what a
+ * revision means.
  *
- *   number      a versioned artifact exists, and this is its version
- *   null        no versioned artifact exists yet — a legitimate, stable state
- *   undefined   the projection did not carry a version, so nothing is known
+ * Three states, still deliberately distinct:
  *
- * Collapsing any of those into `0` is what produced the defect, so nothing in
- * this module does it.
+ *   string     the projection carried a revision, and this is it
+ *   undefined  the projection carried none, so nothing is known — a REFUSAL,
+ *              never a default
+ *
+ * There is no third "zero" state, because there is no arithmetic. That is the
+ * point: `?? 0` is not expressible against an opaque token.
  */
-export type EvidenceSelectionVersion = number | null;
+export type EvidenceAnalysisRevision = string;
 
-/** The persisted authority a selection version is read from. */
-export type EvidenceVersionFacts = {
-  /** `Evidence.verificationPackageVersion`. Nullable in the schema. */
-  verificationPackageVersion?: number | null;
-};
+/** The schema prefix every revision this product accepts must carry. */
+export const EVIDENCE_ANALYSIS_REVISION_PREFIX = "ear1_";
 
 /**
- * The canonical selection version, or `undefined` when it was not projected.
- *
- * `undefined` is not a value to compare — it means the caller cannot answer,
- * and every caller must fail closed rather than guess. That is exactly the
- * branch the old `?? 0` removed.
+ * The exact length of a well-formed revision: the prefix plus the FULL
+ * base64url SHA-256. Stated so a truncated token is a shape error rather than
+ * a silently weaker comparison.
  */
-export function evidenceSelectionVersion(
-  facts: EvidenceVersionFacts,
-): EvidenceSelectionVersion | undefined {
-  const raw = facts.verificationPackageVersion;
-  if (raw === undefined) return undefined;
-  if (raw === null) return null;
-  return Number.isInteger(raw) ? raw : undefined;
+export const EVIDENCE_ANALYSIS_REVISION_LENGTH =
+  EVIDENCE_ANALYSIS_REVISION_PREFIX.length + SHA256_BASE64URL_LENGTH;
+
+/**
+ * Is this the SHAPE of a revision this product issued?
+ *
+ * A shape check only. It says nothing about whether the revision is current,
+ * whether it belongs to this record, or whether the actor may see the record —
+ * the server answers all three by RECOMPUTING the revision from persisted state
+ * and comparing. A well-formed forgery therefore gets exactly as far as a
+ * malformed one, and no further.
+ */
+export function isEvidenceAnalysisRevision(value: unknown): value is EvidenceAnalysisRevision {
+  return (
+    typeof value === "string" &&
+    value.length === EVIDENCE_ANALYSIS_REVISION_LENGTH &&
+    value.startsWith(EVIDENCE_ANALYSIS_REVISION_PREFIX) &&
+    /^[A-Za-z0-9_-]{43}$/.test(value.slice(EVIDENCE_ANALYSIS_REVISION_PREFIX.length))
+  );
 }
 
 /**
- * Do a captured snapshot and the current record agree?
+ * Do a captured snapshot and the freshly recomputed revision agree?
  *
- * Compared as nullable values on BOTH sides. The route used to compare
- * `expected !== (current ?? 0)`, which made "no package" indistinguishable
- * from "version 0" — so a record could match for the wrong reason as easily as
- * it could mismatch for one.
+ * `undefined` on either side never matches: not knowing is not agreement. That
+ * is the branch `?? 0` used to remove, and it is why a record whose revision
+ * the projection failed to carry is refused rather than analyzed against a
+ * guess.
  *
- * A snapshot of `undefined` never matches: not knowing is not agreement.
+ * The comparison is a plain equality on opaque strings — there is nothing to
+ * coerce, nothing to round, and no way to be "close enough".
  */
-export function evidenceSelectionVersionsMatch(
-  snapshot: EvidenceSelectionVersion | undefined,
-  current: EvidenceSelectionVersion | undefined,
+export function evidenceAnalysisRevisionsMatch(
+  snapshot: EvidenceAnalysisRevision | undefined,
+  current: EvidenceAnalysisRevision | undefined,
 ): boolean {
   if (snapshot === undefined || current === undefined) return false;
+  if (!isEvidenceAnalysisRevision(snapshot) || !isEvidenceAnalysisRevision(current)) {
+    return false;
+  }
   return snapshot === current;
 }
 
+// ---------------------------------------------------------------------------
+// 5. Package version — PRESENTATION ONLY
+// ---------------------------------------------------------------------------
+
 /**
- * How a version reads to an operator.
+ * How a verification-package version reads to an operator.
  *
- * `v0` was shown for every record and meant nothing — it was the fabrication,
- * not a value. These say what is actually true.
+ * DISPLAY ONLY. `verificationPackageVersion` remains a truthful thing to show —
+ * "Package v2" is a real fact an operator wants — but it is no longer what
+ * decides whether a selection is stale. Those two jobs were the same value for
+ * a long time and that is exactly how a package counter ended up guarding a
+ * fourteen-field prompt.
+ *
+ * Nothing in the concurrency path calls this, and nothing here returns anything
+ * comparable.
  */
-export function evidenceSelectionVersionLabel(
-  version: EvidenceSelectionVersion | undefined,
+export function evidencePackageVersionLabel(
+  version: number | null | undefined,
 ): string {
-  if (version === undefined) return "Version unavailable";
-  if (version === null) return "No package yet";
+  if (version === undefined) return "Package state unavailable";
+  if (version === null) return "No package recorded";
   return `Package v${version}`;
 }

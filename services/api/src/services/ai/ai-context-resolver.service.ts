@@ -151,12 +151,17 @@ export function buildEvidenceContext(
   base: Omit<AiSurfaceContext, "objectType" | "objectId" | "objectVersion" | "allowedActions" | "fields">,
   row: Record<string, unknown> & { id: string; teamId?: string | null },
 ): EvidenceContext {
+  // DISPLAY AND AUDIT ONLY, and truthful about absence.
+  //
+  // This fell back through the report version to `0`, so a record with
+  // neither artifact was recorded as being at version zero of something. It
+  // is no longer load-bearing either way: concurrency is decided by the
+  // opaque analysis revision, which covers every field this context carries
+  // rather than one counter that stands in for them.
   const objectVersion =
     typeof row.verificationPackageVersion === "number"
       ? row.verificationPackageVersion
-      : typeof row.latestReportVersion === "number"
-        ? row.latestReportVersion
-        : 0;
+      : null;
   return {
     ...base,
     routeClass: "EVIDENCE",

@@ -91,6 +91,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
+import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
   presignGetObject,
@@ -9163,10 +9164,21 @@ const timestampDigestMatches: boolean | null =
           },
         });
 
+        // THE ANALYSIS REVISION for this record, bound to the EVIDENCE
+        // surface. The Evidence Copilot compared
+        // `verificationPackageVersion ?? 0` on both sides — symmetric, so no
+        // false rejection was reachable, and also blind to the thirteen other
+        // fields it shows the model.
+        const [analysisSnapshot] = await loadEvidenceAnalysisSnapshots({
+          ids: [id],
+          teamId: evidence.teamId ?? "",
+          scope: { scope: "evidence", scopeId: null },
+        });
         return reply.code(200).send(
           toJsonSafe({
             evidence: {
               ...toSafeEvidence(evidence),
+              analysisRevision: analysisSnapshot?.revision ?? null,
               itemCount,
               display,
               displayTitle: display.displayTitle,

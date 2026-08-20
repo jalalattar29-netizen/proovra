@@ -7,6 +7,18 @@ import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import {
+  findDriftedSnapshot,
+  loadEvidenceAnalysisSnapshots,
+} from "../services/ai/evidence-analysis-snapshot.service.js";
+import {
+  COPILOT_SELECTION_MAX,
+  COPILOT_SELECTION_MIN,
+  buildCopilotIdempotencyKey,
+  evaluateCopilotEvidenceEligibility,
+  deriveCanonicalArtifactAvailability,
+  evidenceAnalysisRevisionsMatch,
+} from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -26,7 +38,23 @@ import { loadPublishedCriteria } from "./reviewer-criteria.routes.js";
 import { selectQcSample } from "../services/ai/ai-qc-sampling.service.js";
 
 const Body = z.object({
-  selectedEvidenceIds: z.array(z.string().uuid()).max(50).optional(),
+  selectedEvidenceIds: z
+    .array(z.string().uuid())
+    .min(COPILOT_SELECTION_MIN)
+    .max(COPILOT_SELECTION_MAX)
+    .optional(),
+  /**
+   * The OPAQUE analysis revision per selected record.
+   *
+   * This surface had NO concurrency guard of any kind: it selected evidence,
+   * built a prompt from it and spent on a provider without ever asking
+   * whether the records still looked the way the reviewer saw them.
+   *
+   * Optional in shape only, because this route defaults the selection to the
+   * review's own record when the client sends none. Whatever set is analyzed,
+   * every member of it must carry a revision or the run is refused.
+   */
+  selectedEvidenceRevisions: z.record(z.string().uuid(), z.string().max(64)).optional(),
   // Phase P6 — criteria are resolved SERVER-SIDE from the published catalog.
   // The freeform string remains only as a fallback label for workspaces that
   // have not authored a criteria set yet.
@@ -67,18 +95,64 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
 
     // Selected evidence defaults to the review's own record; all tenant-scoped.
     const ids = [...new Set(body.selectedEvidenceIds && body.selectedEvidenceIds.length > 0 ? body.selectedEvidenceIds : [wf.evidenceId])];
-    const rows = await prisma.evidence.findMany({
-      where: { id: { in: ids }, teamId, deletedAt: null },
-      select: {
-        id: true, teamId: true, title: true, type: true, mimeType: true, status: true,
-        verificationStatus: true, verificationPackageVersion: true, latestReportVersion: true,
-        caseLinks: { select: { caseId: true }, take: 1 },
-      },
-    });
-    if (rows.length !== ids.length) return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
+    // ONE READ, FROZEN — the same authority the Case and Evidence surfaces
+    // use, so a reviewer selection cannot be judged by a weaker rule.
+    const scope = { scope: "reviewer" as const, scopeId: wf.id };
+    const snapshots = await loadEvidenceAnalysisSnapshots({ ids, teamId, scope });
+    if (snapshots.length !== ids.length) {
+      return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
+    }
 
+    // SERVER-AUTHORITATIVE ELIGIBILITY. There was none here either: a record
+    // still uploading or scheduled for destruction was analyzed and paid for.
+    const ineligible = snapshots
+      .map((snap) => ({
+        id: snap.row.id,
+        verdict: evaluateCopilotEvidenceEligibility({
+          status: snap.row.status,
+          lifecycleState: snap.row.lifecycleState,
+        }),
+      }))
+      .filter((x) => !x.verdict.eligible);
+    if (ineligible.length > 0) {
+      return reply.code(422).send({
+        error: {
+          code: "evidence_not_analyzable",
+          records: ineligible.map((x) => ({
+            evidenceId: x.id,
+            reason: x.verdict.eligible ? null : x.verdict.reason,
+          })),
+        },
+      });
+    }
+
+    // STALE-REVISION REJECTION, before any budget is reserved.
+    const claimedRevisions = body.selectedEvidenceRevisions ?? {};
+    for (const snap of snapshots) {
+      const claimed = Object.prototype.hasOwnProperty.call(claimedRevisions, snap.row.id)
+        ? claimedRevisions[snap.row.id]
+        : undefined;
+      if (!evidenceAnalysisRevisionsMatch(claimed, snap.revision)) {
+        return reply
+          .code(409)
+          .send({ error: { code: "stale_evidence_revision", evidenceId: snap.row.id } });
+      }
+    }
+    const serverRevisions: Record<string, string> = {};
+    for (const snap of snapshots) serverRevisions[snap.row.id] = snap.revision;
     const policyDecision = await evaluateWorkspaceAiPolicy({ teamId, feature: "REVIEWER_COPILOT", dataClass: "METADATA", userRole: membership.role });
-    const guard = await enforceAiEndpointGuard({ feature: "reviewer-copilot", userId, ip: req.ip, dedupeKey: body.idempotencyKey ?? `${reviewId}:${ids.sort().join(",")}`, dedupeWindowSec: 20 });
+    // BOUNDED and REVISION-AWARE. This concatenated up to fifty uuids into a
+    // dedupe key — some 1,800 characters — and identified a SELECTION rather
+    // than an OPERATION, so retrying after a record genuinely changed produced
+    // the same key and could be served the answer from the old snapshot.
+    const requestIdentity = buildCopilotIdempotencyKey({
+      scope: "reviewer",
+      scopeId: reviewId,
+      selection: ids,
+      revisions: serverRevisions,
+      qualifier: body.criteriaSetId || String(body.criteriaVersion),
+    });
+    const guard = await enforceAiEndpointGuard({ feature: "reviewer-copilot", userId, ip: req.ip, dedupeKey: requestIdentity, dedupeWindowSec: 20 });
     if (!guard.allowed) { reply.header("Retry-After", String(guard.retryAfterSec)); return reply.code(429).send({ code: guard.code, message: "Too many AI requests; please slow down." }); }
 
     const base = await buildBaseContext({ route: `/review/${reviewId}`, routeClass: "REVIEWER", role: membership.role, teamId });
@@ -86,11 +160,36 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       ...base, routeClass: "REVIEWER", objectType: "REVIEW_WORKFLOW", objectId: wf.id, objectVersion: null,
       allowedActions: [], fields: { status: wf.status, evidenceId: wf.evidenceId },
     };
-    const selectedEvidence = rows.map((r) => buildEvidenceContext({ ...base, routeClass: "EVIDENCE" }, {
-      id: r.id, teamId: r.teamId, title: r.title, type: r.type, mimeType: r.mimeType, status: r.status,
-      verificationStatus: r.verificationStatus, caseLinked: r.caseLinks.length > 0,
-      verificationPackageVersion: r.verificationPackageVersion, latestReportVersion: r.latestReportVersion,
-    }));
+    // From the FROZEN snapshot, and complete: `itemCount`, `createdAtUtc`,
+    // `reportReady` and `packageReady` were never passed, so the allowlist
+    // dropped four of the ten fields it exists to permit.
+    const selectedEvidence = snapshots.map((snap) =>
+      buildEvidenceContext({ ...base, routeClass: "EVIDENCE" }, {
+        id: snap.row.id,
+        teamId: snap.row.teamId,
+        title: snap.row.title,
+        type: snap.row.type,
+        mimeType: snap.row.mimeType,
+        status: snap.row.status,
+        verificationStatus: snap.row.verificationStatus,
+        caseLinked: snap.row._count.caseLinks > 0,
+        itemCount: snap.row._count.parts,
+        createdAtUtc: snap.row.createdAt?.toISOString() ?? null,
+        // READINESS COMES FROM THE ARTIFACT, not from a version column.
+        //
+        // `latestReportVersion !== null` is the derivation the lifecycle
+        // contract forbids: a version is a snapshot-only material and never
+        // a "this is ready" proxy — which is how a record could report a
+        // version while the artifact it names did not exist. The canonical
+        // authority answers from the presence of the rows themselves.
+        ...deriveCanonicalArtifactAvailability({
+          reportAvailable: snap.row._count.reports > 0,
+          verificationPackageAvailable: snap.row._count.verificationPackages > 0,
+          latestReportVersion: snap.row.latestReportVersion,
+          verificationPackageVersion: snap.row.verificationPackageVersion,
+        }),
+      }),
+    );
     const resolveCitation = buildCitationResolver(buildWorkspaceCitationLookups(prisma as unknown as CitationPrisma, teamId));
 
     const audit = (outcome: "success" | "failure" | "blocked", metadata: Record<string, unknown>) => {
@@ -113,7 +212,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     const ledger = await tryReserveAiBudget({
       teamId, userId, feature: "REVIEWER_COPILOT",
       model: process.env.OPENAI_REVIEWER_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
-      requestId: `${body.idempotencyKey ?? `review:${reviewId}:${body.criteriaVersion}:${ids.sort().join(",")}`}:${Date.now()}`,
+      requestId: `${requestIdentity}:${Date.now()}`,
       estimatedCostUsdMicros: 250_000n,
     });
     if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
@@ -138,9 +237,41 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       }
     }
 
+    // TOCTOU CLOSE — the reservation and the criteria load are both round
+    // trips, and another writer can commit inside either. Re-read and
+    // recompute before anything is spent.
+    const drifted = await findDriftedSnapshot({ snapshots, teamId, scope });
+    if (drifted) {
+      if (ledger.reservationId) {
+        await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(
+          () => undefined,
+        );
+      }
+      return reply
+        .code(409)
+        .send({ error: { code: "stale_evidence_revision", evidenceId: drifted } });
+    }
+
     let result;
     try {
-      result = await runReviewerCopilot({ teamId, reviewerContext: { ...reviewerContext, fields: { ...reviewerContext.fields, criteria: JSON.stringify(criteriaList).slice(0, 4000) } }, selectedEvidence, criteriaVersion: criteriaVersionLabel, policyDecision, provider: buildReviewerCopilotProvider(), resolveCitation });
+      result = await runReviewerCopilot({
+        teamId,
+        reviewerContext: {
+          ...reviewerContext,
+          fields: {
+            ...reviewerContext.fields,
+            criteria: JSON.stringify(criteriaList).slice(0, 4000),
+          },
+        },
+        selectedEvidence,
+        // The revisions THIS run was grounded in, carried through to the
+        // defensibility record rather than re-derived from a partial view.
+        selectionRevisions: serverRevisions,
+        criteriaVersion: criteriaVersionLabel,
+        policyDecision,
+        provider: buildReviewerCopilotProvider(),
+        resolveCitation,
+      });
     } catch (err) {
       if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
       if (err instanceof ReviewerCopilotProviderUnavailable) {
@@ -160,7 +291,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       workspacePolicyVersion: policyDecision.policyVersion,
       criteriaVersion: criteriaVersionLabel,
       processingMode: "METADATA_ONLY",
-      selectedObjectVersions: result.versionMeta.contextObjectVersions,
+      selectedObjectRevisions: result.versionMeta.contextObjectRevisions,
       status: result.status,
       boundedResult: result.status === "ok" ? result.data : undefined,
       validatedCitations: result.status === "ok" ? (result.data as { citations?: unknown })?.citations : undefined,

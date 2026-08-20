@@ -58,7 +58,15 @@ export type GroundedCopilotResult = {
   versionMeta: {
     outputSchemaVersion: string;
     criteriaVersion?: string;
-    contextObjectVersions: Array<{ id: string; version: number | null }>;
+    /**
+     * WHICH REVISION of each selected record the run was grounded in.
+     *
+     * This was `{ id, version: number | null }` — the package version, which
+     * moved for one of the fourteen fields a copilot is actually shown. The
+     * defensibility record therefore claimed to pin the state a conclusion was
+     * drawn from while recording a counter that had usually not changed.
+     */
+    contextObjectRevisions: Array<{ id: string; revision: string }>;
   };
 };
 
@@ -76,7 +84,7 @@ export async function runGroundedCopilot(input: {
   surface: CopilotSurface;
   teamId: string;
   /** Explicitly selected object contexts (D2 — never the whole case). */
-  selectionVersions: Array<{ id: string; version: number | null }>;
+  selectionRevisions: Array<{ id: string; revision: string }>;
   requireSelection: boolean;
   criteriaVersion?: string;
   policyDecision: AiPolicyDecision;
@@ -88,9 +96,9 @@ export async function runGroundedCopilot(input: {
   const versionMeta = {
     outputSchemaVersion: COPILOT_SCHEMA_VERSION,
     ...(input.criteriaVersion ? { criteriaVersion: input.criteriaVersion } : {}),
-    contextObjectVersions: input.selectionVersions,
+    contextObjectRevisions: input.selectionRevisions,
   };
-  if (input.requireSelection && input.selectionVersions.length === 0) {
+  if (input.requireSelection && input.selectionRevisions.length === 0) {
     return { status: "no_selection", advisoryBoundary: ADVISORY_BOUNDARY_TEXT, versionMeta };
   }
   if (!input.policyDecision.allowed) {

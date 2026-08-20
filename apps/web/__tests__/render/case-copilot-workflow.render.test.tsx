@@ -95,13 +95,13 @@ const RouteBody = z.object({
     .array(z.string().uuid())
     .min(COPILOT_SELECTION_MIN)
     .max(COPILOT_SELECTION_MAX),
-  // NULLABLE, exactly as the route declares it. `null` is the real projected
-  // value for a record with no verification package and is a different
-  // statement from version 0 — the schema had no way to express it, so the
-  // client sent a fabricated 0 instead.
-  selectedEvidenceVersions: z
-    .record(z.string(), z.number().int().nullable())
-    .optional(),
+  // REQUIRED, and an OPAQUE token, exactly as the route declares it.
+  //
+  // It was an optional nullable integer — the verification package version —
+  // which meant a client could decline to say what it had seen and be analyzed
+  // anyway, and the one thing it could say moved for one of the fourteen fields
+  // the model is shown.
+  selectedEvidenceRevisions: z.record(z.string().uuid(), z.string().max(64)),
   processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
   question: z.string().max(500).optional(),
   idempotencyKey: z.string().max(COPILOT_IDEMPOTENCY_KEY_MAX).optional(),
@@ -115,9 +115,13 @@ const PHOTO: CaseCopilotEvidence = {
   id: "c6bb29e3-1111-4111-8111-111111111111",
   title: "Joint Scene Examination by Fire Investigators.jpg",
   type: "PHOTO",
-  // `null` = no verification package yet. NOT `0`: the old fixture said 0
-  // because the client fabricated 0, which is the defect this file now pins.
-  version: null,
+  // The OPAQUE revision, as the server would project it. Shaped like a real
+  // one — this product's prefix plus a full-length base64url digest — so a
+  // fixture cannot pass a check that a real token would fail.
+  analysisRevision: "ear1_" + "a".repeat(43),
+  // Presentation, separately: `null` = no verification package yet. NOT `0`,
+  // which is what the client used to fabricate.
+  packageVersion: null,
   status: "REPORTED",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -127,7 +131,8 @@ const VIDEO: CaseCopilotEvidence = {
   id: "1e00f0d6-2222-4222-8222-222222222222",
   title: "Scene walkthrough.mp4",
   type: "VIDEO",
-  version: null,
+  analysisRevision: "ear1_" + "b".repeat(43),
+  packageVersion: null,
   status: "REPORTED",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -137,8 +142,10 @@ const DOCUMENT: CaseCopilotEvidence = {
   id: "41a074bb-3333-4333-8333-333333333333",
   title: "Incident statement.pdf",
   type: "DOCUMENT",
-  // A package-ready record: a REAL version the projection now carries.
-  version: 2,
+  // A package-ready record: a REAL package version the projection carries,
+  // and its own distinct revision.
+  analysisRevision: "ear1_" + "c".repeat(43),
+  packageVersion: 2,
   status: "SIGNED",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -148,7 +155,8 @@ const UPLOADING: CaseCopilotEvidence = {
   id: "9a9a9a9a-4444-4444-8444-444444444444",
   title: "Body-cam clip.mp4",
   type: "VIDEO",
-  version: null,
+  analysisRevision: "ear1_" + "d".repeat(43),
+  packageVersion: null,
   status: "UPLOADING",
   lifecycleState: "ACTIVE",
   caseLinked: true,
@@ -173,7 +181,7 @@ function okResult() {
         "AI assistance is advisory only and is not a determination of authenticity, truth or admissibility.",
     },
     droppedCitations: 0,
-    versionMeta: { outputSchemaVersion: "1", contextObjectVersions: [] },
+    versionMeta: { outputSchemaVersion: "1", contextObjectRevisions: [] },
   };
 }
 
@@ -256,7 +264,7 @@ describe("the two-record production selection", () => {
     const legacyKey = `${CASE_ID}:${[PHOTO.id, VIDEO.id].sort().join(",")}`;
     const legacy = RouteBody.safeParse({
       selectedEvidenceIds: [PHOTO.id, VIDEO.id],
-      selectedEvidenceVersions: { [PHOTO.id]: null, [VIDEO.id]: null },
+      selectedEvidenceRevisions: { [PHOTO.id]: PHOTO.analysisRevision, [VIDEO.id]: VIDEO.analysisRevision },
       processingMode: "METADATA_ONLY",
       idempotencyKey: legacyKey,
     });
@@ -292,10 +300,12 @@ describe("the two-record production selection", () => {
 
     // The exact contract.
     expect(req!.body.selectedEvidenceIds).toEqual([PHOTO.id, VIDEO.id]);
-    // The REAL projected value, not a fabricated zero.
-    expect(req!.body.selectedEvidenceVersions).toEqual({
-      [PHOTO.id]: null,
-      [VIDEO.id]: null,
+    // The REAL projected revisions, carried verbatim — not a fabricated zero,
+    // and not a value the client computed. A revision per selected id, which
+    // the route requires for every one of them.
+    expect(req!.body.selectedEvidenceRevisions).toEqual({
+      [PHOTO.id]: PHOTO.analysisRevision,
+      [VIDEO.id]: VIDEO.analysisRevision,
     });
     expect(req!.body.processingMode).toBe("METADATA_ONLY");
     expect(String(req!.body.idempotencyKey).length).toBeLessThanOrEqual(
@@ -403,47 +413,64 @@ describe("eligibility is explicit before selection", () => {
     expect(H.requests.at(-1)!.body.selectedEvidenceIds).toEqual([PHOTO.id]);
   });
 
-  it("7. the three version states are distinct, and none of them is a fabricated v0", async () => {
-    // WHAT WENT WRONG: the projection never carried
+  it("7. package state is displayed, and a missing REVISION fails closed", async () => {
+    // WHAT WENT WRONG, TWICE: the projection never carried
     // `verificationPackageVersion`, the client read `undefined` through a cast
-    // and defaulted it to `0`, and EVERY record rendered "v0" — including
-    // records the same page reported as "Package ready".
+    // and defaulted it to `0`, and every record rendered "v0" — including
+    // records the same page reported as "Package ready". Projecting the real
+    // version ended that and left the deeper problem: a package counter is
+    // not what changes when a record is renamed, re-typed or unlinked.
+    //
+    // So there are now TWO values with two jobs. What is DISPLAYED is the
+    // package state, because an operator can act on it. What GUARDS is the
+    // opaque revision, which is never rendered.
 
     // null → no verification package yet. A legitimate, stable state.
     mount([PHOTO]);
     await settle();
-    let version = document.querySelector("[data-case-copilot-version]")!;
-    expect(version.getAttribute("data-case-copilot-version")).toBe("null");
-    expect(version.textContent).toBe("No package yet");
+    let pkg = document.querySelector("[data-case-copilot-package]")!;
+    expect(pkg.getAttribute("data-case-copilot-package")).toBe("null");
+    expect(pkg.textContent).toBe("No package recorded");
+    expect(pkg.getAttribute("data-case-copilot-revision")).toBe("known");
     expect(rows()[0]!.getAttribute("data-eligible")).toBe("true");
 
     // a real number → stated as the real number.
     mount([DOCUMENT]);
     await settle();
-    version = document.querySelector("[data-case-copilot-version]")!;
-    expect(version.getAttribute("data-case-copilot-version")).toBe("2");
-    expect(version.textContent).toBe("Package v2");
+    pkg = document.querySelector("[data-case-copilot-package]")!;
+    expect(pkg.getAttribute("data-case-copilot-package")).toBe("2");
+    expect(pkg.textContent).toBe("Package v2");
     expect(rows()[0]!.getAttribute("data-eligible")).toBe("true");
 
-    // undefined → the projection carried nothing. FAIL CLOSED: the record is
-    // refused rather than sent with a guess.
-    mount([{ ...PHOTO, version: undefined }]);
+    // No REVISION → the projection carried nothing that can be compared.
+    // FAIL CLOSED: refused rather than sent with a guess, even though the
+    // package state is perfectly well known.
+    mount([{ ...DOCUMENT, analysisRevision: undefined }]);
     await settle();
-    version = document.querySelector("[data-case-copilot-version]")!;
-    expect(version.getAttribute("data-case-copilot-version")).toBe("unknown");
-    expect(version.textContent).toBe("Version unavailable");
+    pkg = document.querySelector("[data-case-copilot-package]")!;
+    expect(pkg.getAttribute("data-case-copilot-revision")).toBe("unknown");
+    expect(pkg.textContent).toBe("Package v2");
     expect(rows()[0]!.getAttribute("data-eligible")).toBe("false");
     expect(boxes()[0]!.disabled).toBe(true);
     expect(
       document
         .querySelector("[data-case-copilot-reason]")!
         .getAttribute("data-case-copilot-reason"),
-    ).toBe("no_selection_version");
+    ).toBe("no_analysis_revision");
 
-    // A fabricated v0 can no longer be produced from any of the three.
+    // A MALFORMED revision is not a revision. A token this product did not
+    // issue answers nothing, so it fails closed exactly like an absent one.
+    mount([{ ...DOCUMENT, analysisRevision: "v2" }]);
+    await settle();
+    expect(
+      document
+        .querySelector("[data-case-copilot-reason]")!
+        .getAttribute("data-case-copilot-reason"),
+    ).toBe("no_analysis_revision");
+
+    // A fabricated v0 can no longer be produced from any of them.
     expect(document.body.textContent).not.toContain("Package v0");
   });
-
   it("8. a record not linked to this case is refused", () => {
     const verdict = evaluateCopilotEvidenceEligibility({
       status: "REPORTED",
