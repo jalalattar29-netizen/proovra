@@ -159,19 +159,6 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx:601",
-      "helper": "Archive/unarchive row action in the shipped Intake Links Operations Console resolves to this path.",
-      "callSitesRead": [
-        "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx:601",
-        "apps/web/app/(app)/intake-links/page.tsx:729"
-      ],
-      "routes": [
-        "POST /v1/workflow/intake-links/:id/archive"
-      ],
-      "evidence": "reg services/api/src/routes/workflow-intake-links.routes.ts:800. Consumer apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx:596-603 `const path = archived ? \"unarchive\" : \"archive\"; await apiFetch(\\`/v1/workflow/intake-links/${encodeURIComponent(linkId)}/${path}\\`, { method: \"POST\" })`; declared at :33-34 \"Archive / Unarchive action (POST /v1/workflow/intake-links/:id/archive | /unarchive)\". Mounted at apps/web/app/(app)/intake-links/page.tsx:729 <IntakeLinksOperationsConsole …>.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "site": "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:282",
       "helper": "<img src={asset.bytesUrl}> — the browser issues the GET when the element mounts",
       "callSitesRead": [

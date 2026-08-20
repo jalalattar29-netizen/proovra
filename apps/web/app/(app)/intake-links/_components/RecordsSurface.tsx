@@ -320,11 +320,16 @@ function RecordCard({
         <dt>Recipient</dt>
         <dd className="ilk-ltr">{row.recipientText}</dd>
         <dt>Activity</dt>
-        <dd>{row.activityVocab.label}</dd>
+        {/* The card carries the SAME machine-readable axis probes as the table
+            row, so a matrix can prove the two renderers agree instead of
+            comparing prose. */}
+        <dd data-intake-links-row-session-state={row.activity}>
+          {row.activityVocab.label}
+        </dd>
         <dt>Delivery</dt>
         {/* Can carry a provider code and an English provider sentence; keep
             each run in its own direction so an RTL page does not reorder it. */}
-        <dd className="ilk-ltr">
+        <dd className="ilk-ltr" data-intake-links-row-delivery={row.delivery}>
           {row.deliveryVocab.label}
           {row.deliveryDetail ? ` · ${row.deliveryDetail}` : ""}
         </dd>

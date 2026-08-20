@@ -286,7 +286,21 @@
 }
 
 .ilk-table {
-  table-layout: fixed;
+  /* CONTAINER-AWARE, not a percentage grid.
+
+     The first cut sized every column as a percentage measured against the
+     1296px table the 1360px page maximum produces. That is a contract with one
+     viewport: at 1280px the same table is ~1216px wide, and the two columns
+     whose content cannot wrap — the submissions button and the actions trigger
+     — were then handed less than they need and painted over their neighbours.
+     A German or user-generated value would have done the same thing at any
+     width.
+
+     Auto layout asks the CONTENT what it needs and distributes what is left,
+     so the nowrap controls always get their intrinsic width and the wrappable
+     text columns absorb the remainder. The floors and ceilings below keep that
+     distribution readable instead of letting one long title starve the rest. */
+  table-layout: auto;
 }
 .ilk-table th,
 .ilk-table td {
@@ -302,42 +316,55 @@
 .ilk-table .app-chip {
   white-space: normal;
 }
-/* Column geometry. Fixed layout plus explicit widths is what stops "Queued
-   with provider" from being wrapped one word per line by the browser's
-   content-based sizing.
-   The shares were set from MEASURED content, not guessed: at the 1360px page
-   maximum the table is 1296px, and each share is at least as wide as its
-   widest real value plus the 32px of cell padding — the submissions button
-   measures 155px and the disabled-link badge 98px, which is why those two
-   columns are the widest of the secondary set. Every column is a percentage,
-   so the set sums to exactly 100% and the browser never has to reconcile a
-   pixel column against the rest. */
-.ilk-table col[data-col="request"] {
-  inline-size: 16%;
+/* Column geometry — floors and ceilings, in CHARACTERS, so the sizing follows
+   the text a locale actually produces rather than a pixel count measured from
+   English. `ch` is resolved against the cell font, so a larger text scale
+   widens the floor with the text instead of overflowing it. */
+.ilk-table th[data-col="request"],
+.ilk-table td[data-col="request"] {
+  min-inline-size: 14ch;
+  max-inline-size: 32ch;
 }
-.ilk-table col[data-col="recipient"] {
-  inline-size: 10%;
+.ilk-table th[data-col="recipient"],
+.ilk-table td[data-col="recipient"] {
+  min-inline-size: 10ch;
+  max-inline-size: 24ch;
 }
-.ilk-table col[data-col="channel"] {
-  inline-size: 7.5%;
+.ilk-table th[data-col="channel"],
+.ilk-table td[data-col="channel"] {
+  min-inline-size: 7ch;
 }
-.ilk-table col[data-col="lifecycle"] {
-  inline-size: 10%;
+.ilk-table th[data-col="lifecycle"],
+.ilk-table td[data-col="lifecycle"] {
+  min-inline-size: 8ch;
 }
-.ilk-table col[data-col="status"] {
-  inline-size: 15%;
+.ilk-table th[data-col="status"],
+.ilk-table td[data-col="status"] {
+  min-inline-size: 13ch;
+  max-inline-size: 30ch;
 }
-.ilk-table col[data-col="latest"] {
-  inline-size: 7.5%;
+.ilk-table th[data-col="latest"],
+.ilk-table td[data-col="latest"] {
+  min-inline-size: 9ch;
+  max-inline-size: 14ch;
 }
-.ilk-table col[data-col="expires"] {
-  inline-size: 8.5%;
+/* Wide enough for the longest value this column carries — "Expired 01 Jan
+   2020", which the relative helper produces once a date is more than a month
+   old. At 9ch the browser handed it 71px and broke it one word per line. */
+.ilk-table th[data-col="expires"],
+.ilk-table td[data-col="expires"] {
+  min-inline-size: 14ch;
+  max-inline-size: 20ch;
 }
-.ilk-table col[data-col="submissions"] {
-  inline-size: 15%;
-}
-.ilk-table col[data-col="actions"] {
-  inline-size: 10.5%;
+/* The two columns whose control cannot wrap take exactly what the control
+   needs — auto layout gives them their intrinsic width, and nothing here may
+   cap it below that. */
+.ilk-table th[data-col="submissions"],
+.ilk-table td[data-col="submissions"],
+.ilk-table th[data-col="actions"],
+.ilk-table td[data-col="actions"] {
+  inline-size: 1%;
+  white-space: nowrap;
 }
 .ilk-table td[data-col="actions"],
 .ilk-table th[data-col="actions"] {
@@ -361,27 +388,6 @@
   .ilk-table th[data-col="lifecycle"],
   .ilk-table td[data-col="lifecycle"] {
     display: none;
-  }
-  /* Six columns, expressed only as percentages so they sum to exactly 100%
-     and the browser never has to reconcile a fixed pixel column against them.
-     Each share is at least as wide as its widest real value. */
-  .ilk-table col[data-col="request"] {
-    inline-size: 23%;
-  }
-  .ilk-table col[data-col="recipient"] {
-    inline-size: 13%;
-  }
-  .ilk-table col[data-col="status"] {
-    inline-size: 23%;
-  }
-  .ilk-table col[data-col="expires"] {
-    inline-size: 17%;
-  }
-  .ilk-table col[data-col="submissions"] {
-    inline-size: 14%;
-  }
-  .ilk-table col[data-col="actions"] {
-    inline-size: 10%;
   }
 }
 

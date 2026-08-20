@@ -319,3 +319,179 @@ test("every exported symbol of the route's lib modules is consumed", () => {
   }
   assert.deepEqual(unconsumed, [], "delete an export nothing consumes");
 });
+
+// ===========================================================================
+// 7. The one shared primitive this redesign added
+// ===========================================================================
+
+test("the added success-alert selector has exactly one definition, and no rival", () => {
+  const primitivesPath = resolve(
+    WEB,
+    "components/app-primitives/app-primitives.css",
+  );
+  const css = read(primitivesPath).replace(/\/\*[\s\S]*?\*\//g, "");
+  const definitions = [...css.matchAll(/^\.app-alert--ok\s*\{/gm)].length;
+  assert.equal(definitions, 1, "one authority, or it is not an authority");
+
+  // No rival success-alert selector anywhere in the product stylesheets.
+  const rivals: string[] = [];
+  for (const file of walk(resolve(WEB, "app"), /\.css$/).concat(
+    walk(resolve(WEB, "components"), /\.css$/),
+    walk(resolve(WEB, "lib"), /\.css$/),
+  )) {
+    const body = read(file).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of body.matchAll(
+      /\.(app-alert--(?:ok|success|green)|alert--success|success-alert)\s*[,{]/g,
+    )) {
+      if (file === primitivesPath && m[1] === "app-alert--ok") continue;
+      rivals.push(`${relative(file)}: .${m[1]}`);
+    }
+  }
+  assert.deepEqual(rivals, [], "a second success authority is a divergence");
+});
+
+test("the intake surface never redefines a shared app-* selector", () => {
+  // Route CSS may DESCRIBE its own family and may scope a shared class inside
+  // its own table; it may not redefine one, which would silently restyle every
+  // other consumer that loads this stylesheet.
+  const css = read(CSS_PATH).replace(/\/\*[\s\S]*?\*\//g, "");
+  const offenders: string[] = [];
+  for (const m of css.matchAll(/^\s*(\.app-[a-zA-Z0-9_-]+)[^{,]*[,{]/gm)) {
+    offenders.push(m[1]);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    "a top-level app-* rule here restyles every route that loads it",
+  );
+});
+
+test("the shared primitives this surface consumes each have ONE implementation", () => {
+  const singletons: Array<[string, string, RegExp]> = [
+    ["AppListbox", "components/app-primitives", /export function AppListbox\b/],
+    [
+      "AppAnchoredOverlay",
+      "components/app-primitives",
+      /export function AppAnchoredOverlay\b/,
+    ],
+    [
+      "AppStatusBadge",
+      "components/app-primitives",
+      /export function AppStatusBadge\b/,
+    ],
+    [
+      "ConfirmActionProvider",
+      "components/ui",
+      /export function ConfirmActionProvider\b/,
+    ],
+  ];
+  for (const [name, , pattern] of singletons) {
+    const hits = walk(resolve(WEB, "components"), /\.tsx?$/).filter((f) =>
+      pattern.test(read(f)),
+    );
+    assert.equal(hits.length, 1, `${name} has ${hits.length} implementations`);
+  }
+  // …and the canonical form controls have one CSS definition each.
+  const primitives = read(
+    resolve(WEB, "components/app-primitives/app-primitives.css"),
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const cls of ["app-checkbox", "app-listbox__trigger", "app-dialog"]) {
+    const n = [...primitives.matchAll(new RegExp(`^\\.${cls}\\s*[,{]`, "gm"))]
+      .length;
+    assert.equal(n, 1, `.${cls} is defined ${n} times`);
+  }
+});
+
+// ===========================================================================
+// 8. The public contributor route stays isolated
+// ===========================================================================
+
+test("the public contributor route imports nothing this redesign owns", () => {
+  const publicFiles = walk(resolve(WEB, "app/intake"), /\.tsx?$/);
+  assert.ok(publicFiles.length > 0, "the public route must still exist");
+  const offenders: string[] = [];
+  for (const f of publicFiles) {
+    const src = read(f);
+    if (/intake-links/.test(src)) offenders.push(`${relative(f)}: intake-links`);
+    if (/\bilk-/.test(src)) offenders.push(`${relative(f)}: ilk-* class`);
+    // Management-only authorities.
+    for (const admin of [
+      "PageRouteGate",
+      "INTAKE_LINKS_MANAGE",
+      "useCan(",
+      "usePlatformContext",
+    ]) {
+      if (src.includes(admin)) offenders.push(`${relative(f)}: ${admin}`);
+    }
+  }
+  assert.deepEqual(offenders, [], "the contributor surface must stay isolated");
+});
+
+test("the management vocabulary never reaches the contributor's own copy", () => {
+  // The operator reads "Link disabled"; the contributor is told something the
+  // shared contributor-facing copy owns. One must not leak into the other.
+  const publicSource = walk(resolve(WEB, "app/intake"), /\.tsx?$/)
+    .map(read)
+    .join("\n");
+  for (const operatorPhrase of [
+    "Link disabled",
+    "Queued with provider",
+    "Sent to provider",
+    "Revoked or expired",
+    "Failed delivery",
+  ]) {
+    assert.ok(
+      !publicSource.includes(operatorPhrase),
+      `operator vocabulary leaked to the contributor page: ${operatorPhrase}`,
+    );
+  }
+});
+
+// ===========================================================================
+// 9. One implementation, proven by reachability rather than by filename
+// ===========================================================================
+
+test("nothing outside the route imports the route's internals", () => {
+  const outside = [
+    ...walk(resolve(WEB, "app"), /\.tsx?$/),
+    ...walk(resolve(WEB, "components"), /\.tsx?$/),
+    ...walk(resolve(WEB, "lib"), /\.tsx?$/),
+  ].filter((f) => !f.startsWith(ROUTE));
+  const offenders: string[] = [];
+  for (const f of outside) {
+    const src = read(f);
+    if (/intake-links\/_components|intake-links\/_lib/.test(src)) {
+      offenders.push(relative(f));
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    "a route-internal module with an outside consumer is a second authority",
+  );
+});
+
+test("the surface reaches its API only through the canonical client", () => {
+  // A raw fetch would bypass the auth header, the error envelope and the
+  // origin resolution the canonical client owns.
+  const offenders: string[] = [];
+  for (const f of ROUTE_FILES) {
+    const src = stripComments(read(f));
+    if (/\bfetch\s*\(/.test(src) && !/apiFetch/.test(src)) {
+      offenders.push(relative(f));
+    }
+    if (/["'`]\/v1\//.test(src) && !/apiFetch/.test(src)) {
+      offenders.push(`${relative(f)} (bare /v1 path)`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test("the route declares no lazily-reachable alternate implementation", () => {
+  const src = stripComments(OWNED_SOURCE);
+  assert.doesNotMatch(src, /next\/dynamic/);
+  assert.doesNotMatch(src, /React\.lazy|\blazy\s*\(/);
+  // A bare dynamic `import(` would hide a second component from every static
+  // audit in this file.
+  assert.doesNotMatch(src, /[^.\w]import\s*\(/);
+});

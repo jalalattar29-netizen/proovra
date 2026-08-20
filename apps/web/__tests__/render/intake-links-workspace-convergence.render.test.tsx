@@ -41,10 +41,20 @@ let transport: Transport = {
   whatsapp: { configured: true },
 };
 
+/** When set, the list read rejects with this status (the server refusing). */
+let refuseList: number | null = null;
+
 vi.mock("../../lib/api", () => ({
   apiFetch: async (path: string) => {
     requestLog.push(path);
-    if (path.startsWith("/v1/workflow/intake-links?")) return { items: [ITEM] };
+    if (path.startsWith("/v1/workflow/intake-links?")) {
+      if (refuseList !== null) {
+        const err = new Error("refused") as Error & { statusCode: number };
+        err.statusCode = refuseList;
+        throw err;
+      }
+      return { items: [ITEM] };
+    }
     if (path.startsWith("/v1/workflow/templates")) return { templates: [] };
     if (path.includes("/sender-identity")) return transport;
     return {};
@@ -89,6 +99,7 @@ const WS = {
   admin: "55555555-5555-4555-8555-555555555555",
   legacy: "66666666-6666-4666-8666-666666666666",
   member: "77777777-7777-4777-8777-777777777777",
+  inactive: "88888888-8888-4888-8888-888888888888",
 } as const;
 
 /**
@@ -157,7 +168,9 @@ type ContextKey =
   | "insufficientRole"
   | "featureExcluded"
   | "legacyEnvelope"
-  | "missingEnvelope";
+  | "missingEnvelope"
+  | "inactiveWorkspace"
+  | "wrongWorkspaceContext";
 
 /** Contexts whose envelope authorises the management surface. */
 const AUTHORISED: ContextKey[] = [
@@ -165,6 +178,16 @@ const AUTHORISED: ContextKey[] = [
   "organization",
   "enterprise",
   "platformAdmin",
+  // A suspended ACCOUNT is not a client-side gate: nothing in the web tier
+  // reads `account.accountStatus`, and inventing a branch on it would be a
+  // second authority guessing at something the server decides. The surface
+  // therefore renders identically, and the API's refusal — asserted in its own
+  // case below — is what closes the door.
+  "inactiveWorkspace",
+  // The page resolves its workspace from `activeSpace` alone. This context
+  // deliberately disagrees with `contextOptions.activeContext` so a regression
+  // that started reading the other field would read the WRONG tenant.
+  "wrongWorkspaceContext",
 ];
 
 /** Contexts that must NOT render the management surface at all. */
@@ -278,6 +301,57 @@ function makeEnvelope(key: ContextKey): unknown {
         capabilities: {},
         account: { accountPlan: "ENTERPRISE", accountStatus: "active" },
       };
+    case "inactiveWorkspace":
+      return {
+        ...base,
+        workspace: {
+          id: WS.inactive,
+          name: "Northgate Claims",
+          status: "suspended",
+          scope: "ORGANIZATION",
+        },
+        activeSpace: {
+          type: "ORGANIZATION",
+          id: WS.inactive,
+          displayName: "Northgate Claims",
+          roleLabel: "Owner",
+        },
+        contextOptions: {
+          personalSpace: null,
+          ownedWorkspaces: [],
+          organizations: [],
+          activeContext: {
+            workspaceId: WS.inactive,
+            kind: "ORGANIZATION",
+            organizationId: null,
+            displayName: "Northgate Claims",
+          },
+        },
+        capabilities: { INTAKE_LINKS_MANAGE: true },
+        account: { accountPlan: "TEAM", accountStatus: "suspended" },
+        planFeatures: { intakeIncluded: true },
+      };
+    case "wrongWorkspaceContext":
+      // `activeSpace` says one workspace; `contextOptions.activeContext` says
+      // another. Exactly one of them may drive the reads.
+      return {
+        ...base,
+        ...space("ORGANIZATION", WS.organization, "Acme Legal"),
+        contextOptions: {
+          personalSpace: null,
+          ownedWorkspaces: [],
+          organizations: [],
+          activeContext: {
+            workspaceId: WS.legacy,
+            kind: "ORGANIZATION",
+            organizationId: null,
+            displayName: "Some Other Workspace",
+          },
+        },
+        capabilities: { INTAKE_LINKS_MANAGE: true },
+        account: { accountPlan: "TEAM", accountStatus: "active" },
+        planFeatures: { intakeIncluded: true },
+      };
     case "missingEnvelope":
       return null;
   }
@@ -312,6 +386,7 @@ function managementRendered(): boolean {
 
 beforeEach(() => {
   currentSearch = "";
+  refuseList = null;
   transport = {
     email: { configured: true },
     sms: { configured: true, fromNumberPreview: "+1 ••• 8084" },
@@ -443,6 +518,52 @@ describe("refusals fail closed", () => {
 // ===========================================================================
 // Provider availability is a server fact, per workspace
 // ===========================================================================
+
+// ===========================================================================
+// Inactive account, and the one workspace id that may drive a read
+// ===========================================================================
+
+describe("inactive account and workspace-context resolution", () => {
+  it("a suspended account renders the same surface and closes on the API refusal", async () => {
+    // The client never guesses at account status. It renders, asks, and
+    // believes the server — which is the only party that knows.
+    await mount("inactiveWorkspace");
+    expect(managementRendered()).toBe(true);
+
+    refuseList = 403;
+    await mount("inactiveWorkspace");
+    expect(
+      document.querySelector('[data-intake-links-restricted="forbidden"]'),
+    ).toBeTruthy();
+    // Fail closed: no table, no wizard entry point, and no retry that would
+    // just repeat a refusal the server will repeat.
+    expect(document.querySelector("[data-intake-links-table]")).toBeNull();
+    expect(document.querySelector("[data-intake-links-new-cta]")).toBeNull();
+    expect(
+      requestLog.filter((p) => p.includes("/archive") || p.includes("/revoke")),
+    ).toEqual([]);
+  });
+
+  it("reads ONLY the active-space id when contextOptions disagrees", async () => {
+    await mount("wrongWorkspaceContext");
+    expect(managementRendered()).toBe(true);
+    const intakeReads = requestLog.filter((p) =>
+      p.startsWith("/v1/workflow/intake-links"),
+    );
+    expect(intakeReads.length).toBeGreaterThan(0);
+    for (const path of intakeReads) {
+      expect(path).toContain(`teamId=${WS.organization}`);
+      // The other id in the envelope must never reach a request.
+      expect(path).not.toContain(WS.legacy);
+    }
+    // ...and it must not leak into the visible workspace label either.
+    const context = document.querySelector(
+      "[data-intake-links-context]",
+    ) as HTMLElement;
+    expect(context.textContent).toContain("Acme Legal");
+    expect(context.textContent).not.toContain("Some Other Workspace");
+  });
+});
 
 describe("delivery availability follows the server projection", () => {
   it("an unavailable channel is disabled in every authorised workspace", async () => {

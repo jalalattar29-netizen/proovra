@@ -4,7 +4,7 @@
  * inbox surfacing, request-more flow, reject notification).
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";

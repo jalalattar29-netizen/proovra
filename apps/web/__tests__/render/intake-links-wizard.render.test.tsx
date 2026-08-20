@@ -980,3 +980,518 @@ describe("step 4 — review and create", () => {
     });
   });
 });
+
+// ===========================================================================
+// Exhaustive option sweep — every branch, and every branch canonical
+// ===========================================================================
+
+/** Every control the wizard mounts must belong to the canonical system. */
+function assertCanonicalControls(scope: HTMLElement) {
+  // No native option list, anywhere, at any step.
+  expect(scope.querySelectorAll("select").length).toBe(0);
+  expect(scope.querySelectorAll("optgroup").length).toBe(0);
+  // No legacy form-control classes.
+  for (const legacy of [".cases-form-input", ".cases-panel", ".cases-empty"]) {
+    expect(scope.querySelector(legacy), `legacy ${legacy}`).toBeNull();
+  }
+  // Every radio is a choice card; every checkbox is the canonical one.
+  for (const r of Array.from(
+    scope.querySelectorAll<HTMLInputElement>('input[type="radio"]'),
+  )) {
+    expect(r.className).toBe("ilk-choice__input");
+    expect(r.closest("label")).toBeTruthy();
+    // A label-wrapped control must not contain a second interactive element.
+    expect(
+      r.closest("label")?.querySelectorAll("button, a[href], select").length,
+    ).toBe(0);
+  }
+  for (const c of Array.from(
+    scope.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+  )) {
+    expect(c.className).toBe("app-checkbox");
+  }
+  // Text inputs and textareas use the canonical field class.
+  for (const f of Array.from(
+    scope.querySelectorAll<HTMLElement>(
+      'input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea',
+    ),
+  )) {
+    expect(f.className.split(/\s+/)).toContain("app-form-input");
+  }
+  // Every dropdown is the canonical listbox trigger.
+  for (const combo of Array.from(scope.querySelectorAll('[role="combobox"]'))) {
+    expect(combo.classList.contains("app-listbox__trigger")).toBe(true);
+    expect(combo.getAttribute("aria-haspopup")).toBe("listbox");
+  }
+  // Actions are the canonical buttons.
+  const footer = scope.querySelector(".app-dialog__footer") as HTMLElement;
+  for (const b of Array.from(footer.querySelectorAll("button"))) {
+    const cls = b.className.split(/\s+/);
+    expect(
+      cls.includes("app-primary-action") || cls.includes("app-secondary-action"),
+    ).toBe(true);
+  }
+}
+
+function dialog(): HTMLElement {
+  return document.querySelector(
+    '[data-testid="intake-link-create-wizard"]',
+  ) as HTMLElement;
+}
+
+async function openPurposeList() {
+  await act(async () => {
+    fireEvent.click(document.querySelector('[role="combobox"]') as HTMLElement);
+  });
+  return document.querySelector('[role="listbox"]') as HTMLElement;
+}
+
+/** Drive the wizard to Create with the current selections, copy-link channel. */
+async function createWithCopyLink() {
+  await clickNext();
+  await chooseChannel("MANUAL");
+  await clickNext();
+  await clickNext();
+  await act(async () => {
+    fireEvent.click(
+      document.querySelector("[data-intake-link-submit]") as HTMLElement,
+    );
+  });
+  await waitFor(() => expect(createCalls).toBeGreaterThan(0));
+  return requestLog.find((r) => r.method === "POST")?.body as Record<
+    string,
+    unknown
+  >;
+}
+
+describe("every request purpose is selectable through the canonical listbox", () => {
+  const PURPOSES = [
+    "General evidence request",
+    "Photos & videos",
+    "Documents",
+    "Insurance claim evidence",
+    "Legal document collection",
+    "Property damage",
+    "Incident investigation",
+    "Compliance / audit submission",
+    "Source / witness submission",
+  ];
+
+  for (const label of PURPOSES) {
+    it(`${label} selects, describes itself, and reaches the create body`, async () => {
+      await openWizard();
+      const list = await openPurposeList();
+      const option = within(list)
+        .getAllByRole("option")
+        .find((o) => o.textContent?.includes(label)) as HTMLElement;
+      expect(option, `no option for ${label}`).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(option);
+      });
+
+      const combo = document.querySelector('[role="combobox"]') as HTMLElement;
+      expect(combo.textContent).toContain(label);
+      const help = dialog().querySelector(".app-field-help") as HTMLElement;
+      expect((help.textContent ?? "").trim().length).toBeGreaterThan(10);
+      assertCanonicalControls(dialog());
+
+      const body = await createWithCopyLink();
+      const slug = body.workflowTemplateSlug as string;
+      expect(slug).toMatch(/^[a-z0-9-]+$/);
+      // The operator never sees the slug; the server never sees the label.
+      expect(slug).not.toBe(label);
+    });
+  }
+});
+
+describe("every link mode, sender identity and location policy", () => {
+  const MODES: Array<[string, string]> = [
+    ["EXTERNAL_ONE_TIME", "One-time link"],
+    ["EXTERNAL_REUSABLE", "Reusable link"],
+    ["EXTERNAL_ANONYMOUS", "Anonymous link"],
+    ["EXTERNAL_PSEUDONYMOUS", "Display-name link"],
+  ];
+
+  for (const [wire, label] of MODES) {
+    it(`${label} is one choice of ONE group and reaches the body as ${wire}`, async () => {
+      await openWizard();
+      // Reuse and contributor identity are a SINGLE backend field, so they are
+      // a single group; splitting them would fabricate a contract.
+      const groups = dialog().querySelectorAll(
+        '[data-intake-link-choice-group="intake-mode"]',
+      );
+      expect(groups.length).toBe(1);
+      const input = document.querySelector(
+        `[data-intake-link-mode-input="${wire}"]`,
+      ) as HTMLInputElement;
+      expect(input).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(input);
+      });
+      expect(input.checked).toBe(true);
+      // Every radio in the group shares one name — a real single-choice group.
+      const names = new Set(
+        Array.from(
+          groups[0].querySelectorAll<HTMLInputElement>('input[type="radio"]'),
+        ).map((r) => r.name),
+      );
+      expect(names.size).toBe(1);
+
+      const body = await createWithCopyLink();
+      expect(body.intakeMode).toBe(wire);
+      // Only a reusable link raises the usage ceiling.
+      expect(body.maxUses).toBe(wire === "EXTERNAL_REUSABLE" ? 1000 : 1);
+    });
+  }
+
+  it("a long custom sender name is accepted and bounded, an invalid one is refused", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector(
+          '[data-intake-link-sender-card-input="CUSTOM"]',
+        ) as HTMLElement,
+      );
+    });
+    const name = document.querySelector(
+      '[data-intake-link-sender-custom-name="true"]',
+    ) as HTMLInputElement;
+    // The field enforces the API's own ceiling rather than letting the server
+    // refuse a value the form happily accepted.
+    expect(Number(name.getAttribute("maxLength"))).toBe(80);
+
+    // Invalid: an address is refused with plain English, and the step holds.
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "mail@example.com" } });
+    });
+    await clickNext();
+    expect(step()).toBe("delivery");
+    expect(document.body.textContent).toMatch(/email addresses/i);
+
+    // A long-but-legal name passes and reaches the body trimmed.
+    const long = "Fotheringay, Wallace & Associates International Legal Group";
+    await act(async () => {
+      fireEvent.change(name, { target: { value: `  ${long}  ` } });
+    });
+    await clickNext();
+    expect(step()).toBe("rules");
+    await clickNext();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() => expect(createCalls).toBe(1));
+    const body = requestLog.find((r) => r.method === "POST")?.body as Record<
+      string,
+      unknown
+    >;
+    expect(body.senderDisplayName).toBe(long);
+    expect(body.senderDisplayMode).toBe("CUSTOM");
+  });
+
+  for (const policy of ["NONE", "OPTIONAL", "REQUIRED"] as const) {
+    it(`location policy ${policy} selects and reaches the body`, async () => {
+      await openWizard();
+      await clickNext();
+      await chooseChannel("MANUAL");
+      await clickNext();
+      const input = document.querySelector(
+        `[data-intake-link-location-card-input="${policy}"]`,
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(input);
+      });
+      expect(input.checked).toBe(true);
+      assertCanonicalControls(dialog());
+      await clickNext();
+      await act(async () => {
+        fireEvent.click(
+          document.querySelector("[data-intake-link-submit]") as HTMLElement,
+        );
+      });
+      await waitFor(() => expect(createCalls).toBe(1));
+      const body = requestLog.find((r) => r.method === "POST")?.body as Record<
+        string,
+        unknown
+      >;
+      expect(body.locationPolicy).toBe(policy);
+    });
+  }
+});
+
+describe("collection limits and accepted types", () => {
+  async function toRules() {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+  }
+
+  it("every expiry preset selects and computes a real absolute expiry", async () => {
+    for (const [label, hours] of [
+      ["24 hours", 24],
+      ["3 days", 72],
+      ["7 days", 168],
+      ["30 days", 720],
+    ] as const) {
+      await toRules();
+      await act(async () => {
+        fireEvent.click(
+          document.querySelectorAll('[role="combobox"]')[0] as HTMLElement,
+        );
+      });
+      const option = within(
+        document.querySelector('[role="listbox"]') as HTMLElement,
+      ).getByRole("option", { name: label });
+      const before = Date.now();
+      await act(async () => {
+        fireEvent.click(option);
+      });
+      await clickNext();
+      await act(async () => {
+        fireEvent.click(
+          document.querySelector("[data-intake-link-submit]") as HTMLElement,
+        );
+      });
+      await waitFor(() => expect(createCalls).toBeGreaterThan(0));
+      const body = requestLog.find((r) => r.method === "POST")?.body as Record<
+        string,
+        unknown
+      >;
+      const ms = Date.parse(body.expiresAtUtc as string) - before;
+      // Within a minute of the requested duration — the units are HOURS and
+      // the value is absolute UTC, exactly as the contract expects.
+      expect(Math.abs(ms - hours * 3_600_000)).toBeLessThan(60_000);
+      createCalls = 0;
+      requestLog = [];
+    }
+  });
+
+  it("the custom expiry field enforces both ends of the API range", async () => {
+    await toRules();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelectorAll('[role="combobox"]')[0] as HTMLElement,
+      );
+    });
+    await act(async () => {
+      fireEvent.click(
+        within(
+          document.querySelector('[role="listbox"]') as HTMLElement,
+        ).getByRole("option", { name: /custom/i }),
+      );
+    });
+    const hours = document.querySelector(
+      "[data-intake-link-expiry-hours]",
+    ) as HTMLInputElement;
+    expect(hours.getAttribute("min")).toBe("1");
+    expect(hours.getAttribute("max")).toBe("8760");
+
+    for (const bad of ["0", "8761"]) {
+      await act(async () => {
+        fireEvent.change(hours, { target: { value: bad } });
+      });
+      await clickNext();
+      expect(step()).toBe("rules");
+      expect(document.body.textContent).toMatch(/between 1 and 8760 hours/i);
+    }
+    await act(async () => {
+      fireEvent.change(hours, { target: { value: "1" } });
+    });
+    await clickNext();
+    expect(step()).toBe("review");
+  });
+
+  it("max files enforces both ends and accepts blank as no cap", async () => {
+    await toRules();
+    const field = () =>
+      document.querySelector("[data-intake-link-max-files]") as HTMLInputElement;
+    expect(field().getAttribute("min")).toBe("1");
+    expect(field().getAttribute("max")).toBe("500");
+    for (const bad of ["0", "501"]) {
+      await act(async () => {
+        fireEvent.change(field(), { target: { value: bad } });
+      });
+      await clickNext();
+      expect(step()).toBe("rules");
+    }
+    await act(async () => {
+      fireEvent.change(field(), { target: { value: "" } });
+    });
+    await clickNext();
+    expect(step()).toBe("review");
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() => expect(createCalls).toBe(1));
+    const body = requestLog.find((r) => r.method === "POST")?.body as Record<
+      string,
+      unknown
+    >;
+    expect(body.maxFileCountPerSession).toBeNull();
+  });
+
+  it("each single file type, and all four, reach the body as backend values", async () => {
+    const ALL = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"] as const;
+    const setKinds = async (wanted: readonly string[]) => {
+      for (const k of ALL) {
+        const el = document.querySelector(
+          `[data-intake-link-accepted-kind-input="${k}"]`,
+        ) as HTMLInputElement;
+        if (el.checked !== wanted.includes(k)) {
+          await act(async () => {
+            fireEvent.click(el);
+          });
+        }
+      }
+    };
+    for (const wanted of [["PHOTO"], ["VIDEO"], ["AUDIO"], ["DOCUMENT"], ALL]) {
+      await toRules();
+      await setKinds(wanted as readonly string[]);
+      await clickNext();
+      expect(step()).toBe("review");
+      await act(async () => {
+        fireEvent.click(
+          document.querySelector("[data-intake-link-submit]") as HTMLElement,
+        );
+      });
+      await waitFor(() => expect(createCalls).toBeGreaterThan(0));
+      const body = requestLog.find((r) => r.method === "POST")?.body as Record<
+        string,
+        unknown
+      >;
+      // Backend values, in the catalog's canonical order.
+      expect(body.allowedAcceptedKinds).toEqual(
+        ALL.filter((k) => (wanted as readonly string[]).includes(k)),
+      );
+      createCalls = 0;
+      requestLog = [];
+    }
+  });
+
+  it("consent text is optional, bounded, and trimmed onto the body", async () => {
+    await toRules();
+    const consent = document.querySelector(
+      "[data-intake-link-consent]",
+    ) as HTMLTextAreaElement;
+    expect(Number(consent.getAttribute("maxLength"))).toBe(4000);
+    const long = "I confirm these files are mine to share. ".repeat(90);
+    await act(async () => {
+      fireEvent.change(consent, { target: { value: `  ${long}  ` } });
+    });
+    // The field itself clamps to the API ceiling rather than letting the
+    // server refuse a value the form accepted.
+    expect(consent.value.length).toBeLessThanOrEqual(4000);
+    await clickNext();
+    expect(step()).toBe("review");
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() => expect(createCalls).toBe(1));
+    const body = requestLog.find((r) => r.method === "POST")?.body as Record<
+      string,
+      unknown
+    >;
+    expect(String(body.consentDisclosureText).length).toBeLessThanOrEqual(4000);
+    expect(String(body.consentDisclosureText).startsWith("I confirm")).toBe(true);
+  });
+});
+
+describe("every step mounts canonical controls only", () => {
+  it("request, delivery, rules and review each pass the canonical sweep", async () => {
+    await openWizard();
+    assertCanonicalControls(dialog());
+    await clickNext();
+    // Every channel variant, including the ones with a conditional field.
+    for (const channel of ["SMS", "EMAIL", "WHATSAPP", "MANUAL"]) {
+      await chooseChannel(channel);
+      assertCanonicalControls(dialog());
+    }
+    await chooseChannel("MANUAL");
+    await clickNext();
+    assertCanonicalControls(dialog());
+    await clickNext();
+    assertCanonicalControls(dialog());
+    // The review step's preview is a read-only region, not an editor.
+    expect(
+      document.querySelector('[data-intake-link-preview-manual="true"]'),
+    ).toBeTruthy();
+  });
+
+  it("no provider configuration at all still mounts the canonical wizard", async () => {
+    transport = {
+      email: { configured: false },
+      sms: { configured: false },
+      whatsapp: { configured: false },
+    };
+    await openWizard();
+    await clickNext();
+    assertCanonicalControls(dialog());
+    // Every sending channel is disabled; copy-link remains available and is
+    // the default, so the wizard is never a dead end.
+    for (const c of ["SMS", "EMAIL", "WHATSAPP"]) {
+      expect(
+        (
+          document.querySelector(
+            `[data-intake-link-delivery-method-input="${c}"]`,
+          ) as HTMLInputElement
+        ).disabled,
+      ).toBe(true);
+    }
+    const manual = document.querySelector(
+      '[data-intake-link-delivery-method-input="MANUAL"]',
+    ) as HTMLInputElement;
+    expect(manual.disabled).toBe(false);
+    expect(manual.checked).toBe(true);
+    await clickNext();
+    await clickNext();
+    expect(step()).toBe("review");
+  });
+
+  for (const only of ["sms", "email", "whatsapp"] as const) {
+    it(`only ${only} configured leaves exactly that channel and copy-link open`, async () => {
+      transport = {
+        email: { configured: only === "email" },
+        sms: {
+          configured: only === "sms",
+          fromNumberPreview: "+1 ••• ••• 8084",
+        },
+        whatsapp: {
+          configured: only === "whatsapp",
+          fromNumberPreview: "+1 ••• ••• 8084",
+        },
+      };
+      await openWizard();
+      await clickNext();
+      const enabled = (c: string) =>
+        !(
+          document.querySelector(
+            `[data-intake-link-delivery-method-input="${c}"]`,
+          ) as HTMLInputElement
+        ).disabled;
+      expect(enabled(only.toUpperCase())).toBe(true);
+      expect(enabled("MANUAL")).toBe(true);
+      for (const other of ["SMS", "EMAIL", "WHATSAPP"].filter(
+        (c) => c !== only.toUpperCase(),
+      )) {
+        expect(enabled(other)).toBe(false);
+      }
+      // The configured channel is the one the wizard defaults to.
+      expect(
+        (
+          document.querySelector(
+            `[data-intake-link-delivery-method-input="${only.toUpperCase()}"]`,
+          ) as HTMLInputElement
+        ).checked,
+      ).toBe(true);
+      assertCanonicalControls(dialog());
+    });
+  }
+});

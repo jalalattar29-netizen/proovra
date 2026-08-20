@@ -26,6 +26,14 @@ const WEB_BASE = process.env.WEB_BASE ?? "http://localhost:3000";
 const SEARCH_LAYOUT_PORT = 3011;
 const SEARCH_LAYOUT_BASE = `http://127.0.0.1:${SEARCH_LAYOUT_PORT}`;
 
+/**
+ * The Intake Links structural + presentation gate serves its own production
+ * build here. Its OWN port, so it can run beside the search gate without the
+ * two sharing a server whose lifetime neither of them owns.
+ */
+const INTAKE_LAYOUT_PORT = 3012;
+const INTAKE_LAYOUT_BASE = `http://127.0.0.1:${INTAKE_LAYOUT_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   // Phase 1 tests are deliberately small and serial — they share an
@@ -98,27 +106,61 @@ export default defineConfig({
         baseURL: SEARCH_LAYOUT_BASE,
       },
     },
+    /**
+     * REDESIGN/INTAKE-LINKS — the STRUCTURAL + PRESENTATION gate.
+     *
+     * Same reasoning as the search-layout project above: every property it
+     * measures is a layout or a COMPUTED-STYLE property, so the API is
+     * intercepted and only the WEB tier is real. jsdom answers 0 to every
+     * geometry question and resolves no cascade, so a jsdom proof that the
+     * redesigned presentation is the one actually painting is a proof of
+     * nothing — this project resolves real CSS variables through the real
+     * stylesheet order of the production bundle.
+     *
+     * Deliberately screenshot-free: it answers "is anything broken", never
+     * "does it look right".
+     */
+    {
+      name: "intake-links-layout",
+      testDir: "./e2e/intake-links-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: INTAKE_LAYOUT_BASE,
+      },
+    },
   ],
   /**
-   * Started only for the search-layout project.
+   * Started only for the two opt-in layout projects, each on its own port.
    *
-   * `next start` rather than `next dev`: the gate measures the bundle the
-   * product ships. Opt-in via `SEARCH_LAYOUT=1` so the Phase-1 and Point-7
-   * projects, which bring their own stacks, never start a second web server on
-   * top of the one they already run.
+   * `next start` rather than `next dev`: these gates measure the bundle the
+   * product ships. Opt-in via `SEARCH_LAYOUT=1` / `INTAKE_LAYOUT=1` so the
+   * Phase-1 and Point-7 projects, which bring their own stacks, never start a
+   * second web server on top of the one they already run.
    */
-  webServer: process.env.SEARCH_LAYOUT
-    ? {
-        command: `pnpm --filter proovra-web exec next start -p ${SEARCH_LAYOUT_PORT} -H 127.0.0.1`,
-        url: `${SEARCH_LAYOUT_BASE}/login`,
-        reuseExistingServer: true,
-        timeout: 180_000,
-        env: {
-          NODE_ENV: "production",
-          NEXT_TELEMETRY_DISABLED: "1",
-        },
-      }
-    : undefined,
+  webServer: [
+    ...(process.env.SEARCH_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${SEARCH_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${SEARCH_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
+    ...(process.env.INTAKE_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${INTAKE_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${INTAKE_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
+  ],
   globalSetup: process.env.POINT7 ? "./e2e/point7/_global-setup.ts" : undefined,
   globalTeardown: process.env.POINT7
     ? "./e2e/point7/_global-teardown.ts"

@@ -21,6 +21,8 @@
 
 import * as React from "react";
 
+import type { SafeUserError } from "../../../../lib/feedback/toSafeUserError";
+
 import {
   REQUEST_PURPOSES,
   type RequestPurpose,
@@ -228,12 +230,19 @@ export function FeatureUnavailableState() {
   );
 }
 
-/** A mutation that partly succeeded, or failed after the list already loaded. */
+/**
+ * A mutation that partly succeeded, or failed after the list already loaded.
+ *
+ * Renders the ACTION that failed alongside the canonical safe sentence. The
+ * sentence always comes from `toSafeUserError` — raw server text never reaches
+ * this element — but that helper answers "what should I do", not "what did I
+ * just fail to do", so the action name is supplied by the caller.
+ */
 export function InlineMutationError({
-  message,
+  error,
   onDismiss,
 }: {
-  message: string;
+  error: { action: string; safe: SafeUserError };
   onDismiss: () => void;
 }) {
   return (
@@ -243,7 +252,12 @@ export function InlineMutationError({
       data-intake-links-mutation-error
     >
       <div className="app-panel__head-row">
-        <span>{message}</span>
+        <span>
+          <strong data-intake-links-mutation-error-title>
+            {error.action}
+          </strong>{" "}
+          {error.safe.message}
+        </span>
         <button
           type="button"
           className="app-ghost-action"

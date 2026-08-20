@@ -40,7 +40,10 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { PageShell } from "../../../components/ui";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { apiFetch } from "../../../lib/api";
-import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import {
+  toSafeUserError,
+  type SafeUserError,
+} from "../../../lib/feedback/toSafeUserError";
 import {
   useCan,
   useOwningContextLabel,
@@ -129,7 +132,19 @@ function IntakeLinksManagement() {
   const [load, setLoad] = React.useState<LoadState>({ kind: "loading" });
   const [refreshing, setRefreshing] = React.useState(false);
   const [templates, setTemplates] = React.useState<WorkflowTemplateRow[]>([]);
-  const [mutationError, setMutationError] = React.useState<string | null>(null);
+  /**
+   * A failed row mutation, as the operator needs to read it.
+   *
+   * `toSafeUserError` owns the SAFE sentence and will not be bypassed — it is
+   * the only sanctioned display path, and for a 5xx it deliberately supplies
+   * its own generic title. That generic title alone left the operator reading
+   * "The service is temporarily unavailable" with no idea WHICH action failed,
+   * so the action name is carried alongside it rather than inside it.
+   */
+  const [mutationError, setMutationError] = React.useState<{
+    action: string;
+    safe: SafeUserError;
+  } | null>(null);
 
   const fetchLinks = React.useCallback(
     async (workspaceId: string, mode: "initial" | "refresh") => {
@@ -313,11 +328,13 @@ function IntakeLinksManagement() {
         );
         refresh();
       } catch (err) {
-        setMutationError(
-          toSafeUserError(err, {
-            message: "Couldn't disable that link.",
-          }).message,
-        );
+        setMutationError({
+          action: "Couldn't disable that link.",
+          safe: toSafeUserError(err, {
+            title: "Couldn't disable that link",
+            message: "The link was not changed. Try again in a moment.",
+          }),
+        });
       }
     },
     [confirm, refresh],
@@ -330,21 +347,40 @@ function IntakeLinksManagement() {
       setArchivePendingId(linkId);
       setMutationError(null);
       try {
-        await apiFetch(
-          `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/${
-            archived ? "unarchive" : "archive"
-          }`,
-          { method: "POST" },
-        );
+        // TWO call sites, each a whole literal path.
+        //
+        // The route↔consumer analyzer reads call sites statically and does not
+        // union the branches of a conditional, so a verb spliced into one
+        // template (`…/${archived ? "unarchive" : "archive"}`) resolved to the
+        // first branch only. The archive route then looked like a backend
+        // route no product surface reaches — a false claim about a button that
+        // exists, and previously papered over by a hand-written manifest entry
+        // pointing at a component that has since been deleted. Two literal
+        // calls need no human declaration to stay true.
+        if (archived) {
+          await apiFetch(
+            `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/unarchive`,
+            { method: "POST" },
+          );
+        } else {
+          await apiFetch(
+            `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/archive`,
+            { method: "POST" },
+          );
+        }
         refresh();
       } catch (err) {
-        setMutationError(
-          toSafeUserError(err, {
-            message: archived
-              ? "Couldn't restore that link from the archive."
-              : "Couldn't archive that link.",
-          }).message,
-        );
+        setMutationError({
+          action: archived
+            ? "Couldn't restore that link from the archive."
+            : "Couldn't archive that link.",
+          safe: toSafeUserError(err, {
+            title: archived
+              ? "Couldn't restore that link from the archive"
+              : "Couldn't archive that link",
+            message: "The link was not changed. Try again in a moment.",
+          }),
+        });
       } finally {
         setArchivePendingId(null);
       }
@@ -367,6 +403,29 @@ function IntakeLinksManagement() {
   const detailsItem = detailsId
     ? (items.find((i) => i.link.id === detailsId) ?? null)
     : null;
+
+  // Fail CLOSED: no envelope, or a projection that does not grant the
+  // capability, renders the restricted panel — never the management surface.
+  const restricted = !envelope
+    ? ({ kind: "restricted", reason: "no_envelope" } as const)
+    : !canManage
+      ? ({ kind: "restricted", reason: "forbidden" } as const)
+      : null;
+
+  const effective: LoadState =
+    restricted ?? (teamId ? load : { kind: "loading" });
+
+  /**
+   * The primary action is offered only when the surface is actually usable.
+   *
+   * The capability projection saying "yes" is not enough: the envelope can
+   * grant `INTAKE_LINKS_MANAGE` while the SERVER refuses the read for this
+   * workspace — a suspended account is the ordinary way that happens. Rendering
+   * "New intake link" beside a panel that just said the operator has no access
+   * is an affordance that cannot do what it says, and clicking it would open a
+   * wizard whose Create the server is certain to refuse.
+   */
+  const canOfferCreate = canManage && Boolean(teamId) && effective.kind === "ready";
 
   // The canonical internal page header (icon + title + subtitle + one primary
   // action), rendered through PageShell exactly as the other migrated internal
@@ -395,7 +454,7 @@ function IntakeLinksManagement() {
           ) : null}
         </div>
       </div>
-      {canManage && teamId ? (
+      {canOfferCreate ? (
         <div className="app-page-header__actions">
           <button
             type="button"
@@ -411,22 +470,11 @@ function IntakeLinksManagement() {
     </div>
   );
 
-  // Fail CLOSED: no envelope, or a projection that does not grant the
-  // capability, renders the restricted panel — never the management surface.
-  const restricted = !envelope
-    ? ({ kind: "restricted", reason: "no_envelope" } as const)
-    : !canManage
-      ? ({ kind: "restricted", reason: "forbidden" } as const)
-      : null;
-
-  const effective: LoadState =
-    restricted ?? (teamId ? load : { kind: "loading" });
-
   return (
     <PageShell className="ilk-page" header={header} data-testid="intake-links-page">
       {mutationError ? (
         <InlineMutationError
-          message={mutationError}
+          error={mutationError}
           onDismiss={() => setMutationError(null)}
         />
       ) : null}

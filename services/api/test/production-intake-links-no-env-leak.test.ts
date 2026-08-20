@@ -24,12 +24,6 @@ import { describe, expect, it } from "vitest";
 
 import { intakeLinksSurface } from "./_helpers/intake-links-surface";
 
-function readWeb(rel: string): string {
-  return readFileSync(
-    fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
-    "utf8",
-  );
-}
 function readApi(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../${rel}`, import.meta.url)),
