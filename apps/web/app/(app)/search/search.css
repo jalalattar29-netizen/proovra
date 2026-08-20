@@ -179,8 +179,10 @@
   min-inline-size: 0;
 }
 
+/* No `position: relative` — the menu is portaled and anchored to this
+   element's measured rect, not laid out against it. Leaving a positioning
+   ancestor behind would suggest the old mechanism still applies. */
 .search-form__field {
-  position: relative;
   display: flex;
   align-items: center;
   flex: 1 1 auto;
@@ -234,11 +236,27 @@
 /* The suggestion list, anchored to the field above. It is the field's own
    surface continued downward: same radius language, same border, and it floats
    over whatever follows. */
+/* POSITIONING IS NOT HERE, DELIBERATELY.
+ *
+ * This menu was `position: absolute; z-index: 30` inside the search field, and
+ * it rendered UNDER the panels below it. The z-index was never the problem:
+ *
+ *   - the field's own panel is an `.app-panel`, which carries
+ *     `backdrop-filter`, and backdrop-filter CREATES A STACKING CONTEXT. A
+ *     z-index inside it can only order children WITHIN that panel.
+ *   - the workspace below is `container-type: inline-size`, which applies
+ *     `contain: layout`, and that creates a stacking context too.
+ *
+ * Two sibling stacking contexts, both `z-index: auto`, paint in DOM order — so
+ * the workspace always painted over the menu, and no number here could change
+ * it. Raising the value would only have hidden the cause.
+ *
+ * The menu now renders through `AppAnchoredOverlay`: a portal to <body>, with
+ * one contractual layer. It has no ancestor left to be trapped by or clipped
+ * against. What remains below is the menu's own SURFACE. */
 .search-typeahead {
-  position: absolute;
-  inset-block-start: calc(100% + 6px);
-  inset-inline: 0;
-  z-index: 30;
+  inline-size: 100%;
+  box-sizing: border-box;
   max-block-size: 360px;
   overflow-y: auto;
   border: 1px solid rgba(15, 23, 42, 0.1);
@@ -633,6 +651,29 @@
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
 }
 
+/* ---- Type badge --------------------------------------------------------- *
+ * ONE badge anatomy for the record type, in the result row and in the
+ * Inspector, so a Case is the same object in both.
+ *
+ * The Inspector is a grid, and a grid item is stretched to its column unless
+ * it says otherwise — which is why this badge used to run the full width of
+ * the panel behind a long `Report` background. `justify-self` is the actual
+ * fix; `inline-size: fit-content` holds the same line when the badge is placed
+ * in a block context instead. Padding, height and radius come from
+ * `.app-status-badge` untouched, so every type is identical in size and only
+ * the tone differs. */
+.search-type-badge {
+  flex: 0 0 auto;
+  justify-self: start;
+  align-self: start;
+  inline-size: fit-content;
+  /* An unknown or very long type label is bounded rather than allowed to widen
+     the column it sits in. */
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- Result list -------------------------------------------------------- */
 .search-results__head {
   display: flex;
@@ -743,10 +784,22 @@
   /* Timestamps read left-to-right inside an RTL card. */
 }
 
+/* A results FOOTER, not a sixth card. `Load more` was reading as part of the
+   last result because 4px of padding on top of the list's 12px gap is not a
+   boundary. Padding rather than margin: the column is a grid, so a margin
+   would add to the gap invisibly and there would be two numbers to reason
+   about. 16px + the 12px gap gives the ~28px section rhythm the rest of the
+   page uses, and the block-end keeps the control off the viewport floor. */
 .search-results__more {
   display: flex;
   justify-content: center;
-  padding-block: 4px 8px;
+  padding-block: 16px 24px;
+}
+
+/* The control keeps its box while it loads: the label changes from "Load more"
+   to "Loading…", and without a floor the footer would twitch on every page. */
+.search-results__more > .app-secondary-action {
+  min-inline-size: 132px;
 }
 
 /* ---- Inspector ---------------------------------------------------------- */
@@ -776,6 +829,15 @@
   font-size: 13px;
   font-weight: 650;
   color: var(--app-ink-label);
+}
+
+/* Content-sized for the same reason as the type badge: a grid item stretches
+   unless told not to, and a full-bleed action reads as the panel's subject
+   rather than as one thing you can do with it. */
+.search-inspector__action {
+  justify-self: start;
+  inline-size: fit-content;
+  max-inline-size: 100%;
 }
 
 .search-inspector__divider {
@@ -825,6 +887,13 @@
   text-align: end;
   min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+
+/* The value column of a fact row, when the value is a state rather than a
+   number. Sits on the same axis as `.search-fact__value` so a section of
+   facts still lines up when only some of them are badges. */
+.search-fact__badge {
+  justify-self: end;
 }
 
 /* A pointer is an identifier: bounded, monospaced and left-to-right whatever

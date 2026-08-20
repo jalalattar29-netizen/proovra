@@ -81,22 +81,27 @@ test("Inspector renders the Open button with data-search-open-action + data-sear
   assert.match(src, /\{openAction\.label\}/);
 });
 
-test("Inspector Open button uses the canonical primary action (not a pointer link)", () => {
+test("Inspector Open action is OUTLINED and tone-matched, never a solid slab", () => {
   const src = read(PAGE);
-  // REDESIGN/SEARCH — `inspectorPrimaryButtonStyle` is deleted; the control
-  // wears `.app-primary-action`, the one primary-action class in the
-  // product. The invariants this test was written for are unchanged and
-  // re-pinned: the Inspector's way out of the panel is a PRIMARY action, and
-  // it stays an <a> so the browser's own middle-click / cmd-click
-  // open-in-new-tab behaviour keeps working.
+  // The panel's subject is the RECORD. A filled purple button competed with
+  // it and, on an orange Evidence panel, disagreed with it. The control is
+  // now the outlined action in the tone of the type it opens.
+  //
+  // The invariants this test was written for are unchanged and re-pinned:
+  // the Inspector's way out of the panel is a real action, and it stays an
+  // <a> so the browser's own middle-click / cmd-click open-in-new-tab work.
   assert.match(
     src,
-    /<a\n\s+href=\{openAction\.href\}\n\s+className="app-primary-action"/,
+    /<a\n\s+href=\{openAction\.href\}\n\s+className=\{`app-secondary-action \$\{/,
   );
+  assert.match(src, /app-secondary-action--orange/);
+  assert.match(src, /app-secondary-action--accent/);
+  assert.match(src, /search-inspector__action/);
+  // The superseded treatments are GONE, not merely unused.
   assert.doesNotMatch(src, /inspectorPrimaryButtonStyle/);
-  // It must not fall back to the identifier treatment used for pointers.
-  const start = src.indexOf("data-search-open-action=");
-  const block = src.slice(Math.max(0, start - 300), start);
+  const openIdx = src.indexOf("data-search-open-action=");
+  const block = src.slice(Math.max(0, openIdx - 400), openIdx);
+  assert.doesNotMatch(block, /className="app-primary-action"/);
   assert.doesNotMatch(block, /className="search-pointer"/);
 });
 

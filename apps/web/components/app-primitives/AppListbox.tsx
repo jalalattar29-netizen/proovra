@@ -15,10 +15,16 @@
  *
  * Visual style lives in `app-primitives.css` (`.app-listbox*`). No native
  * appearance; lavender focus ring; restrained selected background.
+ *
+ * ESCAPING ANCESTORS is delegated to `AppAnchoredOverlay` — the portal, the
+ * fixed positioning, the flip and the outside-click detection used to be
+ * written out here, and were then written out a SECOND time (badly) for the
+ * Search typeahead. One mechanism, two consumers.
  */
 
 import * as React from "react";
-import { createPortal } from "react-dom";
+
+import { AppAnchoredOverlay } from "./AppAnchoredOverlay";
 
 export interface AppListboxOption<T extends string = string> {
   value: T;
@@ -42,8 +48,6 @@ export interface AppListboxProps<T extends string = string> {
   ariaLabelledby?: string;
   id?: string;
   className?: string;
-  /** Align the popup to the right edge of the trigger. */
-  align?: "left" | "right";
   /** Render function for the trigger's selected content (defaults to label). */
   renderValue?: (option: AppListboxOption<T> | null) => React.ReactNode;
 }
@@ -60,7 +64,6 @@ export function AppListbox<T extends string = string>({
   ariaLabelledby,
   id,
   className,
-  align = "left",
   renderValue,
 }: AppListboxProps<T>) {
   const [open, setOpen] = React.useState(false);
@@ -68,32 +71,8 @@ export function AppListbox<T extends string = string>({
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const popupRef = React.useRef<HTMLUListElement | null>(null);
+  const overlayRef = React.useRef<HTMLDivElement | null>(null);
   const optionRefs = React.useRef<Array<HTMLLIElement | null>>([]);
-  // The popup is rendered through a portal into <body> with `position: fixed`
-  // so it escapes every ancestor `overflow`/stacking context (tables, panels,
-  // toolbars, dialogs) and floats above the page — never clipped, never under
-  // the next section. Coordinates are derived from the trigger's rect.
-  const [coords, setCoords] = React.useState<{
-    left: number;
-    width: number;
-    top?: number;
-    bottom?: number;
-  } | null>(null);
-
-  const positionPopup = React.useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - r.bottom;
-    // Flip upward only when there is clearly not enough room below AND more
-    // room above (matches the working Invite-page selector behaviour).
-    const openUp = spaceBelow < 280 && r.top > spaceBelow;
-    setCoords(
-      openUp
-        ? { left: r.left, width: r.width, bottom: window.innerHeight - r.top + 6 }
-        : { left: r.left, width: r.width, top: r.bottom + 6 },
-    );
-  }, []);
 
   // Stable ids for aria wiring.
   const baseId = React.useMemo(() => id ?? `app-listbox-${++listboxSeq}`, [id]);
@@ -120,12 +99,11 @@ export function AppListbox<T extends string = string>({
 
   const openMenu = React.useCallback(() => {
     if (disabled) return;
-    positionPopup();
     setOpen(true);
     const start =
       selectedIndex >= 0 ? selectedIndex : firstEnabled(0, 1);
     setActiveIndex(start);
-  }, [disabled, selectedIndex, firstEnabled, positionPopup]);
+  }, [disabled, selectedIndex, firstEnabled]);
 
   const closeMenu = React.useCallback((returnFocus = true) => {
     setOpen(false);
@@ -143,33 +121,10 @@ export function AppListbox<T extends string = string>({
     [options, onChange, closeMenu],
   );
 
-  // Close on outside click — the popup lives in a portal, so an inside-popup
-  // click must NOT count as outside.
-  React.useEffect(() => {
-    if (!open) return;
-    const onDocPointer = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (rootRef.current?.contains(t)) return;
-      if (popupRef.current?.contains(t)) return;
-      setOpen(false);
-      setActiveIndex(-1);
-    };
-    document.addEventListener("pointerdown", onDocPointer, true);
-    return () => document.removeEventListener("pointerdown", onDocPointer, true);
-  }, [open]);
-
-  // Keep the portaled popup pinned to the trigger while open (scroll/resize).
-  React.useEffect(() => {
-    if (!open) return;
-    positionPopup();
-    const onReflow = () => positionPopup();
-    window.addEventListener("scroll", onReflow, true);
-    window.addEventListener("resize", onReflow);
-    return () => {
-      window.removeEventListener("scroll", onReflow, true);
-      window.removeEventListener("resize", onReflow);
-    };
-  }, [open, positionPopup]);
+  const closeOnOutside = React.useCallback(() => {
+    setOpen(false);
+    setActiveIndex(-1);
+  }, []);
 
   // Keep the active option scrolled into view.
   React.useEffect(() => {
@@ -303,8 +258,12 @@ export function AppListbox<T extends string = string>({
         </svg>
       </button>
 
-      {open && coords && typeof document !== "undefined"
-        ? createPortal(
+      <AppAnchoredOverlay
+        anchorRef={triggerRef}
+        open={open}
+        onPointerDownOutside={closeOnOutside}
+        overlayRef={overlayRef}
+      >
         <ul
           id={listId}
           role="listbox"
@@ -315,20 +274,11 @@ export function AppListbox<T extends string = string>({
             activeIndex >= 0 ? optionId(activeIndex) : undefined
           }
           className="app-listbox__popup"
-          data-align={align}
           onKeyDown={onListKeyDown}
           ref={(el) => {
             popupRef.current = el;
             // Move focus into the list so keyboard nav is captured.
             if (el && open) el.focus();
-          }}
-          style={{
-            position: "fixed",
-            left: coords.left,
-            width: coords.width,
-            top: coords.top,
-            bottom: coords.bottom,
-            zIndex: 100000,
           }}
         >
           {options.map((opt, i) => {
@@ -392,10 +342,8 @@ export function AppListbox<T extends string = string>({
               </li>
             );
           })}
-        </ul>,
-            document.body,
-          )
-        : null}
+        </ul>
+      </AppAnchoredOverlay>
     </div>
   );
 }

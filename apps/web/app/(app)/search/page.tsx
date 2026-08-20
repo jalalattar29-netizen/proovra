@@ -18,7 +18,7 @@
  */
 
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
@@ -42,10 +42,23 @@ import "./search.css";
 // renders the OS popup, cannot be styled and cannot be keyboard-audited;
 // AppListbox is the one accessible listbox for every internal surface.
 import { AppListbox } from "../../../components/app-primitives/AppListbox";
+// The one way a popup escapes its ancestors. See the note on
+// `.search-typeahead` in search.css for what was trapping this menu.
+import { AppAnchoredOverlay } from "../../../components/app-primitives/AppAnchoredOverlay";
 import {
   AppStatusBadge,
   type AppTone,
 } from "../../../components/app-primitives/AppStatusBadge";
+// One authority for what a type, a badge and a lifecycle state look like —
+// consumed by the result rows and by the Inspector, so the two can no longer
+// disagree about the same record.
+import {
+  isLifecycleValue,
+  searchBadgeTone,
+  searchLifecycleLabel,
+  searchLifecycleTone,
+  searchTypeTone,
+} from "./searchTones";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // Phase IA-self-serve-simplification / Track 1A — gate the enterprise
 // pivot links + admin-only deep links on the SERVER-projected
@@ -426,6 +439,19 @@ function primaryStatusBadge(badges: ReadonlyArray<string>): string | null {
     if (badges.includes(candidate)) return candidate;
   }
   return null;
+}
+
+/**
+ * The record's own lifecycle state, from the fields that carry it.
+ *
+ * ONE derivation, read by the result row and by the Inspector head, so the
+ * list and the panel beside it cannot describe the same record differently.
+ * Workflow state leads because it is the state an operator acts on; review
+ * state answers for records that have no workflow.
+ */
+function rowLifecycleState(row: ResultRow): string | null {
+  const value = row.workflowState ?? row.reviewState;
+  return value && isLifecycleValue(value) ? value : null;
 }
 
 // -----------------------------------------------------------------------------
@@ -991,6 +1017,9 @@ function SearchInner() {
   };
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  // The menu is portaled, so it is anchored to this element's measured rect
+  // rather than laid out inside it.
+  const searchFieldRef = useRef<HTMLDivElement | null>(null);
   const [highlighted, setHighlighted] = useState(-1);
   useEffect(() => {
     if (!teamId) return;
@@ -1489,8 +1518,8 @@ function SearchInner() {
 
       <div className="app-panel search-form-panel">
         <form onSubmit={submitQuery} className="search-form" data-search-form>
-          {/* The field is the positioning context the typeahead anchors to. */}
-          <div className="search-form__field">
+          {/* The field the typeahead is anchored to. */}
+          <div className="search-form__field" ref={searchFieldRef}>
             <span className="search-form__icon" aria-hidden="true">
               <SearchGlyph size={17} strokeWidth={2} />
             </span>
@@ -1534,7 +1563,12 @@ function SearchInner() {
                 aria-expanded={suggestOpen}
                 data-search-input
               />
-            {suggestOpen ? (
+            <AppAnchoredOverlay
+              anchorRef={searchFieldRef}
+              open={suggestOpen}
+              onPointerDownOutside={() => setSuggestOpen(false)}
+              data-search-typeahead-overlay
+            >
               <SearchTypeahead
                 query={qDraft}
                 suggestions={suggestions}
@@ -1548,7 +1582,7 @@ function SearchInner() {
                 }}
                 onClearRecent={clearRecent}
               />
-            ) : null}
+            </AppAnchoredOverlay>
           </div>
           <button
             type="submit"
@@ -2037,6 +2071,17 @@ function SearchInner() {
                 const isSelected = selected?.documentId === row.documentId;
                 const status = primaryStatusBadge(row.badges);
                 const otherBadges = row.badges.filter((x) => x !== status);
+                const lifecycle = rowLifecycleState(row);
+                // A CASE's subtitle IS its status label, so rendering both put
+                // "Open" on the card twice. The supporting line is dropped when
+                // it only repeats the badge beside it.
+                const subtitle =
+                  row.subtitle &&
+                  lifecycle &&
+                  searchLifecycleLabel(row.subtitle) ===
+                    searchLifecycleLabel(lifecycle)
+                    ? null
+                    : row.subtitle;
                 return (
                   <li key={row.documentId}>
                     {/* A real button: the row used to be an <li onClick>, which
@@ -2051,23 +2096,34 @@ function SearchInner() {
                       data-search-result-row={row.documentType}
                     >
                       <span className="search-result__head">
-                        {/* The document type classifies the row; it is not a
-                            status, so it does not wear a status colour. */}
-                        <span
-                          className="app-chip"
+                        {/* The type is a CLASSIFICATION, and it wears the one
+                            tone this console gives that type — the same tone
+                            the Inspector uses for the same record. */}
+                        <AppStatusBadge
+                          className="search-type-badge"
+                          tone={searchTypeTone(row.documentType)}
                           data-search-result-type={row.documentType}
                         >
                           {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-                        </span>
+                        </AppStatusBadge>
                         <span className="search-result__title">{row.title}</span>
                         {status ? (
                           <AppStatusBadge
                             className="search-result__status"
-                            tone={badgeTone(status)}
+                            tone={searchBadgeTone(status)}
                             data-search-result-status={status}
                             data-search-result-badge={status}
                           >
                             {renderBadgeLabel(status)}
+                          </AppStatusBadge>
+                        ) : lifecycle ? (
+                          <AppStatusBadge
+                            className="search-result__status"
+                            tone={searchLifecycleTone(lifecycle)}
+                            data-search-result-status={lifecycle}
+                            data-search-lifecycle={lifecycle}
+                          >
+                            {searchLifecycleLabel(lifecycle)}
                           </AppStatusBadge>
                         ) : null}
                       </span>
@@ -2088,8 +2144,8 @@ function SearchInner() {
                         </span>
                       ) : null}
 
-                      {row.subtitle ? (
-                        <span className="search-result__meta">{row.subtitle}</span>
+                      {subtitle ? (
+                        <span className="search-result__meta">{subtitle}</span>
                       ) : null}
                       {row.summary ? (
                         <span className="search-result__meta">{row.summary}</span>
@@ -2100,7 +2156,7 @@ function SearchInner() {
                           {otherBadges.map((b) => (
                             <AppStatusBadge
                               key={b}
-                              tone={badgeTone(b)}
+                              tone={searchBadgeTone(b)}
                               data-search-result-badge={b}
                             >
                               {renderBadgeLabel(b)}
@@ -2192,41 +2248,9 @@ function SearchInner() {
  * (the rendered chip text is bounded by the allowed-badge catalog
  * anyway).
  */
-/**
- * A backend badge's tone, in the canonical vocabulary.
- *
- * `docTypeTone` used to sit beside this and dress the DOCUMENT TYPE in status
- * colours — so a report read as "pending" and a package as "governance" purely
- * because of what kind of record it was. A type is a classification, not a
- * status; it now renders as a neutral chip and the tone vocabulary is reserved
- * for facts that are genuinely about state.
- */
-function badgeTone(badge: string): AppTone {
-  switch (badge) {
-    // Red is reserved for the facts that stop work.
-    case "legal-hold":
-    case "governance-restricted":
-    case "incident-linked":
-      return "red";
-    // Amber: the record is restricted, held back, or not in its normal place.
-    case "export-restricted":
-    case "visibility-restricted":
-    case "review-linked":
-    case "in_trash":
-    case "locked":
-    case "archived":
-      return "amber";
-    // Blue: operational / informational links to other records.
-    case "workflow-linked":
-    case "communication-linked":
-    case "integrity record":
-    case "matched metadata":
-    case "related evidence":
-      return "blue";
-    default:
-      return "slate";
-  }
-}
+// `docTypeTone` and `badgeTone` used to live here. Both are now in
+// `./searchTones`, which the result rows and the Inspector share — a mapping
+// that exists twice is a mapping that will eventually disagree with itself.
 
 function renderBadgeLabel(badge: string): string {
   switch (badge) {
@@ -2342,23 +2366,56 @@ function Inspector({
   // developer surface and confused Personal/SMB users. Pointers
   // remain as secondary technical metadata below.
   const openAction = getOpenAction(row);
+  const lifecycle = rowLifecycleState(row);
+  // Same rule as the result row: the panel states a fact once.
+  const subtitle =
+    row.subtitle &&
+    lifecycle &&
+    searchLifecycleLabel(row.subtitle) === searchLifecycleLabel(lifecycle)
+      ? null
+      : row.subtitle;
   return (
     <div className="app-panel search-inspector" data-search-inspector>
-      <span className="app-chip" data-search-inspector-type={row.documentType}>
+      {/* Content-sized. This is a grid, and a grid item stretches to its
+          column unless told otherwise — which is why this badge used to run
+          the full width of the panel. `.search-type-badge` carries the
+          `justify-self` that stops it. */}
+      <AppStatusBadge
+        className="search-type-badge"
+        tone={searchTypeTone(row.documentType)}
+        data-search-inspector-type={row.documentType}
+      >
         {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-      </span>
+      </AppStatusBadge>
       {/* Bounded: a long record name wraps rather than widening the column. */}
       <h2 className="search-inspector__title">{row.title}</h2>
-      {row.subtitle ? (
-        <p className="search-inspector__status">{row.subtitle}</p>
+      {lifecycle ? (
+        <AppStatusBadge
+          className="search-type-badge"
+          tone={searchLifecycleTone(lifecycle)}
+          dot
+          data-search-inspector-lifecycle={lifecycle}
+        >
+          {searchLifecycleLabel(lifecycle)}
+        </AppStatusBadge>
       ) : null}
-      {/* The single canonical way out of this panel. Deliberately an <a> and
-          not the shared button primitive, so the browser's own middle-click
-          and cmd-click open-in-new-tab keep working. */}
+      {subtitle ? (
+        <p className="search-inspector__status">{subtitle}</p>
+      ) : null}
+      {/* The single way out of this panel. An OUTLINED action, not a solid
+          one: the panel already has a primary subject — the record — and a
+          filled purple slab competed with it. It stays an <a> so the
+          browser's own middle-click and cmd-click open-in-new-tab keep
+          working, and it takes the tone of the record it opens, so an
+          Evidence panel does not put a purple control on an orange record. */}
       {openAction ? (
         <a
           href={openAction.href}
-          className="app-primary-action"
+          className={`app-secondary-action ${
+            searchTypeTone(row.documentType) === "orange"
+              ? "app-secondary-action--orange"
+              : "app-secondary-action--accent"
+          } search-inspector__action`}
           data-search-open-action={row.documentType}
           data-search-open-href={openAction.href}
         >
@@ -2373,7 +2430,7 @@ function Inspector({
             {row.badges.map((b) => (
               <AppStatusBadge
                 key={b}
-                tone={badgeTone(b)}
+                tone={searchBadgeTone(b)}
                 data-search-inspector-badge={b}
               >
                 {renderBadgeLabel(b)}
@@ -2516,11 +2573,15 @@ function Inspector({
       ) : null}
 
       <Section label="Lifecycle">
-        <KeyVal label="Review" value={row.reviewState ?? "—"} />
-        <KeyVal label="Workflow" value={row.workflowState ?? "—"} />
-        <KeyVal label="Export" value={row.exportState ?? "—"} />
-        <KeyVal label="Retention" value={row.retentionState ?? "—"} />
-        <KeyVal label="Legal hold" value={row.legalHoldState ?? "—"} />
+        {/* Each fact is coloured by the ONE lifecycle mapping, so WORKFLOW:
+            Open here is the same green as Open on the row. An absent value is
+            a neutral dash — never green, which would read as "fine", and
+            never red, which would read as "wrong". */}
+        <LifecycleFact label="Review" value={row.reviewState} />
+        <LifecycleFact label="Workflow" value={row.workflowState} />
+        <LifecycleFact label="Export" value={row.exportState} />
+        <LifecycleFact label="Retention" value={row.retentionState} />
+        <LifecycleFact label="Legal hold" value={row.legalHoldState} />
         <KeyVal label="Updated" value={formatDateTime(row.updatedAtUtc)} />
       </Section>
 
@@ -2587,6 +2648,38 @@ function FilterSection({
       <legend className="search-filters__legend">{label}</legend>
       {children}
     </fieldset>
+  );
+}
+
+/**
+ * One lifecycle fact. Informational — a state is something the console
+ * REPORTS, so it is a badge and never a control.
+ */
+function LifecycleFact({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}) {
+  const kind = searchLifecycleTone(value);
+  return (
+    <div className="search-fact">
+      <span className="search-fact__label">{label}</span>
+      {isLifecycleValue(value) ? (
+        <AppStatusBadge
+          className="search-fact__badge"
+          tone={kind}
+          data-search-lifecycle-fact={label}
+        >
+          {searchLifecycleLabel(value)}
+        </AppStatusBadge>
+      ) : (
+        <span className="search-fact__value" data-search-lifecycle-fact={label}>
+          {searchLifecycleLabel(value)}
+        </span>
+      )}
+    </div>
   );
 }
 

@@ -223,6 +223,33 @@
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
+/* TONE variants — the same outlined anatomy speaking in a semantic colour.
+   Used where the action's colour has to agree with the record it acts on: an
+   "Open evidence" control matches the orange the Evidence type wears, so the
+   panel reads as one object rather than a purple button sitting on an orange
+   record. Geometry is inherited unchanged — height, padding, radius and border
+   width are identical to the base, so nothing moves between tones or states. */
+.app-secondary-action--accent {
+  border-color: var(--accent-200, #D9C7FB);
+  color: var(--accent-600, #6D28D9);
+}
+.app-secondary-action--accent:hover:not(:disabled) {
+  background: var(--accent-050, #F2ECFE);
+  border-color: var(--accent-500, #7C3AED);
+  color: var(--accent-600, #6D28D9);
+}
+.app-secondary-action--orange {
+  border-color: var(--orange-200, #FED7AA);
+  color: var(--orange-ink, #C2410C);
+}
+.app-secondary-action--orange:hover:not(:disabled) {
+  background: var(--orange-050, #FFF7ED);
+  border-color: var(--orange-500, #EA580C);
+  color: var(--orange-ink, #C2410C);
+}
+/* The focus ring stays the canonical lavender on every tone: a focus ring is a
+   system affordance, not part of the control's own colour identity. */
+
 /* FILLED variant — a neutral solid secondary, for the leading control of a
    pair where the trailing one is outlined (Saved Views / Save Current View). */
 .app-secondary-action--filled {
@@ -747,6 +774,13 @@ textarea.app-form-input {
 .app-status-badge[data-tone="blue"] {
   background: #EAF0FD; color: #2563EB; border-color: rgba(37, 99, 235, 0.18);
 }
+/* ORANGE is a CLASSIFICATION tone, not a caution. `amber` already means
+   "needs attention"; a record type must not borrow it. */
+.app-status-badge[data-tone="orange"] {
+  background: var(--orange-050, #FFF7ED);
+  color: var(--orange-ink, #C2410C);
+  border-color: var(--orange-200, #FED7AA);
+}
 .app-status-badge[data-tone="slate"] {
   background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
 }
@@ -894,14 +928,23 @@ textarea.app-form-input {
 .app-listbox__trigger[aria-expanded="true"] .app-listbox__chevron {
   transform: rotate(180deg);
 }
-.app-listbox__popup {
-  /* The popup is rendered through a portal with `position: fixed` and an
-     inline pixel width derived from the trigger's rect — the popup always
-     matches the trigger width. NO percentage widths here: with fixed
-     positioning they resolve against the VIEWPORT and stretch the menu
-     across the page. */
+/* ANCHORED OVERLAY — the one layer an escaped popup renders on.
+   It is applied to the portaled element, which is a direct child of <body>,
+   so no ancestor transform, filter, backdrop-filter, containment or overflow
+   can clip it or trap its z-index. */
+.app-anchored-overlay {
   position: fixed;
-  z-index: 100000;
+  z-index: var(--layer-anchored-overlay, 100000);
+}
+
+.app-listbox__popup {
+  /* Positioning and layering belong to `.app-anchored-overlay`, the portaled
+     element this list now sits inside. Keeping a second `position: fixed` and
+     a second z-index here would be two authorities over one box.
+     A percentage width is safe precisely BECAUSE the parent is a sized box:
+     under the old fixed positioning it resolved against the viewport and
+     stretched the menu across the page. */
+  inline-size: 100%;
   box-sizing: border-box;
   max-width: min(360px, calc(100vw - 24px));
   max-height: 280px;
@@ -913,10 +956,6 @@ textarea.app-form-input {
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-}
-.app-listbox__popup[data-align="right"] {
-  left: auto;
-  right: 0;
 }
 .app-listbox__option {
   display: flex;

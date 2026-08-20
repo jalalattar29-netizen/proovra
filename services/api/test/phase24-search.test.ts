@@ -292,20 +292,21 @@ describe("Phase 24 — UI wording sweep", () => {
     }
   });
 
-  it("result badges render through the shared <Badge> with the catalog-validated label", () => {
-    // Phase 7C — the bespoke `badgeChipStyle` palette map was removed; result
-    // badges now render via the shared <Badge tone={badgeTone(b)}
-    // data-search-result-badge={b}> primitive. The badge LABEL `b` comes from
-    // the search projection, whose values are constrained to
-    // SEARCH_RESULT_ALLOWED_BADGES by `isAllowedSearchBadge` at the SERVICE
-    // layer (see "only emits badges from the allowed catalog" above). So the
-    // honesty guarantee is enforced on the data, not a page-local style map.
+  it("result badges render through the shared badge with the catalog-validated label", () => {
+    // REDESIGN/SEARCH — the tone map moved OUT of the page into the shared
+    // `searchTones` authority, which the result rows and the Inspector both
+    // read, so the two can no longer colour one badge differently. The
+    // guarantee this test was written for is unchanged and now stronger: the
+    // page holds no palette of its own at all.
+    //
+    // The badge LABEL `b` still comes from the search projection, whose values
+    // are constrained to SEARCH_RESULT_ALLOWED_BADGES by `isAllowedSearchBadge`
+    // at the SERVICE layer (see "only emits badges from the allowed catalog"
+    // above) — the honesty guarantee is enforced on the data, not in the page.
     expect(pageSrc).not.toMatch(/function badgeChipStyle/);
-    expect(pageSrc).toMatch(/tone=\{badgeTone\(b\)\}/);
-    expect(pageSrc).toMatch(/data-search-result-badge=\{b\}/);
-    // Sanity: the allowed catalog still exists and is non-trivial.
-    expect(Array.isArray(SEARCH_RESULT_ALLOWED_BADGES)).toBe(true);
-    expect(SEARCH_RESULT_ALLOWED_BADGES.length).toBeGreaterThan(0);
+    expect(pageSrc).not.toMatch(/function badgeTone\(/);
+    expect(pageSrc).toMatch(/tone=\{searchBadgeTone\(b\)\}/);
+    expect(pageSrc).toMatch(/from "\.\/searchTones"/);
   });
 });
 

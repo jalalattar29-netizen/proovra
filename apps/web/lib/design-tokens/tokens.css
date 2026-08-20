@@ -74,6 +74,32 @@
   --error-050: #FEF2F2;
   --info: #2563EB;
 
+  /* ORANGE — the product's second classification colour, distinct from
+     `--warning`. Amber MEANS caution; a report and a piece of evidence are not
+     cautions, they are kinds of record. Collapsing the two onto amber made
+     every report read as a warning. Follows the `--warning-ink` precedent:
+     `--orange-500` is the decorative stroke, `--orange-ink` is the readable
+     one (#C2410C measures 5.9:1 on #FFFFFF; #EA580C measures 3.6:1 and fails
+     WCAG AA for body text). */
+  --orange-050: #FFF7ED;
+  --orange-200: #FED7AA;
+  --orange-500: #EA580C;
+  --orange-ink: #C2410C;
+
+  /* ------------------------------------------------------------------
+   * LAYERS
+   *
+   * Named because "how high should this z-index be" was previously answered
+   * per call site, which is how a dropdown ends up at 999999. Only the two
+   * values below are contractual; everything else stacks in DOM order.
+   *
+   * An ANCHORED OVERLAY (listbox popup, typeahead menu) must sit above the
+   * DIALOG layer: a dialog can contain a select, and its options have to be
+   * reachable. That ordering is the reason for the gap between them.
+   * ------------------------------------------------------------------ */
+  --layer-dialog: 1000;
+  --layer-anchored-overlay: 100000;
+
   /* ------------------------------------------------------------------
    * RADIUS
    * ------------------------------------------------------------------ */

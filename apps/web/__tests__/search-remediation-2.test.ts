@@ -183,20 +183,25 @@ test("Backfill script supports --all flag and routes through every indexer", () 
 // Frontend: typeahead UI
 // ===========================================================================
 
-test("Search input is wrapped in a positioned container and the SearchTypeahead dropdown is mounted alongside", () => {
-  // REDESIGN/SEARCH — the anchor moved off an inline
-  // `style={{ position: "relative", flex: 1 }}` wrapper and onto the
-  // canonical `.search-form__field` class, which declares `position: relative`
-  // in search.css. The invariant is unchanged: ONE positioned wrapper holds
-  // both the <input> and the dropdown, so the typeahead cannot detach from
-  // the field it belongs to.
-  assert.match(
-    SEARCH_PAGE,
-    /className="search-form__field">[\s\S]{0,900}<input/,
-  );
+test("The typeahead escapes its ancestors through the canonical overlay, not a z-index", () => {
+  // The menu was `position: absolute; z-index: 30` inside the search field
+  // and rendered UNDER the panels below it. Two ancestors each created a
+  // stacking context — `backdrop-filter` on `.app-panel` and
+  // `container-type: inline-size` on the workspace — so a z-index inside the
+  // field could never rise above a later-painting sibling.
+  //
+  // What is pinned now is the mechanism that actually fixes it: the menu is
+  // portaled out and anchored to the field's measured rect. The old shape is
+  // asserted ABSENT rather than tolerated.
+  assert.match(SEARCH_PAGE, /<AppAnchoredOverlay\n\s+anchorRef=\{searchFieldRef\}/);
   assert.match(SEARCH_PAGE, /<SearchTypeahead\b/);
-  // …and the positioning is really declared, not merely named.
-  assert.match(SEARCH_CSS, /\.search-form__field \{[^}]*position: relative;/);
+  assert.match(SEARCH_PAGE, /<div className="search-form__field" ref=\{searchFieldRef\}>/);
+  // The stylesheet no longer positions or layers the menu at all…
+  assert.doesNotMatch(SEARCH_CSS, /\.search-typeahead \{[^}]*position:\s*absolute/);
+  assert.doesNotMatch(SEARCH_CSS, /\.search-typeahead \{[^}]*z-index/);
+  // …and the field is no longer a positioning ancestor, which would imply
+  // the old mechanism still applied.
+  assert.doesNotMatch(SEARCH_CSS, /\.search-form__field \{[^}]*position:\s*relative/);
 });
 
 test("Search input has aria-autocomplete='list' and aria-expanded driven by suggestOpen", () => {

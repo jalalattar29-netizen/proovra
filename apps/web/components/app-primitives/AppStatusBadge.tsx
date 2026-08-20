@@ -26,6 +26,14 @@ export type AppTone =
   | "red"
   | "indigo"
   | "blue"
+  /**
+   * ORANGE is a CLASSIFICATION tone, not a caution.
+   *
+   * `amber` already means "needs attention". A record TYPE borrowing it made
+   * every report and every piece of evidence read as a warning, which is the
+   * opposite of what a type label says.
+   */
+  | "orange"
   | "slate";
 
 export interface AppStatusBadgeProps {
