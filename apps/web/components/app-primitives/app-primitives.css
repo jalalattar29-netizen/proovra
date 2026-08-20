@@ -596,6 +596,14 @@ textarea.app-form-input {
   border-radius: 18px;
   overflow: hidden;
 }
+/* A table wider than its column scrolls INSIDE its own surface, so the page
+   body never scrolls sideways because one panel is wide. Opt-in: the plain
+   surface still clips, which is what the radius needs. */
+.app-table-surface--scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .app-table {
   width: 100%;
   border-collapse: collapse;

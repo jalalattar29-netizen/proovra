@@ -50,14 +50,13 @@ test("Non-admin chip — when shown, carries data-search-health-audience='user' 
   assert.match(src, /Search is being set up\. Try again in a moment\./);
   // The user chip must NOT contain numeric indexed counts in
   // its body. Pin via the slice between the audience attribute
-  // and the closing element. Phase 7C: the user chip migrated
-  // from a bespoke <div> to the shared <Badge> (renders a
-  // <span>), so the branch now closes with </Badge>. The
-  // honesty assertion (no evidenceIndexed / evidenceTotal in the
-  // user chip) is unchanged — only the closing token the slice
-  // stops at was updated to match the new shared-component markup.
+  // and the closing element. REDESIGN/SEARCH: the user chip now renders on
+  // the canonical AppStatusBadge, so the branch closes with
+  // </AppStatusBadge>. The honesty assertion (no evidenceIndexed /
+  // evidenceTotal in the user chip) is unchanged — only the closing token
+  // the slice stops at follows the markup.
   const userBranchIdx = src.indexOf('data-search-health-audience="user"');
-  const closer = src.indexOf("</Badge>", userBranchIdx);
+  const closer = src.indexOf("</AppStatusBadge>", userBranchIdx);
   const userBranch = src.slice(userBranchIdx, closer);
   assert.ok(
     !/searchHealth\.index\.evidenceIndexed/.test(userBranch),

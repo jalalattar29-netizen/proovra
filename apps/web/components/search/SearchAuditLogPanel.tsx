@@ -31,6 +31,7 @@ import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../lib/platform-context";
+import { AppStatusBadge } from "../app-primitives/AppStatusBadge";
 
 export type SearchAuditRow = {
   id: string;
@@ -123,128 +124,152 @@ export function SearchAuditLogPanel({ teamId }: { teamId: string | null }) {
   }, [load]);
 
   return (
-    <section data-search-audit-panel style={panelStyle}>
-      <header style={headerStyle}>
+    <section
+      className="app-panel"
+      data-search-audit-panel
+      aria-labelledby="search-audit-title"
+    >
+      <header className="app-panel__head">
         <div>
-          <strong style={{ fontSize: 14 }}>Search activity</strong>
-          <p style={subtitleStyle}>
+          <h2 className="app-panel__title" id="search-audit-title">
+            Search activity
+          </h2>
+          <p className="app-field-help">
             Who ran a search in this workspace, what the platform returned,
             and how many results governance or visibility rules withheld.
             Search wording itself is never stored — only a short
             non-reversible fingerprint.
           </p>
         </div>
-        <label style={toggleLabelStyle}>
+        <label className="app-field-label" data-search-audit-failclosed-filter>
           <input
             type="checkbox"
+            className="app-checkbox"
             data-search-audit-failclosed-toggle
             checked={failClosedOnly}
             onChange={(e) => setFailClosedOnly(e.target.checked)}
-          />
+          />{" "}
           Withheld results only
         </label>
       </header>
 
-      {state.kind === "loading" && rows.length === 0 ? (
-        <p data-search-audit-loading style={mutedStyle}>
-          Loading search activity…
-        </p>
-      ) : null}
+      <div className="app-panel__body">
+        {state.kind === "loading" && rows.length === 0 ? (
+          <p data-search-audit-loading className="app-hint">
+            Loading search activity…
+          </p>
+        ) : null}
 
-      {state.kind === "denied" ? (
-        <p data-search-audit-denied style={deniedStyle}>
-          {state.reason}
-        </p>
-      ) : null}
+        {/* A refusal, not a failure: the server decided, and this panel has no
+            retry to offer because the same request answers the same way. */}
+        {state.kind === "denied" ? (
+          <p data-search-audit-denied className="app-hint">
+            {state.reason}
+          </p>
+        ) : null}
 
-      {state.kind === "error" ? (
-        <div data-search-audit-error style={errorStyle}>
-          <span>{state.message}</span>
+        {state.kind === "error" ? (
+          <div
+            data-search-audit-error
+            className="app-alert app-alert--danger"
+            role="alert"
+          >
+            <span>{state.message}</span>
+            <button
+              type="button"
+              data-search-audit-retry
+              className="app-secondary-action"
+              onClick={() => void load({ append: false })}
+            >
+              Try again
+            </button>
+          </div>
+        ) : null}
+
+        {state.kind === "ready" && rows.length === 0 ? (
+          <p data-search-audit-empty className="app-hint">
+            {failClosedOnly
+              ? "No searches in this workspace had results withheld."
+              : "No searches have been run in this workspace yet."}
+          </p>
+        ) : null}
+
+        {rows.length > 0 ? (
+          // The table scrolls inside its own surface; the page never scrolls
+          // sideways because this panel is wide.
+          <div className="app-table-surface app-table-surface--scroll">
+            <table data-search-audit-table className="app-table">
+              <thead>
+                <tr>
+                  <th scope="col">When</th>
+                  <th scope="col">Person</th>
+                  <th scope="col">Surface</th>
+                  <th scope="col">Search fingerprint</th>
+                  <th scope="col">Returned</th>
+                  <th scope="col">Withheld</th>
+                  <th scope="col">Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} data-search-audit-row={r.id}>
+                    <td>{safeDateTime(r.occurredAtUtc)}</td>
+                    <td>
+                      <code>{r.actorUserId.slice(0, 8)}…</code>
+                    </td>
+                    <td>
+                      <code>{r.surface}</code>
+                    </td>
+                    <td>
+                      {r.queryHash ? (
+                        <code data-search-audit-query-hash>
+                          {r.queryHash} · {r.queryLength} chars
+                        </code>
+                      ) : (
+                        <span className="app-table__muted">No search wording</span>
+                      )}
+                    </td>
+                    <td>{r.resultCount}</td>
+                    <td>
+                      {r.filteredGovernanceCount + r.filteredVisibilityCount}
+                    </td>
+                    <td>
+                      {r.failClosed ? (
+                        <AppStatusBadge
+                          tone="amber"
+                          dot
+                          data-search-audit-failclosed
+                        >
+                          Results withheld
+                        </AppStatusBadge>
+                      ) : (
+                        <AppStatusBadge tone="green" dot>
+                          Completed
+                        </AppStatusBadge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        {nextBeforeUtc ? (
           <button
             type="button"
-            data-search-audit-retry
-            onClick={() => void load({ append: false })}
-            style={retryButtonStyle}
+            data-search-audit-load-more
+            className="app-secondary-action"
+            disabled={state.kind === "loading"}
+            aria-busy={state.kind === "loading"}
+            onClick={() =>
+              void load({ beforeUtc: nextBeforeUtc, append: true })
+            }
           >
-            Try again
+            {state.kind === "loading" ? "Loading…" : "Load more"}
           </button>
-        </div>
-      ) : null}
-
-      {state.kind === "ready" && rows.length === 0 ? (
-        <p data-search-audit-empty style={mutedStyle}>
-          {failClosedOnly
-            ? "No searches in this workspace had results withheld."
-            : "No searches have been run in this workspace yet."}
-        </p>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <div style={{ overflowX: "auto" }}>
-          <table data-search-audit-table style={tableStyle}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "#475569" }}>
-                <th style={thStyle}>When</th>
-                <th style={thStyle}>Person</th>
-                <th style={thStyle}>Surface</th>
-                <th style={thStyle}>Search fingerprint</th>
-                <th style={thStyle}>Returned</th>
-                <th style={thStyle}>Withheld</th>
-                <th style={thStyle}>Outcome</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} data-search-audit-row={r.id}>
-                  <td style={tdStyle}>{safeDateTime(r.occurredAtUtc)}</td>
-                  <td style={tdStyle}>
-                    <code>{r.actorUserId.slice(0, 8)}…</code>
-                  </td>
-                  <td style={tdStyle}>
-                    <code>{r.surface}</code>
-                  </td>
-                  <td style={tdStyle}>
-                    {r.queryHash ? (
-                      <code data-search-audit-query-hash>
-                        {r.queryHash} · {r.queryLength} chars
-                      </code>
-                    ) : (
-                      <span style={mutedStyle}>No search wording</span>
-                    )}
-                  </td>
-                  <td style={tdStyle}>{r.resultCount}</td>
-                  <td style={tdStyle}>
-                    {r.filteredGovernanceCount + r.filteredVisibilityCount}
-                  </td>
-                  <td style={tdStyle}>
-                    {r.failClosed ? (
-                      <span data-search-audit-failclosed style={failChipStyle}>
-                        Results withheld
-                      </span>
-                    ) : (
-                      <span style={okChipStyle}>Completed</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {nextBeforeUtc ? (
-        <button
-          type="button"
-          data-search-audit-load-more
-          disabled={state.kind === "loading"}
-          onClick={() =>
-            void load({ beforeUtc: nextBeforeUtc, append: true })
-          }
-          style={loadMoreStyle}
-        >
-          {state.kind === "loading" ? "Loading…" : "Load more"}
-        </button>
-      ) : null}
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -257,100 +282,7 @@ function safeDateTime(iso: string): string {
   }
 }
 
-const panelStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-  borderRadius: 10,
-  padding: 14,
-  marginTop: 12,
-};
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  marginBottom: 10,
-};
-const subtitleStyle: React.CSSProperties = {
-  margin: "4px 0 0",
-  color: "#475569",
-  fontSize: 12,
-  maxWidth: 620,
-};
-const toggleLabelStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  fontSize: 12,
-  color: "#475569",
-  whiteSpace: "nowrap",
-};
-const mutedStyle: React.CSSProperties = { color: "#475569", fontSize: 12 };
-const deniedStyle: React.CSSProperties = {
-  color: "#475569",
-  fontSize: 12,
-  background: "rgba(15, 23, 42, 0.04)",
-  border: "1px dashed rgba(15, 23, 42, 0.18)",
-  borderRadius: 8,
-  padding: 10,
-};
-const errorStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  color: "#7f1d1d",
-  background: "rgba(239, 68, 68, 0.08)",
-  borderRadius: 8,
-  padding: 10,
-  fontSize: 12,
-};
-const retryButtonStyle: React.CSSProperties = {
-  padding: "3px 10px",
-  border: "1px solid #7f1d1d",
-  background: "#fff",
-  color: "#7f1d1d",
-  borderRadius: 6,
-  fontSize: 11,
-  cursor: "pointer",
-};
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 11,
-};
-const thStyle: React.CSSProperties = {
-  padding: "6px 8px",
-  borderBottom: "1px solid #e2e8f0",
-  whiteSpace: "nowrap",
-};
-const tdStyle: React.CSSProperties = {
-  padding: "6px 8px",
-  borderBottom: "1px solid #f1f5f9",
-  whiteSpace: "nowrap",
-};
-const failChipStyle: React.CSSProperties = {
-  padding: "1px 6px",
-  borderRadius: 999,
-  background: "rgba(239, 68, 68, 0.1)",
-  color: "#7f1d1d",
-  fontSize: 10,
-  fontWeight: 600,
-};
-const okChipStyle: React.CSSProperties = {
-  padding: "1px 6px",
-  borderRadius: 999,
-  background: "rgba(34, 197, 94, 0.12)",
-  color: "#166534",
-  fontSize: 10,
-  fontWeight: 600,
-};
-const loadMoreStyle: React.CSSProperties = {
-  marginTop: 10,
-  padding: "6px 12px",
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  color: "#0f172a",
-  borderRadius: 8,
-  fontSize: 12,
-  cursor: "pointer",
-};
+// REDESIGN/SEARCH — the panel's 15 `React.CSSProperties` objects were deleted
+// here. It renders on the canonical `app-panel` / `app-table` /
+// `app-status-badge` / `app-secondary-action` primitives now, so the search
+// console's activity view is the same surface language as the rest of it.

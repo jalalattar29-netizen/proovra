@@ -46,8 +46,6 @@ import {
   AppStatusBadge,
   type AppTone,
 } from "../../../components/app-primitives/AppStatusBadge";
-import { Button } from "../../../components/ui/Button";
-import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // Phase IA-self-serve-simplification / Track 1A — gate the enterprise
 // pivot links + admin-only deep links on the SERVER-projected
@@ -1297,10 +1295,10 @@ function SearchInner() {
         </p>
       </header>
 
-      {/* Admin-only runtime strip (semantic status, backfill dry run, index
-          health). Still on its pre-migration presentation — Checkpoint 2D
-          owns these controls. */}
-      <div data-search-admin-strip>
+      {/* Admin-only runtime strip: semantic status, backfill dry run, index
+          health. Operator instrumentation, not product chrome — a non-admin
+          renders nothing here at all. */}
+      <div className="search-admin-strip" data-search-admin-strip>
         {isPlatformAdmin ? (
           <SemanticStatusChip
             semanticEnabled={semanticEnabled}
@@ -1373,33 +1371,30 @@ function SearchInner() {
               // gating regardless of role. Numbers / DB tooltip
               // are deliberately omitted.
               return (
-                <Badge
-                  tone="risk"
-                  subtle
-                  style={{ marginTop: 8 }}
+                <AppStatusBadge
+                  tone="amber"
+                  dot
                   data-search-health="empty_index"
                   data-search-health-audience="user"
                 >
                   Search is being set up. Try again in a moment.
-                </Badge>
+                </AppStatusBadge>
               );
             }
             // Support/admin path — opt-in only. Full breakdown,
             // numbers included.
             const breakdown = searchHealth.index.breakdown;
-            const adminToneMap: Record<string, BadgeTone> = {
-              healthy: "verified",
-              partial_index: "pending",
-              empty_index: "risk",
-              empty_workspace: "neutral",
+            const adminToneMap: Record<string, AppTone> = {
+              healthy: "green",
+              partial_index: "amber",
+              empty_index: "red",
+              empty_workspace: "slate",
             };
-            const adminTone: BadgeTone =
-              adminToneMap[effectiveHealth] ?? "neutral";
+            const adminTone: AppTone = adminToneMap[effectiveHealth] ?? "slate";
             return (
-              <Badge
+              <AppStatusBadge
                 tone={adminTone}
-                subtle
-                style={{ marginTop: 8 }}
+                dot
                 data-search-health={effectiveHealth}
                 data-search-health-audience="admin"
                 data-search-health-cached={searchHealth.health}
@@ -1450,21 +1445,20 @@ function SearchInner() {
                     : effectiveHealth === "empty_index"
                       ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
                       : `Workspace has 0 indexable records`}
-              </Badge>
+              </AppStatusBadge>
             );
           })()
         ) : searchHealthError &&
           isPlatformAdmin &&
           searchHealthDebugOptIn ? (
-          <Badge
-            tone="neutral"
-            subtle
-            style={{ marginTop: 8 }}
+          <AppStatusBadge
+            tone="slate"
+            dot
             data-search-health="unknown"
             data-search-health-audience="admin"
           >
             Search index status unavailable
-          </Badge>
+          </AppStatusBadge>
         ) : null}
       </div>
 
@@ -1809,9 +1803,9 @@ function SearchInner() {
                 {savingView ? "Saving…" : "Save current view"}
               </button>
               {savedViews === null ? (
-                <p className="search-note">Loading…</p>
+                <p className="app-hint">Loading…</p>
               ) : savedViews.length === 0 ? (
-                <p className="search-note">No saved views yet.</p>
+                <p className="app-hint">No saved views yet.</p>
               ) : (
                 <ul className="search-saved-views">
                   {savedViews.map((v) => (
@@ -2429,7 +2423,7 @@ function Inspector({
               produced this hit. The truncated title is enough context;
               we never echo the original query verbatim here either. */}
           {typeof row.semanticScore === "number" && row.semanticScore > 0 ? (
-            <p className="search-note">
+            <p className="app-hint">
               Semantically similar to: {row.title.slice(0, 80)}
               {row.title.length > 80 ? "…" : ""}
             </p>
@@ -2484,7 +2478,7 @@ function Inspector({
       row.semanticScore > 0 ? (
         // Self-serve rail — keep the semantic-score caption only.
         <Section label="Related evidence">
-          <p className="search-note">
+          <p className="app-hint">
             Semantically similar to: {row.title.slice(0, 80)}
             {row.title.length > 80 ? "…" : ""}
           </p>
@@ -2509,9 +2503,9 @@ function Inspector({
       {row.evidenceId ? (
         <Section label="Related evidence">
           {relationships === null ? (
-            <p className="search-note">Loading…</p>
+            <p className="app-hint">Loading…</p>
           ) : relationships.length === 0 ? (
-            <p className="search-note">No related evidence.</p>
+            <p className="app-hint">No related evidence.</p>
           ) : (
             <ul className="search-relationship-list">
               {relationships.map((r) => {
@@ -2744,23 +2738,18 @@ function SemanticStatusChip({
     label = "Keyword mode";
     status = "disabled";
   }
-  const tone: BadgeTone =
+  const tone: AppTone =
     status === "active"
-      ? "verified"
+      ? "green"
       : status === "fallback" || status === "unavailable"
-        ? "pending"
+        ? "amber"
         : status === "blocked"
-          ? "risk"
-          : "neutral";
+          ? "red"
+          : "slate";
   return (
-    <Badge
-      tone={tone}
-      subtle
-      data-semantic-search-status={status}
-      style={{ marginTop: 8 }}
-    >
+    <AppStatusBadge tone={tone} dot data-semantic-search-status={status}>
       {label}
-    </Badge>
+    </AppStatusBadge>
   );
 }
 
@@ -2821,35 +2810,34 @@ function SemanticBackfillPanel({
       : null;
   return (
     <div
-      style={semanticBackfillPanelStyle}
+      className="app-inner-surface search-admin-panel"
       data-semantic-backfill-panel
     >
-      <div style={semanticBackfillPanelLabelStyle}>Semantic backfill</div>
-      {dayLine ? <div style={semanticBackfillPanelLineStyle}>{dayLine}</div> : null}
-      {budgetLine ? (
-        <div style={semanticBackfillPanelLineStyle}>{budgetLine}</div>
-      ) : null}
-      <Button
-        variant="secondary"
-        size="sm"
+      <span className="search-admin-panel__label">Semantic backfill</span>
+      {dayLine ? <p className="app-hint">{dayLine}</p> : null}
+      {budgetLine ? <p className="app-hint">{budgetLine}</p> : null}
+      <button
+        type="button"
+        className="app-secondary-action"
         onClick={onRun}
         disabled={running}
-        loading={running}
-        style={{ alignSelf: "flex-start" }}
+        aria-busy={running}
         data-action="semantic-backfill-dry-run"
       >
         {running ? "Running dry run…" : "Run backfill (dry run)"}
-      </Button>
+      </button>
       {result ? (
-        <div style={semanticBackfillPanelResultStyle}>
+        <p className="app-hint">
           Would embed {result.chunksToEmbed} chunk
           {result.chunksToEmbed === 1 ? "" : "s"} across {result.workspaceCount}{" "}
           workspace
           {result.workspaceCount === 1 ? "" : "s"}.
-        </div>
+        </p>
       ) : null}
       {error ? (
-        <div style={semanticBackfillPanelErrorStyle}>{error}</div>
+        <div className="app-alert app-alert--danger" role="alert">
+          {error}
+        </div>
       ) : null}
     </div>
   );
@@ -3038,13 +3026,13 @@ function formatDateTime(iso: string): string {
 // -----------------------------------------------------------------------------
 // Styles.
 //
-// REDESIGN/SEARCH — the console's presentation lives in `search.css`,
-// `components/SearchStates.tsx`, `components/SearchGuidance.tsx` and the
-// canonical `app-*` primitives. Fifty-five `React.CSSProperties` objects have
-// been deleted, not hidden; nothing below overrides them.
+// REDESIGN/SEARCH — this console has no style objects left.
 //
-// What remains describes the ADMIN runtime strip (semantic status chip,
-// backfill dry-run panel) and is deleted by Checkpoint 2D.
+// Its presentation lives in `search.css`, `components/SearchStates.tsx`,
+// `components/SearchGuidance.tsx` and the canonical `app-*` primitives. All
+// sixty `React.CSSProperties` objects that used to sit here — page, header,
+// form, workspace grid, filter rail, result list, states, inspector, guidance,
+// typeahead and admin strip — are deleted, not hidden and not overridden.
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
@@ -3064,42 +3052,6 @@ function formatDateTime(iso: string): string {
 // Phase 16 — admin-only backfill panel + inline "Try semantic search"
 // link button. Both surfaces share the page's design tokens; no new
 // colours or spacing primitives.
-
-const semanticBackfillPanelStyle: React.CSSProperties = {
-  marginTop: 8,
-  padding: "8px 12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: 6,
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  maxWidth: 360,
-};
-
-const semanticBackfillPanelLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  color: "#475569",
-  letterSpacing: 0.5,
-};
-
-const semanticBackfillPanelLineStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#475569",
-};
-
-const semanticBackfillPanelResultStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#0f172a",
-};
-
-const semanticBackfillPanelErrorStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#991b1b",
-};
-
 
 // Phase SEARCH-REMEDIATION-3 — `inlineLinkButtonStyle` removed
 // alongside the `NoResultsHelp` "Try semantic search" link.
@@ -3156,66 +3108,27 @@ function SearchTypeahead({
   const showRecentEmpty = showRecent && recent.length === 0;
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: "calc(100% + 4px)",
-        left: 0,
-        right: 0,
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.12)",
-        borderRadius: 6,
-        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-        zIndex: 30,
-        maxHeight: 360,
-        overflowY: "auto",
-      }}
-      role="listbox"
-      data-search-typeahead
-    >
+    <div className="search-typeahead" role="listbox" data-search-typeahead>
       {showRecentEmpty ? (
-        <p
-          className="cc-muted"
-          style={{ padding: "10px 12px", margin: 0, fontSize: 12 }}
-          data-search-typeahead-recent-empty
-        >
+        <p className="search-typeahead__empty" data-search-typeahead-recent-empty>
           Tip: try searching by filename, case name, or report title.
         </p>
       ) : null}
+
       {showRecent && recent.length > 0 ? (
-        <div data-search-typeahead-recent>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "6px 12px",
-              fontSize: 11,
-              color: "#475569",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-            }}
-          >
+        <div className="search-typeahead__group" data-search-typeahead-recent>
+          <div className="search-typeahead__label">
             <span>Recent searches</span>
             <button
               type="button"
+              className="search-typeahead__clear"
               onMouseDown={(e) => {
-                // Prevent the input's blur from firing before this
-                // click — otherwise the dropdown closes mid-click.
+                // The input's blur closes this list. Preventing the default
+                // here lets the click land before the list unmounts.
                 e.preventDefault();
                 onClearRecent();
               }}
               data-search-typeahead-clear-recent
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                color: "#1e40af",
-                cursor: "pointer",
-                font: "inherit",
-                fontSize: 11,
-                textDecoration: "underline",
-              }}
             >
               Clear
             </button>
@@ -3224,101 +3137,54 @@ function SearchTypeahead({
             <button
               type="button"
               key={`recent-${idx}`}
+              className="search-typeahead__item"
+              role="option"
+              aria-selected={highlighted === idx}
+              data-highlighted={highlighted === idx ? "true" : "false"}
               onMouseDown={(e) => {
                 e.preventDefault();
                 onPick(r);
               }}
               data-search-typeahead-recent-row={r}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 12px",
-                background:
-                  highlighted === idx ? "rgba(30, 64, 175, 0.08)" : "#fff",
-                border: "none",
-                cursor: "pointer",
-                font: "inherit",
-                fontSize: 13,
-              }}
             >
-              {r}
+              <span className="search-typeahead__item-title">{r}</span>
             </button>
           ))}
         </div>
       ) : null}
+
       {showSuggestions ? (
-        <div data-search-typeahead-suggestions>
-          <div
-            style={{
-              padding: "6px 12px",
-              fontSize: 11,
-              color: "#475569",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-            }}
-          >
-            Suggestions
+        <div className="search-typeahead__group" data-search-typeahead-suggestions>
+          <div className="search-typeahead__label">
+            <span>Suggestions</span>
           </div>
-          {suggestions.map((s, idx) => (
+          {suggestions.map((sug, idx) => (
             <button
               type="button"
-              key={s.id}
+              key={sug.id}
+              className="search-typeahead__item"
+              role="option"
+              aria-selected={highlighted === idx}
+              data-highlighted={highlighted === idx ? "true" : "false"}
               onMouseDown={(e) => {
                 e.preventDefault();
-                onPick(s.title);
+                onPick(sug.title);
               }}
-              data-search-typeahead-suggestion={s.id}
-              data-search-typeahead-suggestion-type={s.documentType}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 8,
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 12px",
-                background:
-                  highlighted === idx ? "rgba(30, 64, 175, 0.08)" : "#fff",
-                border: "none",
-                cursor: "pointer",
-                font: "inherit",
-                fontSize: 13,
-              }}
+              data-search-typeahead-suggestion={sug.id}
+              data-search-typeahead-suggestion-type={sug.documentType}
             >
-              <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  flex: 1,
-                }}
-              >
-                {s.title}
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#475569",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.4,
-                  flexShrink: 0,
-                }}
-              >
-                {s.documentType}
+              <span className="search-typeahead__item-title">{sug.title}</span>
+              {/* The kind of record, in the same words the result rows use. */}
+              <span className="app-chip">
+                {DOCUMENT_TYPE_LABEL[sug.documentType] ?? sug.documentType}
               </span>
             </button>
           ))}
         </div>
       ) : null}
+
       {showEmpty ? (
-        <p
-          className="cc-muted"
-          style={{ padding: "10px 12px", margin: 0, fontSize: 12 }}
-          data-search-typeahead-empty
-        >
+        <p className="search-typeahead__empty" data-search-typeahead-empty>
           No matching titles. Press Enter to search anyway.
         </p>
       ) : null}

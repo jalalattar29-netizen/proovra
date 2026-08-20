@@ -270,13 +270,28 @@ test("SearchTypeahead renders three labelled sections (recent / suggestions / em
 });
 
 test("SearchTypeahead Clear-recent button uses onMouseDown (so it fires before the input's blur closes the dropdown)", () => {
-  // Pin the prevent-default-on-mousedown pattern.
+  // Pin the prevent-default-on-mousedown pattern itself. The previous version
+  // anchored on the wording of the comment above it, which made a comment edit
+  // look like a behaviour regression.
   assert.match(
     SEARCH_PAGE,
-    /onMouseDown=\{\(e\) => \{\s*\n?\s*\/\/ Prevent the input's blur from firing before this[\s\S]{0,500}?onClearRecent\(\)/,
+    /onMouseDown=\{\(e\) => \{[\s\S]{0,400}?e\.preventDefault\(\);[\s\S]{0,200}?onClearRecent\(\)/,
   );
+  // Every commit path in the list must do the same, or a mouse pick on a
+  // suggestion is swallowed by the input's blur.
+  const picks = [...SEARCH_PAGE.matchAll(/onMouseDown=\{\(e\) => \{/g)];
+  assert.ok(picks.length >= 3, "recent rows, suggestion rows and Clear all need it");
 });
 
 test("SearchTypeahead suggestion rows badge each suggestion with its documentType", () => {
-  assert.match(SEARCH_PAGE, /data-search-typeahead-suggestion-type=\{s\.documentType\}/);
+  assert.match(
+    SEARCH_PAGE,
+    /data-search-typeahead-suggestion-type=\{\w+\.documentType\}/,
+  );
+  // …and the visible chip states the kind in the same words the result rows
+  // use, rather than echoing the raw wire enum.
+  assert.match(
+    SEARCH_PAGE,
+    /DOCUMENT_TYPE_LABEL\[\w+\.documentType\] \?\? \w+\.documentType/,
+  );
 });
