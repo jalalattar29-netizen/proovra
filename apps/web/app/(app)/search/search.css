@@ -1,0 +1,741 @@
+/* ===========================================================================
+ * SEARCH — the route's own presentation layer.
+ *
+ * The console described itself with 61 `React.CSSProperties` objects: a
+ * three-column grid, every panel, every chip, every result row and the whole
+ * inspector, all as inline objects with literal colours. Nothing could be
+ * audited, nothing responded to container width, and none of it shared the
+ * canonical action/badge/surface vocabulary the rest of the product uses.
+ *
+ * Everything below is token-driven and reuses the canonical primitives
+ * (`app-panel`, `app-primary-action`, `app-secondary-action`, `app-chip`,
+ * `app-status-badge`, `app-listbox`, `app-checkbox`, `app-form-input`). The
+ * rules here describe LAYOUT and route-specific anatomy only — no second
+ * button, no second badge, no local palette.
+ *
+ * Sizing comes from the Search WORKSPACE container, not the viewport: the
+ * console sits inside the app shell beside a sidebar, so viewport media
+ * queries described a width this surface never had.
+ * ======================================================================== */
+
+.search-page {
+  display: grid;
+  gap: 18px;
+  min-inline-size: 0;
+}
+
+/* ---- Header ------------------------------------------------------------- */
+.search-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  min-inline-size: 0;
+}
+
+.search-header__text {
+  min-inline-size: 0;
+  max-inline-size: 68ch;
+}
+
+.search-header__title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+  color: var(--app-ink-heading);
+}
+
+.search-header__description {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--app-ink-secondary);
+}
+
+/* Supporting context, not a badge and not an action: it wraps under the
+   description on a narrow console instead of colliding with the title. */
+.search-header__context {
+  margin: 0;
+  padding-block-start: 6px;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+}
+
+/* ---- The search form ---------------------------------------------------- */
+.search-form-panel {
+  padding: 14px 16px;
+}
+
+.search-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.search-form__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.search-form__icon {
+  position: absolute;
+  inset-inline-start: 16px;
+  display: inline-flex;
+  color: var(--app-ink-placeholder);
+  pointer-events: none;
+}
+
+.search-form__input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: 50px;
+  padding-block: 0;
+  padding-inline: 46px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  font-family: inherit;
+  font-size: 14.5px;
+  color: var(--app-ink-control);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.search-form__input::placeholder {
+  color: var(--app-ink-placeholder);
+}
+
+.search-form__input:focus,
+.search-form__input:focus-visible {
+  outline: none;
+  border-color: var(--accent-200, #d9c7fb);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
+}
+
+/* The submit keeps a stable width so the field does not resize as the label
+   changes between idle and pending. */
+.search-form__submit {
+  flex: 0 0 auto;
+  block-size: 50px;
+  min-inline-size: 124px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+/* ---- Contextual help bar ------------------------------------------------ */
+.search-help {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 16px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 14px;
+  background: #eaf0fd;
+  color: #2563eb;
+  min-inline-size: 0;
+}
+
+.search-help__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.search-help__label {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.search-help__toggle {
+  margin-inline-start: auto;
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.search-help__toggle:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.search-help__toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+.search-help__body {
+  flex-basis: 100%;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  color: var(--app-ink-label);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* ---- The three-region workspace ---------------------------------------- *
+ * Filters | Results | Inspector — sized from the console's own width. */
+.search-workspace {
+  container-type: inline-size;
+  container-name: search-workspace;
+  min-inline-size: 0;
+}
+
+.search-workspace__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-inline-size: 0;
+}
+
+@container search-workspace (min-width: 1080px) {
+  .search-workspace__grid {
+    grid-template-columns: 268px minmax(0, 1fr) 320px;
+  }
+}
+
+@container search-workspace (min-width: 780px) and (max-width: 1079.98px) {
+  .search-workspace__grid {
+    grid-template-columns: 248px minmax(0, 1fr);
+  }
+}
+
+.search-col {
+  min-inline-size: 0;
+}
+
+.search-col--results {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+/* ---- Filters ------------------------------------------------------------ */
+.search-filters {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  min-inline-size: 0;
+}
+
+.search-filters__group {
+  display: grid;
+  gap: 8px;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.search-filters__legend {
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+
+.search-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/* A filter chip is a control, so it is a button with a selected state — not a
+   status badge and not a coloured div. */
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 32px;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent-050, #f2ecfe);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-label);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.search-chip:hover:not(:disabled) {
+  border-color: var(--accent-200, #d9c7fb);
+}
+
+.search-chip[aria-pressed="true"] {
+  background: var(--accent-500, #7c3aed);
+  border-color: var(--accent-600, #6d28d9);
+  color: #ffffff;
+}
+
+.search-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+.search-chip--outline {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.search-chip svg {
+  flex: 0 0 auto;
+}
+
+.search-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-block-size: 32px;
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+  cursor: pointer;
+  min-inline-size: 0;
+}
+
+.search-date-field {
+  display: grid;
+  gap: 5px;
+  min-inline-size: 0;
+}
+
+.search-date-field label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+
+.search-filters__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/* ---- Result list -------------------------------------------------------- */
+.search-results__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--surface-translucent-inner);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+  min-inline-size: 0;
+}
+
+.search-results__count {
+  font-weight: 650;
+}
+
+.search-results__list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+
+/* One anatomy for every result type. Selection changes colour and border
+   only — the geometry below is identical in both states, so nothing shifts
+   when a row is chosen. */
+.search-result {
+  inline-size: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  min-inline-size: 0;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.search-result:hover {
+  border-color: var(--accent-200, #d9c7fb);
+}
+
+.search-result[aria-current="true"] {
+  border-color: #2563eb;
+  background: #eaf0fd;
+}
+
+.search-result:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+.search-result__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-inline-size: 0;
+}
+
+.search-result__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The status sits at the logical end of the row so every card's status
+   shares one axis. */
+.search-result__status {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+.search-result__reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.search-result__meta {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.search-result__time {
+  unicode-bidi: plaintext;
+  margin: 0;
+  font-size: 12px;
+  color: var(--app-ink-secondary);
+  /* Timestamps read left-to-right inside an RTL card. */
+}
+
+.search-results__more {
+  display: flex;
+  justify-content: center;
+  padding-block: 4px 8px;
+}
+
+/* ---- Inspector ---------------------------------------------------------- */
+.search-inspector {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  min-inline-size: 0;
+}
+
+.search-inspector__title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  color: var(--app-ink-heading);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  /* Bounded: a long record name wraps rather than widening the column. */
+}
+
+.search-inspector__status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--app-ink-label);
+}
+
+.search-inspector__divider {
+  block-size: 1px;
+  border: none;
+  margin: 2px 0;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.search-inspector__section {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.search-inspector__section-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+
+/* Label and value hold their own axes, so every fact in the column lines up. */
+.search-fact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding-block: 4px;
+  min-inline-size: 0;
+}
+
+.search-fact__label {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+}
+
+.search-fact__value {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  text-align: end;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A pointer is an identifier: bounded, monospaced and left-to-right whatever
+   the surrounding direction. */
+.search-pointer {
+  unicode-bidi: plaintext;
+  display: block;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #eaf0fd;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #1e3a8a;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Guidance column (recent / saved / tips / support) ------------------ */
+.search-guidance {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  min-inline-size: 0;
+}
+
+.search-guidance__section {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.search-guidance__label {
+  padding-block-end: 6px;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+
+/* Operational text is never italic — an absent list is a fact, not an aside. */
+.search-guidance__empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+
+.search-guidance__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+
+.search-guidance__item {
+  inline-size: 100%;
+  display: block;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+  text-align: start;
+  cursor: pointer;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.search-guidance__item:hover {
+  background: var(--accent-050, #f2ecfe);
+}
+
+.search-guidance__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+.search-tip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--app-ink-label);
+  min-inline-size: 0;
+}
+
+.search-tip__icon {
+  display: inline-flex;
+  color: var(--accent-500, #7c3aed);
+}
+
+.search-support {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--accent-200, #d9c7fb);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--accent-050, #f2ecfe);
+  min-inline-size: 0;
+}
+
+.search-support__icon {
+  display: inline-flex;
+  color: var(--accent-600, #6d28d9);
+}
+
+.search-support__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-ink-heading);
+}
+
+.search-support__action {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--accent-600, #6d28d9);
+}
+
+/* ---- States ------------------------------------------------------------- */
+.search-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 56px 24px;
+  text-align: center;
+  min-inline-size: 0;
+}
+
+.search-state__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 96px;
+  block-size: 96px;
+  border-radius: 999px;
+  background: var(--accent-050, #f2ecfe);
+  color: var(--accent-600, #6d28d9);
+}
+
+.search-state__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+}
+
+.search-state__body {
+  margin: 0;
+  max-inline-size: 46ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--app-ink-secondary);
+}
+
+.search-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-block-start: 6px;
+}
+
+/* The outage alert. Danger tone comes from the canonical alert; the rule
+   below is the leading accent bar and the layout only. */
+.search-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border-inline-start: 3px solid #c9363e;
+  min-inline-size: 0;
+}
+
+.search-alert__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 720;
+  color: #b23442;
+}
+
+.search-alert__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--app-ink-label);
+}
+
+/* Skeleton rows keep the result geometry so nothing jumps when data lands. */
+.search-skeleton {
+  block-size: 104px;
+  border-radius: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-result,
+  .search-chip,
+  .search-form__input {
+    transition: none;
+  }
+}
