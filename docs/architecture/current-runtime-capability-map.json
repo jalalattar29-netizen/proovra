@@ -5,19 +5,19 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
   "routeInventoryHash": "a22d8c1ae81f43a123dd1d03e1aeccc0f6b47b77d8bce9e53755c3af2c7a8145",
-  "consumerInventoryHash": "6314a050fd5b4701ca891be45a091e3a726bcf19f1c3685d1826d871a24995de",
-  "dispositionsHash": "f895235e9099c451e4abc916b970432888abdaf59814a29c2d09f768d93f5f1e",
+  "consumerInventoryHash": "9302a0d12b519a2c27d85c2058490a4168b31e137a54ecec48c79705beedaf46",
+  "dispositionsHash": "e6c29ce2e6f9d44469f62dbff1faff8f87ae2d55fbd42d8c550b1774eef77e02",
   "totals": {
     "RegisteredRoutes": 1087,
     "ProductionRegisteredRoutes": 1086,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 859,
-    "NonProductDispositionedRoutes": 227,
+    "ProductConsumedRoutes": 860,
+    "NonProductDispositionedRoutes": 226,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 859,
+    "ProductConsumerRoutes": 860,
     "MachineOnlyConsumerRoutes": 4,
-    "NoConsumerRoutes": 224,
+    "NoConsumerRoutes": 223,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -54,7 +54,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 3,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 125
+      "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
     "TerminalWriters": 1212,
     "ReachableSensitiveMutations": 1206,
@@ -121,7 +121,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7721,
+      "METHOD_ON_VALUE": 7729,
       "UNRESOLVED_IDENTIFIER": 982
     },
     "MutationFixpointRounds": 9,
@@ -131,7 +131,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 859,
+      "PRODUCT_CONNECTED": 860,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -140,7 +140,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 5,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 125
+      "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
     "MandateDispositionConservationHolds": true,
     "TenantBindingResolved": 1085,
@@ -239,8 +239,8 @@
   },
   "totalRoutes": 1087,
   "classificationCounts": {
-    "TARGET_COMPLETE": 859,
-    "INTERNAL_REQUIRED": 225,
+    "TARGET_COMPLETE": 860,
+    "INTERNAL_REQUIRED": 224,
     "COMPATIBILITY_TEMPORARY": 3
   },
   "evidenceLevelCounts": {
@@ -11268,7 +11268,7 @@
       "method": "GET",
       "route": "/v1/search",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:3137",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:3226",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11280,7 +11280,7 @@
       "method": "GET",
       "route": "/v1/search/saved-views",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:635",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:669",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11292,7 +11292,7 @@
       "method": "POST",
       "route": "/v1/search/saved-views",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1122",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1226",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11304,7 +11304,7 @@
       "method": "DELETE",
       "route": "/v1/search/saved-views/:id",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1156",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1260",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11316,7 +11316,7 @@
       "method": "PATCH",
       "route": "/v1/search/saved-views/:id",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1189",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1293",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11328,7 +11328,7 @@
       "method": "GET",
       "route": "/v1/search/relationships/:evidenceId",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:821",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:925",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11388,7 +11388,7 @@
       "method": "POST",
       "route": "/v1/search/semantic/backfill",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1283",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1387",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11400,7 +11400,7 @@
       "method": "GET",
       "route": "/v1/search/semantic/status",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:658",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:692",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11412,7 +11412,7 @@
       "method": "GET",
       "route": "/v1/search/suggest",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:1034",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:1138",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11424,10 +11424,10 @@
       "method": "POST",
       "route": "/v1/search/reconcile",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:814",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
@@ -11436,7 +11436,7 @@
       "method": "GET",
       "route": "/v1/search/diagnostics",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:709",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:742",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -65935,7 +65935,7 @@
       "method": "DELETE",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:423",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:433",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -65946,7 +65946,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1156,
+          "line": 1260,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -65956,7 +65956,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1156 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1260 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92457,7 +92457,7 @@
       "method": "GET",
       "path": "/v1/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:269",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:279",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92468,7 +92468,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 3137,
+          "line": 3226,
           "caller": "runSearch",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92478,7 +92478,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:3137 (runSearch, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:3226 (runSearch, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92514,7 +92514,7 @@
       "method": "GET",
       "path": "/v1/search/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:622",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:632",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92569,7 +92569,7 @@
       "method": "GET",
       "path": "/v1/search/diagnostics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:1047",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:1063",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92580,7 +92580,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 709,
+          "line": 742,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92590,7 +92590,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:709 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:742 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92627,7 +92627,7 @@
       "method": "GET",
       "path": "/v1/search/relationships/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:478",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:488",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92638,7 +92638,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 821,
+          "line": 925,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92648,7 +92648,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:821 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:925 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92684,7 +92684,7 @@
       "method": "GET",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:355",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:365",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92695,7 +92695,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 635,
+          "line": 669,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92705,7 +92705,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:635 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:669 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92740,7 +92740,7 @@
       "method": "GET",
       "path": "/v1/search/semantic/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:720",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:730",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92751,7 +92751,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 658,
+          "line": 692,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92761,7 +92761,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:658 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:692 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -92796,7 +92796,7 @@
       "method": "GET",
       "path": "/v1/search/suggest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:754",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:764",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92807,7 +92807,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1034,
+          "line": 1138,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92817,7 +92817,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1034 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1138 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -98433,7 +98433,7 @@
       "method": "PATCH",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:449",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:459",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -98444,7 +98444,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1189,
+          "line": 1293,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -98454,7 +98454,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1189 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1293 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130854,7 +130854,7 @@
       "method": "POST",
       "path": "/v1/search/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:860",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:870",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130862,14 +130862,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/search/page.tsx",
+          "line": 814,
+          "caller": "SearchInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/search.routes.ts:860 app.post(\"/v1/search/reconcile\"). Worker reconciler uses Prisma + queues directly: services/worker/src/search-index-reconciler.ts:37-40 (prisma/logger imports, JOB_NAMES.REBUILD_SEARCH_DOCUMENT), scheduled at services/worker/src/index.ts:906-922. Backfill CLI also bypasses HTTP: services/api/scripts/backfill-search-index.ts:35-37 imports prisma + indexEvidence/indexCase directly. services/worker/src/search-index/artifact-indexer.ts:40 only *names* the endpoint in a shape-parity comment. docs/operations/runbooks/27-search-index-recovery.md contains no route citation.",
-      "dispositionReason": "Operator index-repair endpoint with no UI, no CLI and no runbook citation; the worker reconciler and the backfill script bypass HTTP entirely.",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:814 (SearchInner, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -130907,7 +130916,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:560",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:570",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130960,7 +130969,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/workflow/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:586",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:596",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131008,7 +131017,7 @@
       "method": "POST",
       "path": "/v1/search/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:505",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:515",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131058,7 +131067,7 @@
       "method": "POST",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:379",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:389",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -131069,7 +131078,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1122,
+          "line": 1226,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131079,7 +131088,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1122 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1226 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131118,7 +131127,7 @@
       "method": "POST",
       "path": "/v1/search/semantic/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:681",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:691",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -131131,7 +131140,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 1283,
+          "line": 1387,
           "caller": "SearchInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131141,7 +131150,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1283 (SearchInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:1387 (SearchInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

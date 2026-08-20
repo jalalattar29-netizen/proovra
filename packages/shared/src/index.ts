@@ -839,6 +839,7 @@ export {
   type EvidenceProjectionInput,
   type WorkflowInstanceProjectionInput,
 } from "./search-projection.js";
+export * from "./search-readiness.js";
 
 // -----------------------------------------------------------------------------
 // Phase 22 — Evidence Workflow Engine (runtime instance + step layer)

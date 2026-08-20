@@ -244,6 +244,8 @@ export type EvidenceProjectionInput = {
   extractedTextChunks?: ReadonlyArray<string>;
 };
 
+import { isSearchIndexableLifecycle } from "./search-readiness.js";
+
 /**
  * Build the canonical projection for an Evidence row. Returns a
  * `deleteFromIndex: true` result when the evidence is in a state the
@@ -276,18 +278,19 @@ export function buildEvidenceProjection(
   // reach this builder at all; the indexer's `findFirst` returns
   // null and the caller treats that as `evidence_not_found`.
   // Phase 27 lifecycle terminal states — must NOT surface in search.
+  //
+  // The DECISION comes from `isSearchIndexableLifecycle`, the one authority
+  // the counting queries also resolve through. When this rule and the query
+  // that counts "how many records should be indexed" disagree, the disagreement
+  // surfaces as a permanent "N of M" that no amount of indexing can close.
   const lifecycle = (evidence.lifecycleState ?? "ACTIVE").toUpperCase();
-  if (lifecycle === "DESTROYED") {
+  if (!isSearchIndexableLifecycle(lifecycle)) {
     return {
       ok: false,
-      reason: "lifecycle_destroyed",
-      deleteFromIndex: true,
-    };
-  }
-  if (lifecycle === "PENDING_DESTRUCTION") {
-    return {
-      ok: false,
-      reason: "lifecycle_pending_destruction",
+      reason:
+        lifecycle === "DESTROYED"
+          ? "lifecycle_destroyed"
+          : "lifecycle_pending_destruction",
       deleteFromIndex: true,
     };
   }

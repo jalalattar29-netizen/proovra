@@ -1228,13 +1228,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/search/reconcile",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Operator index-repair endpoint with no UI, no CLI and no runbook citation; the worker reconciler and the backfill script bypass HTTP entirely.",
-      "evidence": "reg services/api/src/routes/search.routes.ts:860 app.post(\"/v1/search/reconcile\"). Worker reconciler uses Prisma + queues directly: services/worker/src/search-index-reconciler.ts:37-40 (prisma/logger imports, JOB_NAMES.REBUILD_SEARCH_DOCUMENT), scheduled at services/worker/src/index.ts:906-922. Backfill CLI also bypasses HTTP: services/api/scripts/backfill-search-index.ts:35-37 imports prisma + indexEvidence/indexCase directly. services/worker/src/search-index/artifact-indexer.ts:40 only *names* the endpoint in a shape-parity comment. docs/operations/runbooks/27-search-index-recovery.md contains no route citation.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/search/reindex/evidence/:id",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Per-record operator reindex with no UI, no CLI and no runbook citation.",

@@ -6,6 +6,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import * as prismaPkg from "@prisma/client";
 import { z } from "zod";
+
+// Search index eligibility + readiness — the ONE authority. The counting
+// queries below emit their eligibility clause from it so the numerator and
+// the denominator can never measure different populations.
+import {
+  deriveSearchReadiness,
+  searchIndexableLifecycleSql,
+} from "@proovra/shared";
+
+const ELIGIBLE_SQL = searchIndexableLifecycleSql("lifecycle_state");
 import {
   SAVED_VIEW_VISIBILITIES,
   SearchFilterSchema,
@@ -891,19 +901,25 @@ export async function searchRoutes(app: FastifyInstance) {
       // lifecycle DESTROYED / PENDING_DESTRUCTION are excluded;
       // soft-deleted (deletedAt IS NOT NULL) records belong in
       // the index with an "in_trash" tag.
-      const orphanEvidence = await prisma.$queryRaw<
+      // The eligibility clause is emitted from the shared authority, so the
+      // scan that FINDS outstanding work and the count that REPORTS it can
+      // never describe different populations.
+      const orphanEvidence = await prisma.$queryRawUnsafe<
         Array<{ id: string }>
-      >`SELECT e.id::text AS id
+      >(
+        `SELECT e.id::text AS id
          FROM evidence e
          LEFT JOIN evidence_search_documents esd
            ON esd.team_id = e.team_id
           AND esd.document_type = 'EVIDENCE'
           AND esd.source_id = e.id
-         WHERE COALESCE(e.lifecycle_state, 'ACTIVE') NOT IN
-               ('DESTROYED','PENDING_DESTRUCTION')
-           AND e.team_id = ${body.teamId}::uuid
+         WHERE ${searchIndexableLifecycleSql("e.lifecycle_state")}
+           AND e.team_id = $1::uuid
            AND esd.id IS NULL
-         LIMIT ${limit}`;
+         LIMIT $2`,
+        body.teamId,
+        limit,
+      );
 
       const orphanCases = await prisma.$queryRaw<
         Array<{ id: string }>
@@ -1099,7 +1115,7 @@ export async function searchRoutes(app: FastifyInstance) {
         //   trashedIncluded       — soft-deleted (deletedAt set)
         //   destroyedExcluded     — lifecycle DESTROYED
         //   pendingDestrExcluded  — lifecycle PENDING_DESTRUCTION
-        prisma.$queryRaw<
+        prisma.$queryRawUnsafe<
           Array<{
             active_included: bigint;
             archived_included: bigint;
@@ -1108,31 +1124,27 @@ export async function searchRoutes(app: FastifyInstance) {
             destroyed_excluded: bigint;
             pending_destruction_excluded: bigint;
           }>
-        >`
+        >(`
           SELECT
             COUNT(*) FILTER (
-              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
-                    ('DESTROYED','PENDING_DESTRUCTION')
+              WHERE ${ELIGIBLE_SQL}
                 AND deleted_at IS NULL
                 AND archived_at IS NULL
                 AND locked_at IS NULL
             )::bigint AS active_included,
             COUNT(*) FILTER (
-              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
-                    ('DESTROYED','PENDING_DESTRUCTION')
+              WHERE ${ELIGIBLE_SQL}
                 AND deleted_at IS NULL
                 AND archived_at IS NOT NULL
             )::bigint AS archived_included,
             COUNT(*) FILTER (
-              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
-                    ('DESTROYED','PENDING_DESTRUCTION')
+              WHERE ${ELIGIBLE_SQL}
                 AND deleted_at IS NULL
                 AND archived_at IS NULL
                 AND locked_at IS NOT NULL
             )::bigint AS locked_included,
             COUNT(*) FILTER (
-              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
-                    ('DESTROYED','PENDING_DESTRUCTION')
+              WHERE ${ELIGIBLE_SQL}
                 AND deleted_at IS NOT NULL
             )::bigint AS trashed_included,
             COUNT(*) FILTER (
@@ -1142,9 +1154,15 @@ export async function searchRoutes(app: FastifyInstance) {
               WHERE COALESCE(lifecycle_state, 'ACTIVE') = 'PENDING_DESTRUCTION'
             )::bigint AS pending_destruction_excluded
           FROM evidence
-          WHERE team_id = ${teamId}::uuid`,
-        prisma.$queryRaw<Array<{ document_type: string; n: bigint }>>`
-          SELECT document_type, COUNT(*)::bigint AS n
+          WHERE team_id = $1::uuid`,
+          teamId,
+        ),
+        prisma.$queryRaw<
+          Array<{ document_type: string; n: bigint; last_indexed: Date | null }>
+        >`
+          SELECT document_type,
+                 COUNT(*)::bigint      AS n,
+                 MAX(indexed_at_utc)   AS last_indexed
             FROM evidence_search_documents
            WHERE team_id = ${teamId}::uuid
            GROUP BY document_type`,
@@ -1183,10 +1201,21 @@ export async function searchRoutes(app: FastifyInstance) {
 
       const indexedByType: Record<string, number> = {};
       let indexedTotal = 0;
+      // The most recent write to THIS workspace's index. This is the persisted
+      // fact that separates a run which is progressing from one that stopped —
+      // the distinction a bare count comparison cannot make, and the reason two
+      // production workspaces claimed to be "catching up" indefinitely.
+      let lastIndexedAtUtc: Date | null = null;
       for (const row of indexedByTypeRaw) {
         const n = Number(row.n);
         indexedByType[row.document_type] = n;
         indexedTotal += n;
+        if (
+          row.last_indexed &&
+          (lastIndexedAtUtc === null || row.last_indexed > lastIndexedAtUtc)
+        ) {
+          lastIndexedAtUtc = row.last_indexed;
+        }
       }
       const indexedEvidence = indexedByType.EVIDENCE ?? 0;
 
@@ -1253,6 +1282,24 @@ export async function searchRoutes(app: FastifyInstance) {
               ? "partial_index"
               : "healthy";
 
+      // CANONICAL READINESS — derived from persisted facts only: the eligible
+      // population, what the index holds, and when the index last advanced.
+      //
+      // The legacy `health` field above is retained for older clients, but it
+      // cannot express the distinction that matters: `partial_index` covered
+      // both "a backfill is running" and "nothing has run for months", and the
+      // UI could only guess, so it guessed the reassuring one.
+      //
+      // Reaching this line means the actor already passed `requireSearchActor`,
+      // so authorization is settled; an unauthorized actor never sees a count.
+      const readiness = deriveSearchReadiness({
+        eligibleCount: evidenceIndexable,
+        indexedCount: indexedEvidence,
+        lastIndexedAtUtc,
+        authorized: true,
+        now: new Date(),
+      });
+
       const server = dbServer[0] ?? null;
 
       return reply.code(200).send({
@@ -1260,6 +1307,24 @@ export async function searchRoutes(app: FastifyInstance) {
           id: teamId,
           name: team?.name ?? null,
           isPersonal: team?.isPersonal ?? null,
+        },
+        // The canonical projection. Carries enough for the client to pick a
+        // state without inferring one from a zero result count, a missing
+        // field, or a plan name.
+        readiness: {
+          state: readiness.state,
+          eligibleCount: readiness.eligibleCount,
+          indexedCount: readiness.indexedCount,
+          outstandingCount: readiness.outstandingCount,
+          lastIndexedAtUtc: readiness.lastIndexedAtUtc,
+          progressing: readiness.progressing,
+          failureReason: readiness.failureReason,
+          shouldPoll: readiness.shouldPoll,
+          resultsAreComplete: readiness.resultsAreComplete,
+          // Whether THIS actor may run the recovery path. Reindex is an
+          // operator action, so a viewer is told the truth about the state
+          // without being offered a control that would refuse them.
+          canRecover: actor.isReviewerCapable === true,
         },
         // Pre-existing top-level fields — kept for client
         // back-compat. NEW callers should prefer the per-state

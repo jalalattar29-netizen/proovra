@@ -73,21 +73,29 @@ import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
 // search-operator vs. search-actor), so it is surfaced as a scope tab
 // on this console rather than folded into the content query.
 import { SearchAuditLogPanel } from "../../../components/search/SearchAuditLogPanel";
-import { Info, Inbox, Layers, Search as SearchGlyph } from "lucide-react";
+import { Info, Search as SearchGlyph } from "lucide-react";
 // The console's distinct states. Each one is its own component with its own
 // words, so "you have not searched yet", "your query matched nothing" and "the
 // service did not answer" can never be rendered as one another. The outage
 // wording lives in exactly one of them.
 import {
-  SearchDegradedNotice,
+  SearchEmptyWorkspaceState,
+  SearchInitializingState,
   SearchNoResultsState,
+  SearchReadinessNotice,
+  SearchStalledState,
   SearchPristineState,
   SearchRestrictedState,
   SearchResultSkeletons,
-  SearchState,
   SearchUnavailableAlert,
   SearchUnavailableState,
 } from "./components/SearchStates";
+// The readiness vocabulary is the SERVER's. The client picks words for a
+// state; it never decides which state is true.
+import {
+  searchReadinessHasUsableResults,
+  type SearchReadinessState,
+} from "@proovra/shared";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
 import {
@@ -169,17 +177,45 @@ type SearchResponse = {
   fallbackReason?: string | null;
 };
 
-// Search-runtime-diagnostics — workspace-scoped envelope returned by
-// GET /v1/search/diagnostics. Used to render explicit empty-state
-// copy ("Search index preparing", "Workspace has no records yet")
-// when the underlying cause is NOT "no matching rows" — preventing
-// the runtime path from rendering a misleading "0 results."
+// Workspace-scoped envelope returned by GET /v1/search/diagnostics.
+//
+// Its `readiness` block is the canonical state; the legacy `health` field and
+// the per-state breakdown below are the SUPPORT view of the same facts. The
+// client no longer classifies anything from these counts — doing so is what
+// produced a workspace that claimed to be "catching up" indefinitely.
 // `GET /v1/search/diagnostics` is registered on the canonical API
 // (search.routes.ts). A failed request collapses to null and the page
 // renders the generic empty-state branches — runtime-failure tolerance,
 // not backend-version compatibility.
+/**
+ * The canonical readiness projection.
+ *
+ * Everything the client needs to choose a state, so it never has to infer one
+ * from a zero result count, a missing field or a plan name — each of which
+ * this console has used as a proxy at some point, and each of which lied in
+ * some workspace.
+ */
+type SearchReadinessProjection = {
+  state: SearchReadinessState;
+  eligibleCount: number;
+  indexedCount: number;
+  outstandingCount: number;
+  lastIndexedAtUtc: string | null;
+  progressing: boolean;
+  failureReason: string | null;
+  shouldPoll: boolean;
+  resultsAreComplete: boolean;
+  canRecover: boolean;
+};
+
 type SearchDiagnostics = {
   workspace: { id: string; name: string | null; isPersonal: boolean | null };
+  /**
+   * Absent on a pre-readiness API build. The console then has no server state
+   * to trust, and deliberately says NOTHING about readiness rather than
+   * guessing from counts — which is the defect this projection exists to end.
+   */
+  readiness?: SearchReadinessProjection;
   evidence: { total: number };
   index: {
     total: number;
@@ -590,12 +626,10 @@ function SearchInner() {
     setDateUntilDraft(filter.updatedUntilUtc?.slice(0, 16) ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter?.updatedSinceUtc, filter?.updatedUntilUtc]);
-  // Search-runtime-diagnostics — workspace-scoped health envelope used
-  // to render explicit empty-state copy ("Search index preparing",
-  // "Workspace has no records yet") instead of a misleading
-  // "0 results" when the underlying cause is API down / empty index /
-  // wrong workspace. One fetch per teamId. A failed request collapses to
-  // null and the page renders the generic empty-state branches.
+  // The workspace's readiness envelope. One fetch per teamId, then polled
+  // ONLY while the server reports a run in progress. A failed request
+  // collapses to null, and the console then says nothing about readiness
+  // rather than guessing a state from the numbers it has.
   const [searchHealth, setSearchHealth] = useState<SearchDiagnostics | null>(
     null,
   );
@@ -687,10 +721,9 @@ function SearchInner() {
   //   1. teamId change (workspace switch),
   //   2. explicit reloadHealth() invocation from the search-result
   //      handler when reality (rows returned) contradicts the
-  //      cached health (chip says "empty_index" but rows came
-  //      back). Without that second trigger the chip stays stuck
-  //      on "Search index preparing (0/N)" forever after a
-  //      backfill — the bug that motivated this fix.
+  //      cached health (the envelope says the index is empty but rows came
+  //      back). Without that second trigger the support chip stayed stuck on a
+  //      stale reading forever after a backfill.
   // Search-runtime-diagnostics — passing `q` makes the backend run
   // the same OR-over-(title/subtitle/summary/searchableText)
   // probe-query the main `/v1/search` route would, returning the
@@ -723,6 +756,77 @@ function SearchInner() {
   useEffect(() => {
     reloadHealth();
   }, [reloadHealth]);
+
+  /**
+   * The readiness the SERVER reports. `null` on an older API build, which the
+   * console treats as "no readiness information" — not as "ready".
+   */
+  const readiness = searchHealth?.readiness ?? null;
+
+  /**
+   * Poll ONLY while a run is advancing.
+   *
+   * The states that need watching are the two that change on their own. Every
+   * other state — ready, empty, stalled, failed, restricted, unavailable —
+   * changes because a person or an operator does something, so polling them
+   * would be a request per interval, forever, for an answer that cannot move.
+   */
+  useEffect(() => {
+    if (!readiness?.shouldPoll) return;
+    const id = window.setInterval(() => reloadHealth(filter?.q), 15_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readiness?.shouldPoll, reloadHealth, filter?.q]);
+
+  // Rebuilding the index is an OPERATOR action, and the server decides whether
+  // this actor may run it — `canRecover` is projected, never inferred from a
+  // plan or a role string in the client.
+  /**
+   * Can the index answer for this workspace at all?
+   *
+   * These three states are about the WORKSPACE, not the query, so they are
+   * resolved before any query-shaped explanation. STALLED is included: rows
+   * may exist, but when none come back the reason is the stopped index, not
+   * the words the user typed.
+   */
+  const indexCannotAnswer =
+    readiness != null &&
+    (readiness.state === "EMPTY_WORKSPACE" ||
+      readiness.state === "INITIALIZING" ||
+      readiness.state === "STALLED");
+
+  /**
+   * A count is a claim. It renders only when a completed search over a usable
+   * index stands behind it — never beside a state that says the index is not
+   * ready to answer.
+   */
+  const countIsMeaningful =
+    readiness == null
+      ? true
+      : searchReadinessHasUsableResults(readiness.state) &&
+        readiness.state !== "STALLED";
+
+  const [rebuilding, setRebuilding] = useState(false);
+  const rebuildIndex = useCallback(async () => {
+    if (!teamId || readiness?.canRecover !== true) return;
+    setRebuilding(true);
+    try {
+      await apiFetch("/v1/search/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId }),
+      });
+      reloadHealth(filter?.q);
+    } catch (err) {
+      setActionError(
+        toSafeUserError(err, {
+          message: "Could not start the index rebuild.",
+        }).message,
+      );
+    } finally {
+      setRebuilding(false);
+    }
+  }, [teamId, readiness?.canRecover, reloadHealth, filter?.q]);
 
   // Run query on filter change.
   useEffect(() => {
@@ -1416,25 +1520,20 @@ function SearchInner() {
             //        opted in via URL — the full diagnostic
             //        breakdown for support work.
             // Everything else collapses to `null`.
-            const userBlocking = effectiveHealth === "empty_index";
-            const supportOptIn =
-              isPlatformAdmin && searchHealthDebugOptIn;
-            if (!supportOptIn && !userBlocking) return null;
-            if (!supportOptIn) {
-              // User-facing blocking message — same copy + same
-              // gating regardless of role. Numbers / DB tooltip
-              // are deliberately omitted.
-              return (
-                <AppStatusBadge
-                  tone="amber"
-                  dot
-                  data-search-health="empty_index"
-                  data-search-health-audience="user"
-                >
-                  Search is being set up. Try again in a moment.
-                </AppStatusBadge>
-              );
-            }
+            // REDESIGN/SEARCH — the user-facing chip was DELETED here.
+            //
+            // It said "Search is being set up. Try again in a moment." and
+            // was emitted from a COUNT COMPARISON, so it could not tell a
+            // workspace that was indexing from one where nothing had ever
+            // run. It rendered in the header, beside a pristine results
+            // panel and "0 results" — telling a user simultaneously that
+            // their records were absent and that they were on their way.
+            //
+            // Readiness now owns that message AND the region it appears in,
+            // so the two can no longer contradict each other. What remains
+            // here is the SUPPORT breakdown, behind its opt-in.
+            const supportOptIn = isPlatformAdmin && searchHealthDebugOptIn;
+            if (!supportOptIn) return null;
             // Support/admin path — opt-in only. Full breakdown,
             // numbers included.
             const breakdown = searchHealth.index.breakdown;
@@ -1490,15 +1589,14 @@ function SearchInner() {
                   {searchHealth.workspace.name ?? "Workspace"}
                 </strong>{" "}
                 ·{" "}
-                {effectiveHealth === "healthy"
-                  ? realityOverrides
-                    ? "Ready"
-                    : `${searchHealth.index.evidenceIndexed} indexed`
-                  : effectiveHealth === "partial_index"
-                    ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
-                    : effectiveHealth === "empty_index"
-                      ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
-                      : `Workspace has 0 indexable records`}
+                {/* The operator view of the SAME fact the user sees. It
+                    reports the canonical state rather than a second
+                    description of it — an operator and a user looking at one
+                    index must not be reading two different stories, which is
+                    how 'catching up' survived in support for so long. */}
+                {readiness
+                  ? `${readiness.state} · ${readiness.indexedCount}/${readiness.eligibleCount} indexed`
+                  : `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed`}
               </AppStatusBadge>
             );
           })()
@@ -1913,36 +2011,45 @@ function SearchInner() {
 
         {/* ----------------------------- CENTER ----------------------------- */}
         <div className="search-col search-col--results">
-          {/* Rows came back AND the index is still being built: the result set
-              is real but incomplete. Reported beside the results, never
-              promoted into a failure. */}
-          {searchHealth?.health === "partial_index" &&
-          results &&
-          results.rows.length > 0 ? (
-            <SearchDegradedNotice
-              indexed={searchHealth.index.evidenceIndexed}
-              total={searchHealth.index.evidenceTotal}
+          {/* What the index can currently answer for, stated beside the rows
+              it could not cover. The STATE is the server's; this only chooses
+              where to put it. Suppressed while a search is in flight so a
+              disclosure cannot flicker against a skeleton. */}
+          {readiness && !loading ? (
+            <SearchReadinessNotice
+              state={readiness.state}
+              indexedCount={readiness.indexedCount}
+              eligibleCount={readiness.eligibleCount}
+              failureReason={readiness.failureReason}
+              canRecover={readiness.canRecover}
+              onRecover={() => void rebuildIndex()}
+              recovering={rebuilding}
             />
           ) : null}
 
-          {/* What the workspace returned. A FAILURE is not a count, so when
-              the request did not answer this row states that instead of
-              reporting "0 results" over the top of an outage. */}
-          <div className="search-results__head" data-search-results-head>
-            <span className="search-results__count" aria-live="polite">
-              {loading
-                ? "Searching…"
-                : searchFailure
-                  ? "No results to show"
-                  : `${results?.totalReturned ?? 0} result${
-                      (results?.totalReturned ?? 0) === 1 ? "" : "s"
-                    }`}
-            </span>
-            {searchFailure ? null : <span>{filterSummary}</span>}
-            {withheldSummary && !searchFailure ? (
-              <span data-search-withheld>{withheldSummary}</span>
-            ) : null}
-          </div>
+          {/* What the workspace returned.
+
+              A count is a claim about a COMPLETED search over a usable index.
+              It is withheld when the request did not answer, and when the index
+              cannot yet answer for the workspace — "0 results" printed beside
+              "Search is being set up" told users their records were gone. */}
+          {countIsMeaningful ? (
+            <div className="search-results__head" data-search-results-head>
+              <span className="search-results__count" aria-live="polite">
+                {loading
+                  ? "Searching…"
+                  : searchFailure
+                    ? "No results to show"
+                    : `${results?.totalReturned ?? 0} result${
+                        (results?.totalReturned ?? 0) === 1 ? "" : "s"
+                      }`}
+              </span>
+              {searchFailure ? null : <span>{filterSummary}</span>}
+              {withheldSummary && !searchFailure ? (
+                <span data-search-withheld>{withheldSummary}</span>
+              ) : null}
+            </div>
+          ) : null}
 
           {!results || results.rows.length === 0 ? (
             <div
@@ -1974,6 +2081,35 @@ function SearchInner() {
                     supportHref={SUPPORT_HREF}
                   />
                 </div>
+              ) : indexCannotAnswer ? (
+                // The INDEX cannot answer for this workspace yet, so nothing
+                // about the query explains the empty region. These states are
+                // resolved before every query-shaped branch below, and they
+                // replace the pristine panel rather than rendering beside it.
+                readiness!.state === "EMPTY_WORKSPACE" ? (
+                  <div data-search-empty-state-kind="empty-workspace">
+                    <SearchEmptyWorkspaceState
+                      workspaceName={searchHealth?.workspace?.name ?? null}
+                    />
+                  </div>
+                ) : readiness!.state === "INITIALIZING" ? (
+                  <div data-search-empty-state-kind="initializing">
+                    <SearchInitializingState
+                      indexedCount={readiness!.indexedCount}
+                      eligibleCount={readiness!.eligibleCount}
+                    />
+                  </div>
+                ) : (
+                  <div data-search-empty-state-kind="stalled">
+                    <SearchStalledState
+                      indexedCount={readiness!.indexedCount}
+                      eligibleCount={readiness!.eligibleCount}
+                      canRecover={readiness!.canRecover}
+                      onRecover={() => void rebuildIndex()}
+                      recovering={rebuilding}
+                    />
+                  </div>
+                )
               ) : !filter?.q ? (
                 // Nothing has been asked yet. This is the resting state, not a
                 // zero-result answer and not an error.
@@ -2001,53 +2137,6 @@ function SearchInner() {
                     </div>
                   );
                 })()
-              ) : searchHealth?.health === "empty_workspace" ? (
-                // The workspace itself holds no records. Searching anything
-                // returns nothing, but the cause is not the query.
-                <div data-search-empty-state-kind="empty-workspace">
-                  <SearchState
-                    kind="empty-workspace"
-                    icon={<Inbox size={34} strokeWidth={1.8} />}
-                    title={`Workspace${
-                      searchHealth.workspace.name
-                        ? ` "${searchHealth.workspace.name}"`
-                        : ""
-                    } has no records yet`}
-                  >
-                    Add evidence, cases, reports, packages or notes — or switch
-                    to a workspace that has them. This workspace contains 0
-                    records.
-                  </SearchState>
-                </div>
-              ) : searchHealth?.health === "empty_index" ? (
-                // The records exist; they are not searchable yet.
-                <div data-search-empty-state-kind="empty-index">
-                  <SearchState
-                    kind="empty-index"
-                    icon={<Layers size={34} strokeWidth={1.8} />}
-                    title="Search index is preparing"
-                  >
-                    This workspace has {searchHealth.index.evidenceTotal}{" "}
-                    records, and none have been indexed yet. Indexing runs
-                    automatically; reload in a moment. If this persists,
-                    contact support.
-                  </SearchState>
-                </div>
-              ) : searchHealth?.health === "partial_index" ? (
-                // Backfill still running: a recent record may genuinely not be
-                // searchable yet, so a zero result is not proof of absence.
-                <div data-search-empty-state-kind="partial-index">
-                  <SearchState
-                    kind="partial-index"
-                    icon={<Layers size={34} strokeWidth={1.8} />}
-                    title="No matching results yet"
-                  >
-                    The search index is still catching up —{" "}
-                    {searchHealth.index.evidenceIndexed} of{" "}
-                    {searchHealth.index.evidenceTotal} records are searchable so
-                    far. Reload in a moment if you expected a recent record.
-                  </SearchState>
-                </div>
               ) : (
                 // Fully indexed, no filters, and the query genuinely has no
                 // hits in THIS workspace — named, so a wrong-workspace mistake

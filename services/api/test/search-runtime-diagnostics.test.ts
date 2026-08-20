@@ -118,10 +118,15 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     expect(src).toMatch(/MALFORMED_RESPONSE/);
   });
 
-  it("empty-state surface renders four distinct kinds: empty-workspace, empty-index, partial-index, no-match", () => {
+  it("the empty-state surface names a CAUSE, in the canonical readiness vocabulary", () => {
     expect(src).toMatch(/data-search-empty-state-kind="empty-workspace"/);
-    expect(src).toMatch(/data-search-empty-state-kind="empty-index"/);
-    expect(src).toMatch(/data-search-empty-state-kind="partial-index"/);
+    // `empty-index` and `partial-index` are gone: both were client guesses at
+    // a cause. The server now states which of the three workspace-level states
+    // is true, and each has its own branch.
+    expect(src).toMatch(/data-search-empty-state-kind="initializing"/);
+    expect(src).toMatch(/data-search-empty-state-kind="stalled"/);
+    expect(src).not.toMatch(/data-search-empty-state-kind="empty-index"/);
+    expect(src).not.toMatch(/data-search-empty-state-kind="partial-index"/);
     expect(src).toMatch(/data-search-empty-state-kind="no-match"/);
   });
 
@@ -193,8 +198,11 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     ]) {
       expect(src).toContain(fallback);
     }
+    // Five now: the four view/page actions plus the index rebuild, which is
+    // an operator action and reports through the same sanctioned path.
     const actionSites = [...src.matchAll(/setActionError\(/g)];
-    expect(actionSites.length).toBe(4);
+    expect(actionSites.length).toBe(5);
+    expect(src).toContain("Could not start the index rebuild.");
     // Every one of them wraps the error rather than reading `.message` off it.
     expect(src).not.toMatch(/setActionError\(\s*err[.?]/);
   });

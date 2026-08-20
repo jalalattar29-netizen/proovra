@@ -237,7 +237,7 @@ describe("Diagnostics — evidenceIndexable matches the indexer's exclusions", (
     expect(src).toMatch(/pending_destruction_excluded/);
     // Lifecycle exclusion predicate appears once per bucket.
     expect(src).toMatch(
-      /COALESCE\(lifecycle_state, 'ACTIVE'\) NOT IN\s*\n?\s*\('DESTROYED','PENDING_DESTRUCTION'\)/,
+      /\$\{ELIGIBLE_SQL\}/,
     );
   });
 

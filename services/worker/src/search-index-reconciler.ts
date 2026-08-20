@@ -34,9 +34,19 @@
  */
 
 import { JOB_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
+import { searchIndexableLifecycleSql } from "@proovra/shared";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
+
+/**
+ * The one eligibility clause, shared with the diagnostics counter.
+ *
+ * Bound once so the scan and the drift count cannot be given different rules —
+ * which is exactly what happened when one of them carried a hand-written
+ * `deleted_at IS NULL` and the other did not.
+ */
+const ELIGIBLE_SQL = searchIndexableLifecycleSql('e."lifecycle_state"');
 
 const ENTRY = getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
 
@@ -99,6 +109,14 @@ export async function runSearchIndexReconciler(
     // `team_id IS NOT NULL` is not an optimisation: evidence with no workspace
     // cannot be projected (the processor fails closed on exactly that), so
     // including it would produce a permanent, unfixable drift signal.
+    //
+    // ELIGIBILITY comes from `searchIndexableLifecycleSql`, the same authority
+    // the diagnostics counter uses. This scan previously carried
+    // `deleted_at IS NULL`, which skipped trashed evidence — but trashed
+    // evidence IS indexed (with an `in_trash` tag, so a user can find a record
+    // in order to restore it) and IS counted as outstanding. The counter and
+    // the only process that could satisfy it were measuring different
+    // populations, so the gap between them could never close.
     const drifted = (await prisma.$queryRawUnsafe(
       `SELECT e."id" AS evidence_id,
               (d."source_id" IS NULL) AS is_missing
@@ -107,7 +125,7 @@ export async function runSearchIndexReconciler(
                 ON d."source_id" = e."id"
                AND d."document_type" = 'EVIDENCE'
         WHERE e."team_id" IS NOT NULL
-          AND e."deleted_at" IS NULL
+          AND ${ELIGIBLE_SQL}
           AND e."updated_at" < $1
           AND (d."source_id" IS NULL OR d."indexed_at_utc" < e."updated_at")
         ORDER BY e."updated_at" ASC
@@ -189,7 +207,7 @@ export async function getSearchIndexDriftSnapshot(): Promise<{
               ON d."source_id" = e."id"
              AND d."document_type" = 'EVIDENCE'
       WHERE e."team_id" IS NOT NULL
-        AND e."deleted_at" IS NULL
+        AND ${ELIGIBLE_SQL}
         AND (d."source_id" IS NULL OR d."indexed_at_utc" < e."updated_at")`,
   )) as Array<{ drifted: number; oldest: Date | null }>;
 

@@ -44,6 +44,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { indexEvidence } from "./evidence-indexing.service.js";
 import { indexCase } from "./case-indexing.service.js";
+import { searchIndexableLifecycleSql } from "@proovra/shared";
 import {
   indexNote,
   indexPackage,
@@ -151,18 +152,23 @@ export async function runWorkspaceReindex(
   // "In trash" badge. Hard-deleted rows are physically absent
   // from `evidence` and so cannot be orphans by definition.
   // -------------------------------------------------------------------------
-  const orphanEvidence = await client.$queryRaw<Array<{ id: string }>>`
+  // The eligibility clause is EMITTED from the shared authority, not typed
+  // out here. Typed out, it was one of three copies that had to agree forever.
+  const orphanEvidence = await client.$queryRawUnsafe<Array<{ id: string }>>(
+    `
     SELECT e.id::text AS id
       FROM evidence e
       LEFT JOIN evidence_search_documents esd
         ON esd.team_id      = e.team_id
        AND esd.document_type = 'EVIDENCE'
        AND esd.source_id    = e.id
-     WHERE COALESCE(e.lifecycle_state, 'ACTIVE') NOT IN
-           ('DESTROYED','PENDING_DESTRUCTION')
-       AND e.team_id = ${teamId}::uuid
+     WHERE ${searchIndexableLifecycleSql("e.lifecycle_state")}
+       AND e.team_id = $1::uuid
        AND esd.id IS NULL
-     LIMIT ${limit}`;
+     LIMIT $2`,
+    teamId,
+    limit,
+  );
   evidence.orphans = orphanEvidence.length;
 
   if (!dryRun) {

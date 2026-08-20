@@ -17,24 +17,27 @@ import type { ReactNode } from "react";
 import {
   AlertCircle,
   Filter,
+  Inbox,
+  Loader2,
   Lock,
   Search as SearchIcon,
   SearchX,
   ServerCrash,
 } from "lucide-react";
 
+import type { SearchReadinessState } from "@proovra/shared";
+
 /**
  * The shared anatomy every state below is built from.
  *
- * Exported because three of this console's states are described by the
- * workspace DIAGNOSTICS envelope rather than by the search request — "this
- * workspace has no records", "the index has not been built", "the index is
- * still catching up". Their copy has to name real counts, so it lives beside
- * the envelope in the console; only the anatomy is shared from here. That is
- * the opposite of the old `emptyStateStyle`, which shared the LOOK and let
- * every state borrow the wrong words.
+ * Internal again. It was briefly exported so the console could compose the
+ * diagnostics-driven states itself; those states are named components in this
+ * file now (`SearchEmptyWorkspaceState`, `SearchInitializingState`,
+ * `SearchStalledState`), so nothing outside needs the raw anatomy. Keeping the
+ * export would leave a helper that no surface mounts — which is precisely what
+ * the convergence guard exists to catch.
  */
-export function SearchState({
+function SearchState({
   kind,
   icon,
   title,
@@ -206,36 +209,231 @@ export function SearchRestrictedState({ message }: { message?: string }) {
 }
 
 /**
- * G. Part of the index answered.
+ * G. What the index can currently answer for.
  *
- * Reported BESIDE the results it could not cover, never promoted into a total
- * failure: rows came back, they are real, and they are incomplete.
+ * ONE surface for every readiness state that has something to say beside real
+ * results. It replaces a notice that compared two numbers and concluded
+ * "catching up" — which is why a workspace with nothing running told its users
+ * to wait, indefinitely.
  *
- * The parameters are the real coverage numbers from the workspace diagnostics
- * envelope. An earlier draft of this component took a list of degraded SOURCE
- * names — but no endpoint in this product reports one, so any list passed to
- * it would have been invented. Index coverage is the incompleteness this
- * console can actually observe, so it is the incompleteness it reports.
+ * The state is the SERVER's, derived from persisted facts. This component
+ * chooses words for it and nothing else; it never infers a state from a count.
  */
-export function SearchDegradedNotice({
-  indexed,
-  total,
+export function SearchReadinessNotice({
+  state,
+  indexedCount,
+  eligibleCount,
+  failureReason,
+  canRecover,
+  onRecover,
+  recovering,
 }: {
-  indexed: number;
-  total: number;
+  state: SearchReadinessState;
+  indexedCount: number;
+  eligibleCount: number;
+  failureReason: string | null;
+  /** Whether THIS actor may run the recovery path. */
+  canRecover: boolean;
+  onRecover?: () => void;
+  recovering?: boolean;
 }) {
-  if (total <= 0 || indexed >= total) return null;
+  // READY has nothing to disclose, and neither has a state whose whole
+  // message belongs in the results region rather than beside them.
+  if (state === "READY" || state === "EMPTY_WORKSPACE" || state === "RESTRICTED") {
+    return null;
+  }
+
+  if (state === "PARTIAL" || state === "INITIALIZING") {
+    // Compact and beside the results summary — the work IS progressing, so
+    // this is a disclosure, not an alarm. It disappears on its own.
+    return (
+      <p
+        className="search-readiness search-readiness--progress"
+        role="status"
+        data-search-readiness={state}
+      >
+        <Loader2 size={14} strokeWidth={2} aria-hidden="true" />
+        {state === "INITIALIZING"
+          ? "Preparing workspace search…"
+          : `Indexing in progress — ${indexedCount} of ${eligibleCount} records searchable. Recent records may not appear yet.`}
+      </p>
+    );
+  }
+
+  if (state === "STALLED") {
+    // The honest version of the sentence this product used to show. Nothing is
+    // running, so the copy must not imply that waiting will help.
+    return (
+      <div
+        className="app-alert app-alert--warn"
+        role="status"
+        data-search-readiness="STALLED"
+      >
+        <AlertCircle size={15} strokeWidth={2} aria-hidden="true" />
+        <span>
+          Indexing is not progressing — {indexedCount} of {eligibleCount} records
+          are searchable. What is below is real and complete for what has been
+          indexed; the rest will not appear until indexing is restarted.
+        </span>
+        {canRecover && onRecover ? (
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onRecover}
+            disabled={recovering}
+            aria-busy={recovering}
+            data-search-readiness-recover
+          >
+            {recovering ? "Rebuilding…" : "Rebuild index"}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (state === "FAILED") {
+    return (
+      <div
+        className="app-alert app-alert--danger"
+        role="alert"
+        data-search-readiness="FAILED"
+      >
+        <AlertCircle size={15} strokeWidth={2} aria-hidden="true" />
+        <span>
+          The last indexing run did not finish
+          {failureReason ? `: ${failureReason}` : ""}. {indexedCount} of{" "}
+          {eligibleCount} records are searchable.
+        </span>
+        {canRecover && onRecover ? (
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onRecover}
+            disabled={recovering}
+            aria-busy={recovering}
+            data-search-readiness-recover
+          >
+            {recovering ? "Retrying…" : "Retry indexing"}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  // DEGRADED — search itself works. Name only what does not.
+  if (state === "DEGRADED") {
+    return (
+      <div
+        className="app-alert app-alert--warn"
+        role="status"
+        data-search-readiness="DEGRADED"
+      >
+        <ServerCrash size={15} strokeWidth={2} aria-hidden="true" />{" "}
+        Search is working. One secondary capability is unavailable right now.
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * H. Preparing — the workspace's first index is being built.
+ *
+ * A distinct STATE, not an empty result. It must never render beside a result
+ * count: there is nothing to count yet, and "0 results" next to "setting up"
+ * told users their records were gone.
+ */
+export function SearchInitializingState({
+  indexedCount,
+  eligibleCount,
+}: {
+  indexedCount: number;
+  eligibleCount: number;
+}) {
   return (
-    <div
-      className="app-alert app-alert--warn"
-      role="status"
-      data-search-degraded={`${indexed}/${total}`}
+    <SearchState
+      kind="initializing"
+      icon={<Loader2 size={34} strokeWidth={1.8} />}
+      title="Preparing workspace search…"
     >
-      <ServerCrash size={15} strokeWidth={2} aria-hidden="true" />{" "}
-      The search index is still catching up — {indexed} of {total} records are
-      searchable so far. What is below is real; a very recent record may not be
-      in it yet.
-    </div>
+      {eligibleCount > 0
+        ? `${indexedCount} of ${eligibleCount} records are searchable so far. This page updates on its own.`
+        : "This page updates on its own."}
+    </SearchState>
+  );
+}
+
+/**
+ * I. Nothing to search yet.
+ *
+ * Distinct from "being set up": there is no work outstanding, so promising
+ * that something is coming would be false.
+ */
+export function SearchEmptyWorkspaceState({
+  workspaceName,
+}: {
+  workspaceName?: string | null;
+}) {
+  return (
+    <SearchState
+      kind="empty-workspace"
+      icon={<Inbox size={34} strokeWidth={1.8} />}
+      title={`No searchable records yet${
+        workspaceName ? ` in "${workspaceName}"` : ""
+      }`}
+    >
+      Evidence, cases, reports, packages and notes become searchable once they
+      are created in this workspace.
+    </SearchState>
+  );
+}
+
+/**
+ * J. Indexing has stopped with records outstanding.
+ *
+ * Shown when there is nothing to list at all. When there ARE rows, the notice
+ * above sits beside them instead — the results are real and worth showing.
+ */
+export function SearchStalledState({
+  indexedCount,
+  eligibleCount,
+  canRecover,
+  onRecover,
+  recovering,
+}: {
+  indexedCount: number;
+  eligibleCount: number;
+  canRecover: boolean;
+  onRecover?: () => void;
+  recovering?: boolean;
+}) {
+  return (
+    <SearchState
+      kind="stalled"
+      icon={<AlertCircle size={32} strokeWidth={1.8} />}
+      title="Search indexing is not progressing"
+      actions={
+        canRecover && onRecover ? (
+          <button
+            type="button"
+            className="app-primary-action"
+            onClick={onRecover}
+            disabled={recovering}
+            aria-busy={recovering}
+            data-search-readiness-recover
+          >
+            {recovering ? "Rebuilding…" : "Rebuild index"}
+          </button>
+        ) : null
+      }
+    >
+      {indexedCount} of {eligibleCount} records in this workspace are
+      searchable, and no indexing run is currently making progress.{" "}
+      {canRecover
+        ? "Rebuilding will index the outstanding records."
+        : "Ask a workspace admin to rebuild the search index."}
+    </SearchState>
   );
 }
 

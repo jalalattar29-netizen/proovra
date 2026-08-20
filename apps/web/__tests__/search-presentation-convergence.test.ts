@@ -236,6 +236,9 @@ test("each operational state is reachable from its own branch", () => {
   // The distinctions the states exist to preserve: nothing-asked-yet is not a
   // zero result, a filtered miss is not an empty workspace, and a refusal is
   // not an outage.
+  // The set follows the canonical readiness vocabulary. `empty-index` and
+  // `partial-index` are gone: both were client guesses at a cause, and both
+  // are now answered by the server as EMPTY_WORKSPACE / INITIALIZING / STALLED.
   for (const kind of [
     "loading",
     "restricted",
@@ -243,8 +246,8 @@ test("each operational state is reachable from its own branch", () => {
     "idle",
     "no-match-filtered",
     "empty-workspace",
-    "empty-index",
-    "partial-index",
+    "initializing",
+    "stalled",
     "no-match",
   ]) {
     assert.ok(

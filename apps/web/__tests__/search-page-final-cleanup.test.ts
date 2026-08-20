@@ -71,17 +71,24 @@ test("A) Chip — `supportOptIn` is gated on BOTH isPlatformAdmin AND the URL fl
   );
 });
 
-test("A) Chip — without supportOptIn, only the user-blocking empty_index branch renders (everything else collapses to null)", () => {
+test("A) Chip — without supportOptIn the diagnostics chip renders nothing at all", () => {
   const src = read(PAGE);
-  // The render path must early-return null when neither
-  // supportOptIn nor the user-blocking condition is true.
-  assert.match(src, /if \(!supportOptIn && !userBlocking\) return null;/);
+  // PREVIOUS GUARANTEE: everything except the user-blocking branch collapsed
+  // to null without the support opt-in.
+  //
+  // REPLACEMENT, stronger: the exception is deleted. Nothing in the header
+  // renders for a non-support actor, in any readiness state.
+  assert.match(src, /if \(!supportOptIn\) return null;/);
+  assert.doesNotMatch(src, /if \(!supportOptIn && !userBlocking\) return null;/);
 });
 
-test("A) Chip — `data-search-health-audience` distinguishes user vs admin paths", () => {
+test("A) Chip — the diagnostics chip has only an admin audience", () => {
   const src = read(PAGE);
-  assert.match(src, /data-search-health-audience="user"/);
+  // PREVIOUS GUARANTEE: the two audiences were distinguishable by attribute.
+  // REPLACEMENT: there is only one audience left, because the user-facing
+  // path was the defect. The admin marker still identifies the surface.
   assert.match(src, /data-search-health-audience="admin"/);
+  assert.doesNotMatch(src, /data-search-health-audience="user"/);
 });
 
 test("A) Chip — searchHealthError fallback chip is gated on BOTH admin AND opt-in", () => {

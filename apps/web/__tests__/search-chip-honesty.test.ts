@@ -139,39 +139,50 @@ test("Reality-wins chip — rows in result list suppress 'empty_index' / 'empty_
   assert.match(src, /data-search-health-reality-overrides=/);
 });
 
-test("Chip 'Ready' copy fires when reality override is active (cached empty_index → Ready)", () => {
+test("a stale readiness reading cannot survive a search that returns rows", () => {
   const src = read(PAGE);
-  // When realityOverrides is true the chip body must read
-  // "Ready" (a clean Personal/SMB-safe state), NOT "23 records
-  // indexed" or "Search index preparing".
-  const overrideRegion = src.slice(
-    src.indexOf("effectiveHealth === \"healthy\""),
-    src.indexOf("effectiveHealth === \"healthy\"") + 600,
-  );
-  assert.match(overrideRegion, /realityOverrides[\s\S]*?["']Ready["']/);
+  // PREVIOUS GUARANTEE: when `realityOverrides` was true the chip read
+  // "Ready" rather than "Search index preparing" — a client-side patch over
+  // a cached envelope that disagreed with the rows on screen.
+  //
+  // REPLACEMENT, stronger: the state is derived by the SERVER on every
+  // request from live counts and the index's own last-write timestamp, so
+  // there is no cached classification to override. The client's only job is
+  // to refetch when reality contradicts what it holds, which it still does.
+  assert.match(src, /realityOverride/);
+  assert.match(src, /reloadHealth\(filter\.q\)/);
+  // …and the support chip reports that server state verbatim rather than
+  // composing a second description of it.
+  const chipIdx = src.indexOf("data-search-health-audience");
+  const chipBody = src.slice(chipIdx, src.indexOf("</AppStatusBadge>", chipIdx));
+  assert.match(chipBody, /readiness\.state/);
+  assert.match(chipBody, /readiness\.indexedCount/);
+  assert.match(chipBody, /readiness\.eligibleCount/);
 });
 
-test("Empty-state copy — 'Search index preparing' is structurally unreachable when rows are present", () => {
-  const src = read(PAGE);
-  // The empty-state branch sits inside
-  //   {!results || results.rows.length === 0 ? (...empty...) : (...list...)}
-  // so by construction the "empty_index" empty-state copy cannot
-  // co-render with rows. Pin the guard so a future refactor
-  // cannot accidentally remove it.
-  assert.match(
-    src,
-    /!results \|\| results\.rows\.length === 0 \?/,
-  );
-
-  // And the "Search index preparing" copy sits under the
-  // empty-state branch, NOT the result-list branch.
-  const copyIdx = src.indexOf("Search index is preparing");
-  const guardIdx = src.indexOf("!results || results.rows.length === 0");
-  assert.ok(copyIdx > 0, "Search index preparing copy missing");
-  assert.ok(
-    copyIdx > guardIdx,
-    "Search index preparing copy must live inside the rows-empty guard",
-  );
+test("readiness copy is never derived from a count comparison in the client", () => {
+  const raw = read(PAGE);
+  // Measure what RENDERS. A comment explaining why a sentence was deleted is
+  // not that sentence coming back.
+  const src = raw
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  // PREVIOUS GUARANTEE: the 'Search index preparing' copy could not render
+  // while rows were present. That protected one symptom of a deeper defect —
+  // the client deciding readiness by comparing two numbers, which cannot
+  // tell a run that is progressing from one that never started.
+  //
+  // REPLACEMENT, strictly stronger: the client derives NO readiness state at
+  // all. It renders the state the server projected, so the copy cannot
+  // contradict the numbers beside it in any combination.
+  assert.match(src, /readiness = searchHealth\?\.readiness \?\? null/);
+  assert.match(src, /state=\{readiness\.state\}/);
+  // No client-side classification survives.
+  assert.doesNotMatch(src, /indexedEvidence\s*<\s*evidenceIndexable/);
+  // No state is described as 'preparing' anywhere the user or an operator
+  // can read it — that word was the promise a stopped index could not keep.
+  assert.doesNotMatch(src, /Search index preparing|Search index is preparing/);
+  assert.doesNotMatch(src, /Search is being set up/);
 });
 
 test("Diagnostics-only render path — chip honors searchHealthError fallback ('Search index status unavailable')", () => {

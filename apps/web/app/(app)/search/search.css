@@ -674,6 +674,46 @@
   text-overflow: ellipsis;
 }
 
+/* ---- Index readiness ---------------------------------------------------- *
+ * A disclosure that sits BESIDE the results, not across them. The work is
+ * progressing, so the tone is a status line rather than an alarm — and it
+ * removes itself when the server reports READY. */
+.search-readiness {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  min-inline-size: 0;
+}
+
+.search-readiness--progress {
+  background: var(--surface-translucent-inner);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  color: var(--app-ink-label);
+}
+
+.search-readiness svg {
+  flex: 0 0 auto;
+  color: var(--app-ink-secondary);
+}
+
+/* The spinner turns only for people who asked for motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .search-readiness--progress svg {
+    animation: search-readiness-spin 1.1s linear infinite;
+  }
+}
+
+@keyframes search-readiness-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---- Result list -------------------------------------------------------- */
 .search-results__head {
   display: flex;

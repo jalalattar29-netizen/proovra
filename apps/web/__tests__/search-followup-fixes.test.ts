@@ -139,29 +139,28 @@ test("hasNarrowingFilters helper exists and excludes 'q' from the filter check",
   );
 });
 
-test("Empty-state branches — hasNarrowingFilters renders the no-match-filtered branch BEFORE empty_workspace/empty_index/partial_index", () => {
+test("workspace-level readiness is resolved BEFORE any query-shaped explanation", () => {
   const src = read(PAGE);
-  // The branch order matters: the filter-active check must come
-  // before the workspace/index health branches, otherwise a
-  // user with an EVIDENCE-filter active sees the index-empty copy.
-  const filteredIdx = src.indexOf("hasNarrowingFilters(filter) ? (");
-  const emptyWorkspaceIdx = src.indexOf(
-    'searchHealth?.health === "empty_workspace"',
-  );
-  const emptyIndexIdx = src.indexOf(
-    'searchHealth?.health === "empty_index"',
-  );
-  assert.ok(filteredIdx > 0, "no-match-filtered branch missing");
-  assert.ok(emptyWorkspaceIdx > 0);
-  assert.ok(emptyIndexIdx > 0);
-  assert.ok(
-    filteredIdx < emptyWorkspaceIdx,
-    "no-match-filtered must come BEFORE empty_workspace branch",
-  );
-  assert.ok(
-    filteredIdx < emptyIndexIdx,
-    "no-match-filtered must come BEFORE empty_index branch",
-  );
+  // PREVIOUS GUARANTEE: the filtered-no-match branch came before the
+  // workspace/index health branches, so an active filter was never
+  // explained as "the index is empty".
+  //
+  // REPLACEMENT, stronger and in the other direction: a workspace whose
+  // index cannot answer AT ALL is resolved before every query-shaped branch,
+  // including the filtered one. When the index has not been built, neither
+  // the query nor the filters explain the empty region — and the pristine
+  // panel must not render beside a state that says so.
+  const cannotAnswer = src.indexOf("indexCannotAnswer ? (");
+  const idle = src.indexOf('data-search-empty-state-kind="idle"');
+  const filtered = src.indexOf('data-search-empty-state-kind="no-match-filtered"');
+  assert.ok(cannotAnswer > 0, "the readiness branch must exist");
+  assert.ok(cannotAnswer < idle, "readiness precedes the pristine panel");
+  assert.ok(cannotAnswer < filtered, "readiness precedes the filtered branch");
+  // And the three workspace states it resolves are exactly the ones that are
+  // about the workspace rather than the query.
+  assert.match(src, /state === "EMPTY_WORKSPACE" \|\|/);
+  assert.match(src, /state === "INITIALIZING" \|\|/);
+  assert.match(src, /state === "STALLED"/);
 });
 
 test("Empty-state renders the explicit no-match-filtered kind with a 'clear filters' hint", () => {

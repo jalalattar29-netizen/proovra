@@ -259,18 +259,31 @@ test("Pristine empty state fires when there is no query yet, and is not a zero-r
   assert.doesNotMatch(body, /0 results|No matching|unavailable/i);
 });
 
-test("Filtered no-match and empty-workspace are distinct states, in that order", () => {
-  // With a filter active, "this workspace has no records" is a false
-  // explanation for an empty result — the filter is what removed them.
+test("empty-workspace is a READINESS state, resolved before any query branch", () => {
+  // PREVIOUS GUARANTEE: the filtered-no-match branch preceded empty-workspace,
+  // so an active filter was never explained as "this workspace is empty".
+  //
+  // REPLACEMENT: empty-workspace is no longer inferred from a count at all —
+  // it is a server-projected state, and it is resolved before every
+  // query-shaped branch. The distinction the old ordering protected is now
+  // structural rather than positional.
+  assert.match(SEARCH_PAGE, /readiness!\.state === "EMPTY_WORKSPACE"/);
+  const cannotAnswer = SEARCH_PAGE.indexOf("indexCannotAnswer ? (");
   const filtered = SEARCH_PAGE.indexOf('data-search-empty-state-kind="no-match-filtered"');
-  const workspace = SEARCH_PAGE.indexOf('data-search-empty-state-kind="empty-workspace"');
-  assert.ok(filtered > 0 && workspace > 0);
-  assert.ok(filtered < workspace);
-  // They render different components with different words.
+  assert.ok(cannotAnswer > 0 && filtered > 0);
+  assert.ok(cannotAnswer < filtered);
+  // The two still render different components with different words.
   assert.match(
     SEARCH_PAGE,
-    /data-search-empty-state-kind="empty-workspace"[\s\S]{0,400}?has no records yet/,
+    /data-search-empty-state-kind="empty-workspace"[\s\S]{0,300}?<SearchEmptyWorkspaceState/,
   );
+  // The words belong to the state component, which is where every other
+  // state's copy lives.
+  const STATES_SRC = src(
+    "apps/web/app/(app)/search/components/SearchStates.tsx",
+  );
+  assert.match(STATES_SRC, /No searchable records yet/);
+  assert.doesNotMatch(STATES_SRC, /Search is being set up/);
 });
 
 test("No-match empty state copy advises to try a different filename / case / report", () => {

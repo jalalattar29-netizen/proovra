@@ -193,7 +193,7 @@ describe("Reconcile / backfill — orphan query includes trash", () => {
     // skip trash records on the next backfill — pin its
     // absence.
     expect(src).toMatch(
-      /COALESCE\(e\.lifecycle_state, 'ACTIVE'\) NOT IN\s*\n?\s*\('DESTROYED','PENDING_DESTRUCTION'\)/,
+      /searchIndexableLifecycleSql\("e\.lifecycle_state"\)/,
     );
     // The evidence orphan block must not still gate on
     // deleted_at IS NULL. Grab a 40-line slice around the
@@ -212,7 +212,7 @@ describe("Reconcile / backfill — orphan query includes trash", () => {
     expect(idx).toBeGreaterThan(0);
     const slice = src.slice(idx, idx + 1500);
     expect(slice).toMatch(
-      /COALESCE\(e\.lifecycle_state, 'ACTIVE'\) NOT IN\s*\n?\s*\('DESTROYED','PENDING_DESTRUCTION'\)/,
+      /searchIndexableLifecycleSql\("e\.lifecycle_state"\)/,
     );
     expect(slice).not.toMatch(/WHERE e\.deleted_at IS NULL/);
   });
@@ -250,7 +250,7 @@ describe("Diagnostics breakdown — activeIncluded / archivedIncluded / lockedIn
     // re-route it.
     expect(src).toMatch(/trashed_included/);
     expect(src).toMatch(
-      /COALESCE\(lifecycle_state, 'ACTIVE'\) NOT IN\s*\n?\s*\('DESTROYED','PENDING_DESTRUCTION'\)\s*\n?\s*AND deleted_at IS NOT NULL/,
+      /\$\{ELIGIBLE_SQL\}\s*\n?\s*AND deleted_at IS NOT NULL/,
     );
   });
 

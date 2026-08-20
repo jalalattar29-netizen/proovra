@@ -32,40 +32,36 @@ function read(p: string): string {
   return readFileSync(p, "utf8");
 }
 
-test("Personal/SMB users see nothing in healthy/partial/empty-workspace branches", () => {
+test("the diagnostics chip is support-only in EVERY state", () => {
   const src = read(PAGE);
-  // Search-page-final-cleanup (A) tightened the gate further:
-  // even admins don't render the diagnostic chip unless they opt
-  // in via `?_debug=search-health`. The collapsed early-return
-  // now keys on `supportOptIn` (which depends on both admin AND
-  // the URL flag). The user-blocking exception is preserved
-  // through the dedicated `userBlocking` branch.
-  assert.match(src, /if \(!supportOptIn && !userBlocking\) return null;/);
-  assert.match(src, /const userBlocking = effectiveHealth === "empty_index";/);
+  // PREVIOUS GUARANTEE: non-admins saw no numeric chip except the
+  // user-blocking 'empty_index' one.
+  //
+  // REPLACEMENT, stronger: there is no user-facing chip left at all. The
+  // one exception was the sentence that rendered in the header beside a
+  // pristine panel; readiness owns that message and its region now, so the
+  // header chip is unconditionally behind the support opt-in.
+  assert.match(src, /const supportOptIn = isPlatformAdmin && searchHealthDebugOptIn;/);
+  assert.match(src, /if \(!supportOptIn\) return null;/);
+  assert.doesNotMatch(src, /userBlocking/);
+  assert.doesNotMatch(src, /data-search-health-audience="user"/);
 });
 
-test("Non-admin chip — when shown, carries data-search-health-audience='user' and user-safe copy", () => {
+test("a non-admin is told the truth about readiness, without index internals", () => {
   const src = read(PAGE);
-  assert.match(src, /data-search-health-audience="user"/);
-  assert.match(src, /Search is being set up\. Try again in a moment\./);
-  // The user chip must NOT contain numeric indexed counts in
-  // its body. Pin via the slice between the audience attribute
-  // and the closing element. REDESIGN/SEARCH: the user chip now renders on
-  // the canonical AppStatusBadge, so the branch closes with
-  // </AppStatusBadge>. The honesty assertion (no evidenceIndexed /
-  // evidenceTotal in the user chip) is unchanged — only the closing token
-  // the slice stops at follows the markup.
-  const userBranchIdx = src.indexOf('data-search-health-audience="user"');
-  const closer = src.indexOf("</AppStatusBadge>", userBranchIdx);
-  const userBranch = src.slice(userBranchIdx, closer);
-  assert.ok(
-    !/searchHealth\.index\.evidenceIndexed/.test(userBranch),
-    "user-audience chip must NOT reference evidenceIndexed",
-  );
-  assert.ok(
-    !/searchHealth\.index\.evidenceTotal/.test(userBranch),
-    "user-audience chip must NOT reference evidenceTotal",
-  );
+  // PREVIOUS GUARANTEE: when the user-facing chip appeared it carried
+  // user-safe copy and no evidenceIndexed / evidenceTotal numbers.
+  //
+  // REPLACEMENT: the chip is gone, and the readiness surface that replaced
+  // it is projected by the server for every actor. The honesty property is
+  // preserved where it now lives — the counts a user sees are the eligible
+  // population the SERVER computed for them, not raw index internals.
+  assert.match(src, /indexedCount=\{readiness\.indexedCount\}/);
+  assert.match(src, /eligibleCount=\{readiness\.eligibleCount\}/);
+  // The raw diagnostics fields stay out of the user-facing surface.
+  const noticeIdx = src.indexOf("<SearchReadinessNotice");
+  const notice = src.slice(noticeIdx, src.indexOf("/>", noticeIdx));
+  assert.doesNotMatch(notice, /searchHealth\.index\./);
 });
 
 test("Admin chip — surfaces the full per-state breakdown as data-attrs", () => {
