@@ -391,7 +391,18 @@ export function SimpleCaseDetail({
               type: (it as { type?: string }).type ?? "EVIDENCE",
               version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
               status: (it as { status?: string }).status ?? "",
+              // ELIGIBILITY IS DERIVED FROM PERSISTED FIELDS, so the fields it
+              // reads are carried rather than defaulted. `lifecycleState` was
+              // dropped here, which meant the panel could not tell a live
+              // record from one scheduled for destruction.
+              lifecycleState: it.lifecycleState ?? null,
+              // Every item in this projection IS the case's linked evidence.
+              caseLinked: true,
             }))}
+            // The server runs the SAME eligibility authority. When it disagrees
+            // with this list, the list is stale — so re-read it rather than
+            // asking the operator to guess.
+            onRefreshEvidence={() => void reload()}
           />
         </div>
       ) : null}

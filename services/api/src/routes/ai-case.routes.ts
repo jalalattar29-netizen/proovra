@@ -5,6 +5,17 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+// THE copilot selection authority — the same module the panel reads. Eligibility
+// is derived from persisted fields once, so the client cannot offer a record the
+// server will refuse, and the server cannot refuse one the client had no way to
+// know about.
+import {
+  COPILOT_SELECTION_MAX,
+  COPILOT_SELECTION_MIN,
+  buildCopilotIdempotencyKey,
+  evaluateCopilotEvidenceEligibility,
+} from "@proovra/shared";
+
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -44,7 +55,10 @@ import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryRese
 import { cleanupExpiredCopilotRuns } from "../services/ai/ai-retention.service.js";
 
 const Body = z.object({
-  selectedEvidenceIds: z.array(z.string().uuid()).min(1).max(50),
+  selectedEvidenceIds: z
+    .array(z.string().uuid())
+    .min(COPILOT_SELECTION_MIN)
+    .max(COPILOT_SELECTION_MAX),
   selectedEvidenceVersions: z.record(z.string(), z.number().int()).optional(),
   processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
   question: z.string().max(500).optional(),
@@ -91,12 +105,54 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       select: {
         id: true, teamId: true, title: true, type: true, mimeType: true, status: true,
         verificationStatus: true, verificationPackageVersion: true, latestReportVersion: true,
-        caseLinks: { select: { caseId: true }, take: 1 },
+        // Eligibility is derived from PERSISTED state, so the fields it reads
+        // are selected here rather than inferred from what the client sent.
+        lifecycleState: true,
+        caseLinks: { select: { caseId: true } },
       },
     });
     if (rows.length !== ids.length) {
       return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
     }
+    // FINAL, SERVER-AUTHORITATIVE ELIGIBILITY.
+    //
+    // The panel runs the same function over the same fields, so this normally
+    // agrees with what the operator saw. It runs anyway: the client's list is a
+    // snapshot, and between rendering it and pressing Run a record can finish
+    // uploading, be unlinked, fail its integrity check or be scheduled for
+    // destruction. Checked BEFORE the budget reservation and the provider call,
+    // so an ineligible selection costs nothing.
+    //
+    // The refusal names WHICH records and WHY, using the shared bounded reason
+    // vocabulary — never a table, a column or a status code. The client
+    // refreshes and re-derives; it does not parse prose.
+    const ineligible = rows
+      .map((r) => ({
+        id: r.id,
+        verdict: evaluateCopilotEvidenceEligibility({
+          status: r.status,
+          lifecycleState: r.lifecycleState,
+          caseLinked: r.caseLinks.some((l) => l.caseId === caseRow.id),
+        }),
+      }))
+      .filter((x) => !x.verdict.eligible);
+    if (ineligible.length > 0) {
+      await auditCase(req, userId, "blocked", caseId, teamId, {
+        status: "ineligible_selection",
+        selectedCount: ids.length,
+        ineligibleCount: ineligible.length,
+      });
+      return reply.code(422).send({
+        error: {
+          code: "evidence_not_analyzable",
+          records: ineligible.map((x) => ({
+            evidenceId: x.id,
+            reason: x.verdict.eligible ? null : x.verdict.reason,
+          })),
+        },
+      });
+    }
+
     // Stale-version rejection.
     if (body.selectedEvidenceVersions) {
       for (const r of rows) {
@@ -113,7 +169,9 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     });
     const guard = await enforceAiEndpointGuard({
       feature: "case-copilot", userId, ip: req.ip,
-      dedupeKey: body.idempotencyKey ?? `${caseId}:${ids.sort().join(",")}`,
+      dedupeKey:
+        body.idempotencyKey ??
+        buildCopilotIdempotencyKey({ scope: "case", scopeId: caseId, selection: ids }),
       dedupeWindowSec: 20,
     });
     if (!guard.allowed) {
@@ -137,7 +195,13 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     );
 
     // Phase A7 — durable budget reservation (multi-replica-safe authority).
-    const ledgerRequestId = `${body.idempotencyKey ?? `case:${caseId}:${ids.sort().join(",")}`}:${Date.now()}`;
+    // The request's identity, bounded. The fallback used to concatenate every
+    // id, which is the same unbounded shape that made the CLIENT's key exceed
+    // this route's own `max(80)` at two selections.
+    const requestIdentity =
+      body.idempotencyKey ??
+      buildCopilotIdempotencyKey({ scope: "case", scopeId: caseId, selection: ids });
+    const ledgerRequestId = `${requestIdentity}:${Date.now()}`;
     const ledger = await tryReserveAiBudget({
       teamId, userId, feature: "CASE_COPILOT",
       model: process.env.OPENAI_CASE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
@@ -171,7 +235,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // Phase D4 — bounded defensibility record (never blocks the response).
     const run = await persistCopilotRun({
       workspaceId: teamId, userId, feature: "CASE_COPILOT", caseId,
-      requestId: body.idempotencyKey ?? `case:${caseId}:${ids.sort().join(",")}`,
+      requestId: requestIdentity,
       model: process.env.OPENAI_CASE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: policyDecision.policyVersion,
       processingMode: body.processingMode,

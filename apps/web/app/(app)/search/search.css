@@ -700,17 +700,30 @@
   white-space: nowrap;
 }
 
-/* SOLID FILL + WHITE TEXT, per tone. Colours are the same hues the soft chips
-   use, taken to their solid weight; nothing new enters the palette. */
-.search-type-badge[data-tone="blue"] { background: #1D4ED8; color: #FFFFFF; }
-.search-type-badge[data-tone="orange"] { background: #C2570C; color: #FFFFFF; }
-.search-type-badge[data-tone="indigo"] { background: #6D28D9; color: #FFFFFF; }
-.search-type-badge[data-tone="green"] { background: #167A5B; color: #FFFFFF; }
-.search-type-badge[data-tone="red"] { background: #B23442; color: #FFFFFF; }
-.search-type-badge[data-tone="amber"] { background: #A86612; color: #FFFFFF; }
+/* SOLID FILL + WHITE TEXT, per tone.
+ *
+ * Every fill is a CANONICAL TOKEN. These were private literals — including a
+ * `#C2570C` that existed nowhere else in the product and differed from
+ * `--orange-ink` by two channels, so the "one type-tone mapping" was one
+ * mapping in TypeScript and a second, drifted one in CSS.
+ *
+ * Each pairing was measured against #FFFFFF for WCAG AA at normal text size:
+ *   blue   --info          5.17:1
+ *   orange --orange-ink    4.55:1
+ *   indigo --accent-600    7.11:1
+ *   green  --success-ink   5.29:1
+ *   red    --error         4.83:1
+ *   amber  --warning-ink   5.02:1
+ *   slate  --ink-secondary 7.58:1 */
+.search-type-badge[data-tone="blue"] { background: var(--info); color: #FFFFFF; }
+.search-type-badge[data-tone="orange"] { background: var(--orange-ink); color: #FFFFFF; }
+.search-type-badge[data-tone="indigo"] { background: var(--accent-600); color: #FFFFFF; }
+.search-type-badge[data-tone="green"] { background: var(--success-ink); color: #FFFFFF; }
+.search-type-badge[data-tone="red"] { background: var(--error); color: #FFFFFF; }
+.search-type-badge[data-tone="amber"] { background: var(--warning-ink); color: #FFFFFF; }
 /* Neutral is the FALLBACK an unknown type resolves to, so it must be a real
    declaration rather than whatever the base class happens to paint. */
-.search-type-badge[data-tone="slate"] { background: #475569; color: #FFFFFF; }
+.search-type-badge[data-tone="slate"] { background: var(--ink-secondary); color: #FFFFFF; }
 
 /* The Inspector's LIFECYCLE chip. A STATE, so it keeps the soft capsule every
    other state on this surface wears — only its containment is set here, which

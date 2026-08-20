@@ -11,6 +11,8 @@
  */
 import { useEffect, useState } from "react";
 
+import { buildCopilotIdempotencyKey } from "@proovra/shared";
+
 import { apiFetch, ApiError } from "../../lib/api";
 import { useActiveWorkspaceId } from "../../lib/platform-context";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
@@ -232,7 +234,18 @@ export function ReviewerCopilotPanel({
           selectedEvidenceIds: [...selected],
           criteriaVersion,
           ...(criteriaSetId ? { criteriaSetId } : {}),
-          idempotencyKey: `${reviewId}:${criteriaSetId || criteriaVersion}:${[...selected].sort().join(",")}`,
+          // BOUNDED, by the same authority the Case panel uses. This built
+          // `${reviewId}:${criteriaSetId}:${ids.join(",")}` against the route's
+          // `z.string().max(80)` — a review id and a criteria-set id are 73
+          // characters before a single evidence id is added, so this panel
+          // failed at even ONE selection, exactly as the Case panel failed at
+          // two.
+          idempotencyKey: buildCopilotIdempotencyKey({
+            scope: "reviewer",
+            scopeId: reviewId,
+            selection: [...selected],
+            qualifier: criteriaSetId || String(criteriaVersion),
+          }),
         }),
       })) as { data?: RunResult; runId?: string | null };
       setRunId(typeof res?.runId === "string" ? res.runId : null);

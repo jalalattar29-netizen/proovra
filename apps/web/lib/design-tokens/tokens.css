@@ -78,6 +78,9 @@
   --success-ink: #167A5B;
   --error: #DC2626;
   --error-050: #FEF2F2;
+  /* The destructive OUTLINE weight, on the --orange-200 / --accent-200
+     precedent: a border that reads as red without becoming a filled slab. */
+  --error-200: #FECACA;
   --info: #2563EB;
 
   /* ORANGE — the product's second classification colour, distinct from
@@ -90,7 +93,15 @@
   --orange-050: #FFF7ED;
   --orange-200: #FED7AA;
   --orange-500: #EA580C;
-  --orange-ink: #C2410C;
+  /* LIGHTENED 2026-08-20. #C2410C measured 5.18:1 on white — comfortably AA,
+     and visibly heavy as a solid fill behind white label text: a REPORT chip
+     read closer to brown than to orange. #D0480E is 18% lighter in relative
+     luminance, holds the same G/R ratio (0.35) so it stays in the orange ramp
+     rather than drifting to red or amber, and measures 4.55:1 on white — AA
+     for normal-size text with margin. Chosen by evaluating the ramp
+     programmatically, not by eye; #D04A0C, the obvious neighbour, measures
+     exactly 4.500 and is not safely AA. */
+  --orange-ink: #D0480E;
 
   /* ------------------------------------------------------------------
    * LAYERS

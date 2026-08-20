@@ -534,18 +534,33 @@ test("the Copilot is the same component with the same props — only its positio
 test("the Copilot renders from the canonical primitives, never a route-scoped skin", () => {
   // The panel used to emit `app-card` / `app-btn`, which had NO definition
   // anywhere; a route-scoped `.pv2-copilot-rail` block styled them for one
-  // page only. It now uses the shared classes, defined once.
-  assert.match(COPILOT, /className="app-panel app-panel__body"/);
-  assert.match(COPILOT, /className="app-inner-surface app-panel__body"/);
+  // page only. Every CONTROL still comes from the shared primitives.
+  assert.match(COPILOT, /className="app-panel app-panel__body case-copilot"/);
   assert.match(COPILOT, /className="app-secondary-action"/);
   assert.match(COPILOT, /className="app-primary-action app-primary-action--block"/);
+  assert.match(COPILOT, /className="app-checkbox"/);
   assert.doesNotMatch(COPILOT, /className="app-card|className="app-btn/);
-  for (const cls of [".app-chip", ".app-chip-row", ".app-alert"]) {
+  for (const cls of [".app-alert", ".app-checkbox", ".app-secondary-action--danger"]) {
     assert.ok(
       PRIMITIVES_CSS.includes(cls),
       `${cls} must be defined once in app-primitives.css`,
     );
   }
+  // The panel's own LAYOUT lives in one stylesheet beside it, not in inline
+  // style objects. It described its header, toolbar, every row, the pre-run
+  // block and every result section with ~20 of them.
+  assert.doesNotMatch(COPILOT, /style=\{\{/);
+  assert.doesNotMatch(COPILOT, /React\.CSSProperties/);
+  // …and that stylesheet carries no private palette and no override war.
+  // Declarations only. The word appears in the stylesheet's own header, where
+  // it is a statement of intent rather than an override.
+  const copilotCss = read("apps/web/components/ai-copilot/case-copilot.css")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(copilotCss, /!important/);
+  assert.doesNotMatch(
+    copilotCss,
+    /(background|color|border-color):\s*#(?!FFFFFF\b)[0-9A-Fa-f]{3,8}\b/,
+  );
 });
 
 test("the Copilot disclosure is never rewritten and never adds claims", () => {
@@ -818,28 +833,26 @@ test("no italic typography survives in the Copilot panel", () => {
   assert.doesNotMatch(COPILOT, /fontStyle/);
 });
 
-test("disclosure + metadata labels are list items, so they never concatenate", () => {
-  // As adjacent spans these produced "AI-generatedAdvisory onlyMetadata only"
-  // and "DOCUMENTv2Reported" in the DOM and in the accessible name.
+test("disclosure + metadata labels never concatenate", () => {
+  // As bare siblings these produced "AI-generatedAdvisory onlyMetadata only"
+  // and "DOCUMENTv2Reported" in `textContent` and in the accessible name. The
+  // guarantee is the WHITESPACE TEXT NODE between them — a visible CSS
+  // separator never reaches either.
   assert.match(
     COPILOT,
-    /<ul className="app-chip-row" aria-label="AI disclosures">\s*\n\s*<li className="app-chip app-chip--ai">AI-generated<\/li>\{" "\}\s*\n\s*<li className="app-chip">Advisory only<\/li>\{" "\}\s*\n\s*<li className="app-chip">Metadata only<\/li>/,
+    /<li>AI-generated<\/li>\{" "\}\s*\n\s*<li>Advisory only<\/li>\{" "\}\s*\n\s*<li>Metadata only<\/li>/,
   );
-  assert.match(
-    COPILOT,
-    /<ul className="app-chip-row" aria-label=\{`\$\{e\.title\} metadata`\}>\s*\n\s*<li className="app-chip">\{e\.type\}<\/li>\{" "\}\s*\n\s*<li className="app-chip">v\{e\.version\}<\/li>\{" "\}\s*\n\s*<li className="app-chip">\{e\.status\}<\/li>/,
-  );
-  // The whitespace nodes are what keep `textContent` from serialising as
-  // "AI-generatedAdvisory onlyMetadata only" / "DOCUMENTv2Reported".
+  // The row's kind and status are separate statements and are separated too.
+  assert.match(COPILOT, /<\/span>\{" "\}\s*\n\s*<AppStatusBadge/);
   assert.ok(
-    (COPILOT.match(/<\/li>\{" "\}/g) ?? []).length >= 4,
-    "separator text nodes between chips were removed",
+    (COPILOT.match(/\{" "\}/g) ?? []).length >= 3,
+    "separator text nodes between labels were removed",
   );
-  // A real gap keeps them visually discrete too — once, canonically.
-  assert.match(PRIMITIVES_CSS, /\.app-chip-row \{[\s\S]{0,260}?gap: 8px;/);
+  // The disclosures are still a LIST with an accessible name.
+  assert.match(COPILOT, /aria-label="AI disclosures"/);
   // Selection behaviour is untouched.
   assert.match(COPILOT, /onChange=\{\(\) => toggle\(e\.id\)\}/);
-  assert.match(COPILOT, /setSelected\(new Set\(selectableIds\)\)/);
+  assert.match(COPILOT, /setSelected\(new Set\(eligibleIds\)\)/);
   assert.match(COPILOT, /setSelected\(new Set\(\)\)/);
 });
 

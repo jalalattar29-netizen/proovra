@@ -840,6 +840,9 @@ export {
   type WorkflowInstanceProjectionInput,
 } from "./search-projection.js";
 export * from "./search-readiness.js";
+// ONE copilot selection authority: eligibility derived from persisted fields,
+// and a BOUNDED idempotency key. Both the panel and the AI routes read it.
+export * from "./ai-copilot-selection.js";
 
 // -----------------------------------------------------------------------------
 // Phase 22 — Evidence Workflow Engine (runtime instance + step layer)

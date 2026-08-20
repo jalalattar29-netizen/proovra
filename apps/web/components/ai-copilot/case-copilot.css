@@ -1,0 +1,420 @@
+/* ===========================================================================
+ * EVIDENCE OPERATIONS COPILOT — the case-page panel.
+ *
+ * The panel described itself with ~20 inline style objects: the header, the
+ * toolbar, every row, the pre-run block, the action row and every result
+ * section. None of it could be themed, measured or audited, and the result was
+ * a rail whose height was decided by however much evidence a case happened to
+ * have, with a title that read as body text and three unrelated chips per row.
+ *
+ * Everything below is layout and hierarchy for THIS panel. Colour comes from
+ * canonical tokens; controls, checkboxes and status chips come from the shared
+ * primitives. No private palette, no `!important`.
+ * ======================================================================== */
+
+.case-copilot {
+  display: grid;
+  gap: 14px;
+  /* The rail is a column: nothing here may set its width from content. */
+  min-inline-size: 0;
+}
+
+/* ---- Header -------------------------------------------------------------
+ * The title is the panel's subject and must read as one. It was `<h3>` with a
+ * zeroed margin and no weight of its own, so it inherited body styling and the
+ * three disclosure chips beside it — brighter, bordered — became the loudest
+ * thing in the header. */
+
+.case-copilot__header {
+  display: grid;
+  gap: 6px;
+}
+
+.case-copilot__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--app-ink-heading);
+}
+
+.case-copilot__purpose {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+
+/* Boundaries, stated quietly. They are a constraint on the feature, not a
+   badge for it, so they sit under the purpose line at metadata weight rather
+   than competing with the title. */
+.case-copilot__disclosures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__disclosures li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A separator that is not a character, so it never reaches the accessible name
+   and never runs the labels together as one string. */
+.case-copilot__disclosures li + li::before {
+  content: "";
+  inline-size: 3px;
+  block-size: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+/* ---- Section titles ----------------------------------------------------- */
+
+.case-copilot__section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+
+/* ---- Selection toolbar --------------------------------------------------- */
+
+.case-copilot__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.case-copilot__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  /* Logical end, so the count and the actions follow the reading direction. */
+  margin-inline-start: auto;
+}
+
+.case-copilot__count {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+}
+
+/* ---- The bounded selector ------------------------------------------------
+ * The list used to have no ceiling, so a case with twenty records produced a
+ * rail taller than the page and pushed the Run action out of reach. The list
+ * scrolls; the panel does not. */
+
+.case-copilot__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  overflow-y: auto;
+  /* `min-block-size: 0` is what makes THIS the scroller: a grid child defaults
+     to `auto`, which would grow to its content and take the panel with it. */
+  min-block-size: 0;
+  max-block-size: min(38vh, 340px);
+}
+
+.case-copilot__empty,
+.case-copilot__restricted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-inline-end: 12px;
+}
+
+.case-copilot__row + .case-copilot__row {
+  border-block-start: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+/* Selection is a background and an INSET ring. An outset border would resize
+   the row and shift every row beneath it on each toggle. */
+.case-copilot__row[data-selected="true"] {
+  background: rgba(243, 240, 255, 0.62);
+  box-shadow: inset 3px 0 0 0 var(--accent-600);
+}
+
+.case-copilot__row[data-eligible="false"] {
+  /* Visible, because knowing the record exists is useful; clearly not
+     available, because it cannot be analyzed. */
+  opacity: 0.62;
+}
+
+.case-copilot__row-control {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-inline-size: 0;
+  padding: 10px 0 10px 12px;
+  padding-inline: 12px 0;
+  cursor: pointer;
+  min-block-size: 44px;
+}
+
+.case-copilot__row[data-eligible="false"] .case-copilot__row-control {
+  cursor: not-allowed;
+}
+
+.case-copilot__row-control .app-checkbox {
+  margin-block-start: 2px;
+}
+
+.case-copilot__row-control:focus-within .app-checkbox {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+}
+
+.case-copilot__row-body {
+  display: grid;
+  gap: 5px;
+  min-inline-size: 0;
+  flex: 1;
+}
+
+/* Two lines, then clamped — with the full value in `title`, so the clamp hides
+   nothing permanently. An unclamped filename used to wrap to four lines and
+   push the metadata out of the row. */
+.case-copilot__row-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+}
+
+/* KIND and STATUS are different kinds of statement and no longer render as
+   three equal chips. The kind is a quiet classification with a glyph; the
+   status is the canonical semantic badge. */
+.case-copilot__row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.case-copilot__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__row-reason {
+  font-size: 11.5px;
+  color: var(--warning-ink);
+}
+
+/* The version, as secondary metadata on its own axis rather than a third pill
+   competing with the status. */
+.case-copilot__row-version {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 11px;
+  color: var(--app-ink-secondary);
+  white-space: nowrap;
+}
+
+/* ---- Pre-run summary -----------------------------------------------------
+ * Structured facts, not a paragraph. The previous block was six bullet points
+ * of prose that repeated the advisory boundary twice and buried the one number
+ * an operator needed. */
+
+.case-copilot__prerun {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.case-copilot__facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.case-copilot__fact {
+  display: grid;
+  grid-template-columns: minmax(96px, 34%) 1fr;
+  gap: 10px;
+  align-items: baseline;
+  min-inline-size: 0;
+}
+
+.case-copilot__fact dt {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__fact dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.case-copilot__names {
+  display: block;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+.case-copilot__names-more summary {
+  cursor: pointer;
+  display: inline;
+}
+
+.case-copilot__names-more ul {
+  margin: 4px 0 0;
+  padding-inline-start: 16px;
+}
+
+/* ---- Action region ------------------------------------------------------- */
+
+.case-copilot__actions {
+  display: grid;
+  gap: 6px;
+}
+
+.case-copilot__hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__error {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- Result -------------------------------------------------------------- */
+
+.case-copilot__result {
+  display: grid;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.case-copilot__summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--app-ink-label);
+}
+
+.case-copilot__result-section {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.case-copilot__result-section h5 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-ink-label);
+}
+
+.case-copilot__result-section ul {
+  margin: 0;
+  padding-inline-start: 18px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--app-ink-label);
+}
+
+.case-copilot__boundary {
+  margin: 0;
+  padding-block-start: 8px;
+  border-block-start: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__technical summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+}
+
+.case-copilot__technical p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+  /* A schema version and a count are technical values an operator reads
+     left-to-right whatever the locale. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---- Narrow viewports ----------------------------------------------------
+ * The rail becomes a stacked section, so the toolbar's actions get their own
+ * line rather than crushing the count against them. */
+
+@media (max-width: 560px) {
+  .case-copilot__toolbar-actions {
+    margin-inline-start: 0;
+    inline-size: 100%;
+  }
+  .case-copilot__count {
+    margin-inline-end: auto;
+  }
+  .case-copilot__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding-inline-end: 0;
+  }
+  .case-copilot__row-version {
+    align-self: start;
+    padding: 0 12px 10px;
+    padding-inline: 46px 12px;
+  }
+  .case-copilot__fact {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .case-copilot__list {
+    max-block-size: 46vh;
+  }
+}

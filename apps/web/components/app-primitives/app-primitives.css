@@ -247,6 +247,25 @@
   border-color: var(--orange-500, #EA580C);
   color: var(--orange-ink, #C2410C);
 }
+/* DESTRUCTIVE OUTLINE — a clearing or removing action.
+ *
+ * Outlined, never filled. A solid red slab reads as the page's primary action
+ * and pulls the eye away from whatever the operator actually came to do; the
+ * outline says "this removes something" without competing. Same geometry as
+ * every other tone, so switching a control's meaning never moves it.
+ *
+ * `--error` (#DC2626) measures 4.83:1 on white — AA for the label at this
+ * size. Nothing here is a private literal. */
+.app-secondary-action--danger {
+  border-color: var(--error-200, #FECACA);
+  color: var(--error, #DC2626);
+}
+.app-secondary-action--danger:hover:not(:disabled) {
+  background: var(--error-050, #FEF2F2);
+  border-color: var(--error, #DC2626);
+  color: var(--error, #DC2626);
+}
+
 /* The focus ring stays the canonical lavender on every tone: a focus ring is a
    system affordance, not part of the control's own colour identity. */
 

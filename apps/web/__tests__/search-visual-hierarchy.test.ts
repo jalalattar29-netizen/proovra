@@ -159,7 +159,82 @@ test("8. Open evidence is orange-outlined, matching the record it opens", () => 
   );
   // The orange comes from the token authority, not from a literal at the site.
   assert.match(TOKENS, /--orange-050: #FFF7ED;/);
-  assert.match(TOKENS, /--orange-ink: #C2410C;/);
+  assert.match(TOKENS, /--orange-ink: #[0-9A-F]{6};/);
+});
+
+/** Relative luminance, per WCAG 2.x. */
+function luminance(hex: string): number {
+  const c = hex.replace("#", "");
+  const channels = [0, 2, 4]
+    .map((i) => parseInt(c.substr(i, 2), 16) / 255)
+    .map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+}
+
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+function token(name: string): string {
+  const m = TOKENS.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6});`));
+  assert.ok(m, `token --${name} is not declared`);
+  return m![1]!.toUpperCase();
+}
+
+test("8c. the classification orange is LIGHTER than it was, and still AA on white", () => {
+  const orange = token("orange-ink");
+
+  // MEASURED, not judged by eye. White label text on a solid fill is normal-size
+  // text, so it needs 4.5:1 — an 11px uppercase label is not "large text".
+  const ratio = contrast(orange, "#FFFFFF");
+  assert.ok(
+    ratio >= 4.5,
+    `white on ${orange} measures ${ratio.toFixed(3)}:1 — below WCAG AA 4.5:1`,
+  );
+
+  // Lighter than the value it replaced. #C2410C measured 5.18:1 and read closer
+  // to brown than orange as a solid fill.
+  assert.ok(
+    luminance(orange) > luminance("#C2410C"),
+    `${orange} is not lighter than the #C2410C it replaced`,
+  );
+
+  // Still ORANGE. Amber means caution and a record type is not a caution, so the
+  // green channel must stay in the orange ramp rather than drifting toward
+  // `--warning` (G/R ≈ 0.62) or toward red (G/R ≈ 0.2).
+  const r = parseInt(orange.substr(1, 2), 16);
+  const g = parseInt(orange.substr(3, 2), 16);
+  const ratioGR = g / r;
+  assert.ok(
+    ratioGR > 0.3 && ratioGR < 0.42,
+    `${orange} has left the orange ramp (G/R = ${ratioGR.toFixed(3)})`,
+  );
+});
+
+test("8d. every filled type label pairs a canonical token with white, and every pair is AA", () => {
+  // The fills were private literals — including a `#C2570C` that existed
+  // nowhere else and differed from `--orange-ink`, so "one type-tone mapping"
+  // was one mapping in TypeScript and a second, drifted one in CSS.
+  const fills = [...CSS.matchAll(
+    /\.search-type-badge\[data-tone="(\w+)"\] \{ background: var\(--([a-z0-9-]+)\); color: (#[0-9A-F]{6}); \}/g,
+  )];
+  assert.equal(fills.length, 7, "every tone must declare a filled pairing");
+
+  for (const [, tone, tokenName, ink] of fills) {
+    assert.equal(ink, "#FFFFFF", `${tone} does not use white text`);
+    const ratio = contrast(token(tokenName!), ink!);
+    assert.ok(
+      ratio >= 4.5,
+      `${tone} (--${tokenName}) measures ${ratio.toFixed(3)}:1 against white`,
+    );
+  }
+
+  // No private literal survives as a fill.
+  assert.doesNotMatch(
+    CSS,
+    /.search-type-badge[data-tone="w+"] { background: #[0-9A-Fa-f]{6}/,
+  );
 });
 
 test("8b. no tone changes the control's geometry", () => {
