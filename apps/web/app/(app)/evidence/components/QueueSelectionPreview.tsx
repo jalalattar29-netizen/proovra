@@ -453,6 +453,10 @@ function PreviewMedia({
  * Inspector
  * ======================================================================== */
 
+/** Stable ids so a disabled download can point at its own reason. */
+const REPORT_REASON_ID = "evidence-inspector-report-reason";
+const PACKAGE_REASON_ID = "evidence-inspector-package-reason";
+
 const INSPECTOR_TITLE = "Queue selection";
 const INSPECTOR_SUPPORT =
   "An operational preview of the selected record. The full review workspace opens from the Evidence record.";
@@ -656,12 +660,21 @@ export function QueueSelectionPreview({
 
     footer = (
       <>
+        {/* THE SAME CANONICAL ACTION as Case Details "Add evidence" and
+            "Generate report": `app-secondary-action`, straight from
+            app-primitives. These two carried a filled accent and a filled
+            neutral instead, so the Evidence Inspector spoke a third action
+            language for the same kind of operational control. The Evidence
+            download icons stay; only the treatment is shared. The stacked
+            full-width layout continues to come from the Inspector's own
+            footer rule, not from the button. */}
         <button
           type="button"
-          className="app-primary-action"
+          className="app-secondary-action"
           onClick={onDownloadReport}
           disabled={Boolean(reportDisabledReason)}
           title={reportDisabledReason}
+          aria-describedby={reportDisabledReason ? REPORT_REASON_ID : undefined}
           data-evidence-inspector-download-report
         >
           <Download size={16} strokeWidth={1.9} aria-hidden="true" />
@@ -669,10 +682,11 @@ export function QueueSelectionPreview({
         </button>
         <button
           type="button"
-          className="app-secondary-action app-secondary-action--filled"
+          className="app-secondary-action"
           onClick={onDownloadVerificationPackage}
           disabled={Boolean(packageDisabledReason)}
           title={packageDisabledReason}
+          aria-describedby={packageDisabledReason ? PACKAGE_REASON_ID : undefined}
           data-evidence-inspector-download-package
         >
           <Download size={16} strokeWidth={1.9} aria-hidden="true" />
@@ -689,6 +703,26 @@ export function QueueSelectionPreview({
           <Copy size={16} strokeWidth={1.9} aria-hidden="true" />
           Copy Verification Link
         </button>
+        {/* A disabled download states WHY as text, not only in a `title`
+            attribute a keyboard or screen-reader user never reaches. */}
+        {reportDisabledReason ? (
+          <p
+            id={REPORT_REASON_ID}
+            className="app-hint evidence-library-inspector__reason"
+            data-evidence-inspector-reason="report"
+          >
+            {reportDisabledReason}
+          </p>
+        ) : null}
+        {packageDisabledReason ? (
+          <p
+            id={PACKAGE_REASON_ID}
+            className="app-hint evidence-library-inspector__reason"
+            data-evidence-inspector-reason="package"
+          >
+            {packageDisabledReason}
+          </p>
+        ) : null}
       </>
     );
   }

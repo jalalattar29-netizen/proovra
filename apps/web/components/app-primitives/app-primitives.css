@@ -1040,6 +1040,35 @@ textarea.app-form-input {
   background: #FFF6E5;
   color: #7C4A0C;
 }
+/* Danger variant — a mutation the server refused. Emitted by the evidence
+   discussion panel and the bulk-action dialog; it had no definition, so both
+   rendered a refusal in neutral ink. */
+.app-alert--danger {
+  border-color: rgba(178, 52, 66, 0.24);
+  background: #FFF1F2;
+  color: #B23442;
+}
+
+/* ---------------------------------------------------------------------------
+ * 9b. SPINNER — the one busy indicator for a control that is committing.
+ *
+ * Pairs with a pending LABEL and `aria-busy`; it is decorative, so it carries
+ * no accessible name of its own.
+ * ------------------------------------------------------------------------- */
+.app-spinner {
+  flex: 0 0 auto;
+  animation: app-spin 0.9s linear infinite;
+}
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-spinner {
+    animation-duration: 2.6s;
+  }
+}
 
 /* ---------------------------------------------------------------------------
  * 10. DIALOG — light form dialog surface (confirmations reuse

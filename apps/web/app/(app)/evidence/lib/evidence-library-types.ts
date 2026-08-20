@@ -553,6 +553,15 @@ export type EvidenceBulkActionResponse = {
   items?: EvidenceListItem[];
   csv?: string;
   fileName?: string;
+  /**
+   * An ACCEPTED-but-not-finished answer. The synchronous route never sets
+   * these; a queued backend does, and the difference matters — "accepted"
+   * must never be reported to the operator as "completed".
+   */
+  accepted?: boolean;
+  queued?: boolean;
+  jobId?: string;
+  pendingCount?: number;
 };
 
 export type EvidenceAiCategorization = {

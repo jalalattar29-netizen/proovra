@@ -178,26 +178,6 @@
   color: #0f172a;
 }
 
-.evidence-library-result-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.evidence-library-result-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(35, 55, 59, 0.05);
-}
-
-.evidence-library-result-row span {
-  color: rgba(35, 55, 59, 0.72);
-}
-
 .evidence-library-skeleton-stack {
   padding: 20px;
 }
@@ -1584,8 +1564,7 @@
 .evidence-library-artifacts,
 .evidence-library-artifact,
 .evidence-library-artifact__text,
-.evidence-library-note-card,
-.evidence-library-result-row {
+.evidence-library-note-card {
   min-inline-size: 0;
 }
 /* Inspector metadata cards stay equal and never widen for a long value. */
@@ -1606,9 +1585,8 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-/* Saved views, bulk results and dialog copy. */
-.evidence-library-note-card strong,
-.evidence-library-result-row strong {
+/* Saved views and dialog copy. */
+.evidence-library-note-card strong {
   overflow-wrap: anywhere;
   min-inline-size: 0;
 }
@@ -1622,4 +1600,52 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---- Bulk action dialog ---------------------------------------------------
+ * The confirm dialog carries the whole action: confirmation, the committing
+ * state, and the result. The result is a SUMMARY — counts plus the server's
+ * own refusal categories — not a list of record identifiers. */
+.evidence-library-bulk-result {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.evidence-library-bulk-result strong {
+  font-size: 14px;
+  color: var(--app-ink-heading);
+}
+
+.evidence-library-bulk-reasons {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.evidence-library-bulk-reasons > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--app-ink-label);
+  min-inline-size: 0;
+}
+
+.evidence-library-bulk-error {
+  margin-block-start: 4px;
+}
+
+/* The reason a download is unavailable, stated in the footer beside the
+   control it explains. */
+.evidence-library-inspector__reason {
+  margin: 0;
+  text-align: start;
 }

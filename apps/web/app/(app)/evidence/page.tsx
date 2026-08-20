@@ -1055,6 +1055,18 @@ function EvidenceLibraryPageInner() {
     setSelectedIds(new Set());
   }, []);
 
+  /**
+   * The selection after a bulk action reported a TERMINAL result.
+   *
+   * Total success narrows it to nothing; a partial result keeps exactly the
+   * records the server refused, so the operator can read the reason and retry
+   * that set without re-selecting it. A refused request never reaches here —
+   * the selection survives it untouched.
+   */
+  const resolveSelectionAfterBulk = useCallback((remainingIds: string[]) => {
+    setSelectedIds(new Set(remainingIds));
+  }, []);
+
   const openRecord = (evidenceId: string) => {
     router.push(`/evidence/${evidenceId}`);
   };
@@ -1274,6 +1286,10 @@ function EvidenceLibraryPageInner() {
                   availableCases={library.cases}
                   onClear={clearSelection}
                   onRun={runBulkAction}
+                  /* The selection is narrowed ONLY by an accepted terminal
+                     result: empty after a total success, the failed ids after
+                     a partial one, untouched when the request was refused. */
+                  onSelectionResolved={resolveSelectionAfterBulk}
                 />
               ) : null
             }

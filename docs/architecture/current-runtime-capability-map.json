@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
   "routeInventoryHash": "a22d8c1ae81f43a123dd1d03e1aeccc0f6b47b77d8bce9e53755c3af2c7a8145",
-  "consumerInventoryHash": "233b2bb9a9e08a852576398a6ccebb34c912b08bc29117dcfcce6b47c25aa9b7",
+  "consumerInventoryHash": "a963897db3ed7d72442bdf1989a4f8a64b2a71a1a0cf70056c34e056b2558f40",
   "dispositionsHash": "f895235e9099c451e4abc916b970432888abdaf59814a29c2d09f768d93f5f1e",
   "totals": {
     "RegisteredRoutes": 1087,
@@ -3720,7 +3720,7 @@
       "method": "POST",
       "route": "/v1/evidence/bulk",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/page.tsx:1140",
+      "productConsumer": "apps/web/app/(app)/evidence/page.tsx:1152",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -16302,8 +16302,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@10805",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10805",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@10813",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10813",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16335,8 +16335,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12102",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12102",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12110",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12110",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16368,8 +16368,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12468",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12468",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12476",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12476",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16665,8 +16665,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6917",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6917",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6925",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6925",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16698,8 +16698,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6934",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6934",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6942",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6942",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16731,8 +16731,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6970",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6970",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6978",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6978",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16764,8 +16764,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@7000",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7000",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@7008",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7008",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16830,8 +16830,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8390",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8390",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8398",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8398",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16863,8 +16863,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7431",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7431",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7439",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7439",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16896,8 +16896,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7507",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7507",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7515",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7515",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16929,8 +16929,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7586",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7586",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7594",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7594",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16962,8 +16962,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7258",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7258",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7266",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7266",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16995,8 +16995,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7314",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7314",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7322",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7322",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17028,8 +17028,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7369",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7369",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7377",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7377",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17094,8 +17094,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7100",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7100",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7108",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7108",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17127,8 +17127,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7156",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7156",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7164",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7164",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17160,8 +17160,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7211",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7211",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7219",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7219",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17226,8 +17226,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@12472",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12472",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@12480",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12480",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -64667,7 +64667,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7562",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7570",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -64729,7 +64729,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7190",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7198",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -64791,7 +64791,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7348",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7356",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -64853,7 +64853,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8154",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8162",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -66867,7 +66867,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11508",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11516",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -74632,7 +74632,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9495",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9503",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -74739,7 +74739,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8190",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8198",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -74806,7 +74806,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7385",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7393",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -74865,7 +74865,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10220",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10228",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -74943,7 +74943,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11291",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11299",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -74996,7 +74996,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7069",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7077",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75055,7 +75055,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7602",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7610",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75118,7 +75118,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7686",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7694",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75181,7 +75181,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8018",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8026",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75312,7 +75312,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7227",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7235",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75431,7 +75431,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10716",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10724",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75575,7 +75575,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8057",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8065",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75626,7 +75626,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10434",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10442",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75653,7 +75653,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/page.tsx",
-          "line": 1085,
+          "line": 1097,
           "caller": "downloadReport",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -75719,7 +75719,7 @@
       ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:802 (open, WEB); apps/web/app/(app)/evidence/page.tsx:517 (EvidenceLibraryPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:1085 (downloadReport, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:802 (open, WEB); apps/web/app/(app)/evidence/page.tsx:517 (EvidenceLibraryPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:1097 (downloadReport, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -75764,7 +75764,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8444",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8452",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75852,7 +75852,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7889",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7897",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -75920,7 +75920,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8034",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8042",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -76038,7 +76038,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10942",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10950",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -76057,7 +76057,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/page.tsx",
-          "line": 1103,
+          "line": 1115,
           "caller": "downloadVerificationPackage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -76083,7 +76083,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/page.tsx:518 (EvidenceLibraryPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:1103 (downloadVerificationPackage, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:647 (downloadVerificationPackage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/page.tsx:518 (EvidenceLibraryPageInner, WEB); apps/web/app/(app)/evidence/page.tsx:1115 (downloadVerificationPackage, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:647 (downloadVerificationPackage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -97262,7 +97262,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7482",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7490",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97315,7 +97315,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7134",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7142",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97439,7 +97439,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7292",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7300",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97501,7 +97501,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8108",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8116",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97557,7 +97557,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7901",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7909",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108803,7 +108803,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8265",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8273",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108875,7 +108875,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7418",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7426",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109000,7 +109000,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11387",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11395",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109054,7 +109054,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11326",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11334",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109108,7 +109108,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11450",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11458",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109162,7 +109162,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7094",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7102",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109223,7 +109223,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9659",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9667",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109360,7 +109360,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7252",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7260",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109555,7 +109555,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8071",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8079",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109620,7 +109620,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10320",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10328",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109910,7 +109910,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/page.tsx",
-          "line": 1140,
+          "line": 1152,
           "caller": "EvidenceLibraryPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109920,7 +109920,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/page.tsx:1140 (EvidenceLibraryPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/page.tsx:1152 (EvidenceLibraryPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

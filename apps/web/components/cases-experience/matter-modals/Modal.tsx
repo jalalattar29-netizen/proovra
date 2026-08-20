@@ -69,7 +69,25 @@ export function Modal({
   const titleId = useId();
   const descriptionId = useId();
 
-  // Focus trap + initial focus + restore focus on close.
+  /**
+   * The trap reads these through refs so it can be installed ONCE per opening.
+   *
+   * They used to be effect dependencies. `onClose` is an inline arrow at almost
+   * every call site and `dismissDisabled` flips while a request commits, so the
+   * effect re-ran on ordinary re-renders — and its first act is to focus the
+   * first control in the dialog. A dialog that surfaced a validation error, or
+   * simply re-rendered while open, yanked focus back to "Cancel" and the
+   * message the operator needed to read was never reached.
+   */
+  const onCloseRef = useRef(onClose);
+  const dismissDisabledRef = useRef(dismissDisabled);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    dismissDisabledRef.current = dismissDisabled;
+  });
+
+  // Focus trap + initial focus + restore focus on close. Installed once per
+  // opening, never on a re-render.
   useEffect(() => {
     if (!open) return;
     previouslyFocusedRef.current =
@@ -90,9 +108,9 @@ export function Modal({
     const t = setTimeout(focusFirst, 0);
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !dismissDisabled) {
+      if (e.key === "Escape" && !dismissDisabledRef.current) {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab") {
@@ -161,7 +179,7 @@ export function Modal({
         }
       }
     };
-  }, [open, dismissDisabled, onClose]);
+  }, [open]);
 
   // PORTAL — a dialog must cover the VIEWPORT, never just its host.
   //

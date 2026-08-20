@@ -6898,6 +6898,14 @@ await appendCustodyEvent({
           }
           case "ARCHIVE": {
             assertEvidenceNotLocked(evidence);
+            // An already-archived record is reported, not re-archived. The
+            // update below stamps a NEW `archivedAt`, so re-running the action
+            // over a selection that already contains archived records used to
+            // silently overwrite the lifecycle time at which each record was
+            // actually archived.
+            if (evidence.archivedAt) {
+              throw new Error("ALREADY_ARCHIVED");
+            }
             {
               const gate = await runDestructiveActionGate({
                 action: "archive_evidence",
