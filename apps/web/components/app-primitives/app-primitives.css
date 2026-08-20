@@ -1118,6 +1118,15 @@ textarea.app-form-input {
   background: #FFF1F2;
   color: #B23442;
 }
+/* Success variant — a mutation the server accepted. The set was incomplete:
+   `--warn` and `--danger` existed, so a surface reporting "sent" had to either
+   borrow the neutral base (indistinguishable from a hint) or invent a private
+   green. Completes the same three-tone contract `.app-chip` already carries. */
+.app-alert--ok {
+  border-color: rgba(22, 122, 91, 0.20);
+  background: #EAF7F1;
+  color: #167A5B;
+}
 
 /* ---------------------------------------------------------------------------
  * 9b. SPINNER — the one busy indicator for a control that is committing.

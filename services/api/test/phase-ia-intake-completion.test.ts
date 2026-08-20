@@ -14,6 +14,10 @@ import {
   canonicalizeE164,
   isCanonicalE164,
 } from "../../../apps/web/lib/phone/e164";
+import {
+  intakeLinksFile,
+  intakeLinksSurface,
+} from "./_helpers/intake-links-surface";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -118,28 +122,29 @@ describe("Phase IA-intake-completion P2 — Send UI + E.164", () => {
     expect(isCanonicalE164("+0123456789")).toBe(false); // first digit can't be 0
   });
 
-  it("intake-links page wires the phone input + Send buttons", () => {
-    const PAGE = readWeb("app/(app)/intake-links/page.tsx");
-    expect(PAGE).toMatch(/recipientPhone:\s*string\s*\|\s*null/);
-    expect(PAGE).toMatch(/data-intake-link-phone/);
-    expect(PAGE).toMatch(/data-intake-link-send="SMS"/);
-    expect(PAGE).toMatch(/data-intake-link-send="WHATSAPP"/);
-    expect(PAGE).toMatch(/data-intake-link-copy/);
+  it("the intake-links surface wires the phone input + Send buttons", () => {
+    const SURFACE = intakeLinksSurface();
+    expect(SURFACE).toMatch(/recipientPhone:\s*string\s*\|\s*null/);
+    expect(SURFACE).toMatch(/data-intake-link-phone/);
+    expect(SURFACE).toMatch(/data-intake-link-send="SMS"/);
+    expect(SURFACE).toMatch(/data-intake-link-send="WHATSAPP"/);
+    expect(SURFACE).toMatch(/data-intake-link-copy/);
   });
 
-  it("intake-links page validates phone via the E.164 helper", () => {
-    const PAGE = readWeb("app/(app)/intake-links/page.tsx");
-    expect(PAGE).toMatch(/validateE164\(/);
+  it("the intake-links surface validates phone via the E.164 helper", () => {
+    expect(intakeLinksSurface()).toMatch(/validateE164\(/);
   });
 
   it("Send action posts to the existing /v1/workflow/intake-links/:id/send endpoint", () => {
-    const PAGE = readWeb("app/(app)/intake-links/page.tsx");
-    expect(PAGE).toMatch(/\/v1\/workflow\/intake-links\/\$\{encodeURIComponent\(linkId\)\}\/send/);
+    expect(intakeLinksSurface()).toMatch(
+      /\/v1\/workflow\/intake-links\/\$\{encodeURIComponent\(link\.id\)\}\/send/,
+    );
   });
 
   it("Send is gated on recipientPhone presence (cannot send without phone)", () => {
-    const PAGE = readWeb("app/(app)/intake-links/page.tsx");
-    expect(PAGE).toMatch(/canSend = Boolean\(recipientPhone\)/);
+    expect(intakeLinksSurface()).toMatch(
+      /canSend = Boolean\(link\.recipientPhone\)/,
+    );
   });
 });
 
@@ -154,42 +159,34 @@ describe("Phase IA-intake-completion P3 — Delivery history", () => {
     expect(ROUTE).toMatch(/relatedIntakeLinkId:\s*q\.relatedIntakeLinkId/);
   });
 
-  it("IntakeLinkDeliveryDrawer component exists and queries the link-scoped list", () => {
-    const drawerPath = fileURLToPath(
-      new URL(
-        "../../../apps/web/components/intake-links/IntakeLinkDeliveryDrawer.tsx",
-        import.meta.url,
-      ),
-    );
-    expect(existsSync(drawerPath)).toBe(true);
-    const SRC = readFileSync(drawerPath, "utf8");
+  it("the delivery-history drawer exists and queries the link-scoped list", () => {
+    // The drawer moved into the route it belongs to when the shared
+    // `components/intake-links/` folder was retired; it is consumed by that
+    // route and by nothing else.
+    const SRC = intakeLinksFile("_components/DeliveryHistoryDrawer.tsx");
     expect(SRC).toMatch(/relatedIntakeLinkId=\$\{encodeURIComponent\(linkId\)\}/);
     expect(SRC).toMatch(/data-delivery-row/);
     expect(SRC).toMatch(/data-delivery-status/);
   });
 
   it("drawer exposes Retry action for FAILED / RETRY_SCHEDULED rows", () => {
-    const drawerPath = fileURLToPath(
-      new URL(
-        "../../../apps/web/components/intake-links/IntakeLinkDeliveryDrawer.tsx",
-        import.meta.url,
-      ),
-    );
-    const SRC = readFileSync(drawerPath, "utf8");
+    const SRC = intakeLinksFile("_components/DeliveryHistoryDrawer.tsx");
     expect(SRC).toMatch(/data-delivery-retry/);
     expect(SRC).toMatch(/\/v1\/communications\/messages\//);
     expect(SRC).toMatch(/\/retry/);
+    expect(SRC).toMatch(/r\.status === "RETRY_SCHEDULED"/);
+    expect(SRC).toMatch(/r\.status === "FAILED"/);
   });
 
   it("intake-links page opens the drawer per row", () => {
     const PAGE = readWeb("app/(app)/intake-links/page.tsx");
-    // Operations Console rebuild — per-row "Delivery" trigger
-    // (data-intake-link-delivery={link.id}) moved out of the page
-    // into IntakeLinksOperationsConsole's RowMenu. The page wires
-    // the drawer via the onOpenDelivery callback passed to the
-    // console; the drawer component itself is still rendered here.
-    expect(PAGE).toMatch(/onOpenDelivery=\{\(linkId\) => setDeliveryDrawerLinkId\(linkId\)\}/);
-    expect(PAGE).toMatch(/<IntakeLinkDeliveryDrawer/);
+    // The per-row trigger lives in the records surface's actions menu; the
+    // page wires it through `onOpenDelivery` and owns the drawer itself.
+    expect(PAGE).toMatch(/onOpenDelivery: setDeliveryId/);
+    expect(PAGE).toMatch(/<DeliveryHistoryDrawer/);
+    expect(intakeLinksSurface()).toMatch(
+      /data-intake-links-row-action=\{action\.key\}/,
+    );
   });
 });
 

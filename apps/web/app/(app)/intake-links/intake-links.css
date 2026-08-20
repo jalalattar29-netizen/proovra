@@ -1,0 +1,1256 @@
+/* ==========================================================================
+ * External Intake Links — route-owned presentation (`ilk-*`).
+ *
+ * The route consumes the canonical `app-*` primitives for everything shared
+ * (page header, panels, tables, listbox, checkbox, status badge, dialog,
+ * empty/alert states, actions). THIS file describes only what is specific to
+ * the intake-links management surface and its creation wizard:
+ *
+ *   1. the seven-up KPI grid and its semantic rail
+ *   2. the filter toolbar
+ *   3. the records surface — desktop table geometry + the narrow card anatomy
+ *   4. the status cluster (lifecycle / activity / delivery)
+ *   5. the creation wizard — stepper, choice cards, file-type chips, preview
+ *
+ * RULES OBSERVED HERE
+ *   - colour comes from the app-* semantic contract and the token layer; the
+ *     tone rails below are the same five semantic colours the status badges
+ *     use, referenced once each
+ *   - no `!important`, no compatibility overrides, no `:where()` escape hatches
+ *   - logical properties throughout so the surface mirrors correctly in RTL
+ *   - nothing here scrolls the page sideways: wide content scrolls inside its
+ *     own surface, and below 760px the table is replaced (not squeezed)
+ * ========================================================================== */
+
+/* --------------------------------------------------------------------------
+ * 0. Tone rails — one definition of each semantic accent used by the KPI
+ *    cards and the mobile card headers. Mirrors the AppStatusBadge contract.
+ * ------------------------------------------------------------------------ */
+.ilk-page {
+  --ilk-tone-slate: #64748b;
+  --ilk-tone-indigo: #6d28d9;
+  --ilk-tone-blue: #2563eb;
+  --ilk-tone-green: #167a5b;
+  --ilk-tone-amber: #a86612;
+  --ilk-tone-red: #c9363e;
+
+  /* PageShell owns the column layout and the section rhythm; this class adds
+     the tone tokens and one guard — a flex/grid child with no `min-width: 0`
+     refuses to shrink below its content, which is how one wide table teaches
+     the whole page to scroll sideways. */
+  min-inline-size: 0;
+}
+
+[data-ilk-tone="slate"] {
+  --ilk-tone: var(--ilk-tone-slate);
+}
+[data-ilk-tone="indigo"] {
+  --ilk-tone: var(--ilk-tone-indigo);
+}
+[data-ilk-tone="blue"] {
+  --ilk-tone: var(--ilk-tone-blue);
+}
+[data-ilk-tone="green"] {
+  --ilk-tone: var(--ilk-tone-green);
+}
+[data-ilk-tone="amber"] {
+  --ilk-tone: var(--ilk-tone-amber);
+}
+[data-ilk-tone="red"] {
+  --ilk-tone: var(--ilk-tone-red);
+}
+
+/* --------------------------------------------------------------------------
+ * 1. KPI GRID
+ *
+ * Seven equal cards. Grid rows stretch by default, so every card in a row is
+ * the same height without a JS measurement pass. The tone lives on a 3px
+ * inline-start rail and on a small marker, never as a saturated card fill —
+ * seven saturated cards is a dashboard, not an enterprise console.
+ * ------------------------------------------------------------------------ */
+.ilk-kpis {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 1240px) {
+  .ilk-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .ilk-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .ilk-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ilk-kpi {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px 14px 13px;
+  padding-inline-start: 16px;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+/* The semantic rail. An inset shadow rather than a border so selecting a card
+   never changes its geometry. */
+.ilk-kpi::before {
+  content: "";
+  position: absolute;
+  inset-block: 12px;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  border-start-end-radius: 3px;
+  border-end-end-radius: 3px;
+  background: var(--ilk-tone, var(--ilk-tone-slate));
+  opacity: 0.85;
+}
+.ilk-kpi:hover {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+.ilk-kpi:focus-visible {
+  outline: none;
+  box-shadow:
+    0 6px 18px rgba(15, 23, 42, 0.03),
+    0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+/* Selected = this KPI's filter is the one in force. Restrained: a tinted
+   surface plus the rail at full strength — never an OS-blue focus border. */
+.ilk-kpi[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(109, 40, 217, 0.24);
+  box-shadow: 0 6px 18px rgba(109, 40, 217, 0.08);
+}
+.ilk-kpi[aria-pressed="true"]::before {
+  opacity: 1;
+  inset-block: 8px;
+}
+
+.ilk-kpi__value {
+  font-size: 26px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--app-ink-heading, #172033);
+  font-variant-numeric: tabular-nums;
+}
+.ilk-kpi__label {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--app-ink-label, #344054);
+}
+.ilk-kpi__meta {
+  margin-block-start: 2px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--app-ink-secondary, #667085);
+}
+/* Bounded, not dropped. Below 900px seven full explanations push the records
+   surface most of a screen down; clamping keeps the strip compact while the
+   full sentence stays in the accessibility tree for `aria-describedby`. */
+@media (max-width: 900px) {
+  .ilk-kpi__meta {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* The overlap disclosure. These seven counts are filters, not a breakdown. */
+.ilk-kpis-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* --------------------------------------------------------------------------
+ * 2. FILTER TOOLBAR
+ * ------------------------------------------------------------------------ */
+.ilk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.ilk-toolbar__search {
+  flex: 1 1 260px;
+  min-inline-size: 200px;
+  max-inline-size: 420px;
+}
+/* Each listbox owns a bounded track so four of them wrap predictably instead
+   of one stretching to fill the row. */
+.ilk-toolbar__filter {
+  flex: 0 1 190px;
+  min-inline-size: 150px;
+}
+@media (max-width: 640px) {
+  .ilk-toolbar__search {
+    flex-basis: 100%;
+    max-inline-size: none;
+  }
+  .ilk-toolbar__filter {
+    flex: 1 1 46%;
+  }
+}
+
+.ilk-resultbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-resultbar__count {
+  font-weight: 650;
+  color: var(--app-ink-label, #344054);
+}
+
+/* --------------------------------------------------------------------------
+ * 3. RECORDS SURFACE
+ *
+ * Two renderers over ONE row model. `.ilk-records--wide` holds the management
+ * table; `.ilk-records--narrow` holds the purpose-built cards. Exactly one is
+ * in the layout AND in the accessibility tree at any width, because the other
+ * is `display: none`.
+ * ------------------------------------------------------------------------ */
+/* `display` is the ONLY switch, and it lives on these two classes alone — the
+   card list below deliberately does not declare its own `display`, so this
+   rule can never be overridden by a later equal-specificity selector. */
+.ilk-records--narrow {
+  display: none;
+}
+@media (max-width: 760px) {
+  .ilk-records--wide {
+    display: none;
+  }
+  .ilk-records--narrow {
+    display: flex;
+  }
+}
+
+/* Values folded out of a hidden column and back into a cell that survives.
+   Nothing is dropped at a narrower width — it is restated where there is room,
+   with its own visible label. */
+.ilk-fold {
+  display: none;
+}
+/* The inverse: content that stands down when the fold takes over. */
+.ilk-when-wide {
+  display: inline;
+}
+@media (max-width: 1080px) {
+  .ilk-fold[data-fold="channel"] {
+    display: inline;
+  }
+  .ilk-fold[data-fold="lifecycle"] {
+    display: flex;
+  }
+  .ilk-fold[data-fold="short"] {
+    display: inline;
+  }
+  .ilk-when-wide {
+    display: none;
+  }
+}
+
+.ilk-table {
+  table-layout: fixed;
+}
+.ilk-table th,
+.ilk-table td {
+  overflow-wrap: anywhere;
+}
+/* A badge or chip is `white-space: nowrap` by contract, so it never breaks
+   mid-phrase in a toolbar. Inside a FIXED-layout table cell that same contract
+   makes it overflow into the neighbouring column instead — which is precisely
+   how "Archived" ended up painted on top of "Submitted". Within this table the
+   phrase is allowed to wrap; it still never breaks mid-word, because the rule
+   is `normal`, not `break-all`. */
+.ilk-table .app-status-badge,
+.ilk-table .app-chip {
+  white-space: normal;
+}
+/* Column geometry. Fixed layout plus explicit widths is what stops "Queued
+   with provider" from being wrapped one word per line by the browser's
+   content-based sizing.
+   The shares were set from MEASURED content, not guessed: at the 1360px page
+   maximum the table is 1296px, and each share is at least as wide as its
+   widest real value plus the 32px of cell padding — the submissions button
+   measures 155px and the disabled-link badge 98px, which is why those two
+   columns are the widest of the secondary set. Every column is a percentage,
+   so the set sums to exactly 100% and the browser never has to reconcile a
+   pixel column against the rest. */
+.ilk-table col[data-col="request"] {
+  inline-size: 16%;
+}
+.ilk-table col[data-col="recipient"] {
+  inline-size: 10%;
+}
+.ilk-table col[data-col="channel"] {
+  inline-size: 7.5%;
+}
+.ilk-table col[data-col="lifecycle"] {
+  inline-size: 10%;
+}
+.ilk-table col[data-col="status"] {
+  inline-size: 15%;
+}
+.ilk-table col[data-col="latest"] {
+  inline-size: 7.5%;
+}
+.ilk-table col[data-col="expires"] {
+  inline-size: 8.5%;
+}
+.ilk-table col[data-col="submissions"] {
+  inline-size: 15%;
+}
+.ilk-table col[data-col="actions"] {
+  inline-size: 10.5%;
+}
+.ilk-table td[data-col="actions"],
+.ilk-table th[data-col="actions"] {
+  text-align: end;
+}
+
+/* Medium width: drop the three columns whose value can be restated elsewhere
+   and give the survivors the room back. Channel and Lifecycle reappear inside
+   the cells that remain (see `.ilk-fold`); Latest activity is available in the
+   details drawer and through the sort. A column is never merely narrowed to a
+   width its own content cannot fit — that is what made the previous surface
+   overlap "Archived" with "Submitted". */
+@media (max-width: 1080px) {
+  .ilk-table col[data-col="channel"],
+  .ilk-table th[data-col="channel"],
+  .ilk-table td[data-col="channel"],
+  .ilk-table col[data-col="latest"],
+  .ilk-table th[data-col="latest"],
+  .ilk-table td[data-col="latest"],
+  .ilk-table col[data-col="lifecycle"],
+  .ilk-table th[data-col="lifecycle"],
+  .ilk-table td[data-col="lifecycle"] {
+    display: none;
+  }
+  /* Six columns, expressed only as percentages so they sum to exactly 100%
+     and the browser never has to reconcile a fixed pixel column against them.
+     Each share is at least as wide as its widest real value. */
+  .ilk-table col[data-col="request"] {
+    inline-size: 23%;
+  }
+  .ilk-table col[data-col="recipient"] {
+    inline-size: 13%;
+  }
+  .ilk-table col[data-col="status"] {
+    inline-size: 23%;
+  }
+  .ilk-table col[data-col="expires"] {
+    inline-size: 17%;
+  }
+  .ilk-table col[data-col="submissions"] {
+    inline-size: 14%;
+  }
+  .ilk-table col[data-col="actions"] {
+    inline-size: 10%;
+  }
+}
+
+/* The row title is the primary control in its cell, so it carries a real
+   target rather than the 17px box a bare text button would measure. */
+.ilk-row__title {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 24px;
+  max-inline-size: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 650;
+  color: var(--app-ink-heading, #172033);
+  text-align: start;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.ilk-row__title:hover {
+  color: #6d28d9;
+}
+.ilk-row__title:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+.ilk-row__sub {
+  margin-block-start: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--app-ink-secondary, #667085);
+}
+/* Recipient previews, link ids and phone numbers keep their own direction so
+   an RTL surface never reorders a technical string. */
+.ilk-ltr {
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+/* The status cluster — one region, two explicitly labelled lines. */
+.ilk-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-inline-size: 0;
+}
+.ilk-status__line {
+  display: flex;
+  align-items: center;
+  /* A status badge is `white-space: nowrap` by contract, so the LINE has to be
+     able to wrap instead — otherwise the badge is the thing that escapes the
+     cell. Label on one line, badge on the next, is a fine narrow-width answer;
+     a badge sitting on top of the next column is not. */
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-status__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The visible key on a folded status line ("Lifecycle:"). The other two lines
+   carry their key visually-hidden, because the column header names them. */
+.ilk-status__key {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--app-ink-label, #344054);
+}
+.ilk-status__detail {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* Expiry. Danger ink ONLY when the link has actually expired; the near-expiry
+   window is a caution, and everything else is ordinary body ink. */
+.ilk-expiry {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  color: var(--app-ink-control, #263247);
+}
+.ilk-expiry[data-state="expired"] {
+  color: var(--ilk-tone-red);
+  font-weight: 650;
+}
+.ilk-expiry[data-state="soon"] {
+  color: var(--ilk-tone-amber);
+  font-weight: 650;
+}
+.ilk-expiry__abs {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* Relative phrases are short ("3d ago") and never wrap on their own, but the
+   helper falls back to an absolute date past 30 days — and a `nowrap` on that
+   fallback pushed the value straight out of its column. Wrapping at a space is
+   correct; what must never happen is a value broken one word per line, which is
+   why the columns above are sized to fit their content. */
+.ilk-relative {
+  white-space: normal;
+}
+
+/* Mobile record cards. */
+.ilk-cards {
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ilk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  min-inline-size: 0;
+}
+.ilk-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.ilk-card__heading {
+  min-inline-size: 0;
+}
+.ilk-card__facts {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.ilk-card__facts dt {
+  color: var(--app-ink-secondary, #667085);
+  font-weight: 600;
+}
+.ilk-card__facts dd {
+  margin: 0;
+  min-inline-size: 0;
+  color: var(--app-ink-control, #263247);
+  overflow-wrap: anywhere;
+}
+.ilk-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Pagination. */
+.ilk-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ilk-pagination__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.ilk-pagination__size {
+  inline-size: 108px;
+}
+.ilk-pagination__status {
+  font-size: 12.5px;
+  color: var(--app-ink-secondary, #667085);
+  font-variant-numeric: tabular-nums;
+}
+/* Pager arrows must mirror in RTL — they mean previous/next, not left/right. */
+.ilk-pager-icon {
+  transform: scaleX(1);
+}
+[dir="rtl"] .ilk-pager-icon {
+  transform: scaleX(-1);
+}
+
+/* --------------------------------------------------------------------------
+ * 4. ROW ACTION MENU (canonical anchored overlay, route-local geometry)
+ * ------------------------------------------------------------------------ */
+/* The canonical overlay pins its portaled box to the TRIGGER's width, and an
+   actions trigger is a 96px button. The menu therefore hangs from the
+   overlay's end edge and grows toward the start — which is the correct
+   direction in both LTR and RTL, and keeps it inside the viewport because the
+   actions column is always at the end edge of the surface. */
+.ilk-menu {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  box-sizing: border-box;
+  min-inline-size: 216px;
+  max-inline-size: min(280px, calc(100vw - 24px));
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+.ilk-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-ink-control, #263247);
+  text-align: start;
+  cursor: pointer;
+}
+.ilk-menu__item:hover:not(:disabled) {
+  background: rgba(99, 91, 255, 0.07);
+}
+.ilk-menu__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.34);
+}
+.ilk-menu__item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ilk-menu__item--danger {
+  color: var(--ilk-tone-red);
+}
+.ilk-menu__item--danger:hover:not(:disabled) {
+  background: #fff1f2;
+}
+.ilk-menu__sep {
+  block-size: 1px;
+  margin: 5px 4px;
+  background: rgba(15, 23, 42, 0.07);
+}
+
+/* --------------------------------------------------------------------------
+ * 5. DRAWERS (link details, delivery history, submissions)
+ * ------------------------------------------------------------------------ */
+.ilk-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.ilk-drawer {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(560px, 100%);
+  block-size: 100%;
+  background: rgba(255, 255, 255, 0.97);
+  border-inline-start: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: -18px 0 48px rgba(15, 23, 42, 0.18);
+}
+.ilk-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 14px;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.06);
+  flex: 0 0 auto;
+}
+.ilk-drawer__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.ilk-drawer__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.ilk-drawer__section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label, #344054);
+}
+.ilk-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 132px) minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+.ilk-facts dt {
+  color: var(--app-ink-secondary, #667085);
+  font-weight: 600;
+}
+.ilk-facts dd {
+  margin: 0;
+  min-inline-size: 0;
+  color: var(--app-ink-control, #263247);
+  overflow-wrap: anywhere;
+}
+.ilk-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ilk-timeline__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 7px 0;
+  font-size: 12.5px;
+  border-block-end: 1px dashed rgba(15, 23, 42, 0.07);
+}
+.ilk-timeline__row:last-child {
+  border-block-end: none;
+}
+.ilk-timeline__label {
+  color: var(--app-ink-secondary, #667085);
+  font-weight: 600;
+}
+.ilk-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ilk-history__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  min-inline-size: 0;
+}
+.ilk-history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ilk-submissions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* --------------------------------------------------------------------------
+ * 6. CREATION WIZARD
+ * ------------------------------------------------------------------------ */
+.ilk-wizard {
+  max-inline-size: 720px;
+  block-size: min(760px, calc(100vh - 48px));
+}
+/* On a phone the wizard owns the whole viewport: a 4-step form inside a
+   floating card leaves no room for the body between a fixed head and foot. */
+@media (max-width: 640px) {
+  .ilk-wizard {
+    max-inline-size: none;
+    block-size: 100%;
+    max-block-size: none;
+    border-radius: 0;
+  }
+  .ilk-wizard-overlay {
+    padding: 0;
+  }
+}
+/* Short viewports (a landscape phone) — never let the head/foot eat the body. */
+@media (max-height: 560px) {
+  .ilk-wizard {
+    block-size: 100%;
+    max-block-size: none;
+  }
+}
+
+.ilk-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 22px 14px;
+  list-style: none;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.06);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 0 0 auto;
+}
+.ilk-stepper::-webkit-scrollbar {
+  display: none;
+}
+.ilk-stepper__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.ilk-stepper__dot {
+  inline-size: 22px;
+  block-size: 22px;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1.5px solid rgba(100, 116, 139, 0.34);
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-stepper__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-secondary, #667085);
+  white-space: nowrap;
+}
+.ilk-stepper__item[data-state="current"] .ilk-stepper__dot {
+  background: #6d28d9;
+  border-color: #6d28d9;
+  color: #fff;
+}
+.ilk-stepper__item[data-state="current"] .ilk-stepper__label {
+  color: var(--app-ink-heading, #172033);
+}
+.ilk-stepper__item[data-state="done"] .ilk-stepper__dot {
+  background: #f2ecfe;
+  border-color: #d9c7fb;
+  color: #6d28d9;
+}
+.ilk-stepper__rule {
+  inline-size: 18px;
+  block-size: 1px;
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.12);
+}
+@media (max-width: 640px) {
+  /* Keep the stepper honest on a phone: the current step keeps its label, the
+     others collapse to their number rather than scrolling out of reach. */
+  .ilk-stepper__item:not([data-state="current"]) .ilk-stepper__label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.ilk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-inline-size: 0;
+}
+.ilk-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+.ilk-fieldset__legend {
+  display: block;
+  padding: 0;
+  margin-block-end: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--app-ink-label, #344054);
+}
+.ilk-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 560px) {
+  .ilk-field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.ilk-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ilk-tone-red);
+}
+.ilk-required {
+  color: var(--ilk-tone-red);
+  font-weight: 600;
+}
+
+/* Choice cards — one anatomy for the radio groups (link mode, sender identity,
+   location policy) and for the delivery channels. The whole card is the label,
+   so the hit target is the card and there is no nested interactive element. */
+.ilk-choices {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.ilk-choices[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 560px) {
+  .ilk-choices[data-columns="2"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.ilk-choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-block-size: 44px;
+  padding: 11px 13px;
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+  min-inline-size: 0;
+  transition:
+    border-color 130ms ease,
+    background-color 130ms ease,
+    box-shadow 130ms ease;
+}
+.ilk-choice:hover {
+  border-color: rgba(100, 116, 139, 0.4);
+}
+.ilk-choice__input {
+  appearance: none;
+  -webkit-appearance: none;
+  inline-size: 18px;
+  block-size: 18px;
+  margin: 1px 0 0;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(100, 116, 139, 0.5);
+  border-radius: 999px;
+  background: #fff;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.ilk-choice__input::after {
+  content: "";
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 999px;
+  background: #fff;
+  transform: scale(0);
+  transition: transform 120ms ease;
+}
+.ilk-choice__input:checked {
+  border-color: #6d28d9;
+  background: #6d28d9;
+}
+.ilk-choice__input:checked::after {
+  transform: scale(1);
+}
+.ilk-choice__input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+}
+.ilk-choice__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ilk-choice:has(.ilk-choice__input:checked) {
+  border-color: #6d28d9;
+  background: rgba(242, 236, 254, 0.6);
+  box-shadow: inset 0 0 0 1px #6d28d9;
+}
+.ilk-choice:has(.ilk-choice__input:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.22);
+}
+.ilk-choice:has(.ilk-choice__input:disabled) {
+  cursor: not-allowed;
+  background: rgba(241, 245, 249, 0.7);
+}
+/* A choice card rendered as a BUTTON (quick-start tiles) rather than as a
+   label wrapping a radio. Same anatomy, no form control inside. */
+.ilk-choice--button {
+  inline-size: 100%;
+  font: inherit;
+  text-align: start;
+}
+.ilk-choice--button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+.ilk-choice__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.ilk-choice__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--app-ink-heading, #172033);
+}
+.ilk-choice__desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-choice__icon {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: 9px;
+  color: #6d28d9;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.14);
+}
+/* "Recommended" is a restrained note, deliberately not a status badge — it
+   must not compete with the lifecycle chips elsewhere on the surface. */
+.ilk-choice__note {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* Accepted file types — checkbox chips. */
+.ilk-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.ilk-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-block-size: 44px;
+  padding: 8px 13px;
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+  transition:
+    border-color 130ms ease,
+    background-color 130ms ease,
+    box-shadow 130ms ease;
+}
+.ilk-kind:hover {
+  border-color: rgba(100, 116, 139, 0.4);
+}
+.ilk-kind:has(.app-checkbox:checked) {
+  border-color: #6d28d9;
+  background: rgba(242, 236, 254, 0.6);
+  box-shadow: inset 0 0 0 1px #6d28d9;
+}
+.ilk-kind:has(.app-checkbox:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.22);
+}
+.ilk-kind__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 0;
+}
+.ilk-kind__label {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--app-ink-heading, #172033);
+}
+.ilk-kind__hint {
+  font-size: 11.5px;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-kind__icon {
+  flex-shrink: 0;
+  color: #6d28d9;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* Message preview — a review surface, not a textarea. */
+.ilk-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 14px;
+  background: rgba(248, 250, 253, 0.8);
+  min-inline-size: 0;
+}
+.ilk-preview__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label, #344054);
+}
+.ilk-preview__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.ilk-preview__meta dt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-preview__meta dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-ink-heading, #172033);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ilk-preview__body {
+  margin: 0;
+  padding: 12px 14px;
+  max-block-size: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 10px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--app-ink-control, #263247);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* A message body carries a URL and a date beside prose: keep each run in
+     its own direction so an RTL surface never reorders the link. */
+  unicode-bidi: plaintext;
+}
+.ilk-preview__note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* Review step summary. */
+.ilk-review {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-inline-size: 0;
+}
+.ilk-review__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  min-inline-size: 0;
+}
+.ilk-review__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-label, #344054);
+}
+
+/* One-shot secure link reveal. */
+.ilk-secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ilk-secret__value {
+  flex: 1 1 260px;
+  min-inline-size: 0;
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  unicode-bidi: plaintext;
+}
+
+/* --------------------------------------------------------------------------
+ * 7. MISC
+ * ------------------------------------------------------------------------ */
+.ilk-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.05);
+}
+.ilk-skeleton-bar {
+  block-size: 14px;
+}
+.ilk-skeleton-bar[data-span="wide"] {
+  flex: 2 1 0;
+}
+.ilk-skeleton-bar[data-span="mid"] {
+  flex: 1 1 0;
+}
+.ilk-skeleton-bar[data-span="pill"] {
+  inline-size: 72px;
+  flex: 0 0 auto;
+}

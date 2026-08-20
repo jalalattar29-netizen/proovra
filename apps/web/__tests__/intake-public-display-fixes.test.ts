@@ -27,10 +27,12 @@ import { dirname, resolve } from "node:path";
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const PUBLIC_PAGE = resolve(REPO_ROOT, "apps/web/app/intake/[token]/page.tsx");
-const ADMIN_PAGE = resolve(
-  REPO_ROOT,
-  "apps/web/app/(app)/intake-links/page.tsx",
-);
+const ROUTE = resolve(REPO_ROOT, "apps/web/app/(app)/intake-links");
+const CATALOG = resolve(REPO_ROOT, "apps/web/lib/intake-links/catalog.ts");
+const VOCABULARY = resolve(REPO_ROOT, "apps/web/lib/intake-links/vocabulary.ts");
+const WIZARD_STEPS = resolve(ROUTE, "_components/wizard/steps.tsx");
+const WIZARD_STATE = resolve(ROUTE, "_lib/wizardState.ts");
+const CREATED_DIALOG = resolve(ROUTE, "_components/LinkCreatedDialog.tsx");
 
 function read(p: string): string {
   return readFileSync(p, "utf8");
@@ -120,74 +122,72 @@ test("submit failure renders the requestId as a quotable Support ID", () => {
 // Delivery method order + disabled-when-unconfigured
 // ============================================================================
 
-test("DELIVERY_METHODS catalog contains all 4 channels (strict-UX brief retires the fixed order pin)", () => {
-  const src = read(ADMIN_PAGE);
-  // Strict-UX brief shortened every label and reordered the
-  // catalog (Copy link / SMS / Email / WhatsApp). The exact order
-  // is no longer a UX invariant — the operator's actual default is
-  // chosen by the config-aware fallback in CreateLinkModal, and
-  // the dropdown order is just the choice surface. Pin only that
-  // all 4 enum values still exist.
+// NOTE ON THE FOUR TESTS BELOW
+// ----------------------------------------------------------------------------
+// They used to pin the admin page's `DELIVERY_METHODS` array and its native
+// `<select>` markup. The admin surface was rebuilt: the catalog moved to
+// `lib/intake-links/catalog.ts`, the selector became a canonical radio-card
+// group, and the one-shot reveal moved to its own dialog component. The
+// PROPERTIES are unchanged and are re-pinned here against their new homes; the
+// runtime behaviour they protect is additionally proven by driving the real
+// wizard in `__tests__/render/intake-links-wizard.render.test.tsx`
+// ("disables a channel the deployment cannot send on, with the reason",
+// "defaults to a channel the deployment can actually deliver on",
+// "falls all the way back to copy-link when no provider is configured").
+
+test("the delivery catalog contains all 4 channels (the order is not a UX invariant)", () => {
+  const src = read(CATALOG);
   for (const v of ['"EMAIL"', '"SMS"', '"WHATSAPP"', '"MANUAL"']) {
     assert.ok(
       src.includes(`value: ${v}`),
-      `DELIVERY_METHODS catalog missing value ${v}`,
+      `delivery catalog missing value ${v}`,
     );
   }
 });
 
-test("MANUAL label is the short 'Copy link' (strict-UX shortening) — never 'Copy link manually'", () => {
-  const src = read(ADMIN_PAGE);
-  // Strict-UX brief shortened "Copy link only" → "Copy link".
+test("MANUAL reads as the short 'Copy link' — never the older verbose labels", () => {
+  const src = read(CATALOG);
   assert.match(src, /value:\s*"MANUAL"[\s\S]{0,200}label:\s*"Copy link"/);
-  // Both old labels must stay gone.
-  assert.ok(
-    !/label:\s*"Copy link manually"/.test(src),
-    "old confusing label 'Copy link manually' must be removed",
-  );
-  assert.ok(
-    !/label:\s*"Copy link only"/.test(src),
-    "old verbose label 'Copy link only' must be removed (strict-UX shortened to 'Copy link')",
-  );
-});
-
-test("unconfigured channels render as disabled <option>s with '— not configured' suffix", () => {
-  const src = read(ADMIN_PAGE);
-  assert.match(
-    src,
-    /disabled \? `\$\{d\.label\} — not configured` : d\.label/,
-  );
-  assert.match(
-    src,
-    /data-intake-link-delivery-method-disabled=\{\s*\n?\s*disabled \? "true" : "false"\s*\n?\s*\}/,
-  );
-});
-
-test("selector onChange refuses to set an unconfigured channel — forces MANUAL fallback", () => {
-  const src = read(ADMIN_PAGE);
-  // Every channel branch must check transport.configured before
-  // accepting the value. Pin all three.
-  for (const channel of ["WHATSAPP", "EMAIL", "SMS"]) {
-    assert.match(
-      src,
-      new RegExp(
-        `next === "${channel}" && senderTransport && !senderTransport\\.${channel.toLowerCase()}\\.configured`,
-      ),
-      `delivery onChange missing ${channel}-not-configured guard`,
+  const surface = src + read(VOCABULARY);
+  for (const dead of ["Copy link manually", "Copy link only"]) {
+    assert.ok(
+      !surface.includes(dead),
+      `the old label "${dead}" must stay removed`,
     );
   }
 });
 
+test("an unconfigured channel is a DISABLED choice carrying its reason", () => {
+  const src = read(WIZARD_STEPS);
+  // The option is disabled from the server-projected transport envelope, and
+  // the card states why instead of silently greying out.
+  assert.match(src, /const unavailable = channelUnavailableReason\(c\.value, transport\)/);
+  assert.match(src, /disabled: Boolean\(unavailable\)/);
+  assert.match(src, /disabledReason: "Not configured on this deployment\."/);
+});
+
+test("an unconfigured channel cannot be submitted even if it is somehow selected", () => {
+  // Stronger than the previous JS "force MANUAL" fallback: the control itself
+  // is disabled AND the step gate refuses the value, so no code path reaches
+  // the API with a channel this deployment cannot deliver on.
+  const state = read(WIZARD_STATE);
+  assert.match(state, /export function channelUnavailableReason\(/);
+  assert.match(state, /if \(transport\[key\]\?\.configured\) return null;/);
+  assert.match(
+    state,
+    /const unavailable = channelUnavailableReason\(state\.channel, ctx\.transport\);\s*\n\s*if \(unavailable\) errors\.channel = unavailable;/,
+  );
+});
+
 // ============================================================================
-// Reveal modal — hide (not disable) Send buttons when no phone
+// Reveal dialog — hide (not disable) Send buttons when no phone
 // ============================================================================
 
-test("reveal modal hides Send-by-SMS / Send-by-WhatsApp buttons when no recipient phone", () => {
-  const src = read(ADMIN_PAGE);
-  // The Send buttons are wrapped in `canSend ? (<>...</>) : null`
-  // — the disabled-state version is gone.
+test("the reveal dialog hides Send-by-SMS / Send-by-WhatsApp when no recipient phone", () => {
+  const src = read(CREATED_DIALOG);
+  assert.match(src, /const canSend = Boolean\(link\.recipientPhone\)/);
   assert.match(
     src,
-    /\{canSend \? \(\s*\n?\s*<>\s*\n?\s*<button[\s\S]{0,1500}Send by WhatsApp[\s\S]{0,200}<\/>\s*\n?\s*\) : null\}/,
+    /\{canSend \? \(\s*\n?[\s\S]{0,2000}data-intake-link-send="WHATSAPP"[\s\S]{0,400}\) : null\}/,
   );
 });

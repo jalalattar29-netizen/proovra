@@ -1,5 +1,5 @@
 /**
- * Canonical state-model + console-wire pins for /intake-links.
+ * Canonical state-model pins for /intake-links.
  *
  * These tests pin the strict-state-model correction:
  *
@@ -7,15 +7,16 @@
  *     — pure predicates, every case enumerated. These are the SOURCE
  *     OF TRUTH for what tab/KPI a row belongs to.
  *
- *   • The console wire — assert the operations console + submissions
- *     modal route every decision through the state model. No local
- *     `computedLifecycle === "..."` shortcuts in the renderer; no
- *     "Anonymous contributor" repeated rows in the modal; no
- *     `signingKey.publicKeyPem` field-access without nullable guard.
+ *   • Related evidence-route and reviewer-card contracts that share the
+ *     intake-session shape.
  *
- *   • Display-layer outputs — KPI cards have data attributes that
- *     match the canonical predicates so the table count and the card
- *     count cannot drift.
+ * The renderer wire — that the list, the KPI cards, the row chips and the
+ * submissions drawer all route their decisions through this model — used to be
+ * pinned here as source text against the operations console. That console was
+ * replaced by the `/intake-links` route modules, and the same properties are
+ * now proven BEHAVIOURALLY by driving the real components:
+ * `__tests__/render/intake-links-management.render.test.tsx` and
+ * `__tests__/render/intake-links-wizard.render.test.tsx`.
  *
  * Coverage matrix
  * ---------------
@@ -53,9 +54,6 @@ function read(rel: string): string {
 }
 
 const STATE_MODEL_SRC = "apps/web/lib/intake-links/state-model.ts";
-const CONSOLE_SRC =
-  "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx";
-const PAGE_SRC = "apps/web/app/(app)/intake-links/page.tsx";
 const EVIDENCE_PAGE_SRC = "apps/web/app/(app)/evidence/[id]/page.tsx";
 const EVIDENCE_ROUTES_SRC = "services/api/src/routes/evidence.routes.ts";
 const REVIEWER_CARD_SRC =
@@ -178,100 +176,6 @@ test("state-model: canOpenEvidence requires evidenceId", () => {
   assert.match(
     src,
     /if \(!session\.evidenceId\)[\s\S]{0,200}reason: "no_evidence_yet"/,
-  );
-});
-
-// ============================================================================
-// Phase 3+4 — operations console routes through the state model
-// ============================================================================
-
-test("console imports the state model + delegates matchesTab", () => {
-  const src = read(CONSOLE_SRC);
-  assert.match(
-    src,
-    /from "\.\.\/\.\.\/lib\/intake-links\/state-model"/,
-  );
-  // Local matchesTab function MUST call into the state model — no
-  // local computedLifecycle === "..." shortcuts.
-  assert.match(
-    src,
-    /function matchesTab[\s\S]{0,300}matchesIntakeTab\(item, tabToIntakeTab\(tab\)\)/,
-  );
-});
-
-test("console KPI computeKpis routes through computeIntakeKpis", () => {
-  const src = read(CONSOLE_SRC);
-  assert.match(
-    src,
-    /function computeKpis\([\s\S]{0,300}computeIntakeKpis\(items\)/,
-  );
-});
-
-test("console row renders TWO chips: link state + session state", () => {
-  const src = read(CONSOLE_SRC);
-  // Data attributes pin the two-chip render so a future refactor
-  // that collapses back to a single conflated chip fails this test.
-  assert.match(src, /data-intake-links-row-link-state=\{linkState\}/);
-  assert.match(src, /data-intake-links-row-session-state=\{sessionState\}/);
-});
-
-test("console no longer renders the conflated computedLifecycle chip", () => {
-  const src = read(CONSOLE_SRC);
-  // The legacy chip used `primaryBadgeKind` derived from a single
-  // ConsoleLifecycle. The fix removed that variable.
-  assert.ok(
-    !/data-intake-links-row-lifecycle-chip=/.test(src),
-    "the legacy single-chip lifecycle data-attr must be retired",
-  );
-  assert.ok(
-    !/const primaryBadgeKind:/.test(src),
-    "primaryBadgeKind shortcut must be gone (replaced by linkState + sessionState)",
-  );
-});
-
-// ============================================================================
-// Phase 5 — submissions modal
-// ============================================================================
-
-test("submissions modal renders 'Submission #N' (no repeated Anonymous contributor)", () => {
-  const src = read(PAGE_SRC);
-  assert.match(src, /Submission #\{submissionNumber\}/);
-  // The old default title was "Anonymous contributor" repeated on
-  // every row. The fix only shows that label on the Contributor:
-  // sub-line, not as the row title.
-  assert.ok(
-    !/\?\s*"Anonymous contributor"/.test(src),
-    "'Anonymous contributor' must not be used as a row TITLE — title is Submission #N",
-  );
-});
-
-test("submissions modal Open Evidence button is gated by canOpenEvidence", () => {
-  const src = read(PAGE_SRC);
-  assert.match(
-    src,
-    /canOpenEvidence as canOpenEvidenceFromSession/,
-  );
-  assert.match(src, /openability\.canOpen \?[\s\S]{0,800}Open evidence/);
-});
-
-test("submissions modal shows 'Waiting for files' when no evidence yet", () => {
-  const src = read(PAGE_SRC);
-  assert.match(src, /openability\.reason === "no_evidence_yet"/);
-  assert.match(src, /Waiting for files/);
-});
-
-test("submissions modal counts derive from the visible session list", () => {
-  const src = read(PAGE_SRC);
-  // The "X total · Y submitted · Z in progress" line MUST be
-  // computed from `payload.sessions` (visible rows), not from a
-  // separate `payload.totals` aggregate that could disagree.
-  assert.match(
-    src,
-    /data-intake-link-submissions-counts="true"/,
-  );
-  assert.match(
-    src,
-    /const sessions = payload\.sessions;[\s\S]{0,300}visibleTotal = sessions\.length/,
   );
 });
 

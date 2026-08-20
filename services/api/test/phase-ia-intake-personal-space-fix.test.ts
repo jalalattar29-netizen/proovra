@@ -36,6 +36,8 @@ function readApi(rel: string): string {
   );
 }
 
+import { intakeLinksFile } from "./_helpers/intake-links-surface";
+
 const PAGE = readWeb("app/(app)/intake-links/page.tsx");
 
 // ============================================================================
@@ -51,21 +53,24 @@ describe("Phase IA-intake-personal-space-fix — guard semantics", () => {
   });
 
   it("page reads the canonical activeSpace first", () => {
-    expect(PAGE).toMatch(/ctxEnvelope\.activeSpace/);
-    expect(PAGE).toMatch(/active\?\.id/);
+    // The workspace is resolved synchronously from the envelope now — the
+    // effect + local `currentTeam` state it used to be copied into was pure
+    // duplication of a value the provider already holds.
+    expect(PAGE).toMatch(/envelope\?\.activeSpace/);
+    expect(PAGE).toMatch(/activeSpace\?\.id/);
   });
 
   it("Personal Space falls through to the rendered UI with the personal teamId", () => {
-    // The handler must set currentTeam from `active.id` when the
-    // active space is present. The personal teamId is the same row
-    // the backend's TeamMember lookup expects.
-    expect(PAGE).toMatch(
-      /active\?\.id[\s\S]{0,400}setCurrentTeam\(\{\s*id:\s*active\.id/,
-    );
+    // The personal teamId is the same row the backend's TeamMember lookup
+    // expects, and every read is scoped to it.
+    expect(PAGE).toMatch(/const teamId = activeSpace\?\.id \?\? null/);
+    expect(PAGE).toMatch(/teamId=\$\{encodeURIComponent\(workspaceId\)\}/);
   });
 
   it("PERSONAL active space is labelled \"Personal Space\" (no team jargon)", () => {
-    expect(PAGE).toMatch(/active\.type === "PERSONAL"[\s\S]{0,200}"Personal Space"/);
+    expect(PAGE).toMatch(
+      /activeSpace\?\.type === "PERSONAL"[\s\S]{0,200}"Personal Space"/,
+    );
   });
 
   it("the deprecated `workspace.scope` field is not consulted at all", () => {
@@ -89,8 +94,10 @@ describe("Phase IA-intake-personal-space-fix — guard semantics", () => {
     expect(executable).not.toMatch(/const ws = ctxEnvelope\.workspace;/);
     expect(executable).not.toMatch(/scope === "TEAM"/);
     // The single remaining resolution path falls through to null rather
-    // than guessing a workspace.
-    expect(PAGE).toMatch(/setCurrentTeam\(null\);/);
+    // than guessing a workspace, and a null id renders the loading state
+    // instead of reading some other workspace's links.
+    expect(PAGE).toMatch(/activeSpace\?\.id \?\? null/);
+    expect(PAGE).toMatch(/teamId \? load : \{ kind: "loading" \}/);
   });
 });
 
@@ -116,22 +123,29 @@ describe("Phase IA-intake-personal-space-fix — copy", () => {
     // action-oriented message) is satisfied by the new title +
     // first-paragraph copy below. The workspace-nag negative pin
     // above still holds.
-    expect(PAGE).toMatch(/No intake links yet/);
-    expect(PAGE).toMatch(
-      /Create your first secure upload link to request evidence from/,
+    // The non-content states moved into `_components/States.tsx`, which is
+    // the whole point of that module — one anatomy for loading / empty /
+    // no-match / error / restricted, instead of five inline branches.
+    const STATES = intakeLinksFile("_components/States.tsx");
+    expect(STATES).toMatch(/No intake links yet/);
+    expect(STATES).toMatch(
+      /Create a secure upload link to request evidence from someone outside/,
     );
   });
 
   it("the empty-list state carries a stable e2e selector", () => {
-    expect(PAGE).toMatch(/data-intake-links-empty/);
+    expect(intakeLinksFile("_components/States.tsx")).toMatch(
+      /data-intake-links-empty/,
+    );
   });
 
   it("the workspace-loading state is a neutral loading hint, not a switch instruction", () => {
-    // The transient null-currentTeam state shows up between mount and
-    // envelope hydration. The copy must NOT instruct the user to
-    // switch workspace.
-    expect(PAGE).toMatch(/data-intake-links-loading/);
-    expect(PAGE).toMatch(/Loading workspace/);
+    // The transient no-workspace state shows up between mount and envelope
+    // hydration. The copy must NOT instruct the user to switch workspace.
+    const STATES = intakeLinksFile("_components/States.tsx");
+    expect(STATES).toMatch(/data-intake-links-loading/);
+    expect(STATES).toMatch(/Loading intake links/);
+    expect(STATES).not.toMatch(/Switch to a workspace/);
   });
 });
 

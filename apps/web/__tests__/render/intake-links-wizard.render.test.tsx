@@ -1,0 +1,982 @@
+/**
+ * /intake-links — the creation wizard, driven for real.
+ *
+ * The promises this file proves cannot be read out of source: that Back does
+ * not discard what Continue accepted, that an invalid step focuses its own
+ * first bad field, that the preview never sends, that a double-click produces
+ * one link and not two, and that a failure leaves every entered value intact.
+ */
+
+import React from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  render,
+  screen,
+  within,
+  waitFor,
+  act,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
+
+// ---------------------------------------------------------------------------
+// Seams
+// ---------------------------------------------------------------------------
+
+type Transport = {
+  email: { configured: boolean; fromName?: string; fromAddressPreview?: string };
+  sms: { configured: boolean; fromNumberPreview?: string | null };
+  whatsapp: { configured: boolean; fromNumberPreview?: string | null };
+};
+
+let requestLog: Array<{ path: string; method: string; body?: unknown }> = [];
+let transport: Transport;
+let createBehaviour: () => unknown = () => ({});
+let createCalls = 0;
+
+function apiFailure(statusCode: number, code?: string): Error {
+  const err = new Error("request failed") as Error & {
+    statusCode: number;
+    code?: string;
+  };
+  err.statusCode = statusCode;
+  if (code) err.code = code;
+  return err;
+}
+
+vi.mock("../../lib/api", () => ({
+  apiFetch: async (path: string, init?: { method?: string; body?: string }) => {
+    const method = init?.method ?? "GET";
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    requestLog.push({ path, method, body });
+    if (method === "GET" && path.startsWith("/v1/workflow/intake-links?")) {
+      return { items: [] };
+    }
+    if (path.startsWith("/v1/workflow/templates")) return { templates: [] };
+    if (path.includes("/sender-identity")) return transport;
+    if (path === "/v1/workflow/intake-links" && method === "POST") {
+      createCalls += 1;
+      const result = createBehaviour();
+      if (result instanceof Error) throw result;
+      return result;
+    }
+    return {};
+  },
+  readApiToken: () => null,
+  apiBaseUrl: () => "https://api.test.invalid",
+  ApiError: class ApiError extends Error {},
+}));
+
+vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+
+let currentSearch = "new=1";
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
+  useSearchParams: () => new URLSearchParams(currentSearch),
+  usePathname: () => "/intake-links",
+  useParams: () => ({}),
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
+}));
+
+import { PlatformContextProvider } from "../../lib/platform-context";
+import {
+  AUTHORITY_SCHEMA_VERSION,
+  CAPABILITY_SCHEMA_VERSION,
+  NAVIGATION_SCHEMA_VERSION,
+} from "../../lib/platform-context/types";
+import { ToastProvider } from "../../components/ui";
+import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
+import IntakeLinksPage from "../../app/(app)/intake-links/page";
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const WS = "11111111-1111-4111-8111-111111111111";
+
+const ALL_CHANNELS: Transport = {
+  email: {
+    configured: true,
+    fromName: "PROOVRA",
+    fromAddressPreview: "no-reply@proovra.com",
+  },
+  sms: { configured: true, fromNumberPreview: "+1 ••• ••• 8084" },
+  whatsapp: { configured: true, fromNumberPreview: "+1 ••• ••• 8084" },
+};
+
+function createdPayload(over: Record<string, unknown> = {}) {
+  return {
+    rawToken: "raw-token-value",
+    link: {
+      id: "new-link",
+      teamId: WS,
+      workflowTemplateSlug: "general-evidence-record",
+      workflowTemplateVersion: 1,
+      intakeMode: "EXTERNAL_ONE_TIME",
+      caseId: null,
+      recipientLabel: null,
+      recipientEmail: null,
+      recipientPhone: "+14155550123",
+      maxUses: 1,
+      usedCount: 0,
+      maxFileCountPerSession: 10,
+      maxBytesPerSession: null,
+      allowedAcceptedKinds: ["PHOTO"],
+      consentPolicyVersion: null,
+      status: "ACTIVE",
+      expiresAtUtc: "2099-01-01T00:00:00.000Z",
+      revokedAtUtc: null,
+      revokedReason: null,
+      createdAt: "2026-08-20T00:00:00.000Z",
+      updatedAt: "2026-08-20T00:00:00.000Z",
+    },
+    delivery: { method: "SMS", status: "sent", communicationMessageId: "m1" },
+    ...over,
+  };
+}
+
+function envelope() {
+  return {
+    authoritySchemaVersion: AUTHORITY_SCHEMA_VERSION,
+    capabilitySchemaVersion: CAPABILITY_SCHEMA_VERSION,
+    navigationSchemaVersion: NAVIGATION_SCHEMA_VERSION,
+    capabilities: { INTAKE_LINKS_MANAGE: true },
+    diagnostics: { requestId: "test" },
+    workspace: { id: WS, name: "Acme Legal", status: "active", scope: "ORGANIZATION" },
+    activeSpace: {
+      type: "ORGANIZATION",
+      id: WS,
+      displayName: "Acme Legal",
+      roleLabel: "Owner",
+    },
+    contextOptions: {
+      personalSpace: null,
+      ownedWorkspaces: [],
+      organizations: [],
+      activeContext: {
+        workspaceId: WS,
+        kind: "ORGANIZATION",
+        organizationId: null,
+        displayName: "Acme Legal",
+      },
+    },
+    account: { accountPlan: "TEAM", accountStatus: "active" },
+    flags: { isEnterpriseWorkspace: false },
+    platform: { isPlatformAdmin: false },
+    planFeatures: { intakeIncluded: true },
+  };
+}
+
+async function settle() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function openWizard() {
+  cleanup();
+  render(
+    <PlatformContextProvider testEnvelope={envelope() as never}>
+      <ToastProvider>
+        <ConfirmActionProvider>
+          <IntakeLinksPage />
+        </ConfirmActionProvider>
+      </ToastProvider>
+    </PlatformContextProvider>,
+  );
+  await settle();
+  const dialog = document.querySelector(
+    '[data-testid="intake-link-create-wizard"]',
+  ) as HTMLElement;
+  expect(dialog).toBeTruthy();
+  return dialog;
+}
+
+function step(): string | null {
+  return document
+    .querySelector("[data-intake-link-wizard-step]")
+    ?.getAttribute("data-intake-link-wizard-step") ?? null;
+}
+
+async function clickNext() {
+  await act(async () => {
+    fireEvent.click(
+      document.querySelector("[data-intake-link-wizard-next]") as HTMLElement,
+    );
+  });
+}
+
+async function clickBack() {
+  await act(async () => {
+    fireEvent.click(
+      document.querySelector("[data-intake-link-wizard-back]") as HTMLElement,
+    );
+  });
+}
+
+async function chooseChannel(value: string) {
+  await act(async () => {
+    fireEvent.click(
+      document.querySelector(
+        `[data-intake-link-delivery-method-input="${value}"]`,
+      ) as HTMLElement,
+    );
+  });
+}
+
+async function type(selector: string, value: string) {
+  await act(async () => {
+    fireEvent.change(document.querySelector(selector) as HTMLInputElement, {
+      target: { value },
+    });
+  });
+}
+
+/** Walk to review with a valid SMS request. */
+async function walkToReview() {
+  await clickNext(); // request → delivery
+  await chooseChannel("SMS");
+  await type("[data-intake-link-phone]", "+14155550123");
+  await clickNext(); // delivery → rules
+  await clickNext(); // rules → review
+}
+
+beforeEach(() => {
+  requestLog = [];
+  createCalls = 0;
+  currentSearch = "new=1";
+  transport = { ...ALL_CHANNELS };
+  createBehaviour = () => createdPayload();
+});
+
+// ===========================================================================
+// Shell
+// ===========================================================================
+
+describe("wizard shell", () => {
+  it("is one accessible dialog with a stepper and a stable footer", async () => {
+    const dialog = await openWizard();
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    expect(dialog.getAttribute("aria-labelledby")).toBeTruthy();
+
+    const stepper = dialog.querySelector("[data-intake-link-stepper]");
+    expect(stepper).toBeTruthy();
+    expect(
+      stepper?.querySelectorAll("[data-intake-link-step]").length,
+    ).toBe(4);
+    expect(
+      stepper?.querySelector('[aria-current="step"]')?.getAttribute(
+        "data-intake-link-step",
+      ),
+    ).toBe("request");
+
+    // Head, body and footer are siblings — only the body scrolls.
+    expect(dialog.querySelector(".app-dialog__head")).toBeTruthy();
+    expect(dialog.querySelector(".app-dialog__body")).toBeTruthy();
+    expect(dialog.querySelector(".app-dialog__footer")).toBeTruthy();
+  });
+
+  it("advances and retreats through all four steps", async () => {
+    await openWizard();
+    expect(step()).toBe("request");
+    await clickNext();
+    expect(step()).toBe("delivery");
+    await chooseChannel("MANUAL");
+    await clickNext();
+    expect(step()).toBe("rules");
+    await clickNext();
+    expect(step()).toBe("review");
+    await clickBack();
+    expect(step()).toBe("rules");
+  });
+
+  it("keeps every entered value across Back and Continue", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("EMAIL");
+    await type("[data-intake-link-email]", "witness@example.com");
+    await type("[data-intake-link-recipient-label]", "Claim 4842");
+    await clickNext();
+    await type("[data-intake-link-max-files]", "42");
+    await clickNext();
+    expect(step()).toBe("review");
+
+    await clickBack();
+    expect(
+      (document.querySelector("[data-intake-link-max-files]") as HTMLInputElement)
+        .value,
+    ).toBe("42");
+    await clickBack();
+    expect(
+      (document.querySelector("[data-intake-link-email]") as HTMLInputElement)
+        .value,
+    ).toBe("witness@example.com");
+    expect(
+      (
+        document.querySelector(
+          "[data-intake-link-recipient-label]",
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("Claim 4842");
+  });
+
+  it("asks before discarding entered data, and keeps it if you decline", async () => {
+    await openWizard();
+    await clickNext();
+    await type("[data-intake-link-recipient-label]", "Jane");
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-wizard-back]") as HTMLElement,
+      );
+    });
+    // Step 2's Back is a real Back, not a dismiss — go to step 1 then Cancel.
+    expect(step()).toBe("request");
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-wizard-back]") as HTMLElement,
+      );
+    });
+    const confirm = await screen.findByRole("dialog", { name: /discard/i });
+    expect(confirm.textContent).toMatch(/nothing has been created or sent/i);
+    await act(async () => {
+      fireEvent.click(
+        within(confirm).getByRole("button", { name: /keep editing/i }),
+      );
+    });
+    expect(
+      document.querySelector('[data-testid="intake-link-create-wizard"]'),
+    ).toBeTruthy();
+  });
+
+  it("closes without asking when nothing was entered", async () => {
+    await openWizard();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-wizard-back]") as HTMLElement,
+      );
+    });
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-testid="intake-link-create-wizard"]'),
+      ).toBeNull(),
+    );
+  });
+});
+
+// ===========================================================================
+// Step 1 — request
+// ===========================================================================
+
+describe("step 1 — request", () => {
+  it("offers the request purposes through a listbox, never a native select", async () => {
+    const dialog = await openWizard();
+    expect(dialog.querySelectorAll("select").length).toBe(0);
+    const combo = dialog.querySelector('[role="combobox"]') as HTMLElement;
+    await act(async () => {
+      fireEvent.click(combo);
+    });
+    const listbox = document.querySelector('[role="listbox"]') as HTMLElement;
+    const labels = within(listbox)
+      .getAllByRole("option")
+      .map((o) => o.textContent ?? "");
+    for (const expected of [
+      "General evidence request",
+      "Photos & videos",
+      "Documents",
+      "Insurance claim evidence",
+      "Legal document collection",
+      "Property damage",
+      "Incident investigation",
+      "Compliance / audit submission",
+      "Source / witness submission",
+    ]) {
+      expect(labels.some((l) => l.includes(expected))).toBe(true);
+    }
+    // No internal slug is exposed as a label.
+    expect(labels.join(" ")).not.toContain("general-evidence-record");
+  });
+
+  it("changing purpose re-seeds the recommended file types until the operator chooses", async () => {
+    await openWizard();
+    const combo = document.querySelector('[role="combobox"]') as HTMLElement;
+    await act(async () => {
+      fireEvent.click(combo);
+    });
+    const option = within(
+      document.querySelector('[role="listbox"]') as HTMLElement,
+    )
+      .getAllByRole("option")
+      .find((o) => o.textContent?.includes("Compliance / audit")) as HTMLElement;
+    await act(async () => {
+      fireEvent.click(option);
+    });
+
+    // Compliance recommends documents only.
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+    const checked = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        "[data-intake-link-accepted-kind-input]",
+      ),
+    )
+      .filter((el) => el.checked)
+      .map((el) => el.getAttribute("data-intake-link-accepted-kind-input"));
+    expect(checked).toEqual(["DOCUMENT"]);
+  });
+
+  it("a deliberate file-type choice survives a later purpose change", async () => {
+    async function pickPurpose(match: string) {
+      await act(async () => {
+        fireEvent.click(document.querySelector('[role="combobox"]') as HTMLElement);
+      });
+      const option = within(
+        document.querySelector('[role="listbox"]') as HTMLElement,
+      )
+        .getAllByRole("option")
+        .find((o) => o.textContent?.includes(match)) as HTMLElement;
+      await act(async () => {
+        fireEvent.click(option);
+      });
+    }
+    function checkedKinds(): string[] {
+      return Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+          "[data-intake-link-accepted-kind-input]",
+        ),
+      )
+        .filter((el) => el.checked)
+        .map((el) => el.getAttribute("data-intake-link-accepted-kind-input") as string);
+    }
+
+    await openWizard();
+    // Start from a purpose that recommends documents only.
+    await pickPurpose("Compliance / audit");
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+    expect(checkedKinds()).toEqual(["DOCUMENT"]);
+
+    // Deliberately add Audio — a witness statement recording.
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector(
+          '[data-intake-link-accepted-kind-input="AUDIO"]',
+        ) as HTMLElement,
+      );
+    });
+    expect(checkedKinds()).toEqual(["AUDIO", "DOCUMENT"]);
+
+    // Change the purpose to one whose recommendation is entirely different.
+    await clickBack();
+    await clickBack();
+    await pickPurpose("Photos & videos");
+    await clickNext();
+    await clickNext();
+
+    // The deliberate set survives untouched — a purpose change must never
+    // silently overwrite a choice the operator actually made.
+    expect(checkedKinds()).toEqual(["AUDIO", "DOCUMENT"]);
+  });
+
+  it("presents the four link types as one labelled radio group", async () => {
+    await openWizard();
+    const group = document.querySelector(
+      '[data-intake-link-choice-group="intake-mode"]',
+    ) as HTMLElement;
+    expect(group.tagName).toBe("FIELDSET");
+    expect(group.querySelector("legend")?.textContent).toMatch(/how should the link work/i);
+    const radios = group.querySelectorAll<HTMLInputElement>('input[type="radio"]');
+    expect(radios.length).toBe(4);
+    for (const r of Array.from(radios)) {
+      // No native circle survives, and every card is described.
+      expect(r.className).toBe("ilk-choice__input");
+      expect(r.getAttribute("aria-describedby")).toBeTruthy();
+    }
+    // Reuse and identity are ONE backend field, so they are ONE group and each
+    // option states both consequences.
+    expect(group.textContent).toMatch(/no contributor identity is requested/i);
+    expect(group.textContent).toMatch(/several people can submit/i);
+  });
+});
+
+// ===========================================================================
+// Step 2 — delivery and sender
+// ===========================================================================
+
+describe("step 2 — delivery and sender", () => {
+  it("asks only for the recipient field the chosen channel needs", async () => {
+    await openWizard();
+    await clickNext();
+
+    await chooseChannel("SMS");
+    expect(document.querySelector("[data-intake-link-phone]")).toBeTruthy();
+    expect(document.querySelector("[data-intake-link-email]")).toBeNull();
+
+    await chooseChannel("EMAIL");
+    expect(document.querySelector("[data-intake-link-email]")).toBeTruthy();
+    expect(document.querySelector("[data-intake-link-phone]")).toBeNull();
+
+    await chooseChannel("WHATSAPP");
+    expect(document.querySelector("[data-intake-link-phone]")).toBeTruthy();
+
+    await chooseChannel("MANUAL");
+    expect(document.querySelector("[data-intake-link-phone]")).toBeNull();
+    expect(document.querySelector("[data-intake-link-email]")).toBeNull();
+    expect(document.querySelector("[data-intake-link-manual-note]")).toBeTruthy();
+  });
+
+  it("blocks Continue and focuses the missing recipient field", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("EMAIL");
+    await clickNext();
+    expect(step()).toBe("delivery");
+    const email = document.querySelector(
+      "[data-intake-link-email]",
+    ) as HTMLInputElement;
+    expect(document.activeElement).toBe(email);
+    expect(email.getAttribute("aria-invalid")).toBe("true");
+    const errorId = email.getAttribute("aria-describedby");
+    expect(document.getElementById(errorId as string)?.textContent).toMatch(
+      /email address/i,
+    );
+  });
+
+  it("rejects a national phone number and accepts an international one", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("SMS");
+    await type("[data-intake-link-phone]", "415-555-0123");
+    await clickNext();
+    expect(step()).toBe("delivery");
+    expect(document.body.textContent).toMatch(/country code/i);
+
+    await type("[data-intake-link-phone]", "+14155550123");
+    await clickNext();
+    expect(step()).toBe("rules");
+  });
+
+  it("disables a channel the deployment cannot send on, with the reason", async () => {
+    transport = { ...ALL_CHANNELS, whatsapp: { configured: false } };
+    await openWizard();
+    await clickNext();
+    const wa = document.querySelector(
+      '[data-intake-link-delivery-method-input="WHATSAPP"]',
+    ) as HTMLInputElement;
+    expect(wa.disabled).toBe(true);
+    const card = wa.closest("[data-intake-link-delivery-method]") as HTMLElement;
+    expect(card.textContent).toMatch(/not configured/i);
+  });
+
+  it("defaults to a channel the deployment can actually deliver on", async () => {
+    transport = {
+      email: { configured: true },
+      sms: { configured: false },
+      whatsapp: { configured: false },
+    };
+    await openWizard();
+    await clickNext();
+    const email = document.querySelector(
+      '[data-intake-link-delivery-method-input="EMAIL"]',
+    ) as HTMLInputElement;
+    expect(email.checked).toBe(true);
+  });
+
+  it("falls all the way back to copy-link when no provider is configured", async () => {
+    transport = {
+      email: { configured: false },
+      sms: { configured: false },
+      whatsapp: { configured: false },
+    };
+    await openWizard();
+    await clickNext();
+    const manual = document.querySelector(
+      '[data-intake-link-delivery-method-input="MANUAL"]',
+    ) as HTMLInputElement;
+    expect(manual.checked).toBe(true);
+  });
+
+  it("offers three sender identities and validates a custom name", async () => {
+    await openWizard();
+    await clickNext();
+    const group = document.querySelector(
+      '[data-intake-link-choice-group="sender-display-mode"]',
+    ) as HTMLElement;
+    const values = Array.from(
+      group.querySelectorAll("[data-intake-link-sender-card]"),
+    ).map((el) => el.getAttribute("data-intake-link-sender-card"));
+    expect(values).toEqual(["PROOVRA", "WORKSPACE", "CUSTOM"]);
+    // Workspace mode is the default when the workspace has a name.
+    expect(
+      (
+        document.querySelector(
+          '[data-intake-link-sender-card-input="WORKSPACE"]',
+        ) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector(
+          '[data-intake-link-sender-card-input="CUSTOM"]',
+        ) as HTMLElement,
+      );
+    });
+    const name = document.querySelector(
+      '[data-intake-link-sender-custom-name="true"]',
+    ) as HTMLInputElement;
+    expect(name).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "PROOVRA" } });
+    });
+    await chooseChannel("MANUAL");
+    await clickNext();
+    expect(step()).toBe("delivery");
+    expect(document.body.textContent).toMatch(/PROOVRA is reserved/i);
+  });
+});
+
+// ===========================================================================
+// Step 3 — collection rules
+// ===========================================================================
+
+describe("step 3 — collection rules", () => {
+  async function toRules() {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+  }
+
+  it("offers the three location policies with the truthful boundary stated", async () => {
+    await toRules();
+    const group = document.querySelector(
+      '[data-intake-link-choice-group="location-policy"]',
+    ) as HTMLElement;
+    const values = Array.from(
+      group.querySelectorAll("[data-intake-link-location-card]"),
+    ).map((el) => el.getAttribute("data-intake-link-location-card"));
+    expect(values).toEqual(["NONE", "OPTIONAL", "REQUIRED"]);
+    expect(group.textContent).toMatch(/contributor's own browser/i);
+    expect(group.textContent).toMatch(/not proof of where they were/i);
+    // Required states its real fallback rather than over-promising.
+    expect(group.textContent).toMatch(/if their device cannot provide it/i);
+    // "Recommended" is a restrained note, not a competing status badge.
+    const note = group.querySelector(".ilk-choice__note");
+    expect(note?.textContent).toBe("Recommended");
+    expect(note?.classList.contains("app-status-badge")).toBe(false);
+  });
+
+  it("rejects out-of-range limits at the step boundary", async () => {
+    await toRules();
+    await type("[data-intake-link-max-files]", "0");
+    await clickNext();
+    expect(step()).toBe("rules");
+    expect(document.body.textContent).toMatch(/between 1 and 500/i);
+
+    await type("[data-intake-link-max-files]", "10");
+    await clickNext();
+    expect(step()).toBe("review");
+  });
+
+  it("requires at least one accepted file type", async () => {
+    await toRules();
+    for (const kind of ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]) {
+      const el = document.querySelector(
+        `[data-intake-link-accepted-kind-input="${kind}"]`,
+      ) as HTMLInputElement;
+      if (el.checked) {
+        await act(async () => {
+          fireEvent.click(el);
+        });
+      }
+    }
+    await clickNext();
+    expect(step()).toBe("rules");
+    expect(document.body.textContent).toMatch(/at least one type of file/i);
+  });
+
+  it("shows accepted types as human labels on canonical checkboxes", async () => {
+    await toRules();
+    const chips = Array.from(
+      document.querySelectorAll("[data-intake-link-accepted-kind]"),
+    );
+    expect(chips.map((c) => c.querySelector(".ilk-kind__label")?.textContent)).toEqual(
+      ["Photos", "Videos", "Audio", "Documents"],
+    );
+    for (const chip of chips) {
+      const input = chip.querySelector("input") as HTMLInputElement;
+      expect(input.type).toBe("checkbox");
+      expect(input.className).toBe("app-checkbox");
+    }
+    // The raw enum is never printed at the operator.
+    expect(
+      chips.map((c) => c.textContent).join(" "),
+    ).not.toMatch(/\bPHOTO\b|\bDOCUMENT\b/);
+  });
+
+  it("expiry is a preset listbox that reveals a bounded custom field", async () => {
+    await toRules();
+    const combos = document.querySelectorAll('[role="combobox"]');
+    const expiry = combos[0] as HTMLElement;
+    await act(async () => {
+      fireEvent.click(expiry);
+    });
+    const custom = within(
+      document.querySelector('[role="listbox"]') as HTMLElement,
+    ).getByRole("option", { name: /custom/i });
+    await act(async () => {
+      fireEvent.click(custom);
+    });
+    const hours = document.querySelector(
+      "[data-intake-link-expiry-hours]",
+    ) as HTMLInputElement;
+    expect(hours).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(hours, { target: { value: "0" } });
+    });
+    await clickNext();
+    expect(step()).toBe("rules");
+    expect(document.body.textContent).toMatch(/between 1 and 8760 hours/i);
+  });
+});
+
+// ===========================================================================
+// Step 4 — review and create
+// ===========================================================================
+
+describe("step 4 — review and create", () => {
+  it("summarises the request and previews the real message without sending", async () => {
+    await openWizard();
+    await walkToReview();
+
+    const preview = document.querySelector(
+      '[data-intake-link-preview-studio="true"]',
+    ) as HTMLElement;
+    expect(preview).toBeTruthy();
+    expect(preview.getAttribute("data-intake-link-preview-channel")).toBe("SMS");
+    expect(
+      preview.querySelector('[data-intake-link-preview-sender-display="true"]')
+        ?.textContent,
+    ).toContain("Acme Legal");
+    expect(
+      preview.querySelector('[data-intake-link-preview-transport="true"]')
+        ?.textContent,
+    ).toContain("8084");
+    const body = preview.querySelector(
+      '[data-intake-link-preview-body="true"]',
+    ) as HTMLElement;
+    expect(body.textContent).toContain("[secure-link]");
+    expect(body.tagName).toBe("PRE");
+    expect(body.querySelectorAll("textarea,input").length).toBe(0);
+    expect(preview.textContent).toMatch(/preview only/i);
+    expect(preview.textContent).toMatch(/no account is required/i);
+    expect(preview.textContent).toMatch(/not to forward/i);
+    // SMS is the only channel that carries the carrier opt-out statement.
+    expect(preview.textContent).toMatch(/STOP opt-out/i);
+
+    // Nothing has been created or sent by reaching the review step.
+    expect(createCalls).toBe(0);
+    expect(requestLog.some((r) => r.method === "POST")).toBe(false);
+  });
+
+  it("the preview follows the wizard state", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("EMAIL");
+    await type("[data-intake-link-email]", "witness@example.com");
+    await clickNext();
+    await clickNext();
+    const preview = document.querySelector(
+      '[data-intake-link-preview-studio="true"]',
+    ) as HTMLElement;
+    expect(preview.getAttribute("data-intake-link-preview-channel")).toBe("EMAIL");
+    expect(
+      preview.querySelector('[data-intake-link-preview-subject="true"]'),
+    ).toBeTruthy();
+    expect(preview.textContent).toContain("witness@example.com");
+    // Email carries no carrier opt-out sentence.
+    expect(preview.textContent).not.toMatch(/STOP opt-out/i);
+  });
+
+  it("copy-link shows no message preview at all", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+    await clickNext();
+    expect(
+      document.querySelector('[data-intake-link-preview-studio="true"]'),
+    ).toBeNull();
+    expect(
+      document.querySelector('[data-intake-link-preview-manual="true"]'),
+    ).toBeTruthy();
+    expect(
+      document.querySelector("[data-intake-link-submit]")?.textContent,
+    ).toMatch(/create secure link/i);
+  });
+
+  it("creates the link with the exact contract body and reveals it once", async () => {
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() => expect(createCalls).toBe(1));
+
+    const post = requestLog.find(
+      (r) => r.path === "/v1/workflow/intake-links" && r.method === "POST",
+    );
+    const body = post?.body as Record<string, unknown>;
+    expect(body.teamId).toBe(WS);
+    expect(body.deliveryMethod).toBe("SMS");
+    expect(body.recipientPhone).toBe("+14155550123");
+    expect(body.intakeMode).toBe("EXTERNAL_ONE_TIME");
+    expect(body.maxUses).toBe(1);
+    expect(String(body.idempotencyKey)).toMatch(/^create:/);
+    expect(typeof body.expiresAtUtc).toBe("string");
+    expect(body.senderDisplayMode).toBe("WORKSPACE");
+    expect(body.locationPolicy).toBe("OPTIONAL");
+    expect(body.intakeUrlBase).toBeTruthy();
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-testid="intake-link-created"]'),
+      ).toBeTruthy(),
+    );
+    const reveal = document.querySelector(
+      '[data-testid="intake-link-created"]',
+    ) as HTMLElement;
+    expect(
+      (reveal.querySelector("[data-intake-link-url]") as HTMLInputElement).value,
+    ).toContain("raw-token-value");
+    expect(reveal.textContent).toMatch(/shown once/i);
+    expect(
+      reveal.querySelector('[data-intake-link-delivery-result="sent"]'),
+    ).toBeTruthy();
+  });
+
+  it("a double-click creates exactly one link, on one idempotency key", async () => {
+    await openWizard();
+    await walkToReview();
+    const submit = document.querySelector(
+      "[data-intake-link-submit]",
+    ) as HTMLElement;
+    await act(async () => {
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+    });
+    await waitFor(() => expect(createCalls).toBe(1));
+    const posts = requestLog.filter((r) => r.method === "POST");
+    expect(posts.length).toBe(1);
+  });
+
+  it("marks the submit button busy while committing", async () => {
+    let release: ((v: unknown) => void) | null = null;
+    createBehaviour = () =>
+      new Promise((resolve) => {
+        release = resolve;
+      });
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    const submit = document.querySelector(
+      "[data-intake-link-submit]",
+    ) as HTMLButtonElement;
+    expect(submit.getAttribute("aria-busy")).toBe("true");
+    expect(submit.disabled).toBe(true);
+    expect(submit.textContent).toMatch(/creating/i);
+    await act(async () => {
+      release?.(createdPayload());
+    });
+  });
+
+  it("a rejected create keeps every entered value and says why in English", async () => {
+    createBehaviour = () =>
+      apiFailure(409, "intake_mode_not_supported_by_template");
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() =>
+      expect(
+        document.querySelector("[data-intake-link-create-error]"),
+      ).toBeTruthy(),
+    );
+    const error = document.querySelector(
+      "[data-intake-link-create-error]",
+    ) as HTMLElement;
+    expect(error.textContent).not.toContain("intake_mode_not_supported_by_template");
+    expect(error.textContent).toMatch(/doesn't support the selected link type/i);
+
+    // Still on review, still holding the phone number.
+    expect(step()).toBe("review");
+    await clickBack();
+    await clickBack();
+    expect(
+      (document.querySelector("[data-intake-link-phone]") as HTMLInputElement)
+        .value,
+    ).toBe("+14155550123");
+  });
+
+  it("reports a partial result truthfully — link created, delivery failed", async () => {
+    createBehaviour = () =>
+      createdPayload({
+        delivery: {
+          method: "SMS",
+          status: "failed",
+          reason: "provider_unconfigured",
+        },
+      });
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    const failure = await waitFor(
+      () =>
+        document.querySelector(
+          '[data-intake-link-delivery-result="failed"]',
+        ) as HTMLElement,
+    );
+    expect(failure.textContent).toMatch(/messaging isn't configured/i);
+    expect(failure.textContent).toMatch(/link itself was created/i);
+    expect(failure.textContent).not.toContain("provider_unconfigured");
+  });
+
+  it("refreshes the list after a successful create", async () => {
+    await openWizard();
+    const readsBefore = requestLog.filter((r) =>
+      r.path.startsWith("/v1/workflow/intake-links?"),
+    ).length;
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() => {
+      const readsAfter = requestLog.filter((r) =>
+        r.path.startsWith("/v1/workflow/intake-links?"),
+      ).length;
+      expect(readsAfter).toBeGreaterThan(readsBefore);
+    });
+  });
+});

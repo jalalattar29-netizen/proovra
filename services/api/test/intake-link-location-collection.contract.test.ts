@@ -261,18 +261,36 @@ describe("Intake Links — location collection contract", () => {
     );
   });
 
-  it("create modal renders the Location collection card-radio", () => {
-    const page = read("apps/web/app/(app)/intake-links/page.tsx");
-    assert.match(page, /LocationPolicySelector/);
-    assert.match(page, /INTAKE_LINK_LOCATION_POLICY_OPTIONS/);
+  it("the create wizard renders the Location collection card-radio", () => {
+    // The admin surface was rebuilt as a four-step wizard: the location
+    // control lives in step 3 and its default + payload live in the wizard's
+    // pure state machine. The PROPERTIES pinned here are unchanged — one
+    // labelled radio group driven by the shared options, defaulting to
+    // OPTIONAL, with the policy carried on the create payload.
+    const step = read(
+      "apps/web/app/(app)/intake-links/_components/wizard/steps.tsx",
+    );
+    assert.match(step, /INTAKE_LINK_LOCATION_POLICY_OPTIONS/);
     assert.match(
-      page,
-      /useState<IntakeLinkLocationPolicy>\("OPTIONAL"\)/,
+      step,
+      /name="location-policy"/,
+      "the policy must be ONE labelled radio group",
+    );
+    assert.match(
+      step,
+      /testAttr="intake-link-location-card"/,
+      "the stable per-option probe attribute must survive",
+    );
+
+    const state = read("apps/web/app/(app)/intake-links/_lib/wizardState.ts");
+    assert.match(
+      state,
+      /locationPolicy: "OPTIONAL"/,
       "new links must DEFAULT to OPTIONAL in the UI",
     );
     assert.match(
-      page,
-      /locationPolicy,\s*\n\s*\};/,
+      state,
+      /locationPolicy: state\.locationPolicy/,
       "create payload must carry locationPolicy",
     );
   });

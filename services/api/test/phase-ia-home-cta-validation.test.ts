@@ -172,19 +172,20 @@ describe("Phase IA-home-final — no nav-duplicate button row", () => {
 describe("Phase IA-home-final — intake deep-links open real flows", () => {
   const PAGE = readWeb("app/(app)/intake-links/page.tsx");
 
-  it("reads ?new=1 to auto-open the create-intake-link modal", () => {
-    // Intake-link redesign — the boolean `setShowCreate` was
-    // replaced by the more expressive `openCreate(initialSlug?)`
-    // helper, which now also clears stale errors before opening.
-    // Same deep-link contract; just the open helper changed name.
+  it("reads ?new=1 to auto-open the create-intake-link wizard", () => {
+    // The create form became a four-step wizard, so the open helper is
+    // `openWizard(initialSlug?)`. Same deep-link contract; the runtime
+    // behaviour is proven by driving the real page in
+    // apps/web/__tests__/render/intake-links-management.render.test.tsx
+    // ("?new=1 opens the creation wizard").
     expect(PAGE).toMatch(/useSearchParams/);
     expect(PAGE).toMatch(/searchParams\.get\("new"\) === "1"/);
-    expect(PAGE).toMatch(/openCreate\(\)/);
+    expect(PAGE).toMatch(/openWizard\(\)/);
   });
 
   it("reads ?linkId= to auto-open the delivery drawer", () => {
     expect(PAGE).toMatch(/searchParams\.get\("linkId"\)/);
-    expect(PAGE).toMatch(/setDeliveryDrawerLinkId\(linkId\)/);
+    expect(PAGE).toMatch(/setDeliveryId\(linkId\)/);
   });
 });
 

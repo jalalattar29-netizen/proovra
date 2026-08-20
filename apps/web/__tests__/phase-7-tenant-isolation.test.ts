@@ -101,7 +101,17 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     ["app/(app)/redaction/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/, /activeWorkspaceId\]/]],
     ["app/(app)/review/page.tsx", [/WorkspaceContextBanner/]],
     ["components/reports-experience/ReportsIndex.tsx", [/WorkspaceContextBanner/]],
-    ["app/(app)/intake-links/page.tsx", [/WorkspaceContextBanner/]],
+    // Intake links names its owning workspace from the SAME canonical resolver
+    // the shared banner uses (`useOwningContextLabel`), rendered inline in the
+    // page header instead of as a separate strip — the shared banner printed
+    // "Personal Space · Personal Space" here, saying the same thing twice. The
+    // probe attribute the banner emits (`data-context-workspace`) is preserved,
+    // and `__tests__/render/intake-links-management.render.test.tsx` proves the
+    // rendered surface names the workspace exactly once.
+    [
+      "app/(app)/intake-links/page.tsx",
+      [/useOwningContextLabel/, /data-context-workspace/],
+    ],
     ["app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
     ["app/(app)/settings/_sections/BillingSection.tsx", [/WorkspaceContextBanner/, /activeWorkspaceId\]/]],
     ["app/(app)/settings/_sections/AiSection.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],

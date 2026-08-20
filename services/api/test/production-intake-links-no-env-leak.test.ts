@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { intakeLinksSurface } from "./_helpers/intake-links-surface";
+
 function readWeb(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
@@ -35,7 +37,9 @@ function readApi(rel: string): string {
   );
 }
 
-const PAGE = readWeb("app/(app)/intake-links/page.tsx");
+// The invariant is about the SURFACE, not one file: read the whole route so a
+// future env name inlined into any of its modules is caught too.
+const PAGE = intakeLinksSurface();
 const ENV_EXAMPLE = readApi(".env.example");
 
 // Strip /* … */ and // line comments so the user-facing-copy

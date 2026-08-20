@@ -33,6 +33,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  intakeLinksModel,
+  intakeLinksSurface,
+} from "./_helpers/intake-links-surface";
+
 function readWeb(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
@@ -107,29 +112,32 @@ describe("Phase IA-self-serve-audit-fixes — Search inspector gates", () => {
 // ============================================================================
 
 describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
-  const INTAKE = readWeb("app/(app)/intake-links/page.tsx");
+  const INTAKE = intakeLinksSurface();
+  const MODES = intakeLinksModel("vocabulary.ts");
 
-  it("Pseudonymous mode label is the short SMB-friendly 'Display name' (modal microcopy cleanup)", () => {
-    // Strict-UX brief shortened every INTAKE_MODES label so the
-    // dropdown stays clean — the long explanation now lives in
-    // INTAKE_MODE_HELPER_TEXT and renders as helper copy under the
-    // select instead of inside the option label. The enum value
-    // EXTERNAL_PSEUDONYMOUS is unchanged so the backend payload is
-    // identical to before.
-    expect(INTAKE).toMatch(
-      /value:\s*"EXTERNAL_PSEUDONYMOUS",\s*label:\s*"Display name"/,
+  it("intake-mode labels stay short and plain (no verbose option sentences)", () => {
+    // The dropdown became a radio-card group, so the per-mode explanation is
+    // a `description` rendered under each card instead of helper text under a
+    // select — always visible rather than only for the selected option. The
+    // enum values are unchanged, so the backend payload is identical.
+    // The COMPACT labels the row chips show are unchanged word-for-word.
+    expect(MODES).toMatch(
+      /EXTERNAL_PSEUDONYMOUS:\s*\{[\s\S]{0,120}short:\s*"Alias"/,
     );
-    // Pin every other intake-mode label gets the short form too,
-    // so a future refactor can't bring back the old verbose options
-    // (which were the original reason this test was written).
-    expect(INTAKE).toMatch(
-      /value:\s*"EXTERNAL_ONE_TIME",\s*label:\s*"One-time link"/,
+    expect(MODES).toMatch(
+      /EXTERNAL_ANONYMOUS:\s*\{[\s\S]{0,120}short:\s*"Anonymous"/,
     );
-    expect(INTAKE).toMatch(
-      /value:\s*"EXTERNAL_REUSABLE",\s*label:\s*"Reusable link"/,
+    expect(MODES).toMatch(
+      /EXTERNAL_ONE_TIME:\s*\{\s*label:\s*"One-time link"/,
     );
-    expect(INTAKE).toMatch(
-      /value:\s*"EXTERNAL_ANONYMOUS",\s*label:\s*"Anonymous"/,
+    expect(MODES).toMatch(
+      /EXTERNAL_REUSABLE:\s*\{\s*label:\s*"Reusable link"/,
+    );
+    expect(MODES).toMatch(
+      /EXTERNAL_PSEUDONYMOUS:\s*\{\s*label:\s*"Display-name link"/,
+    );
+    expect(MODES).toMatch(
+      /EXTERNAL_ANONYMOUS:\s*\{\s*label:\s*"Anonymous link"/,
     );
     // Negative pins — the old verbose forms must stay gone. These
     // were the strings the original test was protecting against
@@ -142,27 +150,28 @@ describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
     );
   });
 
-  it("Intake-mode helper text supplies a plain-language explanation per mode (rendered under the select)", () => {
-    // The brief moved the explanation out of the dropdown label
-    // and into INTAKE_MODE_HELPER_TEXT, surfaced via a helper line
-    // (data-intake-link-intake-mode-helper) below the select. This
-    // preserves the original "user understands what each mode does"
-    // intent without cramming sentences into <option> text.
-    expect(INTAKE).toMatch(
-      /EXTERNAL_ONE_TIME:\s*"Best for one recipient and one submission\."/,
-    );
-    expect(INTAKE).toMatch(
-      /EXTERNAL_REUSABLE:[\s\S]{0,80}"Use when several people may submit files through the same link\."/,
-    );
-    expect(INTAKE).toMatch(
-      /EXTERNAL_ANONYMOUS:\s*"No contributor identity is requested\."/,
-    );
-    expect(INTAKE).toMatch(
-      /EXTERNAL_PSEUDONYMOUS:[\s\S]{0,80}"Contributor chooses a name shown with the submission\."/,
-    );
-    // The helper line is actually rendered (not just defined).
-    expect(INTAKE).toMatch(/data-intake-link-intake-mode-helper/);
-    expect(INTAKE).toMatch(/INTAKE_MODE_HELPER_TEXT\[intakeMode\]/);
+  it("every intake mode carries a plain-language explanation, rendered on its card", () => {
+    // Same intent as before — the operator must understand what each mode
+    // does without decoding an enum. The explanation now sits on the choice
+    // card itself, so it is visible for EVERY option at once rather than only
+    // for the one currently selected.
+    for (const mode of [
+      "EXTERNAL_ONE_TIME",
+      "EXTERNAL_REUSABLE",
+      "EXTERNAL_ANONYMOUS",
+      "EXTERNAL_PSEUDONYMOUS",
+    ]) {
+      expect(MODES).toMatch(
+        new RegExp(`${mode}:\\s*\\{[\\s\\S]{0,320}description:\\s*\n?\\s*"[^"]{20,}"`),
+      );
+    }
+    // Reuse and contributor identity are ONE backend field, so each option
+    // must state BOTH consequences rather than implying two settings.
+    expect(MODES).toMatch(/no contributor identity is requested or stored/i);
+    expect(MODES).toMatch(/Several people can submit through the same link/i);
+    // The description is actually rendered on the card (not merely defined).
+    expect(INTAKE).toMatch(/description: INTAKE_MODE_VOCABULARY\[mode\]\.description/);
+    expect(INTAKE).toMatch(/testAttr="intake-link-mode"/);
   });
 
   it("feature-disabled state drops platform-administrator / deployment-runbook jargon", () => {
@@ -183,8 +192,12 @@ describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
     // user) to the question form that mirrors how lawyers and claim
     // handlers actually describe the task. The control still binds the
     // template slug, so the wire contract is unchanged.
-    expect(INTAKE).toMatch(/<label[^>]*>What are you asking for\?<\/label>/);
-    expect(INTAKE).not.toMatch(/<label[^>]*>Workflow template<\/label>/);
+    // The field is now a labelled `AppListbox` rather than a native select, so
+    // the label is a `<Field label=…>` bound by `htmlFor` and echoed as the
+    // control's accessible name. Both are pinned.
+    expect(INTAKE).toMatch(/label="What are you asking for\?"/);
+    expect(INTAKE).toMatch(/ariaLabel="What are you asking for\?"/);
+    expect(INTAKE).not.toMatch(/Workflow template</);
   });
 });
 

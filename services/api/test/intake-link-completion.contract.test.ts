@@ -158,13 +158,14 @@ describe("Public intake page — friendly completed-link UX", () => {
 // Issue 1 — Default new-link mode is ONE_TIME
 // ============================================================================
 
-describe("Create-link modal default", () => {
+describe("Create-link wizard default", () => {
   it("defaults to EXTERNAL_ONE_TIME (so a fresh link consumes after one submit)", () => {
-    const src = read("apps/web/app/(app)/intake-links/page.tsx");
-    assert.match(
-      src,
-      /const \[intakeMode, setIntakeMode\] = useState\("EXTERNAL_ONE_TIME"\)/,
+    // The create form is now a four-step wizard whose initial state lives in a
+    // pure, React-free state machine. Same property, its new home.
+    const src = read(
+      "apps/web/app/(app)/intake-links/_lib/wizardState.ts",
     );
+    assert.match(src, /intakeMode: "EXTERNAL_ONE_TIME"/);
   });
 });
 
