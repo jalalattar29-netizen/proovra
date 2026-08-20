@@ -49,7 +49,9 @@ function typeToneOf(type: string): string {
 function kindToneOf(kind: string): string {
   const block = TONES.slice(
     TONES.indexOf("const KIND_TONE"),
-    TONES.indexOf("export function toneForKind"),
+    // `toneForKind` is module-private: it has no consumer outside this file,
+    // and an export with none is how a second tone authority starts.
+    TONES.indexOf("function toneForKind"),
   );
   const m = block.match(new RegExp(`${kind}:\\s*"(\\w+)"`));
   assert.ok(m, `KIND_TONE has no entry for ${kind}`);

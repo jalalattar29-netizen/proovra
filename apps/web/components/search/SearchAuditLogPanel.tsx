@@ -33,7 +33,8 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../lib/platform-context";
 import { AppStatusBadge } from "../app-primitives/AppStatusBadge";
 
-export type SearchAuditRow = {
+/** INTERNAL. The panel is the only consumer; nothing outside reads a row. */
+type SearchAuditRow = {
   id: string;
   teamId: string;
   actorUserId: string;

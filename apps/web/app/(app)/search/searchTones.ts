@@ -27,7 +27,15 @@ import type { AppTone } from "../../../components/app-primitives/AppStatusBadge"
  * What a token MEANS. Tone is derived from this, never chosen directly, so a
  * new token is classified once and coloured consistently everywhere.
  */
-export type SearchStateKind =
+/**
+ * INTERNAL to this module.
+ *
+ * Exported once, consumed by nothing outside this file. An export with no
+ * consumer is an invitation to grow a second tone authority beside the one
+ * the console actually reads — which is what the shared `searchTypeTone` /
+ * `searchBadgeTone` / `searchLifecycleTone` trio exists to prevent.
+ */
+type SearchStateKind =
   /** The record is live and work can continue. */
   | "open"
   /** The record reached its end state. Distinct from open, never green. */
@@ -56,7 +64,15 @@ const KIND_TONE: Record<SearchStateKind, AppTone> = {
   neutral: "slate",
 };
 
-export function toneForKind(kind: SearchStateKind): AppTone {
+/**
+ * INTERNAL to this module.
+ *
+ * Exported once, consumed by nothing outside this file. An export with no
+ * consumer is an invitation to grow a second tone authority beside the one
+ * the console actually reads — which is what the shared `searchTypeTone` /
+ * `searchBadgeTone` / `searchLifecycleTone` trio exists to prevent.
+ */
+function toneForKind(kind: SearchStateKind): AppTone {
   return KIND_TONE[kind];
 }
 
@@ -106,7 +122,15 @@ const BADGE_KIND: Readonly<Record<string, SearchStateKind>> = {
   "contributor-scoped": "neutral",
 };
 
-export function searchBadgeKind(badge: string): SearchStateKind {
+/**
+ * INTERNAL to this module.
+ *
+ * Exported once, consumed by nothing outside this file. An export with no
+ * consumer is an invitation to grow a second tone authority beside the one
+ * the console actually reads — which is what the shared `searchTypeTone` /
+ * `searchBadgeTone` / `searchLifecycleTone` trio exists to prevent.
+ */
+function searchBadgeKind(badge: string): SearchStateKind {
   return BADGE_KIND[badge] ?? "neutral";
 }
 
@@ -156,7 +180,15 @@ const LIFECYCLE_KIND: Readonly<Record<string, SearchStateKind>> = {
   pending_destruction: "destructive",
 };
 
-export function searchLifecycleKind(
+/**
+ * INTERNAL to this module.
+ *
+ * Exported once, consumed by nothing outside this file. An export with no
+ * consumer is an invitation to grow a second tone authority beside the one
+ * the console actually reads — which is what the shared `searchTypeTone` /
+ * `searchBadgeTone` / `searchLifecycleTone` trio exists to prevent.
+ */
+function searchLifecycleKind(
   value: string | null | undefined,
 ): SearchStateKind {
   if (value == null) return "neutral";

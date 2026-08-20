@@ -939,7 +939,21 @@
 /* A pointer is an identifier: bounded, monospaced and left-to-right whatever
    the surrounding direction. */
 .search-pointer {
-  unicode-bidi: plaintext;
+  /* A UUID or a UTC timestamp is an IDENTIFIER an operator copies, and it must
+   * read the same in every locale.
+   *
+   * This was `unicode-bidi: plaintext`, which derives direction from the first
+   * STRONG character — and a UUID begins with a digit, which is weak. So in an
+   * RTL document every pointer inherited `direction: rtl` and rendered its
+   * segments in the wrong order: unreadable, and actively dangerous in an
+   * evidence console, because the value a user copies is not the value they saw.
+   *
+   * `direction: ltr` pins the run; `isolate` keeps it from disturbing the
+   * surrounding paragraph. Measured in a real browser at 1440/1024/390 in both
+   * directions — jsdom reports no direction at all, so this could only ever be
+   * caught here. */
+  direction: ltr;
+  unicode-bidi: isolate;
   display: block;
   border-radius: 10px;
   padding: 8px 10px;

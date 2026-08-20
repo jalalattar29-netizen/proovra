@@ -22,6 +22,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 const WEB_BASE = process.env.WEB_BASE ?? "http://localhost:3000";
 
+/** The structural-layout project serves its own production build here. */
+const SEARCH_LAYOUT_PORT = 3011;
+const SEARCH_LAYOUT_BASE = `http://127.0.0.1:${SEARCH_LAYOUT_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   // Phase 1 tests are deliberately small and serial — they share an
@@ -47,7 +51,7 @@ export default defineConfig({
     {
       name: "chromium",
       testDir: "./e2e",
-      testIgnore: "point7/**",
+      testIgnore: ["point7/**", "search-layout/**"],
       use: { ...devices["Desktop Chrome"] },
     },
     /**
@@ -68,7 +72,53 @@ export default defineConfig({
       testDir: "./e2e/point7",
       use: { ...devices["Desktop Chrome"] },
     },
+    /**
+     * REDESIGN/SEARCH — the STRUCTURAL responsive / RTL gate.
+     *
+     * Its own project because it needs neither a database nor a worker: every
+     * property it measures is a layout property, so the API is intercepted and
+     * only the WEB tier is real. What it does need is a real layout engine and
+     * the real production bundle — which is why it is a browser project rather
+     * than another jsdom render suite. jsdom answers 0 to every geometry
+     * question, so a jsdom proof of containment, overflow or stacking is a
+     * proof of nothing.
+     *
+     * Serves the PRODUCTION build (see `webServer` below), because the
+     * stylesheet order, the cascade and the class hashing all differ under
+     * `next dev`.
+     */
+    {
+      name: "search-layout",
+      testDir: "./e2e/search-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        // Its OWN origin: this project brings its own `next start` on 3011 and
+        // must not inherit the Phase-1 stack's WEB_BASE, which points at a
+        // server this project never starts.
+        baseURL: SEARCH_LAYOUT_BASE,
+      },
+    },
   ],
+  /**
+   * Started only for the search-layout project.
+   *
+   * `next start` rather than `next dev`: the gate measures the bundle the
+   * product ships. Opt-in via `SEARCH_LAYOUT=1` so the Phase-1 and Point-7
+   * projects, which bring their own stacks, never start a second web server on
+   * top of the one they already run.
+   */
+  webServer: process.env.SEARCH_LAYOUT
+    ? {
+        command: `pnpm --filter proovra-web exec next start -p ${SEARCH_LAYOUT_PORT} -H 127.0.0.1`,
+        url: `${SEARCH_LAYOUT_BASE}/login`,
+        reuseExistingServer: true,
+        timeout: 180_000,
+        env: {
+          NODE_ENV: "production",
+          NEXT_TELEMETRY_DISABLED: "1",
+        },
+      }
+    : undefined,
   globalSetup: process.env.POINT7 ? "./e2e/point7/_global-setup.ts" : undefined,
   globalTeardown: process.env.POINT7
     ? "./e2e/point7/_global-teardown.ts"
