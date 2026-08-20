@@ -238,7 +238,13 @@ export function BulkActionsToolbar({
       // server's own log, not here.
       setError(
         isRequestValidationFailure(runError)
-          ? `The ${confirmLabel.toLowerCase()} request was invalid and was not applied. Please retry, or refresh the selected records.`
+          ? // Named after the action the operator actually chose — "Archive",
+            // "Add to Case", "Export Metadata CSV" — never after one action for
+            // all of them. The label is used as written rather than
+            // lower-cased, which turned multi-word labels into "the add to
+            // case request"; when a label is somehow missing, the neutral
+            // phrase stands in.
+            `The ${confirmLabel || "bulk action"} request was invalid and was not applied. Please retry, or refresh the selected records.`
           : toSafeUserError(runError, {
               message: `${confirmLabel} could not be completed. No records were changed.`,
             }).message,

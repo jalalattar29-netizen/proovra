@@ -64,11 +64,31 @@ export function evidenceBulkActionRequiresCase(action: EvidenceBulkActionName): 
  * the key. Widening it to accept `null` would be widening a contract to fit an
  * incorrect payload, so the payload is what changed.
  */
-export const EvidenceBulkRequestSchema = z.object({
-  action: EvidenceBulkActionSchema,
-  evidenceIds: z.array(z.string().uuid()).min(1).max(EVIDENCE_BULK_MAX_IDS),
-  caseId: z.string().uuid().optional(),
-});
+export const EvidenceBulkRequestSchema = z
+  .object({
+    action: EvidenceBulkActionSchema,
+    evidenceIds: z.array(z.string().uuid()).min(1).max(EVIDENCE_BULK_MAX_IDS),
+    caseId: z.string().uuid().optional(),
+  })
+  /**
+   * An action that TARGETS a case must name one.
+   *
+   * `caseId` is optional per-field because most actions have no case at all,
+   * which left `ADD_TO_CASE` with no target passing the contract and being
+   * caught only by a runtime check inside the route. The requirement belongs
+   * to the request, so it is stated here: the route's own guard stays as
+   * defence, but the contract no longer describes a request the product has
+   * no meaning for.
+   */
+  .superRefine((request, ctx) => {
+    if (evidenceBulkActionRequiresCase(request.action) && !request.caseId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["caseId"],
+        message: `caseId is required for ${request.action}`,
+      });
+    }
+  });
 
 export type EvidenceBulkRequest = z.infer<typeof EvidenceBulkRequestSchema>;
 

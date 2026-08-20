@@ -84,6 +84,22 @@ describe("bulk ARCHIVE — request bounds and per-record isolation", () => {
     ).toBe(true);
   });
 
+  it("an action that targets a case must name one", () => {
+    // The contract, not only the route's runtime guard: `ADD_TO_CASE` with no
+    // target used to pass validation and be caught later by a hand-written
+    // check inside the handler.
+    const withoutCase = EvidenceBulkRequestSchema.safeParse({
+      action: "ADD_TO_CASE",
+      evidenceIds: ["00000000-0000-4000-8000-000000000001"],
+    });
+    expect(withoutCase.success).toBe(false);
+    expect(
+      withoutCase.success ? [] : withoutCase.error.issues.map((i) => i.path.join(".")),
+    ).toEqual(["caseId"]);
+    // The route keeps its own guard as defence in depth.
+    expect(region).toContain('caseId is required for ADD_TO_CASE');
+  });
+
   it("the action vocabulary is one list, in one casing", () => {
     expect([...EVIDENCE_BULK_ACTIONS]).toContain("ARCHIVE");
     for (const action of EVIDENCE_BULK_ACTIONS) {

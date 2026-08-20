@@ -602,6 +602,43 @@ describe("Archive bulk action — outcomes", () => {
     );
   });
 
+  it("names the action the operator chose, not always Archive", async () => {
+    // A refusal must not report an archive when the operator ran something
+    // else. The message is built from the selected action's own label.
+    H.cases = [{ id: "00000000-0000-4000-8000-0000000000aa", name: "Fictional matter", teamId: "team-1" }];
+    H.failures["POST /v1/evidence/bulk"] = { statusCode: 400, code: "INVALID_INPUT" };
+    await mountLibrary();
+    await selectRows(2);
+
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>("[aria-label='Bulk action']")!.click();
+    });
+    await act(async () => {
+      screen.getByRole("option", { name: "Add to Case" }).click();
+    });
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>("[aria-label='Target case']")!.click();
+    });
+    await act(async () => {
+      screen.getByRole("option", { name: "Fictional matter" }).click();
+    });
+    await act(async () => {
+      runBulkButton().click();
+    });
+    await waitFor(() => expect(confirmDialog()).not.toBeNull());
+    await act(async () => {
+      within(confirmDialog()!).getByRole("button", { name: /^add to case$/i }).click();
+    });
+
+    const error = await waitFor(() => {
+      const node = document.querySelector("[data-bulk-error]");
+      expect(node).not.toBeNull();
+      return node as HTMLElement;
+    });
+    expect(error.textContent).toMatch(/Add to Case request was invalid and was not applied/i);
+    expect(error.textContent).not.toMatch(/archive/i);
+  });
+
   it("keeps every selected record when the network never answered", async () => {
     H.failures["POST /v1/evidence/bulk"] = { statusCode: 0, code: "NETWORK_ERROR" };
     await openConfirm(3);

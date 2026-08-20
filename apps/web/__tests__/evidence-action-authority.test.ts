@@ -191,6 +191,10 @@ test("a committing dialog cannot be dismissed, and a rejected request is caught"
 test("a refused request states what happened to THIS action", () => {
   assert.match(TOOLBAR, /function isRequestValidationFailure\(/);
   assert.match(TOOLBAR, /request was invalid and was not applied/);
+  // The action is NAMED from the selected action's own label, with a neutral
+  // phrase as the fallback — never one action's name for all of them.
+  assert.match(TOOLBAR, /\$\{confirmLabel \|\| "bulk action"\} request was invalid/);
+  assert.doesNotMatch(TOOLBAR, /The archive request/i);
   // …and never echoes the server's validation internals.
   assert.doesNotMatch(TOOLBAR, /zodFields|issues|\.path\b/);
 });
