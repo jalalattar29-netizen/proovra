@@ -417,11 +417,6 @@
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
 }
 
-.search-chip--outline {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(15, 23, 42, 0.12);
-}
-
 .search-chip svg {
   flex: 0 0 auto;
 }

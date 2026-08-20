@@ -17,11 +17,15 @@ export type SavedSearchEntry = {
   id: string;
   name: string;
   /**
-   * Who else can see this view. A TEAM view is visible to the workspace, and
-   * that is a fact about the operator's own saved query — so the list says it
-   * rather than making every entry look private.
+   * Who else can see this view, already in product words.
+   *
+   * A workspace-scoped view is visible to everyone in the workspace, and that
+   * is a fact about the operator's own saved query — so the list says it
+   * rather than making every entry look private. The LABEL is resolved by the
+   * console, not derived here: a presentational list has no business branching
+   * on a wire enum.
    */
-  visibility?: "PRIVATE" | "TEAM";
+  visibilityLabel?: string;
 };
 
 export function SearchGuidancePanel({
@@ -109,9 +113,9 @@ export function SearchGuidancePanel({
                   data-search-saved-item={view.id}
                 >
                   <span>{view.name}</span>
-                  {view.visibility ? (
+                  {view.visibilityLabel ? (
                     <span className="search-guidance__visibility">
-                      {view.visibility === "TEAM" ? "Team" : "Private"}
+                      {view.visibilityLabel}
                     </span>
                   ) : null}
                 </button>

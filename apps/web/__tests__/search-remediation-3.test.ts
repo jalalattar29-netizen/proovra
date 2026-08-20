@@ -127,9 +127,16 @@ test("Guidance recent block has empty-state copy + Clear gated on count > 0", ()
 test("Guidance saved block has empty-state copy and states each view's visibility", () => {
   assert.match(SEARCH_GUIDANCE, /data-search-guidance-saved-empty/);
   assert.match(SEARCH_GUIDANCE, /No saved searches yet\./);
-  // A TEAM view is visible to the whole workspace; the list says so rather
-  // than rendering every entry as if it were private.
-  assert.match(SEARCH_GUIDANCE, /view\.visibility === "TEAM" \? "Team" : "Private"/);
+  // A workspace-scoped view is visible to everyone in the workspace; the list
+  // says so rather than rendering every entry as if it were private — and it
+  // says it in product words, resolved by the console, because a presentational
+  // list has no business branching on a wire enum.
+  assert.match(SEARCH_GUIDANCE, /\{view\.visibilityLabel\}/);
+  assert.doesNotMatch(SEARCH_GUIDANCE, /=== "TEAM"/);
+  assert.match(
+    SEARCH_PAGE,
+    /const SAVED_VIEW_VISIBILITY_LABEL: Record<SavedViewVisibility, string> = \{\s*\n\s*PRIVATE: "Private",\s*\n\s*TEAM: "Workspace",/,
+  );
   // `null` means not loaded / no authority — distinct from an empty list.
   assert.match(SEARCH_GUIDANCE, /saved === null \|\| saved\.length === 0/);
   assert.match(SEARCH_PAGE, /savedViews === null\s*\n?\s*\? null/);

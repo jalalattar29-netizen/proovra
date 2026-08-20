@@ -151,21 +151,51 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     expect(src).toMatch(/data-search-health-evidence-indexed=/);
   });
 
-  it("legacy error branch — apiFetch failure lands in the bounded error state via the safe-feedback path (no raw message), and clears rows", () => {
-    // PROOVRA Feedback System — the .catch handler must NOT render the raw
-    // backend `err.message`. It routes through toSafeUserError(), which maps
-    // known codes/status to safe copy and otherwise uses the "Search failed."
-    // section fallback. It must still (a) set `error` and (b) clear `rows`
-    // so the empty-state surface picks the `error` variant, not no-match.
+  it("a search failure renders no server text, and never renders as \"0 results\"", () => {
+    // REDESIGN/SEARCH — the console no longer keeps a single `error` string
+    // that every failure wrote into. A SEARCH failure is classified from the
+    // transport's own answer and handed to a state component that owns its own
+    // bounded copy, so no server-supplied text reaches the screen at all —
+    // strictly stronger than routing it through the safe-feedback mapper.
+    //
+    // The two invariants this test was written for are unchanged:
+    //   (a) the raw backend message is never rendered, and
+    //   (b) the catch still clears `rows`, so a failure can never be
+    //       presented as a legitimate zero-result answer.
+    // The catch classifies, drops the selection that belonged to the result
+    // set it is clearing, and clears the rows — in that order.
     expect(src).toMatch(
-      /setError\(\s*toSafeUserError\(err, \{ message: "Search failed\." \}\)\.message\s*\)/,
+      /setSearchFailure\(classifySearchFailure\(err\)\);[\s\S]{0,500}?setSelected\(null\);[\s\S]{0,200}?setResults\(\{\s*rows:\s*\[\],/,
     );
-    // The pre-migration raw passthrough must be gone.
-    expect(src).not.toMatch(/setError\(err\?\.message \?\? "Search failed\."\)/);
-    // The primary catch still clears `rows` so a failure never renders as
-    // "0 results".
-    expect(src).toMatch(
-      /setError\(toSafeUserError\(err, \{ message: "Search failed\." \}\)\.message\);\s*setResults\(\{\s*rows:\s*\[\],/,
-    );
+    // …and the header does not report a count for a request that never
+    // answered, which would read as a legitimate "0 results".
+    expect(src).toMatch(/searchFailure\s*\n?\s*\?\s*"No results to show"/);
+    // No raw passthrough survives, in the old shape or any new one.
+    expect(src).not.toMatch(/setError\(err\?\.message/);
+    expect(src).not.toMatch(/setSearchFailure\([^)]*\berr\.message/);
+    expect(src).not.toMatch(/searchFailure\.message\}/);
+    // A refusal and an outage are separate states; only one may speak about
+    // connectivity.
+    expect(src).toMatch(/kind: "restricted"/);
+    expect(src).toMatch(/kind: "unavailable"/);
+  });
+
+  it("action failures still report through the one sanctioned safe-feedback path", () => {
+    // Saving, renaming and deleting a view, and loading another page, are
+    // ACTIONS. They report where they happened and never become a search
+    // state — but their copy must still come from toSafeUserError, which is
+    // the only sanctioned error-display path in this app.
+    for (const fallback of [
+      "Could not load more results.",
+      "Could not save view.",
+      "Could not delete view.",
+      "Could not rename view.",
+    ]) {
+      expect(src).toContain(fallback);
+    }
+    const actionSites = [...src.matchAll(/setActionError\(/g)];
+    expect(actionSites.length).toBe(4);
+    // Every one of them wraps the error rather than reading `.message` off it.
+    expect(src).not.toMatch(/setActionError\(\s*err[.?]/);
   });
 });

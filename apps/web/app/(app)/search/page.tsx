@@ -349,6 +349,19 @@ const DEFAULT_LIMIT = 25;
 const SUPPORT_HREF = "/support";
 
 /**
+ * What a saved view's scope is CALLED.
+ *
+ * The wire says PRIVATE | TEAM. "Team" is not this product's word for a
+ * workspace-scoped thing, and the console was previously rendering the enum
+ * two different ways — `"Team"` in one list and `visibility.toLowerCase()` in
+ * the other. One map, resolved once, in the words the rest of the product uses.
+ */
+const SAVED_VIEW_VISIBILITY_LABEL: Record<SavedViewVisibility, string> = {
+  PRIVATE: "Private",
+  TEAM: "Workspace",
+};
+
+/**
  * Why the search request produced no answer.
  *
  * The console used to keep a single `error` string that EVERY failure wrote
@@ -363,7 +376,11 @@ const SUPPORT_HREF = "/support";
  *   unavailable — the service or the connection genuinely could not answer.
  *                 Only this kind may use connection-failure language.
  */
-type SearchFailure = { kind: "restricted" | "unavailable"; message?: string };
+type SearchFailure = { kind: "restricted" | "unavailable" };
+
+// Deliberately no `message` field. The classifier can only learn WHICH state
+// is true; the words belong to the state components. A slot for server text
+// here is how server text finds its way onto the screen later.
 
 function classifySearchFailure(err: unknown): SearchFailure {
   const e = err as { code?: unknown; statusCode?: unknown } | null;
@@ -743,6 +760,11 @@ function SearchInner() {
         // The state components own the copy; all this decides is WHICH state
         // is true, from the transport's own answer.
         setSearchFailure(classifySearchFailure(err));
+        // The selection belonged to the result set this failure just cleared.
+        // Leaving it mounted put a record's Inspector beside "Search is
+        // temporarily unavailable", which reads as though the results were
+        // still there.
+        setSelected(null);
         setResults({
           rows: [],
           nextCursor: null,
@@ -1049,7 +1071,7 @@ function SearchInner() {
         : savedViews.map((v) => ({
             id: v.id,
             name: v.name,
-            visibility: v.visibility,
+            visibilityLabel: SAVED_VIEW_VISIBILITY_LABEL[v.visibility],
           })),
     [savedViews],
   );
@@ -1821,7 +1843,7 @@ function SearchInner() {
                           {v.name}
                         </span>
                         <span className="search-saved-view__visibility">
-                          {v.visibility.toLowerCase()}
+                          {SAVED_VIEW_VISIBILITY_LABEL[v.visibility]}
                         </span>
                       </button>
                       <button
@@ -1866,16 +1888,21 @@ function SearchInner() {
             />
           ) : null}
 
+          {/* What the workspace returned. A FAILURE is not a count, so when
+              the request did not answer this row states that instead of
+              reporting "0 results" over the top of an outage. */}
           <div className="search-results__head" data-search-results-head>
             <span className="search-results__count" aria-live="polite">
               {loading
                 ? "Searching…"
-                : `${results?.totalReturned ?? 0} result${
-                    (results?.totalReturned ?? 0) === 1 ? "" : "s"
-                  }`}
+                : searchFailure
+                  ? "No results to show"
+                  : `${results?.totalReturned ?? 0} result${
+                      (results?.totalReturned ?? 0) === 1 ? "" : "s"
+                    }`}
             </span>
-            <span>{filterSummary}</span>
-            {withheldSummary ? (
+            {searchFailure ? null : <span>{filterSummary}</span>}
+            {withheldSummary && !searchFailure ? (
               <span data-search-withheld>{withheldSummary}</span>
             ) : null}
           </div>
@@ -1898,7 +1925,7 @@ function SearchInner() {
                 // request with the same grant is declined again, and the copy
                 // never confirms whether anything exists behind the refusal.
                 <div data-search-empty-state-kind="restricted">
-                  <SearchRestrictedState message={searchFailure.message} />
+                  <SearchRestrictedState />
                 </div>
               ) : searchFailure ? (
                 // ONLY a transport or service failure reaches this branch, so
