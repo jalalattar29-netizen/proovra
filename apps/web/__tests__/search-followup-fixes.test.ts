@@ -81,18 +81,23 @@ test("Inspector renders the Open button with data-search-open-action + data-sear
   assert.match(src, /\{openAction\.label\}/);
 });
 
-test("Inspector Open button uses a primary-action style (not a pointer-link style)", () => {
+test("Inspector Open button uses the canonical primary action (not a pointer link)", () => {
   const src = read(PAGE);
-  // Find the CSS declaration (NOT the JSX use site) — match the
-  // `const inspectorPrimaryButtonStyle: React.CSSProperties = {`
-  // line directly.
-  const declIdx = src.indexOf(
-    "const inspectorPrimaryButtonStyle: React.CSSProperties",
+  // REDESIGN/SEARCH — `inspectorPrimaryButtonStyle` is deleted; the control
+  // wears `.app-primary-action`, the one primary-action class in the
+  // product. The invariants this test was written for are unchanged and
+  // re-pinned: the Inspector's way out of the panel is a PRIMARY action, and
+  // it stays an <a> so the browser's own middle-click / cmd-click
+  // open-in-new-tab behaviour keeps working.
+  assert.match(
+    src,
+    /<a\n\s+href=\{openAction\.href\}\n\s+className="app-primary-action"/,
   );
-  assert.ok(declIdx > 0, "inspectorPrimaryButtonStyle declaration missing");
-  const styleBody = src.slice(declIdx, declIdx + 600);
-  assert.match(styleBody, /padding:\s*"8px 14px"/);
-  assert.match(styleBody, /fontWeight:\s*600/);
+  assert.doesNotMatch(src, /inspectorPrimaryButtonStyle/);
+  // It must not fall back to the identifier treatment used for pointers.
+  const start = src.indexOf("data-search-open-action=");
+  const block = src.slice(Math.max(0, start - 300), start);
+  assert.doesNotMatch(block, /className="search-pointer"/);
 });
 
 // ============================================================================

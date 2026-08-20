@@ -336,9 +336,10 @@
 }
 
 /* ---- Saved views (inside the filter rail) -------------------------------- */
-/* Operational notes are upright, not italic: "no saved views yet" is a fact
-   about this workspace, not an aside. */
-.search-filters__note {
+/* An operational note, wherever the console has to state a fact about what is
+   or is not there. Upright, never italic: "no saved views yet" and "no related
+   evidence" are facts, not asides. */
+.search-note {
   margin: 0;
   font-size: 12.5px;
   line-height: 1.5;
@@ -632,6 +633,56 @@
   overflow-wrap: anywhere;
 }
 
+/* Signals: several status facts about one record, so they wrap as a set. */
+.search-inspector__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+/* A pointer field stacks its label above the identifier: a UUID is too wide to
+   share a baseline row with its label in a 320px column. */
+.search-inspector__pointer {
+  display: grid;
+  gap: 4px;
+  padding-block: 4px;
+  min-inline-size: 0;
+}
+
+.search-inspector__prose {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--app-ink-label);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
+}
+
+.search-relationship-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+
+.search-relationship {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.search-relationship__note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-ink-secondary);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ---- Guidance column (recent / saved / tips / support) ------------------ */
 .search-guidance {
   display: grid;
@@ -647,6 +698,10 @@
 }
 
 .search-guidance__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   padding-block-end: 6px;
   border-block-end: 1px solid rgba(15, 23, 42, 0.08);
   font-size: 11.5px;
@@ -654,6 +709,29 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--app-ink-label);
+}
+
+.search-guidance__clear {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-600, #6d28d9);
+  cursor: pointer;
+}
+
+.search-guidance__clear:hover {
+  text-decoration: underline;
+}
+
+.search-guidance__clear:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+  border-radius: 6px;
 }
 
 /* Operational text is never italic — an absent list is a fact, not an aside. */
@@ -675,7 +753,10 @@
 
 .search-guidance__item {
   inline-size: 100%;
-  display: block;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 7px 9px;
@@ -691,6 +772,15 @@
 
 .search-guidance__item:hover {
   background: var(--accent-050, #f2ecfe);
+}
+
+.search-guidance__visibility {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-secondary);
 }
 
 .search-guidance__item:focus-visible {

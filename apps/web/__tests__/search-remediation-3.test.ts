@@ -59,6 +59,9 @@ const SEARCH_PAGE = src("apps/web/app/(app)/search/page.tsx");
 const SEARCH_STATES = src(
   "apps/web/app/(app)/search/components/SearchStates.tsx",
 );
+const SEARCH_GUIDANCE = src(
+  "apps/web/app/(app)/search/components/SearchGuidance.tsx",
+);
 const SEARCH_ROUTES = src("services/api/src/routes/search.routes.ts");
 const SAVED_SEARCH = src(
   "services/api/src/services/search/saved-search.service.ts",
@@ -69,52 +72,76 @@ const WORKER = src("services/worker/src/processor.ts");
 // Right-rail empty state: PreviewDefault
 // ===========================================================================
 
-test("Right-rail renders PreviewDefault when no result is selected (replaces the 'Select a result…' dead state)", () => {
+test("Right-rail renders the guidance column when no result is selected (never a dead gutter)", () => {
+  // REDESIGN/SEARCH — `PreviewDefault` is deleted. It rendered the same
+  // three ideas the canonical SearchGuidancePanel does — recent searches,
+  // saved searches, tips — from ~150 lines of inline styles, in its own
+  // typography and its own link colour. The invariant is unchanged: the
+  // right rail is useful before a row is selected, and the legacy dead-state
+  // copy stays gone.
   assert.match(
     SEARCH_PAGE,
-    /\{!selected \? \(\s*\n?\s*\/\/ Phase SEARCH-REMEDIATION-3[\s\S]{0,800}?<PreviewDefault\b/,
+    /\{!selected \? \([\s\S]{0,400}?<SearchGuidancePanel\b/,
   );
-  // The legacy dead-state copy is gone.
   assert.doesNotMatch(
     SEARCH_PAGE,
     /Select a result to inspect pointers and related evidence\./,
   );
+  assert.doesNotMatch(SEARCH_PAGE, /function PreviewDefault\(/);
 });
 
-test("PreviewDefault component declares three labelled sections", () => {
+test("The guidance column declares three labelled sections plus a support card", () => {
   for (const anchor of [
-    "data-search-preview-default-recent",
-    "data-search-preview-default-saved",
-    "data-search-preview-default-tips",
+    "data-search-guidance-recent",
+    "data-search-guidance-saved",
+    "data-search-guidance-tips",
+    "data-search-support-card",
   ]) {
     assert.ok(
-      SEARCH_PAGE.includes(anchor),
-      `PreviewDefault must declare ${anchor}`,
+      SEARCH_GUIDANCE.includes(anchor),
+      `the guidance column must declare ${anchor}`,
     );
+  }
+  // Each section is named for assistive technology, not just visually.
+  for (const id of [
+    "search-recent-label",
+    "search-saved-label",
+    "search-tips-label",
+  ]) {
+    assert.ok(SEARCH_GUIDANCE.includes(`aria-labelledby="${id}"`));
   }
 });
 
-test("PreviewDefault recent block has empty-state copy + Clear button gated on count > 0", () => {
-  assert.match(SEARCH_PAGE, /data-search-preview-default-recent-empty/);
-  assert.match(SEARCH_PAGE, /Your recent searches will appear here\./);
+test("Guidance recent block has empty-state copy + Clear gated on count > 0", () => {
+  assert.match(SEARCH_GUIDANCE, /data-search-guidance-recent-empty/);
+  assert.match(SEARCH_GUIDANCE, /Your recent searches will appear here\./);
   assert.match(
-    SEARCH_PAGE,
-    /recent\.length > 0 \? \(\s*\n?\s*<button[\s\S]{0,400}?data-search-preview-default-clear-recent/,
+    SEARCH_GUIDANCE,
+    /recent\.length > 0 \? \(\s*\n?\s*<button[\s\S]{0,400}?data-search-guidance-clear-recent/,
   );
+  // The list is the console's own tenant-scoped store, and clearing it is
+  // wired to the same handler that owns that store.
+  assert.match(SEARCH_PAGE, /onClearRecent=\{clearRecent\}/);
 });
 
-test("PreviewDefault saved block has empty-state copy", () => {
-  assert.match(SEARCH_PAGE, /data-search-preview-default-saved-empty/);
-  assert.match(SEARCH_PAGE, /No saved searches yet\./);
+test("Guidance saved block has empty-state copy and states each view's visibility", () => {
+  assert.match(SEARCH_GUIDANCE, /data-search-guidance-saved-empty/);
+  assert.match(SEARCH_GUIDANCE, /No saved searches yet\./);
+  // A TEAM view is visible to the whole workspace; the list says so rather
+  // than rendering every entry as if it were private.
+  assert.match(SEARCH_GUIDANCE, /view\.visibility === "TEAM" \? "Team" : "Private"/);
+  // `null` means not loaded / no authority — distinct from an empty list.
+  assert.match(SEARCH_GUIDANCE, /saved === null \|\| saved\.length === 0/);
+  assert.match(SEARCH_PAGE, /savedViews === null\s*\n?\s*\? null/);
 });
 
-test("PreviewDefault tips block mentions OCR + filenames + filters", () => {
+test("Guidance tips block mentions OCR + filenames + filters", () => {
   assert.match(
-    SEARCH_PAGE,
+    SEARCH_GUIDANCE,
     /Search by filename, case name, report title, package, note,/,
   );
   assert.match(
-    SEARCH_PAGE,
+    SEARCH_GUIDANCE,
     /OCR and transcript text appear in results when available\./,
   );
 });

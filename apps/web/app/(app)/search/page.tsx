@@ -46,7 +46,6 @@ import {
   AppStatusBadge,
   type AppTone,
 } from "../../../components/app-primitives/AppStatusBadge";
-import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
@@ -78,6 +77,9 @@ import {
   SearchUnavailableAlert,
   SearchUnavailableState,
 } from "./components/SearchStates";
+// The guidance column stands in for the Inspector while nothing is selected,
+// so the region is never an empty white gutter. Every list in it is real.
+import { SearchGuidancePanel } from "./components/SearchGuidance";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -1037,6 +1039,23 @@ function SearchInner() {
     setFilter((prev) => (prev ? { ...prev } : prev));
   }, []);
 
+  /**
+   * The saved views, reduced to what the guidance column shows. `null` is
+   * preserved as "not loaded / no authority" so the panel can say so rather
+   * than rendering an empty list as if the operator had saved nothing.
+   */
+  const savedViewEntries = useMemo(
+    () =>
+      savedViews === null
+        ? null
+        : savedViews.map((v) => ({
+            id: v.id,
+            name: v.name,
+            visibility: v.visibility,
+          })),
+    [savedViews],
+  );
+
   const applySavedView = useCallback((view: SavedView) => {
     setFilter({ ...view.query, cursor: undefined });
     setQDraft(view.query.q ?? "");
@@ -1790,9 +1809,9 @@ function SearchInner() {
                 {savingView ? "Saving…" : "Save current view"}
               </button>
               {savedViews === null ? (
-                <p className="search-filters__note">Loading…</p>
+                <p className="search-note">Loading…</p>
               ) : savedViews.length === 0 ? (
-                <p className="search-filters__note">No saved views yet.</p>
+                <p className="search-note">No saved views yet.</p>
               ) : (
                 <ul className="search-saved-views">
                   {savedViews.map((v) => (
@@ -2095,22 +2114,20 @@ function SearchInner() {
 
         {/* ----------------------------- RIGHT ----------------------------- */}
         <div className="search-col">
-        <Card variant="summary" padding="comfortable">
           {!selected ? (
-            // Phase SEARCH-REMEDIATION-3 — the empty preview no
-            // longer wastes the right rail. Instead it shows the
-            // user's recent searches, saved views, and tips. Clicks
-            // re-run the query inline; the rail stays useful even
-            // before a row is selected.
-            <PreviewDefault
+            <SearchGuidancePanel
               recent={recent}
-              savedViews={savedViews}
-              onPickRecent={(q) => {
+              onApplyRecent={(q) => {
                 setQDraft(q);
                 updateFilter({ q });
               }}
-              onPickSaved={(v) => applySavedView(v)}
               onClearRecent={clearRecent}
+              saved={savedViewEntries}
+              onApplySaved={(id) => {
+                const view = savedViews?.find((v) => v.id === id);
+                if (view) applySavedView(view);
+              }}
+              supportHref={SUPPORT_HREF}
             />
           ) : (
             <Inspector
@@ -2120,7 +2137,6 @@ function SearchInner() {
               canSeeInvestigation={canSeeInvestigation}
             />
           )}
-        </Card>
         </div>
         </div>
       </div>
@@ -2303,30 +2319,33 @@ function Inspector({
   // remain as secondary technical metadata below.
   const openAction = getOpenAction(row);
   return (
-    <div>
-      <div style={inspectorHeaderStyle}>
-        <span className="app-chip" data-search-inspector-type={row.documentType}>
-          {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-        </span>
-        <h2 style={inspectorTitleStyle}>{row.title}</h2>
-        {row.subtitle ? (
-          <p style={inspectorSubtitleStyle}>{row.subtitle}</p>
-        ) : null}
-        {openAction ? (
-          <a
-            href={openAction.href}
-            style={inspectorPrimaryButtonStyle}
-            data-search-open-action={row.documentType}
-            data-search-open-href={openAction.href}
-          >
-            {openAction.label}
-          </a>
-        ) : null}
-      </div>
+    <div className="app-panel search-inspector" data-search-inspector>
+      <span className="app-chip" data-search-inspector-type={row.documentType}>
+        {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
+      </span>
+      {/* Bounded: a long record name wraps rather than widening the column. */}
+      <h2 className="search-inspector__title">{row.title}</h2>
+      {row.subtitle ? (
+        <p className="search-inspector__status">{row.subtitle}</p>
+      ) : null}
+      {/* The single canonical way out of this panel. Deliberately an <a> and
+          not the shared button primitive, so the browser's own middle-click
+          and cmd-click open-in-new-tab keep working. */}
+      {openAction ? (
+        <a
+          href={openAction.href}
+          className="app-primary-action"
+          data-search-open-action={row.documentType}
+          data-search-open-href={openAction.href}
+        >
+          {openAction.label}
+        </a>
+      ) : null}
+      <hr className="search-inspector__divider" />
 
       {row.badges.length > 0 ? (
         <Section label="Signals">
-          <div style={badgeRowStyle}>
+          <div className="search-inspector__badges">
             {row.badges.map((b) => (
               <AppStatusBadge
                 key={b}
@@ -2346,10 +2365,7 @@ function Inspector({
           <KeyVal
             label="Evidence"
             value={
-              <a
-                href={`/evidence/${row.evidenceId}`}
-                style={pointerLinkStyle}
-              >
+              <a className="search-pointer" href={`/evidence/${row.evidenceId}`}>
                 {row.evidenceId}
               </a>
             }
@@ -2362,8 +2378,8 @@ function Inspector({
             value={
               canSeeWorkflows ? (
                 <a
+                  className="search-pointer"
                   href={`/workflows/${row.workflowInstanceId}`}
-                  style={pointerLinkStyle}
                 >
                   {row.workflowInstanceId}
                 </a>
@@ -2371,7 +2387,7 @@ function Inspector({
                 // Phase IA-self-serve-completion — show the ID but
                 // not the link for self-serve users. /workflows is
                 // ENTERPRISE_ONLY.
-                <span>{row.workflowInstanceId}</span>
+                <span className="search-pointer">{row.workflowInstanceId}</span>
               )
             }
             mono
@@ -2388,7 +2404,7 @@ function Inspector({
           <KeyVal
             label="Case"
             value={
-              <a href={`/cases/${row.caseId}`} style={pointerLinkStyle}>
+              <a className="search-pointer" href={`/cases/${row.caseId}`}>
                 {row.caseId}
               </a>
             }
@@ -2413,7 +2429,7 @@ function Inspector({
               produced this hit. The truncated title is enough context;
               we never echo the original query verbatim here either. */}
           {typeof row.semanticScore === "number" && row.semanticScore > 0 ? (
-            <p style={semanticPivotCaptionStyle}>
+            <p className="search-note">
               Semantically similar to: {row.title.slice(0, 80)}
               {row.title.length > 80 ? "…" : ""}
             </p>
@@ -2423,8 +2439,8 @@ function Inspector({
               label="Case graph"
               value={
                 <a
+                  className="app-secondary-action"
                   href={`/investigation/cases/${row.caseId}/graph`}
-                  style={pointerLinkStyle}
                 >
                   Open case graph
                 </a>
@@ -2436,10 +2452,10 @@ function Inspector({
               label="Timeline"
               value={
                 <a
+                  className="app-secondary-action"
                   href={`/investigation/timeline?evidenceId=${encodeURIComponent(
                     row.evidenceId
                   )}`}
-                  style={pointerLinkStyle}
                 >
                   Open timeline view
                 </a>
@@ -2451,10 +2467,10 @@ function Inspector({
               label="Duplicates"
               value={
                 <a
+                  className="app-secondary-action"
                   href={`/investigation/duplicates?evidenceId=${encodeURIComponent(
                     row.evidenceId
                   )}`}
-                  style={pointerLinkStyle}
                 >
                   Review duplicates and similars
                 </a>
@@ -2468,7 +2484,7 @@ function Inspector({
       row.semanticScore > 0 ? (
         // Self-serve rail — keep the semantic-score caption only.
         <Section label="Related evidence">
-          <p style={semanticPivotCaptionStyle}>
+          <p className="search-note">
             Semantically similar to: {row.title.slice(0, 80)}
             {row.title.length > 80 ? "…" : ""}
           </p>
@@ -2486,36 +2502,34 @@ function Inspector({
 
       {row.summary ? (
         <Section label="Summary">
-          <p style={summaryProseStyle}>{row.summary}</p>
+          <p className="search-inspector__prose">{row.summary}</p>
         </Section>
       ) : null}
 
       {row.evidenceId ? (
         <Section label="Related evidence">
           {relationships === null ? (
-            <p style={mutedStyle}>Loading…</p>
+            <p className="search-note">Loading…</p>
           ) : relationships.length === 0 ? (
-            <p style={mutedStyle}>No related evidence.</p>
+            <p className="search-note">No related evidence.</p>
           ) : (
-            <ul style={relationshipListStyle}>
+            <ul className="search-relationship-list">
               {relationships.map((r) => {
                 const otherId =
                   r.sourceEvidenceId === row.evidenceId
                     ? r.targetEvidenceId
                     : r.sourceEvidenceId;
                 return (
-                  <li key={r.relationshipId} style={relationshipRowStyle}>
-                    <span style={relTypeChipStyle}>{r.relationshipType}</span>
-                    <a
-                      href={`/evidence/${otherId}`}
-                      style={pointerLinkStyle}
-                    >
-                      {otherId.slice(0, 12)}…
+                  <li key={r.relationshipId} className="search-relationship">
+                    <span className="app-chip">{r.relationshipType}</span>
+                    {/* The full identifier, not a truncated one: it is the
+                        thing the operator would copy, and it reads
+                        left-to-right whatever the surrounding direction. */}
+                    <a className="search-pointer" href={`/evidence/${otherId}`}>
+                      {otherId}
                     </a>
                     {r.note ? (
-                      <span style={mutedStyle} title={r.note}>
-                        {r.note.slice(0, 60)}
-                      </span>
+                      <span className="search-relationship__note">{r.note}</span>
                     ) : null}
                   </li>
                 );
@@ -2552,6 +2566,7 @@ function FilterSection({
   );
 }
 
+/** One labelled group of facts inside the Inspector. */
 function Section({
   label,
   children,
@@ -2560,10 +2575,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div style={sectionStyle}>
-      <div style={sectionLabelStyle}>{label}</div>
-      <div>{children}</div>
-    </div>
+    <section className="search-inspector__section">
+      <h3 className="search-inspector__section-label">{label}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -2590,6 +2605,15 @@ function Toggle({
   );
 }
 
+/**
+ * One fact. Label and value hold their own axes so every fact in the column
+ * lines up.
+ *
+ * `mono` marks an IDENTIFIER rather than a value: a UUID is too wide to share
+ * a baseline row with its label in a 320px rail, so it stacks underneath and
+ * takes the pointer treatment — monospaced, bounded, and isolated to
+ * left-to-right so it survives an RTL surface intact.
+ */
 function KeyVal({
   label,
   value,
@@ -2599,10 +2623,22 @@ function KeyVal({
   value: React.ReactNode;
   mono?: boolean;
 }) {
+  if (mono) {
+    return (
+      <div className="search-inspector__pointer">
+        <span className="search-fact__label">{label}</span>
+        {typeof value === "string" ? (
+          <span className="search-pointer">{value}</span>
+        ) : (
+          value
+        )}
+      </div>
+    );
+  }
   return (
-    <div style={keyValRowStyle}>
-      <span style={keyValLabelStyle}>{label}</span>
-      <span style={mono ? keyValMonoStyle : keyValValueStyle}>{value}</span>
+    <div className="search-fact">
+      <span className="search-fact__label">{label}</span>
+      <span className="search-fact__value">{value}</span>
     </div>
   );
 }
@@ -3002,154 +3038,14 @@ function formatDateTime(iso: string): string {
 // -----------------------------------------------------------------------------
 // Styles.
 //
-// REDESIGN/SEARCH — the page, header, search form, three-region workspace,
-// the filter rail, the result list and every operational state are described
-// by `search.css`, `components/SearchStates.tsx` and the canonical `app-*`
-// primitives. Their 37 `React.CSSProperties` objects are deleted, not hidden;
-// nothing below overrides them.
+// REDESIGN/SEARCH — the console's presentation lives in `search.css`,
+// `components/SearchStates.tsx`, `components/SearchGuidance.tsx` and the
+// canonical `app-*` primitives. Fifty-five `React.CSSProperties` objects have
+// been deleted, not hidden; nothing below overrides them.
 //
-// What remains describes the inspector and the admin runtime strip, and is
-// deleted by Checkpoints 2C and 2D.
+// What remains describes the ADMIN runtime strip (semantic status chip,
+// backfill dry-run panel) and is deleted by Checkpoint 2D.
 // -----------------------------------------------------------------------------
-
-const badgeRowStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 4,
-};
-
-// Phase 7C — document-type + backend-badge chips moved to the shared
-// <Badge> primitive (tone mapped via docTypeTone / badgeTone). The
-// bespoke docTypeChipStyle / badgeChipStyle palettes were removed, along
-// with loadMoreButtonStyle (the Load-more control is now a <Button>).
-
-const inspectorHeaderStyle: React.CSSProperties = {
-  paddingBottom: 12,
-  borderBottom: "1px solid #f1f5f9",
-  marginBottom: 8,
-};
-const inspectorTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 700,
-  margin: "6px 0 0",
-  color: "#0f172a",
-  wordBreak: "break-word",
-};
-const inspectorSubtitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#475569",
-  margin: "4px 0 0",
-};
-
-// Inspector primary action button — single canonical CTA per result.
-// Routes to the underlying record so users don't have to recognise
-// the right monospaced UUID under "Pointers". Kept as a plain `<a>`
-// (NOT the shared <Button>, which renders a real <button>) so the
-// browser's native middle-click / cmd-click open-in-new-tab behaviour
-// works without us reimplementing it — route behaviour is preserved.
-// Phase 7C — restyled to the shared primary-CTA language (design-token
-// gradient + premium radius/shadow) while keeping the same padding /
-// weight the follow-up contract test pins.
-const inspectorPrimaryButtonStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: 600,
-  background: "var(--btn-primary-bg, #0f172a)",
-  color: "var(--btn-primary-color, #ffffff)",
-  border: "1px solid var(--btn-primary-border, #0f172a)",
-  boxShadow: "var(--btn-primary-shadow, 0 12px 24px rgba(15,23,42,0.18))",
-  borderRadius: "var(--radius-md, 12px)",
-  textDecoration: "none",
-  cursor: "pointer",
-};
-
-const sectionStyle: React.CSSProperties = {
-  padding: "10px 0",
-  borderBottom: "1px solid #f8fafc",
-};
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  color: "#475569",
-  letterSpacing: 0.5,
-  marginBottom: 6,
-};
-
-const keyValRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "baseline",
-  gap: 8,
-  padding: "2px 0",
-  fontSize: 12,
-};
-const keyValLabelStyle: React.CSSProperties = {
-  color: "#64748b",
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: 0.3,
-  whiteSpace: "nowrap",
-};
-const keyValValueStyle: React.CSSProperties = {
-  color: "#0f172a",
-  textAlign: "right",
-  fontSize: 12,
-  wordBreak: "break-word",
-};
-const keyValMonoStyle: React.CSSProperties = {
-  ...keyValValueStyle,
-  fontFamily:
-    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-  fontSize: 11,
-};
-
-const pointerLinkStyle: React.CSSProperties = {
-  color: "#1e40af",
-  textDecoration: "none",
-};
-
-const summaryProseStyle: React.CSSProperties = {
-  fontSize: 12,
-  lineHeight: 1.5,
-  color: "#334155",
-  margin: 0,
-  whiteSpace: "pre-wrap",
-};
-
-const relationshipListStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-};
-const relationshipRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "4px 0",
-  fontSize: 12,
-  borderBottom: "1px solid #f8fafc",
-};
-const relTypeChipStyle: React.CSSProperties = {
-  padding: "2px 6px",
-  fontSize: 10,
-  fontWeight: 600,
-  borderRadius: 4,
-  background: "#f1f5f9",
-  color: "#334155",
-  border: "1px solid #e2e8f0",
-  whiteSpace: "nowrap",
-};
-
-const mutedStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-};
 
 // -----------------------------------------------------------------------------
 // Phase 15 — additive styles.
@@ -3164,13 +3060,6 @@ const mutedStyle: React.CSSProperties = {
 // `noResultsLeadStyle`, `noResultsListStyle` removed alongside
 // the `NoResultsHelp` component. The truthful empty state uses
 // the page's existing `emptyStateStyle` token.
-
-const semanticPivotCaptionStyle: React.CSSProperties = {
-  margin: "0 0 6px",
-  fontSize: 11,
-  color: "#475569",
-  fontStyle: "italic",
-};
 
 // Phase 16 — admin-only backfill panel + inline "Try semantic search"
 // link button. Both surfaces share the page's design tokens; no new
@@ -3216,184 +3105,13 @@ const semanticBackfillPanelErrorStyle: React.CSSProperties = {
 // alongside the `NoResultsHelp` "Try semantic search" link.
 
 // ---------------------------------------------------------------------------
-// Phase SEARCH-REMEDIATION-3 — PreviewDefault.
+// `PreviewDefault` was deleted here.
 //
-// Default state for the right rail when no result is selected.
-// Shows three useful blocks: recent searches, saved searches, and
-// a static "Search tips" block. Each block has a stable
-// data-attribute so contract tests can pin the structure.
+// It rendered the same three ideas the canonical `SearchGuidancePanel` does —
+// recent searches, saved searches, tips — from ~150 lines of inline styles, in
+// its own typography, with its own link colour. One guidance column now serves
+// the region, and it also carries the support card the old preview never had.
 // ---------------------------------------------------------------------------
-
-function PreviewDefault({
-  recent,
-  savedViews,
-  onPickRecent,
-  onPickSaved,
-  onClearRecent,
-}: {
-  recent: string[];
-  savedViews: SavedView[] | null;
-  onPickRecent: (q: string) => void;
-  onPickSaved: (view: SavedView) => void;
-  onClearRecent: () => void;
-}) {
-  return (
-    <div
-      style={{ display: "grid", gap: 16, padding: 12 }}
-      data-search-preview-default
-    >
-      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
-        Search workspace content
-      </h3>
-
-      <section data-search-preview-default-recent>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-            color: "#475569",
-          }}
-        >
-          <span>Recent searches</span>
-          {recent.length > 0 ? (
-            <button
-              type="button"
-              onClick={onClearRecent}
-              data-search-preview-default-clear-recent
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                color: "#1e40af",
-                cursor: "pointer",
-                font: "inherit",
-                fontSize: 11,
-                textDecoration: "underline",
-              }}
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-        {recent.length === 0 ? (
-          <p
-            className="cc-muted"
-            style={{ marginTop: 6, fontSize: 12 }}
-            data-search-preview-default-recent-empty
-          >
-            Your recent searches will appear here.
-          </p>
-        ) : (
-          <ul
-            style={{ marginTop: 6, padding: 0, listStyle: "none", display: "grid", gap: 4 }}
-          >
-            {recent.map((r, idx) => (
-              <li key={`pd-recent-${idx}`}>
-                <button
-                  type="button"
-                  onClick={() => onPickRecent(r)}
-                  data-search-preview-default-recent-row={r}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: "4px 0",
-                    color: "#1e40af",
-                    cursor: "pointer",
-                    font: "inherit",
-                    fontSize: 13,
-                    textAlign: "left",
-                  }}
-                >
-                  {r}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section data-search-preview-default-saved>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-            color: "#475569",
-          }}
-        >
-          Saved searches
-        </div>
-        {!savedViews || savedViews.length === 0 ? (
-          <p
-            className="cc-muted"
-            style={{ marginTop: 6, fontSize: 12 }}
-            data-search-preview-default-saved-empty
-          >
-            No saved searches yet.
-          </p>
-        ) : (
-          <ul
-            style={{ marginTop: 6, padding: 0, listStyle: "none", display: "grid", gap: 4 }}
-          >
-            {savedViews.slice(0, 8).map((v) => (
-              <li key={v.id}>
-                <button
-                  type="button"
-                  onClick={() => onPickSaved(v)}
-                  data-search-preview-default-saved-row={v.id}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: "4px 0",
-                    color: "#1e40af",
-                    cursor: "pointer",
-                    font: "inherit",
-                    fontSize: 13,
-                    textAlign: "left",
-                  }}
-                >
-                  {v.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section data-search-preview-default-tips>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-            color: "#475569",
-          }}
-        >
-          Search tips
-        </div>
-        <ul style={{ marginTop: 6, paddingLeft: 18, fontSize: 12, color: "#475569" }}>
-          <li>
-            Search by filename, case name, report title, package, note,
-            or record ID.
-          </li>
-          <li>
-            OCR and transcript text appear in results when available.
-          </li>
-          <li>
-            Use the filters on the left to narrow by type, status, case,
-            or date.
-          </li>
-        </ul>
-      </section>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Phase SEARCH-REMEDIATION-2 — SearchTypeahead.

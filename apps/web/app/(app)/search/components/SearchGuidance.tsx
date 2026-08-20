@@ -13,17 +13,29 @@
 
 import { Filter, Lightbulb, MessageSquare, Type } from "lucide-react";
 
-export type SavedSearchEntry = { id: string; name: string };
+export type SavedSearchEntry = {
+  id: string;
+  name: string;
+  /**
+   * Who else can see this view. A TEAM view is visible to the workspace, and
+   * that is a fact about the operator's own saved query — so the list says it
+   * rather than making every entry look private.
+   */
+  visibility?: "PRIVATE" | "TEAM";
+};
 
 export function SearchGuidancePanel({
   recent,
   onApplyRecent,
+  onClearRecent,
   saved,
   onApplySaved,
   supportHref,
 }: {
   recent: readonly string[];
   onApplyRecent: (query: string) => void;
+  /** Forget this device's search history for this workspace. */
+  onClearRecent: () => void;
   /** `null` when this workspace has no saved-search authority at all. */
   saved: readonly SavedSearchEntry[] | null;
   onApplySaved: (id: string) => void;
@@ -31,12 +43,31 @@ export function SearchGuidancePanel({
 }) {
   return (
     <div className="app-panel search-guidance" data-search-guidance>
-      <section className="search-guidance__section" aria-labelledby="search-recent-label">
+      <section
+        className="search-guidance__section"
+        aria-labelledby="search-recent-label"
+        data-search-guidance-recent
+      >
         <h2 className="search-guidance__label" id="search-recent-label">
-          Recent searches
+          <span>Recent searches</span>
+          {/* Recents are this device's own history, so the operator can drop
+              them here — the control only exists when there is something to
+              drop. */}
+          {recent.length > 0 ? (
+            <button
+              type="button"
+              className="search-guidance__clear"
+              onClick={onClearRecent}
+              data-search-guidance-clear-recent
+            >
+              Clear
+            </button>
+          ) : null}
         </h2>
         {recent.length === 0 ? (
-          <p className="search-guidance__empty">Your recent searches will appear here.</p>
+          <p className="search-guidance__empty" data-search-guidance-recent-empty>
+            Your recent searches will appear here.
+          </p>
         ) : (
           <ul className="search-guidance__list">
             {recent.map((query) => (
@@ -55,12 +86,18 @@ export function SearchGuidancePanel({
         )}
       </section>
 
-      <section className="search-guidance__section" aria-labelledby="search-saved-label">
+      <section
+        className="search-guidance__section"
+        aria-labelledby="search-saved-label"
+        data-search-guidance-saved
+      >
         <h2 className="search-guidance__label" id="search-saved-label">
           Saved searches
         </h2>
         {saved === null || saved.length === 0 ? (
-          <p className="search-guidance__empty">No saved searches yet.</p>
+          <p className="search-guidance__empty" data-search-guidance-saved-empty>
+            No saved searches yet.
+          </p>
         ) : (
           <ul className="search-guidance__list">
             {saved.map((view) => (
@@ -71,7 +108,12 @@ export function SearchGuidancePanel({
                   onClick={() => onApplySaved(view.id)}
                   data-search-saved-item={view.id}
                 >
-                  {view.name}
+                  <span>{view.name}</span>
+                  {view.visibility ? (
+                    <span className="search-guidance__visibility">
+                      {view.visibility === "TEAM" ? "Team" : "Private"}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             ))}
@@ -79,7 +121,11 @@ export function SearchGuidancePanel({
         )}
       </section>
 
-      <section className="search-guidance__section" aria-labelledby="search-tips-label">
+      <section
+        className="search-guidance__section"
+        aria-labelledby="search-tips-label"
+        data-search-guidance-tips
+      >
         <h2 className="search-guidance__label" id="search-tips-label">
           Search tips
         </h2>
