@@ -57,6 +57,7 @@ const LIFECYCLE = src(
 const SEARCH_ROUTES = src("services/api/src/routes/search.routes.ts");
 const BACKFILL = src("services/api/scripts/backfill-search-index.ts");
 const SEARCH_PAGE = src("apps/web/app/(app)/search/page.tsx");
+const SEARCH_CSS = src("apps/web/app/(app)/search/search.css");
 
 // ===========================================================================
 // Backend: artifact indexers
@@ -183,14 +184,19 @@ test("Backfill script supports --all flag and routes through every indexer", () 
 // ===========================================================================
 
 test("Search input is wrapped in a positioned container and the SearchTypeahead dropdown is mounted alongside", () => {
-  // The canonical Cases migration wraps the field in `.cases-search-field`
-  // (which adds a leading magnifier icon) but preserves the `position: relative`
-  // anchor the SearchTypeahead dropdown needs, with the <input> still inside it.
+  // REDESIGN/SEARCH — the anchor moved off an inline
+  // `style={{ position: "relative", flex: 1 }}` wrapper and onto the
+  // canonical `.search-form__field` class, which declares `position: relative`
+  // in search.css. The invariant is unchanged: ONE positioned wrapper holds
+  // both the <input> and the dropdown, so the typeahead cannot detach from
+  // the field it belongs to.
   assert.match(
     SEARCH_PAGE,
-    /position: "relative", flex: 1 \}\}>[\s\S]{0,700}<input/,
+    /className="search-form__field">[\s\S]{0,900}<input/,
   );
   assert.match(SEARCH_PAGE, /<SearchTypeahead\b/);
+  // …and the positioning is really declared, not merely named.
+  assert.match(SEARCH_CSS, /\.search-form__field \{[^}]*position: relative;/);
 });
 
 test("Search input has aria-autocomplete='list' and aria-expanded driven by suggestOpen", () => {

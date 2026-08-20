@@ -82,20 +82,25 @@ test("Search-mode picker (Keyword / Hybrid / Semantic) is removed from the UI", 
 });
 
 test("Page title is 'Search' (not 'Evidence Discovery')", () => {
-  // Phase 7C — the /search heading migrated to the shared PageHeader,
-  // which owns the single semantic <h1>. The `data-search-title`
-  // contract hook now rides on the inner <span style={titleStyle}>
-  // that PageHeader renders inside its <h1>, so this pin was updated
-  // from `<h1 … data-search-title>` to `<span … data-search-title>`.
-  // The invariant is unchanged: the visible title text is exactly
-  // "Search" and the `data-search-title` attribute is still present in
-  // the DOM for end-to-end probes. This is a pure markup-shape update
-  // (element tag), not a copy / behaviour / honesty change.
-  assert.match(SEARCH_PAGE, /<span style=\{titleStyle\} data-search-title>\s*\n?\s*Search\s*\n?\s*<\/span>/);
+  // REDESIGN/SEARCH — the console owns its header again. PageHeader's slot
+  // API forced the search FORM into a "primaryAction" slot and rendered the
+  // heading as an inline-styled <span> inside a foreign <h1>; the canonical
+  // `.search-header` restores a real <h1> and gives the form its own panel.
+  // The invariants are unchanged and re-pinned below: the visible title text
+  // is exactly "Search", `data-search-title` is still in the DOM for
+  // end-to-end probes, and the page renders exactly one <h1>.
+  assert.match(
+    SEARCH_PAGE,
+    /<h1 className="search-header__title" data-search-title>\s*\n?\s*Search\s*\n?\s*<\/h1>/,
+  );
   assert.doesNotMatch(SEARCH_PAGE, /\{terms\.evidence\} Discovery/);
-  // The shared PageHeader supplies the single <h1>; the title routes
-  // through its `title` prop.
-  assert.match(SEARCH_PAGE, /<PageHeader\b/);
+  assert.equal(
+    (SEARCH_PAGE.match(/<h1\b/g) ?? []).length,
+    1,
+    "the search console must render exactly one <h1>",
+  );
+  // The supporting line is a sibling paragraph — not a badge, not an action.
+  assert.match(SEARCH_PAGE, /className="search-header__description"/);
 });
 
 test("Search input placeholder advertises the real corpus", () => {

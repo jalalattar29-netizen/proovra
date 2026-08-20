@@ -115,16 +115,28 @@ test("/settings renders through the shared PageShell (no bespoke silver-card her
 // route and its page no longer exist.
 
 // ---------------------------------------------------------------------------
-// /search — migrated off the bespoke header; uses PageShell/PageHeader.
+// /search — REDESIGN/SEARCH moved this console off PageShell/PageHeader and
+// onto its own canonical shell (search.css + the app-* primitives).
+// PageShell and PageHeader are themselves inline-styled wrappers, so
+// consuming them re-imported presentation this route then had to override.
+// What Phase 7C actually guaranteed — no bespoke inline-styled header panel,
+// a token-driven page surface — is what is pinned here, now against the
+// canonical shell.
 // ---------------------------------------------------------------------------
-test("/search uses the shared shell and dropped the bespoke headerStyle panel", () => {
+test("/search renders the canonical search shell, not a bespoke inline-styled header", () => {
   const src = read("app/(app)/search/page.tsx");
-  assert.match(src, /PageShell/, "search must use the shared PageShell");
-  assert.match(src, /PageHeader/, "search must use the shared PageHeader");
+  assert.match(src, /import "\.\/search\.css";/, "search must load its canonical stylesheet");
+  assert.match(src, /<main className="search-page"/, "search must use the canonical page surface");
+  assert.match(src, /<header className="search-header">/, "search must use the canonical header");
   assert.doesNotMatch(
     src,
     /<header style=\{headerStyle\}/,
     "search must not render the bespoke <header style={headerStyle}> panel",
+  );
+  assert.doesNotMatch(
+    src,
+    /style=\{pageStyle\}/,
+    "the inline page surface must stay deleted, not re-introduced",
   );
 });
 

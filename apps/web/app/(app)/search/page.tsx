@@ -32,19 +32,19 @@ import {
 // namespace authority; see the recent-searches block below.
 import { tenantStorageKey } from "../../../lib/platform-context/tenantStorage";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-// Phase 7C — full shared design-system migration of the /search console.
-// PageShell supplies the token-driven content plane; PageHeader renders
-// the page heading/description/actions strip. The pinned
-// `<h1 data-search-title>Search</h1>` element is passed as PageHeader's
-// `title` so the contract semantics survive inside the shared header.
-import { PageShell, PageHeader } from "../../../components/ui";
-// Deep-import the NEW Phase-7 primitives (the barrel still serves the
-// legacy Button/Card/Badge/EmptyState for older call sites; the search
-// console upgrades to the richer variant/tone APIs).
+// REDESIGN/SEARCH — the console owns its presentation layer. `search.css`
+// carries the route anatomy (header, form, filter rail, result list,
+// inspector, guidance, states); everything it does not describe comes from
+// the canonical `app-*` primitives. No second button, no second badge, no
+// route-local palette.
+import "./search.css";
+// Canonical option control. The filter rail used a native <select>, which
+// renders the OS popup, cannot be styled and cannot be keyboard-audited;
+// AppListbox is the one accessible listbox for every internal surface.
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
-import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // Phase IA-self-serve-simplification / Track 1A — gate the enterprise
 // pivot links + admin-only deep links on the SERVER-projected
@@ -59,6 +59,7 @@ import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
 // search-operator vs. search-actor), so it is surfaced as a scope tab
 // on this console rather than folded into the content query.
 import { SearchAuditLogPanel } from "../../../components/search/SearchAuditLogPanel";
+import { Info, Search as SearchGlyph } from "lucide-react";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -305,6 +306,15 @@ const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
 
 const EVIDENCE_TYPES: EvidenceType[] = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
 
+// The chips used to render the raw enum lower-cased ("photo"), which read as
+// wire vocabulary next to the Title-Case document-type chips beside them.
+const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
+  PHOTO: "Photo",
+  VIDEO: "Video",
+  AUDIO: "Audio",
+  DOCUMENT: "Document",
+};
+
 const SORT_MODES: { value: SortMode; label: string }[] = [
   { value: "UPDATED_DESC", label: "Most recent first" },
   { value: "UPDATED_ASC", label: "Oldest first" },
@@ -378,6 +388,9 @@ function SearchInner() {
   // (GET /v1/search/audit). Two data domains, one console — never two
   // authorities over the same domain.
   const [scope, setScope] = useState<"records" | "activity">("records");
+  // The operator-help bar is disclosure-only: it states what this console
+  // really matches. Collapsed by default so results stay primary.
+  const [helpOpen, setHelpOpen] = useState(false);
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1048,6 +1061,9 @@ function SearchInner() {
   const effectiveMode: SearchMode =
     filter?.mode ?? (semanticAvailable ? "hybrid" : "keyword");
   const modeUsed: SearchMode = results?.modeUsed ?? effectiveMode;
+  // Did semantic similarity actually take part in ordering THIS result set?
+  // The header label is derived from what ran, never from what was requested.
+  const usedSemanticRanking = modeUsed === "hybrid" || modeUsed === "semantic";
   // Phase 16 — prefer the per-response fallback reason (it reflects
   // THIS query) and fall back to the global status fallback reason
   // when the search hasn't returned a row-set yet (initial paint).
@@ -1092,43 +1108,223 @@ function SearchInner() {
   }, [teamId, isPlatformAdmin]);
 
   if (!teamId || !filter) {
+    // Not an error and not an empty result: the workspace envelope has not
+    // resolved yet, so there is nothing to search against.
     return (
-      <main style={loadingScreenStyle}>
-        <p style={mutedStyle}>Workspace setup pending — refresh shortly.</p>
+      <main className="search-page" data-search-page="pending">
+        <div className="app-panel search-state" data-search-state="workspace-pending">
+          <p className="search-state__body">
+            Workspace setup pending — refresh shortly.
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={pageStyle}>
-     <PageShell width="full" style={pageShellStyle}>
-      <PageHeader
-        title={
-          // Phase 7C — the single semantic <h1> is now owned by the
-          // shared PageHeader. The pinned `data-search-title` contract
-          // hook rides on this inner <span> so the attribute stays in
-          // the DOM for end-to-end probes without nesting a second
-          // <h1>. `titleStyle` is applied here so the heading keeps its
-          // exact typographic treatment inside PageHeader's h1.
-          <span style={titleStyle} data-search-title>
+    <main className="search-page" data-search-page>
+      <header className="search-header">
+        <div className="search-header__text">
+          <h1 className="search-header__title" data-search-title>
             Search
-          </span>
-        }
-        subtitle="Search evidence, cases, reports, notes and OCR text across this workspace. Results respect visibility and governance."
-        primaryAction={
-          <form
-            onSubmit={submitQuery}
-            style={searchFormStyle}
-            data-search-form
+          </h1>
+          <p className="search-header__description">
+            Search evidence, cases, reports, notes and OCR text across this
+            workspace. Results respect visibility and governance.
+          </p>
+        </div>
+        {/* What ordered this result set, stated plainly. Keyword matching is
+            deterministic; semantic similarity only re-ranks rows the keyword
+            pass already found, so it is labelled advisory rather than sold as
+            a second kind of search. */}
+        <p
+          className="search-header__context"
+          data-search-ranking={usedSemanticRanking ? "advisory" : "deterministic"}
+        >
+          {usedSemanticRanking
+            ? "Deterministic match · advisory ranking"
+            : "Deterministic match"}
+        </p>
+      </header>
+
+      {/* Admin-only runtime strip (semantic status, backfill dry run, index
+          health). Still on its pre-migration presentation — Checkpoint 2D
+          owns these controls. */}
+      <div data-search-admin-strip>
+        {isPlatformAdmin ? (
+          <SemanticStatusChip
+            semanticEnabled={semanticEnabled}
+            semanticAvailable={semanticAvailable}
+            requestedMode={effectiveMode}
+            modeUsed={modeUsed}
+            fallbackReason={fallbackReason}
+            statusEndpointAvailable={semanticStatus !== null}
+          />
+        ) : null}
+        {/* Phase 16 — admin-only backfill panel. Hidden entirely for
+            non-admins; the dry-run endpoint stays unreached from the
+            UI. Renders directly under the chip to keep the operator
+            context tight. */}
+        {isPlatformAdmin ? (
+          <SemanticBackfillPanel
+            running={backfillRunning}
+            error={backfillError}
+            result={backfillResult}
+            onRun={runBackfillDryRun}
+          />
+        ) : null}
+        {/* Search-runtime-diagnostics — two distinct render paths:
+            -- NORMAL USERS (Personal/SMB) --
+              Render NOTHING in the healthy / partial_index /
+              empty_workspace branches. The numeric "X records
+              indexed" was an operator/debug counter and confused
+              users into thinking their workspace was broken when
+              the search was actually fine. Show a chip ONLY when
+              indexing is genuinely blocking search — `empty_index`
+              with NO results returned by the current query — and
+              even then surface user-safe copy ("Search is being
+              set up"), no numbers, no DB tooltip.
+            -- ADMIN USERS --
+              Render the full chip with the per-state breakdown
+              (evidenceIndexable, archived/locked counts, plus the
+              three excluded counts). This is the operator surface
+              that explains the delta between indexedEvidence and
+              evidenceIndexable. Gated on `isPlatformAdmin`.
+            Reality-wins guard still applies: in either render
+            path, if the current search returned rows, the cached
+            empty-index or preparing copy is suppressed. */}
+        {searchHealth ? (
+          (() => {
+            const realityOverrides =
+              results &&
+              results.rows.length > 0 &&
+              (searchHealth.health === "empty_index" ||
+                searchHealth.health === "empty_workspace");
+            const effectiveHealth = realityOverrides
+              ? "healthy"
+              : searchHealth.health;
+            // Search-page-final-cleanup (A) — by default NO
+            // user sees the numeric/diagnostic chip in normal
+            // states. Two surfaces still render:
+            //   (i)  empty_index AND no results visible — the
+            //        chip is genuinely user-blocking; even
+            //        non-admins should see the bounded
+            //        "Search is being set up" message.
+            //   (ii) platform-admin AND `?_debug=search-health`
+            //        opted in via URL — the full diagnostic
+            //        breakdown for support work.
+            // Everything else collapses to `null`.
+            const userBlocking = effectiveHealth === "empty_index";
+            const supportOptIn =
+              isPlatformAdmin && searchHealthDebugOptIn;
+            if (!supportOptIn && !userBlocking) return null;
+            if (!supportOptIn) {
+              // User-facing blocking message — same copy + same
+              // gating regardless of role. Numbers / DB tooltip
+              // are deliberately omitted.
+              return (
+                <Badge
+                  tone="risk"
+                  subtle
+                  style={{ marginTop: 8 }}
+                  data-search-health="empty_index"
+                  data-search-health-audience="user"
+                >
+                  Search is being set up. Try again in a moment.
+                </Badge>
+              );
+            }
+            // Support/admin path — opt-in only. Full breakdown,
+            // numbers included.
+            const breakdown = searchHealth.index.breakdown;
+            const adminToneMap: Record<string, BadgeTone> = {
+              healthy: "verified",
+              partial_index: "pending",
+              empty_index: "risk",
+              empty_workspace: "neutral",
+            };
+            const adminTone: BadgeTone =
+              adminToneMap[effectiveHealth] ?? "neutral";
+            return (
+              <Badge
+                tone={adminTone}
+                subtle
+                style={{ marginTop: 8 }}
+                data-search-health={effectiveHealth}
+                data-search-health-audience="admin"
+                data-search-health-cached={searchHealth.health}
+                data-search-health-reality-overrides={
+                  realityOverrides ? "true" : "false"
+                }
+                data-search-health-workspace-id={searchHealth.workspace.id}
+                data-search-health-workspace-name={
+                  searchHealth.workspace.name ?? ""
+                }
+                data-search-health-evidence-indexable={
+                  breakdown?.evidenceIndexable ??
+                  searchHealth.index.evidenceTotal
+                }
+                data-search-health-evidence-indexed={
+                  searchHealth.index.evidenceIndexed
+                }
+                data-search-health-active-included={
+                  breakdown?.activeIncluded ?? 0
+                }
+                data-search-health-archived-included={
+                  breakdown?.archivedIncluded ?? 0
+                }
+                data-search-health-locked-included={
+                  breakdown?.lockedIncluded ?? 0
+                }
+                data-search-health-trashed-included={
+                  breakdown?.trashedIncluded ?? 0
+                }
+                data-search-health-destroyed-excluded={
+                  breakdown?.destroyedExcluded ?? 0
+                }
+                data-search-health-pending-destruction-excluded={
+                  breakdown?.pendingDestructionExcluded ?? 0
+                }
+                title={renderAdminChipTooltip(searchHealth)}
+              >
+                <strong>
+                  {searchHealth.workspace.name ?? "Workspace"}
+                </strong>{" "}
+                ·{" "}
+                {effectiveHealth === "healthy"
+                  ? realityOverrides
+                    ? "Ready"
+                    : `${searchHealth.index.evidenceIndexed} indexed`
+                  : effectiveHealth === "partial_index"
+                    ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
+                    : effectiveHealth === "empty_index"
+                      ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
+                      : `Workspace has 0 indexable records`}
+              </Badge>
+            );
+          })()
+        ) : searchHealthError &&
+          isPlatformAdmin &&
+          searchHealthDebugOptIn ? (
+          <Badge
+            tone="neutral"
+            subtle
+            style={{ marginTop: 8 }}
+            data-search-health="unknown"
+            data-search-health-audience="admin"
           >
-            <div className="cases-search-field" style={{ position: "relative", flex: 1 }}>
-              {/* Canonical leading search icon (indigo-focus field). */}
-              <span className="cases-search-icon" aria-hidden>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m21 21-4.3-4.3" />
-                </svg>
-              </span>
+            Search index status unavailable
+          </Badge>
+        ) : null}
+      </div>
+
+      <div className="app-panel search-form-panel">
+        <form onSubmit={submitQuery} className="search-form" data-search-form>
+          {/* The field is the positioning context the typeahead anchors to. */}
+          <div className="search-form__field">
+            <span className="search-form__icon" aria-hidden="true">
+              <SearchGlyph size={17} strokeWidth={2} />
+            </span>
               <input
                 value={qDraft}
                 onChange={(e) => setQDraft(e.target.value)}
@@ -1162,250 +1358,107 @@ function SearchInner() {
                   }
                 }}
                 placeholder="Search evidence, cases, reports, notes, OCR text…"
-                className="cases-filter-search"
-                style={searchInputStyle}
+                className="search-form__input"
                 maxLength={200}
                 aria-label="Search query"
                 aria-autocomplete="list"
                 aria-expanded={suggestOpen}
                 data-search-input
               />
-              {suggestOpen ? (
-                <SearchTypeahead
-                  query={qDraft}
-                  suggestions={suggestions}
-                  recent={recent}
-                  highlighted={highlighted}
-                  onPick={(text) => {
-                    setQDraft(text);
-                    setSuggestOpen(false);
-                    updateFilter({ q: text });
-                    pushRecent(text);
-                  }}
-                  onClearRecent={clearRecent}
-                />
-              ) : null}
-            </div>
-            <Button type="submit" variant="primary">
-              Search
-            </Button>
-          </form>
-        }
-        contextStrip={
-          <>
-          {/* Phase 15/16 — semantic-search status chip.
-              Search-runtime-diagnostics: the chip exposes internal
-              ranking-mode mechanics ("Hybrid semantic search active",
-              "fell back to keyword", "semantic disabled"). That copy
-              is developer / operator language and erodes trust for
-              Personal/SMB users — it must NOT render outside the
-              platform-admin surface. We gate on the canonical
-              `isPlatformAdmin` envelope flag (the same flag the
-              backfill panel already uses), so a non-admin user sees
-              the clean chrome and only the workspace health chip
-              from the diagnostics endpoint. */}
-          {isPlatformAdmin ? (
-            <SemanticStatusChip
-              semanticEnabled={semanticEnabled}
-              semanticAvailable={semanticAvailable}
-              requestedMode={effectiveMode}
-              modeUsed={modeUsed}
-              fallbackReason={fallbackReason}
-              statusEndpointAvailable={semanticStatus !== null}
-            />
-          ) : null}
-          {/* Phase 16 — admin-only backfill panel. Hidden entirely for
-              non-admins; the dry-run endpoint stays unreached from the
-              UI. Renders directly under the chip to keep the operator
-              context tight. */}
-          {isPlatformAdmin ? (
-            <SemanticBackfillPanel
-              running={backfillRunning}
-              error={backfillError}
-              result={backfillResult}
-              onRun={runBackfillDryRun}
-            />
-          ) : null}
-          {/* Search-runtime-diagnostics — two distinct render paths:
-              -- NORMAL USERS (Personal/SMB) --
-                Render NOTHING in the healthy / partial_index /
-                empty_workspace branches. The numeric "X records
-                indexed" was an operator/debug counter and confused
-                users into thinking their workspace was broken when
-                the search was actually fine. Show a chip ONLY when
-                indexing is genuinely blocking search — `empty_index`
-                with NO results returned by the current query — and
-                even then surface user-safe copy ("Search is being
-                set up"), no numbers, no DB tooltip.
-              -- ADMIN USERS --
-                Render the full chip with the per-state breakdown
-                (evidenceIndexable, archived/locked counts, plus the
-                three excluded counts). This is the operator surface
-                that explains the delta between indexedEvidence and
-                evidenceIndexable. Gated on `isPlatformAdmin`.
-              Reality-wins guard still applies: in either render
-              path, if the current search returned rows, the cached
-              empty-index or preparing copy is suppressed. */}
-          {searchHealth ? (
-            (() => {
-              const realityOverrides =
-                results &&
-                results.rows.length > 0 &&
-                (searchHealth.health === "empty_index" ||
-                  searchHealth.health === "empty_workspace");
-              const effectiveHealth = realityOverrides
-                ? "healthy"
-                : searchHealth.health;
-              // Search-page-final-cleanup (A) — by default NO
-              // user sees the numeric/diagnostic chip in normal
-              // states. Two surfaces still render:
-              //   (i)  empty_index AND no results visible — the
-              //        chip is genuinely user-blocking; even
-              //        non-admins should see the bounded
-              //        "Search is being set up" message.
-              //   (ii) platform-admin AND `?_debug=search-health`
-              //        opted in via URL — the full diagnostic
-              //        breakdown for support work.
-              // Everything else collapses to `null`.
-              const userBlocking = effectiveHealth === "empty_index";
-              const supportOptIn =
-                isPlatformAdmin && searchHealthDebugOptIn;
-              if (!supportOptIn && !userBlocking) return null;
-              if (!supportOptIn) {
-                // User-facing blocking message — same copy + same
-                // gating regardless of role. Numbers / DB tooltip
-                // are deliberately omitted.
-                return (
-                  <Badge
-                    tone="risk"
-                    subtle
-                    style={{ marginTop: 8 }}
-                    data-search-health="empty_index"
-                    data-search-health-audience="user"
-                  >
-                    Search is being set up. Try again in a moment.
-                  </Badge>
-                );
-              }
-              // Support/admin path — opt-in only. Full breakdown,
-              // numbers included.
-              const breakdown = searchHealth.index.breakdown;
-              const adminToneMap: Record<string, BadgeTone> = {
-                healthy: "verified",
-                partial_index: "pending",
-                empty_index: "risk",
-                empty_workspace: "neutral",
-              };
-              const adminTone: BadgeTone =
-                adminToneMap[effectiveHealth] ?? "neutral";
-              return (
-                <Badge
-                  tone={adminTone}
-                  subtle
-                  style={{ marginTop: 8 }}
-                  data-search-health={effectiveHealth}
-                  data-search-health-audience="admin"
-                  data-search-health-cached={searchHealth.health}
-                  data-search-health-reality-overrides={
-                    realityOverrides ? "true" : "false"
-                  }
-                  data-search-health-workspace-id={searchHealth.workspace.id}
-                  data-search-health-workspace-name={
-                    searchHealth.workspace.name ?? ""
-                  }
-                  data-search-health-evidence-indexable={
-                    breakdown?.evidenceIndexable ??
-                    searchHealth.index.evidenceTotal
-                  }
-                  data-search-health-evidence-indexed={
-                    searchHealth.index.evidenceIndexed
-                  }
-                  data-search-health-active-included={
-                    breakdown?.activeIncluded ?? 0
-                  }
-                  data-search-health-archived-included={
-                    breakdown?.archivedIncluded ?? 0
-                  }
-                  data-search-health-locked-included={
-                    breakdown?.lockedIncluded ?? 0
-                  }
-                  data-search-health-trashed-included={
-                    breakdown?.trashedIncluded ?? 0
-                  }
-                  data-search-health-destroyed-excluded={
-                    breakdown?.destroyedExcluded ?? 0
-                  }
-                  data-search-health-pending-destruction-excluded={
-                    breakdown?.pendingDestructionExcluded ?? 0
-                  }
-                  title={renderAdminChipTooltip(searchHealth)}
-                >
-                  <strong>
-                    {searchHealth.workspace.name ?? "Workspace"}
-                  </strong>{" "}
-                  ·{" "}
-                  {effectiveHealth === "healthy"
-                    ? realityOverrides
-                      ? "Ready"
-                      : `${searchHealth.index.evidenceIndexed} indexed`
-                    : effectiveHealth === "partial_index"
-                      ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
-                      : effectiveHealth === "empty_index"
-                        ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
-                        : `Workspace has 0 indexable records`}
-                </Badge>
-              );
-            })()
-          ) : searchHealthError &&
-            isPlatformAdmin &&
-            searchHealthDebugOptIn ? (
-            <Badge
-              tone="neutral"
-              subtle
-              style={{ marginTop: 8 }}
-              data-search-health="unknown"
-              data-search-health-audience="admin"
-            >
-              Search index status unavailable
-            </Badge>
-          ) : null}
-          </>
-        }
-      />
+            {suggestOpen ? (
+              <SearchTypeahead
+                query={qDraft}
+                suggestions={suggestions}
+                recent={recent}
+                highlighted={highlighted}
+                onPick={(text) => {
+                  setQDraft(text);
+                  setSuggestOpen(false);
+                  updateFilter({ q: text });
+                  pushRecent(text);
+                }}
+                onClearRecent={clearRecent}
+              />
+            ) : null}
+          </div>
+          <button
+            type="submit"
+            className="app-primary-action search-form__submit"
+            data-search-submit
+          >
+            Search
+          </button>
+        </form>
+      </div>
 
-      {/* Contextual help, collapsed by default so the search results
-          stay primary. */}
-      <ContextualHelp surface="search" collapsedByDefault />
+      {/* Operator help. Every line below describes something this console
+          actually does — the corpus it reads, the text it can match, and
+          what it withholds. Collapsed by default so results stay primary. */}
+      <div className="search-help" data-search-help>
+        <span className="search-help__icon" aria-hidden="true">
+          <Info size={16} strokeWidth={2} />
+        </span>
+        <span className="search-help__label">How search works</span>
+        <button
+          type="button"
+          className="search-help__toggle"
+          aria-expanded={helpOpen}
+          aria-controls="search-help-body"
+          onClick={() => setHelpOpen((prev) => !prev)}
+          data-search-help-toggle
+        >
+          {helpOpen ? "Hide" : "Show"}
+        </button>
+        {helpOpen ? (
+          <ul className="search-help__body" id="search-help-body">
+            <li>
+              Titles, filenames, case names, report titles, package labels and
+              note text are matched directly.
+            </li>
+            <li>
+              OCR and transcript text are matched where a record carries them.
+            </li>
+            <li>
+              Records you cannot access are counted above the results, never
+              listed.
+            </li>
+            <li>
+              The filters narrow by record type, evidence kind, lifecycle state
+              and when a record was last updated.
+            </li>
+          </ul>
+        ) : null}
+      </div>
 
-      {/* PHASE 12B — scope tabs. Records = unified content search;
-          Activity = the workspace search-activity log. Switching scope
-          never changes the workspace: both read the same server-projected
-          `teamId`. */}
+      {/* Records = the unified content projection (GET /v1/search).
+          Search activity = the workspace search-activity log
+          (GET /v1/search/audit). Two data domains, one console; switching
+          scope never changes the workspace. */}
       <div
+        className="app-tabs"
         data-search-scope-tabs
         role="tablist"
         aria-label="Search console scope"
-        style={scopeTabStripStyle}
       >
         <button
           type="button"
           role="tab"
+          className={`app-tab${scope === "records" ? " is-active" : ""}`}
           aria-selected={scope === "records"}
           data-search-scope-tab="records"
           data-search-scope-active={scope === "records" ? "true" : "false"}
           onClick={() => setScope("records")}
-          style={scopeTabStyle(scope === "records")}
         >
           Records
         </button>
         <button
           type="button"
           role="tab"
+          className={`app-tab${scope === "activity" ? " is-active" : ""}`}
           aria-selected={scope === "activity"}
           data-search-scope-tab="activity"
           data-search-scope-active={scope === "activity" ? "true" : "false"}
           onClick={() => setScope("activity")}
-          style={scopeTabStyle(scope === "activity")}
         >
           Search activity
         </button>
@@ -1423,40 +1476,38 @@ function SearchInner() {
         </Card>
       ) : null}
 
-      <div style={threeColStyle}>
+      {/* Filters | Results | Inspector. The three regions are sized from the
+          console's own inline size, not the viewport: this surface sits beside
+          the app sidebar and never had the width a viewport query described. */}
+      <div className="search-workspace">
+        <div className="search-workspace__grid">
         {/* ----------------------------- LEFT ----------------------------- */}
-        <Card variant="summary" padding="compact" style={leftRailStyle}>
+        <div className="search-col">
+        <div className="app-panel search-filters" data-search-filters>
           <FilterSection label="Sort">
-            <select
+            <AppListbox
               value={filter.sort ?? "UPDATED_DESC"}
-              onChange={(e) =>
-                updateFilter({ sort: e.target.value as SortMode })
-              }
-              className="cases-form-input"
-              style={selectStyle}
-            >
-              {SORT_MODES.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+              options={SORT_MODES}
+              onChange={(value) => updateFilter({ sort: value })}
+              ariaLabel="Sort results"
+            />
           </FilterSection>
 
           <FilterSection label="Document type">
-            <div style={chipGroupStyle}>
+            <div className="search-chip-row">
               {DOCUMENT_TYPES.map((t) => {
                 const active = filter.documentTypes?.includes(t) ?? false;
                 return (
                   <button
                     key={t}
                     type="button"
+                    className="search-chip"
+                    aria-pressed={active}
                     onClick={() =>
                       updateFilter({
                         documentTypes: toggleArray(filter.documentTypes, t),
                       })
                     }
-                    style={chipButtonStyle(active)}
                     data-search-type-chip={t}
                   >
                     {DOCUMENT_TYPE_LABEL[t]}
@@ -1467,21 +1518,23 @@ function SearchInner() {
           </FilterSection>
 
           <FilterSection label="Evidence kind">
-            <div style={chipGroupStyle}>
+            <div className="search-chip-row">
               {EVIDENCE_TYPES.map((t) => {
                 const active = filter.evidenceTypes?.includes(t) ?? false;
                 return (
                   <button
                     key={t}
                     type="button"
+                    className="search-chip"
+                    aria-pressed={active}
                     onClick={() =>
                       updateFilter({
                         evidenceTypes: toggleArray(filter.evidenceTypes, t),
                       })
                     }
-                    style={chipButtonStyle(active)}
+                    data-search-evidence-chip={t}
                   >
-                    {t.toLowerCase()}
+                    {EVIDENCE_TYPE_LABEL[t]}
                   </button>
                 );
               })}
@@ -1527,118 +1580,106 @@ function SearchInner() {
           </FilterSection>
 
           <FilterSection label="Updated">
-            {/* Search-page-final-cleanup (C) — date inputs are
-                draft-backed. Typing/clearing the picker writes
-                only to the local draft string; the live filter
-                envelope is unchanged until the user clicks Apply
-                filters (sticky panel below). Datetime-local
-                keystrokes used to fire a search per partial value
-                — annoying + wasteful + sometimes invalid. */}
-            <label style={fieldLabelStyle}>
-              Since
+            {/* Draft-backed: typing in a picker writes only to the local draft
+                string, and the live filter envelope is unchanged until Apply.
+                Datetime-local keystrokes used to fire a search per partial
+                value — wasteful, and sometimes an invalid instant. */}
+            <div className="search-date-field">
+              <label htmlFor="search-updated-since">Since</label>
               <input
+                id="search-updated-since"
                 type="datetime-local"
                 value={dateSinceDraft}
                 onChange={(e) => setDateSinceDraft(e.target.value)}
                 data-search-filter-date-since-input="true"
-                className="cases-form-input"
-                style={inputStyle}
+                className="app-form-input"
               />
-            </label>
-            <label style={fieldLabelStyle}>
-              Until
+            </div>
+            <div className="search-date-field">
+              <label htmlFor="search-updated-until">Until</label>
               <input
+                id="search-updated-until"
                 type="datetime-local"
                 value={dateUntilDraft}
                 onChange={(e) => setDateUntilDraft(e.target.value)}
                 data-search-filter-date-until-input="true"
-                className="cases-form-input"
-                style={inputStyle}
+                className="app-form-input"
               />
-            </label>
+            </div>
           </FilterSection>
 
-          {/* Search-page-final-cleanup (C) — sticky Apply/Clear
-              panel. Apply is the only way to push date drafts
-              into the live filter envelope (chips auto-apply on
-              their own). Clear wipes every narrowing dimension
-              including dates. Free-text query is preserved by
-              both. The panel only renders when something can be
-              applied or cleared — keeps the rail uncluttered for
-              the no-filter case. */}
+          {/* Apply is the only way to push the date drafts into the live filter
+              (chips and toggles auto-apply on their own). Clear wipes every
+              narrowing dimension including the dates; both preserve the query.
+              The row only renders when there is something to apply or clear. */}
           {(dateDraftDirty || filtersNonEmpty) ? (
             <div
-              style={filterApplyPanelStyle}
+              className="search-filters__actions"
               data-search-filter-apply-panel="true"
             >
-              <Button
-                variant="primary"
-                size="sm"
+              <button
+                type="button"
+                className="app-primary-action"
                 onClick={applyDraftFilters}
                 disabled={!dateDraftDirty}
                 data-search-filter-apply="true"
               >
                 Apply filters
-              </Button>
+              </button>
               {filtersNonEmpty ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
+                <button
+                  type="button"
+                  className="app-secondary-action"
                   onClick={clearNarrowingFilters}
                   data-search-filter-clear="true"
                 >
                   Clear filters
-                </Button>
+                </button>
               ) : null}
             </div>
           ) : null}
 
-          {/* Saved views — operator surface only. The Personal/SMB
-              search experience is intentionally one input box + the
-              filter rail; persisted views add visual clutter and
-              imply an enterprise workflow Personal users do not run.
-              Gate on the same `isPlatformAdmin` flag the semantic
-              chip + backfill panel already use, so the backend
-              saved-search routes stay intact (and enterprise users
-              keep their workflow). When the gate hides the section
-              the GET /v1/search/saved-views fetch above continues to
-              run silently so a future plan upgrade does not require
-              a refresh to populate the list. */}
+          {/* Saved views — operator surface only, gated on the same
+              isPlatformAdmin envelope flag the runtime strip uses. The
+              GET /v1/search/saved-views fetch keeps running when the gate
+              hides the section, so a plan upgrade needs no refresh. */}
           {isPlatformAdmin ? (
             <FilterSection label="Saved views">
-              <Button
-                variant="secondary"
-                size="sm"
+              <button
+                type="button"
+                className="app-secondary-action"
                 onClick={saveCurrentView}
                 disabled={savingView}
-                loading={savingView}
+                aria-busy={savingView}
               >
                 {savingView ? "Saving…" : "Save current view"}
-              </Button>
+              </button>
               {savedViews === null ? (
-                <p style={mutedStyle}>Loading…</p>
+                <p className="search-filters__note">Loading…</p>
               ) : savedViews.length === 0 ? (
-                <p style={mutedStyle}>No saved views yet.</p>
+                <p className="search-filters__note">No saved views yet.</p>
               ) : (
-                <ul style={savedViewListStyle}>
+                <ul className="search-saved-views">
                   {savedViews.map((v) => (
-                    <li key={v.id} style={savedViewRowStyle}>
+                    <li key={v.id} className="search-saved-view">
                       <button
                         type="button"
+                        className="search-saved-view__apply"
                         onClick={() => applySavedView(v)}
-                        style={savedViewApplyStyle}
                         title={v.description ?? ""}
                       >
-                        {v.pinned ? "★ " : ""}
-                        {v.name}
-                        <span style={savedViewVisibilityStyle}>
+                        <span>
+                          {v.pinned ? "★ " : ""}
+                          {v.name}
+                        </span>
+                        <span className="search-saved-view__visibility">
                           {v.visibility.toLowerCase()}
                         </span>
                       </button>
                       <button
                         type="button"
+                        className="search-saved-view__action"
                         onClick={() => renameSavedView(v.id, v.name)}
-                        style={iconButtonStyle}
                         aria-label="Rename saved view"
                         data-search-saved-view-rename={v.id}
                         title="Rename"
@@ -1647,9 +1688,10 @@ function SearchInner() {
                       </button>
                       <button
                         type="button"
+                        className="search-saved-view__action"
                         onClick={() => deleteSavedView(v.id)}
-                        style={iconButtonStyle}
                         aria-label="Delete saved view"
+                        title="Delete"
                       >
                         ×
                       </button>
@@ -1659,10 +1701,12 @@ function SearchInner() {
               )}
             </FilterSection>
           ) : null}
-        </Card>
+        </div>
+        </div>
 
         {/* ----------------------------- CENTER ----------------------------- */}
-        <Card variant="summary" padding="compact" style={centerColStyle}>
+        <div className="search-col search-col--results">
+        <Card variant="summary" padding="compact">
           <div style={resultsHeaderStyle}>
             <div style={mutedStyle}>
               {loading
@@ -1895,9 +1939,11 @@ function SearchInner() {
             </Button>
           ) : null}
         </Card>
+        </div>
 
         {/* ----------------------------- RIGHT ----------------------------- */}
-        <Card variant="summary" padding="comfortable" style={rightRailStyle}>
+        <div className="search-col">
+        <Card variant="summary" padding="comfortable">
           {!selected ? (
             // Phase SEARCH-REMEDIATION-3 — the empty preview no
             // longer wastes the right rail. Instead it shows the
@@ -1923,10 +1969,11 @@ function SearchInner() {
             />
           )}
         </Card>
+        </div>
+        </div>
       </div>
       </>
       )}
-     </PageShell>
     </main>
   );
 }
@@ -2355,6 +2402,11 @@ function Inspector({
 // Small components
 // -----------------------------------------------------------------------------
 
+/**
+ * One filter dimension. A fieldset/legend rather than two divs, so the group
+ * label is the accessible name of the controls inside it — screen readers
+ * announce "Document type, Evidence, not pressed" instead of a bare chip.
+ */
 function FilterSection({
   label,
   children,
@@ -2363,10 +2415,10 @@ function FilterSection({
   children: React.ReactNode;
 }) {
   return (
-    <div style={filterSectionStyle}>
-      <div style={filterLabelStyle}>{label}</div>
-      <div style={filterBodyStyle}>{children}</div>
-    </div>
+    <fieldset className="search-filters__group">
+      <legend className="search-filters__legend">{label}</legend>
+      {children}
+    </fieldset>
   );
 }
 
@@ -2385,6 +2437,7 @@ function Section({
   );
 }
 
+/** A lifecycle filter: a real checkbox, wearing the canonical control skin. */
 function Toggle({
   label,
   value,
@@ -2395,9 +2448,10 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label style={toggleRowStyle}>
+    <label className="search-toggle-row">
       <input
         type="checkbox"
+        className="app-checkbox"
         checked={value}
         onChange={(e) => onChange(e.target.checked)}
       />
@@ -2816,268 +2870,21 @@ function formatDateTime(iso: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// Styles — restrained, dense, operational. No gradients.
+// Styles.
+//
+// REDESIGN/SEARCH — the page, header, search form, three-region workspace and
+// the entire filter rail are described by `search.css` and the canonical
+// `app-*` primitives. Their 26 `React.CSSProperties` objects (pageStyle,
+// pageShellStyle, loadingScreenStyle, titleStyle, searchFormStyle,
+// searchInputStyle, threeColStyle, leftRailStyle, centerColStyle,
+// rightRailStyle, filterSection/label/body, chipGroupStyle, the two scope-tab
+// helpers, chipButtonStyle, selectStyle, toggleRowStyle, fieldLabelStyle,
+// inputStyle, filterApplyPanelStyle and the five saved-view/icon-button
+// objects) are deleted, not hidden — nothing below overrides them.
+//
+// What remains describes the result list and the inspector, and is deleted by
+// Checkpoints 2B and 2C.
 // -----------------------------------------------------------------------------
-
-const pageStyle: React.CSSProperties = {
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-  background: "#f8fafc",
-  minHeight: "100vh",
-};
-
-// Phase 7B — the shared PageShell owns the content-plane padding /
-// max-width / section rhythm now. The search console is a dense
-// three-column operator surface, so we opt out of the max-width clamp
-// (`width="full"` on the element) and keep the console's own compact
-// top/side padding (20px/24px, matching the pre-migration spacing) plus
-// a tighter section gap so the header + three-column grid stay close.
-const pageShellStyle: React.CSSProperties = {
-  paddingInline: 24,
-  paddingBlock: "20px 40px",
-  gap: 0,
-};
-
-const loadingScreenStyle: React.CSSProperties = {
-  ...pageStyle,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-// Phase 7C — the page heading now renders inside the shared PageHeader.
-// `titleStyle` is passed to the pinned `<h1 data-search-title>` so the
-// contract-test element keeps its exact typographic treatment while the
-// surrounding chrome (header layout, subtitle, actions row) is owned by
-// PageHeader. The former bespoke `headerStyle` / `subtitleStyle` /
-// `searchButtonStyle` / `errorBoxStyle` / the two chip-style helpers +
-// the disabled `_semanticSearchChipStyle` baseline were removed once the
-// header, buttons, error surface, and every status chip migrated to the
-// shared PageHeader / Button / Card / Badge primitives.
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  fontWeight: 700,
-  lineHeight: 1.2,
-  letterSpacing: "-0.01em",
-  color: "var(--ink-primary, #0f172a)",
-};
-
-// The search form keeps a bespoke input (pinned by the typeahead
-// contract test to a `position:relative` wrapper + raw <input>) so the
-// SearchTypeahead dropdown can anchor to it. The submit button migrated
-// to the shared <Button variant="primary">.
-const searchFormStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  alignItems: "center",
-  minWidth: 320,
-  flex: "1 1 360px",
-};
-
-// Layout only — border / radius / background / indigo focus ring come
-// from the canonical `.cases-filter-search` class (with its leading
-// search icon). Keeps the flex sizing the three-column header needs.
-const searchInputStyle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 240,
-};
-
-const threeColStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "260px 1fr 360px",
-  gap: 16,
-  marginTop: 16,
-  alignItems: "flex-start",
-};
-
-// Phase 7C — the three columns are now shared <Card> surfaces (token
-// background / border / radius / padding). These style objects only
-// carry the positional concerns Card doesn't own: sticky rails, scroll,
-// and the center column's min-height.
-const leftRailStyle: React.CSSProperties = {
-  position: "sticky",
-  top: 16,
-  maxHeight: "calc(100vh - 32px)",
-  overflowY: "auto",
-};
-
-const centerColStyle: React.CSSProperties = {
-  minHeight: 400,
-};
-
-const rightRailStyle: React.CSSProperties = {
-  position: "sticky",
-  top: 16,
-  maxHeight: "calc(100vh - 32px)",
-  overflowY: "auto",
-};
-
-const filterSectionStyle: React.CSSProperties = {
-  borderBottom: "1px solid #f1f5f9",
-  padding: "10px 4px 12px",
-};
-const filterLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  color: "#475569",
-  letterSpacing: 0.5,
-  marginBottom: 8,
-};
-const filterBodyStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-};
-
-const chipGroupStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 4,
-};
-
-// Compact filter-rail chip — canonical indigo active state
-// (#F2ECFE / #D9C7FB / #6D28D9), the same tab language as Home / Cases.
-// The compact metrics are kept (the rail is denser than the Cases
-// segment strip) but the colours map onto the shared design system;
-// active never reads as the old dark-slate pill.
-// PHASE 12B — scope tab strip (Records / Search activity).
-const scopeTabStripStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 6,
-  marginTop: 12,
-  borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
-};
-
-function scopeTabStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "8px 14px",
-    border: "none",
-    borderBottom: active ? "2px solid #0f172a" : "2px solid transparent",
-    background: "transparent",
-    color: active ? "#0f172a" : "#475569",
-    fontSize: 13,
-    fontWeight: active ? 600 : 500,
-    cursor: "pointer",
-  };
-}
-
-function chipButtonStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "4px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    background: active ? "#F2ECFE" : "rgba(255,255,255,0.85)",
-    color: active ? "#6D28D9" : "#5F6878",
-    borderColor: active ? "#D9C7FB" : "rgba(15,23,42,0.10)",
-    cursor: "pointer",
-  };
-}
-
-const selectStyle: React.CSSProperties = {
-  padding: "6px 8px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 12,
-  background: "#fff",
-  color: "#0f172a",
-};
-
-const toggleRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  fontSize: 12,
-  color: "#334155",
-  cursor: "pointer",
-};
-
-const fieldLabelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  fontSize: 11,
-  color: "#475569",
-  gap: 4,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: "5px 8px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 12,
-  background: "#fff",
-  color: "#0f172a",
-};
-
-// Phase 7C — the Apply / Clear / Save-view / Load-more / Search buttons
-// migrated to the shared <Button> primitive, so the bespoke
-// primaryButtonStyle / secondaryButtonStyle / loadMoreButtonStyle /
-// searchButtonStyle / semanticBackfillButtonStyle constants were
-// removed.
-
-// Sticky-ish container for the Apply/Clear button pair below
-// the Updated date pickers. Visually framed so a user editing
-// dates sees the resolution immediately under them and never
-// has to scroll back to the top-right Search button.
-const filterApplyPanelStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  padding: "10px 12px",
-  marginTop: 12,
-  borderTop: "1px solid #e2e8f0",
-  background: "#f8fafc",
-  borderRadius: 6,
-  position: "sticky",
-  bottom: 0,
-};
-
-const savedViewListStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-};
-const savedViewRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 4,
-};
-const savedViewApplyStyle: React.CSSProperties = {
-  flex: 1,
-  textAlign: "left",
-  padding: "5px 8px",
-  border: "1px solid #e2e8f0",
-  borderRadius: 6,
-  background: "#f8fafc",
-  fontSize: 12,
-  color: "#0f172a",
-  cursor: "pointer",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 6,
-};
-const savedViewVisibilityStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: "#64748b",
-  textTransform: "uppercase",
-};
-const iconButtonStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  border: "1px solid #e2e8f0",
-  background: "#fff",
-  color: "#64748b",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 14,
-  lineHeight: 1,
-};
 
 const resultsHeaderStyle: React.CSSProperties = {
   display: "flex",
