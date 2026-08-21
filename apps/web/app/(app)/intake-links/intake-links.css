@@ -320,13 +320,19 @@
 .ilk-table td {
   overflow-wrap: anywhere;
 }
-/* A badge or chip is `white-space: nowrap` by contract, so it never breaks
-   mid-phrase in a toolbar. Inside a FIXED-layout table cell that same contract
-   makes it overflow into the neighbouring column instead — which is precisely
-   how "Archived" ended up painted on top of "Submitted". Within this table the
-   phrase is allowed to wrap; it still never breaks mid-word, because the rule
-   is `normal`, not `break-all`. */
-.ilk-table .app-status-badge,
+/* Chips inside the table may wrap rather than escape their cell.
+   `white-space: nowrap` is a badge's contract so it never breaks mid-phrase in
+   a toolbar; in a table cell that same contract used to make it overflow into
+   the neighbouring column instead.
+
+   THE STATUS BADGE IS NO LONGER IN THIS SET.
+
+   The only badge left in the table is the LIFECYCLE chip, and it must hold its
+   phrase on one line: "Link disabled" broken across two lines reads as two
+   states, and the shortest word of the pair is the one that carries the
+   meaning. Its column is sized from its content by the auto layout above, so
+   keeping the canonical nowrap widens the column by the few pixels it needs
+   instead of pushing the chip into its neighbour. */
 .ilk-table .app-chip {
   white-space: normal;
 }
@@ -336,7 +342,9 @@
    widens the floor with the text instead of overflowing it. */
 .ilk-table th[data-col="request"],
 .ilk-table td[data-col="request"] {
-  min-inline-size: 14ch;
+  /* The request title wraps freely, so its floor costs the columns that
+     cannot wrap. 13ch is still two comfortable words before the wrap. */
+  min-inline-size: 13ch;
   max-inline-size: 32ch;
 }
 .ilk-table th[data-col="recipient"],
@@ -362,12 +370,14 @@
   min-inline-size: 9ch;
   max-inline-size: 14ch;
 }
-/* Wide enough for the longest value this column carries — "Expired 01 Jan
-   2020", which the relative helper produces once a date is more than a month
-   old. At 9ch the browser handed it 71px and broke it one word per line. */
+/* Wide enough for the longest value this column carries — and that value is
+   now a DATE, "01 Jan 2020", not the "Expired 01 Jan 2020" phrase it used to
+   print. The floor was measured for the longer string and kept ~3ch this
+   column no longer needs, which is exactly the width the Lifecycle chip needs
+   to hold "Link disabled" on one line at 1024px. */
 .ilk-table th[data-col="expires"],
 .ilk-table td[data-col="expires"] {
-  min-inline-size: 14ch;
+  min-inline-size: 11ch;
   max-inline-size: 20ch;
 }
 /* The two columns whose control cannot wrap take exactly what the control
@@ -462,17 +472,14 @@
 }
 .ilk-status__line {
   display: flex;
-  align-items: center;
-  /* A status badge is `white-space: nowrap` by contract, so the LINE has to be
-     able to wrap instead — otherwise the badge is the thing that escapes the
-     cell. Label on one line, badge on the next, is a fine narrow-width answer;
-     a badge sitting on top of the next column is not. */
+  align-items: baseline;
+  /* Key on one line and value on the next is a fine narrow-width answer; a
+     value sitting on top of the next column is not. */
   flex-wrap: wrap;
   gap: 6px;
   min-inline-size: 0;
   font-size: 12.5px;
   line-height: 1.4;
-  color: var(--app-ink-secondary, #667085);
 }
 /* Two labelled facts, in a key/value grid. The keys are VISIBLE: "Delivered"
    stacked over "Submitted" with no keys reads as one status made of two
@@ -482,10 +489,19 @@
   inline-size: 4.5rem;
   font-weight: 600;
 }
-.ilk-status__value {
+/* The canonical neutral VALUE treatment for this column.
+   Delivery and Activity are supporting facts, so they read as the product's
+   ordinary control ink — no fill, no tone, no chip. The tone still exists on
+   the row model and still drives Lifecycle; this column simply does not spend
+   it. Stated here once, so the table cell and the card fact cannot drift. */
+.ilk-status__value,
+.ilk-card__facts dd[data-intake-links-row-delivery],
+.ilk-card__facts dd[data-intake-links-row-session-state] {
   margin: 0;
   min-inline-size: 0;
   overflow-wrap: anywhere;
+  font-weight: 500;
+  color: var(--app-ink-control, #263247);
 }
 .ilk-status__detail {
   margin: 0;

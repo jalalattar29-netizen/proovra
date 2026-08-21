@@ -112,6 +112,17 @@ function LifecycleBadge({ row }: { row: IntakeRowModel }) {
  * two places a few pixels apart. Both values are labelled in the cell rather
  * than relying on the column header alone, because "Delivered / Submitted"
  * stacked without keys reads as one status with two words.
+ *
+ * NEUTRAL TEXT, NOT BADGES.
+ *
+ * These two are supporting facts about a request, read after the operator has
+ * found the row they want. Filling them made a row carry three saturated
+ * rectangles, which is a colour vocabulary competing with itself: the eye had
+ * no way to tell that the Lifecycle chip is the record's state and these two
+ * are details of it. Lifecycle keeps the fill because it is the one state the
+ * row is scanned by. The wording, the vocabulary authority, the machine-
+ * readable axis probes and the unknown-value fallbacks are all unchanged —
+ * only the treatment is.
  */
 function StatusCluster({ row }: { row: IntakeRowModel }) {
   return (
@@ -121,14 +132,9 @@ function StatusCluster({ row }: { row: IntakeRowModel }) {
         <dd
           className="ilk-status__value"
           data-intake-links-row-delivery={row.delivery}
+          title={row.deliveryVocab.explanation}
         >
-          <AppStatusBadge
-            tone={row.deliveryVocab.tone}
-            fill="solid"
-            title={row.deliveryVocab.explanation}
-          >
-            {row.deliveryVocab.label}
-          </AppStatusBadge>
+          {row.deliveryVocab.label}
         </dd>
       </div>
       <div className="ilk-status__line">
@@ -136,14 +142,9 @@ function StatusCluster({ row }: { row: IntakeRowModel }) {
         <dd
           className="ilk-status__value"
           data-intake-links-row-session-state={row.activity}
+          title={row.activityVocab.explanation}
         >
-          <AppStatusBadge
-            tone={row.activityVocab.tone}
-            fill="solid"
-            title={row.activityVocab.explanation}
-          >
-            {row.activityVocab.label}
-          </AppStatusBadge>
+          {row.activityVocab.label}
         </dd>
       </div>
       {row.deliveryDetail ? (
@@ -336,12 +337,12 @@ function RecordCard({
         <dt>Recipient</dt>
         <dd className="ilk-ltr">{row.recipientText}</dd>
         <dt>Delivery</dt>
-        {/* Can carry a provider code and an English provider sentence; keep
-            each run in its own direction so an RTL page does not reorder it. */}
+        {/* Neutral text, exactly as the table cell renders it — the card is a
+            second renderer of one row model, not a second design. Can carry a
+            provider code and an English provider sentence; keep each run in
+            its own direction so an RTL page does not reorder it. */}
         <dd className="ilk-ltr" data-intake-links-row-delivery={row.delivery}>
-          <AppStatusBadge tone={row.deliveryVocab.tone} fill="solid">
-            {row.deliveryVocab.label}
-          </AppStatusBadge>
+          {row.deliveryVocab.label}
           {row.deliveryDetail ? ` ${row.deliveryDetail}` : ""}
         </dd>
         <dt>Activity</dt>
@@ -349,9 +350,7 @@ function RecordCard({
             row, so a matrix can prove the two renderers agree instead of
             comparing prose. */}
         <dd data-intake-links-row-session-state={row.activity}>
-          <AppStatusBadge tone={row.activityVocab.tone} fill="solid">
-            {row.activityVocab.label}
-          </AppStatusBadge>
+          {row.activityVocab.label}
         </dd>
         <dt>Latest activity</dt>
         <dd>{row.latestActivityRelative}</dd>

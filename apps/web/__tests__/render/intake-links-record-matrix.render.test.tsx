@@ -770,91 +770,166 @@ describe("expiration column and the single lifecycle region", () => {
 // The row-status tone mapping
 // ===========================================================================
 
-describe("row status tones come from one map", () => {
-  const CASES: Array<[string, Spec, string, string]> = [
-    // label, fixture, probe attribute, required tone
-    [
-      "Submitted",
-      { id: "t-sub", opened: 1, started: 1, submitted: 1 },
-      "data-intake-links-row-session-state",
-      "green",
-    ],
-    [
-      "Not opened",
-      { id: "t-quiet" },
-      "data-intake-links-row-session-state",
-      "orange",
-    ],
-    [
-      "Expired",
-      { id: "t-exp", status: "EXPIRED", used: 1, expires: PAST },
-      "data-intake-links-row-link-state",
-      "blue",
-    ],
-    [
-      "Opened",
-      { id: "t-open", opened: 1 },
-      "data-intake-links-row-session-state",
-      "green",
-    ],
-    [
-      "Link disabled",
-      { id: "t-rev", status: "REVOKED", revoked: PAST },
-      "data-intake-links-row-link-state",
-      "red",
-    ],
-    [
-      "Archived",
-      { id: "t-arch", archived: PAST },
-      "data-intake-links-row-link-state",
-      "slate",
-    ],
-    [
-      "Active",
-      { id: "t-act" },
-      "data-intake-links-row-link-state",
-      "indigo",
-    ],
+describe("row status treatment comes from one map", () => {
+  /** The badge inside a probe holder, or the holder itself if it is one. */
+  function badgeIn(holder: HTMLElement): HTMLElement | null {
+    if (holder.classList.contains("app-status-badge")) return holder;
+    return holder.querySelector(".app-status-badge");
+  }
+
+  // ---------------------------------------------------------------------
+  // Lifecycle: the one state the row is scanned by, and the only fill
+  // ---------------------------------------------------------------------
+  const LIFECYCLE: Array<[string, Spec, string]> = [
+    ["Expired", { id: "t-exp", status: "EXPIRED", used: 1, expires: PAST }, "blue"],
+    ["Link disabled", { id: "t-rev", status: "REVOKED", revoked: PAST }, "red"],
+    ["Archived", { id: "t-arch", archived: PAST }, "slate"],
+    ["Active", { id: "t-act" }, "indigo"],
   ];
 
-  for (const [label, spec, attr, tone] of CASES) {
-    it(`${label} resolves the ${tone} tone in both renderers`, async () => {
+  for (const [label, spec, tone] of LIFECYCLE) {
+    it(`lifecycle ${label} keeps the ${tone} fill in both renderers`, async () => {
       await mount([spec]);
       for (const scope of [".ilk-records--wide", ".ilk-records--narrow"]) {
         const host = document.querySelector(scope) as HTMLElement;
-        // The activity probe sits ON the badge in the table and on the <dd>
-        // in the card, so read the badge from whichever carries it.
-        const holder = host.querySelector(`[${attr}]`) as HTMLElement;
-        expect(holder, `${label} missing in ${scope}`).toBeTruthy();
-        const badge = holder.classList.contains("app-status-badge")
-          ? holder
-          : (holder.querySelector(".app-status-badge") as HTMLElement);
-        expect(badge, `${label} is not a badge in ${scope}`).toBeTruthy();
-        expect(badge.getAttribute("data-tone"), `${label} in ${scope}`).toBe(
-          tone,
-        );
-        // The compact filled treatment, and the word always beside the colour.
+        const badge = host.querySelector(
+          "[data-intake-links-row-link-state]",
+        ) as HTMLElement;
+        expect(badge, `${label} missing in ${scope}`).toBeTruthy();
+        expect(badge.classList.contains("app-status-badge")).toBe(true);
+        expect(badge.getAttribute("data-tone"), `${label} in ${scope}`).toBe(tone);
         expect(badge.getAttribute("data-fill")).toBe("solid");
+        // The word is always beside the colour.
         expect(badge.textContent?.trim()).toBe(label);
       }
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Delivery and Activity: neutral text, in both renderers
+  // ---------------------------------------------------------------------
+  const NEUTRAL: Array<[string, Spec, string, string]> = [
+    // label, fixture, probe attribute, expected wire value
+    [
+      "Submitted",
+      { id: "n-sub", opened: 1, started: 1, submitted: 1 },
+      "data-intake-links-row-session-state",
+      "SUBMITTED",
+    ],
+    [
+      "Not opened",
+      { id: "n-quiet" },
+      "data-intake-links-row-session-state",
+      "NO_ACTIVITY",
+    ],
+    [
+      "Opened",
+      { id: "n-open", opened: 1 },
+      "data-intake-links-row-session-state",
+      "OPENED",
+    ],
+    [
+      "Delivered",
+      { id: "n-del", channel: "SMS", delivery: "DELIVERED" },
+      "data-intake-links-row-delivery",
+      "DELIVERED",
+    ],
+    [
+      "Failed",
+      { id: "n-fail", channel: "SMS", delivery: "FAILED", attempts: 2 },
+      "data-intake-links-row-delivery",
+      "FAILED",
+    ],
+    [
+      "Not sent",
+      { id: "n-none" },
+      "data-intake-links-row-delivery",
+      "NOT_SENT",
+    ],
+  ];
+
+  for (const [label, spec, attr, wire] of NEUTRAL) {
+    it(`${label} is neutral text, not a status fill, in both renderers`, async () => {
+      await mount([spec]);
+      for (const scope of [".ilk-records--wide", ".ilk-records--narrow"]) {
+        const host = document.querySelector(scope) as HTMLElement;
+        const holder = host.querySelector(`[${attr}]`) as HTMLElement;
+        expect(holder, `${label} missing in ${scope}`).toBeTruthy();
+
+        // The wire value and the wording are untouched — this is presentation.
+        expect(holder.getAttribute(attr), `${label} in ${scope}`).toBe(wire);
+        expect(holder.textContent).toContain(label);
+
+        // NOTHING in this value is a badge, a tone or a fill.
+        expect(badgeIn(holder), `${label} still renders a badge in ${scope}`).toBeNull();
+        expect(holder.getAttribute("data-tone")).toBeNull();
+        expect(holder.getAttribute("data-fill")).toBeNull();
+        expect(holder.getAttribute("style")).toBeNull();
+      }
+    });
+  }
+
+  it("the whole Delivery & activity cell carries no fill at all", async () => {
+    await mount(COMBINATIONS.map((c) => c.spec));
+    const cells = Array.from(
+      document.querySelectorAll<HTMLElement>(".ilk-records--wide .ilk-status"),
+    );
+    expect(cells.length).toBe(COMBINATIONS.length);
+    for (const cell of cells) {
+      expect(cell.querySelectorAll(".app-status-badge").length).toBe(0);
+      expect(cell.querySelectorAll("[data-tone]").length).toBe(0);
+      expect(cell.querySelectorAll("[data-fill]").length).toBe(0);
+      // …and the two labelled facts are still both there.
+      expect(
+        Array.from(cell.querySelectorAll(".ilk-status__key")).map((k) =>
+          k.textContent?.trim(),
+        ),
+      ).toEqual(["Delivery", "Activity"]);
+      // …with lifecycle still absent from it.
+      expect(cell.querySelector("[data-intake-links-row-link-state]")).toBeNull();
+    }
+  });
+
+  it("the card states the same two facts, the same neutral way", async () => {
+    await mount(COMBINATIONS.map((c) => c.spec));
+    for (const combo of COMBINATIONS) {
+      const card = document.querySelector(
+        `[data-intake-links-card-id="${combo.spec.id}"]`,
+      ) as HTMLElement;
+      const facts = card.querySelector(".ilk-card__facts") as HTMLElement;
+      for (const attr of [
+        "data-intake-links-row-delivery",
+        "data-intake-links-row-session-state",
+      ]) {
+        const holder = facts.querySelector(`[${attr}]`) as HTMLElement;
+        expect(holder, `${combo.name} / ${attr}`).toBeTruthy();
+        expect(badgeIn(holder), `${combo.name} / ${attr} is a badge`).toBeNull();
+      }
+      // The card head keeps the ONE fill: lifecycle.
+      const head = card.querySelector(".ilk-card__head") as HTMLElement;
+      const life = head.querySelector(
+        "[data-intake-links-row-link-state]",
+      ) as HTMLElement;
+      expect(life.classList.contains("app-status-badge")).toBe(true);
+      expect(life.getAttribute("data-fill")).toBe("solid");
+      expect(facts.querySelector(".app-status-badge")).toBeNull();
+    }
+  });
+
   it("an unknown wire state falls back to neutral rather than guessing", async () => {
-    // A delivery status the contract does not define must not colour itself.
+    // A delivery status the contract does not define must not invent wording.
     await mount([
       { id: "u1", channel: "SMS", delivery: "SOMETHING_NEW_FROM_THE_PROVIDER" },
     ]);
     const holder = document.querySelector(
-      '.ilk-records--wide [data-intake-links-row-delivery]',
+      ".ilk-records--wide [data-intake-links-row-delivery]",
     ) as HTMLElement;
     expect(holder.getAttribute("data-intake-links-row-delivery")).toBe("NOT_SENT");
-    const badge = holder.querySelector(".app-status-badge") as HTMLElement;
-    expect(badge.getAttribute("data-tone")).toBe("slate");
-    expect(badge.textContent?.trim()).toBe("Not sent");
+    expect(holder.textContent?.trim()).toBe("Not sent");
+    expect(badgeIn(holder)).toBeNull();
   });
 
-  it("desktop and mobile read the SAME tone for the same record", async () => {
+  it("desktop and mobile state the SAME values for the same record", async () => {
     await mount(COMBINATIONS.map((c) => c.spec));
     for (const combo of COMBINATIONS) {
       const read = (scope: string, attr: string) => {
@@ -862,10 +937,10 @@ describe("row status tones come from one map", () => {
           `${scope} [data-intake-links-${scope.includes("wide") ? "row" : "card"}-id="${combo.spec.id}"]`,
         ) as HTMLElement;
         const holder = host.querySelector(`[${attr}]`) as HTMLElement;
-        const badge = holder.classList.contains("app-status-badge")
-          ? holder
-          : (holder.querySelector(".app-status-badge") as HTMLElement);
-        return badge?.getAttribute("data-tone");
+        return {
+          wire: holder.getAttribute(attr),
+          badge: badgeIn(holder)?.getAttribute("data-tone") ?? null,
+        };
       };
       for (const attr of [
         "data-intake-links-row-link-state",
@@ -875,7 +950,7 @@ describe("row status tones come from one map", () => {
         expect(
           read(".ilk-records--narrow", attr),
           `${combo.name} / ${attr}`,
-        ).toBe(read(".ilk-records--wide", attr));
+        ).toEqual(read(".ilk-records--wide", attr));
       }
     }
   });
