@@ -307,7 +307,7 @@ const COMBINATIONS: Array<{
     lifecycle: "ACTIVE",
     activity: "NO_ACTIVITY",
     delivery: "QUEUED",
-    labels: ["Active", "Not opened", "Queued with provider"],
+    labels: ["Active", "Not opened", "With provider"],
   },
 ];
 

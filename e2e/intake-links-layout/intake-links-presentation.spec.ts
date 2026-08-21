@@ -13,10 +13,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  GERMAN_ROWS,
   LONG,
   ROWS,
   openIntakeLinks,
   openWizard,
+  setDirection,
   type IntakeContext,
 } from "./_fixtures";
 
@@ -377,7 +379,10 @@ test.describe("records surface anatomy", () => {
 
     expect(measured.lifecycle.text).toBe("Archived");
     expect(measured.activity.text).toBe("Submitted");
-    expect(measured.delivery.text).toBe("Queued with provider");
+    // "Queued with provider" said the same thing twice under a column already
+    // headed Delivery. The wire value is still QUEUED; only the sentence a
+    // person reads got shorter.
+    expect(measured.delivery.text).toBe("With provider");
     expect(measured.sameCell).toBe(false);
 
     // Painted boxes do not intersect — the concatenation defect cannot recur.
@@ -391,9 +396,13 @@ test.describe("records surface anatomy", () => {
     // ONE filled surface in the row: the lifecycle chip. The other two are
     // text on the row's own ground, which is what makes the filled one read as
     // the state rather than as one of three competing colours.
+    // ONE SEMANTIC fill in the row: the lifecycle chip. The other two now sit
+    // on the shared NEUTRAL surface — a white ground with a hairline border —
+    // which is what keeps them from competing with the chip for the eye. The
+    // property being protected is unchanged: no semantic colour down here.
     expect(rgb(measured.lifecycleBg)).not.toBeNull();
-    expect(measured.activityBg).toMatch(/rgba\(0, 0, 0, 0\)/);
-    expect(measured.deliveryBg).toMatch(/rgba\(0, 0, 0, 0\)/);
+    expect(measured.activityBg).toBe("rgba(255, 255, 255, 0.7)");
+    expect(measured.deliveryBg).toBe("rgba(255, 255, 255, 0.7)");
   });
 
   test("Delivery & activity is neutral text — no fill, no tone, no chip", async ({
@@ -422,6 +431,16 @@ test.describe("records surface anatomy", () => {
             valueColor: cs.color,
             valueBackground: cs.backgroundColor,
             valueRadius: cs.borderTopLeftRadius,
+            valueShadow: cs.boxShadow,
+            valueTextShadow: cs.textShadow,
+            valueBorder: cs.borderTopColor,
+            valueWhiteSpace: cs.whiteSpace,
+            valueWidth: value.getBoundingClientRect().width,
+            cellWidth: cell.getBoundingClientRect().width,
+            usesSharedAuthority: value.classList.contains("app-fact-value"),
+            radiusToken: getComputedStyle(document.documentElement)
+              .getPropertyValue("--radius-sm")
+              .trim(),
             keyColor: getComputedStyle(key).color,
           };
         });
@@ -432,8 +451,30 @@ test.describe("records surface anatomy", () => {
         // 1. No coloured status treatment anywhere in this column.
         expect(cell.badges, `${width}px: a badge survived`).toBe(0);
         expect(cell.toned, `${width}px: a tone survived`).toBe(0);
-        expect(cell.valueBackground, `${width}px`).toMatch(/rgba\(0, 0, 0, 0\)/);
-        expect(cell.valueRadius, `${width}px`).toBe("0px");
+        // The value now sits on a NEUTRAL inline surface. What "no fill" was
+        // protecting is unchanged and asserted above and below: no badge, no
+        // tone, no semantic colour. What it additionally protects now is that
+        // the surface is the CANONICAL neutral one, shared with the card.
+        expect(
+          cell.usesSharedAuthority,
+          `${width}px: value is not on the shared fact surface`,
+        ).toBe(true);
+        expect(cell.valueBackground, `${width}px`).toBe("rgba(255, 255, 255, 0.7)");
+        expect(cell.valueBorder, `${width}px`).toBe("rgba(15, 23, 42, 0.1)");
+        // A LIFT, and a restrained one — box-shadow, never text-shadow.
+        expect(cell.valueShadow, `${width}px`).toBe(
+          "rgba(15, 23, 42, 0.06) 0px 1px 2px 0px",
+        );
+        expect(cell.valueTextShadow, `${width}px`).toBe("none");
+        // The CANONICAL radius token, whatever it currently resolves to —
+        // asserting a literal here would pin this surface to a number the
+        // design system is free to change for every other chip.
+        expect(cell.valueRadius, `${width}px`).toBe(cell.radiusToken);
+        // Content-width, not cell-width. A surface as wide as the cell is a
+        // painted column, which is the thing this test exists to refuse.
+        expect(cell.valueWidth, `${width}px`).toBeLessThan(cell.cellWidth);
+        // One line, always: a state phrase split in two reads as two states.
+        expect(cell.valueWhiteSpace, `${width}px`).toBe("nowrap");
         // 2. Lifecycle is still absent from it.
         expect(cell.lifecycle, `${width}px: lifecycle came back`).toBe(0);
         // 3. Both labelled facts survive.
@@ -474,6 +515,12 @@ test.describe("records surface anatomy", () => {
           activityColor: getComputedStyle(act).color,
           deliveryBg: getComputedStyle(del).backgroundColor,
           activityBg: getComputedStyle(act).backgroundColor,
+          deliveryShadow: getComputedStyle(del).boxShadow,
+          activityShadow: getComputedStyle(act).boxShadow,
+          // EXACTLY the authority the table cell uses — one class, two
+          // renderers, so the card cannot drift into a second design.
+          deliverySharedAuthority: del.classList.contains("app-fact-value"),
+          activitySharedAuthority: act.classList.contains("app-fact-value"),
           // The card's ONE fill is the lifecycle chip, in the card head.
           lifecycleFill: life.getAttribute("data-fill"),
           lifecycleBg: getComputedStyle(life).backgroundColor,
@@ -489,8 +536,14 @@ test.describe("records surface anatomy", () => {
       expect(card.factBadges).toBe(0);
       expect(rgb(card.deliveryColor)).toEqual([38, 50, 71]);
       expect(rgb(card.activityColor)).toEqual([38, 50, 71]);
-      expect(card.deliveryBg).toMatch(/rgba\(0, 0, 0, 0\)/);
-      expect(card.activityBg).toMatch(/rgba\(0, 0, 0, 0\)/);
+      // EXACTLY the table cell's authority — one class, two renderers, so the
+      // card cannot drift into a second design.
+      expect(card.deliverySharedAuthority).toBe(true);
+      expect(card.activitySharedAuthority).toBe(true);
+      expect(card.deliveryBg).toBe("rgba(255, 255, 255, 0.7)");
+      expect(card.activityBg).toBe("rgba(255, 255, 255, 0.7)");
+      expect(card.deliveryShadow).toBe("rgba(15, 23, 42, 0.06) 0px 1px 2px 0px");
+      expect(card.activityShadow).toBe("rgba(15, 23, 42, 0.06) 0px 1px 2px 0px");
       // Lifecycle keeps its independent semantic treatment.
       expect(card.lifecycleFill).toBe("solid");
       expect(rgb(card.lifecycleBg)).not.toBeNull();
@@ -1328,5 +1381,181 @@ test.describe("wizard label hierarchy is painted, not merely classed", () => {
     // Every row is the same height, so nothing reserved space for a
     // description that is not there.
     expect(new Set(measured.heights).size).toBe(1);
+  });
+});
+
+// ===========================================================================
+// DELIVERY & ACTIVITY — the refined presentation, at every supported width
+//
+// The column carries two labelled facts on a shared neutral surface. Three
+// things have to hold together, and each of them is a different failure:
+//   * the WORDING is the vocabulary's, not a renderer's;
+//   * the KEY and its VALUE stay on one visual line;
+//   * neither escapes its cell, in either direction, at any supported width.
+// ===========================================================================
+
+test.describe("Delivery & activity presentation holds at every supported width", () => {
+  /** Every width the surface supports, table and card alike. */
+  const ALL_WIDTHS = [1440, 1280, 1024, 940, 901, 768, 430, 390];
+
+  for (const direction of ["ltr", "rtl"] as const) {
+    test(`${direction}: nothing clips, overlaps or overflows at any width`, async ({
+      page,
+    }) => {
+      for (const width of ALL_WIDTHS) {
+        await page.setViewportSize({ width, height: 900 });
+        await openIntakeLinks(page, "organization");
+        await setDirection(page, direction);
+
+        const problems = await page.evaluate(() => {
+          const bad: string[] = [];
+          const doc = document.documentElement;
+          if (doc.scrollWidth - doc.clientWidth > 0) bad.push("page scrolls sideways");
+
+          const values = Array.from(
+            document.querySelectorAll<HTMLElement>(".app-fact-value"),
+          ).filter((v) => v.offsetParent !== null);
+          if (values.length === 0) bad.push("no fact value rendered");
+
+          for (const v of values) {
+            const vb = v.getBoundingClientRect();
+            // Inside its own cell/card, with a pixel of tolerance for
+            // sub-pixel layout.
+            const host = (v.closest("td") ?? v.closest(".ilk-card__facts")) as HTMLElement;
+            const hb = host.getBoundingClientRect();
+            if (vb.left < hb.left - 1 || vb.right > hb.right + 1) {
+              bad.push(`value escapes its cell: ${v.textContent}`);
+            }
+            // ONE LINE. A surface taller than ~1.8 line-heights has wrapped.
+            const lh = parseFloat(getComputedStyle(v).lineHeight) || 18;
+            if (vb.height > lh * 1.8) bad.push(`value wrapped: ${v.textContent}`);
+          }
+          return bad;
+        });
+        expect(problems, `${direction} @ ${width}px`).toEqual([]);
+      }
+    });
+  }
+
+  test("`With provider` is one unbroken line wherever it is shown", async ({
+    page,
+  }) => {
+    for (const width of ALL_WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      // The default fixture already carries a QUEUED row; overriding the
+      // built rows would only invent a shape the API never sends.
+      await openIntakeLinks(page, "organization");
+
+      const measured = await page.evaluate(() => {
+        const v = Array.from(
+          document.querySelectorAll<HTMLElement>(".app-fact-value"),
+        ).find((el) => el.offsetParent !== null && el.textContent?.trim() === "With provider");
+        if (!v) return null;
+        const cs = getComputedStyle(v);
+        const rect = v.getBoundingClientRect();
+        return {
+          text: v.textContent?.trim(),
+          whiteSpace: cs.whiteSpace,
+          height: rect.height,
+          lineHeight: parseFloat(cs.lineHeight) || 18,
+          // Not truncated at any supported width: the surface is wide enough
+          // for the whole phrase.
+          truncated: v.scrollWidth > v.clientWidth + 1,
+          // The full technical meaning stays reachable.
+          title: v.getAttribute("title") ?? "",
+        };
+      });
+
+      expect(measured, `${width}px: no "With provider" value`).not.toBeNull();
+      expect(measured!.text, `${width}px`).toBe("With provider");
+      expect(measured!.whiteSpace, `${width}px`).toBe("nowrap");
+      expect(measured!.height, `${width}px wrapped`).toBeLessThan(
+        measured!.lineHeight * 1.8,
+      );
+      expect(measured!.truncated, `${width}px truncated`).toBe(false);
+      // The word that was removed is not lost — it is in the description.
+      expect(measured!.title, `${width}px`).toMatch(/[Qq]ueued/);
+      // …and the retired wording is nowhere on the page.
+      expect(await page.content()).not.toContain("Queued with provider");
+    }
+  });
+
+  test("a doubled text scale keeps both facts on their own lines", async ({
+    page,
+  }) => {
+    // The value surface is sized in `ch` and `rem`, so a doubled root font
+    // must widen it with the text rather than breaking it out of the cell.
+    for (const width of [1440, 1024]) {
+      await page.setViewportSize({ width, height: 900 });
+      await openIntakeLinks(page, "organization");
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "32px";
+      });
+      await page.evaluate(
+        () => new Promise((r) => requestAnimationFrame(() => r(null))),
+      );
+
+      const problems = await page.evaluate(() => {
+        const bad: string[] = [];
+        const doc = document.documentElement;
+        if (doc.scrollWidth - doc.clientWidth > 0) bad.push("page scrolls sideways");
+        for (const v of Array.from(
+          document.querySelectorAll<HTMLElement>(".app-fact-value"),
+        ).filter((el) => el.offsetParent !== null)) {
+          const host = (v.closest("td") ?? v.closest(".ilk-card__facts")) as HTMLElement;
+          const hb = host.getBoundingClientRect();
+          const vb = v.getBoundingClientRect();
+          if (vb.right > hb.right + 1 || vb.left < hb.left - 1) {
+            bad.push(`escapes at 2x: ${v.textContent}`);
+          }
+        }
+        return bad;
+      });
+      expect(problems, `${width}px @ 2x text`).toEqual([]);
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "";
+      });
+    }
+  });
+
+  test("a long translated value stays inside its column and keeps its full text", async ({
+    page,
+  }) => {
+    // German runs roughly twice the English length here. It may truncate — the
+    // surface never wraps — but it must not escape, and the whole string has to
+    // remain reachable through the accessible description.
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await openIntakeLinks(page, "organization", { rows: GERMAN_ROWS });
+
+    const measured = await page.evaluate(() => {
+      const values = Array.from(
+        document.querySelectorAll<HTMLElement>(".app-fact-value"),
+      ).filter((v) => v.offsetParent !== null);
+      return values.map((v) => {
+        const host = v.closest("td") as HTMLElement;
+        const hb = host.getBoundingClientRect();
+        const vb = v.getBoundingClientRect();
+        const lh = parseFloat(getComputedStyle(v).lineHeight) || 18;
+        return {
+          escapes: vb.right > hb.right + 1 || vb.left < hb.left - 1,
+          wrapped: vb.height > lh * 1.8,
+          hasDescription: (v.getAttribute("title") ?? "").length > 0,
+          overflowStrategy: getComputedStyle(v).textOverflow,
+        };
+      });
+    });
+
+    expect(measured.length).toBeGreaterThan(0);
+    for (const v of measured) {
+      expect(v.escapes).toBe(false);
+      expect(v.wrapped).toBe(false);
+      expect(v.hasDescription).toBe(true);
+      expect(v.overflowStrategy).toBe("ellipsis");
+    }
+    const pageOverflow = await page.evaluate(() => {
+      const doc = document.documentElement;
+      return doc.scrollWidth - doc.clientWidth;
+    });
+    expect(pageOverflow).toBe(0);
   });
 });

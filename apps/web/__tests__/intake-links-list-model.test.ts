@@ -325,8 +325,13 @@ test("the row model separates lifecycle, activity and delivery", () => {
   assert.equal(row.lifecycleVocab.label, "Archived");
   assert.equal(row.activity, "SUBMITTED");
   assert.equal(row.activityVocab.label, "Submitted");
+  // The WIRE value is unchanged — only the sentence a person reads is
+  // shorter. That distinction is the whole point of this assertion pair.
   assert.equal(row.delivery, "QUEUED");
-  assert.equal(row.deliveryVocab.label, "Queued with provider");
+  assert.equal(row.deliveryVocab.label, "With provider");
+  // …and the queued-ness the removed word carried is still stated, in the
+  // accessible description every renderer surfaces as `title`.
+  assert.match(row.deliveryVocab.explanation, /[Qq]ueued/);
   // The defect in the screenshot: two chips rendered into one cell so the
   // browser ran them together as "ArchivedSubmitted".
   assert.notEqual(row.lifecycleVocab.label, row.activityVocab.label);

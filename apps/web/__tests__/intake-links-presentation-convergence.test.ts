@@ -435,7 +435,7 @@ test("the management vocabulary never reaches the contributor's own copy", () =>
     .join("\n");
   for (const operatorPhrase of [
     "Link disabled",
-    "Queued with provider",
+    "With provider",
     "Sent to provider",
     "Revoked or expired",
     "Failed delivery",

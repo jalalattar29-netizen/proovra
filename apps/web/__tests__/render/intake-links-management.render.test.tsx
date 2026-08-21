@@ -474,7 +474,7 @@ describe("lifecycle and activity vocabulary", () => {
     ).toBeNull();
   });
 
-  it("renders 'Queued with provider' as one string, not word by word", async () => {
+  it("renders 'With provider' as one string, not word by word", async () => {
     listReply = () => ({
       items: [item({ id: "q1", channel: "SMS", deliveryStatus: "QUEUED" })],
     });
@@ -482,7 +482,7 @@ describe("lifecycle and activity vocabulary", () => {
     const cell = document.querySelector(
       '[data-intake-links-row-delivery="QUEUED"]',
     ) as HTMLElement;
-    expect(cell.textContent).toBe("Queued with provider");
+    expect(cell.textContent).toBe("With provider");
   });
 
   it("shows a disabled link as 'Link disabled', never as REVOKED", async () => {

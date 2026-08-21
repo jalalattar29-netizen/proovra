@@ -130,7 +130,7 @@ function StatusCluster({ row }: { row: IntakeRowModel }) {
       <div className="ilk-status__line">
         <dt className="ilk-status__key">Delivery</dt>
         <dd
-          className="ilk-status__value"
+          className="ilk-status__value app-fact-value"
           data-intake-links-row-delivery={row.delivery}
           title={row.deliveryVocab.explanation}
         >
@@ -140,7 +140,7 @@ function StatusCluster({ row }: { row: IntakeRowModel }) {
       <div className="ilk-status__line">
         <dt className="ilk-status__key">Activity</dt>
         <dd
-          className="ilk-status__value"
+          className="ilk-status__value app-fact-value"
           data-intake-links-row-session-state={row.activity}
           title={row.activityVocab.explanation}
         >
@@ -337,20 +337,39 @@ function RecordCard({
         <dt>Recipient</dt>
         <dd className="ilk-ltr">{row.recipientText}</dd>
         <dt>Delivery</dt>
-        {/* Neutral text, exactly as the table cell renders it — the card is a
-            second renderer of one row model, not a second design. Can carry a
-            provider code and an English provider sentence; keep each run in
-            its own direction so an RTL page does not reorder it. */}
-        <dd className="ilk-ltr" data-intake-links-row-delivery={row.delivery}>
-          {row.deliveryVocab.label}
-          {row.deliveryDetail ? ` ${row.deliveryDetail}` : ""}
+        {/* The SAME neutral fact surface the table cell uses — `app-fact-value`
+            is one authority, so the card is a second renderer of one row
+            model, not a second design.
+
+            The provider DETAIL sits outside the surface, exactly as it sits
+            outside the value in the table: the surface frames the state, and a
+            provider code wrapped inside it would stretch a content-width chip
+            across the card. Each run keeps its own direction so an RTL page
+            does not reorder a provider code. */}
+        <dd className="ilk-ltr">
+          <span
+            className="app-fact-value"
+            data-intake-links-row-delivery={row.delivery}
+            title={row.deliveryVocab.explanation}
+          >
+            {row.deliveryVocab.label}
+          </span>
+          {row.deliveryDetail ? (
+            <span className="ilk-card__fact-detail">{row.deliveryDetail}</span>
+          ) : null}
         </dd>
         <dt>Activity</dt>
         {/* The card carries the SAME machine-readable axis probes as the table
             row, so a matrix can prove the two renderers agree instead of
             comparing prose. */}
-        <dd data-intake-links-row-session-state={row.activity}>
-          {row.activityVocab.label}
+        <dd>
+          <span
+            className="app-fact-value"
+            data-intake-links-row-session-state={row.activity}
+            title={row.activityVocab.explanation}
+          >
+            {row.activityVocab.label}
+          </span>
         </dd>
         <dt>Latest activity</dt>
         <dd>{row.latestActivityRelative}</dd>

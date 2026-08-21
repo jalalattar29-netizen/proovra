@@ -320,6 +320,23 @@
 .ilk-table td {
   overflow-wrap: anywhere;
 }
+/* HEADINGS MAY WRAP, AND THAT IS WHY THE ROWS FIT.
+   Measured, not assumed: at 1024px every column's minimum width was set by its
+   own HEADING rather than by any value in it — `DELIVERY & ACTIVITY` alone
+   demanded 200px on one line, ~14px more than the widest cell beneath it. A
+   nowrap heading is a column floor nobody chose, and it was being paid for by
+   the cells.
+   Two-line headings are ordinary in a dense table; a row that cannot fit its
+   frame is not.
+
+   BOTH class names, because `.app-table thead th` sets the nowrap and carries
+   the same specificity as `.ilk-table thead th` — so which one wins would come
+   down to stylesheet order, which is not a decision this file should be
+   making. The element genuinely has both classes; naming both is ordinary
+   specificity, not an override layer. */
+.ilk-table.app-table thead th {
+  white-space: normal;
+}
 /* Chips inside the table may wrap rather than escape their cell.
    `white-space: nowrap` is a badge's contract so it never breaks mid-phrase in
    a toolbar; in a table cell that same contract used to make it overflow into
@@ -343,13 +360,21 @@
 .ilk-table th[data-col="request"],
 .ilk-table td[data-col="request"] {
   /* The request title wraps freely, so its floor costs the columns that
-     cannot wrap. 13ch is still two comfortable words before the wrap. */
-  min-inline-size: 13ch;
+     cannot wrap.
+
+     It gave up 2ch to the status column, which stopped being a wrapping column
+     when Delivery and Activity were put on one line each. That is this rule's
+     own principle applied: the column that CAN wrap yields to the ones that
+     cannot. The ceiling is untouched, so a wide table still gives the title
+     everything it had. */
+  min-inline-size: 11ch;
   max-inline-size: 32ch;
 }
 .ilk-table th[data-col="recipient"],
 .ilk-table td[data-col="recipient"] {
-  min-inline-size: 10ch;
+  /* 1ch to the same cause. A recipient is a masked address or a short label;
+     both wrap. */
+  min-inline-size: 9ch;
   max-inline-size: 24ch;
 }
 .ilk-table th[data-col="channel"],
@@ -360,9 +385,15 @@
 .ilk-table td[data-col="lifecycle"] {
   min-inline-size: 8ch;
 }
+/* The status column's floor reserves KEY + GAP + the widest value surface,
+   because the line no longer wraps. `With provider` is the widest English
+   value; the floor is expressed in `ch` so a larger text scale or a longer
+   translation widens it with the text rather than overflowing it.
+   The ceiling is unchanged, so this cannot grow the table beyond what it was
+   already allowed to take. */
 .ilk-table th[data-col="status"],
 .ilk-table td[data-col="status"] {
-  min-inline-size: 13ch;
+  min-inline-size: 17ch;
   max-inline-size: 30ch;
 }
 .ilk-table th[data-col="latest"],
@@ -472,10 +503,18 @@
 }
 .ilk-status__line {
   display: flex;
-  align-items: baseline;
-  /* Key on one line and value on the next is a fine narrow-width answer; a
-     value sitting on top of the next column is not. */
-  flex-wrap: wrap;
+  /* CENTRE, not baseline: the value is now a bordered surface with its own
+     padding, and baseline-aligning a box against a bare label leaves the box
+     sitting low. */
+  align-items: center;
+  /* ONE LINE, ALWAYS.
+     This used to wrap, on the reasoning that key-above-value is a fine narrow
+     answer. It is not: the key and the value are one fact, and splitting them
+     turns two facts into four stacked lines that read as a list of unrelated
+     words. The table hands over to the card renderer at 900px, well before the
+     line runs out of room, and the column floor below reserves the width this
+     costs. */
+  flex-wrap: nowrap;
   gap: 6px;
   min-inline-size: 0;
   font-size: 12.5px;
@@ -484,24 +523,27 @@
 /* Two labelled facts, in a key/value grid. The keys are VISIBLE: "Delivered"
    stacked over "Submitted" with no keys reads as one status made of two
    words, which is the confusion this cell exists to remove. */
+/* Two labelled facts, in a key/value grid. The keys are VISIBLE: "Delivered"
+   stacked over "Submitted" with no keys reads as one status made of two
+   words, which is the confusion this cell exists to remove.
+
+   The key column is sized to the longer of the two words it actually holds
+   ("Delivery"/"Activity") rather than to a round number. It was 4.5rem, which
+   was ~20px of air per row that the value now needs to stay on the line. */
 .ilk-status__key {
   flex: 0 0 auto;
-  inline-size: 4.5rem;
+  inline-size: 3.2rem;
   font-weight: 600;
 }
-/* The canonical neutral VALUE treatment for this column.
-   Delivery and Activity are supporting facts, so they read as the product's
-   ordinary control ink — no fill, no tone, no chip. The tone still exists on
-   the row model and still drives Lifecycle; this column simply does not spend
-   it. Stated here once, so the table cell and the card fact cannot drift. */
-.ilk-status__value,
-.ilk-card__facts dd[data-intake-links-row-delivery],
-.ilk-card__facts dd[data-intake-links-row-session-state] {
+/* The VALUE treatment moved to `.app-fact-value` in app-primitives.css.
+   Both renderers now put that one class on the element that carries the wire
+   probe, so the table cell and the card fact cannot drift — previously the
+   card was matched by two attribute selectors that had to be kept in step by
+   hand, and a third fact would have needed a third selector.
+   What stays here is only the cell's own box behaviour. */
+.ilk-status__value {
   margin: 0;
   min-inline-size: 0;
-  overflow-wrap: anywhere;
-  font-weight: 500;
-  color: var(--app-ink-control, #263247);
 }
 .ilk-status__detail {
   margin: 0;
@@ -583,6 +625,14 @@
   min-inline-size: 0;
   color: var(--app-ink-control, #263247);
   overflow-wrap: anywhere;
+}
+/* The provider detail beside a delivery fact surface. Outside the surface, so
+   a long provider sentence wraps as ordinary secondary text instead of
+   stretching a content-width chip across the card. */
+.ilk-card__fact-detail {
+  display: inline;
+  margin-inline-start: 6px;
+  color: var(--app-ink-secondary, #667085);
 }
 .ilk-card__foot {
   display: flex;

@@ -160,10 +160,20 @@ export const DELIVERY_STATE_VOCABULARY: Record<
     explanation: "No message was sent — the link is shared manually.",
   },
   QUEUED: {
-    label: "Queued with provider",
+    // "Queued with provider" said the same thing twice. The column is headed
+    // `Delivery`, so an operator reading this cell already knows they are
+    // looking at where the message got to; "Queued" was the redundant half,
+    // and it was also the half that made the value wrap in a table cell.
+    //
+    // The WIRE value is untouched: this is `DeliveryState.QUEUED`, the enum is
+    // `QUEUED`, and `DELIVERY_FILTER_WIRE_VALUES` still sends `QUEUED`. Only
+    // the sentence a person reads is shorter. The queued-ness that the word
+    // carried is preserved verbatim in `explanation`, which every renderer
+    // surfaces as the accessible description.
+    label: "With provider",
     tone: "amber",
     explanation:
-      "The provider accepted the message and has not handed it off yet.",
+      "Queued with the provider — the provider accepted the message and has not handed it off yet.",
   },
   SENT: {
     label: "Sent to provider",

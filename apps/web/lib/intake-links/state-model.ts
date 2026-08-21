@@ -326,30 +326,22 @@ export function getLifecycleBadges(
   };
 }
 
-// Display copy. Lives next to the predicates so the renderer can
-// ask "what should I show" without inventing labels in JSX.
-export const LINK_STATE_LABEL: Record<LinkOperationalState, string> = {
-  ACTIVE: "Active",
-  ARCHIVED: "Archived",
-  REVOKED: "Revoked",
-  EXPIRED: "Expired",
-};
-export const SESSION_STATE_LABEL: Record<
-  Exclude<LatestSessionState, "NO_ACTIVITY">,
-  string
-> = {
-  OPENED: "Opened",
-  UPLOAD_STARTED: "Upload started",
-  SUBMITTED: "Submitted",
-};
-export const DELIVERY_STATE_LABEL: Record<DeliveryState, string> = {
-  NOT_SENT: "Not sent",
-  QUEUED: "Queued with provider",
-  SENT: "Sent to provider",
-  DELIVERED: "Delivered",
-  FAILED: "Failed",
-  RETRY_SCHEDULED: "Retry scheduled",
-};
+/**
+ * DISPLAY COPY LIVES IN `lib/intake-links/vocabulary.ts`, NOT HERE.
+ *
+ * This module used to export `LINK_STATE_LABEL`, `SESSION_STATE_LABEL` and
+ * `DELIVERY_STATE_LABEL` — three label maps that restated, word for word, the
+ * `label` fields already carried by `LINK_STATE_VOCABULARY`,
+ * `SESSION_STATE_VOCABULARY` and `DELIVERY_STATE_VOCABULARY`.
+ *
+ * Nothing imported them. Every renderer, the filter dropdown and the delivery
+ * drawer all read the vocabulary. So they were a second copy of the product's
+ * wording with no consumer to keep it honest — the shape that lets one surface
+ * say "With provider" while another still says "Queued with provider".
+ *
+ * Removed after proving zero consumers. This module keeps the PREDICATES; the
+ * vocabulary module keeps the WORDS.
+ */
 
 // =============================================================================
 // Per-row action guards

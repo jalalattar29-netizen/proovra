@@ -34,6 +34,21 @@
   --app-ink-control: #263247;
   --app-ink-secondary: #667085;
   --app-ink-placeholder: #98A2B3;
+
+  /* ---- NEUTRAL INLINE SURFACE -------------------------------------------
+   * The border, fill and lift shared by every small neutral surface that sits
+   * INSIDE content — a chip, a fact value — as opposed to a panel that sits
+   * under it.
+   *
+   * Extracted rather than invented: these are the values `.app-chip` and
+   * `.app-secondary-action` already carry, named once so a new surface cannot
+   * introduce a fourth slightly-different neutral. The lift is deliberately
+   * almost nothing; at this size a visible shadow reads as a button, and these
+   * surfaces are not pressable.
+   */
+  --app-inline-surface-bg: rgba(255, 255, 255, 0.70);
+  --app-inline-surface-border: rgba(15, 23, 42, 0.10);
+  --app-inline-surface-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 /* ---------------------------------------------------------------------------
@@ -928,6 +943,53 @@ textarea.app-form-input {
   background: #EAF7F1;
   color: #167A5B;
 }
+/* ---------------------------------------------------------------------------
+ * FACT VALUE — the ONE neutral inline surface for a labelled state value.
+ *
+ * WHAT IT IS FOR
+ *
+ * A `<dd>` in a key/value fact list whose value is a STATE the operator reads
+ * rather than scans by: "With provider", "Not opened". Left as bare ink these
+ * read as unfinished — a run of text with nothing to say it is a value rather
+ * than a sentence fragment — and the fix is emphatically not a badge.
+ *
+ * WHY IT IS NOT A BADGE, AND WHY IT HAS NO TONE
+ *
+ * `.app-status-badge` is the authority for a state the row is SCANNED BY, and
+ * it spends colour to earn that. A row carrying three saturated rectangles has
+ * a colour vocabulary competing with itself. So this surface is permanently
+ * neutral: there is no tone variant and there must not be one, or it becomes a
+ * second status-badge authority wearing a different class name.
+ *
+ * It is CONTENT-WIDTH (`inline-flex`), not cell-width, so it frames the value
+ * rather than painting the column. `white-space: nowrap` is part of the
+ * contract: a state phrase broken across two lines reads as two states.
+ * ------------------------------------------------------------------------- */
+.app-fact-value {
+  /* `inline-block`, not `inline-flex`: it is the shape that lets a value which
+     is genuinely too long for its column ellipsize instead of escaping it. */
+  display: inline-block;
+  max-inline-size: 100%;
+  padding: 1px 6px;
+  border: 1px solid var(--app-inline-surface-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--app-inline-surface-bg);
+  box-shadow: var(--app-inline-surface-shadow);
+  color: var(--app-ink-control);
+  font-weight: 500;
+  /* ONE LINE, AND NEVER WIDER THAN THE COLUMN.
+     A state phrase broken across two lines reads as two states, so it does not
+     wrap. A translation longer than the column — German runs about twice the
+     length of the English here — therefore has to go somewhere, and the honest
+     place is a truncation with the full text still on the element's accessible
+     description, which every caller already sets. Overflowing into the next
+     column would be the alternative, and that is not a trade. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
 /* Chip rows are LISTS — adjacent chips must never run together into one
    accessible name. Reset the list affordances and keep a real gap. */
 .app-chip-row {
