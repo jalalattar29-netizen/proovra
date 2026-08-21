@@ -643,3 +643,111 @@ test.describe("localization: long translated and user-generated values", () => {
     expect(await badgeCollisions(page)).toEqual([]);
   });
 });
+
+// ===========================================================================
+// The 900px cutover
+// ===========================================================================
+
+test.describe("the table/card cutover", () => {
+  /** Everything one record states, from whichever renderer is showing. */
+  async function factsAt(page: Page, width: number) {
+    await page.setViewportSize({ width, height: 900 });
+    await openIntakeLinks(page, "organization");
+    return page.evaluate(() => {
+      const wide = document.querySelector(".ilk-records--wide") as HTMLElement;
+      const narrow = document.querySelector(".ilk-records--narrow") as HTMLElement;
+      const tableShowing = getComputedStyle(wide).display !== "none";
+      const cardsShowing = getComputedStyle(narrow).display !== "none";
+      const host = tableShowing ? wide : narrow;
+      const el = host.querySelector(
+        '[data-intake-links-row-id="r-archived-submitted"], [data-intake-links-card-id="r-archived-submitted"]',
+      ) as HTMLElement;
+      const attr = (name: string) =>
+        el.querySelector(`[${name}]`)?.getAttribute(name) ?? null;
+      return {
+        tableShowing,
+        cardsShowing,
+        lifecycle: attr("data-intake-links-row-link-state"),
+        activity: attr("data-intake-links-row-session-state"),
+        delivery: attr("data-intake-links-row-delivery"),
+        expiry: (
+          el.querySelector(
+            "[data-intake-links-row-expiry-date]",
+          ) as HTMLElement | null
+        )?.textContent?.trim() ?? null,
+        // The identifying copy, so "the same facts" is not just three enums.
+        title: (
+          el.querySelector(".ilk-row__title") as HTMLElement | null
+        )?.textContent?.trim() ?? null,
+        recipient: (el.textContent ?? "").includes("•••"),
+        // Exactly one lifecycle statement, whichever renderer is showing.
+        lifecycleCount: el.querySelectorAll("[data-intake-links-row-link-state]")
+          .length,
+        rowCount: host.querySelectorAll(
+          "[data-intake-links-row-id], [data-intake-links-card-id]",
+        ).length,
+      };
+    });
+  }
+
+  test("901px is the table, 900px is the cards, and never both", async ({
+    page,
+  }) => {
+    const above = await factsAt(page, 901);
+    const below = await factsAt(page, 900);
+
+    expect(above.tableShowing).toBe(true);
+    expect(above.cardsShowing).toBe(false);
+    expect(below.tableShowing).toBe(false);
+    expect(below.cardsShowing).toBe(true);
+  });
+
+  test("nothing is lost crossing the cutover", async ({ page }) => {
+    const above = await factsAt(page, 901);
+    const below = await factsAt(page, 900);
+
+    // The three axes, the expiry date and the record's identity survive the
+    // switch unchanged — the cards are a different renderer, not a smaller
+    // subset.
+    expect(below.lifecycle).toBe(above.lifecycle);
+    expect(below.activity).toBe(above.activity);
+    expect(below.delivery).toBe(above.delivery);
+    expect(below.expiry).toBe(above.expiry);
+    expect(below.title).toBe(above.title);
+    expect(below.recipient).toBe(above.recipient);
+    expect(below.rowCount).toBe(above.rowCount);
+
+    // And each states its lifecycle exactly once.
+    expect(above.lifecycleCount).toBe(1);
+    expect(below.lifecycleCount).toBe(1);
+  });
+
+  test("the table fits wherever it is shown", async ({ page }) => {
+    // The reason the cutover moved: seven columns stopped fitting at 768. At
+    // every width where the table renders it must fit its own frame without a
+    // sideways scroller.
+    for (const width of [1440, 1280, 1024, 940, 901]) {
+      await page.setViewportSize({ width, height: 900 });
+      await openIntakeLinks(page, "organization");
+      const measured = await page.evaluate(() => {
+        const wide = document.querySelector(".ilk-records--wide") as HTMLElement;
+        if (getComputedStyle(wide).display === "none") return null;
+        const table = wide.querySelector("table") as HTMLElement;
+        return {
+          tableWidth: table.getBoundingClientRect().width,
+          frameWidth: wide.getBoundingClientRect().width,
+          scroller: wide.scrollWidth - wide.clientWidth,
+          documentOverflow:
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        };
+      });
+      expect(measured, `${width}px shows no table`).not.toBeNull();
+      expect(measured!.tableWidth, `${width}px`).toBeLessThanOrEqual(
+        measured!.frameWidth + 1,
+      );
+      expect(measured!.scroller, `${width}px scrolls sideways`).toBeLessThanOrEqual(1);
+      expect(measured!.documentOverflow, `${width}px`).toBe(0);
+    }
+  });
+});

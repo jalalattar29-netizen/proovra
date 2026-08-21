@@ -395,7 +395,16 @@ export function RecordsSurface({
 
   return (
     <>
-      <div className="app-table-surface ilk-records--wide" data-intake-links-table-surface>
+      {/* `--scroll` is the primitive's opt-in for a table wider than its
+          column. Without it `.app-table-surface` clips — and a nine-column
+          table in a 1068px frame does not fit, so the Actions column was
+          silently cut off between about 1100px and 1380px with no scrollbar to
+          reach it. Scrolling inside the surface is what this page promises;
+          losing a column is not. */}
+      <div
+        className="app-table-surface app-table-surface--scroll ilk-records--wide"
+        data-intake-links-table-surface
+      >
         <table className="app-table ilk-table" data-intake-links-table aria-label="Intake links">
           <colgroup>
             <col data-col="request" />

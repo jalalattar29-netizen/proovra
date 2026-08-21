@@ -454,6 +454,16 @@ textarea.app-form-input {
   line-height: 1.45;
   color: var(--app-ink-secondary);
 }
+/* The "(optional)" marker that sits INSIDE a field label.
+   A marker is not a tier of its own: it steps the weight back to normal and
+   takes the description ink, so the label still reads as one phrase. It is a
+   class rather than the inline style two collaboration-teams fields carried,
+   because an inline colour inside a label is invisible to the one authority
+   that is supposed to own what a label looks like. */
+.app-field-optional {
+  font-weight: 400;
+  color: var(--app-ink-secondary);
+}
 
 /* Search field: relative wrapper + leading icon + input.
    `flex: 1 1 260px` is written for the ROW it normally sits in (a toolbar or

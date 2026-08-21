@@ -34,6 +34,13 @@ const SEARCH_LAYOUT_BASE = `http://127.0.0.1:${SEARCH_LAYOUT_PORT}`;
 const INTAKE_LAYOUT_PORT = 3012;
 const INTAKE_LAYOUT_BASE = `http://127.0.0.1:${INTAKE_LAYOUT_PORT}`;
 
+/**
+ * The Evidence Detail section-header gate serves its own production build
+ * here, on its own port, for the same reason the two projects above do.
+ */
+const EVIDENCE_LAYOUT_PORT = 3013;
+const EVIDENCE_LAYOUT_BASE = `http://127.0.0.1:${EVIDENCE_LAYOUT_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   // Phase 1 tests are deliberately small and serial — they share an
@@ -128,12 +135,29 @@ export default defineConfig({
         baseURL: INTAKE_LAYOUT_BASE,
       },
     },
+    /**
+     * REDESIGN/EVIDENCE-DETAIL — the SECTION-HEADER hierarchy gate.
+     *
+     * Same reasoning as the two projects above. A heading and its description
+     * rendering as two columns of one flex row rather than two rows is a
+     * purely computed-layout fact: the markup reads correctly either way, and
+     * jsdom resolves no cascade, so only a real engine can answer it.
+     */
+    {
+      name: "evidence-detail-layout",
+      testDir: "./e2e/evidence-detail-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: EVIDENCE_LAYOUT_BASE,
+      },
+    },
   ],
   /**
-   * Started only for the two opt-in layout projects, each on its own port.
+   * Started only for the opt-in layout projects, each on its own port.
    *
    * `next start` rather than `next dev`: these gates measure the bundle the
-   * product ships. Opt-in via `SEARCH_LAYOUT=1` / `INTAKE_LAYOUT=1` so the
+   * product ships. Opt-in via `SEARCH_LAYOUT=1` / `INTAKE_LAYOUT=1` /
+   * `EVIDENCE_LAYOUT=1` so the
    * Phase-1 and Point-7 projects, which bring their own stacks, never start a
    * second web server on top of the one they already run.
    */
@@ -154,6 +178,17 @@ export default defineConfig({
           {
             command: `pnpm --filter proovra-web exec next start -p ${INTAKE_LAYOUT_PORT} -H 127.0.0.1`,
             url: `${INTAKE_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
+    ...(process.env.EVIDENCE_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${EVIDENCE_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${EVIDENCE_LAYOUT_BASE}/login`,
             reuseExistingServer: true,
             timeout: 180_000,
             env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },

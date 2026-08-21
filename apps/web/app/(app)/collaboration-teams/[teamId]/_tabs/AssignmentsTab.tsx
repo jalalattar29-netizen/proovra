@@ -736,7 +736,7 @@ function CreateAssignmentModal({
 
           <div>
             <label className="app-field-label" htmlFor="assignment-due">
-              Due date <span style={{ fontWeight: 400, color: "var(--app-ink-secondary)" }}>(optional)</span>
+              Due date <span className="app-field-optional">(optional)</span>
             </label>
             <input
               id="assignment-due"
@@ -750,7 +750,7 @@ function CreateAssignmentModal({
 
           <div>
             <label className="app-field-label" htmlFor="assignment-note">
-              Description <span style={{ fontWeight: 400, color: "var(--app-ink-secondary)" }}>(optional)</span>
+              Description <span className="app-field-optional">(optional)</span>
             </label>
             <textarea
               id="assignment-note"

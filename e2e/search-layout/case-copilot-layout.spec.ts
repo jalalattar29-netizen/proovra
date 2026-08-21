@@ -13,9 +13,14 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { evaluateCopilotEvidenceEligibility } from "../../packages/shared/src/ai-copilot-selection";
+import { buildEvidenceAnalysisRevision } from "../../packages/shared-runtime/src/evidence-analysis-revision";
+
 import { DIRECTIONS, VIEWPORTS, envelopeFor, setDirection } from "./_fixtures";
 
 const CASE_ID = "c1000000-0000-4000-8000-000000000001";
+/** The tenant the matter-workspace fixture below projects. */
+const TEAM_ID = "44444444-4444-4444-8444-444444444444";
 
 /** The case surface's capabilities. The Search envelope grants only SEARCH_VIEW. */
 function caseEnvelope(): Record<string, unknown> {
@@ -34,28 +39,91 @@ function caseEnvelope(): Record<string, unknown> {
 const LONG_NAME =
   "Q4-incident-bundle-with-an-extremely-long-operator-supplied-filename-that-nobody-would-shorten-2026-08-20-final-v7-REVIEWED.jpg";
 
-/** Enough linked evidence that an unbounded list would run off the page. */
+/**
+ * Enough linked evidence that an unbounded list would run off the page.
+ *
+ * ANALYSIS REVISION IS PART OF THE CONTRACT, not an optional extra. The
+ * matter-workspace projection computes one per record with
+ * `evidenceAnalysisRevisionFor`, and `evaluateCopilotEvidenceEligibility`
+ * refuses any record whose revision it cannot read — the panel declares
+ * `analysisRevisionKnown: true`, so an absent revision is a refusal, not a
+ * default. A fixture without one therefore produced twelve INELIGIBLE records,
+ * an empty eligible set, and a permanently disabled "Select all": the geometry
+ * assertions below never reached the state they exist to measure.
+ *
+ * The value is built here by the SAME function the server builds it with, over
+ * the same facts, so the fixture cannot drift into a shape the product would
+ * never send.
+ */
+function analysisRevisionFor(i: number, id: string): string {
+  return buildEvidenceAnalysisRevision(
+    {
+      id,
+      teamId: TEAM_ID,
+      title: i === 0 ? LONG_NAME : `incident-bundle-${i}.jpg`,
+      type: i % 3 === 0 ? "PHOTO" : i % 3 === 1 ? "VIDEO" : "DOCUMENT",
+      mimeType: "image/jpeg",
+      status: i % 4 === 3 ? "UPLOADING" : "REPORTED",
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      captureMethod: "WEB_UPLOAD",
+      tsaStatus: "RECORDED",
+      otsStatus: "ANCHORED",
+      createdAtUtc: "2026-08-01T00:00:00.000Z",
+      partCount: 1,
+      custodyEventCount: 2,
+      caseLinkCount: 1,
+      latestReportVersion: 2,
+      verificationPackageVersion: i % 2 === 0 ? 2 : 0,
+      lifecycleState: "ACTIVE",
+      deletedAt: null,
+      archivedAt: null,
+    },
+    { scope: "case", scopeId: CASE_ID, linkedToScope: true },
+  );
+}
+
 function evidenceItems(n: number) {
-  return Array.from({ length: n }, (_, i) => ({
-    id: `e0000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
-    title: i === 0 ? LONG_NAME : `incident-bundle-${i}.jpg`,
-    displayFileName: i === 0 ? LONG_NAME : `incident-bundle-${i}.jpg`,
-    originalFileName: `incident-bundle-${i}.jpg`,
-    mimeType: "image/jpeg",
-    itemCount: 1,
-    type: i % 3 === 0 ? "PHOTO" : i % 3 === 1 ? "VIDEO" : "DOCUMENT",
-    // A mixture, so eligible and ineligible rows are both measured.
-    status: i % 4 === 3 ? "UPLOADING" : "REPORTED",
-    verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
-    lifecycleState: "ACTIVE",
-    createdAt: "2026-08-01T00:00:00.000Z",
-    reportReady: true,
-    packageReady: i % 2 === 0,
-    verificationPackageVersion: i % 2 === 0 ? 2 : 0,
-    linkId: `l${i}`,
-    linkRole: "SUPPORTING",
-    linkSource: "USER",
-  }));
+  return Array.from({ length: n }, (_, i) => {
+    const id = `e0000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+    return {
+      id,
+      title: i === 0 ? LONG_NAME : `incident-bundle-${i}.jpg`,
+      displayFileName: i === 0 ? LONG_NAME : `incident-bundle-${i}.jpg`,
+      originalFileName: `incident-bundle-${i}.jpg`,
+      mimeType: "image/jpeg",
+      itemCount: 1,
+      type: i % 3 === 0 ? "PHOTO" : i % 3 === 1 ? "VIDEO" : "DOCUMENT",
+      // A mixture, so eligible and ineligible rows are both measured.
+      status: i % 4 === 3 ? "UPLOADING" : "REPORTED",
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      lifecycleState: "ACTIVE",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      reportReady: true,
+      packageReady: i % 2 === 0,
+      verificationPackageVersion: i % 2 === 0 ? 2 : 0,
+      analysisRevision: analysisRevisionFor(i, id),
+      caseLinked: true,
+      stale: false,
+      linkId: `l${i}`,
+      linkRole: "SUPPORTING",
+      linkSource: "USER",
+    };
+  });
+}
+
+/** How many of `evidenceItems(n)` the canonical authority calls eligible. */
+function eligibleCount(n: number): number {
+  return evidenceItems(n).filter(
+    (e) =>
+      evaluateCopilotEvidenceEligibility({
+        status: e.status,
+        lifecycleState: e.lifecycleState,
+        caseLinked: e.caseLinked,
+        stale: e.stale,
+        analysisRevision: e.analysisRevision as never,
+        analysisRevisionKnown: true,
+      }).eligible,
+  ).length;
 }
 
 function matterWorkspace(n: number) {
@@ -72,7 +140,7 @@ function matterWorkspace(n: number) {
       priority: "P2",
       scope: "TEAM",
       ownerUserId: "u-1",
-      teamId: "44444444-4444-4444-8444-444444444444",
+      teamId: TEAM_ID,
       closedAtUtc: null,
       closureReason: null,
       createdAt: "2026-06-15T00:00:00.000Z",
@@ -406,3 +474,158 @@ for (const viewport of VIEWPORTS) {
     });
   }
 }
+
+// ===========================================================================
+// The selection precondition itself
+// ===========================================================================
+
+/**
+ * Everything above measures the panel in its SELECTED state, which it can only
+ * reach if the fixture contains records the canonical authority calls
+ * eligible. That precondition was silently impossible: the projection carried
+ * no `analysisRevision`, the panel declares the revision knowable, and the
+ * authority refuses a record whose revision it cannot read. Twelve records,
+ * zero eligible, "Select all" permanently disabled — and every geometry
+ * assertion above waiting on a click that could never land.
+ *
+ * So the precondition is now asserted directly, rather than assumed.
+ */
+test.describe("evidence selection is reachable", () => {
+  test("the fixture is contract-shaped, and the authority agrees", async () => {
+    const items = evidenceItems(14);
+    // Every record carries a revision in the shipped format — not a
+    // placeholder, and not the absence that made this suite unreachable.
+    for (const e of items) {
+      expect(e.analysisRevision, e.id).toMatch(/^ear1_[A-Za-z0-9_-]{43}$/);
+    }
+    // The revision is CONTEXT-BOUND: two records that differ only by identity
+    // must not share one.
+    expect(new Set(items.map((e) => e.analysisRevision)).size).toBe(items.length);
+
+    // And the mixture is deliberate: the still-uploading rows stay ineligible,
+    // because a fixture in which everything passes proves nothing about the
+    // ineligible presentation this panel also renders.
+    const eligible = eligibleCount(14);
+    expect(eligible).toBeGreaterThan(0);
+    expect(eligible).toBeLessThan(items.length);
+    expect(eligible).toBe(items.filter((e) => e.status !== "UPLOADING").length);
+  });
+
+  test("Select all selects exactly the eligible records", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openCase(page, 14);
+
+    const selectAll = page.locator("[data-case-copilot-select-all]");
+    await expect(selectAll).toBeEnabled();
+    await selectAll.click();
+
+    const state = await page.evaluate(() => {
+      const rows = Array.from(
+        document.querySelectorAll<HTMLInputElement>("[data-case-copilot-checkbox]"),
+      );
+      return {
+        count: Number(
+          document
+            .querySelector("[data-case-copilot-selected-count]")
+            ?.getAttribute("data-case-copilot-selected-count"),
+        ),
+        checked: rows.filter((r) => r.checked).length,
+        disabled: rows.filter((r) => r.disabled).length,
+        // A disabled row is never silently selected.
+        checkedAndDisabled: rows.filter((r) => r.checked && r.disabled).length,
+        runDisabled: (
+          document.querySelector("[data-case-copilot-run]") as HTMLButtonElement
+        ).disabled,
+      };
+    });
+
+    expect(state.count).toBe(eligibleCount(14));
+    expect(state.checked).toBe(eligibleCount(14));
+    expect(state.disabled).toBe(14 - eligibleCount(14));
+    expect(state.checkedAndDisabled).toBe(0);
+    // With a real selection the primary action becomes available — the state
+    // the whole panel exists to reach.
+    expect(state.runDisabled).toBe(false);
+  });
+
+  test("Clear empties the selection and stands the action down", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openCase(page, 14);
+
+    const clear = page.locator("[data-case-copilot-clear]");
+    // Nothing selected yet, so there is nothing to clear.
+    await expect(clear).toBeDisabled();
+
+    await page.locator("[data-case-copilot-select-all]").click();
+    await expect(clear).toBeEnabled();
+    await clear.click();
+
+    const after = await page.evaluate(() => ({
+      count: Number(
+        document
+          .querySelector("[data-case-copilot-selected-count]")
+          ?.getAttribute("data-case-copilot-selected-count"),
+      ),
+      checked: Array.from(
+        document.querySelectorAll<HTMLInputElement>("[data-case-copilot-checkbox]"),
+      ).filter((r) => r.checked).length,
+      runDisabled: (
+        document.querySelector("[data-case-copilot-run]") as HTMLButtonElement
+      ).disabled,
+    }));
+    expect(after.count).toBe(0);
+    expect(after.checked).toBe(0);
+    expect(after.runDisabled).toBe(true);
+  });
+
+  test("an individual eligible record can be selected on its own", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openCase(page, 14);
+
+    const firstEligible = evidenceItems(14).find((e) => e.status !== "UPLOADING")!;
+    const checkbox = page.locator(
+      `[data-case-copilot-checkbox="${firstEligible.id}"]`,
+    );
+    await expect(checkbox).toBeEnabled();
+    await checkbox.check();
+
+    await expect(
+      page.locator("[data-case-copilot-selected-count]"),
+    ).toHaveAttribute("data-case-copilot-selected-count", "1");
+    await expect(
+      page.locator("[data-case-copilot-run]"),
+    ).toBeEnabled();
+
+    // Unchecking returns the panel to its resting state.
+    await checkbox.uncheck();
+    await expect(
+      page.locator("[data-case-copilot-selected-count]"),
+    ).toHaveAttribute("data-case-copilot-selected-count", "0");
+    await expect(page.locator("[data-case-copilot-run]")).toBeDisabled();
+  });
+
+  test("an ineligible record is refused with its own stated reason", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openCase(page, 14);
+
+    const uploading = evidenceItems(14).find((e) => e.status === "UPLOADING")!;
+    const row = page.locator(`[data-case-copilot-row="${uploading.id}"]`);
+    await expect(
+      row.locator(`[data-case-copilot-checkbox="${uploading.id}"]`),
+    ).toBeDisabled();
+    // The refusal is stated, in the panel, next to the record it applies to.
+    await expect(row.locator("[data-case-copilot-reason]")).toHaveAttribute(
+      "data-case-copilot-reason",
+      "still_uploading",
+    );
+    await expect(row.locator("[data-case-copilot-reason]")).toHaveText(
+      "Still uploading",
+    );
+  });
+});

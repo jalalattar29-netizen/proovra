@@ -394,8 +394,16 @@
    medium row carried the state twice at wide widths and read as a third
    delivery fact at narrow ones. It folded only because a fixed percentage grid
    could not give the widest badge its 98px; the container-aware grid above
-   sizes the column to its content, so the column simply stays. */
-@media (max-width: 1080px) {
+   sizes the column to its content, so the column simply stays.
+
+   THE THRESHOLD IS 1400px, NOT 1080px.
+
+   Measured, not guessed: nine columns ask for ~1132px of table. The page
+   clamps to 1360px, so the records frame is the viewport minus the shell —
+   1068px at a 1280px viewport, 968px at 1180px. Below 1400px the nine columns
+   therefore do not fit, and the two that fold are the two whose value is
+   restated elsewhere. Above it the frame is 1228px and the nine fit. */
+@media (max-width: 1400px) {
   .ilk-table col[data-col="channel"],
   .ilk-table th[data-col="channel"],
   .ilk-table td[data-col="channel"],

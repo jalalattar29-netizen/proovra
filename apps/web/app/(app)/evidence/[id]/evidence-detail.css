@@ -796,7 +796,18 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   gap: 14px;
   min-inline-size: 0;
 }
-/* The section heading sits on the page ground, not inside a card. */
+/* The section heading sits on the page ground, not inside a card.
+ *
+ * ONE anatomy, two axes. `.ta-intro` is the HORIZONTAL axis and carries at
+ * most two children: an optional leading icon, and the copy column. The copy
+ * itself is the VERTICAL axis — a title with its description underneath,
+ * because the description explains the title rather than sitting beside it.
+ *
+ * The two were conflated: a consumer that had no icon put its `<h2>` and `<p>`
+ * straight into `.ta-intro`, which made them two columns of the horizontal
+ * axis and split the heading and its sentence across the row. The copy column
+ * is not optional — `evidence-technical-appendix-header.test.ts` holds every
+ * consumer to it. */
 .ta-intro {
   display: flex;
   align-items: center;
@@ -808,8 +819,17 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   flex: none;
   color: var(--accent-500);
 }
+/* The vertical axis. The gap is the ONE authority for the space between a
+   title and its description — neither element declares a margin for it. */
 .ta-intro-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-inline-size: 0;
+  /* Takes the row's remaining inline size, so the title has the full measure
+     to sit on one line and the description wraps beneath it rather than the
+     two competing for the same track. */
+  flex: 1 1 auto;
 }
 .ta-intro-title {
   margin: 0;
@@ -822,7 +842,9 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   overflow-wrap: break-word;
 }
 .ta-intro-sub {
-  margin: 2px 0 0;
+  /* No margin: `.ta-intro-copy` owns the gap. Two spacing authorities is how
+     a 2px margin and a column gap end up adding to something neither meant. */
+  margin: 0;
   font-size: 13.5px;
   line-height: 20px;
   color: var(--app-ink-secondary);

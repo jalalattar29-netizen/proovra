@@ -146,12 +146,19 @@ export function EvidenceTechnicalAppendix({
 
   return (
     <div className="ta-root" data-testid="evidence-technical-appendix">
+      {/* The copy column is the section-header contract, not decoration: the
+          title and its sentence are two ROWS. Without it they became two
+          columns of `.ta-intro`'s horizontal axis and the heading was split
+          across the row from the sentence that explains it. */}
       <div className="ta-intro">
-        <h2 className="ta-intro-title">Technical Evidence Context</h2>
-        <p className="ta-intro-sub">
-          The same acquisition, device, media and integrity context recorded in
-          the PDF report and Verification Package, presented for reviewers.
-        </p>
+        <div className="ta-intro-copy">
+          <h2 className="ta-intro-title">Technical Evidence Context</h2>
+          <p className="ta-intro-sub">
+            The same acquisition, device, media and integrity context recorded
+            in the PDF report and Verification Package, presented for
+            reviewers.
+          </p>
+        </div>
       </div>
 
       <div className="ta-grid">
