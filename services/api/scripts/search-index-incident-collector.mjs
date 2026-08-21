@@ -62,7 +62,7 @@
  *     SEARCH_INCIDENT_READONLY_DATABASE_URL="postgres://<readonly-user>:<pw>@<host>:<port>/<db>" \
  *       node services/api/scripts/search-index-incident-collector.mjs \
  *         --workspace <team-uuid> \
- *         --out search-incident.json
+ *         --out /var/tmp/search-incident.json
  *
  * The deployed-revision and worker-restart facts are NOT collectable from the
  * database. They are listed in `operatorMustAlsoCapture` in the output so the
@@ -70,7 +70,9 @@
  */
 
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const CREDENTIAL_ENV = "SEARCH_INCIDENT_READONLY_DATABASE_URL";
 const MIGRATION = "20271215000000_search_index_reconciliation_kind";
@@ -120,6 +122,40 @@ function arg(name) {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * The repository this script lives in, found by its workspace marker.
+ *
+ * Used only to REFUSE writing evidence into it. Returns null when the marker
+ * cannot be found — in which case the refusal cannot be enforced and the
+ * operator's explicit `--out` stands on its own.
+ */
+function findRepoRoot() {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 10; i += 1) {
+    if (existsSync(resolve(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Is `target` inside `root`?
+ *
+ * `path.relative` alone is not enough on Windows: across DRIVES it returns an
+ * absolute path (`C:\Temp\x.json`), which does not begin with `..` — so a
+ * naive `!startsWith("..")` check reported every other drive as being inside
+ * the repository and refused perfectly valid destinations. The absolute case
+ * has to be excluded explicitly.
+ */
+function isInside(root, target) {
+  const rel = relative(root, target);
+  if (rel === "") return true;
+  if (isAbsolute(rel)) return false;
+  return !rel.startsWith(`..${sep}`) && rel !== "..";
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -135,7 +171,33 @@ async function main() {
   if (!workspaceId || !UUID_RE.test(workspaceId)) {
     fail("--workspace <team-uuid> is required and must be a UUID.");
   }
-  const outPath = arg("out") ?? "search-incident.json";
+  /**
+   * WHERE THE EVIDENCE LANDS IS THE OPERATOR'S DECISION, NOT A DEFAULT.
+   *
+   * This used to default to `search-incident.json` in the working directory,
+   * which for anyone running it from a checkout means dropping an untracked
+   * file full of production facts into the repository — one `git add -A` away
+   * from being committed. An incident tool must not leave evidence lying in a
+   * source tree.
+   *
+   * `--out` is therefore required, and a path that resolves inside this
+   * repository is refused outright rather than warned about.
+   */
+  const outArg = arg("out");
+  if (!outArg) {
+    fail(
+      "--out <path> is required. Choose a location OUTSIDE this repository — " +
+        "the report contains production facts and must not land in a source tree.",
+    );
+  }
+  const outPath = resolve(outArg);
+  const repoRoot = findRepoRoot();
+  if (repoRoot && isInside(repoRoot, outPath)) {
+    fail(
+      `refusing to write inside the repository (${repoRoot}). ` +
+        "Choose an --out path outside the source tree.",
+    );
+  }
 
   const { default: pg } = await import("pg");
   const client = new pg.Client({

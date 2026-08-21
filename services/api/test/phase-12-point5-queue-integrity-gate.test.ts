@@ -48,6 +48,9 @@ import {
   assertNoPayloadAuthorityFields,
   buildCanonicalJobId,
   buildCanonicalJobPayload,
+  buildGraphDomainCommandId,
+  buildMediaIntelligenceCommandId,
+  buildSearchIndexCommandId,
   decodeCanonicalJobPayload,
   decodeJobPayload,
   enqueueCanonicalJob,
@@ -606,6 +609,60 @@ describe("Point 5 — canonical payload contract", () => {
         QueuePayloadRejected,
       );
     }
+  });
+
+  /**
+   * THE TRANSPORT HAS TO ACCEPT THE ID.
+   *
+   * A deterministic id that BullMQ refuses is not an id, it is an outage.
+   * `Queue.add` throws `Custom Id cannot contain :` — a hard rejection at the
+   * producer — and `enqueueCanonicalJob` converts that into a soft
+   * `{ enqueued: false }` which every caller is built to tolerate. So the
+   * failure is completely silent.
+   *
+   * Three families build composite command ids of the form `<kind>:<id>`
+   * (search projection, media intelligence, graph domain sync). Every job any
+   * of them tried to schedule was refused, from the moment the composite ids
+   * were introduced. Search was the visible casualty: no rebuild could ever be
+   * enqueued, so the index was only ever written by the API's inline reconcile
+   * endpoint — which is why pressing `Rebuild index` worked instantly and
+   * nothing automatic ever did.
+   *
+   * This asserts the property directly, against every registered entry and
+   * against the real composite builders, so no future command-id shape can
+   * reintroduce a character the queue will not take.
+   */
+  it("every canonical job id is legal for the transport that has to carry it", () => {
+    const ILLEGAL = /:/;
+    const composites = [
+      buildSearchIndexCommandId("evidence", "11111111-1111-1111-1111-111111111111"),
+      buildMediaIntelligenceCommandId(
+        "analyze_metadata",
+        "22222222-2222-2222-2222-222222222222",
+      ),
+      buildGraphDomainCommandId("all", "33333333-3333-3333-3333-333333333333"),
+    ];
+    // The command id KEEPS its colon — it is the semantic identity the
+    // processor parses. Only the transport identity is rewritten.
+    for (const c of composites) expect(c).toMatch(ILLEGAL);
+
+    for (const e of getBullMqEntries()) {
+      const prefixed = { jobIdPrefix: e.jobIdPrefix! };
+      for (const commandId of [...composites, "plain-uuid-0000"]) {
+        const jobId = buildCanonicalJobId(prefixed, commandId);
+        expect(
+          jobId,
+          `${e.workName} would build a job id BullMQ refuses: ${jobId}`,
+        ).not.toMatch(ILLEGAL);
+      }
+    }
+
+    // …and the rewrite stays INJECTIVE: two different commands must never
+    // collapse onto one job id, or one record's rebuild would silently
+    // cancel another's.
+    const prefixed = { jobIdPrefix: "search-index" };
+    const ids = new Set(composites.map((c) => buildCanonicalJobId(prefixed, c)));
+    expect(ids.size).toBe(composites.length);
   });
 });
 

@@ -547,6 +547,57 @@ const FILTER_CATEGORY_MEMBERS: Partial<
   ],
 };
 
+/**
+ * IS THIS ITEM VISIBLE TO ITS RECIPIENT RIGHT NOW?
+ *
+ * THE predicate behind the badge, the list and bulk-read. It was written out
+ * by hand in four places — the page's `visibleItems`, the page's `scopeItems`,
+ * the summary's `visible` and `mark-all-read`'s `targets` — all textually
+ * identical, and all deciding the same question for surfaces that are required
+ * to agree.
+ *
+ * Four copies of one rule is how the badge and the list come to disagree: an
+ * edit lands in the count and not the list, and the number beside the bell
+ * stops matching the rows behind it. That is the exact failure this file was
+ * just repaired for, arriving by a different route, so the rule is bound once.
+ *
+ * `unread` is then simply `visible && !isRead`. There is no second unread
+ * predicate anywhere: `isRead` is computed in ONE place, in the aggregation,
+ * from the recipient's own `InboxItemState` row.
+ */
+export function isVisibleToRecipient(
+  item: Pick<InboxItem, "suppressedInApp" | "dismissedAt" | "snoozedUntil">,
+  nowMs: number,
+): boolean {
+  // IN_APP-honesty — a disabled optional type is invisible in the app.
+  if (item.suppressedInApp) return false;
+  if (item.dismissedAt != null) return false;
+  if (isActivelySnoozed(item, nowMs)) return false;
+  return true;
+}
+
+/** Snoozed and not yet due. Split out because the `snoozed` view inverts it. */
+export function isActivelySnoozed(
+  item: Pick<InboxItem, "snoozedUntil">,
+  nowMs: number,
+): boolean {
+  return (
+    item.snoozedUntil != null &&
+    new Date(item.snoozedUntil).getTime() > nowMs
+  );
+}
+
+/** Visible AND not yet read. The one definition of the badge's population. */
+export function isUnreadForRecipient(
+  item: Pick<
+    InboxItem,
+    "suppressedInApp" | "dismissedAt" | "snoozedUntil" | "isRead"
+  >,
+  nowMs: number,
+): boolean {
+  return isVisibleToRecipient(item, nowMs) && !item.isRead;
+}
+
 function matchesFilter(
   item: InboxItem,
   filter: InboxFilter | undefined,
@@ -2732,18 +2783,17 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // and actively-snoozed items are hidden by default; the `snoozed`
       // filter shows exactly the actively-snoozed set.
       const visibleItems = allItems.filter((it) => {
-        // IN_APP-honesty — a disabled optional type is invisible in the
-        // app (all filters, including the snoozed view).
-        if (it.suppressedInApp) return false;
-        const activeSnooze =
-          it.snoozedUntil != null &&
-          new Date(it.snoozedUntil).getTime() > nowMs;
+        // The `snoozed` view is the ONE surface that inverts the rule: it
+        // exists to show what the default hides. Everything else resolves
+        // through the shared predicate.
         if (requestedFilter === "snoozed") {
-          return activeSnooze && it.dismissedAt == null;
+          return (
+            !it.suppressedInApp &&
+            isActivelySnoozed(it, nowMs) &&
+            it.dismissedAt == null
+          );
         }
-        if (it.dismissedAt != null) return false;
-        if (activeSnooze) return false;
-        return true;
+        return isVisibleToRecipient(it, nowMs);
       });
 
       // -----------------------------------------------------------------
@@ -2761,14 +2811,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // aggregation runs.
       // -----------------------------------------------------------------
       const scopeItems = allItems.filter((it) => {
-        if (it.suppressedInApp) return false;
-        if (it.dismissedAt != null) return false;
-        if (
-          it.snoozedUntil != null &&
-          new Date(it.snoozedUntil).getTime() > nowMs
-        ) {
-          return false;
-        }
+        if (!isVisibleToRecipient(it, nowMs)) return false;
         if (
           requestedWorkspaceId &&
           it.context?.teamId !== requestedWorkspaceId
@@ -3037,18 +3080,13 @@ export async function meInboxRoutes(app: FastifyInstance) {
         return reply.code(401).send({ message: "Unknown caller" });
       }
       const nowMs = agg.generatedAt.getTime();
-      const visible = agg.allItems.filter((it) => {
-        if (it.suppressedInApp) return false;
-        if (it.dismissedAt != null) return false;
-        if (
-          it.snoozedUntil != null &&
-          new Date(it.snoozedUntil).getTime() > nowMs
-        ) {
-          return false;
-        }
-        return true;
-      });
-      const unreadItems = visible.filter((i) => !i.isRead);
+      // THE badge population, from the shared predicate. The list endpoint
+      // resolves through the same one, so the number beside the bell and the
+      // rows behind it cannot describe different sets.
+      const visible = agg.allItems.filter((it) =>
+        isVisibleToRecipient(it, nowMs),
+      );
+      const unreadItems = visible.filter((i) => isUnreadForRecipient(i, nowMs));
       const assignedCats = FILTER_CATEGORY_MEMBERS.assigned_to_me ?? [];
       const summary = {
         unread: unreadItems.length,
@@ -3118,16 +3156,11 @@ export async function meInboxRoutes(app: FastifyInstance) {
       }
       const now = new Date();
       const nowMs = now.getTime();
+      // EXACTLY the population the badge counts, optionally narrowed by one
+      // validated filter. Bulk-read reaching a different set from the count is
+      // how "Mark all as read" leaves a non-zero badge behind.
       const targets = agg.allItems.filter((it) => {
-        if (it.suppressedInApp) return false;
-        if (it.dismissedAt != null) return false;
-        if (
-          it.snoozedUntil != null &&
-          new Date(it.snoozedUntil).getTime() > nowMs
-        ) {
-          return false;
-        }
-        if (it.isRead) return false;
+        if (!isUnreadForRecipient(it, nowMs)) return false;
         if (bulkFilter && !matchesFilter(it, bulkFilter, nowMs)) return false;
         return true;
       });

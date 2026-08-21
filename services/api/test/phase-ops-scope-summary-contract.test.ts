@@ -17,6 +17,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+// THE shared recipient-visibility predicate, called rather than regex-matched.
+import { isVisibleToRecipient } from "../src/routes/me-inbox.routes.js";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = readFileSync(
   resolve(HERE, "../src/routes/me-inbox.routes.ts"),
@@ -37,7 +40,19 @@ describe("scopeSummary actual-item override signal", () => {
   it("the scope set is built from ACTIVE, non-suppressed, non-dismissed items", () => {
     // scopeItems is the membership-authorized set the summary derives from.
     expect(SRC).toMatch(/const scopeItems = allItems\.filter/);
-    expect(SRC).toMatch(/if \(it\.suppressedInApp\) return false;/);
+    // It resolves through THE shared visibility predicate rather than carrying
+    // its own copy of the rule — four hand-written copies is how the badge and
+    // the list come to disagree.
+    expect(SRC).toMatch(/if \(!isVisibleToRecipient\(it, nowMs\)\) return false;/);
+
+    // And the rule itself does what this test is named for.
+    const now = Date.parse("2026-08-21T12:00:00.000Z");
+    const base = { suppressedInApp: false, dismissedAt: null, snoozedUntil: null };
+    expect(isVisibleToRecipient(base, now)).toBe(true);
+    expect(isVisibleToRecipient({ ...base, suppressedInApp: true }, now)).toBe(false);
+    expect(
+      isVisibleToRecipient({ ...base, dismissedAt: new Date(now - 1).toISOString() }, now),
+    ).toBe(false);
   });
 });
 

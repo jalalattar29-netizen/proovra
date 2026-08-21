@@ -216,16 +216,16 @@ export type SearchRunSnapshot = {
   removed: number;
   failed: number;
   /**
-   * A completed run scheduled durable follow-on work that has not landed yet,
-   * AND that work is still young enough to be credible.
+   * How many rebuilds this run handed to the queue.
    *
-   * Both halves are load-bearing. Without the first, a finished run with drift
-   * is indistinguishable from an abandoned one. Without the second, a queue
-   * that never drains would let one tick's enqueue claim "still working"
-   * forever — which is the exact class of permanent, unfalsifiable
-   * reassurance the readiness model was built to delete.
+   * OPERATOR FACT ONLY. It decides nothing about readiness, and it must not:
+   * work asked for is not work in flight. Whether the handed-off work is still
+   * coming is answered by the queue's own job state, not by this number and
+   * not by how long ago the run finished. It is recorded because an operator
+   * reading the run table needs to know what a run did, and because "scheduled
+   * 0" and "scheduled 200" are very different completed runs.
    */
-  continuationScheduled: boolean;
+  scheduledCount: number;
 };
 
 /**
@@ -236,18 +236,6 @@ export type SearchRunSnapshot = {
  * that four other kinds have to carry and none of them can use.
  */
 export const SEARCH_RUN_SCHEDULED_METADATA_KEY = "searchScheduled";
-
-/**
- * How long enqueued-but-unlanded rebuilds may stand in for progress.
- *
- * Sized against the projection queue's own recovery contract: a rebuild that
- * has not been picked up within the processing-lease window is not slow, it is
- * lost — and the honest readout for lost work is STALLED, which the periodic
- * reconciler then re-schedules. Deliberately shorter than the scheduler
- * interval so credit cannot be rolled over indefinitely by a tick that keeps
- * enqueueing into a queue nobody is consuming.
- */
-export const SEARCH_CONTINUATION_CREDIT_MS = 5 * 60 * 1000;
 
 /**
  * The most recent Search run for ONE workspace.
@@ -286,17 +274,9 @@ export async function latestSearchRun(
   const leaseValid =
     running && now.getTime() - row.startedAtUtc.getTime() <= RUN_LOCK_LEASE_MS;
 
-  // Follow-on work this run handed to the queue, and whether it is still young
-  // enough to stand for progress. A run that finished more than the credit
-  // window ago has had its answer: either the queue drained it (and the counts
-  // above say so) or it did not (and STALLED is the truth).
-  const scheduled = readScheduledCount(row.metadata);
-  const finishedMs = row.finishedAtUtc?.getTime() ?? null;
-  const continuationScheduled =
-    !running &&
-    scheduled > 0 &&
-    finishedMs != null &&
-    now.getTime() - finishedMs <= SEARCH_CONTINUATION_CREDIT_MS;
+  // What this run handed to the queue. Reported, never used to infer that the
+  // handed-off work is still coming — see `scheduledCount`.
+  const scheduledCount = readScheduledCount(row.metadata);
 
   return {
     status: row.status,
@@ -323,7 +303,7 @@ export async function latestSearchRun(
     indexed: row.createdCount,
     removed: row.skippedCount,
     failed: row.failedCount,
-    continuationScheduled,
+    scheduledCount,
   };
 }
 

@@ -47,6 +47,22 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
   let workerPrisma: (typeof import("../../worker/src/db.js"))["prisma"];
   let runtime: typeof import("@proovra/shared-runtime");
   let workerRecon: typeof import("../../worker/src/search-index-reconciler.js");
+  let shared: typeof import("@proovra/shared");
+  let bullmq: typeof import("bullmq");
+  let queueClient: typeof import("../src/queue/canonical-queue-client.js");
+  /**
+   * A REAL BullMQ queue on the harness's disposable Redis.
+   *
+   * Not a stub: the whole point of these cases is that readiness reads durable
+   * job state, so the job has to be a real one, added under the id the real
+   * producer would build for it.
+   */
+  let queue: import("bullmq").Queue;
+  let queueConnection: import("ioredis").Redis;
+  let entry: ReturnType<typeof import("@proovra/shared").getWorkEntryOrThrow>;
+  let redisUrl: string;
+  /** Constructor for the worker connections the queue cases spin up. */
+  let IORedis: (typeof import("ioredis"))["default"];
 
   let A: { teamId: string; ownerToken: string; ownerUserId: string };
   let B: { teamId: string; ownerToken: string };
@@ -61,6 +77,20 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
     runtime.registerPrisma(prisma as never);
     workerRecon = await import("../../worker/src/search-index-reconciler.js");
     ({ prisma: workerPrisma } = await import("../../worker/src/db.js"));
+    shared = await import("@proovra/shared");
+    bullmq = await import("bullmq");
+    queueClient = await import("../src/queue/canonical-queue-client.js");
+    entry = shared.getWorkEntryOrThrow(shared.JOB_NAMES.REBUILD_SEARCH_DOCUMENT);
+    redisUrl = process.env.REDIS_URL as string;
+    // The harness already asserted this Redis is reachable before boot, so an
+    // absent address here is a harness failure and must be loud rather than
+    // silently turning every queue case into the unreachable case.
+    if (!redisUrl) throw new Error("REDIS_URL is not set for the integration run");
+    IORedis = (await import("ioredis")).default;
+    queueConnection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+    queue = new bullmq.Queue(shared.QUEUE_NAMES.SEARCH_INDEXING, {
+      connection: queueConnection,
+    });
 
     A = {
       teamId: harness.fixtures.teamA.teamId,
@@ -74,12 +104,32 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
   });
 
   afterAll(async () => {
+    await queue?.close().catch(() => undefined);
+    await queueConnection?.quit().catch(() => undefined);
     await harness?.cleanup();
   });
 
   beforeEach(async () => {
     await prisma.governanceReconciliationRun.deleteMany({ where: { kind: KIND } });
+    // Every case decides for itself what the queue holds. A job left behind by
+    // a previous case would be evidence this one never produced.
+    await queue.obliterate({ force: true }).catch(() => undefined);
   });
+
+  /** Poll a real condition to a bounded deadline. No fixed sleeps. */
+  async function waitFor(
+    predicate: () => Promise<boolean>,
+    timeoutMs = 10_000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      if (await predicate()) return;
+      if (Date.now() > deadline) {
+        throw new Error("waitFor: condition not reached within the deadline");
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
 
   // =========================================================================
   // Helpers
@@ -293,6 +343,54 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
       expect(tick.workspacesFailed).toBeGreaterThanOrEqual(1);
     });
 
+    it("a bounded tick PAGINATES — the workspace it could not reach is reached next tick", async () => {
+      await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+      await setIndexPopulation({ teamId: B.teamId, eligible: 2, indexed: 0 });
+
+      // THE CEILING IS REAL. One workspace per tick means one, however many
+      // are outstanding — a reconciler with no ceiling is a load generator
+      // with a good name.
+      const first = await workerRecon.runSearchIndexReconciler({
+        trigger: "test-page-1",
+        workspaceBatchSize: 1,
+      });
+      expect(first.workspacesReconciled).toBe(1);
+      expect(first.workspacesFailed).toBe(0);
+
+      // The workspace it did not reach is NOT lost: it is still discoverable,
+      // so a later tick with room reaches it. Drift is read from source rows
+      // every tick, so nothing has to be remembered between them.
+      const second = await workerRecon.runSearchIndexReconciler({
+        trigger: "test-page-2",
+        workspaceBatchSize: 50,
+      });
+      expect(second.workspacesReconciled).toBeGreaterThanOrEqual(1);
+
+      // Both workspaces have been reconciled by the time the sweep had room
+      // for both.
+      expect((await runs(A.teamId)).length).toBeGreaterThanOrEqual(1);
+      expect((await runs(B.teamId)).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("pagination CONTINUES past a workspace whose claim failed", async () => {
+      await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+      await setIndexPopulation({ teamId: B.teamId, eligible: 2, indexed: 0 });
+
+      failClaimFor(A.teamId);
+
+      // Both pages are walked in ONE tick even though the first workspace on
+      // it cannot be claimed. Under the previous implementation the throw left
+      // the loop entirely and B was never attempted.
+      const tick = await workerRecon.runSearchIndexReconciler({
+        trigger: "test-page-through-failure",
+        workspaceBatchSize: 50,
+      });
+      expect(tick.workspacesFailed).toBe(1);
+      expect(tick.workspacesReconciled).toBe(1);
+      expect(await runs(A.teamId)).toHaveLength(0);
+      expect((await runs(B.teamId)).length).toBeGreaterThanOrEqual(1);
+    });
+
     it("recovers on the very next tick once the database is compatible again", async () => {
       await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
 
@@ -365,92 +463,396 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
   });
 
   // =========================================================================
-  // 3. A completed run that scheduled work is not STALLED
+  // 3. Is the outstanding work actually in flight?
+  //
+  // The question a completed run cannot answer about the work it handed off.
+  // Answered here by the QUEUE, against a real BullMQ queue on the harness's
+  // disposable Redis, using the SAME deterministic job id the producer builds
+  // — so every case below reads a real job in a real state.
+  //
+  // The first implementation answered it with a five-minute credit on the
+  // run's finish time. These cases are written to fail against that model:
+  // the retry ladder for this job is five attempts at a ten-minute timeout
+  // each, so a genuinely running rebuild outlives the window and would have
+  // been reported STALLED — a second false state, in the opposite direction
+  // from the one being fixed.
   // =========================================================================
 
-  it("a completed run holding scheduled work reports INITIALIZING, and polls", async () => {
-    await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
-    await seedCompletedRun({
-      teamId: A.teamId,
-      scheduled: 2,
-      finishedMsAgo: 5_000,
+  describe("scheduled work is proven, not assumed", () => {
+    /** The job id the PRODUCER would create for this record. Not invented. */
+    function jobIdFor(sourceId: string): string {
+      return shared.buildCanonicalJobId(
+        { jobIdPrefix: entry.jobIdPrefix as string },
+        shared.buildSearchIndexCommandId("evidence", sourceId),
+      );
+    }
+
+    /** Put a real job on the real queue under that id. */
+    async function enqueueRebuild(
+      sourceId: string,
+      opts: { delayMs?: number } = {},
+    ) {
+      await queue.add(
+        entry.workName,
+        { commandId: `evidence:${sourceId}`, traceId: "test", schemaVersion: entry.schemaVersion },
+        {
+          jobId: jobIdFor(sourceId),
+          ...(opts.delayMs ? { delay: opts.delayMs } : {}),
+          removeOnComplete: false,
+          removeOnFail: false,
+        },
+      );
+    }
+
+    it("1. a queued rebuild makes an outstanding workspace INITIALIZING, and it polls", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 2,
+        indexed: 0,
+      });
+      await seedCompletedRun({ teamId: A.teamId, scheduled: 2, finishedMsAgo: 5_000 });
+      await enqueueRebuild(first as string);
+
+      const state = await readiness(A.teamId, A.ownerToken);
+      // Work IS in flight, and the evidence is the job itself.
+      expect(state.state).toBe("INITIALIZING");
+      expect(state.shouldPoll).toBe(true);
+      expect(state.indexedCount).toBe(0);
+      expect(state.outstandingCount).toBe(2);
     });
 
-    const state = await readiness(A.teamId, A.ownerToken);
-    // Work IS assigned and the evidence for that is on the run row. Calling
-    // this STALLED told a user with a healthy system that their records would
-    // never appear — and STALLED does not poll, so the reading could not
-    // correct itself when the queue drained a second later.
-    expect(state.state).toBe("INITIALIZING");
-    expect(state.shouldPoll).toBe(true);
-    // …and it is still honest about what is indexed.
-    expect(state.indexedCount).toBe(0);
-    expect(state.outstandingCount).toBe(2);
-  });
+    it("2. the same queued rebuild is STILL in flight long after the old five-minute window", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 2,
+        indexed: 0,
+      });
+      // The run finished an hour ago — far outside any credit window that
+      // would have been short enough to be useful.
+      await seedCompletedRun({
+        teamId: A.teamId,
+        scheduled: 2,
+        finishedMsAgo: 60 * 60 * 1000,
+      });
+      await enqueueRebuild(first as string);
 
-  it("PARTIAL when some records are already searchable", async () => {
-    await setIndexPopulation({ teamId: A.teamId, eligible: 3, indexed: 1 });
-    await seedCompletedRun({
-      teamId: A.teamId,
-      scheduled: 2,
-      finishedMsAgo: 5_000,
+      // Elapsed time says nothing. The job is waiting, so the work is coming.
+      // Under the credit model this was STALLED — a false alarm on a healthy
+      // queue, which is the defect this case exists to prevent returning.
+      expect((await readiness(A.teamId, A.ownerToken)).state).toBe("INITIALIZING");
     });
 
-    const state = await readiness(A.teamId, A.ownerToken);
-    expect(state.state).toBe("PARTIAL");
-    expect(state.shouldPoll).toBe(true);
-    expect(state.indexedCount).toBe(1);
-  });
+    it("3. a rebuild that is ACTIVE on a worker reads as progress, whatever the clock says", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 2,
+        indexed: 0,
+      });
+      await seedCompletedRun({
+        teamId: A.teamId,
+        scheduled: 2,
+        finishedMsAgo: 60 * 60 * 1000,
+      });
+      await enqueueRebuild(first as string);
 
-  it("the credit EXPIRES — scheduled work that never landed reverts to STALLED", async () => {
-    await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
-    await seedCompletedRun({
-      teamId: A.teamId,
-      scheduled: 2,
-      finishedMsAgo: runtime.SEARCH_CONTINUATION_CREDIT_MS + 60_000,
+      // A REAL worker claims it and holds it. `RETRY_POLICIES.PROJECTION`
+      // allows ten minutes per attempt, so this is an ordinary long rebuild,
+      // not a stuck one — and it must not be reported as abandoned.
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const worker = new bullmq.Worker(
+        shared.QUEUE_NAMES.SEARCH_INDEXING,
+        async () => {
+          await held;
+        },
+        { connection: new IORedis(redisUrl, { maxRetriesPerRequest: null }), concurrency: 1 },
+      );
+      try {
+        await waitFor(async () => {
+          const s = await queue.getJobState(jobIdFor(first as string));
+          return s === "active";
+        });
+        expect((await readiness(A.teamId, A.ownerToken)).state).toBe("INITIALIZING");
+      } finally {
+        release();
+        await worker.close();
+      }
     });
 
-    // The bounded half of the claim. Without it, one tick's enqueue would let
-    // a queue nobody consumes report "still working" forever — the exact class
-    // of unfalsifiable reassurance the readiness model exists to remove.
-    const state = await readiness(A.teamId, A.ownerToken);
-    expect(state.state).toBe("STALLED");
-    expect(state.shouldPoll).toBe(false);
-  });
+    it("4. an unreachable queue proves nothing and fails CLOSED to STALLED", async () => {
+      await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+      await seedCompletedRun({ teamId: A.teamId, scheduled: 2, finishedMsAgo: 5_000 });
 
-  it("a completed run that scheduled NOTHING is STALLED immediately", async () => {
-    await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
-    await seedCompletedRun({
-      teamId: A.teamId,
-      scheduled: 0,
-      finishedMsAgo: 1_000,
+      const saved = process.env.REDIS_URL;
+      delete process.env.REDIS_URL;
+      queueClient.__resetCanonicalQueueClientForTests();
+      try {
+        // No evidence is not evidence of progress. STALLED is also the state
+        // the reconciler acts on, so failing closed triggers recovery rather
+        // than suppressing it.
+        const state = await readiness(A.teamId, A.ownerToken);
+        expect(state.state).toBe("STALLED");
+        expect(state.shouldPoll).toBe(false);
+      } finally {
+        process.env.REDIS_URL = saved;
+        queueClient.__resetCanonicalQueueClientForTests();
+      }
     });
 
-    // Drift remains and the run assigned no work to close it. There is no
-    // honest reading other than STALLED.
-    expect((await readiness(A.teamId, A.ownerToken)).state).toBe("STALLED");
+    it("5. an enqueue the worker has not reached yet is still in flight (delayed job)", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 2,
+        indexed: 0,
+      });
+      await seedCompletedRun({ teamId: A.teamId, scheduled: 2, finishedMsAgo: 5_000 });
+      // Backoff puts a retrying rebuild here. It is not lost.
+      await enqueueRebuild(first as string, { delayMs: 60_000 });
+
+      expect((await readiness(A.teamId, A.ownerToken)).state).toBe("INITIALIZING");
+    });
+
+    it("6. a worker restart does not lose the continuation — the job outlives the process", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 2,
+        indexed: 0,
+      });
+      await seedCompletedRun({ teamId: A.teamId, scheduled: 2, finishedMsAgo: 5_000 });
+      await enqueueRebuild(first as string);
+
+      // A worker starts, takes nothing, and dies — the shape of a restart.
+      const worker = new bullmq.Worker(
+        shared.QUEUE_NAMES.SEARCH_INDEXING,
+        async () => {
+          await new Promise((r) => setTimeout(r, 50));
+        },
+        {
+          connection: new IORedis(redisUrl, { maxRetriesPerRequest: null }),
+          concurrency: 1,
+          autorun: false,
+        },
+      );
+      await worker.close();
+
+      // The job is durable in Redis, so readiness is unchanged by the restart.
+      const state = await readiness(A.teamId, A.ownerToken);
+      expect(state.state).toBe("INITIALIZING");
+      expect(await queue.getJobState(jobIdFor(first as string))).not.toBe("unknown");
+    });
+
+    it("7. drift with NO job scheduled for it is STALLED — the abandoned case", async () => {
+      await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+      // A run that completed and handed nothing on: nothing is coming.
+      await seedCompletedRun({ teamId: A.teamId, scheduled: 0, finishedMsAgo: 1_000 });
+
+      const state = await readiness(A.teamId, A.ownerToken);
+      expect(state.state).toBe("STALLED");
+      expect(state.shouldPoll).toBe(false);
+    });
+
+    it("7b. a terminally FAILED rebuild is not in flight — the exhausted-ladder case", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 1,
+        indexed: 0,
+      });
+      await seedCompletedRun({ teamId: A.teamId, scheduled: 1, finishedMsAgo: 5_000 });
+      await queue.add(
+        entry.workName,
+        { commandId: `evidence:${first}`, traceId: "test", schemaVersion: entry.schemaVersion },
+        { jobId: jobIdFor(first as string), attempts: 1, removeOnFail: false },
+      );
+      const worker = new bullmq.Worker(
+        shared.QUEUE_NAMES.SEARCH_INDEXING,
+        async () => {
+          throw new Error("rebuild refused");
+        },
+        { connection: new IORedis(redisUrl, { maxRetriesPerRequest: null }), concurrency: 1 },
+      );
+      try {
+        await waitFor(async () => {
+          const s = await queue.getJobState(jobIdFor(first as string));
+          return s === "failed";
+        });
+        // The queue tried and gave up. Reporting that as progress would be the
+        // credit model's other failure mode with extra steps.
+        expect((await readiness(A.teamId, A.ownerToken)).state).toBe("STALLED");
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it("8. repeated sweeps while the SAME continuation is pending create no duplicate job and no second run", async () => {
+      const ids = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 2,
+        indexed: 0,
+      });
+      await enqueueRebuild(ids[0] as string);
+      const before = await queue.getJobCounts();
+
+      await workerRecon.runSearchIndexReconciler({ trigger: "test-sweep-1" });
+      await workerRecon.runSearchIndexReconciler({ trigger: "test-sweep-2" });
+      await workerRecon.runSearchIndexReconciler({ trigger: "test-sweep-3" });
+
+      // The job id is deterministic, so a re-enqueue for a record already
+      // queued collapses onto the live job rather than adding another.
+      //
+      // Scoped to THIS workspace's records: the queue is shared across
+      // tenants, so a bare job count would also be counting whatever other
+      // fixtures left outstanding.
+      const jobs = await queue.getJobs(["waiting", "delayed", "active", "prioritized"]);
+      const mine = jobs.filter((j) =>
+        ids.some((id) => j.id === jobIdFor(id as string)),
+      );
+      expect(mine.filter((j) => j.id === jobIdFor(ids[0] as string))).toHaveLength(1);
+      // At most one job per outstanding record, whatever the sweep count.
+      expect(new Set(mine.map((j) => j.id)).size).toBe(mine.length);
+      expect(mine.length).toBeLessThanOrEqual(ids.length);
+      void before;
+
+      // …and never two live runs for one workspace.
+      const active = await prisma.governanceReconciliationRun.count({
+        where: { teamId: A.teamId, kind: KIND, status: "RUNNING" },
+      });
+      expect(active).toBeLessThanOrEqual(1);
+
+      // Index documents are upserted by natural key, so repeated rebuilds can
+      // never produce a duplicate document for one record.
+      const docs = await prisma.evidenceSearchDocument.groupBy({
+        by: ["sourceId"],
+        where: { teamId: A.teamId, documentType: "EVIDENCE" },
+        _count: { sourceId: true },
+      });
+      for (const d of docs) expect(d._count.sourceId).toBe(1);
+    });
+
+    it("END TO END: two records go 0/2 → 2/2 with no user visit and no Rebuild press", async () => {
+      await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+      expect((await readiness(A.teamId, A.ownerToken)).state).toBe("STALLED");
+
+      // 1. The scheduler notices the drift and schedules the rebuilds.
+      const tick = await workerRecon.runSearchIndexReconciler({
+        trigger: "test-e2e",
+      });
+      // Scoped to this workspace: the sweep is fleet-wide, so the tick's
+      // totals include whatever other fixtures are outstanding.
+      expect(tick.reEnqueued + tick.collapsed).toBeGreaterThanOrEqual(2);
+      expect(tick.failed).toBe(0);
+
+      // 2. The workspace now truthfully reports work in flight, and polls —
+      //    so the reading will correct itself on its own.
+      const mid = await readiness(A.teamId, A.ownerToken);
+      expect(mid.state).toBe("INITIALIZING");
+      expect(mid.shouldPoll).toBe(true);
+
+      // 3. The REAL worker processor drains the queue. Not a stand-in: this is
+      //    the same function `services/worker/src/index.ts` registers.
+      const processor = await import(
+        "../../worker/src/search-indexing.processor.js"
+      );
+      const worker = new bullmq.Worker(
+        shared.QUEUE_NAMES.SEARCH_INDEXING,
+        async (job) => {
+          await processor.processSearchIndexingJob(job);
+        },
+        {
+          connection: new IORedis(redisUrl, { maxRetriesPerRequest: null }),
+          concurrency: 2,
+        },
+      );
+      try {
+        await waitFor(async () => {
+          const n = await prisma.evidenceSearchDocument.count({
+            where: { teamId: A.teamId, documentType: "EVIDENCE" },
+          });
+          return n >= 2;
+        }, 30_000);
+      } finally {
+        await worker.close();
+      }
+
+      // 4. READY, reached without a person doing anything. This is the whole
+      //    point: the reported incident required pressing `Rebuild index`, and
+      //    now nothing does.
+      const done = await readiness(A.teamId, A.ownerToken);
+      expect(done.state).toBe("READY");
+      expect(done.indexedCount).toBe(2);
+      expect(done.eligibleCount).toBe(2);
+      expect(done.outstandingCount).toBe(0);
+      expect(done.shouldPoll).toBe(false);
+
+      // …and exactly one document per record. Repeated events and repeated
+      // sweeps cannot produce a second.
+      const grouped = await prisma.evidenceSearchDocument.groupBy({
+        by: ["sourceId"],
+        where: { teamId: A.teamId, documentType: "EVIDENCE" },
+        _count: { sourceId: true },
+      });
+      expect(grouped).toHaveLength(2);
+      for (const g of grouped) expect(g._count.sourceId).toBe(1);
+    });
+
+    it("no run at all, but a queued rebuild — the first record of a new workspace", async () => {
+      const [first] = await setIndexPopulation({
+        teamId: A.teamId,
+        eligible: 1,
+        indexed: 0,
+      });
+      // The ordinary create path enqueues WITHOUT any reconciliation run. This
+      // is the shape of the reported incident, and it used to be an
+      // unconditional STALLED because `run === null` short-circuited before
+      // anything could look at the queue.
+      expect(await runs(A.teamId)).toHaveLength(0);
+      await enqueueRebuild(first as string);
+
+      expect((await readiness(A.teamId, A.ownerToken)).state).toBe("INITIALIZING");
+    });
   });
 
-  it("the reconciler RECORDS what it scheduled, so the next read can credit it", async () => {
-    await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+  it("the reconciler records what it scheduled, and never counts a refusal as scheduled", async () => {
+    const ids = await setIndexPopulation({
+      teamId: A.teamId,
+      eligible: 2,
+      indexed: 0,
+    });
 
     await workerRecon.runSearchIndexReconciler({ trigger: "test-metadata" });
 
     const [row] = await runs(A.teamId);
     expect(row).toBeDefined();
     const metadata = (row?.metadata ?? {}) as Record<string, unknown>;
-    // The counter is present on the row whether or not the queue accepted the
-    // jobs — a durable statement about what this run handed on, which is what
-    // readiness reads instead of guessing from silence.
-    expect(
-      Object.prototype.hasOwnProperty.call(
-        metadata,
-        runtime.SEARCH_RUN_SCHEDULED_METADATA_KEY,
+    const recorded = metadata[
+      runtime.SEARCH_RUN_SCHEDULED_METADATA_KEY
+    ] as number;
+    expect(typeof recorded).toBe("number");
+
+    // OPERATOR FACT, and it must be an accurate one. `scheduled` counts jobs
+    // the queue ACCEPTED (new or collapsed onto a live one) and excludes
+    // refusals — an enqueue that failed is recorded in `failedCount`, never
+    // reported as work handed on.
+    const accepted = (
+      await queue.getJobs(["waiting", "delayed", "active", "prioritized"])
+    ).filter((j) =>
+      ids.some(
+        (id) =>
+          j.id ===
+          shared.buildCanonicalJobId(
+            { jobIdPrefix: entry.jobIdPrefix as string },
+            shared.buildSearchIndexCommandId("evidence", id),
+          ),
       ),
-    ).toBe(true);
-    expect(
-      typeof metadata[runtime.SEARCH_RUN_SCHEDULED_METADATA_KEY],
-    ).toBe("number");
+    );
+    expect(recorded).toBe(accepted.length);
+    expect(recorded).toBeLessThanOrEqual(ids.length);
+    expect(recorded + (row?.failedCount ?? 0)).toBe(row?.scannedCount ?? 0);
+
+    // …and it is NOT what readiness reads. The queue is.
+    const state = await readiness(A.teamId, A.ownerToken);
+    expect(state.state).toBe(recorded > 0 ? "INITIALIZING" : "STALLED");
   });
 
   // =========================================================================
@@ -530,7 +932,11 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
   // =========================================================================
 
   it("one workspace's run never changes another workspace's readiness", async () => {
-    await setIndexPopulation({ teamId: A.teamId, eligible: 2, indexed: 0 });
+    const [aFirst] = await setIndexPopulation({
+      teamId: A.teamId,
+      eligible: 2,
+      indexed: 0,
+    });
     await setIndexPopulation({ teamId: B.teamId, eligible: 2, indexed: 2 });
 
     await seedCompletedRun({
@@ -538,6 +944,20 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
       scheduled: 2,
       finishedMsAgo: 5_000,
     });
+    await queue.add(
+      entry.workName,
+      {
+        commandId: `evidence:${aFirst}`,
+        traceId: "test",
+        schemaVersion: entry.schemaVersion,
+      },
+      {
+        jobId: shared.buildCanonicalJobId(
+          { jobIdPrefix: entry.jobIdPrefix as string },
+          shared.buildSearchIndexCommandId("evidence", aFirst as string),
+        ),
+      },
+    );
 
     expect((await readiness(A.teamId, A.ownerToken)).state).toBe("INITIALIZING");
     // B is converged and has no run of its own. A's scheduled work is not

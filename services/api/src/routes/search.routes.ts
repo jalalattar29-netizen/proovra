@@ -14,7 +14,14 @@ import {
   deriveSearchReadiness,
   projectSearchReadiness,
   searchIndexableLifecycleSql,
+  type SearchScheduledWorkFacts,
 } from "@proovra/shared";
+// Whether the outstanding rebuilds are actually in flight, read from the
+// queue's durable job state rather than inferred from elapsed time.
+import {
+  SEARCH_SCHEDULED_WORK_PROBE_CEILING,
+  probeSearchScheduledWork,
+} from "../services/search/search-scheduled-work.service.js";
 // The ONE durable reconciliation-run authority. Readiness reads the run row;
 // the reconcile endpoint starts runs through the same wrapper the worker's
 // scheduler uses, so the two cannot work one workspace at the same time.
@@ -1479,6 +1486,44 @@ export async function searchRoutes(app: FastifyInstance) {
       );
       const unresolvedRemovals = unresolvedRemovalRows[0]?.pending ?? 0;
 
+      // WHETHER THE OUTSTANDING WORK IS ACTUALLY IN FLIGHT.
+      //
+      // Asked of the queue's durable job state, addressed by deterministic job
+      // id — never inferred from how long ago a run finished. A clock cannot
+      // tell a rebuild that is on its third attempt from one nobody ever
+      // picked up, and the projection queue's own retry ladder runs far longer
+      // than any window that would be short enough to be useful.
+      //
+      // Skipped entirely when nothing is outstanding: a converged workspace
+      // has no question to ask, and a READY read must not cost a queue round
+      // trip.
+      let scheduledWork: SearchScheduledWorkFacts | undefined;
+      if (indexedEvidence < evidenceIndexable) {
+        // The outstanding records themselves, bounded and tenant-scoped by the
+        // SAME eligibility authority the counts above use — so the probe can
+        // never be pointed at a record this workspace does not own, and can
+        // never disagree with the denominator about which records are missing.
+        const outstanding = await prisma.$queryRawUnsafe<
+          Array<{ id: string }>
+        >(
+          `SELECT e.id::text AS id
+             FROM evidence e
+             LEFT JOIN evidence_search_documents d
+                    ON d.source_id = e.id
+                   AND d.document_type = 'EVIDENCE'
+            WHERE e.team_id = $1::uuid
+              AND ${ELIGIBLE_SQL}
+              AND d.source_id IS NULL
+            ORDER BY e.updated_at ASC
+            LIMIT $2`,
+          teamId,
+          SEARCH_SCHEDULED_WORK_PROBE_CEILING,
+        );
+        scheduledWork = await probeSearchScheduledWork({
+          sourceIds: outstanding.map((r) => r.id),
+        });
+      }
+
       const readiness = deriveSearchReadiness({
         eligibleCount: evidenceIndexable,
         indexedCount: indexedEvidence,
@@ -1491,14 +1536,14 @@ export async function searchRoutes(app: FastifyInstance) {
               status: runSnapshot.status,
               leaseValid: runSnapshot.leaseValid,
               failureCategory: runSnapshot.failureCategory,
-              // A completed run that handed durable rebuilds to the queue and
-              // is still inside its credit window. Without this the seconds
-              // between a HEALTHY reconciler tick and the queue draining it
-              // read as STALLED — a state that does not poll, so the reading
-              // never corrected itself and the user was told to press Rebuild.
-              continuationScheduled: runSnapshot.continuationScheduled,
             }
           : null,
+        // Proof, not elapsed time: a rebuild for one of the outstanding
+        // records is queued or running right now. Without this the interval
+        // between an enqueue and the worker's write read as STALLED — a state
+        // that does not poll, so the reading never corrected itself and the
+        // user was told to press Rebuild.
+        scheduledWork,
         authorized: true,
         // This handler reached the database, so the service IS reachable. The
         // UNAVAILABLE state is produced by the CLIENT when this endpoint could

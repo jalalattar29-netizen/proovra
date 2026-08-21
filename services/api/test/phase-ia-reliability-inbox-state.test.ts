@@ -25,6 +25,15 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// The CANONICAL recipient-visibility predicates. Imported and called rather
+// than regex-matched, so this suite asserts what the product does instead of
+// what its source happens to look like.
+import {
+  isActivelySnoozed,
+  isUnreadForRecipient,
+  isVisibleToRecipient,
+} from "../src/routes/me-inbox.routes.js";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
@@ -132,11 +141,44 @@ describe("Phase IA-reliability — inbox endpoint computes itemKey + joins state
     // filter shows exactly the actively-snoozed set; History reads the
     // persistent snapshot store.
     expect(ROUTES).toMatch(/const visibleItems = allItems\.filter/);
-    expect(ROUTES).toMatch(
-      /if \(requestedFilter === "snoozed"\) \{\s*\n\s*return activeSnooze && it\.dismissedAt == null;/,
+
+    // BEHAVIOUR, not a regex over the inline copy this used to pin.
+    //
+    // The rule was written out by hand in four places — the page's default
+    // list, the page's workspace scope, the summary the badge reads, and
+    // `mark-all-read`'s target set. Four copies of one rule is how the badge
+    // and the list come to disagree, which is the failure this file exists to
+    // guard. It is now bound once, and asserted here by calling it.
+    const now = Date.parse("2026-08-21T12:00:00.000Z");
+    const base = {
+      suppressedInApp: false,
+      dismissedAt: null,
+      snoozedUntil: null,
+      isRead: false,
+    };
+    const soon = new Date(now + 60_000).toISOString();
+    const past = new Date(now - 60_000).toISOString();
+
+    expect(isVisibleToRecipient(base, now)).toBe(true);
+    // Dismissed is hidden by default.
+    expect(isVisibleToRecipient({ ...base, dismissedAt: past }, now)).toBe(false);
+    // Actively snoozed is hidden; an EXPIRED snooze re-emerges with no cron.
+    expect(isVisibleToRecipient({ ...base, snoozedUntil: soon }, now)).toBe(false);
+    expect(isVisibleToRecipient({ ...base, snoozedUntil: past }, now)).toBe(true);
+    expect(isActivelySnoozed({ snoozedUntil: soon }, now)).toBe(true);
+    expect(isActivelySnoozed({ snoozedUntil: past }, now)).toBe(false);
+    // A suppressed optional type is invisible in the app, including the
+    // snoozed view.
+    expect(isVisibleToRecipient({ ...base, suppressedInApp: true }, now)).toBe(
+      false,
     );
-    expect(ROUTES).toMatch(/if \(it\.dismissedAt != null\) return false;/);
-    expect(ROUTES).toMatch(/if \(activeSnooze\) return false;/);
+
+    // Unread is visible-and-not-read. There is no second unread rule: the
+    // badge and the list both resolve through this one.
+    expect(isUnreadForRecipient(base, now)).toBe(true);
+    expect(isUnreadForRecipient({ ...base, isRead: true }, now)).toBe(false);
+    expect(isUnreadForRecipient({ ...base, dismissedAt: past }, now)).toBe(false);
+    expect(isUnreadForRecipient({ ...base, snoozedUntil: soon }, now)).toBe(false);
   });
 
   it("the unread filter is a REAL filter, not aliased to all", () => {

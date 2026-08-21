@@ -287,10 +287,37 @@ test("a completed run that left drift is not \"still processing\"", () => {
   // PARTIAL would promise progress from something that already stopped.
   const drift = { eligibleCount: 100, indexedCount: 40, run: DONE };
   assert.equal(derive(drift).state, "STALLED");
-  // …unless a REAL continuation is persisted, which is a fact, not a hope.
+
+  // …unless a REAL continuation is in flight, which is a fact, not a hope.
+  //
+  // The fact used to be `run.continuationScheduled`, a boolean that nothing in
+  // the codebase ever wrote — so the escape hatch was dead and the STALLED
+  // branch was unconditional. It is now the queue's own job state, read by
+  // deterministic job id, which is the only thing that can tell a rebuild
+  // waiting its turn from one nobody ever scheduled.
   assert.equal(
-    derive({ ...drift, run: { ...DONE, continuationScheduled: true } }).state,
+    derive({
+      ...drift,
+      scheduledWork: { queueReachable: true, pending: 3, failed: 0 },
+    }).state,
     "PARTIAL",
+  );
+
+  // An UNREACHABLE queue is not evidence of work, and an empty one is evidence
+  // of its absence. Both stay STALLED — the state the reconciler acts on.
+  assert.equal(
+    derive({
+      ...drift,
+      scheduledWork: { queueReachable: false, pending: 0, failed: 0 },
+    }).state,
+    "STALLED",
+  );
+  assert.equal(
+    derive({
+      ...drift,
+      scheduledWork: { queueReachable: true, pending: 0, failed: 2 },
+    }).state,
+    "STALLED",
   );
 });
 

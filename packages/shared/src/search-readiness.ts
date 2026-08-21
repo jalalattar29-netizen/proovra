@@ -167,8 +167,64 @@ export type SearchRunFacts = {
   leaseValid: boolean;
   /** Bounded category. Present only on a failed run. */
   failureCategory?: string | null;
-  /** Whether a real continuation of a bounded run is persisted. */
-  continuationScheduled?: boolean;
+};
+
+/**
+ * Whether a rebuild for an outstanding record is queued or running RIGHT NOW.
+ *
+ * WHY THIS IS NOT A TIMESTAMP
+ *
+ * The scheduler converges by ENQUEUEING, so its run row closes SUCCEEDED in
+ * milliseconds while the index is still empty. Something has to say whether
+ * the handed-off work is still coming, and the first attempt at that was a
+ * time window: "a run that finished less than five minutes ago counts as
+ * progressing".
+ *
+ * That was wrong in both directions, and provably so from this repository's
+ * own retry policy. `RETRY_POLICIES.PROJECTION` gives a rebuild five attempts
+ * with a TEN-MINUTE timeout each; a job on its final attempt is legitimately
+ * alive for longer than the whole credit window, and the worst case is ~51
+ * minutes. So a genuinely running rebuild read as STALLED after five minutes —
+ * a second false state, in the opposite direction from the one being fixed.
+ * And in the other direction, a run whose enqueue was accepted by a queue that
+ * nobody is consuming read as INITIALIZING for five minutes on no evidence at
+ * all.
+ *
+ * A timestamp cannot distinguish delayed work from abandoned work. That is the
+ * exact sentence at the top of this file about `MAX(indexed_at_utc)`, and the
+ * credit window was the same mistake with a different clock.
+ *
+ * So the question is asked of the DURABLE JOB STATE instead. Rebuild jobs carry
+ * a deterministic id derived from `(kind, sourceId)`, so the outstanding
+ * records can be addressed directly and the queue can be asked what it holds.
+ * `waiting`, `delayed` and `active` are proof that work is in flight, at any
+ * elapsed time. Their absence is proof it is not.
+ */
+export type SearchScheduledWorkFacts = {
+  /**
+   * Did the queue answer at all?
+   *
+   * When false, NOTHING below is evidence. An unreachable queue cannot testify
+   * that work is in flight, so readiness fails closed to STALLED — which is
+   * also the state the reconciler acts on, so failing closed is what triggers
+   * recovery rather than suppressing it.
+   */
+  queueReachable: boolean;
+  /**
+   * Outstanding records whose rebuild job is `waiting`, `delayed` or `active`.
+   *
+   * One is enough. The probe may stop as soon as it finds it — the question is
+   * "is anything in flight", not "how much".
+   */
+  pending: number;
+  /**
+   * Outstanding records whose rebuild job is terminally `failed`.
+   *
+   * Not pending, and not silence either: the queue tried and gave up. Carried
+   * so an operator can tell an exhausted retry ladder from a job that was
+   * never scheduled.
+   */
+  failed: number;
 };
 
 export type SearchReadinessInput = {
@@ -203,6 +259,14 @@ export type SearchReadinessInput = {
    * it is the strongest possible evidence that nothing is coming.
    */
   run: SearchRunFacts | null;
+  /**
+   * What the queue currently holds for this workspace's outstanding records.
+   *
+   * Optional so a caller that cannot measure it says so by OMISSION rather
+   * than by asserting an empty queue — an absent probe and a probe that found
+   * nothing are different claims, and only the second is evidence.
+   */
+  scheduledWork?: SearchScheduledWorkFacts;
   /** Is the actor allowed to search here at all? */
   authorized: boolean;
   /**
@@ -336,31 +400,52 @@ export function deriveSearchReadiness(
     return finish("READY");
   }
 
-  // ---- Work is outstanding. Only a real run can claim it is being done. ----
+  // ---- Work is outstanding. Something real has to claim it is being done. ----
 
-  // No run has ever been recorded. This is the strongest evidence available
-  // that nothing is coming — it is what both production workspaces were.
-  if (!run) return finish("STALLED");
+  const inProgress = (): SearchReadiness =>
+    finish(indexedCount === 0 ? "INITIALIZING" : "PARTIAL");
+
+  /**
+   * Is a rebuild for an outstanding record queued or running RIGHT NOW?
+   *
+   * Read from the durable job state, addressed by deterministic job id — not
+   * inferred from how long ago anything happened. Both halves are required:
+   * an unreachable queue proves nothing, so it cannot grant progress.
+   */
+  const rebuildInFlight =
+    input.scheduledWork?.queueReachable === true &&
+    input.scheduledWork.pending > 0;
+
+  // No reconciliation run has ever been recorded.
+  //
+  // That is NOT automatically STALLED, and treating it as such was a real
+  // defect: the ordinary path enqueues a rebuild when a record is finalized,
+  // with no run row involved at all. A brand-new workspace's first record is
+  // legitimately in flight here, and the queue is the only thing that knows.
+  // Absent that evidence, no run and outstanding work is the strongest signal
+  // available that nothing is coming.
+  if (!run) return rebuildInFlight ? inProgress() : finish("STALLED");
 
   if (run.status === "FAILED") return finish("FAILED");
 
   if (run.status === "RUNNING") {
     // A RUNNING row past its lease is a crashed process. The run wrapper
     // force-fails it on the next claim; until then it must not read as work.
+    // Deliberately NOT rescued by a pending job: an expired lease is the
+    // signal that frees the slot, and suppressing it would leave the crashed
+    // run holding a workspace nothing can reclaim.
     if (!run.leaseValid) return finish("STALLED");
-    return finish(indexedCount === 0 ? "INITIALIZING" : "PARTIAL");
+    return inProgress();
   }
 
   // The run COMPLETED and drift remains.
   //
-  // "Still processing" would be a lie: the process that was supposed to close
-  // this gap finished. The only honest way this is temporary is if a real
-  // continuation is persisted — a bounded run that scheduled its own next
-  // batch. Otherwise the work is outstanding with nothing assigned to it.
-  if (run.continuationScheduled === true) {
-    return finish(indexedCount === 0 ? "INITIALIZING" : "PARTIAL");
-  }
-  return finish("STALLED");
+  // "Still processing" is true only if something actually is. The run that was
+  // supposed to close this gap has finished, so the evidence has to come from
+  // the work it handed off — a job for an outstanding record sitting in the
+  // queue or running on a worker. Otherwise the work is outstanding with
+  // nothing assigned to it, which is what STALLED means.
+  return rebuildInFlight ? inProgress() : finish("STALLED");
 }
 
 // ---------------------------------------------------------------------------

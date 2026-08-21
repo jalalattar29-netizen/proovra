@@ -8,7 +8,49 @@
 
 import { QueuePayloadRejected } from "./payload.js";
 
-/** Deterministic job id: `<prefix>-<commandId>`. */
+/**
+ * The one character BullMQ will not accept in a custom job id.
+ *
+ * It is the Redis key separator, so BullMQ rejects the `add` outright:
+ * `Custom Id cannot contain :`. That is a THROW at the producer, not a
+ * warning, and `enqueueCanonicalJob` turns it into
+ * `{ enqueued: false, reason: "queue_unavailable:..." }` — a soft failure that
+ * every caller is designed to tolerate.
+ *
+ * Three families build composite command ids of the shape `<kind>:<id>`:
+ * `buildSearchIndexCommandId`, `buildMediaIntelligenceCommandId` and
+ * `buildGraphDomainCommandId`. Every job those three families ever tried to
+ * schedule was therefore refused by the queue, silently, from the moment the
+ * composite ids were introduced. Search was the visible one: no rebuild could
+ * ever be enqueued, so the index was only ever written by the API's INLINE
+ * reconcile endpoint — which is exactly why `Rebuild index` worked instantly
+ * and nothing else ever did.
+ *
+ * The command id keeps the colon: it is the SEMANTIC identity, it is what the
+ * processor parses, and `parseSearchIndexCommandId` splits on it. Only the
+ * TRANSPORT identity is rewritten, and only here, so the two cannot drift.
+ */
+const QUEUE_ID_FORBIDDEN = /:/g;
+
+/**
+ * The replacement.
+ *
+ * A dot rather than a dash. Dash would collide: the kind vocabularies contain
+ * underscores and the ids are UUIDs, both of which already carry dashes, so
+ * `<kind>-<uuid>` could in principle be produced by two different (kind, id)
+ * pairs. A dot appears in neither vocabulary, so the mapping stays injective
+ * and the id remains reversible by eye.
+ */
+const QUEUE_ID_SEPARATOR = ".";
+
+/**
+ * Deterministic job id: `<prefix>-<commandId>`, made legal for the transport.
+ *
+ * NOTHING IS STRANDED by the rewrite. A job id that BullMQ refused is a job
+ * that was never created, so there are no live jobs under the previous form to
+ * orphan — unlike a queue NAME, which is a production identity precisely
+ * because jobs accumulate under it.
+ */
 export function buildCanonicalJobId(
   entry: { jobIdPrefix: string },
   commandId: string,
@@ -20,7 +62,10 @@ export function buildCanonicalJobId(
       "buildCanonicalJobId: commandId is required",
     );
   }
-  return `${entry.jobIdPrefix}-${id}`;
+  return `${entry.jobIdPrefix}-${id}`.replace(
+    QUEUE_ID_FORBIDDEN,
+    QUEUE_ID_SEPARATOR,
+  );
 }
 
 // ===========================================================================

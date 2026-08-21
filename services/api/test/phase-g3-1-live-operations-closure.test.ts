@@ -26,6 +26,13 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// The CANONICAL recipient-visibility predicates, imported and called rather than
+// regex-matched — so this asserts what the aggregation does, not how it looks.
+import {
+  isUnreadForRecipient,
+  isVisibleToRecipient,
+} from "../src/routes/me-inbox.routes.js";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
@@ -202,9 +209,39 @@ describe("Phase G3.1 — inbox aggregator respects notification preferences", ()
   });
 
   it("the live view, summary, and bulk targets all exclude suppressed items", () => {
-    const occurrences =
-      ME_INBOX.match(/if \(it\.suppressedInApp\) return false;/g) ?? [];
-    expect(occurrences.length).toBeGreaterThanOrEqual(3);
+    // This used to require the line `if (it.suppressedInApp) return false;` to
+    // appear at least THREE times — it pinned the duplication rather than the
+    // rule. Four hand-written copies of one visibility rule is how the badge
+    // and the list come to disagree, which is the failure this area was
+    // repaired for; a test that demands the copies makes the repair
+    // impossible.
+    //
+    // The rule is now bound once and asserted by CALLING it, which is what the
+    // three surfaces actually do.
+    const now = Date.parse("2026-08-21T12:00:00.000Z");
+    const base = {
+      suppressedInApp: false,
+      dismissedAt: null,
+      snoozedUntil: null,
+      isRead: false,
+    };
+    expect(isVisibleToRecipient({ ...base, suppressedInApp: true }, now)).toBe(
+      false,
+    );
+    expect(isUnreadForRecipient({ ...base, suppressedInApp: true }, now)).toBe(
+      false,
+    );
+    expect(isVisibleToRecipient(base, now)).toBe(true);
+
+    // …and all three surfaces resolve through it: the page's live view, the
+    // page's workspace scope, the summary the bell reads, and the bulk-read
+    // target set.
+    const callSites =
+      ME_INBOX.match(/is(?:Visible|Unread)ForRecipient\(|isVisibleToRecipient\(/g) ??
+      [];
+    expect(callSites.length).toBeGreaterThanOrEqual(4);
+    // No surface may reintroduce its own copy of the rule.
+    expect(ME_INBOX).not.toMatch(/if \(it\.suppressedInApp\) return false;/);
   });
 
   it("caches the preference verdict per (teamId, type) to avoid N+1", () => {
