@@ -168,14 +168,36 @@ export async function runEvidenceFinalizationFanout(
   };
 
   // (1) Search re-index. Deterministic via the helper's own jobId.
+  //
+  // `enqueueSearchIndexingJob` NEVER THROWS — a missing `REDIS_URL`, a dead
+  // connection or an unknown kind all come back as `{ enqueued: false,
+  // reason }`. This step used to set `searchIndexingEnqueued = true` on the
+  // strength of not having caught anything, so the one condition it exists to
+  // report — the enqueue that silently did not happen — was recorded as a
+  // success. That is the precise window the periodic reconciler exists to
+  // close, and the fanout was telling everything downstream there was nothing
+  // to close.
+  //
+  // The outcome is still NON-BLOCKING: evidence completion does not depend on
+  // the queue being reachable. It is simply reported truthfully, so a
+  // workspace whose first record never reached the index leaves a trace at the
+  // moment it happened rather than only in the drift it causes 15 minutes
+  // later.
   try {
-    await enqueueSearchIndexingJob({
+    const searchOutcome = await enqueueSearchIndexingJob({
       teamId: input.teamId,
       kind: "evidence",
       sourceId: input.evidenceId,
       reason: input.reason,
     });
-    result.searchIndexingEnqueued = true;
+    result.searchIndexingEnqueued = searchOutcome.enqueued === true;
+    if (!searchOutcome.enqueued) {
+      result.failureReasons.push(`search_indexing:${searchOutcome.reason}`);
+      logger?.warn?.(
+        { ...tag, reason: searchOutcome.reason },
+        "finalize_fanout.search_indexing_not_enqueued",
+      );
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "search_indexing_failed";
     result.failureReasons.push(`search_indexing:${msg.slice(0, 80)}`);

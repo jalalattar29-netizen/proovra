@@ -107,7 +107,18 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     // builder.
     expect(src).toMatch(/\/v1\/search\/diagnostics\?\$\{params\.toString\(\)\}/);
     expect(src).toMatch(/params\.set\("q",/);
-    expect(src).toMatch(/new URLSearchParams\(\{ teamId \}\)/);
+    // The workspace is now CAPTURED before the request rather than read from
+    // the live `teamId` binding, so a response that lands after a workspace
+    // switch can be recognised as belonging to the previous one. The contract
+    // being pinned is unchanged and slightly stronger: the diagnostics URL is
+    // built by the params builder and carries a workspace id.
+    expect(src).toMatch(/const requestedTeamId = teamId;/);
+    expect(src).toMatch(
+      /new URLSearchParams\(\{ teamId: requestedTeamId \}\)/,
+    );
+    // …and the request is abortable, so a switch cancels it rather than
+    // letting it resolve into the new workspace's state.
+    expect(src).toMatch(/signal: ctrl\.signal/);
   });
 
   it("runSearch result handler treats a null / malformed response as error (not 0 results)", () => {

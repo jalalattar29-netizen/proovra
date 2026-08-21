@@ -903,11 +903,38 @@ const searchIndexReconcilerIntervalMs = envNumber(
 let searchIndexReconcilerTimer: ReturnType<typeof setInterval> | null = null;
 let searchIndexReconcilerRunning = false;
 
-async function runSearchIndexReconcilerTick() {
+async function runSearchIndexReconcilerTick(trigger = "scheduler") {
   if (searchIndexReconcilerRunning) return;
   searchIndexReconcilerRunning = true;
   try {
-    await runSearchIndexReconciler({ trigger: "scheduler" });
+    const result = await runSearchIndexReconciler({ trigger });
+    // A TICK THAT FAILED MUST BE VISIBLE.
+    //
+    // `runSearchIndexReconciler` catches its own discovery failure and
+    // returns `ok: false` rather than throwing, so this `try` never fired and
+    // the only trace a broken sweep left was one log line. For the whole
+    // period the production database was missing the `SEARCH_INDEX` enum
+    // value, every tick returned not-ok and nothing escalated — which is why
+    // the sweep could be dead for as long as it was without anyone being
+    // told.
+    if (!result.ok || result.workspacesFailed > 0) {
+      logger.error(
+        {
+          trigger,
+          ok: result.ok,
+          error: result.error ?? null,
+          workspacesFailed: result.workspacesFailed,
+          workspacesReconciled: result.workspacesReconciled,
+        },
+        "search_index.reconciler.unhealthy",
+      );
+      captureException(
+        new Error(
+          `search_index_reconciler_unhealthy:${result.error ?? "workspace_failures"}`,
+        ),
+        { kind: "worker.search_index_reconciler" },
+      );
+    }
   } catch (err) {
     logger.error({ err }, "search_index.reconciler.failed");
     captureException(err, { kind: "worker.search_index_reconciler" });
@@ -916,17 +943,69 @@ async function runSearchIndexReconcilerTick() {
   }
 }
 
+/**
+ * How long after boot the first sweep runs.
+ *
+ * A worker that only ever reconciles on its interval leaves every workspace
+ * that drifted while it was down waiting up to a full interval after it comes
+ * back — and a deploy that fixed the reason they drifted does not take effect
+ * until then. The startup pass is the recovery path for exactly that: existing
+ * workspaces with `eligible > indexed` and no valid run are picked up because
+ * the deployment happened, with no user visit and no button press.
+ *
+ * It is DELAYED and JITTERED, not immediate. Immediate would put every replica
+ * in a rolling deploy onto the same discovery query at the same moment —
+ * against a database that has just been migrated — which is a thundering herd
+ * aimed at the one component that is already the recovery path. The jitter is
+ * per-process, so replicas spread themselves out without coordinating.
+ */
+const SEARCH_INDEX_RECONCILER_STARTUP_BASE_MS = envNumber(
+  "SEARCH_INDEX_RECONCILER_STARTUP_DELAY_MS",
+  30_000,
+);
+let searchIndexReconcilerStartupTimer: ReturnType<typeof setTimeout> | null =
+  null;
+
 function startSearchIndexReconcilerScheduler() {
-  if (!searchIndexReconcilerEnabled) return;
+  if (!searchIndexReconcilerEnabled) {
+    // A disabled reconciler is a DECISION, and a decision nobody can see is
+    // indistinguishable from a bug. Search has no other automatic recovery
+    // path, so switching this off is stated once, loudly, at boot.
+    logger.warn(
+      { reconciler: "search-index" },
+      "search_index.reconciler.disabled",
+    );
+    return;
+  }
+  const startupDelayMs =
+    Math.max(0, SEARCH_INDEX_RECONCILER_STARTUP_BASE_MS) +
+    Math.floor(Math.random() * 30_000);
+  searchIndexReconcilerStartupTimer = setTimeout(() => {
+    void runSearchIndexReconcilerTick("startup");
+  }, startupDelayMs);
+  searchIndexReconcilerStartupTimer.unref?.();
+
   searchIndexReconcilerTimer = setInterval(() => {
     void runSearchIndexReconcilerTick();
   }, searchIndexReconcilerIntervalMs);
   searchIndexReconcilerTimer.unref?.();
+  logger.info(
+    {
+      reconciler: "search-index",
+      intervalMs: searchIndexReconcilerIntervalMs,
+      startupDelayMs,
+    },
+    "search_index.reconciler.scheduled",
+  );
 }
 
 function stopSearchIndexReconcilerScheduler() {
   if (searchIndexReconcilerTimer) clearInterval(searchIndexReconcilerTimer);
   searchIndexReconcilerTimer = null;
+  if (searchIndexReconcilerStartupTimer) {
+    clearTimeout(searchIndexReconcilerStartupTimer);
+  }
+  searchIndexReconcilerStartupTimer = null;
 }
 
 const intelligenceRunReconcilerEnabled = envBoolean(

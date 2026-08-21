@@ -722,20 +722,42 @@ function SearchInner() {
   // the Evidence filter returns 0 but REPORT/PACKAGE rows DID
   // match the same query, the empty-state branch can say so
   // explicitly instead of generic "No matches".
+  /**
+   * SWITCHING WORKSPACE MUST NOT LEAK A READING.
+   *
+   * Readiness is a statement about ONE workspace. A diagnostics request that
+   * left for workspace A and lands after the user has switched to workspace B
+   * would be applied to B — so B could show A's counts, A's run status, and A's
+   * `Rebuild index` control, and the rebuild that control started would name
+   * B. The request is aborted at the switch and the response is additionally
+   * checked against the workspace it was asked for, because an abort is a
+   * request to stop, not a guarantee that nothing already resolved.
+   */
+  const healthRequestRef = useRef<AbortController | null>(null);
+
   const reloadHealth = useCallback(
     (probeQuery?: string) => {
       if (!teamId) return;
+      healthRequestRef.current?.abort();
+      const ctrl = new AbortController();
+      healthRequestRef.current = ctrl;
+      const requestedTeamId = teamId;
       setSearchHealthError(false);
-      const params = new URLSearchParams({ teamId });
+      const params = new URLSearchParams({ teamId: requestedTeamId });
       const trimmed = probeQuery?.trim() ?? "";
       if (trimmed.length > 0) params.set("q", trimmed.slice(0, 200));
       apiFetch(`/v1/search/diagnostics?${params.toString()}`, {
         method: "GET",
+        signal: ctrl.signal,
       })
         .then((r: SearchDiagnostics) => {
+          if (ctrl.signal.aborted) return;
           setSearchHealth(r);
         })
         .catch(() => {
+          // An abort is not a diagnosis. Reporting it as one would flash
+          // "search is unavailable" on every workspace switch.
+          if (ctrl.signal.aborted) return;
           setSearchHealth(null);
           setSearchHealthError(true);
         });
@@ -743,8 +765,20 @@ function SearchInner() {
     [teamId],
   );
 
+  /**
+   * The readiness envelope is dropped the moment the workspace changes, not
+   * when the replacement arrives. Carrying it across the switch would render
+   * the previous workspace's state — including a STALLED banner and its
+   * operator control — against the new one for the length of a round trip.
+   */
   useEffect(() => {
+    setSearchHealth(null);
+    setSearchHealthError(false);
     reloadHealth();
+    return () => {
+      healthRequestRef.current?.abort();
+      healthRequestRef.current = null;
+    };
   }, [reloadHealth]);
 
   /**
@@ -797,6 +831,27 @@ function SearchInner() {
         readiness.state !== "STALLED";
 
   /**
+   * ONE operational state per screen.
+   *
+   * The centre column can render an index state in two places: the compact
+   * disclosure above the results, and the full state panel that replaces the
+   * result region when there are no rows. Both were unconditional, so a
+   * STALLED workspace with nothing indexed — which is every workspace that
+   * reaches STALLED at `0/N` — got the same heading, the same counts and a
+   * second `Rebuild index` button stacked directly above the first.
+   *
+   * The panel wins when it is going to render, because it is the one with room
+   * for the explanation and the action. The disclosure stays for the case it
+   * was designed for: a workspace with SOME rows, where the state qualifies
+   * results that are already on screen.
+   */
+  const operationalPanelOwnsTheRegion =
+    (!results || results.rows.length === 0) &&
+    !loading &&
+    searchFailure == null &&
+    indexCannotAnswer;
+
+  /**
    * The recovery action.
    *
    * ACCEPTED IS NOT COMPLETED. The endpoint answers 202 when a run is already
@@ -816,6 +871,18 @@ function SearchInner() {
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const rebuildInFlight = useRef(false);
   const recoveryStatusRef = useRef<HTMLParagraphElement | null>(null);
+
+  /**
+   * A recovery outcome belongs to the workspace it was requested for.
+   *
+   * "Indexing started." left on screen after a workspace switch would describe
+   * work happening somewhere the user is no longer looking.
+   */
+  useEffect(() => {
+    setRecoveryNotice(null);
+    rebuildInFlight.current = false;
+    setRebuilding(false);
+  }, [teamId]);
 
   const rebuildIndex = useCallback(async () => {
     // The client-side half of "one run per workspace". The server half is the
@@ -2057,7 +2124,7 @@ function SearchInner() {
               it could not cover. The STATE is the server's; this only chooses
               where to put it. Suppressed while a search is in flight so a
               disclosure cannot flicker against a skeleton. */}
-          {readiness && !loading ? (
+          {readiness && !loading && !operationalPanelOwnsTheRegion ? (
             <SearchReadinessNotice
               state={readiness.state}
               indexedCount={readiness.indexedCount}

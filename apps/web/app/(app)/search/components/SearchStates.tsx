@@ -269,13 +269,24 @@ function SearchRecoveryAction({
  * anyone. Naming who can act turns a dead end into a next step, and it does it
  * without offering a control the wire would refuse.
  */
+/**
+ * What someone who is NOT a search operator is told.
+ *
+ * Not a repair instruction. Indexing recovers on its own — the periodic
+ * reconciler re-schedules any workspace with outstanding work, and a deploy
+ * runs a sweep on start — so the accurate thing to say is that it is being
+ * retried, with a contact path for the case where it keeps not resolving.
+ * "Ask a workspace administrator to restart indexing" made a piece of internal
+ * infrastructure the reader's problem, and named a manual step that is no
+ * longer the recovery path.
+ */
 function SearchRecoveryUnavailableHint() {
   return (
     <span
       className="search-readiness__hint"
       data-search-readiness-recover-unavailable
     >
-      Ask a workspace administrator to restart indexing.
+      Indexing retries automatically. Contact support if records stay missing.
     </span>
   );
 }
@@ -463,8 +474,8 @@ export function SearchReadinessNotice({
         status={status}
       >
         {indexedCount} of {eligibleCount} records are searchable. What is below
-        is real and complete for what has been indexed; the rest will not appear
-        until indexing is restarted.
+        is real and complete for what has been indexed. Indexing retries on its
+        own; the remaining records appear once it catches up.
       </SearchReadinessPanel>
     );
   }
@@ -636,14 +647,20 @@ export function SearchStalledState({
             onRecover={onRecover}
             recovering={recovering === true}
           />
-        ) : null
+        ) : (
+          // A non-operator is never left with a dead panel. The control is
+          // withheld because the wire would refuse it, not because there is
+          // nothing to say — and what there is to say is that recovery is
+          // automatic.
+          <SearchRecoveryUnavailableHint />
+        )
       }
     >
       {indexedCount} of {eligibleCount} records in this workspace are
       searchable, and no indexing run is currently making progress.{" "}
       {canRecover
         ? "Rebuilding will index the outstanding records."
-        : "Ask a workspace administrator to restart indexing."}
+        : "Indexing is retried automatically; the rest will appear once it catches up."}
       {recoveryNotice ? (
         <p
           className="search-readiness__status"

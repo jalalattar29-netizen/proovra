@@ -66,6 +66,34 @@ export type SearchReconcileCounters = {
   indexed: number;
   removed: number;
   failed: number;
+  /**
+   * Rebuilds this run handed to the durable queue and did NOT itself complete.
+   *
+   * WHY A COMPLETED RUN NEEDS THIS FIELD
+   *
+   * The scheduler's body converges by ENQUEUEING: it finds the drifted rows,
+   * schedules a rebuild for each under a deterministic job id, and returns.
+   * The run then closes SUCCEEDED within milliseconds while the index is still
+   * empty — so readiness saw a completed run with drift remaining and, quite
+   * correctly under its own rules, called that STALLED.
+   *
+   * The result was a workspace that reported "indexing is not progressing —
+   * 0 of 2 records are searchable" during the seconds between a HEALTHY
+   * reconciler tick and the queue draining it, with no polling (STALLED does
+   * not poll) to ever correct the reading. A user who looked in that window
+   * saw a permanent-sounding failure and was told to press Rebuild.
+   *
+   * `SearchRunFacts.continuationScheduled` already existed to express exactly
+   * this — "a bounded run that scheduled its own next batch" — and had no
+   * writer anywhere in the codebase, so it was dead input and the STALLED
+   * branch was unconditional. This counter is that writer.
+   *
+   * It is deliberately NOT the same thing as `indexed`: work asked for is not
+   * work done, and the credit it earns is bounded (see
+   * `SEARCH_CONTINUATION_CREDIT_MS`) so a queue that never drains reverts to
+   * the truth rather than claiming progress forever.
+   */
+  scheduled?: number;
 };
 
 export type SearchReconcileInput = {
@@ -116,6 +144,7 @@ export async function reconcileSearchIndex(
     indexed: 0,
     removed: 0,
     failed: 0,
+    scheduled: 0,
   };
 
   const result = await runGovernanceReconciliation<SearchReconcileCounters>(
@@ -136,6 +165,12 @@ export async function reconcileSearchIndex(
           skipped: counters.removed,
           failed: counters.failed,
         });
+        // Durable, on the run row, so readiness reads a PERSISTED fact rather
+        // than re-deriving intent from queue state it cannot see.
+        ctx.setMetadata(
+          SEARCH_RUN_SCHEDULED_METADATA_KEY,
+          Math.max(0, counters.scheduled ?? 0),
+        );
         return counters;
       },
     },
@@ -180,7 +215,39 @@ export type SearchRunSnapshot = {
   indexed: number;
   removed: number;
   failed: number;
+  /**
+   * A completed run scheduled durable follow-on work that has not landed yet,
+   * AND that work is still young enough to be credible.
+   *
+   * Both halves are load-bearing. Without the first, a finished run with drift
+   * is indistinguishable from an abandoned one. Without the second, a queue
+   * that never drains would let one tick's enqueue claim "still working"
+   * forever — which is the exact class of permanent, unfalsifiable
+   * reassurance the readiness model was built to delete.
+   */
+  continuationScheduled: boolean;
 };
+
+/**
+ * Where a run records how much follow-on work it handed to the queue.
+ *
+ * A metadata key rather than a column: the run table is shared with the
+ * governance families, and a Search-only column on it would be a schema change
+ * that four other kinds have to carry and none of them can use.
+ */
+export const SEARCH_RUN_SCHEDULED_METADATA_KEY = "searchScheduled";
+
+/**
+ * How long enqueued-but-unlanded rebuilds may stand in for progress.
+ *
+ * Sized against the projection queue's own recovery contract: a rebuild that
+ * has not been picked up within the processing-lease window is not slow, it is
+ * lost — and the honest readout for lost work is STALLED, which the periodic
+ * reconciler then re-schedules. Deliberately shorter than the scheduler
+ * interval so credit cannot be rolled over indefinitely by a tick that keeps
+ * enqueueing into a queue nobody is consuming.
+ */
+export const SEARCH_CONTINUATION_CREDIT_MS = 5 * 60 * 1000;
 
 /**
  * The most recent Search run for ONE workspace.
@@ -202,6 +269,7 @@ export async function latestSearchRun(
       startedAtUtc: true,
       finishedAtUtc: true,
       errorSummary: true,
+      metadata: true,
       scannedCount: true,
       createdCount: true,
       skippedCount: true,
@@ -218,19 +286,62 @@ export async function latestSearchRun(
   const leaseValid =
     running && now.getTime() - row.startedAtUtc.getTime() <= RUN_LOCK_LEASE_MS;
 
+  // Follow-on work this run handed to the queue, and whether it is still young
+  // enough to stand for progress. A run that finished more than the credit
+  // window ago has had its answer: either the queue drained it (and the counts
+  // above say so) or it did not (and STALLED is the truth).
+  const scheduled = readScheduledCount(row.metadata);
+  const finishedMs = row.finishedAtUtc?.getTime() ?? null;
+  const continuationScheduled =
+    !running &&
+    scheduled > 0 &&
+    finishedMs != null &&
+    now.getTime() - finishedMs <= SEARCH_CONTINUATION_CREDIT_MS;
+
   return {
     status: row.status,
     startedAtUtc: row.startedAtUtc.toISOString(),
     finishedAtUtc: row.finishedAtUtc?.toISOString() ?? null,
     leaseValid,
-    // The stale-lock marker is the authority's own wording, not an exception.
+    // BOUNDED, and bounded HERE.
+    //
+    // `runGovernanceReconciliation` persists `error.message` verbatim into
+    // `errorSummary` — deliberately, because an operator reading the run table
+    // needs the real message. This projection is read by the browser, and it
+    // used to hand that message straight through as `failureReason`: a
+    // workspace whose run died on a Postgres enum mismatch showed the user
+    // `invalid input value for enum GovernanceReconciliationKind:
+    // SEARCH_INDEX`. The row keeps the detail; the wire gets a category.
+    //
+    // The stale-lock marker is the authority's own wording rather than an
+    // exception, so it is preserved as-is instead of being reduced.
     failureCategory:
       row.status === prismaPkg.GovernanceReconciliationStatus.FAILED
-        ? (row.errorSummary ?? "unexpected_error").slice(0, 64)
+        ? projectFailureCategory(row.errorSummary)
         : null,
     scanned: row.scannedCount,
     indexed: row.createdCount,
     removed: row.skippedCount,
     failed: row.failedCount,
+    continuationScheduled,
   };
+}
+
+/** The one marker the run authority writes itself, which is already safe. */
+const STALE_LOCK_MARKER = "stale_run_force_failed_after_lock_timeout";
+
+function projectFailureCategory(errorSummary: string | null): string {
+  if (!errorSummary) return "unexpected_error";
+  if (errorSummary === STALE_LOCK_MARKER) return STALE_LOCK_MARKER;
+  return safeFailureCategory(new Error(errorSummary));
+}
+
+function readScheduledCount(metadata: unknown): number {
+  if (metadata == null || typeof metadata !== "object") return 0;
+  const raw = (metadata as Record<string, unknown>)[
+    SEARCH_RUN_SCHEDULED_METADATA_KEY
+  ];
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0
+    ? Math.floor(raw)
+    : 0;
 }

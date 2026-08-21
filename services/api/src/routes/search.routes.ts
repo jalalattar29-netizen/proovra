@@ -1491,6 +1491,12 @@ export async function searchRoutes(app: FastifyInstance) {
               status: runSnapshot.status,
               leaseValid: runSnapshot.leaseValid,
               failureCategory: runSnapshot.failureCategory,
+              // A completed run that handed durable rebuilds to the queue and
+              // is still inside its credit window. Without this the seconds
+              // between a HEALTHY reconciler tick and the queue draining it
+              // read as STALLED — a state that does not poll, so the reading
+              // never corrected itself and the user was told to press Rebuild.
+              continuationScheduled: runSnapshot.continuationScheduled,
             }
           : null,
         authorized: true,

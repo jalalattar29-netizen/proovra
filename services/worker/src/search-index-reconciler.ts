@@ -41,7 +41,7 @@ import { searchIndexableLifecycleSql } from "@proovra/shared";
 // caller that did not: it worked every workspace at once, with no slot claimed
 // for any of them, so a cron tick landing mid-request reconciled the same
 // workspace the endpoint was already rebuilding and neither knew.
-import { reconcileSearchIndex } from "@proovra/shared-runtime";
+import { reconcileSearchIndex, safeFailureCategory } from "@proovra/shared-runtime";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -176,7 +176,34 @@ export async function runSearchIndexReconciler(
     );
 
     for (const teamId of workspaces) {
-      const outcome = await reconcileSearchIndex(prisma, {
+      // ONE WORKSPACE CANNOT ABORT THE SWEEP.
+      //
+      // The comment on the outer catch used to claim this was already true —
+      // "each workspace's body runs inside its own run wrapper, which converts
+      // an exception into that workspace's FAILED row rather than into this
+      // catch". That is only true of the BODY. The wrapper's own work happens
+      // first: it reads for a stale lock and then INSERTs the claim row, and
+      // neither of those is inside the body's try. Anything that makes those
+      // two statements throw — a dead connection, and specifically a
+      // `governance_reconciliation_runs.kind` enum the deployed database does
+      // not yet carry — propagates out of `reconcileSearchIndex`, out of this
+      // loop, and into the outer catch, ending the entire tick at the FIRST
+      // workspace it touched.
+      //
+      // That is what a code-before-migration deploy produced in production:
+      // every tick died on `invalid input value for enum
+      // GovernanceReconciliationKind: SEARCH_INDEX` before it could write a
+      // single run row, for every workspace, for as long as the
+      // incompatibility lasted. "No run has ever been recorded" was not a
+      // workspace that had never been visited — it was a workspace whose visit
+      // could not be recorded.
+      //
+      // A claim that cannot be recorded is that workspace's failure and
+      // nothing else's. It is counted, logged with a BOUNDED category, and the
+      // tick moves to the next workspace.
+      let outcome: Awaited<ReturnType<typeof reconcileSearchIndex>>;
+      try {
+        outcome = await reconcileSearchIndex(prisma, {
         teamId,
         // Bounded to 32 chars by the run authority. `scheduler` is the value
         // the readiness projection and the operator console expect.
@@ -204,13 +231,40 @@ export async function runSearchIndexReconciler(
             indexed: counts.reEnqueued,
             removed: counts.removed,
             failed: counts.failed,
+            // Rebuilds handed to the queue by THIS run. Recorded on the run row
+            // so a completed run can say that work is genuinely outstanding
+            // rather than leaving readiness to infer it from silence.
+            scheduled: counts.reEnqueued + counts.collapsed,
           };
         },
-      });
+        });
+      } catch (err) {
+        // The CLAIM failed — the body never ran, so there is no run row that
+        // could carry this. Bounded category only: this is logged and counted,
+        // never rendered, and it must not carry SQL or a connection string.
+        result.workspacesFailed += 1;
+        logger.error(
+          {
+            reconciler: "search-index",
+            teamId,
+            category: safeFailureCategory(err),
+          },
+          "worker.search_index.workspace_claim_failed",
+        );
+        continue;
+      }
 
       if (outcome.kind === "already_running") result.workspacesLocked += 1;
       else if (outcome.kind === "failed") result.workspacesFailed += 1;
       else result.workspacesReconciled += 1;
+    }
+
+    // A tick in which no workspace could be claimed AT ALL is an
+    // infrastructure fact, not a quiet zero. Reported as not-ok so the caller
+    // escalates it rather than logging another cheerful line.
+    if (result.workspacesFailed > 0 && result.workspacesReconciled === 0) {
+      result.ok = false;
+      result.error = "workspace_claims_failed";
     }
 
     logger.info(
