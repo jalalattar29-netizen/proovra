@@ -1,19 +1,35 @@
 "use client";
 
 /**
- * Header Notification Bell — quick awareness, not operational work.
+ * Header Notification Bell — recent awareness, not operational work.
  *
- * Opens a compact popover with the caller's UNREAD operational
- * notifications (top 8) and a single deep link to the Operations
- * Center where the real work happens.
+ * WHAT IT SHOWS
  *
- * One unread calculation platform-wide: the bell polls the CANONICAL
- * aggregation endpoint (`GET /v1/me/inbox?filter=unread&pageSize=8`)
- * — the same server computation the Operations Center renders — so the
- * badge can never disagree with the page. The badge equals
- * `pagination.totalEstimate` of the unread filter: unread actionable
- * notifications only, never total activity, never audit events, never
- * delivery logs.
+ * The FIVE most recent visible notifications for the signed-in user in the
+ * ACTIVE workspace — read and unread alike — plus one deep link to the
+ * Operations Center, where the full queue and its history live.
+ *
+ * WHAT CHANGED, AND WHY
+ *
+ * It used to query `filter=unread`, so the list WAS the unread set. Marking
+ * something read therefore deleted it from the panel: the act of
+ * acknowledging a notification was indistinguishable, on screen, from
+ * dismissing it, and there was no way to see what you had just read. Worse,
+ * a caught-up user saw an empty popover and had no idea whether that meant
+ * "nothing happened" or "you already read it".
+ *
+ * So the two concepts are now separate, and each has one owner:
+ *
+ *   READ      is a STATE. The row stays, in a quieter presentation, and
+ *             leaves the badge count.
+ *   DISMISSED is REMOVAL. The row goes, the next most recent eligible item
+ *             takes its place, and the audit history is untouched.
+ *
+ * ONE VISIBILITY AUTHORITY. The list and the badge are two reads of the same
+ * server aggregation, scoped to the same workspace: the list is
+ * `filter=all&sort=recent&pageSize=5`, the badge is that aggregation's unread
+ * count. Neither is computed here, and they cannot disagree because neither
+ * gets to decide.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,16 +51,27 @@ type BellItem = {
   body: string;
   href: string;
   occurredAt: string;
+  /**
+   * READ IS A STATE, NOT A DISAPPEARANCE.
+   *
+   * The list used to be `filter=unread`, so marking an item read removed it —
+   * the only way to see what you had just acknowledged was to open the
+   * Operations Center. The list is now the five most recent VISIBLE items,
+   * read and unread alike, and this field is what separates the two
+   * presentations.
+   */
+  isRead: boolean;
   canDismiss: boolean;
   context: Record<string, string | number | null>;
 };
 
-type UnreadResponse = {
+type RecentResponse = {
   items: BellItem[];
   pagination: { totalEstimate: number; totalIsExact: boolean };
 };
 
 type SummaryResponse = {
+  /** UNREAD and non-dismissed only. Read items are in the list, not here. */
   unread: number;
   critical: number;
   high: number;
@@ -58,7 +85,15 @@ type SummaryResponse = {
 // Slow poll of the LIGHTWEIGHT cached summary — the full item rows are
 // fetched only when the popover opens. Awareness cadence, not realtime.
 const POLL_INTERVAL_MS = 120_000;
-const PREVIEW_SIZE = 8;
+/**
+ * FIVE. The bell is a glance, not a queue.
+ *
+ * It was eight, and eight UNREAD — so a busy workspace filled the popover with
+ * a backlog and a quiet one showed nothing at all. Five most-recent items,
+ * whatever their read state, is a consistent amount of recent history, and the
+ * Operations Center is one click away for the rest.
+ */
+const PREVIEW_SIZE = 5;
 
 const CATEGORY_LABEL: Record<string, string> = {
   onboarding: "Getting started",
@@ -96,6 +131,20 @@ function relativeTime(iso: string): string {
   return formatUserDate(iso);
 }
 
+/**
+ * Attach the active workspace to a bell request.
+ *
+ * Built once so the list and the summary cannot be scoped differently — the
+ * whole point of scoping them at all is that they describe one population.
+ * A null workspace (no active context yet) sends nothing, which the server
+ * reads as "every workspace this caller belongs to".
+ */
+function withWorkspace(path: string, workspaceId: string | null): string {
+  if (!workspaceId) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}workspaceId=${encodeURIComponent(workspaceId)}`;
+}
+
 function formatCount(n: number, exact: boolean): string {
   if (n <= 0) return "0";
   if (n > 99) return "99+";
@@ -112,7 +161,7 @@ export function NotificationBell() {
   // account or the active workspace changes, and it is the ONE signal this
   // component uses to decide that everything it holds belongs to a context that
   // no longer exists.
-  const { contextGeneration } = usePlatformContext();
+  const { contextGeneration, activeWorkspaceId } = usePlatformContext();
   const [deniedKey, setDeniedKey] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [countIsExact, setCountIsExact] = useState(true);
@@ -194,22 +243,41 @@ export function NotificationBell() {
   // Operations Center (cached per user, invalidated on every mutation),
   // so the badge and the page cannot disagree.
   const loadSummary = useCallback(async () => {
-    const res = await readUnderEpoch<SummaryResponse>("/v1/me/inbox/summary");
+    // SAME SCOPE as the list. A badge counted across every workspace beside a
+    // list showing one of them is a number nothing on screen adds up to.
+    const res = await readUnderEpoch<SummaryResponse>(
+      withWorkspace("/v1/me/inbox/summary", activeWorkspaceId),
+    );
     if (!res) return;
     setUnreadCount(res.unread);
     setCountIsExact(!res.hasTruncatedSources);
-  }, [readUnderEpoch]);
+  }, [readUnderEpoch, activeWorkspaceId]);
 
-  // Full rows are fetched ONLY when the popover opens.
+  /**
+   * The five most recent VISIBLE notifications — read and unread.
+   *
+   * `filter=all` and `sort=recent`, not `filter=unread`. The old query is why
+   * marking something read made it vanish: the list was defined as the unread
+   * set, so changing an item's read state removed it from the query's own
+   * population. Dismissal is what removes a row; reading is a state it wears.
+   *
+   * The server orders and limits. Fetching read and unread separately and
+   * merging here would be a second ordering authority living in a browser.
+   *
+   * NOTE the count is NOT taken from this response: `totalEstimate` counts the
+   * whole visible population, which now includes read items, and the badge
+   * counts unread. The summary endpoint owns that number.
+   */
   const loadItems = useCallback(async () => {
-    const res = await readUnderEpoch<UnreadResponse>(
-      `/v1/me/inbox?filter=unread&pageSize=${PREVIEW_SIZE}`,
+    const res = await readUnderEpoch<RecentResponse>(
+      withWorkspace(
+        `/v1/me/inbox?filter=all&sort=recent&pageSize=${PREVIEW_SIZE}`,
+        activeWorkspaceId,
+      ),
     );
     if (!res) return;
     setItems(res.items);
-    setUnreadCount(res.pagination.totalEstimate);
-    setCountIsExact(res.pagination.totalIsExact);
-  }, [readUnderEpoch]);
+  }, [readUnderEpoch, activeWorkspaceId]);
 
   /**
    * IDENTITY / TENANT CHANGE — drop everything rather than decay into it.
@@ -420,7 +488,7 @@ export function NotificationBell() {
         <div
           ref={popoverRef}
           role="dialog"
-          aria-label="Unread notifications"
+          aria-label="Recent notifications"
           data-notification-bell-popover
           className="ops-bell-popover"
         >
@@ -475,7 +543,7 @@ export function NotificationBell() {
               </p>
             ) : items.length === 0 ? (
               <p className="ops-bell-popover__empty">
-                No unread notifications.
+                No recent notifications.
               </p>
             ) : (
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -485,12 +553,28 @@ export function NotificationBell() {
                     (it.context?.organizationName as string | null) ??
                     null;
                   return (
-                    <li key={it.itemKey} className="ops-bell-row">
+                    <li
+                      key={it.itemKey}
+                      className="ops-bell-row"
+                      /* ONE anatomy, two states. The row geometry is identical
+                         either way, so reading an item cannot move anything
+                         below it — only weight and ink change. */
+                      data-notification-row-read={it.isRead ? "true" : "false"}
+                    >
+                      {/* The state, stated. Colour and weight alone cannot
+                          carry it, so every row names its status in text that
+                          is available to assistive technology. */}
+                      <span className="app-visually-hidden">
+                        {it.isRead ? "Read" : "Unread"}
+                      </span>
                       <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
                         <span
                           aria-hidden="true"
                           className="ops-bell-row__dot"
                           data-tone={it.tone}
+                          /* The unread marker. Absent when read — the dot is
+                             the indicator, not a decoration. */
+                          data-notification-unread-dot={it.isRead ? "false" : "true"}
                         />
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div className="ops-bell-row__meta">
@@ -556,17 +640,24 @@ export function NotificationBell() {
                             inside the row's link.
                           */}
                           <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => void mutate(it.itemKey, "read")}
-                              disabled={busyKey !== null}
-                              aria-busy={busyKey === it.itemKey}
-                              aria-label={`Mark as read: ${it.title}`}
-                              data-notification-action="read"
-                              className="ops-bell-action"
-                            >
-                              Mark read
-                            </button>
+                            {/* Offered only while it can do something. A
+                                "Mark read" control on a read row is an action
+                                whose outcome is already true. Dismiss stays,
+                                because a read notification can still be
+                                cleared from the list. */}
+                            {it.isRead ? null : (
+                              <button
+                                type="button"
+                                onClick={() => void mutate(it.itemKey, "read")}
+                                disabled={busyKey !== null}
+                                aria-busy={busyKey === it.itemKey}
+                                aria-label={`Mark as read: ${it.title}`}
+                                data-notification-action="read"
+                                className="ops-bell-action"
+                              >
+                                Mark read
+                              </button>
+                            )}
                             {it.canDismiss ? (
                               <button
                                 type="button"
@@ -595,7 +686,7 @@ export function NotificationBell() {
             onClick={() => setOpen(false)}
             className="ops-bell-footer"
           >
-            View Operations Center →
+            View all notifications →
           </Link>
         </div>
       ) : null}

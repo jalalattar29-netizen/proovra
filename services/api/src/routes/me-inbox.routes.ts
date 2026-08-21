@@ -158,6 +158,20 @@ const inboxQuerySchema = z.object({
   // Existing tone enum — same key as the in-page chips. Server-side
   // tone filtering complements the filter enum.
   tone: z.enum(["critical", "high", "warning", "info"]).optional(),
+  /**
+   * WHICH ORDERING of the same population.
+   *
+   * `priority` (the default, and the Operations Center's) answers "what should
+   * I work on": priority, then deadline posture, then tone, then recency. The
+   * header bell asks a different question — "what just happened" — and sorting
+   * that by priority means a week-old P1 sits above a notification from two
+   * minutes ago, which is not a recent-activity list.
+   *
+   * Both are orderings of ONE aggregation. This is deliberately not a second
+   * endpoint: a second endpoint would be a second visibility predicate waiting
+   * to drift from this one.
+   */
+  sort: z.enum(["priority", "recent"]).optional(),
 });
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -587,6 +601,25 @@ export function isActivelySnoozed(
   );
 }
 
+/**
+ * Is this item inside the requested workspace scope?
+ *
+ * `null` means "every workspace the caller belongs to" — the Operations
+ * Center's default. A workspace id narrows to items owned by it.
+ *
+ * Bound here beside the visibility rule because the badge and the list must
+ * agree on scope for exactly the reason they must agree on visibility: a count
+ * taken over one population and a list taken over another is a number nothing
+ * on screen adds up to.
+ */
+function isInWorkspaceScope(
+  item: Pick<InboxItem, "context">,
+  workspaceId: string | null,
+): boolean {
+  if (!workspaceId) return true;
+  return item.context?.teamId === workspaceId;
+}
+
 /** Visible AND not yet read. The one definition of the badge's population. */
 export function isUnreadForRecipient(
   item: Pick<
@@ -676,6 +709,23 @@ function compareInboxItems(a: InboxItem, b: InboxItem, nowMs: number): number {
   const dt = TONE_PRIORITY[b.tone] - TONE_PRIORITY[a.tone];
   if (dt !== 0) return dt;
   return b.occurredAt.localeCompare(a.occurredAt);
+}
+
+/**
+ * NEWEST FIRST, and deterministic when two things happened at once.
+ *
+ * The bell shows "the five most recent", so recency is the only ranking that
+ * answers the question it asks. Two notifications can carry the same
+ * `occurredAt` — a fan-out that emits several items from one event does
+ * exactly that — and a comparator that returned 0 there would let the page
+ * order shuffle between two requests over identical data, which reads as items
+ * jumping around. `itemKey` is stable, unique per item and already the
+ * identity every mutation uses, so it is the tie-break.
+ */
+function compareInboxItemsByRecency(a: InboxItem, b: InboxItem): number {
+  const dt = b.occurredAt.localeCompare(a.occurredAt);
+  if (dt !== 0) return dt;
+  return a.itemKey.localeCompare(b.itemKey);
 }
 
 function dueScore(dueAt: string | null | undefined, nowMs: number): number {
@@ -2608,6 +2658,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const requestedFilter: InboxFilter = queryParams.filter ?? "all";
       const requestedTone = queryParams.tone;
       const requestedWorkspaceId = queryParams.workspaceId;
+      const requestedSort = queryParams.sort ?? "priority";
 
       // Workspace narrowing — the caller may only narrow to a workspace
       // they belong to (anti-enumeration 403 otherwise). Validated up
@@ -2812,12 +2863,9 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // -----------------------------------------------------------------
       const scopeItems = allItems.filter((it) => {
         if (!isVisibleToRecipient(it, nowMs)) return false;
-        if (
-          requestedWorkspaceId &&
-          it.context?.teamId !== requestedWorkspaceId
-        ) {
-          return false;
-        }
+        // The SAME scope rule the summary applies, so the badge and this list
+        // describe one population.
+        if (!isInWorkspaceScope(it, requestedWorkspaceId ?? null)) return false;
         return true;
       });
       // Actual-item override signal (2026-07-15). The filter-independent
@@ -2897,7 +2945,13 @@ export async function meInboxRoutes(app: FastifyInstance) {
         return true;
       });
 
-      filteredItems.sort((a, b) => compareInboxItems(a, b, nowMs));
+      // ONE population, two orderings. See the `sort` field on the query
+      // schema for why the bell cannot use the Operations Center's.
+      if (requestedSort === "recent") {
+        filteredItems.sort(compareInboxItemsByRecency);
+      } else {
+        filteredItems.sort((a, b) => compareInboxItems(a, b, nowMs));
+      }
 
       const totalEstimate = filteredItems.length;
       // Exact when no source query hit its take limit. If we capped a
@@ -3067,7 +3121,35 @@ export async function meInboxRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const cached = await getCachedOperationsSummary(userId);
+      /**
+       * WORKSPACE SCOPE — the badge counts what the dropdown lists.
+       *
+       * The bell shows the active workspace's notifications, so a badge
+       * counted across every workspace the caller belongs to would be a number
+       * that no list on screen adds up to. The scope is validated against
+       * ACTIVE membership by the same resolver the list endpoint uses, and it
+       * is part of the cache key, so one workspace's count can never be served
+       * for another.
+       */
+      const scope = z
+        .object({ workspaceId: z.string().uuid().optional() })
+        .safeParse(req.query ?? {});
+      if (!scope.success) {
+        return reply.code(400).send({ message: "INBOX_SCOPE_INVALID" });
+      }
+      const workspaceId = scope.data.workspaceId ?? null;
+      if (workspaceId) {
+        const accessible = await resolveAccessibleWorkspace({
+          userId,
+          workspaceId,
+        });
+        // Anti-enumerating: the same refusal a non-member gets from the list.
+        if (!accessible) {
+          return reply.code(403).send({ error: { code: "not_a_member" } });
+        }
+      }
+
+      const cached = await getCachedOperationsSummary(userId, workspaceId);
       if (cached) {
         try {
           return reply.code(200).send(JSON.parse(cached));
@@ -3083,8 +3165,9 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // THE badge population, from the shared predicate. The list endpoint
       // resolves through the same one, so the number beside the bell and the
       // rows behind it cannot describe different sets.
-      const visible = agg.allItems.filter((it) =>
-        isVisibleToRecipient(it, nowMs),
+      const visible = agg.allItems.filter(
+        (it) =>
+          isVisibleToRecipient(it, nowMs) && isInWorkspaceScope(it, workspaceId),
       );
       const unreadItems = visible.filter((i) => isUnreadForRecipient(i, nowMs));
       const assignedCats = FILTER_CATEGORY_MEMBERS.assigned_to_me ?? [];
@@ -3103,8 +3186,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
         degraded: agg.degradedSources.length > 0,
         degradedSources: agg.degradedSources,
         generatedAtUtc: agg.generatedAt.toISOString(),
+        // Echoed so a client can tell WHICH scope this count describes, and so
+        // a response cached under one workspace cannot be mistaken for another.
+        workspaceId,
       };
-      await setCachedOperationsSummary(userId, JSON.stringify(summary));
+      await setCachedOperationsSummary(
+        userId,
+        JSON.stringify(summary),
+        workspaceId,
+      );
       return reply.code(200).send(summary);
     },
   );

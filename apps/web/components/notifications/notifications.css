@@ -314,6 +314,42 @@
 .ops-bell-row__dot[data-tone="critical"] { background: var(--ops-tone-critical); }
 .ops-bell-row__dot[data-tone="high"]     { background: var(--ops-tone-high); }
 .ops-bell-row__dot[data-tone="warning"]  { background: var(--ops-tone-warning); }
+
+/* ---------------------------------------------------------------------------
+ * READ vs UNREAD — one row anatomy, two weights.
+ *
+ * The list now keeps a notification after it is read, so the two states share
+ * a row and have to be told apart without moving anything. Every declaration
+ * below changes WEIGHT, INK or the presence of the dot; none changes padding,
+ * font-size or line-height, so a row that becomes read does not reflow the
+ * rows beneath it.
+ *
+ * State is never carried by colour alone: the dot is a presence/absence
+ * signal, the weight shift is visible in greyscale, and each row renders a
+ * visually-hidden "Read" / "Unread" for assistive technology.
+ * ------------------------------------------------------------------------- */
+
+/* The unread marker. `visibility` rather than `display`, so the dot's box —
+   and therefore the title's indent — is identical in both states. */
+.ops-bell-row__dot[data-notification-unread-dot="false"] {
+  visibility: hidden;
+}
+
+/* READ — quieter, still fully legible and fully interactive. */
+.ops-bell-row[data-notification-row-read="true"] .ops-bell-row__title {
+  font-weight: 500;
+  color: var(--ink-secondary);
+}
+.ops-bell-row[data-notification-row-read="true"] .ops-bell-row__body {
+  color: var(--ink-muted);
+}
+
+/* UNREAD — the stronger tier, stated explicitly rather than inherited, so the
+   contrast between the two is a decision rather than a side effect. */
+.ops-bell-row[data-notification-row-read="false"] .ops-bell-row__title {
+  font-weight: 700;
+  color: var(--ink-primary);
+}
 .ops-bell-row__meta {
   font-size: 11px;
   color: var(--ink-muted);

@@ -63,26 +63,52 @@ function getRedis(): IORedis | null {
   }
 }
 
-function key(userId: string): string {
-  return `${KEY_PREFIX}${userId}`;
+/**
+ * One entry per (user, workspace scope).
+ *
+ * The bell counts the ACTIVE workspace, and the Operations Center counts every
+ * workspace the caller belongs to. Those are different numbers over different
+ * populations, so they cannot share a cache entry — keyed only by user, a
+ * workspace-scoped read would be served an all-workspaces count and the badge
+ * would disagree with the list behind it.
+ *
+ * `null` is the all-workspaces scope and gets its own stable key rather than
+ * being folded into a workspace's.
+ */
+function key(userId: string, workspaceId: string | null = null): string {
+  return `${KEY_PREFIX}${userId}:${workspaceId ?? "all"}`;
+}
+
+/** Every scope key this process has written for a user, so invalidation can
+ *  reach all of them without scanning Redis. */
+const scopesByUser = new Map<string, Set<string>>();
+
+function rememberScope(userId: string, workspaceId: string | null): void {
+  let scopes = scopesByUser.get(userId);
+  if (!scopes) {
+    scopes = new Set<string>();
+    scopesByUser.set(userId, scopes);
+  }
+  scopes.add(workspaceId ?? "all");
 }
 
 export async function getCachedOperationsSummary(
   userId: string,
+  workspaceId: string | null = null,
 ): Promise<string | null> {
   const client = getRedis();
   if (client) {
     try {
       if (client.status === "wait") await client.connect();
-      return await client.get(key(userId));
+      return await client.get(key(userId, workspaceId));
     } catch {
       markRedisUnavailable();
     }
   }
-  const entry = memoryStore.get(key(userId));
+  const entry = memoryStore.get(key(userId, workspaceId));
   if (!entry) return null;
   if (entry.expiresAtMs <= Date.now()) {
-    memoryStore.delete(key(userId));
+    memoryStore.delete(key(userId, workspaceId));
     return null;
   }
   return entry.value;
@@ -91,6 +117,7 @@ export async function getCachedOperationsSummary(
 export async function setCachedOperationsSummary(
   userId: string,
   serialized: string,
+  workspaceId: string | null = null,
   ttlSeconds: number = OPERATIONS_SUMMARY_TTL_SECONDS,
 ): Promise<void> {
   /**
@@ -112,14 +139,15 @@ export async function setCachedOperationsSummary(
    * already deleted from both.
    */
   const expiresAtMs = Date.now() + ttlSeconds * 1000;
-  memoryStore.set(key(userId), { value: serialized, expiresAtMs });
+  rememberScope(userId, workspaceId);
+  memoryStore.set(key(userId, workspaceId), { value: serialized, expiresAtMs });
   pruneExpired();
 
   const client = getRedis();
   if (client) {
     try {
       if (client.status === "wait") await client.connect();
-      await client.set(key(userId), serialized, "EX", ttlSeconds);
+      await client.set(key(userId, workspaceId), serialized, "EX", ttlSeconds);
     } catch {
       markRedisUnavailable();
     }
@@ -148,12 +176,31 @@ function pruneExpired(): void {
 export async function invalidateOperationsSummary(
   userId: string,
 ): Promise<void> {
-  memoryStore.delete(key(userId));
+  /**
+   * EVERY SCOPE, not just the default one.
+   *
+   * A read/dismiss changes what the caller can see in the workspace the item
+   * belongs to AND in the all-workspaces view, so clearing one key would leave
+   * the other serving a count the mutation already invalidated. Scopes are
+   * tracked as they are written rather than discovered by scanning Redis —
+   * a `KEYS`/`SCAN` on every mutation is a far worse trade than a small map.
+   */
+  const scopes = new Set(scopesByUser.get(userId) ?? []);
+  // Always clear the default, even if this process never wrote it: another
+  // replica may have, and the delete is cheap.
+  scopes.add("all");
+
+  const keys = [...scopes].map((scope) =>
+    key(userId, scope === "all" ? null : scope),
+  );
+  for (const k of keys) memoryStore.delete(k);
+  scopesByUser.delete(userId);
+
   const client = getRedis();
   if (client) {
     try {
       if (client.status === "wait") await client.connect();
-      await client.del(key(userId));
+      await client.del(...keys);
     } catch {
       markRedisUnavailable();
     }

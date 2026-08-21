@@ -151,7 +151,15 @@ describe("Unified unread calculation — one backend computation platform-wide",
 
   it("the NotificationBell polls the lightweight summary; rows load only on open", () => {
     expect(NOTIFICATION_BELL).toContain("/v1/me/inbox/summary");
-    expect(NOTIFICATION_BELL).toContain("/v1/me/inbox?filter=unread");
+    // RECENT, not unread. The list used to BE the unread set, so marking an
+    // item read removed it from the list's own population — reading and
+    // dismissing were indistinguishable on screen. It is now the five most
+    // recent visible items, read and unread alike.
+    expect(NOTIFICATION_BELL).toContain("/v1/me/inbox?filter=all&sort=recent");
+    // The REQUEST shape, not the bare substring — the module's own docstring
+    // names the retired query in order to explain why it was retired, and a
+    // guard that forbids naming a mistake also forbids recording it.
+    expect(NOTIFICATION_BELL).not.toMatch(/inbox\?filter=unread/);
     // The poll loop drives loadSummary, not the full item fetch.
     expect(NOTIFICATION_BELL).toMatch(/await loadSummary\(\);\s*\n\s*if \(alive\) timer/);
     expect(NOTIFICATION_BELL).toMatch(/if \(!open\) return;\s*\n\s*void loadItems\(\)/);
@@ -159,7 +167,18 @@ describe("Unified unread calculation — one backend computation platform-wide",
 
   it("the badge is the server-computed unread total — never a client estimate", () => {
     expect(NOTIFICATION_BELL).toMatch(/setUnreadCount\(res\.unread\)/);
-    expect(NOTIFICATION_BELL).toMatch(/pagination\.totalEstimate/);
+    // …and NOT the list's total. That total now counts the whole VISIBLE
+    // population, which includes read items, so wiring the badge to it would
+    // make a fully-read inbox show a non-zero count. The summary owns the
+    // number; the list owns the rows.
+    expect(NOTIFICATION_BELL).not.toMatch(
+      /setUnreadCount\([^)]*pagination\.totalEstimate/,
+    );
+    // No arithmetic on the previous value anywhere: the refreshed server count
+    // is the authority, never a permanent local decrement.
+    expect(NOTIFICATION_BELL).not.toMatch(
+      /setUnreadCount\(\s*\(?\s*(unreadCount|prev|c|n)\s*\)?\s*(-|\+)/,
+    );
   });
 });
 
@@ -387,7 +406,9 @@ describe("Header Notification Bell", () => {
 
   it("popover footer deep-links to the Operations Center", () => {
     expect(NOTIFICATION_BELL).toMatch(/href="\/inbox"/);
-    expect(NOTIFICATION_BELL).toContain("View Operations Center");
+    // The route is unchanged; the LABEL now says what the link is for, because
+    // the popover shows five recent items and the destination holds the rest.
+    expect(NOTIFICATION_BELL).toContain("View all notifications");
   });
 
   it("badge count is bounded (99+ overflow)", () => {
