@@ -33,6 +33,15 @@ vi.mock("../../lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
+// NotificationBell reads the canonical identity/tenant generation so it can
+// drop everything it holds when the signed-in account changes. This suite is
+// about the deep-link chokepoint, not about that reset, so the generation is
+// pinned to a constant — the real provider is exercised by the bell's own
+// render suite. `dirtyWorkRegistry` is imported deep, so it is unaffected.
+vi.mock("../../lib/platform-context", () => ({
+  usePlatformContext: () => ({ contextGeneration: 0 }),
+}));
+
 import { useDeepLinkNavigation, type DeepLinkOpenResult } from "../../lib/navigation/useDeepLinkNavigation";
 import { registerDirtyWork, clearAllDirtyWork } from "../../lib/platform-context/dirtyWorkRegistry";
 

@@ -23,6 +23,7 @@ import { Bell } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
 import { useDeepLinkNavigation } from "../../lib/navigation/useDeepLinkNavigation";
+import { usePlatformContext } from "../../lib/platform-context";
 
 type BellItem = {
   id: string;
@@ -107,42 +108,128 @@ export function NotificationBell() {
   // another Workspace; they navigate through the ONE deep-link chokepoint
   // (server resolve → dirty-work guard → stale rejection), never raw.
   const { open: openDestination } = useDeepLinkNavigation();
+  // The canonical identity/tenant generation. It advances whenever the signed-in
+  // account or the active workspace changes, and it is the ONE signal this
+  // component uses to decide that everything it holds belongs to a context that
+  // no longer exists.
+  const { contextGeneration } = usePlatformContext();
   const [deniedKey, setDeniedKey] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [countIsExact, setCountIsExact] = useState(true);
   const [items, setItems] = useState<BellItem[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * THE EPOCH — why awaiting the mutation is not enough on its own.
+   *
+   * The badge has three independent producers: the 120s summary poll, the
+   * popover's row fetch, and the post-mutation refetch. They race. A poll that
+   * left before `Mark all as read` committed can land after it, and its body is
+   * a truthful description of a world that no longer exists — so applying it
+   * silently restores the count the user just cleared. On screen that is
+   * indistinguishable from the mutation having failed, which is precisely the
+   * symptom this component was reported for.
+   *
+   * Every read captures the epoch it started in; every mutation and every
+   * identity change advances it. A response from a superseded epoch is
+   * DISCARDED, never merged. The request is aborted at the same moment, so the
+   * discard is usually free rather than merely late.
+   *
+   * Refs rather than state: the guard has to be readable by a closure that is
+   * already suspended at an `await`, and a state update is not visible there.
+   */
+  const epochRef = useRef(0);
+  const inFlightRef = useRef<Set<AbortController>>(new Set());
+  /**
+   * The re-entrancy guard for mutations.
+   *
+   * `busyKey` disables the buttons, but `disabled` is a rendering outcome and
+   * cannot stop a second call that is dispatched before React commits — a held
+   * Enter key, a double tap, a synthetic event. The ref is set synchronously
+   * inside the handler, so the second call returns before it reaches the wire.
+   */
+  const mutationInFlightRef = useRef(false);
+
+  /** Supersede every read now in flight, and return the new epoch. */
+  const bumpEpoch = useCallback((): number => {
+    for (const ctrl of inFlightRef.current) ctrl.abort();
+    inFlightRef.current.clear();
+    epochRef.current += 1;
+    return epochRef.current;
+  }, []);
+
+  /**
+   * Run one read under the current epoch.
+   *
+   * Returns `null` when the response must not be applied — superseded, aborted
+   * or failed. A caller therefore cannot accidentally apply a stale body:
+   * there is no body to apply.
+   */
+  const readUnderEpoch = useCallback(
+    async <T,>(path: string): Promise<T | null> => {
+      const epoch = epochRef.current;
+      const ctrl = new AbortController();
+      inFlightRef.current.add(ctrl);
+      try {
+        const res = (await apiFetch(path, { signal: ctrl.signal })) as T;
+        return epoch === epochRef.current ? res : null;
+      } catch {
+        // Best-effort awareness surface — never break the header. An abort and
+        // a transport failure are both "no usable answer", and both leave what
+        // is already on screen alone.
+        return null;
+      } finally {
+        inFlightRef.current.delete(ctrl);
+      }
+    },
+    [],
+  );
 
   // Lightweight summary poll — drives the badge only. The summary is
   // computed server-side from the SAME canonical aggregation as the
   // Operations Center (cached per user, invalidated on every mutation),
   // so the badge and the page cannot disagree.
   const loadSummary = useCallback(async () => {
-    try {
-      const res = (await apiFetch("/v1/me/inbox/summary")) as SummaryResponse;
-      setUnreadCount(res.unread);
-      setCountIsExact(!res.hasTruncatedSources);
-    } catch {
-      // Best-effort awareness surface — never break the header.
-    }
-  }, []);
+    const res = await readUnderEpoch<SummaryResponse>("/v1/me/inbox/summary");
+    if (!res) return;
+    setUnreadCount(res.unread);
+    setCountIsExact(!res.hasTruncatedSources);
+  }, [readUnderEpoch]);
 
   // Full rows are fetched ONLY when the popover opens.
   const loadItems = useCallback(async () => {
-    try {
-      const res = (await apiFetch(
-        `/v1/me/inbox?filter=unread&pageSize=${PREVIEW_SIZE}`,
-      )) as UnreadResponse;
-      setItems(res.items);
-      setUnreadCount(res.pagination.totalEstimate);
-      setCountIsExact(res.pagination.totalIsExact);
-    } catch {
-      // Leave the previous list; the Operations Center is the recovery path.
-    }
-  }, []);
+    const res = await readUnderEpoch<UnreadResponse>(
+      `/v1/me/inbox?filter=unread&pageSize=${PREVIEW_SIZE}`,
+    );
+    if (!res) return;
+    setItems(res.items);
+    setUnreadCount(res.pagination.totalEstimate);
+    setCountIsExact(res.pagination.totalIsExact);
+  }, [readUnderEpoch]);
+
+  /**
+   * IDENTITY / TENANT CHANGE — drop everything rather than decay into it.
+   *
+   * The bell aggregates across the caller's workspaces, so switching workspace
+   * does not change WHAT it counts — but switching account does, and both
+   * advance the same generation. Leaving the old count on screen while the new
+   * one loads would attribute one account's unread work to another. The reset
+   * is synchronous with the generation change; the effects below repopulate.
+   */
+  useEffect(() => {
+    bumpEpoch();
+    mutationInFlightRef.current = false;
+    setItems(null);
+    setUnreadCount(0);
+    setCountIsExact(true);
+    setDeniedKey(null);
+    setActionNotice(null);
+    setBusyKey(null);
+  }, [contextGeneration, bumpEpoch]);
 
   useEffect(() => {
     let alive = true;
@@ -220,37 +307,79 @@ export function NotificationBell() {
     };
   }, [open, loadItems]);
 
+  /**
+   * One mutation, then reconcile with the SERVER.
+   *
+   * There is deliberately no local decrement. A client-side count is a guess
+   * about a computation that runs over ~19 sources server-side, and a guess
+   * that disagrees with the next poll produces a number that jumps — which is
+   * worse than a number that lags. The refetch is the answer; the epoch bump
+   * is what stops an older answer from overwriting it.
+   */
   async function mutate(itemKey: string, action: "read" | "dismiss") {
-    if (busyKey) return;
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setBusyKey(itemKey);
+    setActionNotice(null);
     try {
       await apiFetch(
         `/v1/me/inbox/items/${encodeURIComponent(itemKey)}/${action}`,
         { method: "POST" },
       );
+      // Everything that left before this write is now describing the previous
+      // state of the inbox and must not be applied.
+      bumpEpoch();
       // Reconcile with the server (the mutation invalidated the summary
       // cache, so both refetches return the post-mutation truth).
       await Promise.all([loadItems(), loadSummary()]);
+      setActionNotice(
+        action === "read" ? "Notification marked as read." : "Notification dismissed.",
+      );
     } catch {
-      // Leave the item in place; the Operations Center is the recovery path.
+      // The write did not happen, so nothing local may claim it did — the item
+      // stays exactly where it is and the failure is announced rather than
+      // swallowed. The Operations Center remains the recovery path.
+      setActionNotice(
+        action === "read"
+          ? "Could not mark that notification as read."
+          : "Could not dismiss that notification.",
+      );
     } finally {
+      mutationInFlightRef.current = false;
       setBusyKey(null);
     }
   }
 
   async function markAllRead() {
-    if (busyKey) return;
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setBusyKey("__all__");
+    setActionNotice(null);
     try {
-      await apiFetch("/v1/me/inbox/mark-all-read", {
+      const res = (await apiFetch("/v1/me/inbox/mark-all-read", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),
-      });
+      })) as { markedRead?: number } | null;
+      bumpEpoch();
       await Promise.all([loadItems(), loadSummary()]);
+      // What the SERVER did, not what was asked for. A bulk read that found
+      // nothing to do is a real outcome and says so.
+      const marked = typeof res?.markedRead === "number" ? res.markedRead : null;
+      setActionNotice(
+        marked === 0
+          ? "Nothing left to mark as read."
+          : marked === 1
+            ? "1 notification marked as read."
+            : marked === null
+              ? "Notifications marked as read."
+              : `${marked} notifications marked as read.`,
+      );
     } catch {
       /* server state unchanged on failure */
+      setActionNotice("Could not mark notifications as read.");
     } finally {
+      mutationInFlightRef.current = false;
       setBusyKey(null);
     }
   }
@@ -309,6 +438,7 @@ export function NotificationBell() {
                   onClick={() => void markAllRead()}
                   disabled={busyKey !== null}
                   aria-busy={busyKey === "__all__"}
+                  data-notification-action="mark-all"
                   className="ops-bell-action"
                 >
                   Mark all as read
@@ -316,6 +446,27 @@ export function NotificationBell() {
               ) : null}
             </span>
           </div>
+
+          {/*
+            THE OUTCOME OF THE LAST ACTION, announced.
+
+            Every one of these actions used to be silent on failure — the
+            request was awaited inside an empty `catch` and the row simply did
+            not move. A sighted user could infer something from the unchanged
+            badge; a screen-reader user got nothing at all. This region carries
+            what the SERVER did, including "nothing", and it is the only place
+            a mutation result is stated.
+          */}
+          {actionNotice ? (
+            <p
+              role="status"
+              aria-live="polite"
+              data-notification-action-status
+              className="ops-bell-popover__empty"
+            >
+              {actionNotice}
+            </p>
+          ) : null}
 
           <div className="ops-bell-popover__scroll">
             {items === null ? (
@@ -386,12 +537,32 @@ export function NotificationBell() {
                             </div>
                           ) : null}
                           <div className="ops-bell-row__body">{it.body}</div>
+                          {/*
+                            TWO CONTROLS, TWO NAMES.
+
+                            These are separate actions with separate outcomes,
+                            and their accessible names have to say which item
+                            they act on: a popover holding eight rows otherwise
+                            offers eight buttons all called "Mark read", and a
+                            screen-reader user moving through them by control
+                            has no way to tell them apart. Reading the row in
+                            sequence also used to run the two labels together
+                            as one string.
+
+                            `aria-label` carries the item title; the visible
+                            text stays short. Each control is disabled and
+                            marked busy independently while THIS row is in
+                            flight, and neither is nested inside the other or
+                            inside the row's link.
+                          */}
                           <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                             <button
                               type="button"
                               onClick={() => void mutate(it.itemKey, "read")}
-                              disabled={busyKey === it.itemKey}
+                              disabled={busyKey !== null}
                               aria-busy={busyKey === it.itemKey}
+                              aria-label={`Mark as read: ${it.title}`}
+                              data-notification-action="read"
                               className="ops-bell-action"
                             >
                               Mark read
@@ -400,7 +571,10 @@ export function NotificationBell() {
                               <button
                                 type="button"
                                 onClick={() => void mutate(it.itemKey, "dismiss")}
-                                disabled={busyKey === it.itemKey}
+                                disabled={busyKey !== null}
+                                aria-busy={busyKey === it.itemKey}
+                                aria-label={`Dismiss: ${it.title}`}
+                                data-notification-action="dismiss"
                                 className="ops-bell-action"
                               >
                                 Dismiss

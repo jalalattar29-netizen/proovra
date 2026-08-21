@@ -2286,34 +2286,6 @@ export async function buildInboxAggregation(
       }
 
       // -----------------------------------------------------------------
-      // Phase IA-reliability — batch-fetch per-user state for every
-      // assembled item. We do ONE round trip with `itemKey IN (...)`
-      // so the join is bounded even for the largest inbox. The state
-      // table is owned by THIS user (the FK is ON DELETE CASCADE);
-      // we additionally scope every query by `userId = caller` for
-      // defense in depth.
-      // -----------------------------------------------------------------
-      const assembledKeys = items.map((it) => it.id);
-      const stateRows =
-        assembledKeys.length === 0
-          ? []
-          : await prisma.inboxItemState.findMany({
-              where: {
-                userId,
-                itemKey: { in: assembledKeys },
-              },
-              select: {
-                itemKey: true,
-                readAt: true,
-                dismissedAt: true,
-                snoozedUntil: true,
-              },
-            });
-      const stateByKey = new Map(
-        stateRows.map((row) => [row.itemKey, row] as const),
-      );
-
-      // -----------------------------------------------------------------
       // Phase IA-reliability — intake_submission_pending_review.
       // Maps to P2 (action required). Deep-link goes to the canonical
       // evidence-request detail surface.
@@ -2412,8 +2384,9 @@ export async function buildInboxAggregation(
 
       // -----------------------------------------------------------------
       // Operations-Center redesign — collaboration items + source-truth
-      // read state. Emitted here (after the state batch-fetch is safe —
-      // itemKeys are collected right below in a second pass).
+      // read state. The collaboration ROW's `readAt` is the canonical read
+      // owner for these items (the Team page writes it), so it is collected
+      // alongside them and OR-ed into the per-user state below.
       // -----------------------------------------------------------------
       const collabReadAtByKey = new Map<string, Date>();
       for (const n of collabNotifications) {
@@ -2438,23 +2411,57 @@ export async function buildInboxAggregation(
           },
         });
       }
-      // Collaboration items were emitted AFTER the state batch-fetch, so
-      // load their state rows in one extra bounded round trip.
-      const collabKeys = collabNotifications.map(
-        (n) => `collaboration:${n.id}`,
+      // -----------------------------------------------------------------
+      // Per-user state join — ONE round trip, over EVERY assembled item.
+      //
+      // WHY IT IS HERE AND NOT EARLIER
+      //
+      // This join used to run in the MIDDLE of assembly, against a snapshot
+      // of `items` taken at that moment. Four categories were emitted after
+      // it — `intake_submission_pending_review`, `intake_required_items_missing`,
+      // `intake_link_expiring` and `collaboration` — and only the last of
+      // those was given a compensating second fetch. The other three were
+      // therefore joined against nothing: their `InboxItemState` row was
+      // written correctly by every mutation and then never read back, so
+      // `isRead` was permanently `false` and `dismissedAt` permanently
+      // `null`.
+      //
+      // The user-visible consequence was exact and reproducible: `Mark read`,
+      // `Mark all as read` and `Dismiss` all returned 200, all persisted, and
+      // the header badge stayed on the same number forever — because the
+      // unread count and the list are both derived from these fields.
+      // `mark-all-read` re-targeted the same item on every invocation for the
+      // same reason.
+      //
+      // Reading state AFTER assembly is finished is the property that makes
+      // that class of bug unreachable: a category added below cannot be
+      // forgotten here, because there is no "here" left to forget. Anything
+      // that appends to `items` must do so above this line — which is also
+      // where the aggregation naturally ends.
+      //
+      // The table is owned by THIS user (FK is ON DELETE CASCADE) and every
+      // query is additionally scoped by `userId = caller` for defense in
+      // depth.
+      // -----------------------------------------------------------------
+      const assembledKeys = items.map((it) => it.id);
+      const stateRows =
+        assembledKeys.length === 0
+          ? []
+          : await prisma.inboxItemState.findMany({
+              where: {
+                userId,
+                itemKey: { in: assembledKeys },
+              },
+              select: {
+                itemKey: true,
+                readAt: true,
+                dismissedAt: true,
+                snoozedUntil: true,
+              },
+            });
+      const stateByKey = new Map(
+        stateRows.map((row) => [row.itemKey, row] as const),
       );
-      if (collabKeys.length > 0) {
-        const collabState = await prisma.inboxItemState.findMany({
-          where: { userId, itemKey: { in: collabKeys } },
-          select: {
-            itemKey: true,
-            readAt: true,
-            dismissedAt: true,
-            snoozedUntil: true,
-          },
-        });
-        for (const row of collabState) stateByKey.set(row.itemKey, row);
-      }
 
       // -----------------------------------------------------------------
       // Phase IA-enterprise — finalize: assign priority to every item,
