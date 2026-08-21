@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 281,
+    "AuditFilesInventoried": 282,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -137,7 +137,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 163
+    "ProductBehaviorTestsInventoried": 164
   },
   "reportRoles": {
     "counts": {
@@ -156,7 +156,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 163,
+    "PRODUCT_BEHAVIOR_TEST": 164,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -2448,6 +2448,21 @@
       "path": "services/api/test/delegated-tier-route-inventory.ts",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/docker-apk-install-authority.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
       "importedBy": [],
       "spawns": [],

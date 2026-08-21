@@ -1,5 +1,13 @@
-FROM node:20-alpine AS base
+# Alpine minor pinned; Node major deliberately unchanged. See
+# services/worker/Dockerfile for the reasoning — a floating `-alpine` tag moves
+# the repository path under a build that was previously reproducible.
+FROM node:20-alpine3.23 AS base
 WORKDIR /app
+
+# THE hardened package installer — one implementation, shared with the worker
+# image. Copied before any dependency or source layer so an application edit
+# never invalidates the OS-package layer below it.
+COPY --chmod=0755 infra/docker/apk-install.sh /usr/local/sbin/apk-install
 RUN corepack enable
 
 FROM base AS deps
@@ -108,8 +116,11 @@ RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter @proovra/shared-runtime build
 RUN pnpm --filter proovra-api build
 
-FROM node:20-alpine AS runner
-RUN apk add --no-cache wget curl openssl ca-certificates
+FROM base AS runner
+# Inherits the apk-install helper from `base`. This stage was previously an
+# independent `FROM node:20-alpine`, which is the shape that let two apk
+# fetches race each other in one build.
+RUN apk-install wget curl openssl ca-certificates
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app

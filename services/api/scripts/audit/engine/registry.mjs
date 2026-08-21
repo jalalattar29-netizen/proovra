@@ -600,6 +600,31 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
       p.startsWith("e2e/"),
   },
   { class: "PRODUCTION_RUNTIME", test: (p) => PRODUCTION_RUNTIME_ROOTS.some((r) => p.startsWith(r)) },
+  /**
+   * The container image definition — its OWN class, for the same reason
+   * `SCHEMA_DECLARATION` is.
+   *
+   * A `Dockerfile` matched nothing and therefore failed the "every changed
+   * path must be classified" rule, which is this table working as intended: an
+   * unmatched path is a kind of file nobody has looked at yet. Having looked —
+   * it is none of the existing classes. Nothing imports it, so it is not
+   * production runtime. It does not live under `.github/`, so it is not CI. And
+   * filing it as RELEASE_CONFIGURATION alongside `tsconfig.json` would
+   * understate it: a Dockerfile decides the base image, the OS package set, the
+   * runtime user and what is copied into the shipped artifact. It is the
+   * single file that determines what a production container IS.
+   *
+   * `infra/docker/` is included because the image build helpers there — the
+   * hardened apk installer — are executed BY these Dockerfiles at build time
+   * and are meaningless apart from them. Scoped to that directory rather than
+   * to `*.sh` anywhere, so unrelated shell scripts are not swept in.
+   */
+  {
+    class: "CONTAINER_IMAGE_DEFINITION",
+    test: (p) =>
+      /(^|\/)Dockerfile(\.[\w.-]+)?$/.test(p) ||
+      p.startsWith("infra/docker/"),
+  },
   { class: "AUDIT_ARTIFACT", test: (p) => p.startsWith("audit-output/") },
   { class: "AUDIT_TOOLING", test: (p) => /(^|\/)scripts\//.test(p) || /(^|\/)tools\//.test(p) },
   { class: "CI", test: (p) => p.startsWith(".github/") },

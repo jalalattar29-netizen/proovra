@@ -1,6 +1,33 @@
-FROM node:20-alpine AS base
+# ALPINE MINOR IS PINNED, NODE MAJOR IS NOT CHANGED.
+#
+# `node:20-alpine` is a floating variant: it currently resolves to Alpine
+# 3.23, and it will silently move to 3.24 the day upstream retags. That matters
+# here because the Alpine minor decides which `/etc/apk/repositories` path is
+# fetched (`/alpine/v3.23/main`), so a silent move changes the package universe
+# underneath a build that was previously reproducible. `node:20-alpine3.23` is
+# byte-identical to `node:20-alpine` today — same image id, same Node 20.20.2 —
+# so this pins the intent without changing anything that ships.
+#
+# The application Node major stays 20. A Node-major migration is a separate
+# piece of work with its own compatibility evidence, and this is an incident
+# fix for a package-fetch failure.
+FROM node:20-alpine3.23 AS base
 WORKDIR /app
-RUN apk add --no-cache openssl ca-certificates
+
+# THE hardened package installer, copied before ANY dependency or source layer.
+#
+# Placement is load-bearing. Docker invalidates every layer after a changed
+# one, so if this were copied later — next to the source tree — an ordinary
+# code edit would invalidate the OS-package layer and force a fresh apk fetch
+# on every single build. Copied here, the installer and the packages it
+# installs are cached together and an application change never touches them.
+COPY --chmod=0755 infra/docker/apk-install.sh /usr/local/sbin/apk-install
+
+# openssl is required by Prisma: its query engine links against libssl, and
+# `prisma generate` in the build stage resolves the engine by detecting the
+# installed OpenSSL. ca-certificates gives the build stage a trusted CA bundle
+# for HTTPS registry traffic. Neither is present in node:20-alpine.
+RUN apk-install openssl ca-certificates
 RUN corepack enable
 
 FROM base AS deps
@@ -83,19 +110,43 @@ RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter @proovra/shared-runtime build
 RUN pnpm --filter proovra-worker build
 
-FROM node:20-alpine AS runner
+# THE RUNNER INHERITS `base`, AND THAT IS THE POINT.
+#
+# It used to be a second, independent `FROM node:20-alpine`, which meant
+# `openssl` and `ca-certificates` were declared and fetched TWICE in one build
+# — once here and once in `base`. BuildKit has no dependency edge between two
+# independent `FROM` stages, so it ran both `apk add` steps CONCURRENTLY, and
+# both hit the Alpine CDN in the same instant. That is how one stage installed
+# `ca-certificates` successfully while the other failed to fetch APKINDEX in
+# the same build.
+#
+# Inheriting `base` removes the duplicate declaration, shares one package
+# layer instead of building two, and gives BuildKit an ordering edge so the two
+# remaining fetches are serialised rather than racing each other. The retry
+# helper handles a genuinely transient failure; this removes one of the two
+# chances to have one.
+#
+# `base` contributes exactly: WORKDIR, the apk-install helper, openssl,
+# ca-certificates, and corepack shims. NODE_ENV is not inherited from `deps`
+# (which sets it to development) because this stage descends from `base`, not
+# from `deps`, and it sets NODE_ENV=production explicitly below.
+FROM base AS runner
 WORKDIR /app
 
-RUN apk add --no-cache \
+# RUNTIME packages only. `openssl` and `ca-certificates` are already present
+# from `base` and are deliberately not repeated.
+#
+# The compilers and headers that used to be here — gcc, musl-dev, python3-dev,
+# libffi-dev — are GONE. They were carried to build the OpenTimestamps client,
+# but `opentimestamps-client` and its dependencies install from wheels and need
+# no toolchain; this was verified by building the venv with `python3` and
+# `py3-pip` alone. Shipping a compiler in a production image costs image size
+# and hands anything that reaches the container a build toolchain, for no
+# capability the worker uses.
+RUN apk-install \
     wget \
-    openssl \
-    ca-certificates \
     python3 \
     py3-pip \
-    python3-dev \
-    gcc \
-    musl-dev \
-    libffi-dev \
     chromium \
     nss \
     freetype \
@@ -110,7 +161,9 @@ RUN apk add --no-cache \
 # ever absent at runtime — evidence completion never fails over it — so
 # this install is a quality upgrade, not a hard runtime dependency.
 
-RUN python3 -m ensurepip || true
+# `python3 -m ensurepip || true` used to sit here. It was a swallowed failure
+# guarding a step that is not needed: `python3 -m venv` provisions pip into the
+# virtualenv itself, and if it could not, the very next line fails loudly.
 RUN python3 -m venv /opt/ots-venv
 RUN /opt/ots-venv/bin/pip install --upgrade pip setuptools wheel
 # Fail the image build unless the upstream OTS CLI is actually present

@@ -36,21 +36,21 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history so docker/metadata-action's sha tag resolves
           # the real commit SHA rather than a shallow-clone placeholder.
           fetch-depth: 0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           # Use the host network for BuildKit to reduce transient Docker registry
           # connectivity issues during layer/download resolution.
           driver-opts: network=host
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -58,7 +58,7 @@ jobs:
 
       - name: Compute image tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/proovra-${{ matrix.service }}
           tags: |
@@ -74,7 +74,7 @@ jobs:
       # therefore pass a non-secret placeholder URL; the real production
       # DATABASE_URL is injected at runtime and never flows through Actions.
       - name: Build and push image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
@@ -87,5 +87,18 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             DATABASE_URL=postgres://buildtime:buildtime@localhost:5432/buildtime
+          # PROVENANCE IS STATED, NOT INHERITED.
+          #
+          # It was previously left to the action's default. A default is a fine
+          # thing to rely on until you change majors — and this step just moved
+          # v5 → v7. Declaring it means the attestation cannot quietly turn off
+          # under a future bump.
+          #
+          # `mode=min` and NOT `mode=max`, deliberately: max records the full
+          # build definition, INCLUDING build arguments, which would publish the
+          # `DATABASE_URL` build arg into the attestation. It is only a
+          # build-time placeholder, but a supply-chain attestation is the last
+          # place that should acquire the habit of carrying connection strings.
+          provenance: mode=min
           cache-from: type=gha
           cache-to: type=gha,mode=max
