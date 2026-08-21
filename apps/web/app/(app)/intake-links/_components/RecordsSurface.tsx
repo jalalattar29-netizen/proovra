@@ -86,92 +86,105 @@ function buildActions(
 // Shared cell fragments — rendered identically by the table and the cards.
 // ---------------------------------------------------------------------------
 
-function LifecycleBadge({
-  row,
-  folded = false,
-}: {
-  row: IntakeRowModel;
-  /**
-   * The medium layout has no room for a dedicated Lifecycle column: at 768px
-   * a fixed 11% column is ~83px and the widest badge ("Link disabled") is
-   * 98px, so it overflowed into the next cell and collided with the activity
-   * badge. Below 1080px the column is dropped and the badge is restated
-   * inside the status cluster with its own visible label — combined, not lost.
-   */
-  folded?: boolean;
-}) {
-  const attr = folded
-    ? { "data-intake-links-row-link-state-folded": row.lifecycle }
-    : { "data-intake-links-row-link-state": row.lifecycle };
+/**
+ * The lifecycle chip. It has exactly ONE home in each renderer — its own
+ * column in the table, the card head on narrow widths — so the operator never
+ * reads the same state twice in one record.
+ */
+function LifecycleBadge({ row }: { row: IntakeRowModel }) {
   return (
     <AppStatusBadge
       tone={row.lifecycleVocab.tone}
+      fill="solid"
       title={row.lifecycleVocab.explanation}
-      {...attr}
+      data-intake-links-row-link-state={row.lifecycle}
     >
       {row.lifecycleVocab.label}
     </AppStatusBadge>
   );
 }
 
+/**
+ * Delivery and Activity — and deliberately NOTHING else.
+ *
+ * Lifecycle sits in its own adjacent column and used to be restated here with
+ * a visible "Lifecycle:" key, which meant a wide row showed the same state in
+ * two places a few pixels apart. Both values are labelled in the cell rather
+ * than relying on the column header alone, because "Delivered / Submitted"
+ * stacked without keys reads as one status with two words.
+ */
 function StatusCluster({ row }: { row: IntakeRowModel }) {
   return (
-    <div className="ilk-status">
-      <div className="ilk-status__line ilk-fold" data-fold="lifecycle">
-        <span className="ilk-status__key">Lifecycle:</span>
-        <LifecycleBadge row={row} folded />
-      </div>
+    <dl className="ilk-status">
       <div className="ilk-status__line">
-        <span className="app-visually-hidden">Contributor activity:</span>
-        <AppStatusBadge
-          tone={row.activityVocab.tone}
-          title={row.activityVocab.explanation}
-          data-intake-links-row-session-state={row.activity}
-        >
-          {row.activityVocab.label}
-        </AppStatusBadge>
-      </div>
-      <div className="ilk-status__line">
-        <span className="app-visually-hidden">Delivery:</span>
-        <span
-          className="ilk-status__text"
-          title={row.deliveryVocab.explanation}
+        <dt className="ilk-status__key">Delivery</dt>
+        <dd
+          className="ilk-status__value"
           data-intake-links-row-delivery={row.delivery}
         >
-          {row.deliveryVocab.label}
-        </span>
+          <AppStatusBadge
+            tone={row.deliveryVocab.tone}
+            fill="solid"
+            title={row.deliveryVocab.explanation}
+          >
+            {row.deliveryVocab.label}
+          </AppStatusBadge>
+        </dd>
+      </div>
+      <div className="ilk-status__line">
+        <dt className="ilk-status__key">Activity</dt>
+        <dd
+          className="ilk-status__value"
+          data-intake-links-row-session-state={row.activity}
+        >
+          <AppStatusBadge
+            tone={row.activityVocab.tone}
+            fill="solid"
+            title={row.activityVocab.explanation}
+          >
+            {row.activityVocab.label}
+          </AppStatusBadge>
+        </dd>
       </div>
       {row.deliveryDetail ? (
-        <p className="ilk-status__detail" data-intake-links-row-delivery-detail>
-          {row.deliveryDetail}
-        </p>
+        <div className="ilk-status__line">
+          <dt className="app-visually-hidden">Delivery detail</dt>
+          <dd
+            className="ilk-status__detail"
+            data-intake-links-row-delivery-detail
+          >
+            {row.deliveryDetail}
+          </dd>
+        </div>
       ) : null}
-    </div>
+    </dl>
   );
 }
 
+/**
+ * The DATE, and only the date.
+ *
+ * The word "Expired" belongs to the Lifecycle column, which is one cell away.
+ * Printing it here too made the row state its own status twice — and made a
+ * column that only ever needs to hold a date carry a phrase that fragmented
+ * when it did not fit. Assistive technology still hears the relationship,
+ * because the visually-hidden prefix names it, and the full local timestamp
+ * stays one hover away.
+ */
 function ExpiryCell({ row }: { row: IntakeRowModel }) {
-  const prefix = row.expiryState === "expired" ? "Expired" : "Expires";
-  // Past 30 days the relative helper already falls back to the date itself.
-  // Printing the date a second time underneath produced "Expired 01 Jan 2020"
-  // stacked on "01 Jan 2020" — the same fact twice, in a column sized for one.
-  const showDate = row.expiryRelative !== row.expiryDate;
   return (
     <span
       className="ilk-expiry"
       data-state={row.expiryState}
       data-intake-links-row-expires={row.expiryState}
-      // The full local timestamp stays one hover (and one drawer) away. The
-      // cell itself shows a DATE, because a column narrow enough to wrap
-      // "01 Jan 2026, 09:30" turns a timestamp into two fragments.
       title={row.expiryAbsolute}
     >
-      <span className="ilk-relative">
-        {prefix} {row.expiryRelative}
+      <span className="app-visually-hidden">
+        {row.expiryState === "expired" ? "Expired on " : "Expires on "}
       </span>
-      {showDate ? (
-        <span className="ilk-expiry__abs">{row.expiryDate}</span>
-      ) : null}
+      <span className="ilk-expiry__date" data-intake-links-row-expiry-date>
+        {row.expiryDate}
+      </span>
     </span>
   );
 }
@@ -316,27 +329,38 @@ function RecordCard({
         <LifecycleBadge row={row} />
       </div>
 
+      {/* Lifecycle is in the head above; Delivery and Activity are two more
+          separate, labelled facts here. Three concepts, three regions — the
+          card never merges them any more than the table does. */}
       <dl className="ilk-card__facts">
         <dt>Recipient</dt>
         <dd className="ilk-ltr">{row.recipientText}</dd>
+        <dt>Delivery</dt>
+        {/* Can carry a provider code and an English provider sentence; keep
+            each run in its own direction so an RTL page does not reorder it. */}
+        <dd className="ilk-ltr" data-intake-links-row-delivery={row.delivery}>
+          <AppStatusBadge tone={row.deliveryVocab.tone} fill="solid">
+            {row.deliveryVocab.label}
+          </AppStatusBadge>
+          {row.deliveryDetail ? ` ${row.deliveryDetail}` : ""}
+        </dd>
         <dt>Activity</dt>
         {/* The card carries the SAME machine-readable axis probes as the table
             row, so a matrix can prove the two renderers agree instead of
             comparing prose. */}
         <dd data-intake-links-row-session-state={row.activity}>
-          {row.activityVocab.label}
-        </dd>
-        <dt>Delivery</dt>
-        {/* Can carry a provider code and an English provider sentence; keep
-            each run in its own direction so an RTL page does not reorder it. */}
-        <dd className="ilk-ltr" data-intake-links-row-delivery={row.delivery}>
-          {row.deliveryVocab.label}
-          {row.deliveryDetail ? ` · ${row.deliveryDetail}` : ""}
+          <AppStatusBadge tone={row.activityVocab.tone} fill="solid">
+            {row.activityVocab.label}
+          </AppStatusBadge>
         </dd>
         <dt>Latest activity</dt>
         <dd>{row.latestActivityRelative}</dd>
-        <dt>{row.expiryState === "expired" ? "Expired" : "Expires"}</dt>
-        <dd className="ilk-ltr">{row.expiryFull}</dd>
+        {/* A neutral field name, so the card does not restate the lifecycle
+            badge sitting a few lines above it. */}
+        <dt>Expiry</dt>
+        <dd className="ilk-ltr" data-intake-links-row-expiry-date>
+          {row.expiryDate}
+        </dd>
       </dl>
 
       <div className="ilk-card__foot">

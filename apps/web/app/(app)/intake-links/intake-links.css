@@ -19,7 +19,7 @@
  *   - no `!important`, no compatibility overrides, no `:where()` escape hatches
  *   - logical properties throughout so the surface mirrors correctly in RTL
  *   - nothing here scrolls the page sideways: wide content scrolls inside its
- *     own surface, and below 760px the table is replaced (not squeezed)
+ *     own surface, and below 900px the table is replaced (not squeezed)
  * ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -150,12 +150,16 @@
   inset-block: 8px;
 }
 
+/* ONE tone contract per card: the rail, the marker and the NUMBER all read the
+   same resolved `--ilk-tone`. A second colour choice for the number is how a
+   card ends up with a green rail over a slate figure. The label and the
+   supporting line stay neutral, so the hierarchy is number → label → note. */
 .ilk-kpi__value {
   font-size: 26px;
   font-weight: 720;
   letter-spacing: -0.02em;
   line-height: 1.1;
-  color: var(--app-ink-heading, #172033);
+  color: var(--ilk-tone, var(--app-ink-heading, #172033));
   font-variant-numeric: tabular-nums;
 }
 .ilk-kpi__label {
@@ -247,11 +251,23 @@
  * ------------------------------------------------------------------------ */
 /* `display` is the ONLY switch, and it lives on these two classes alone — the
    card list below deliberately does not declare its own `display`, so this
-   rule can never be overridden by a later equal-specificity selector. */
+   rule can never be overridden by a later equal-specificity selector.
+
+   THE CUTOVER IS 900px, NOT 760px.
+
+   It was 760px while Lifecycle folded into another cell at medium widths, so
+   the medium table carried six columns. Lifecycle now keeps its own column at
+   every table width — which is what stops the row stating its state twice —
+   and seven columns need about 806px of table for their content floors. At
+   768px the surface has ~674px to give, so the table began scrolling sideways
+   inside its own frame: squeezed, which is exactly what this surface promises
+   not to do. The table therefore stops one step earlier, where it still fits,
+   and the cards take over. The cards lose nothing: they state Lifecycle,
+   Delivery and Activity as three separate labelled facts. */
 .ilk-records--narrow {
   display: none;
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .ilk-records--wide {
     display: none;
   }
@@ -261,8 +277,9 @@
 }
 
 /* Values folded out of a hidden column and back into a cell that survives.
-   Nothing is dropped at a narrower width — it is restated where there is room,
-   with its own visible label. */
+   Nothing is dropped at a narrower width — it is restated where there is room.
+   LIFECYCLE is deliberately NOT in this set: it keeps its own column at every
+   table width, so it is never restated inside another cell. */
 .ilk-fold {
   display: none;
 }
@@ -273,9 +290,6 @@
 @media (max-width: 1080px) {
   .ilk-fold[data-fold="channel"] {
     display: inline;
-  }
-  .ilk-fold[data-fold="lifecycle"] {
-    display: flex;
   }
   .ilk-fold[data-fold="short"] {
     display: inline;
@@ -371,22 +385,23 @@
   text-align: end;
 }
 
-/* Medium width: drop the three columns whose value can be restated elsewhere
-   and give the survivors the room back. Channel and Lifecycle reappear inside
-   the cells that remain (see `.ilk-fold`); Latest activity is available in the
-   details drawer and through the sort. A column is never merely narrowed to a
-   width its own content cannot fit — that is what made the previous surface
-   overlap "Archived" with "Submitted". */
+/* Medium width: drop the two columns whose value is restated elsewhere.
+   Channel reappears in the request cell's sub-line (see `.ilk-fold`); Latest
+   activity is available in the details drawer and through the sort.
+
+   LIFECYCLE IS NOT IN THIS SET. It used to be — it was folded into the
+   Delivery & activity cell with a visible "Lifecycle:" key, which meant a
+   medium row carried the state twice at wide widths and read as a third
+   delivery fact at narrow ones. It folded only because a fixed percentage grid
+   could not give the widest badge its 98px; the container-aware grid above
+   sizes the column to its content, so the column simply stays. */
 @media (max-width: 1080px) {
   .ilk-table col[data-col="channel"],
   .ilk-table th[data-col="channel"],
   .ilk-table td[data-col="channel"],
   .ilk-table col[data-col="latest"],
   .ilk-table th[data-col="latest"],
-  .ilk-table td[data-col="latest"],
-  .ilk-table col[data-col="lifecycle"],
-  .ilk-table th[data-col="lifecycle"],
-  .ilk-table td[data-col="lifecycle"] {
+  .ilk-table td[data-col="latest"] {
     display: none;
   }
 }
@@ -428,11 +443,13 @@
   overflow-wrap: anywhere;
 }
 
-/* The status cluster — one region, two explicitly labelled lines. */
+/* The status cluster — one region, two explicitly labelled facts, and
+   deliberately no third. Lifecycle has its own column at every table width. */
 .ilk-status {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  margin: 0;
   min-inline-size: 0;
 }
 .ilk-status__line {
@@ -449,47 +466,46 @@
   line-height: 1.4;
   color: var(--app-ink-secondary, #667085);
 }
-.ilk-status__text {
+/* Two labelled facts, in a key/value grid. The keys are VISIBLE: "Delivered"
+   stacked over "Submitted" with no keys reads as one status made of two
+   words, which is the confusion this cell exists to remove. */
+.ilk-status__key {
+  flex: 0 0 auto;
+  inline-size: 4.5rem;
+  font-weight: 600;
+}
+.ilk-status__value {
+  margin: 0;
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-/* The visible key on a folded status line ("Lifecycle:"). The other two lines
-   carry their key visually-hidden, because the column header names them. */
-.ilk-status__key {
-  flex-shrink: 0;
-  font-weight: 600;
-  color: var(--app-ink-label, #344054);
-}
 .ilk-status__detail {
+  margin: 0;
   font-size: 11.5px;
   line-height: 1.4;
   color: var(--app-ink-secondary, #667085);
 }
+/* Expiry — a DATE.
 
-/* Expiry. Danger ink ONLY when the link has actually expired; the near-expiry
-   window is a caution, and everything else is ordinary body ink. */
+   The lifecycle badge one cell away already says whether the link is expired,
+   so this column neither repeats the word nor repeats the alarm: an expired
+   date is ordinary ink. What it DOES keep is the forward-looking caution,
+   because "this expires within three days" is a fact no badge carries. */
 .ilk-expiry {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 1px;
+  display: inline-block;
   min-inline-size: 0;
   font-size: 12.5px;
   color: var(--app-ink-control, #263247);
-}
-.ilk-expiry[data-state="expired"] {
-  color: var(--ilk-tone-red);
-  font-weight: 650;
 }
 .ilk-expiry[data-state="soon"] {
   color: var(--ilk-tone-amber);
   font-weight: 650;
 }
-.ilk-expiry__abs {
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--app-ink-secondary, #667085);
+/* A date is one value: it wraps at its spaces if it must, and never breaks
+   into day / month / year on separate lines. */
+.ilk-expiry__date {
+  white-space: nowrap;
 }
-
 /* Relative phrases are short ("3d ago") and never wrap on their own, but the
    helper falls back to an absolute date past 30 days — and a `nowrap` on that
    fallback pushed the value straight out of its column. Wrapping at a space is
@@ -536,7 +552,6 @@
   font-size: 12.5px;
 }
 .ilk-card__facts dt {
-  color: var(--app-ink-secondary, #667085);
   font-weight: 600;
 }
 .ilk-card__facts dd {
@@ -705,7 +720,6 @@
   font-size: 13px;
 }
 .ilk-facts dt {
-  color: var(--app-ink-secondary, #667085);
   font-weight: 600;
 }
 .ilk-facts dd {
@@ -892,7 +906,6 @@
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--app-ink-label, #344054);
 }
 .ilk-field-row {
   display: grid;
@@ -1146,7 +1159,6 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--app-ink-secondary, #667085);
 }
 .ilk-preview__meta dd {
   margin: 2px 0 0;
@@ -1223,6 +1235,30 @@
   unicode-bidi: plaintext;
 }
 
+
+/* ---------------------------------------------------------------------------
+ * THE LABEL-COLOUR AUTHORITY
+ *
+ * ONE declaration for the colour of every visible field, group and fact label
+ * this surface owns: the wizard legends, the review facts, the preview's
+ * "Appears from" / "Sent via", the drawer facts, the card facts and the row
+ * status keys. `.app-field-label` is the shared primitive for a plain <label>
+ * and already carries this token; these are the elements that are labels
+ * WITHOUT being one, and they are joined to it here.
+ *
+ * They were five separate rules, and three had drifted onto
+ * `--app-ink-secondary` — the DESCRIPTION tier — which is why a label on a
+ * translucent white card read as faint helper text. Size and weight stay with
+ * each tier; only the colour is owned here, so there is exactly one place to
+ * change what "a label" looks like.
+ * ------------------------------------------------------------------------- */
+.ilk-fieldset__legend,
+.ilk-facts dt,
+.ilk-preview__meta dt,
+.ilk-card__facts dt,
+.ilk-status__key {
+  color: var(--app-ink-label, #344054);
+}
 /* --------------------------------------------------------------------------
  * 7. MISC
  * ------------------------------------------------------------------------ */

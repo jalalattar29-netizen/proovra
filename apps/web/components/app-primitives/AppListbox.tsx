@@ -127,9 +127,15 @@ export function AppListbox<T extends string = string>({
   }, []);
 
   // Keep the active option scrolled into view.
+  //
+  // Guarded: `scrollIntoView` is absent in non-browser DOM implementations, and
+  // an unguarded call turns a missing CONVENIENCE into a thrown error that
+  // takes the whole keyboard interaction down with it.
   React.useEffect(() => {
-    if (open && activeIndex >= 0) {
-      optionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
+    if (!open || activeIndex < 0) return;
+    const el = optionRefs.current[activeIndex];
+    if (typeof el?.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "nearest" });
     }
   }, [open, activeIndex]);
 

@@ -25,8 +25,22 @@ import type {
   LinkOperationalState,
 } from "./state-model";
 
-/** Mirrors `AppTone` in `components/app-primitives/AppStatusBadge`. */
-export type IntakeTone = "green" | "amber" | "red" | "indigo" | "blue" | "slate";
+/**
+ * Mirrors `AppTone` in `components/app-primitives/AppStatusBadge`.
+ *
+ * `orange` is the product's CLASSIFICATION tone (`--orange-fill`), deliberately
+ * distinct from `amber`, which means "needs attention". It is used here for
+ * "Not opened" — a state that is a fact about the contributor, not a warning
+ * about the link.
+ */
+export type IntakeTone =
+  | "green"
+  | "amber"
+  | "orange"
+  | "red"
+  | "indigo"
+  | "blue"
+  | "slate";
 
 export type IntakeVocabularyEntry = {
   /** What the operator reads. */
@@ -71,8 +85,10 @@ export const LINK_STATE_VOCABULARY: Record<
     explanation: "This link can no longer accept submissions.",
   },
   EXPIRED: {
+    // BLUE, not slate: an expired link is a completed lifecycle, not an
+    // inactive one, and the operational rows are scanned for exactly that.
+    tone: "blue",
     label: "Expired",
-    tone: "slate",
     explanation:
       "The expiry time passed, or every allowed submission has been used.",
   },
@@ -100,8 +116,11 @@ export const SESSION_STATE_VOCABULARY: Record<
   IntakeVocabularyEntry
 > = {
   NO_ACTIVITY: {
+    // ORANGE — the classification orange the product already owns
+    // (`--orange-fill`). "Nobody has looked at this yet" is the state an
+    // operator most needs to find, and slate hid it among the terminal ones.
+    tone: "orange",
     label: "Not opened",
-    tone: "slate",
     explanation: "Nobody has opened this link yet.",
   },
   OPENED: {
@@ -115,8 +134,14 @@ export const SESSION_STATE_VOCABULARY: Record<
     explanation: "An upload is in progress and has not been submitted.",
   },
   SUBMITTED: {
+    // GREEN — the canonical success ink. A completed submission is the
+    // outcome this whole surface exists to produce.
+    //
+    // It shares green with OPENED, which is a deliberate, bounded collision:
+    // both are healthy progress, they never appear as the only signal, and
+    // every consumer renders `label` as text beside the colour.
+    tone: "green",
     label: "Submitted",
-    tone: "blue",
     explanation: "At least one contributor completed a submission.",
   },
 };

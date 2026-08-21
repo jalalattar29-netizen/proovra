@@ -72,12 +72,6 @@ export type IntakeRowModel = {
   expiryDate: string;
   /** Full local timestamp — the tooltip, the card and the details drawer. */
   expiryAbsolute: string;
-  /**
-   * What a full-width surface shows. Past 30 days the relative helper already
-   * falls back to the date, so pairing them would print the same fact twice
-   * ("01 Jan 2020 · 01 Jan 2020, 01:00").
-   */
-  expiryFull: string;
 
   submissionsCount: number;
   inProgressCount: number;
@@ -201,10 +195,6 @@ export function buildRowModel(
     expiryRelative,
     expiryDate,
     expiryAbsolute,
-    expiryFull:
-      expiryRelative === expiryDate
-        ? expiryAbsolute
-        : `${expiryRelative} · ${expiryAbsolute}`,
 
     submissionsCount: submissions,
     inProgressCount: inProgress,

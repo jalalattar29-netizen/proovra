@@ -187,6 +187,20 @@ function row(s: RowSpec) {
 }
 
 /**
+ * What `POST /v1/workflow/intake-links` answers with: the created row, the
+ * one-shot token, and the outcome of the delivery attempt. Shaped from the same
+ * row builder, so the create response cannot drift from the list contract.
+ */
+function createdPayload() {
+  const created = row({ id: "r-created", title: "General evidence request" });
+  return {
+    link: created.link,
+    rawToken: "raw-token-for-the-layout-fixture",
+    delivery: { method: "MANUAL", status: "skipped", reason: null },
+  };
+}
+
+/**
  * Every axis combination that has to survive layout, plus the long-text stress
  * row. Held constant across contexts so any difference the matrix observes
  * comes from the capability projection, never from the data.
@@ -320,6 +334,12 @@ export async function installApi(
       return json({ id: "user-1", email: "operator@example.invalid" });
     }
     if (path.endsWith("/v1/workflow/intake-links")) {
+      // The same path is the list read and the create write. Answering both
+      // with the list payload used to leave the wizard holding a response with
+      // no token in it, which looks exactly like a failed create.
+      if (route.request().method() === "POST") {
+        return json(createdPayload());
+      }
       if (over.listStatus && over.listStatus >= 400) {
         return json({ error: { code: "forbidden" } }, over.listStatus);
       }

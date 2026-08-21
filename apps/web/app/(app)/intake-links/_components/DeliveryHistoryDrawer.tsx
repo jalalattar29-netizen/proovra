@@ -129,7 +129,7 @@ export function DeliveryHistoryDrawer({
               >
                 <div className="ilk-history__head">
                   <span className="app-chip">{channelLabel(r.channel)}</span>
-                  <AppStatusBadge tone={vocab.tone} title={vocab.explanation}>
+                  <AppStatusBadge tone={vocab.tone} fill="solid" title={vocab.explanation}>
                     {vocab.label}
                   </AppStatusBadge>
                   <span className="app-table__muted ilk-relative">

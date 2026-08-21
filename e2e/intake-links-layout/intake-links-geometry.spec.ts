@@ -145,7 +145,7 @@ async function fragmentedRuns(page: Page): Promise<string[]> {
 
     for (const el of Array.from(
       showing.querySelectorAll<HTMLElement>(
-        "[data-intake-links-row-delivery], .ilk-status__text, .ilk-expiry, .ilk-relative",
+        "[data-intake-links-row-delivery], .ilk-status__value, .ilk-expiry, .ilk-relative",
       ),
     )) {
       const cs = getComputedStyle(el);
@@ -239,7 +239,9 @@ for (const context of CONTEXTS) {
           // Exactly one records renderer, and the right one for the width.
           const r = await renderers(page);
           expect(r.table).toBe(!r.cards);
-          expect(r.table).toBe(vp.width > 760);
+          // The table renders only where seven columns still fit; below that the
+          // cards take over rather than the table scrolling inside its frame.
+          expect(r.table).toBe(vp.width > 900);
         });
       }
     }
@@ -297,13 +299,11 @@ test.describe("one row model, two renderers", () => {
           '[data-intake-links-row-id="r-archived-submitted"], [data-intake-links-card-id="r-archived-submitted"]',
         ) as HTMLElement;
         return {
-          lifecycle:
-            el
-              .querySelector("[data-intake-links-row-link-state]")
-              ?.getAttribute("data-intake-links-row-link-state") ??
-            el
-              .querySelector("[data-intake-links-row-link-state-folded]")
-              ?.getAttribute("data-intake-links-row-link-state-folded"),
+          // ONE probe, at every width. Lifecycle no longer has a folded twin
+          // to fall back to, and reading for one would hide its loss.
+          lifecycle: el
+            .querySelector("[data-intake-links-row-link-state]")
+            ?.getAttribute("data-intake-links-row-link-state"),
           activity: el
             .querySelector("[data-intake-links-row-session-state]")
             ?.getAttribute("data-intake-links-row-session-state"),
@@ -334,21 +334,74 @@ test.describe("one row model, two renderers", () => {
       ) as HTMLElement;
       const visible = (el: Element | null) =>
         Boolean(el) && getComputedStyle(el as HTMLElement).display !== "none";
+      const status = row.querySelector(".ilk-status") as HTMLElement;
       return {
         channelColumn: visible(row.querySelector('td[data-col="channel"]')),
+        latestColumn: visible(row.querySelector('td[data-col="latest"]')),
         lifecycleColumn: visible(row.querySelector('td[data-col="lifecycle"]')),
         channelFold: visible(row.querySelector('[data-fold="channel"]')),
-        lifecycleFold: visible(row.querySelector('[data-fold="lifecycle"]')),
+        // The retired fold. Its absence is the assertion.
+        lifecycleFold: Boolean(row.querySelector('[data-fold="lifecycle"]')),
+        lifecycleInStatusCell: Boolean(
+          status.querySelector("[data-intake-links-row-link-state]"),
+        ),
+        statusKeys: Array.from(status.querySelectorAll(".ilk-status__key")).map(
+          (k) => k.textContent?.trim(),
+        ),
+        lifecycleCount: row.querySelectorAll("[data-intake-links-row-link-state]")
+          .length,
         text: row.textContent ?? "",
       };
     });
+    // The two columns that genuinely fold do fold…
     expect(folded.channelColumn).toBe(false);
-    expect(folded.lifecycleColumn).toBe(false);
-    // Both values survive, in the cells that remain.
+    expect(folded.latestColumn).toBe(false);
     expect(folded.channelFold).toBe(true);
-    expect(folded.lifecycleFold).toBe(true);
     expect(folded.text).toContain("SMS");
+
+    // …and lifecycle keeps its own labelled column instead. It is stated once,
+    // in its own region, and it never reappears inside Delivery & activity.
+    expect(folded.lifecycleColumn).toBe(true);
+    expect(folded.lifecycleFold).toBe(false);
+    expect(folded.lifecycleInStatusCell).toBe(false);
+    expect(folded.lifecycleCount).toBe(1);
+    expect(folded.statusKeys).toEqual(["Delivery", "Activity"]);
     expect(folded.text).toContain("Archived");
+  });
+
+  test("Delivery & activity carries only those two, at every width", async ({
+    page,
+  }) => {
+    for (const width of [1440, 1280, 1024, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      await openIntakeLinks(page, "organization");
+      const measured = await page.evaluate(() => {
+        const wide = document.querySelector(".ilk-records--wide") as HTMLElement;
+        if (getComputedStyle(wide).display === "none") return null;
+        return Array.from(
+          wide.querySelectorAll<HTMLElement>(".ilk-status"),
+        ).map((s) => ({
+          keys: Array.from(s.querySelectorAll(".ilk-status__key")).map((k) =>
+            k.textContent?.trim(),
+          ),
+          lifecycle: s.querySelectorAll("[data-intake-links-row-link-state]")
+            .length,
+          // Each labelled line is one key and one value — nothing is
+          // concatenated. (The optional provider-detail line carries no
+          // visible key and is not one of the two facts.)
+          lines: Array.from(s.querySelectorAll(".ilk-status__line"))
+            .filter((l) => l.querySelector(".ilk-status__key"))
+            .map((l) => l.querySelectorAll(".ilk-status__value").length),
+        }));
+      });
+      if (!measured) continue;
+      expect(measured.length, `${width}px`).toBeGreaterThan(0);
+      for (const s of measured) {
+        expect(s.keys, `${width}px`).toEqual(["Delivery", "Activity"]);
+        expect(s.lifecycle, `${width}px`).toBe(0);
+        expect(s.lines, `${width}px`).toEqual([1, 1]);
+      }
+    }
   });
 });
 

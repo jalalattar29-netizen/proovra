@@ -65,12 +65,14 @@ export function DetailsDrawer({
         <div className="ilk-status__line">
           <AppStatusBadge
             tone={row.lifecycleVocab.tone}
+            fill="solid"
             data-intake-links-details-link-state={row.lifecycle}
           >
             {row.lifecycleVocab.label}
           </AppStatusBadge>
           <AppStatusBadge
             tone={row.activityVocab.tone}
+            fill="solid"
             data-intake-links-details-session-state={row.activity}
           >
             {row.activityVocab.label}

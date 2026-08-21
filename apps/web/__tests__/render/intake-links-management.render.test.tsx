@@ -448,15 +448,30 @@ describe("lifecycle and activity vocabulary", () => {
     expect(row.textContent).not.toContain("ArchivedSubmitted");
   });
 
-  it("labels the activity and delivery lines for assistive technology", async () => {
+  it("labels the delivery and activity facts visibly, and carries nothing else", async () => {
     await mount();
     const row = document.querySelector(
       '[data-intake-links-row-id="failed-1"]',
     ) as HTMLElement;
     const cluster = row.querySelector(".ilk-status") as HTMLElement;
-    expect(cluster.textContent).toContain("Contributor activity:");
-    expect(cluster.textContent).toContain("Delivery:");
+
+    // Two labelled facts, both keys visible — "Failed" stacked over
+    // "Not opened" with no keys reads as one status made of two words.
+    const keys = Array.from(
+      cluster.querySelectorAll(".ilk-status__key"),
+    ).map((k) => k.textContent?.trim());
+    expect(keys).toContain("Delivery");
+    expect(keys).toContain("Activity");
     expect(cluster.textContent).toContain("Failed");
+    expect(cluster.textContent).toContain("Not opened");
+
+    // Lifecycle belongs to its own adjacent column and must NOT be restated
+    // here — that duplication is exactly what this cell was corrected for.
+    expect(keys).not.toContain("Lifecycle");
+    expect(cluster.textContent).not.toMatch(/Lifecycle/i);
+    expect(
+      cluster.querySelector("[data-intake-links-row-link-state]"),
+    ).toBeNull();
   });
 
   it("renders 'Queued with provider' as one string, not word by word", async () => {
@@ -979,5 +994,150 @@ describe("deep links and workspace context", () => {
     // could not do what it says. Delivery history carries the real retry.
     expect(menu.textContent).not.toMatch(/copy link/i);
     expect(menu.textContent).toMatch(/delivery history/i);
+  });
+});
+
+// ===========================================================================
+// The Lifecycle filter: labels only
+// ===========================================================================
+
+describe("lifecycle filter option anatomy", () => {
+  /** Open one of the toolbar listboxes and return its popup. */
+  async function openFilter(index: number) {
+    const combo = document.querySelectorAll(
+      '[data-intake-links-controls] [role="combobox"]',
+    )[index] as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(combo);
+    });
+    return {
+      combo,
+      listbox: document.querySelector('[role="listbox"]') as HTMLElement,
+    };
+  }
+
+  it("offers exactly the five concise labels, and no secondary description", async () => {
+    await mount();
+    const { listbox } = await openFilter(1); // channel, LIFECYCLE, delivery, sort
+    const options = within(listbox).getAllByRole("option");
+    expect(options.map((o) => o.textContent?.trim())).toEqual([
+      "Any lifecycle",
+      "Active",
+      "Archived",
+      "Link disabled",
+      "Expired",
+    ]);
+    // No description NODE at all — an empty one would reserve its own line and
+    // leave the option rows unevenly tall.
+    for (const o of options) {
+      expect(o.querySelector(".app-listbox__option-desc")).toBeNull();
+    }
+  });
+
+  it("keeps its accessible name, keyboard operation and selected state", async () => {
+    await mount();
+    const { combo, listbox } = await openFilter(1);
+    const labelledBy = combo.getAttribute("aria-labelledby") as string;
+    expect(document.getElementById(labelledBy)?.textContent).toBe(
+      "Filter by lifecycle",
+    );
+    expect(combo.getAttribute("aria-haspopup")).toBe("listbox");
+
+    // Two separate acts: the Enter handler reads `activeIndex` from its own
+    // closure, so batching both keys into one act would commit the stale one.
+    await act(async () => {
+      fireEvent.keyDown(listbox, { key: "End" });
+    });
+    await act(async () => {
+      fireEvent.keyDown(listbox, { key: "Enter" });
+    });
+    // The last option is Expired; selecting it narrows the list and marks the
+    // trigger — the control still behaves exactly as before.
+    expect(combo.textContent).toContain("Expired");
+    const reopened = await openFilter(1);
+    const selected = within(reopened.listbox)
+      .getAllByRole("option")
+      .filter((o) => o.getAttribute("aria-selected") === "true")
+      .map((o) => o.textContent?.trim());
+    expect(selected).toEqual(["Expired"]);
+  });
+
+  it("drives the same filter query it always did", async () => {
+    await mount();
+    const { listbox } = await openFilter(1);
+    const disabled = within(listbox).getByRole("option", {
+      name: "Link disabled",
+    });
+    await act(async () => {
+      fireEvent.click(disabled);
+    });
+    // The wire value is unchanged — the label is user-facing only.
+    expect(replaced.at(-1)).toContain("lifecycle=REVOKED");
+    expect(rowIds()).toEqual(["revoked-1"]);
+  });
+
+  it("the other filters keep their descriptions where a consequence needs one", async () => {
+    // The simplification was scoped to the lifecycle filter, whose four labels
+    // are self-evident. Nothing else was touched.
+    await mount();
+    const lifecycle = await openFilter(1);
+    expect(
+      lifecycle.listbox.querySelectorAll(".app-listbox__option-desc").length,
+    ).toBe(0);
+    await act(async () => {
+      fireEvent.keyDown(lifecycle.listbox, { key: "Escape" });
+    });
+    // Every option row in the simplified list carries the same content
+    // structure — one label wrapper, no description track. A row that kept an
+    // empty description node would reserve its line and make the list ragged.
+    for (const o of within(lifecycle.listbox).getAllByRole("option")) {
+      expect(o.querySelectorAll(".app-listbox__option-desc").length).toBe(0);
+      expect(o.querySelectorAll(":scope > span").length).toBe(1);
+    }
+  });
+});
+
+// ===========================================================================
+// KPI numbers consume their card's tone
+// ===========================================================================
+
+describe("KPI number tone", () => {
+  it("every card exposes ONE tone that the rail and the number both read", async () => {
+    await mount();
+    const cards = Array.from(
+      document.querySelectorAll("[data-intake-links-kpi]"),
+    ) as HTMLElement[];
+    expect(cards.length).toBe(7);
+    for (const card of cards) {
+      const tone = card.getAttribute("data-intake-links-kpi-tone");
+      expect(tone, "a card with no tone").toBeTruthy();
+      // ONE contract: the card declares the tone, and the value element is
+      // inside it so it inherits the same resolved custom property. The card
+      // must not carry a second tone attribute for the number.
+      expect(card.getAttribute("data-ilk-tone")).toBe(tone);
+      const value = card.querySelector(".ilk-kpi__value") as HTMLElement;
+      expect(value).toBeTruthy();
+      // The number carries no colour of its own in the markup — the cascade
+      // supplies it from the card's tone.
+      expect(value.getAttribute("style")).toBeNull();
+      expect(value.getAttribute("data-tone")).toBeNull();
+    }
+  });
+
+  it("keeps the hierarchy: coloured number, strong label, neutral note", async () => {
+    await mount();
+    const card = document.querySelector(
+      '[data-intake-links-kpi="submitted"]',
+    ) as HTMLElement;
+    expect(card.querySelector(".ilk-kpi__value")).toBeTruthy();
+    expect(card.querySelector(".ilk-kpi__label")?.textContent).toBe("Submitted");
+    const meta = card.querySelector(".ilk-kpi__meta") as HTMLElement;
+    expect(meta.textContent?.length).toBeGreaterThan(10);
+    // The supporting line is not toned — only the number is.
+    expect(meta.getAttribute("data-ilk-tone")).toBeNull();
+    // The overlap disclosure survives.
+    expect(
+      document.querySelector("[data-intake-links-kpi-overlap-note]")?.textContent,
+    ).toMatch(/more than one count/i);
   });
 });

@@ -103,7 +103,43 @@ test("3. the exception buys a FILL and nothing else — orange TEXT is still AA"
   // on its own token, its only consumer is the outlined action's TEXT.
   const prim = read("apps/web/components/app-primitives/app-primitives.css");
   assert.match(prim, /\.app-secondary-action--orange \{[\s\S]{0,200}?--orange-ink/);
-  assert.doesNotMatch(prim, /--orange-fill/, "the fill is a Search label, not a control");
+
+  // The exception is a BACKGROUND for a non-interactive label, and nothing
+  // else. It used to be expressed as "--orange-fill never appears in the
+  // primitives file at all", which was a proxy for the real rule and stopped
+  // matching it the moment the filled label treatment was promoted out of the
+  // Search route onto the shared status badge. The rule itself is pinned here
+  // instead, so it still bites where it always meant to: an orange TEXT ink,
+  // or an orange-filled CONTROL, both remain forbidden.
+  const fillUses = [...prim.matchAll(/^([^\n{]*)\{[^}]*--orange-fill[^}]*\}/gm)].map(
+    (m) => m[1]!.trim(),
+  );
+  assert.deepEqual(
+    fillUses,
+    ['.app-status-badge[data-fill="solid"][data-tone="orange"]'],
+    "the sub-AA fill is the solid status label only",
+  );
+  for (const selector of fillUses) {
+    const body = prim.slice(prim.indexOf(`${selector} {`));
+    const decl = body.slice(0, body.indexOf("}"));
+    // A fill, never an ink.
+    assert.match(decl, /background:\s*var\(--orange-fill\)/);
+    assert.doesNotMatch(decl, /color:/);
+    // And never on something the operator can operate.
+    assert.doesNotMatch(selector, /action|button|input|:hover|:focus/);
+  }
+
+  // The white ink it is measured against is a real declaration on the variant,
+  // not an inherited accident.
+  const solid = prim.slice(prim.indexOf('.app-status-badge[data-fill="solid"] {'));
+  assert.match(solid.slice(0, solid.indexOf("}")), /color:\s*#ffffff/i);
+
+  // The measurement travels with the rule that spends the exception.
+  const note = prim.slice(
+    prim.lastIndexOf("/*", prim.indexOf('.app-status-badge[data-fill="solid"] {')),
+    prim.indexOf('.app-status-badge[data-fill="solid"] {'),
+  );
+  assert.match(note, /2\.80:1/);
 });
 
 // ===========================================================================

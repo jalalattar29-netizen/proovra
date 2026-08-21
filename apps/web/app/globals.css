@@ -1651,15 +1651,20 @@ body.camera-open {
   flex-wrap: wrap;
 }
 
-.app-field-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 11px;
-  font-weight: 800;
-  color: rgba(194, 204, 201, 0.56);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
+/* `.app-field-label` used to be redeclared here, beside the admin premium
+   shell, as an 11px uppercase 800-weight label in rgba(194, 204, 201, 0.56).
+   It was written for a dark surface and no surface ever used it: `admin/layout`
+   is the only consumer of `.admin-premium-shell`, and it renders no field
+   labels at all.
+
+   What it did instead was silently repaint the canonical primitive. Both rules
+   are a single class, so specificity is a tie and source order decides —
+   `app-primitives.css` is imported at the top of this file, so the pale rule
+   won everywhere. Every `.app-field-label` in the authenticated product was
+   painted at 56% alpha on a light background, which is why field labels read as
+   faint helper text on surfaces that had never touched their own label styles.
+   Deleted rather than overridden: the primitive is the one authority.
+   `apps/web/__tests__/app-field-label-authority.test.ts` keeps it that way. */
 
 @media (max-width: 980px) {
   .app-page-title {

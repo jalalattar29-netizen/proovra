@@ -62,12 +62,19 @@ export function FilterToolbar({
     })),
   ];
 
+  // LABELS ONLY.
+  //
+  // The four lifecycle labels are self-evident ("Active", "Archived",
+  // "Link disabled", "Expired"), so a sentence under each one made a
+  // four-option filter three times taller than the three beside it and buried
+  // the value the operator was looking for. The explanations still exist — the
+  // KPI cards, the row chip titles and the disable confirmation all render them
+  // where a consequence actually needs stating.
   const lifecycleOptions = [
     { value: ANY, label: "Any lifecycle" },
     ...LIFECYCLE_FILTER_VALUES.map((l) => ({
       value: l as string,
       label: LINK_STATE_VOCABULARY[l].label,
-      description: LINK_STATE_VOCABULARY[l].explanation,
     })),
   ];
 

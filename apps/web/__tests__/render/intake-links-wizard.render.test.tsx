@@ -89,6 +89,8 @@ import {
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import IntakeLinksPage from "../../app/(app)/intake-links/page";
+import { FIELD_IDS } from "../../app/(app)/intake-links/_components/wizard/steps";
+import { REQUEST_PURPOSES } from "../../lib/intake-links/catalog";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -176,10 +178,12 @@ async function settle() {
   });
 }
 
-async function openWizard() {
+async function openWizard(over: Record<string, unknown> = {}) {
   cleanup();
   render(
-    <PlatformContextProvider testEnvelope={envelope() as never}>
+    <PlatformContextProvider
+      testEnvelope={{ ...envelope(), ...over } as never}
+    >
       <ToastProvider>
         <ConfirmActionProvider>
           <IntakeLinksPage />
@@ -1494,4 +1498,416 @@ describe("every step mounts canonical controls only", () => {
       assertCanonicalControls(dialog());
     });
   }
+});
+
+// ===========================================================================
+// Label hierarchy — every branch, one authority
+// ===========================================================================
+
+/**
+ * The label ELEMENTS this surface is allowed to render, and the class each is
+ * allowed to carry. A label with any other class is a label styled ad hoc,
+ * which is exactly how three of them drifted onto the description tier and
+ * read as faint helper text on a translucent card.
+ */
+const LABEL_AUTHORITIES: Record<string, ReadonlyArray<string>> = {
+  // A plain field label, and the two whole-card radio/checkbox anatomies.
+  label: ["app-field-label", "ilk-choice", "ilk-kind"],
+  legend: ["ilk-fieldset__legend"],
+};
+
+/** The two containers through which a bare <dt> reaches the authority. */
+const FACT_KEY_CONTAINERS = [".ilk-facts", ".ilk-preview__meta"];
+
+/** Tiers that sit BELOW a label. A label wearing one of these is the defect. */
+const LOWER_TIERS = ["desc", "hint", "help", "note", "placeholder", "muted"];
+
+function normalize(el: Element): string {
+  return (el.textContent ?? "")
+    .replace(/\s*\(required\)\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Every visible label, legend and fact key inside a scope. */
+function labelElements(scope: HTMLElement): HTMLElement[] {
+  return Array.from(
+    scope.querySelectorAll<HTMLElement>("label, legend, dt"),
+  ).filter((el) => !el.classList.contains("app-visually-hidden"));
+}
+
+/**
+ * Assert every visible label in `scope` resolves to the canonical authority —
+ * either by carrying its class, or, for a bare <dt>, by sitting inside one of
+ * the containers the authority names.
+ */
+function assertLabelAuthority(scope: HTMLElement, branch: string) {
+  const elements = labelElements(scope);
+  expect(elements.length, `${branch}: rendered no labels at all`).toBeGreaterThan(0);
+
+  const offenders: string[] = [];
+  for (const el of elements) {
+    const tag = el.tagName.toLowerCase();
+    const classes = el.className.split(/\s+/).filter(Boolean);
+    if (tag === "dt") {
+      if (!FACT_KEY_CONTAINERS.some((sel) => el.closest(sel))) {
+        offenders.push(`${branch}: <dt>${normalize(el)}</dt> outside the authority`);
+      }
+      continue;
+    }
+    const allowed = LABEL_AUTHORITIES[tag] ?? [];
+    if (!allowed.some((c) => classes.includes(c))) {
+      offenders.push(
+        `${branch}: <${tag} class="${el.className}"> ${normalize(el).slice(0, 48)}`,
+      );
+    }
+    for (const lower of LOWER_TIERS) {
+      if (classes.some((c) => c.includes(lower))) {
+        offenders.push(`${branch}: <${tag}> wears the ${lower} tier`);
+      }
+    }
+    // No inline colour escapes the stylesheet.
+    expect(el.getAttribute("style"), `${branch}: inline style on a label`).toBeNull();
+  }
+  expect(offenders, branch).toEqual([]);
+}
+
+/** Visible label text, with the required marker folded out. */
+function labelTexts(scope: HTMLElement): string[] {
+  return labelElements(scope).map(normalize);
+}
+
+async function pickPurpose(label: string) {
+  await act(async () => {
+    fireEvent.click(document.getElementById(FIELD_IDS.purpose) as HTMLElement);
+  });
+  const listbox = document.querySelector('[role="listbox"]') as HTMLElement;
+  // Match on the option LABEL, not its accessible name — the name also carries
+  // the description line, which is exactly what the label tier must not be.
+  const option = Array.from(
+    listbox.querySelectorAll<HTMLElement>('[role="option"]'),
+  ).find(
+    (o) =>
+      (o.querySelector("span > span")?.textContent ?? "").trim() === label,
+  );
+  expect(option, "no option labelled " + label).toBeTruthy();
+  await act(async () => {
+    fireEvent.click(option as HTMLElement);
+  });
+}
+
+async function pickCard(attr: string, value: string) {
+  await act(async () => {
+    fireEvent.click(
+      document.querySelector(`[data-${attr}-input="${value}"]`) as HTMLElement,
+    );
+  });
+}
+
+describe("wizard label hierarchy, in every branch", () => {
+  it("every label of all four steps resolves to the one authority", async () => {
+    const dialog = await openWizard();
+    assertLabelAuthority(dialog, "step 1 request");
+    expect(labelTexts(dialog)).toContain("What are you asking for?");
+    expect(labelTexts(dialog)).toContain("How should the link work?");
+
+    await clickNext();
+    await chooseChannel("MANUAL");
+    assertLabelAuthority(dialog, "step 2 delivery");
+    for (const expected of [
+      "How should the link reach them?",
+      "Recipient label",
+      "Request appears from",
+    ]) {
+      expect(labelTexts(dialog), `step 2 missing ${expected}`).toContain(expected);
+    }
+
+    await clickNext();
+    assertLabelAuthority(dialog, "step 3 rules");
+    for (const expected of [
+      "Location collection",
+      "Link expires in",
+      "Maximum files per submission",
+      "Accepted file types",
+      "Consent or disclosure text",
+    ]) {
+      expect(labelTexts(dialog), `step 3 missing ${expected}`).toContain(expected);
+    }
+
+    await clickNext();
+    assertLabelAuthority(dialog, "step 4 review");
+  });
+
+  it("every request purpose keeps its labels canonical", async () => {
+    const dialog = await openWizard();
+    for (const purpose of REQUEST_PURPOSES) {
+      await pickPurpose(purpose.label);
+      assertLabelAuthority(dialog, `purpose ${purpose.slug}`);
+      // The purpose copy lands in the HELP tier under the label, never in the
+      // label itself.
+      const help = dialog.querySelector(".app-field-help") as HTMLElement;
+      expect(help.textContent, purpose.slug).toBe(purpose.description);
+      expect(labelTexts(dialog)).toContain("What are you asking for?");
+    }
+  });
+
+  for (const mode of [
+    "EXTERNAL_ONE_TIME",
+    "EXTERNAL_REUSABLE",
+    "EXTERNAL_ANONYMOUS",
+    "EXTERNAL_PSEUDONYMOUS",
+  ] as const) {
+    it(`link type ${mode} keeps its labels canonical`, async () => {
+      const dialog = await openWizard();
+      await pickCard("intake-link-mode", mode);
+      expect(
+        (
+          document.querySelector(
+            `[data-intake-link-mode-input="${mode}"]`,
+          ) as HTMLInputElement
+        ).checked,
+        `${mode} did not take`,
+      ).toBe(true);
+      assertLabelAuthority(dialog, `mode ${mode}`);
+    });
+  }
+
+  for (const channel of ["MANUAL", "SMS", "EMAIL", "WHATSAPP"] as const) {
+    it(`channel ${channel} shows exactly its own recipient label`, async () => {
+      const dialog = await openWizard();
+      await clickNext();
+      await chooseChannel(channel);
+      assertLabelAuthority(dialog, `channel ${channel}`);
+      const texts = labelTexts(dialog);
+      expect(texts).toContain("Recipient label");
+      if (channel === "EMAIL") {
+        expect(texts).toContain("Recipient email");
+        expect(texts).not.toContain("Recipient phone");
+      } else if (channel === "SMS" || channel === "WHATSAPP") {
+        expect(texts).toContain("Recipient phone");
+        expect(texts).not.toContain("Recipient email");
+      } else {
+        expect(texts).not.toContain("Recipient email");
+        expect(texts).not.toContain("Recipient phone");
+      }
+    });
+  }
+
+  for (const sender of ["PROOVRA", "WORKSPACE", "CUSTOM"] as const) {
+    it(`sender ${sender} keeps its conditional label canonical`, async () => {
+      const dialog = await openWizard();
+      await clickNext();
+      await chooseChannel("EMAIL");
+      await pickCard("intake-link-sender-card", sender);
+      assertLabelAuthority(dialog, `sender ${sender}`);
+      const texts = labelTexts(dialog);
+      expect(texts).toContain("Request appears from");
+      if (sender === "CUSTOM") {
+        expect(texts).toContain("Display name");
+      } else {
+        expect(texts).not.toContain("Display name");
+      }
+    });
+  }
+
+  for (const policy of ["NONE", "OPTIONAL", "REQUIRED"] as const) {
+    it(`location policy ${policy} keeps its labels canonical`, async () => {
+      const dialog = await openWizard();
+      await clickNext();
+      await chooseChannel("MANUAL");
+      await clickNext();
+      await pickCard("intake-link-location-card", policy);
+      assertLabelAuthority(dialog, `location ${policy}`);
+      expect(labelTexts(dialog)).toContain("Location collection");
+    });
+  }
+
+  it("the custom-expiry branch labels its extra field canonically", async () => {
+    const dialog = await openWizard();
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+    expect(labelTexts(dialog)).not.toContain("Expires in (hours)");
+    await act(async () => {
+      fireEvent.click(document.getElementById(FIELD_IDS.expiry) as HTMLElement);
+    });
+    await act(async () => {
+      fireEvent.click(
+        within(document.querySelector('[role="listbox"]') as HTMLElement).getByRole(
+          "option",
+          { name: "Custom…" },
+        ),
+      );
+    });
+    assertLabelAuthority(dialog, "custom expiry");
+    expect(labelTexts(dialog)).toContain("Expires in (hours)");
+  });
+
+  it("an unconfigured provider disables the CONTROL, never the label", async () => {
+    transport = {
+      email: { configured: true, fromName: "PROOVRA" },
+      sms: { configured: false, fromNumberPreview: null },
+      whatsapp: { configured: false, fromNumberPreview: null },
+    };
+    const dialog = await openWizard();
+    await clickNext();
+    assertLabelAuthority(dialog, "unconfigured providers");
+    for (const value of ["SMS", "WHATSAPP"]) {
+      const input = document.querySelector(
+        `[data-intake-link-delivery-method-input="${value}"]`,
+      ) as HTMLInputElement;
+      expect(input.disabled, `${value} should be unavailable`).toBe(true);
+      // The card is still a canonical choice label, and it says WHY.
+      const card = input.closest("label") as HTMLElement;
+      expect(card.classList.contains("ilk-choice")).toBe(true);
+      expect(card.hasAttribute("disabled")).toBe(false);
+      expect(card.textContent).toContain("Not configured on this deployment.");
+    }
+  });
+
+  it("every review and preview fact key reaches the authority", async () => {
+    const dialog = await openWizard();
+    await walkToReview();
+    assertLabelAuthority(dialog, "review");
+
+    const keys = Array.from(dialog.querySelectorAll("dt"));
+    expect(keys.length).toBeGreaterThan(8);
+    for (const key of keys) {
+      expect(
+        FACT_KEY_CONTAINERS.some((sel) => key.closest(sel)),
+        `${normalize(key)} is outside the label authority`,
+      ).toBe(true);
+    }
+    const texts = keys.map(normalize);
+    for (const expected of [
+      "Asking for",
+      "Link type",
+      "Channel",
+      "Appears from",
+      "Expires",
+      "Location",
+      // A message preview key — the branch that exists only when something is
+      // actually sent.
+      "Sent via",
+    ]) {
+      expect(texts, `review missing ${expected}`).toContain(expected);
+    }
+  });
+
+  it("the copy-link review branch keeps its labels canonical without a preview", async () => {
+    const dialog = await openWizard();
+    await clickNext();
+    await chooseChannel("MANUAL");
+    await clickNext();
+    await clickNext();
+    expect(step()).toBe("review");
+    assertLabelAuthority(dialog, "review / copy link");
+    expect(dialog.querySelector(".ilk-preview__meta")).toBeNull();
+    expect(labelTexts(dialog)).toContain("Asking for");
+  });
+
+  it("the secure-link reveal labels its one field canonically", async () => {
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid="intake-link-created"]')).toBeTruthy(),
+    );
+    const reveal = document.querySelector(
+      '[data-testid="intake-link-created"]',
+    ) as HTMLElement;
+    assertLabelAuthority(reveal, "secure link reveal");
+    expect(labelTexts(reveal)).toContain("Secure link");
+  });
+
+  it("keeps the label authority in every workspace context", async () => {
+    const contexts: Array<[string, Record<string, unknown>]> = [
+      [
+        "personal pro",
+        {
+          workspace: {
+            id: WS,
+            name: "Jordan Reyes",
+            status: "active",
+            scope: "PERSONAL",
+          },
+          activeSpace: {
+            type: "PERSONAL",
+            id: WS,
+            displayName: "Jordan Reyes",
+            roleLabel: "Owner",
+          },
+          account: { accountPlan: "PRO", accountStatus: "active" },
+        },
+      ],
+      ["organization", {}],
+      ["enterprise", { flags: { isEnterpriseWorkspace: true } }],
+      ["platform admin", { platform: { isPlatformAdmin: true } }],
+    ];
+    for (const [name, over] of contexts) {
+      const dialog = await openWizard(over);
+      assertLabelAuthority(dialog, `${name} / step 1`);
+      await clickNext();
+      await chooseChannel("EMAIL");
+      assertLabelAuthority(dialog, `${name} / step 2`);
+      await clickNext();
+      assertLabelAuthority(dialog, `${name} / step 3`);
+    }
+  });
+
+  it("keeps label, helper, required, placeholder and error visibly distinct", async () => {
+    await openWizard();
+    await clickNext();
+    await chooseChannel("SMS");
+
+    const field = (
+      document.querySelector("[data-intake-link-phone]") as HTMLElement
+    ).closest(".ilk-field") as HTMLElement;
+
+    // 1. The label — canonical authority, and its required marker is a CHILD
+    //    of the label rather than a competing tier of its own.
+    const label = field.querySelector("label") as HTMLElement;
+    expect(label.className).toBe("app-field-label");
+    const required = label.querySelector(".ilk-required") as HTMLElement;
+    expect(required.textContent).toBe("(required)");
+
+    // 2. The helper — its own element, below the control, never the label.
+    const help = field.querySelector(".app-field-help") as HTMLElement;
+    expect(help).toBeTruthy();
+    expect(help.tagName).toBe("P");
+    expect(help.contains(label)).toBe(false);
+
+    // 3. The placeholder — an attribute on the control, never the label. It
+    //    disappears the moment anything is typed, which is why a label may
+    //    never be delegated to it.
+    const input = document.querySelector(
+      "[data-intake-link-phone]",
+    ) as HTMLInputElement;
+    expect(input.getAttribute("placeholder")).toBe("+14155550123");
+    expect(input.value).toBe("");
+    expect(label.textContent).not.toContain("+14155550123");
+
+    // 4. The error — a fourth element, announced, and it displaces neither the
+    //    label nor the helper.
+    await clickNext();
+    const error = field.querySelector(".ilk-error") as HTMLElement;
+    expect(error).toBeTruthy();
+    expect(error.getAttribute("role")).toBe("alert");
+    expect(field.querySelector("label")).toBeTruthy();
+    expect(field.querySelector(".app-field-help")).toBeTruthy();
+
+    // Four tiers, four distinct classes — the hierarchy is structural.
+    expect(
+      new Set([
+        label.className,
+        required.className,
+        help.className,
+        error.className,
+      ]).size,
+    ).toBe(4);
+  });
 });

@@ -236,14 +236,12 @@ function bothRenderers(id: string): { row: HTMLElement; card: HTMLElement } {
 /** The three axes as the row publishes them. */
 function axes(el: HTMLElement) {
   return {
+    // ONE probe. There is no folded twin to fall back to any more, and reading
+    // for one would let its return pass unnoticed.
     lifecycle:
       el.querySelector("[data-intake-links-row-link-state]")?.getAttribute(
         "data-intake-links-row-link-state",
-      ) ??
-      el
-        .querySelector("[data-intake-links-row-link-state-folded]")
-        ?.getAttribute("data-intake-links-row-link-state-folded") ??
-      null,
+      ) ?? null,
     activity:
       el
         .querySelector("[data-intake-links-row-session-state]")
@@ -657,6 +655,228 @@ describe("every record state renders through the redesigned system", () => {
       await act(async () => {
         fireEvent.keyDown(menu, { key: "Escape" });
       });
+    }
+  });
+});
+
+// ===========================================================================
+// Expiration is a DATE, and lifecycle is stated exactly once
+// ===========================================================================
+
+describe("expiration column and the single lifecycle region", () => {
+  it("the expiration cell shows the formatted date and never the word Expired", async () => {
+    await mount([
+      { id: "e-past", status: "EXPIRED", used: 1, expires: PAST },
+      { id: "e-future", expires: FUTURE },
+    ]);
+    for (const id of ["e-past", "e-future"]) {
+      const cell = document.querySelector(
+        `.ilk-records--wide [data-intake-links-row-id="${id}"] [data-intake-links-row-expires]`,
+      ) as HTMLElement;
+      const date = cell.querySelector(
+        "[data-intake-links-row-expiry-date]",
+      ) as HTMLElement;
+      expect(date, `${id} has no date`).toBeTruthy();
+      // The visible text is the date and nothing else…
+      expect(date.textContent?.trim().length).toBeGreaterThan(0);
+      expect(date.textContent).not.toMatch(/Expired|Expires/);
+      // …the canonical formatter produced it (a real day/month/year), not a
+      // fabricated or relative string.
+      expect(date.textContent).toMatch(/\d{1,2}\s+\w{3}\s+\d{4}/);
+      // …and assistive technology still hears the relationship.
+      const hidden = cell.querySelector(".app-visually-hidden") as HTMLElement;
+      expect(hidden.textContent).toMatch(
+        id === "e-past" ? /Expired on/ : /Expires on/,
+      );
+    }
+  });
+
+  it("a missing expiry uses the canonical fallback, never a fabricated date", async () => {
+    await mount([{ id: "e-none", expires: "" as unknown as string }]);
+    const date = document.querySelector(
+      '.ilk-records--wide [data-intake-links-row-id="e-none"] [data-intake-links-row-expiry-date]',
+    ) as HTMLElement;
+    expect(date.textContent?.trim()).toBe("Not available");
+  });
+
+  it("the Expired lifecycle badge stays in the Lifecycle column", async () => {
+    await mount([{ id: "e1", status: "EXPIRED", used: 1, expires: PAST }]);
+    const cell = document.querySelector(
+      '.ilk-records--wide [data-intake-links-row-id="e1"] td[data-col="lifecycle"]',
+    ) as HTMLElement;
+    expect(cell.textContent).toContain("Expired");
+    expect(
+      cell.querySelector('[data-intake-links-row-link-state="EXPIRED"]'),
+    ).toBeTruthy();
+  });
+
+  it("the desktop row states its lifecycle exactly once", async () => {
+    await mount(COMBINATIONS.map((c) => c.spec));
+    for (const combo of COMBINATIONS) {
+      const row = document.querySelector(
+        `.ilk-records--wide [data-intake-links-row-id="${combo.spec.id}"]`,
+      ) as HTMLElement;
+      expect(
+        row.querySelectorAll("[data-intake-links-row-link-state]").length,
+        `${combo.name} repeats its lifecycle`,
+      ).toBe(1);
+      // …and the one it has is in the lifecycle column, not the status cell.
+      const badge = row.querySelector("[data-intake-links-row-link-state]");
+      expect(badge?.closest("td")?.getAttribute("data-col")).toBe("lifecycle");
+    }
+  });
+
+  it("the mobile card states its lifecycle exactly once, in its own region", async () => {
+    await mount(COMBINATIONS.map((c) => c.spec));
+    for (const combo of COMBINATIONS) {
+      const card = document.querySelector(
+        `[data-intake-links-card-id="${combo.spec.id}"]`,
+      ) as HTMLElement;
+      expect(
+        card.querySelectorAll("[data-intake-links-row-link-state]").length,
+      ).toBe(1);
+      // The card head is the lifecycle region; the facts list is not.
+      const head = card.querySelector(".ilk-card__head") as HTMLElement;
+      expect(head.querySelector("[data-intake-links-row-link-state]")).toBeTruthy();
+      const facts = card.querySelector(".ilk-card__facts") as HTMLElement;
+      expect(facts.querySelector("[data-intake-links-row-link-state]")).toBeNull();
+      // Three separate concepts, three separate regions.
+      expect(facts.querySelector("[data-intake-links-row-delivery]")).toBeTruthy();
+      expect(
+        facts.querySelector("[data-intake-links-row-session-state]"),
+      ).toBeTruthy();
+      // The card's expiry field is a date under a neutral key.
+      const keys = Array.from(facts.querySelectorAll("dt")).map((d) =>
+        d.textContent?.trim(),
+      );
+      expect(keys).toContain("Expiry");
+      expect(keys).not.toContain("Expired");
+      expect(
+        facts.querySelector("[data-intake-links-row-expiry-date]")?.textContent,
+      ).not.toMatch(/Expired/);
+    }
+  });
+
+  it("no lifecycle fold survives anywhere in the row", async () => {
+    await mount([{ id: "f1", archived: PAST }]);
+    expect(document.querySelector('[data-fold="lifecycle"]')).toBeNull();
+    expect(
+      document.querySelector("[data-intake-links-row-link-state-folded]"),
+    ).toBeNull();
+  });
+});
+
+// ===========================================================================
+// The row-status tone mapping
+// ===========================================================================
+
+describe("row status tones come from one map", () => {
+  const CASES: Array<[string, Spec, string, string]> = [
+    // label, fixture, probe attribute, required tone
+    [
+      "Submitted",
+      { id: "t-sub", opened: 1, started: 1, submitted: 1 },
+      "data-intake-links-row-session-state",
+      "green",
+    ],
+    [
+      "Not opened",
+      { id: "t-quiet" },
+      "data-intake-links-row-session-state",
+      "orange",
+    ],
+    [
+      "Expired",
+      { id: "t-exp", status: "EXPIRED", used: 1, expires: PAST },
+      "data-intake-links-row-link-state",
+      "blue",
+    ],
+    [
+      "Opened",
+      { id: "t-open", opened: 1 },
+      "data-intake-links-row-session-state",
+      "green",
+    ],
+    [
+      "Link disabled",
+      { id: "t-rev", status: "REVOKED", revoked: PAST },
+      "data-intake-links-row-link-state",
+      "red",
+    ],
+    [
+      "Archived",
+      { id: "t-arch", archived: PAST },
+      "data-intake-links-row-link-state",
+      "slate",
+    ],
+    [
+      "Active",
+      { id: "t-act" },
+      "data-intake-links-row-link-state",
+      "indigo",
+    ],
+  ];
+
+  for (const [label, spec, attr, tone] of CASES) {
+    it(`${label} resolves the ${tone} tone in both renderers`, async () => {
+      await mount([spec]);
+      for (const scope of [".ilk-records--wide", ".ilk-records--narrow"]) {
+        const host = document.querySelector(scope) as HTMLElement;
+        // The activity probe sits ON the badge in the table and on the <dd>
+        // in the card, so read the badge from whichever carries it.
+        const holder = host.querySelector(`[${attr}]`) as HTMLElement;
+        expect(holder, `${label} missing in ${scope}`).toBeTruthy();
+        const badge = holder.classList.contains("app-status-badge")
+          ? holder
+          : (holder.querySelector(".app-status-badge") as HTMLElement);
+        expect(badge, `${label} is not a badge in ${scope}`).toBeTruthy();
+        expect(badge.getAttribute("data-tone"), `${label} in ${scope}`).toBe(
+          tone,
+        );
+        // The compact filled treatment, and the word always beside the colour.
+        expect(badge.getAttribute("data-fill")).toBe("solid");
+        expect(badge.textContent?.trim()).toBe(label);
+      }
+    });
+  }
+
+  it("an unknown wire state falls back to neutral rather than guessing", async () => {
+    // A delivery status the contract does not define must not colour itself.
+    await mount([
+      { id: "u1", channel: "SMS", delivery: "SOMETHING_NEW_FROM_THE_PROVIDER" },
+    ]);
+    const holder = document.querySelector(
+      '.ilk-records--wide [data-intake-links-row-delivery]',
+    ) as HTMLElement;
+    expect(holder.getAttribute("data-intake-links-row-delivery")).toBe("NOT_SENT");
+    const badge = holder.querySelector(".app-status-badge") as HTMLElement;
+    expect(badge.getAttribute("data-tone")).toBe("slate");
+    expect(badge.textContent?.trim()).toBe("Not sent");
+  });
+
+  it("desktop and mobile read the SAME tone for the same record", async () => {
+    await mount(COMBINATIONS.map((c) => c.spec));
+    for (const combo of COMBINATIONS) {
+      const read = (scope: string, attr: string) => {
+        const host = document.querySelector(
+          `${scope} [data-intake-links-${scope.includes("wide") ? "row" : "card"}-id="${combo.spec.id}"]`,
+        ) as HTMLElement;
+        const holder = host.querySelector(`[${attr}]`) as HTMLElement;
+        const badge = holder.classList.contains("app-status-badge")
+          ? holder
+          : (holder.querySelector(".app-status-badge") as HTMLElement);
+        return badge?.getAttribute("data-tone");
+      };
+      for (const attr of [
+        "data-intake-links-row-link-state",
+        "data-intake-links-row-session-state",
+        "data-intake-links-row-delivery",
+      ]) {
+        expect(
+          read(".ilk-records--narrow", attr),
+          `${combo.name} / ${attr}`,
+        ).toBe(read(".ilk-records--wide", attr));
+      }
     }
   });
 });

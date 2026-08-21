@@ -810,6 +810,74 @@ textarea.app-form-input {
   background: currentColor;
 }
 
+/* ---- SOLID FILL variant -----------------------------------------------
+ *
+ * The soft-tinted capsule above is the default because most surfaces carry
+ * many states at once and a wall of saturated pills is unreadable. A dense
+ * OPERATIONAL row is the case where the opposite is true: the state is the
+ * thing being scanned, and a compact filled rectangle reads at a glance where
+ * a tinted capsule does not.
+ *
+ * SHAPE and FILL only — the tone still arrives as `data-tone` from whichever
+ * single mapping owns the surface, so a state cannot be coloured here and
+ * differently by its own vocabulary. Every fill is a CANONICAL TOKEN, the same
+ * ones the Search type label consumes; that class stays type-only by its own
+ * documented contract, and what the two share is the token, not a selector.
+ *
+ * Measured against #FFFFFF at normal text size:
+ *   blue   --info          5.17:1
+ *   green  --success-ink   5.29:1
+ *   indigo --accent-600    7.11:1
+ *   red    --error         4.83:1
+ *   amber  --warning-ink   5.02:1
+ *   slate  --ink-secondary 7.58:1
+ *   orange --orange-fill   2.80:1 — see the token's own note: an approved
+ *                                   visual-reference decision, recorded as
+ *                                   measured rather than presented as a pass,
+ *                                   and bounded to a state whose word is
+ *                                   always rendered beside the colour.
+ */
+.app-status-badge[data-fill="solid"] {
+  /* A rectangle, not a capsule. */
+  border-radius: 4px;
+  border-color: transparent;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  /* Sized by its own padding and line-height, so every state is the same
+     height and switching state never moves the row. */
+  line-height: 1.45;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  white-space: nowrap;
+  color: #ffffff;
+  /* Neutral is the FALLBACK an unknown state resolves to, so it is a real
+     declaration rather than whatever the base class happens to paint. */
+  background: var(--ink-secondary);
+}
+.app-status-badge[data-fill="solid"][data-tone="blue"] {
+  background: var(--info);
+}
+.app-status-badge[data-fill="solid"][data-tone="green"] {
+  background: var(--success-ink);
+}
+.app-status-badge[data-fill="solid"][data-tone="orange"] {
+  background: var(--orange-fill);
+}
+.app-status-badge[data-fill="solid"][data-tone="indigo"] {
+  background: var(--accent-600);
+}
+.app-status-badge[data-fill="solid"][data-tone="red"] {
+  background: var(--error);
+}
+.app-status-badge[data-fill="solid"][data-tone="amber"] {
+  background: var(--warning-ink);
+}
+.app-status-badge[data-fill="solid"][data-tone="slate"] {
+  background: var(--ink-secondary);
+}
+
 /* Metadata / disclosure CHIP — a compact, non-status label.
    Distinct from `.app-status-badge`, which announces lifecycle state with a
    semantic tone; a chip carries a neutral fact ("DOCUMENT", "v2", "Metadata

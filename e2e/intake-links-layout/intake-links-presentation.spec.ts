@@ -249,6 +249,53 @@ test.describe("KPI cards resolve the mandated tones", () => {
     }
   });
 
+  test("the number is painted in its own card's tone", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, "organization");
+
+    const cards = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>("[data-intake-links-kpi]"),
+      ).map((el) => {
+        const rail = getComputedStyle(el, "::before").backgroundColor;
+        const value = el.querySelector(".ilk-kpi__value") as HTMLElement;
+        const label = el.querySelector(".ilk-kpi__label") as HTMLElement;
+        const meta = el.querySelector(".ilk-kpi__meta") as HTMLElement;
+        const surface = getComputedStyle(el).backgroundColor;
+        return {
+          key: el.getAttribute("data-intake-links-kpi"),
+          rail,
+          surface,
+          valueColor: getComputedStyle(value).color,
+          labelColor: getComputedStyle(label).color,
+          metaColor: meta ? getComputedStyle(meta).color : null,
+          valueText: value.textContent?.trim() ?? "",
+        };
+      }),
+    );
+    expect(cards.length).toBe(7);
+
+    for (const c of cards) {
+      // ONE tone per card: the rail and the number resolve the same custom
+      // property, so a card can never disagree with its own number.
+      expect(rgb(c.valueColor), `${c.key} number`).toEqual(rgb(c.rail));
+      // …and the number is still a number.
+      expect(c.valueText).toMatch(/^\d+$/);
+      // The supporting copy stays neutral — the card is toned, not shouted.
+      expect(rgb(c.metaColor!), `${c.key} note`).not.toEqual(rgb(c.rail));
+      expect(rgb(c.labelColor), `${c.key} label`).not.toEqual(rgb(c.rail));
+      // A toned number is still readable on the card it sits on.
+      expect(
+        contrast(c.valueColor, c.surface),
+        `${c.key} number contrast`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+    // The card surfaces stay restrained: no card is filled with its tone.
+    for (const c of cards) {
+      expect(rgb(c.surface), `${c.key} surface`).not.toEqual(rgb(c.rail));
+    }
+  });
+
   test("cards in a row are equal height and none is painted as focused", async ({
     page,
   }) => {
@@ -304,15 +351,18 @@ test.describe("records surface anatomy", () => {
       const row = document.querySelector(
         '[data-intake-links-row-id="r-archived-submitted"]',
       ) as HTMLElement;
-      const life = row.querySelector(
-        "[data-intake-links-row-link-state]",
-      ) as HTMLElement;
-      const act = row.querySelector(
-        "[data-intake-links-row-session-state]",
-      ) as HTMLElement;
-      const del = row.querySelector(
-        "[data-intake-links-row-delivery]",
-      ) as HTMLElement;
+      // The probe sits ON the badge in the Lifecycle column and on the <dd>
+      // that wraps it in Delivery & activity — read the badge either way, so
+      // the boxes compared are the painted ones.
+      const badge = (sel: string) => {
+        const holder = row.querySelector(sel) as HTMLElement;
+        return holder.classList.contains("app-status-badge")
+          ? holder
+          : (holder.querySelector(".app-status-badge") as HTMLElement);
+      };
+      const life = badge("[data-intake-links-row-link-state]");
+      const act = badge("[data-intake-links-row-session-state]");
+      const del = badge("[data-intake-links-row-delivery]");
       const box = (el: HTMLElement) => {
         const r = el.getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
@@ -352,61 +402,259 @@ test.describe("records surface anatomy", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openIntakeLinks(page, "organization");
 
-    const tones = await page.evaluate(() => {
-      const out: Record<string, { tone: string; color: string; text: string }> =
-        {};
-      for (const el of Array.from(
-        document.querySelectorAll<HTMLElement>(
-          "[data-intake-links-row-link-state]",
-        ),
-      )) {
-        const state = el.getAttribute("data-intake-links-row-link-state")!;
-        if (out[state]) continue;
-        out[state] = {
-          tone: el.getAttribute("data-tone") ?? "",
-          color: getComputedStyle(el).color,
-          text: el.textContent?.trim() ?? "",
-        };
-      }
-      return out;
-    });
+    const read = (attr: string) =>
+      page.evaluate((a) => {
+        const out: Record<
+          string,
+          {
+            tone: string;
+            fill: string;
+            color: string;
+            background: string;
+            text: string;
+            radius: string;
+            height: number;
+            lineHeight: number;
+            lines: number;
+            width: number;
+            cellWidth: number;
+          }
+        > = {};
+        for (const holder of Array.from(
+          document.querySelectorAll<HTMLElement>(
+            `.ilk-records--wide [${a}]`,
+          ),
+        )) {
+          const state = holder.getAttribute(a)!;
+          if (out[state]) continue;
+          const el = holder.classList.contains("app-status-badge")
+            ? holder
+            : (holder.querySelector(".app-status-badge") as HTMLElement);
+          if (!el) continue;
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          out[state] = {
+            tone: el.getAttribute("data-tone") ?? "",
+            fill: el.getAttribute("data-fill") ?? "",
+            color: cs.color,
+            background: cs.backgroundColor,
+            text: el.textContent?.trim() ?? "",
+            radius: cs.borderTopLeftRadius,
+            height: Math.round(r.height),
+            lineHeight: parseFloat(cs.lineHeight),
+            lines: Math.max(
+              1,
+              Math.round(
+                (r.height -
+                  parseFloat(cs.paddingTop) -
+                  parseFloat(cs.paddingBottom)) /
+                  parseFloat(cs.lineHeight),
+              ),
+            ),
+            width: Math.round(r.width),
+            cellWidth: Math.round(
+              (el.closest("td") as HTMLElement).getBoundingClientRect().width,
+            ),
+          };
+        }
+        return out;
+      }, attr);
 
-    // Every state present in the fixture resolves its mandated tone AND keeps
-    // a text label — status is never carried by colour alone.
-    expect(tones.ARCHIVED.tone).toBe("slate");
-    expect(tones.REVOKED.tone).toBe("red");
-    expect(tones.REVOKED.text).toBe("Link disabled");
-    expect(tones.EXPIRED.tone).toBe("slate");
-    expect(tones.ACTIVE.tone).toBe("indigo");
-    for (const v of Object.values(tones)) {
-      expect(v.text.length).toBeGreaterThan(0);
-      expect(rgb(v.color)).not.toBeNull();
+    const life = await read("data-intake-links-row-link-state");
+    const activity = await read("data-intake-links-row-session-state");
+
+    // ONE map, and these are the corrections it now carries: Expired reads as
+    // information rather than as a second neutral, Submitted as a completed
+    // outcome, and a link nobody has opened as the shared attention orange.
+    const MANDATED: Array<
+      [Record<string, { tone: string; text: string }>, string, string, string]
+    > = [
+      [life, "EXPIRED", "blue", "Expired"],
+      [life, "REVOKED", "red", "Link disabled"],
+      [life, "ARCHIVED", "slate", "Archived"],
+      [life, "ACTIVE", "indigo", "Active"],
+      [activity, "SUBMITTED", "green", "Submitted"],
+      [activity, "NO_ACTIVITY", "orange", "Not opened"],
+      [activity, "OPENED", "green", "Opened"],
+    ];
+    for (const [group, state, tone, text] of MANDATED) {
+      expect(group[state], `${state} absent from the fixture`).toBeTruthy();
+      expect(group[state].tone, state).toBe(tone);
+      // Colour never carries the state alone.
+      expect(group[state].text, state).toBe(text);
     }
-    // The red tone really resolves red, not an inherited ink.
-    expect(rgb(tones.REVOKED.color)).toEqual([178, 52, 66]);
+
+    // The tone tokens really paint. These are the resolved values of
+    // `--info`, `--error`, `--ink-secondary`, `--accent-600`, `--success-ink`
+    // and `--orange-fill` — read out of the engine, not asserted from names.
+    const FILL: Record<string, [number, number, number]> = {
+      blue: [37, 99, 235],
+      red: [220, 38, 38],
+      slate: [71, 85, 105],
+      indigo: [109, 40, 217],
+      green: [22, 122, 91],
+      orange: [249, 115, 22],
+    };
+    const all = { ...life, ...activity };
+    for (const [state, v] of Object.entries(all)) {
+      // The compact filled rectangle, identically for every state.
+      expect(v.fill, state).toBe("solid");
+      expect(v.radius, state).toBe("4px");
+      expect(rgb(v.color), `${state} ink`).toEqual([255, 255, 255]);
+      const expected = FILL[v.tone];
+      expect(expected, `${state} has an unmapped tone ${v.tone}`).toBeTruthy();
+      expect(rgb(v.background), `${state} fill`).toEqual(expected);
+      // Content-width, never a stretched slab.
+      expect(v.width, state).toBeLessThan(v.cellWidth);
+    }
+    // Stable height: the badge is sized by its own padding and line-height, so
+    // every state that fits one line measures exactly the same. (Inside this
+    // table a long phrase is deliberately allowed to wrap rather than overflow
+    // its column, so a two-line badge is taller by whole line-heights — that is
+    // the wrapping, not the treatment, and it is measured as such below.)
+    const oneLine = Object.values(all).filter((v) => v.lines === 1);
+    expect(oneLine.length).toBeGreaterThan(2);
+    expect(new Set(oneLine.map((v) => v.height)).size).toBe(1);
+    const unit = oneLine[0]!;
+    for (const v of Object.values(all)) {
+      expect(
+        Math.abs(v.height - (unit.height + (v.lines - 1) * unit.lineHeight)),
+        `${v.text} is not a whole number of lines tall`,
+      ).toBeLessThanOrEqual(1.5);
+    }
   });
 
-  test("expiry uses danger ink only when the link has actually expired", async ({
+  test("the filled badges keep readable ink, and the one exception is measured", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openIntakeLinks(page, "organization");
-    const inks = await page.evaluate(() =>
+
+    const measured = await page.evaluate(() =>
       Array.from(
         document.querySelectorAll<HTMLElement>(
-          '.ilk-records--wide [data-intake-links-row-expires]',
+          '.ilk-records--wide .app-status-badge[data-fill="solid"]',
         ),
-      ).map((el) => ({
-        state: el.getAttribute("data-intake-links-row-expires"),
-        color: getComputedStyle(el).color,
-      })),
+      ).map((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          tone: el.getAttribute("data-tone") ?? "",
+          color: cs.color,
+          background: cs.backgroundColor,
+        };
+      }),
     );
-    const expired = inks.filter((i) => i.state === "expired");
-    const ok = inks.filter((i) => i.state === "ok");
+    expect(measured.length).toBeGreaterThan(0);
+
+    const byTone = new Map<string, number>();
+    for (const m of measured) {
+      byTone.set(m.tone, contrast(m.color, m.background));
+    }
+
+    // Every tone this surface uses clears AA for its own ink…
+    for (const [tone, ratio] of byTone) {
+      if (tone === "orange") continue;
+      expect(ratio, `${tone} contrast`).toBeGreaterThanOrEqual(4.5);
+    }
+    // …except the shared attention orange, which is the exact treatment the
+    // redesigned Search classification labels wear (`--orange-fill` with white
+    // ink). It is pinned here so the number is a measured fact rather than an
+    // assumption, and so changing the shared token cannot pass unnoticed. It
+    // does NOT carry meaning alone: the badge always states "Not opened", and
+    // the same fact is available in the Activity filter and the drawer.
+    const orange = byTone.get("orange");
+    expect(orange, "no orange badge in the fixture").toBeTruthy();
+    expect(orange!).toBeGreaterThan(2.5);
+    expect(orange!).toBeLessThan(3.2);
+  });
+
+  test("expiry prints a date, and never the lifecycle word", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, "organization");
+    const cells = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".ilk-records--wide [data-intake-links-row-expires]",
+        ),
+      ).map((el) => {
+        const date = el.querySelector(
+          "[data-intake-links-row-expiry-date]",
+        ) as HTMLElement;
+        const hidden = el.querySelector(".app-visually-hidden") as HTMLElement;
+        const hiddenCs = getComputedStyle(hidden);
+        return {
+          state: el.getAttribute("data-intake-links-row-expires"),
+          visible: date.textContent?.trim() ?? "",
+          color: getComputedStyle(date).color,
+          // The date never wraps or fragments — it is one unbroken run.
+          whiteSpace: getComputedStyle(date).whiteSpace,
+          lines: Math.round(
+            date.getBoundingClientRect().height /
+              parseFloat(getComputedStyle(date).lineHeight),
+          ),
+          fits:
+            date.getBoundingClientRect().width <=
+            (el.closest("td") as HTMLElement).getBoundingClientRect().width + 1,
+          // Assistive text is present but takes no space.
+          atText: hidden.textContent ?? "",
+          atWidth: Math.round(hidden.getBoundingClientRect().width),
+          atPosition: hiddenCs.position,
+          title: el.getAttribute("title") ?? "",
+        };
+      }),
+    );
+
+    const expired = cells.filter((c) => c.state === "expired");
+    const ok = cells.filter((c) => c.state === "ok");
     expect(expired.length).toBeGreaterThan(0);
     expect(ok.length).toBeGreaterThan(0);
-    for (const e of expired) expect(rgb(e.color)).toEqual([201, 54, 62]);
-    for (const o of ok) expect(rgb(o.color)).not.toEqual([201, 54, 62]);
+
+    for (const c of cells) {
+      // A real formatted date, and nothing else.
+      expect(c.visible).toMatch(/\d{1,2}\s+\w{3}\s+\d{4}/);
+      expect(c.visible).not.toMatch(/Expired|Expires/);
+      expect(c.whiteSpace).toBe("nowrap");
+      expect(c.lines).toBe(1);
+      expect(c.fits).toBe(true);
+      // The full local timestamp is still one hover away.
+      expect(c.title.length).toBeGreaterThan(0);
+      expect(c.atWidth).toBeLessThanOrEqual(1);
+      expect(c.atPosition).toBe("absolute");
+    }
+    for (const c of expired) {
+      // The word moved to assistive text; the ink is no longer danger red.
+      expect(c.atText).toContain("Expired on");
+      expect(rgb(c.color)).not.toEqual([201, 54, 62]);
+      expect(rgb(c.color)).not.toEqual([220, 38, 38]);
+    }
+    for (const c of ok) expect(c.atText).toContain("Expires on");
+
+    // Expired links say so exactly once per row, in the Lifecycle column.
+    const stated = await page.evaluate(() => {
+      const row = document.querySelector(
+        '.ilk-records--wide [data-intake-links-row-id="r-expired"]',
+      ) as HTMLElement;
+      const badge = row.querySelector(
+        "[data-intake-links-row-link-state]",
+      ) as HTMLElement;
+      // VISIBLE text only. The expiry cell's assistive prefix says "Expired on"
+      // on purpose — that is the relationship the sighted reader gets from the
+      // two cells being side by side.
+      const visible = row.cloneNode(true) as HTMLElement;
+      for (const hidden of Array.from(
+        visible.querySelectorAll(".app-visually-hidden"),
+      )) {
+        hidden.remove();
+      }
+      return {
+        count: (visible.textContent ?? "").split("Expired").length - 1,
+        column: (badge.closest("td") as HTMLElement).getAttribute("data-col"),
+      };
+    });
+    expect(stated.count).toBe(1);
+    expect(stated.column).toBe("lifecycle");
   });
 
   test("row actions are a menu on the canonical overlay, never a selector", async ({
@@ -693,4 +941,260 @@ test.describe("long values stay inside their surfaces", () => {
       expect(measured.titleWhole).toBe(true);
     });
   }
+});
+
+// ===========================================================================
+// Wizard label ink — measured, not asserted from token names
+// ===========================================================================
+
+/**
+ * The resolved value of `--app-ink-label` (#344054). Every visible label on
+ * this surface must land on it, whichever element it happens to be.
+ */
+const LABEL_INK: [number, number, number] = [52, 64, 84];
+
+/** Read every visible label in the wizard, with its painted ink and ground. */
+async function readWizardLabels(page: Page) {
+  return page.evaluate(() => {
+    const dialog = document.querySelector(
+      '[data-testid="intake-link-create-wizard"]',
+    ) as HTMLElement;
+
+    /** Walk up until something actually paints a background. */
+    const ground = (el: HTMLElement): string => {
+      let node: HTMLElement | null = el;
+      while (node) {
+        const bg = getComputedStyle(node).backgroundColor;
+        const m = bg.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s]+([\d.]+))?/);
+        if (m && (m[4] === undefined || Number(m[4]) > 0.6)) return bg;
+        node = node.parentElement;
+      }
+      return "rgb(255, 255, 255)";
+    };
+
+    const selectors = [
+      ["field label", ".app-dialog__body label.app-field-label"],
+      ["group legend", ".ilk-fieldset__legend"],
+      ["choice title", ".ilk-choice__title"],
+      ["file type label", ".ilk-kind__label"],
+      ["review group", ".ilk-review__title"],
+      ["review fact", ".ilk-facts dt"],
+      ["preview title", ".ilk-preview__title"],
+      ["preview fact", ".ilk-preview__meta dt"],
+    ] as const;
+
+    const out: Array<{
+      kind: string;
+      text: string;
+      color: string;
+      background: string;
+      fontSize: number;
+      fontWeight: number;
+    }> = [];
+    for (const [kind, sel] of selectors) {
+      for (const el of Array.from(dialog.querySelectorAll<HTMLElement>(sel))) {
+        const cs = getComputedStyle(el);
+        if (cs.display === "none") continue;
+        out.push({
+          kind,
+          text: (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 40),
+          color: cs.color,
+          background: ground(el),
+          fontSize: parseFloat(cs.fontSize),
+          fontWeight: Number(cs.fontWeight),
+        });
+      }
+    }
+
+    // The tiers a label must stay above.
+    const help = dialog.querySelector(".app-field-help") as HTMLElement | null;
+    const desc = dialog.querySelector(".ilk-choice__desc") as HTMLElement | null;
+    return {
+      labels: out,
+      helpColor: help ? getComputedStyle(help).color : null,
+      descColor: desc ? getComputedStyle(desc).color : null,
+    };
+  });
+}
+
+test.describe("wizard label hierarchy is painted, not merely classed", () => {
+  /** Drive the wizard into a branch and measure what that branch renders. */
+  async function branch(
+    page: Page,
+    context: IntakeContext,
+    steps: (p: Page) => Promise<void>,
+  ) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, context);
+    await openWizard(page);
+    await steps(page);
+    return readWizardLabels(page);
+  }
+
+  const BRANCHES: Array<[string, (p: Page) => Promise<void>]> = [
+    ["step 1 — request", async () => {}],
+    [
+      "step 2 — email + custom sender",
+      async (p) => {
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click('[data-intake-link-delivery-method-input="EMAIL"]');
+        await p.click('[data-intake-link-sender-card-input="CUSTOM"]');
+      },
+    ],
+    [
+      "step 2 — copy link",
+      async (p) => {
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click('[data-intake-link-delivery-method-input="MANUAL"]');
+      },
+    ],
+    [
+      "step 3 — rules, location required",
+      async (p) => {
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click('[data-intake-link-delivery-method-input="MANUAL"]');
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click('[data-intake-link-location-card-input="REQUIRED"]');
+      },
+    ],
+    [
+      "step 4 — review with a message preview",
+      async (p) => {
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click('[data-intake-link-delivery-method-input="SMS"]');
+        await p.fill("[data-intake-link-phone]", "+14155550123");
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click("[data-intake-link-wizard-next]");
+      },
+    ],
+  ];
+
+  for (const [name, steps] of BRANCHES) {
+    test(`${name}: every label resolves the label ink`, async ({ page }) => {
+      const { labels, helpColor, descColor } = await branch(
+        page,
+        "organization",
+        steps,
+      );
+      expect(labels.length, `${name} rendered no labels`).toBeGreaterThan(0);
+
+      for (const l of labels) {
+        // A label is either the label ink itself, or the HEADING ink — the
+        // tier above it. What it may never be is the description ink, which
+        // is what three of these had drifted onto.
+        const c = rgb(l.color)!;
+        const isLabelInk = c.every((v, i) => v === LABEL_INK[i]);
+        const isHeadingInk = c[0] === 23 && c[1] === 32 && c[2] === 51;
+        expect(
+          isLabelInk || isHeadingInk,
+          `${name} / ${l.kind} "${l.text}" resolved ${l.color}`,
+        ).toBe(true);
+
+        // Measured contrast against the ground it is actually painted on.
+        expect(
+          contrast(l.color, l.background),
+          `${name} / ${l.kind} "${l.text}" contrast`,
+        ).toBeGreaterThanOrEqual(7);
+
+        // A label is never lighter than a normal weight.
+        expect(l.fontWeight, `${name} / ${l.kind}`).toBeGreaterThanOrEqual(600);
+      }
+
+      // The tiers below stay below: helper and description copy are both
+      // strictly lighter than the label ink they sit under.
+      const labelLum = 0.2126 * LABEL_INK[0] + 0.7152 * LABEL_INK[1] + 0.0722 * LABEL_INK[2];
+      for (const lower of [helpColor, descColor]) {
+        if (!lower) continue;
+        const c = rgb(lower)!;
+        const lum = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        expect(lum, `${name}: a lower tier is not lighter than the label`).toBeGreaterThan(
+          labelLum,
+        );
+      }
+    });
+  }
+
+  test("the label ink is the same in every workspace context", async ({
+    page,
+  }) => {
+    const seen = new Set<string>();
+    for (const context of CONTEXTS) {
+      const { labels } = await branch(page, context, async (p) => {
+        await p.click("[data-intake-link-wizard-next]");
+        await p.click('[data-intake-link-delivery-method-input="EMAIL"]');
+      });
+      expect(labels.length, context).toBeGreaterThan(0);
+      for (const l of labels) seen.add(l.color);
+    }
+    // At most two inks across every context: the label tier and the heading
+    // tier above it. A third would mean a context resolves its own palette.
+    expect(seen.size).toBeLessThanOrEqual(2);
+  });
+
+  test("the secure-link reveal keeps the same label ink", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, "organization");
+    await openWizard(page);
+    await page.click("[data-intake-link-wizard-next]");
+    await page.click('[data-intake-link-delivery-method-input="MANUAL"]');
+    await page.click("[data-intake-link-wizard-next]");
+    await page.click("[data-intake-link-wizard-next]");
+    await page.click("[data-intake-link-submit]");
+    await page.waitForSelector('[data-testid="intake-link-created"]');
+
+    const measured = await page.evaluate(() => {
+      const el = document.querySelector(
+        '[data-testid="intake-link-created"] label.app-field-label',
+      ) as HTMLElement;
+      return {
+        text: el.textContent?.trim(),
+        color: getComputedStyle(el).color,
+        weight: Number(getComputedStyle(el).fontWeight),
+      };
+    });
+    expect(measured.text).toBe("Secure link");
+    expect(rgb(measured.color)).toEqual(LABEL_INK);
+    expect(measured.weight).toBeGreaterThanOrEqual(600);
+  });
+
+  test("the lifecycle filter offers labels with no reserved description line", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, "organization");
+    // Reached by its accessible name, which is the same handle assistive
+    // technology uses — not by position in the toolbar.
+    await page
+      .getByRole("combobox", { name: "Filter by lifecycle" })
+      .click();
+    await page.waitForSelector('[role="listbox"]');
+
+    const measured = await page.evaluate(() => {
+      const list = document.querySelector('[role="listbox"]') as HTMLElement;
+      const options = Array.from(
+        list.querySelectorAll<HTMLElement>('[role="option"]'),
+      );
+      return {
+        labels: options.map((o) => o.textContent?.trim()),
+        descriptions: list.querySelectorAll(".app-listbox__option-desc").length,
+        heights: options.map((o) =>
+          Math.round(o.getBoundingClientRect().height),
+        ),
+      };
+    });
+
+    expect(measured.labels).toEqual([
+      "Any lifecycle",
+      "Active",
+      "Archived",
+      "Link disabled",
+      "Expired",
+    ]);
+    // Not merely empty — absent. An empty description node would still
+    // reserve its line, which is the blank space this correction removes.
+    expect(measured.descriptions).toBe(0);
+    // Every row is the same height, so nothing reserved space for a
+    // description that is not there.
+    expect(new Set(measured.heights).size).toBe(1);
+  });
 });

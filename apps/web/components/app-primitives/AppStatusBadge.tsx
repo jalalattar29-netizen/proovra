@@ -36,11 +36,22 @@ export type AppTone =
   | "orange"
   | "slate";
 
+/**
+ * How the tone is painted.
+ *
+ * `soft` (default) is the tinted capsule most surfaces want. `solid` is the
+ * compact filled rectangle a dense operational row wants, where the state is
+ * the thing being scanned. Both read the SAME `tone`, so a surface can change
+ * how a state looks without being able to change what colour it means.
+ */
+export type AppBadgeFill = "soft" | "solid";
+
 export interface AppStatusBadgeProps {
   tone: AppTone;
   children: React.ReactNode;
   /** Show a small leading dot in the tone colour. */
   dot?: boolean;
+  fill?: AppBadgeFill;
   className?: string;
   title?: string;
   /**
@@ -57,6 +68,7 @@ export function AppStatusBadge({
   tone,
   children,
   dot = false,
+  fill = "soft",
   className,
   title,
   ...dataAttrs
@@ -65,6 +77,7 @@ export function AppStatusBadge({
     <span
       className={`app-status-badge${className ? ` ${className}` : ""}`}
       data-tone={tone}
+      data-fill={fill}
       title={title}
       {...dataAttrs}
     >

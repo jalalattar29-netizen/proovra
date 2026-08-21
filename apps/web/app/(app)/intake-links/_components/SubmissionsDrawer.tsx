@@ -153,7 +153,7 @@ export function SubmissionsDrawer({
                       <strong data-intake-link-submission-title={idx + 1}>
                         Submission #{idx + 1}
                       </strong>
-                      <AppStatusBadge tone={sessionTone(s.status)}>
+                      <AppStatusBadge tone={sessionTone(s.status)} fill="solid">
                         {sessionLabel(s.status)}
                       </AppStatusBadge>
                     </div>
