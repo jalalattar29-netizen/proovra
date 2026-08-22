@@ -107,6 +107,21 @@ const TRUST: HomeTrustSummaryInput = {
   signed: 48,
   publicVerify: { published: 32, unpublished: 18, suspended: 0 },
   needingAttention: 3,
+  /**
+   * CONTRACT MIGRATION — Attention Architecture closure pass (2026-08-22).
+   *
+   * `submissionsAwaitingReview` used to be counted out of the INBOX fixture
+   * below, because Home derived it from the caller's own /v1/me/inbox items.
+   * That made a workspace fact move when one person archived a notification,
+   * and capped it at the feed's per-category take so a busy workspace
+   * under-reported.
+   *
+   * It now comes from `dashboard/trust-summary.intake`, an uncapped
+   * `EvidenceRequest` count owned by the intake domain. The fixture states
+   * the same value the inbox fixture used to imply, so the assertion below is
+   * unchanged — only its source is.
+   */
+  intake: { submissionsAwaitingReview: 1, submissionsNeedingMoreInfo: 0 },
 };
 
 const REPORTS: HomeReportsInput = {

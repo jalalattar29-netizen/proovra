@@ -223,6 +223,21 @@ model Evidence {
   otsUpgradedAtUtc DateTime? @map("ots_upgraded_at_utc") @db.Timestamptz(6)
   otsFailureReason String?   @map("ots_failure_reason")
 
+  /// ATTENTION ARCHITECTURE CLOSURE PASS (2026-08-22) — the identity of the
+  /// DELIBERATE MULTI-RECORD EXECUTION that last touched this record's
+  /// integrity proofs (a repair run, a bulk re-anchor).
+  ///
+  /// NULL for ordinary work, which is one BullMQ job per Evidence and
+  /// therefore independent by construction. It is the ONE positive correlator
+  /// the current pipelines can honestly produce; failures that merely share a
+  /// provider, a workspace, a filename, a reason or a minute are NOT
+  /// correlated and must never be grouped.
+  ///
+  /// Added by migration 20271217000000_evidence_integrity_correlation. No
+  /// backfill: historical failures have no recorded execution, and inventing
+  /// one would manufacture the grouping the retracted TSA finding forbids.
+  integrityCorrelationId String? @map("integrity_correlation_id") @db.VarChar(80)
+
   custodyEvents               CustodyEvent[]
   guestIdentity               GuestIdentity?                       @relation(fields: [guestIdentityId], references: [id])
   parts                       EvidencePart[]

@@ -178,8 +178,9 @@ export function projectDomainEvent(
  */
 export function sharedConditionAfterPersonalAction(
   condition: SharedOperationalCondition,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- named to
-  // document that the action is deliberately not consulted.
+  // Named, and deliberately not consulted: the parameter documents that a
+  // personal action is an INPUT the shared projection refuses to read.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _action: PersonalAttentionAction,
 ): SharedOperationalCondition {
   return condition;
@@ -192,7 +193,8 @@ export function sharedConditionAfterPersonalAction(
  */
 export function personalStateAfterSharedAdjudication(
   state: PersonalAttentionState,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- see above.
+  // See above: accepted, never read.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newStatus: SharedConditionStatus,
 ): PersonalAttentionState {
   return state;

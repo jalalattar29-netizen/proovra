@@ -1176,13 +1176,6 @@
       "machineCallerEvidence": "docs/operations/signer-operations-runbook.md:47 (step 2: `POST /v1/operations/signers/stage` with the new metadata); docs/security/key-rotation.md:47; docs/security/signer-governance.md:60"
     },
     {
-      "routeId": "POST /v1/ops/incidents/:id/assign",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "incident owner assignment has no control; the ops page exposes ack/resolve/suppress only",
-      "evidence": "reg services/api/src/routes/ops.routes.ts:811 app.post(\"/v1/ops/incidents/:id/assign\", { preHandler: requireAuth }); apps/web/app/(app)/operations/page.tsx:261 async function transitionIncident(id, action: \"ack\" | \"resolve\" | \"suppress\") and :272 await apiFetch(`/v1/ops/incidents/${id}/${action}`, { method: \"POST\" }) — \"assign\" is not in the action union",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/ops/media-intelligence/runs/:runId/dismiss",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "PHASE 13 §4 wiring — the ops console already advertises the OUTCOME of this action but has no control that performs it",

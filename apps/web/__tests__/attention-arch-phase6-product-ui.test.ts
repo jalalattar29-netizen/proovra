@@ -140,11 +140,13 @@ test("6.3 — the single-operator shape falls out of capabilities, not a fork", 
     !/PersonalOperationsPage/.test(code(OPERATIONS)),
     "no forked personal page",
   );
-  // Named `_canAssign`: resolved on purpose, with no control attached YET.
-  // The underscore is the lint convention for "read deliberately, unused for
-  // now". Deleting it is how the next assignment button ends up gated on a
-  // role-name comparison instead of on the capability.
-  assert.match(OPERATIONS, /const _canAssign = capabilities\.OPERATIONS_ASSIGN/);
+  // CLOSURE PASS (2026-08-22) — the capability now HAS a control. It was
+  // read as `_canAssign` (underscore: "resolved deliberately, unused for
+  // now") while the assignment UI did not exist; the control shipped in the
+  // closure pass, so the binding is used and the underscore is gone.
+  assert.match(OPERATIONS, /const canAssign = capabilities.OPERATIONS_ASSIGN/);
+  assert.match(OPERATIONS, /<IncidentAssignmentControl/);
+  assert.match(OPERATIONS, /canAssign={canAssign}/);
 });
 
 test("an empty list over a PARTIAL read does not read as an empty collection", () => {

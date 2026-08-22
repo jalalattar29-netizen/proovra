@@ -169,10 +169,61 @@ export function deriveParentCorrelation(
  * caller can pass that makes a parent resolution cascade into its children.
  * A child resolves when ITS Evidence recovers, and nothing else.
  */
+/**
+ * THE PARENT LIFECYCLE POLICY, stated once (closure pass, 2026-08-22).
+ *
+ * A parent is a convenience for the operator — "these four failed together
+ * because that provider was down" — and it is never a container that owns its
+ * children. The rules, in the order they matter:
+ *
+ *   1. ONE CHILD RESOLVES        the siblings are untouched. Each child
+ *                                resolves when ITS record recovers, and one
+ *                                record recovering says nothing about another.
+ *
+ *   2. THE PARENT RESOLVES       the children are untouched. Somebody closing
+ *                                "the provider outage" has made a statement
+ *                                about the provider, not about whether four
+ *                                specific records can now be proven.
+ *
+ *   3. ALL CHILDREN RESOLVE      the parent MAY resolve. This is the only
+ *                                direction that carries information, because
+ *                                the parent exists to summarise the children
+ *                                and an all-resolved summary is resolved.
+ *
+ * Rule 3 is deliberately permissive ("may") and evaluated by the caller: a
+ * parent whose provider incident is still open upstream should stay open even
+ * with every child recovered, and this module cannot know that.
+ */
+export function parentMayResolve(
+  childStatuses: ReadonlyArray<string>,
+): boolean {
+  // An empty parent is not a resolved parent — it is a parent with nothing
+  // under it, which should not have been created.
+  if (childStatuses.length === 0) return false;
+  return childStatuses.every(
+    (status) => status === "RESOLVED" || status === "SUPPRESSED",
+  );
+}
+
+/**
+ * And the converse of rule 1, stated as code: a sibling's recovery is not this
+ * child's recovery. Implemented as the identity function for the same reason
+ * `childStatusAfterParentTransition` is — there is no argument a caller can
+ * pass that makes one record's outcome decide another's.
+ */
+export function childStatusAfterSiblingTransition<T>(
+  childStatus: T,
+  // Deliberately unconsulted; named so the omission reads as intent.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _siblingStatus: string,
+): T {
+  return childStatus;
+}
+
 export function childStatusAfterParentTransition<T>(
   childStatus: T,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- deliberately
-  // unconsulted; named so the omission reads as intent.
+  // Deliberately unconsulted; named so the omission reads as intent.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _parentStatus: string,
 ): T {
   return childStatus;

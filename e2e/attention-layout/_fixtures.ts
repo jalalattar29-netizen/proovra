@@ -1,0 +1,470 @@
+/**
+ * THE SERVER, AS HOME / NOTIFICATIONS / OPERATIONS SEE IT.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS PROJECT EXISTS
+ * ---------------------------------------------------------------------------
+ * The Attention Architecture's responsive and accessibility claims were, until
+ * this pass, structural: assertions about source text. Source text cannot
+ * answer whether a queue row overflows at 390px, whether a severity chip is
+ * reachable by keyboard, whether an Arabic layout mirrors correctly, or
+ * whether a Free user's Home is actually populated. jsdom answers 0 to every
+ * geometry question and resolves no cascade, so a jsdom proof of any of those
+ * is a proof of nothing.
+ *
+ * So: a real Chromium, the real production bundle, the real stylesheet order,
+ * the real cascade — with the API intercepted, because none of those
+ * properties belong to the database. This is the same shape the repository's
+ * existing `search-layout`, `intake-links-layout` and `evidence-detail-layout`
+ * projects already use.
+ *
+ * ---------------------------------------------------------------------------
+ * FIXTURES ARE CONTRACT-SHAPED
+ * ---------------------------------------------------------------------------
+ * Every payload below matches what the route actually projects. Nothing is
+ * invented that the server could not send, and no production data is used.
+ */
+
+import type { Page } from "@playwright/test";
+
+import {
+  AUTHORITY_SCHEMA_VERSION,
+  CAPABILITY_SCHEMA_VERSION,
+  NAVIGATION_SCHEMA_VERSION,
+} from "../../apps/web/lib/platform-context/types";
+
+const WORKSPACE_ID = "44444444-4444-4444-8444-444444444444";
+const SELF_USER_ID = "user-self-0001";
+
+/**
+ * The contexts the acceptance matrix requires. Each is defined by the
+ * CAPABILITIES the server would resolve for it — never by a plan name, which
+ * is the same rule the product itself follows.
+ */
+export type AttentionContext =
+  | "personal-free"
+  | "personal-pro"
+  | "team-admin"
+  | "organization-admin"
+  | "viewer";
+
+type ContextShape = {
+  capabilities: Record<string, boolean>;
+  spaceType: "PERSONAL" | "ORGANIZATION";
+  plan: string;
+  enterprise: boolean;
+};
+
+const CONTEXTS: Record<AttentionContext, ContextShape> = {
+  // No condition-producing package, one operator: no workbench at all. Home
+  // must still be fully populated — that is the release-blocking property.
+  "personal-free": {
+    capabilities: { DASHBOARD_VIEW: true, EVIDENCE_VIEW: true },
+    spaceType: "PERSONAL",
+    plan: "FREE",
+    enterprise: false,
+  },
+  // Package produces conditions, but there is nobody to assign to.
+  "personal-pro": {
+    capabilities: {
+      DASHBOARD_VIEW: true,
+      EVIDENCE_VIEW: true,
+      OPERATIONS_VIEW: true,
+      OPERATIONS_ACKNOWLEDGE: true,
+      OPERATIONS_RESOLVE: true,
+      OPERATIONS_SUPPRESS: true,
+    },
+    spaceType: "PERSONAL",
+    plan: "PRO",
+    enterprise: false,
+  },
+  "team-admin": {
+    capabilities: {
+      DASHBOARD_VIEW: true,
+      EVIDENCE_VIEW: true,
+      OPERATIONS_VIEW: true,
+      OPERATIONS_ACKNOWLEDGE: true,
+      OPERATIONS_RESOLVE: true,
+      OPERATIONS_SUPPRESS: true,
+      OPERATIONS_ASSIGN: true,
+    },
+    spaceType: "ORGANIZATION",
+    plan: "TEAM",
+    enterprise: false,
+  },
+  "organization-admin": {
+    capabilities: {
+      DASHBOARD_VIEW: true,
+      EVIDENCE_VIEW: true,
+      OPERATIONS_VIEW: true,
+      OPERATIONS_ACKNOWLEDGE: true,
+      OPERATIONS_RESOLVE: true,
+      OPERATIONS_SUPPRESS: true,
+      OPERATIONS_ASSIGN: true,
+    },
+    spaceType: "ORGANIZATION",
+    plan: "ENTERPRISE",
+    enterprise: true,
+  },
+  // Sees the work, acts on none of it.
+  viewer: {
+    capabilities: {
+      DASHBOARD_VIEW: true,
+      EVIDENCE_VIEW: true,
+      OPERATIONS_VIEW: true,
+    },
+    spaceType: "ORGANIZATION",
+    plan: "TEAM",
+    enterprise: false,
+  },
+};
+
+export function envelopeFor(context: AttentionContext): Record<string, unknown> {
+  const shape = CONTEXTS[context];
+  return {
+    // The REAL accepted versions. An envelope carrying anything else is
+    // refused by `versionsAreCompatible`, and the shell then renders its
+    // unknown-projection state — which looks exactly like a layout bug.
+    authoritySchemaVersion: AUTHORITY_SCHEMA_VERSION,
+    capabilitySchemaVersion: CAPABILITY_SCHEMA_VERSION,
+    navigationSchemaVersion: NAVIGATION_SCHEMA_VERSION,
+    capabilities: shape.capabilities,
+    diagnostics: { requestId: `attention-${context}` },
+    workspace: {
+      id: WORKSPACE_ID,
+      name: shape.spaceType === "PERSONAL" ? "Personal Space" : "Meridian Legal",
+      status: "active",
+      // The envelope's workspace scope is TEAM | PERSONAL — the two-value
+      // legacy discriminator, distinct from the structural workspaceKind.
+      // A shared workspace is TEAM here whether it is OWNED or ORGANIZATION.
+      scope: shape.spaceType === "PERSONAL" ? "PERSONAL" : "TEAM",
+      plan: shape.plan,
+      membership: { role: context === "viewer" ? "VIEWER" : "OWNER" },
+    },
+    activeSpace: {
+      type: shape.spaceType,
+      id: WORKSPACE_ID,
+      displayName:
+        shape.spaceType === "PERSONAL" ? "Personal Space" : "Meridian Legal",
+      roleLabel: context === "viewer" ? "Viewer" : "Owner",
+      plan: shape.plan,
+    },
+    contextOptions: {
+      personalSpace: null,
+      ownedWorkspaces: [],
+      organizations: [],
+      activeContext: {
+        workspaceId: WORKSPACE_ID,
+        kind: shape.spaceType,
+        organizationId: null,
+        displayName: "Meridian Legal",
+      },
+    },
+    account: { accountPlan: shape.plan, accountStatus: "active" },
+    flags: { isEnterpriseWorkspace: shape.enterprise },
+    platform: { isPlatformAdmin: false },
+    planFeatures: {
+      intakeIncluded: shape.plan !== "FREE",
+      professionalSurfacesIncluded: shape.plan !== "FREE",
+    },
+    user: { id: SELF_USER_ID, email: "operator@example.invalid", name: "Operator" },
+  };
+}
+
+/**
+ * A workspace with REAL integrity problems.
+ *
+ * The Personal Free acceptance test requires TSA failures, OTS problems and
+ * integrity-review items to be present, so this is the shape every context
+ * gets — the point of the matrix is that the same data renders differently by
+ * capability, not that some contexts get an empty workspace.
+ */
+export const TRUST_SUMMARY = {
+  totalEvidence: 120,
+  tsa: { stamped: 80, pending: 6, failed: 34, none: 0 },
+  ots: { anchored: 96, pending: 10, failed: 4, none: 10 },
+  signed: 110,
+  endToEndReady: 62,
+  signedWithoutReport: 8,
+  reportedWithoutPackage: 5,
+  publicVerify: { published: 40, unpublished: 78, suspended: 2 },
+  needingAttention: 14,
+  intake: { submissionsAwaitingReview: 3, submissionsNeedingMoreInfo: 1 },
+};
+
+const OPS_SUMMARY = {
+  workspaceId: WORKSPACE_ID,
+  generatedAtUtc: "2026-08-22T12:00:00.000Z",
+  open: 7,
+  critical: 2,
+  high: 3,
+  warning: 2,
+  info: 0,
+  acknowledged: 1,
+  assignedToMe: 1,
+  overdue: 1,
+  complete: true,
+  mayAssertAllClear: true,
+  incompleteReason: null,
+};
+
+/** A deliberately hostile title: nobody would shorten this by hand. */
+const LONG_TITLE =
+  "Q4-incident-bundle-with-an-extremely-long-operator-supplied-filename-that-nobody-would-shorten-2026-08-20-final-v7-REVIEWED.zip";
+
+function incident(i: number, over: Record<string, unknown> = {}) {
+  return {
+    id: `55555555-5555-4555-8555-00000000000${i}`,
+    category: "EVIDENCE_INTEGRITY",
+    severity: i === 1 ? "CRITICAL" : i === 2 ? "HIGH" : "WARNING",
+    status: i === 3 ? "ACKNOWLEDGED" : "OPEN",
+    title:
+      i === 1
+        ? `RFC3161 timestamp missing for "${LONG_TITLE}"`
+        : `RFC3161 timestamp missing for record ${i}`,
+    safeSummary:
+      "This record has no RFC3161 timestamp: the timestamping provider was unreachable or timed out. It stays unresolved until the record's own tsaStatus leaves FAILED.",
+    fingerprint: `tsa_failure:evidence-0000000${i}`,
+    occurrenceCount: i,
+    firstSeenAtUtc: "2026-08-18T09:00:00.000Z",
+    lastSeenAtUtc: "2026-08-22T09:00:00.000Z",
+    requestId: null,
+    traceId: null,
+    relatedEvidenceId: `66666666-6666-4666-8666-00000000000${i}`,
+    relatedJobId: null,
+    relatedProvider: "freetsa",
+    runbookSlug: "evidence-integrity",
+    acknowledgedByUserId: null,
+    resolvedByUserId: null,
+    assignedOperatorUserId: i === 3 ? SELF_USER_ID : null,
+    assignedAtUtc: i === 3 ? "2026-08-22T10:00:00.000Z" : null,
+    ...over,
+  };
+}
+
+const NOTIFICATION_ITEMS = [1, 2, 3, 4, 5].map((i) => ({
+  id: `tsa_failure:evidence-0000000${i}`,
+  itemKey: `tsa_failure:evidence-0000000${i}`,
+  category: "tsa_failure",
+  tone: i === 1 ? "critical" : i === 2 ? "high" : "warning",
+  priority: "P1",
+  title: i === 1 ? `Timestamp failed — ${LONG_TITLE}` : `Timestamp failed for record ${i}`,
+  body: "Failed timestamping weakens time-based evidence confidence for this record.",
+  href: `/evidence/66666666-6666-4666-8666-00000000000${i}`,
+  occurredAt: "2026-08-22T09:00:00.000Z",
+  isRead: i > 3,
+  readAt: i > 3 ? "2026-08-22T10:00:00.000Z" : null,
+  dismissedAt: null,
+  snoozedUntil: null,
+  attention: {
+    readState: i > 3 ? "READ" : "UNREAD",
+    lifecycle: "ACTIVE",
+    remindAt: null,
+    deferred: false,
+  },
+  classification: {
+    channels: ["notification", "operational_condition"],
+    conditionAuthority: "evidence",
+    scope: "WORKSPACE",
+    countsAsWorkload: true,
+    sharedConditionFingerprint: `tsa_failure:evidence-0000000${i}`,
+  },
+  canMarkRead: true,
+  canDismiss: true,
+  canSnooze: true,
+  context: { teamId: WORKSPACE_ID, teamName: "Meridian Legal" },
+}));
+
+/**
+ * Intercept every route these three surfaces read.
+ *
+ * A route left unintercepted falls through to a server that does not exist in
+ * this project, and the page then renders its error state — which is
+ * indistinguishable from a layout failure and would make every assertion here
+ * meaningless.
+ */
+export async function installApi(
+  page: Page,
+  context: AttentionContext,
+): Promise<void> {
+  const json = (body: unknown) => ({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+  });
+
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+
+    if (path.endsWith("/v1/platform/context")) {
+      return route.fulfill(json(envelopeFor(context)));
+    }
+    if (path.endsWith("/v1/dashboard/trust-summary")) {
+      return route.fulfill(json(TRUST_SUMMARY));
+    }
+    if (path.endsWith("/v1/ops/summary")) {
+      // EVERY context reads this, including Personal Free: the endpoint is
+      // gated on the role-based `operations.view` permission, not on the
+      // OPERATIONS_VIEW capability that gates the workbench.
+      return route.fulfill(json({ summary: OPS_SUMMARY }));
+    }
+    if (path.endsWith("/v1/ops/incidents")) {
+      return route.fulfill(
+        json({
+          incidents: [1, 2, 3, 4].map((i) => incident(i)),
+          pagination: { nextCursor: null, returned: 4 },
+          completeness: { complete: true, mayAssertAllClear: true },
+        }),
+      );
+    }
+    if (path.endsWith("/v1/ops/assignable-operators")) {
+      return route.fulfill(
+        json({
+          operators: [
+            { userId: SELF_USER_ID, displayName: "Operator", email: "operator@example.invalid", role: "ADMIN" },
+            { userId: "user-peer-0002", displayName: "Dana Reviewer", email: "dana@example.invalid", role: "REVIEWER" },
+          ],
+          selfUserId: SELF_USER_ID,
+        }),
+      );
+    }
+    if (path.endsWith("/v1/ops/health")) {
+      return route.fulfill(
+        json({
+          ok: true,
+          database: "ok",
+          observability: { enabled: true, provider: "none", ready: true },
+          alerts: { provider: "none", ready: true },
+          incidents: { openTotal: 7, openHigh: 3, openCritical: 2 },
+          violations: [],
+          snapshot: {
+            isProduction: false,
+            database: { configured: true },
+            communications: { configured: true },
+            identitySecurity: { configured: true },
+            notifications: { configured: true },
+            ai: { configured: true },
+            integrations: { configured: true },
+          },
+        }),
+      );
+    }
+    if (path.endsWith("/v1/ops/metrics")) {
+      return route.fulfill(json({ metrics: { uptimeSeconds: 1000, counters: {}, gauges: {} } }));
+    }
+    if (path.includes("/v1/me/inbox/summary")) {
+      return route.fulfill(
+        json({
+          unread: 3,
+          critical: 1,
+          high: 1,
+          assignedToMe: 0,
+          overdue: 0,
+          total: 5,
+          hasTruncatedSources: false,
+          degraded: false,
+          degradedSources: [],
+          completeness: {
+            anyIncomplete: false,
+            incompleteSources: [],
+            mayAssertAllClear: true,
+          },
+          generatedAtUtc: "2026-08-22T12:00:00.000Z",
+          workspaceId: WORKSPACE_ID,
+        }),
+      );
+    }
+    if (path.includes("/v1/me/inbox")) {
+      return route.fulfill(
+        json({
+          generatedAt: "2026-08-22T12:00:00.000Z",
+          caller: { userId: SELF_USER_ID, email: "operator@example.invalid", displayName: "Operator" },
+          summary: {
+            total: NOTIFICATION_ITEMS.length,
+            byTone: { critical: 1, high: 1, warning: 3, info: 0 },
+            byCategory: {},
+            byPriority: { P1: 5, P2: 0, P3: 0, P4: 0, P5: 0 },
+          },
+          scopeSummary: {
+            total: NOTIFICATION_ITEMS.length,
+            unread: 3,
+            workload: 5,
+            guidance: 0,
+            byTone: { critical: 1, high: 1, warning: 3, info: 0 },
+            byCategory: { tsa_failure: 5 },
+            deadlines: { dueSoon: 0, overdue: 0 },
+          },
+          truncated: {},
+          anyTruncated: false,
+          completeness: {
+            bySource: {},
+            anyIncomplete: false,
+            incompleteSources: [],
+            mayAssertAllClear: true,
+          },
+          pagination: {
+            offset: 0,
+            pageSize: 25,
+            returned: NOTIFICATION_ITEMS.length,
+            nextCursor: null,
+            totalEstimate: NOTIFICATION_ITEMS.length,
+            totalIsExact: true,
+            appliedFilter: "all",
+            appliedTone: null,
+          },
+          items: NOTIFICATION_ITEMS,
+        }),
+      );
+    }
+    // Everything else Home fans out to: an empty-but-valid envelope keeps the
+    // page in its ready state instead of its error state.
+    return route.fulfill(json({ items: [], data: null }));
+  });
+
+  // The session probe the app shell makes before anything renders.
+  await page.route("**/auth/**", (route) =>
+    route.fulfill(json({ user: { id: SELF_USER_ID, email: "operator@example.invalid" } })),
+  );
+}
+
+/** Flip the document direction and wait for the reflow the assertions read. */
+export async function setDirection(page: Page, dir: "ltr" | "rtl"): Promise<void> {
+  await page.evaluate((d) => {
+    document.documentElement.setAttribute("dir", d);
+    document.documentElement.setAttribute("lang", d === "rtl" ? "ar" : "en");
+  }, dir);
+  await page.evaluate(
+    () => new Promise((r) => requestAnimationFrame(() => r(null))),
+  );
+}
+
+/**
+ * The required viewport matrix.
+ *
+ * `reflow-200` is the accessibility 200%-zoom requirement expressed the way
+ * WCAG 1.4.10 actually defines it: content must reflow into a 320 CSS-pixel
+ * wide viewport without a second scroll direction. A 1280px viewport at 200%
+ * zoom IS a 640px CSS viewport; 320px is the stricter end of the same rule and
+ * is what a 640px-wide window at 200% produces. Chromium's `deviceScaleFactor`
+ * does not change CSS pixel width, so shrinking the viewport is the correct
+ * emulation — and it is the method WCAG describes.
+ */
+export const VIEWPORTS = [
+  { name: "desktop-1440", width: 1440, height: 900 },
+  { name: "laptop-1280", width: 1280, height: 800 },
+  { name: "tablet-landscape-1024", width: 1024, height: 768 },
+  { name: "tablet-768", width: 768, height: 1024 },
+  { name: "mobile-390", width: 390, height: 844 },
+  { name: "mobile-375", width: 375, height: 812 },
+  { name: "reflow-200", width: 320, height: 800 },
+] as const;
+
+/** Does the PAGE scroll horizontally? The one thing that must never happen. */
+export async function hasHorizontalOverflow(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const doc = document.documentElement;
+    // 1px of tolerance for sub-pixel rounding in the layout engine.
+    return doc.scrollWidth - doc.clientWidth > 1;
+  });
+}

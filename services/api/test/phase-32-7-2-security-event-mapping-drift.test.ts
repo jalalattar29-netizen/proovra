@@ -1058,6 +1058,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // name, like every entry above, so the allowlist never becomes a
       // pattern.
       "20271216000000_evidence_integrity_incident_category",
+      // ATTENTION ARCHITECTURE CLOSURE PASS (2026-08-22). Adds the nullable
+      // evidence.integrity_correlation_id column that carries a deliberate
+      // multi-record execution identity. Nothing to do with Phase 32.7.2;
+      // permitted by exact name, like every entry above.
+      "20271217000000_evidence_integrity_correlation",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -41,6 +41,14 @@ const INTAKE_LAYOUT_BASE = `http://127.0.0.1:${INTAKE_LAYOUT_PORT}`;
 const EVIDENCE_LAYOUT_PORT = 3013;
 const EVIDENCE_LAYOUT_BASE = `http://127.0.0.1:${EVIDENCE_LAYOUT_PORT}`;
 
+/**
+ * The Attention Architecture responsive / a11y / RTL gate serves its own
+ * production build here, on its own port, for the same reason the three
+ * projects above do.
+ */
+const ATTENTION_LAYOUT_PORT = 3013;
+const ATTENTION_LAYOUT_BASE = `http://127.0.0.1:${ATTENTION_LAYOUT_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   // Phase 1 tests are deliberately small and serial — they share an
@@ -151,13 +159,36 @@ export default defineConfig({
         baseURL: EVIDENCE_LAYOUT_BASE,
       },
     },
+    /**
+     * ATTENTION ARCHITECTURE — the responsive / accessibility / RTL gate for
+     * Home, Notifications and Operations.
+     *
+     * Same reasoning as the three projects above: every property it measures
+     * is a GEOMETRY or a FOCUS property, so the API is intercepted and only
+     * the web tier is real. Source inspection cannot answer whether a queue
+     * row overflows at 320px, whether a severity chip takes keyboard focus,
+     * or whether the Arabic layout clips — and jsdom answers 0 to all three.
+     *
+     * It also carries the PRODUCT acceptance the closure pass requires:
+     * whether a Personal Free user's Home is actually populated with the
+     * integrity information they own. That is a rendering question, and it is
+     * release-blocking.
+     */
+    {
+      name: "attention-layout",
+      testDir: "./e2e/attention-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: ATTENTION_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
    *
    * `next start` rather than `next dev`: these gates measure the bundle the
    * product ships. Opt-in via `SEARCH_LAYOUT=1` / `INTAKE_LAYOUT=1` /
-   * `EVIDENCE_LAYOUT=1` so the
+   * `EVIDENCE_LAYOUT=1` / `ATTENTION_LAYOUT=1` so the
    * Phase-1 and Point-7 projects, which bring their own stacks, never start a
    * second web server on top of the one they already run.
    */
@@ -189,6 +220,17 @@ export default defineConfig({
           {
             command: `pnpm --filter proovra-web exec next start -p ${EVIDENCE_LAYOUT_PORT} -H 127.0.0.1`,
             url: `${EVIDENCE_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
+    ...(process.env.ATTENTION_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${ATTENTION_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${ATTENTION_LAYOUT_BASE}/login`,
             reuseExistingServer: true,
             timeout: 180_000,
             env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },

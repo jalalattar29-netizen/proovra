@@ -782,3 +782,79 @@
   font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
+
+/* ===========================================================================
+   OPERATIONS ASSIGNMENT CONTROL (Attention Architecture closure pass).
+
+   A native <select> over a custom listbox, deliberately: keyboard operable,
+   screen-reader announced and mobile-native without reimplementation. The
+   cluster wraps, so a queue row survives 390px and 200% reflow instead of
+   pushing the table into horizontal overflow.
+   =========================================================================== */
+
+.ops-assignment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  /* A CONTAINING BLOCK, not decoration.
+     `.ops-visually-hidden` below is `position: absolute`. Without a
+     positioned ancestor its containing block is the initial one, so it is
+     laid out at its static position but escapes the enclosing table's
+     `overflow-x: auto` scroll container entirely — and a 1px box sitting
+     at x=517 inside a 375px viewport makes the whole DOCUMENT scroll
+     sideways. A real browser at 375px found this; no source-shape test
+     could have. Positioning the wrapper puts the hidden label back inside
+     the surface that is supposed to clip it. */
+  position: relative;
+}
+
+.ops-assignment__label {
+  font: var(--font-label);
+  color: var(--ink-secondary);
+}
+
+.ops-assignment__select {
+  font: var(--font-body);
+  color: var(--ink-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-input, 6px);
+  padding: 0.2rem 0.4rem;
+  max-width: 16rem;
+}
+
+.ops-assignment__select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ops-assignment__select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Available to assistive technology, absent from the visual layout. Not
+   `display:none`, which would remove it from the accessibility tree too. */
+.ops-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+[data-ops-assignment-error] {
+  font: var(--font-label);
+  color: var(--ops-tone-critical);
+}
+
+[data-ops-assignment-busy] {
+  font: var(--font-label);
+  color: var(--ink-secondary);
+}

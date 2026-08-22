@@ -278,14 +278,21 @@ describe("Phase 32.8C control plane — assignIncident action", () => {
     const block = INCIDENT_SVC.match(/export async function assignIncident[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/emitTenantAudit\(/);
-    expect(block![0]).toMatch(/action:\s*"observability\.incident\.assigned"/);
+    expect(block![0]).toMatch(// CONTRACT MIGRATION — closure pass (2026-08-22). The action is now chosen
+    // by the transition: unassign is a real operation and deserves its own
+    // audit verb rather than being logged as an assignment to nobody. The
+    // assigned branch is unchanged and still asserted.
+    /action: isUnassign\s*\n?\s*\? "observability\.incident\.unassigned"\s*\n?\s*: "observability\.incident\.assigned"/);
   });
 
   it("assignIncident emits an OperationalIncidentEvent history row", () => {
     const block = INCIDENT_SVC.match(/export async function assignIncident[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/operationalIncidentEvent\.create/);
-    expect(block![0]).toMatch(/eventType:\s*"assigned"/);
+    expect(block![0]).toMatch(// CONTRACT MIGRATION — closure pass (2026-08-22). Same reason: the history
+    // row names which transition happened, so "who gave this up, and when" is
+    // answerable and not merely absent.
+    /eventType: isUnassign \? "unassigned" : "assigned"/);
   });
 
   it("assignIncident bumps the operational_incident_assigned counter", () => {
@@ -341,7 +348,20 @@ describe("Phase 32.8C control plane — routes", () => {
   it("assign route enforces workspace membership on the assignee", () => {
     const block = OPS_ROUTES.match(/app\.post\(\s*"\/v1\/ops\/incidents\/:id\/assign"[\s\S]*?\}\s*,\s*\)/);
     expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/prisma\.teamMember\.findFirst/);
+    expect(block![0]).toMatch(// CONTRACT MIGRATION — closure pass (2026-08-22).
+    //
+    // The INVARIANT is unchanged and is now STRICTER: the assignee must
+    // belong to this workspace. What changed is that mere membership is no
+    // longer enough. `prisma.teamMember.findFirst({ teamId, userId })` had NO
+    // status predicate, so a SUSPENDED or REVOKED member — or one whose
+    // temporary access had lapsed — was assignable, and the condition then
+    // looked owned while nobody could act on it.
+    //
+    // `isAssignableOperator` is the canonical resolver that also powers the
+    // picker, so the set shown and the set accepted cannot drift, and
+    // cross-workspace assignment is refused by construction because the
+    // resolver is scoped to teamId.
+    /isAssignableOperator\(\{/);
     expect(block![0]).toMatch(/invalid_assignee/);
   });
 

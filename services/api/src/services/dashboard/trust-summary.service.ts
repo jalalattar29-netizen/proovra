@@ -87,6 +87,22 @@ export type TrustSummary = {
    * verificationStatus IN ('REVIEW_REQUIRED','FAILED').
    */
   needingAttention: number;
+  /**
+   * CLOSURE PASS (2026-08-22) — INTAKE, from the intake domain's own rows.
+   *
+   * Home rendered these two counts from the caller's /v1/me/inbox feed, which
+   * made a workspace fact move when one person archived a notification, and
+   * capped it at the feed's per-category take so a busy workspace
+   * under-reported. `EvidenceRequest` is the authority the intake domain
+   * already owns; these are the same predicates the notification aggregator
+   * uses, counted here without a cap and without a recipient.
+   */
+  intake: {
+    /** RESPONSE_RECEIVED | UNDER_REVIEW with no reviewer claimed. */
+    submissionsAwaitingReview: number;
+    /** PARTIALLY_FULFILLED | NEEDS_MORE_INFO — the submission is incomplete. */
+    submissionsNeedingMoreInfo: number;
+  };
 };
 
 /** Map a raw Evidence.tsaStatus string to a coarse bucket. */
@@ -135,6 +151,8 @@ export async function buildTrustSummary(input: {
     endToEndReady,
     signedWithoutReport,
     reportedWithoutPackage,
+    submissionsAwaitingReview,
+    submissionsNeedingMoreInfo,
   ] = await Promise.all([
       prisma.evidence.groupBy({
         by: ["tsaStatus"],
@@ -192,6 +210,23 @@ export async function buildTrustSummary(input: {
           verificationPackages: { none: {} },
         },
       }),
+      // INTAKE — the same predicates the notification aggregator emits
+      // `intake_submission_pending_review` and
+      // `intake_required_items_missing` from, counted over the WORKSPACE
+      // rather than over one recipient's capped feed slice.
+      prisma.evidenceRequest.count({
+        where: {
+          teamId: input.teamId,
+          status: { in: ["RESPONSE_RECEIVED", "UNDER_REVIEW"] },
+          assignedReviewerUserId: null,
+        },
+      }),
+      prisma.evidenceRequest.count({
+        where: {
+          teamId: input.teamId,
+          status: { in: ["PARTIALLY_FULFILLED", "NEEDS_MORE_INFO"] },
+        },
+      }),
     ]);
 
   const tsa = { stamped: 0, pending: 0, failed: 0, none: 0 };
@@ -222,5 +257,6 @@ export async function buildTrustSummary(input: {
     reportedWithoutPackage,
     publicVerify,
     needingAttention,
+    intake: { submissionsAwaitingReview, submissionsNeedingMoreInfo },
   };
 }

@@ -1157,7 +1157,6 @@ export type CommandCenterEnvelope = {
 // Bounded limits
 // ---------------------------------------------------------------------------
 
-const PRESSURE_PER_KIND = 6;
 const PRESSURE_TOTAL = 32;
 const TOP_CASES_LIMIT = 8;
 const TOP_REVIEWERS_LIMIT = 8;
@@ -1185,12 +1184,6 @@ const SEVERITY_FROM_INCIDENT: Record<string, SeverityTone> = {
   INFO: "info",
 };
 
-const SEVERITY_RANK: Record<SeverityTone, number> = {
-  critical: 4,
-  high: 3,
-  warning: 2,
-  info: 1,
-};
 
 // ---------------------------------------------------------------------------
 // Personal vs team detection

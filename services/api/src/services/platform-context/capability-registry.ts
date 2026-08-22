@@ -371,7 +371,28 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
       map.OPERATIONS_RESOLVE = true;
     }
     if (isAdmin) {
-      map.OPERATIONS_ASSIGN = true;
+      // CLOSURE PASS (2026-08-22) — ASSIGNMENT NEEDS SOMEBODY TO ASSIGN TO.
+      //
+      // This was granted to every admin of any operating workspace, which
+      // handed a SOLE OPERATOR a person picker containing exactly themselves.
+      // "Assign this to you" is not a decision, and a control whose only
+      // option is the person already looking at it is noise on a triage
+      // surface — the Personal Pro investigator's console should simply not
+      // have an owner column.
+      //
+      // `workspaceIsShared` is the same signal that already qualifies a
+      // workspace for Operations at all, so the single-operator shape falls
+      // out of one derived boolean rather than a plan branch or an
+      // `isPersonal` check in the UI. The moment a second operator joins,
+      // routing work between them becomes meaningful and the capability
+      // appears — with no code change and no plan involved.
+      //
+      // SUPPRESS is NOT conditioned on sharing: deciding a workspace stops
+      // being told about unresolved work is an equally real decision whether
+      // one person or ten will stop seeing it.
+      if (workspaceIsShared) {
+        map.OPERATIONS_ASSIGN = true;
+      }
       map.OPERATIONS_SUPPRESS = true;
     }
   }

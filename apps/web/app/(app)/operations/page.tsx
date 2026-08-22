@@ -24,8 +24,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import {
+  useActiveWorkspaceId,
   usePlatformContext,
-  useTeamWorkspaceGate,
 } from "../../../lib/platform-context";
 import type { CapabilityKey } from "../../../lib/platform-context/types";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
@@ -44,6 +44,7 @@ import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { OperationsIntelligencePanel } from "../../../components/ai-copilot/OperationsIntelligencePanel";
+import { IncidentAssignmentControl } from "../../../components/operations/IncidentAssignmentControl";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -113,6 +114,9 @@ type Incident = {
   relatedJobId: string | null;
   relatedProvider: string | null;
   runbookSlug: string | null;
+  /** CLOSURE PASS — the current owner, now projected by the API. */
+  assignedOperatorUserId: string | null;
+  assignedAtUtc: string | null;
 };
 
 type Health = {
@@ -171,11 +175,27 @@ export default function OpsPage() {
 }
 
 function OpsPageInner() {
-  // Phase 32.8 Foundation cleanup — read team-scoped workspace from
-  // the canonical platform context. No /v1/users/me, no /v1/teams.
-  const workspace = useTeamWorkspaceGate();
-  const teamId =
-    workspace.status === "ready" ? workspace.workspaceId : null;
+  // =========================================================================
+  // CLOSURE PASS (2026-08-22) — PERSONAL WORKSPACES REACH OPERATIONS TOO.
+  //
+  // This read `useTeamWorkspaceGate()`, which refuses any workspace whose
+  // scope is not TEAM and returns `no-workspace`. The console then rendered
+  // "No workspace selected — switch to a workspace to use the operations
+  // center" for every PERSONAL workspace.
+  //
+  // That silently cancelled the Phase-4B unlock for the exact context it was
+  // written for. A solo Pro investigator IS granted OPERATIONS_VIEW — their
+  // package produces conditions — and the route gate lets them through, and
+  // then the page told them to switch to a workspace they are already in.
+  // A real browser found it; no source-shape test could have, because every
+  // line involved was individually correct.
+  //
+  // `useActiveWorkspaceId` is the canonical personal-aware resolver: after
+  // the personal-workspace bootstrap every authenticated user has a real Team
+  // row, so there is a workspace id here in both modes. What a caller may
+  // actually DO with it stays decided by the capabilities below.
+  // =========================================================================
+  const teamId = useActiveWorkspaceId();
 
   // =========================================================================
   // ATTENTION ARCHITECTURE PHASE 6 (2026-08-22) — CAPABILITY-AWARE ACTIONS.
@@ -209,10 +229,15 @@ function OpsPageInner() {
   // assignment control on this console today, so the binding is unused — and
   // it is kept rather than deleted because deleting it is how the next person
   // adds an assignment button gated on a role-name comparison instead.
-  const _canAssign = capabilities.OPERATIONS_ASSIGN === true;
+  const canAssign = capabilities.OPERATIONS_ASSIGN === true;
   // A VIEWER holds OPERATIONS_VIEW and nothing else: they see the work and
   // the row action column simply is not drawn for them.
-  const canActOnAnything = canAcknowledge || canResolve || canSuppress;
+  //
+  // Assignment counts as acting, so it opens the column too — a workspace
+  // whose operators may hand work around but not close it is unusual, and
+  // silently hiding their one available action would be wrong.
+  const canActOnAnything =
+    canAcknowledge || canResolve || canSuppress || canAssign;
 
   // Phase 32.6.4 — per-panel independent state. A 503 from any one
   // of (health / incidents / metrics) MUST NOT blank the other two
@@ -229,6 +254,16 @@ function OpsPageInner() {
   const [busy, setBusy] = useState(false);
   /** PHASE 2.2 — did the incident list reach the end of the collection? */
   const [incidentsComplete, setIncidentsComplete] = useState(true);
+  /**
+   * CLOSURE PASS — a bump token so an assignment refreshes the queue.
+   *
+   * Assignment changes a row the server owns, so the console re-reads rather
+   * than patching local state: an optimistic write here could disagree with
+   * what the server accepted (it re-checks eligibility), and a queue that
+   * shows an owner the backend refused is the worst possible outcome for a
+   * surface whose job is telling you who has what.
+   */
+  const [reloadToken, setReloadToken] = useState(0);
   const [lastCheckedAtUtc, setLastCheckedAtUtc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -298,7 +333,7 @@ function OpsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [teamId, status, severity]);
+  }, [teamId, status, severity, reloadToken]);
 
   // Bounded helpers — JSX reads from these instead of hand-rolling
   // every `panel.status === "ready" ? … : …` ternary.
@@ -437,15 +472,16 @@ function OpsPageInner() {
         />
       }
     >
-      {workspace.status === "loading" ? (
-        <p style={mutedStyle}>Loading workspace…</p>
-      ) : workspace.status === "error" ? (
-        <Card variant="status" tone="risk">
-          <div style={{ color: "var(--status-risk-fg, #991b1b)" }}>
-            {workspace.message}
-          </div>
-        </Card>
-      ) : !teamId ? (
+      {/*
+          CLOSURE PASS (2026-08-22) — the loading/error branches read
+          `useTeamWorkspaceGate()`'s state machine, which this page no longer
+          uses. The envelope's own state is the authority, and it is the same
+          state `PageRouteGate` above already resolved: by the time this
+          renders, the context has loaded or the gate has refused. The only
+          remaining case worth its own branch is "loaded, but no workspace",
+          which is genuinely reachable for an account mid-bootstrap.
+      */}
+      {!teamId ? (
         <Card>
           <EmptyState
             compact
@@ -684,8 +720,25 @@ function OpsPageInner() {
                             display: "inline-flex",
                             gap: 6,
                             justifyContent: "flex-end",
+                            alignItems: "center",
+                            flexWrap: "wrap",
                           }}
                         >
+                          {/* Ownership first: "who has this" is the question an
+                              operator scanning a queue asks before "what can I
+                              do to it". Rendered for every row the caller can
+                              act on, including read-only ownership display for
+                              those who may see but not reassign. */}
+                          {teamId ? (
+                            <IncidentAssignmentControl
+                              incidentId={i.id}
+                              teamId={teamId}
+                              assignedOperatorUserId={i.assignedOperatorUserId}
+                              canAssign={canAssign}
+                              busy={busy}
+                              onAssigned={() => setReloadToken((n) => n + 1)}
+                            />
+                          ) : null}
                           {canAcknowledge && i.status === "OPEN" ? (
                             <Button
                               size="sm"

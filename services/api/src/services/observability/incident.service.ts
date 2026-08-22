@@ -253,11 +253,26 @@ export async function suppressIncident(
  * Does NOT change `status`. Audited via the platform audit log. Idempotent:
  * re-assigning to the same operator updates `assignedAtUtc` only.
  */
+/**
+ * Assign, REASSIGN or UNASSIGN a condition's operator.
+ *
+ * CLOSURE PASS (2026-08-22) — `assigneeUserId: null` is UNASSIGN.
+ *
+ * One column, one transition, one authorization path. A separate /unassign
+ * endpoint would have given the same state change a second gate to keep in
+ * step with this one, which is how the two drift.
+ *
+ * ATTRIBUTION SURVIVES. Unassigning clears the CURRENT owner and leaves the
+ * history intact: the `assigned` / `unassigned` events stay on the incident,
+ * so "who had this, and when did they give it up" is still answerable after
+ * the person has left the workspace entirely.
+ */
 export async function assignIncident(
   input: {
     incidentId: string;
     teamId: string;
-    assigneeUserId: string;
+    /** NULL unassigns. */
+    assigneeUserId: string | null;
   } & IncidentActorContext,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalIncident> {
@@ -265,20 +280,28 @@ export async function assignIncident(
     where: { id: input.incidentId, teamId: input.teamId },
   });
   if (!existing) throw new IncidentError("incident_not_found");
+  // Captured BEFORE the write, so the audit event can record what the
+  // assignment actually changed rather than only where it landed.
+  const previousAssigneeUserId = existing.assignedOperatorUserId;
+  const isUnassign = input.assigneeUserId === null;
   const updated = await client.operationalIncident.update({
     where: { id: existing.id },
     data: {
       assignedOperatorUserId: input.assigneeUserId,
-      assignedByUserId: input.actorUserId,
-      assignedAtUtc: new Date(),
+      // On unassign the actor and timestamp are cleared too: leaving them
+      // would render as "assigned by X at T" beside an empty owner.
+      assignedByUserId: isUnassign ? null : input.actorUserId,
+      assignedAtUtc: isUnassign ? null : new Date(),
     },
   });
   try {
     await client.operationalIncidentEvent.create({
       data: {
         incidentId: updated.id,
-        eventType: "assigned",
-        safeMessage: `Incident assigned to operator ${input.assigneeUserId.slice(0, 8)}.`,
+        eventType: isUnassign ? "unassigned" : "assigned",
+        safeMessage: isUnassign
+          ? "Condition returned to the unassigned queue."
+          : `Condition assigned to operator ${input.assigneeUserId!.slice(0, 8)}.`,
       },
     });
   } catch {
@@ -288,7 +311,9 @@ export async function assignIncident(
 
   await emitTenantAudit(
     {
-      action: "observability.incident.assigned",
+      action: isUnassign
+        ? "observability.incident.unassigned"
+        : "observability.incident.assigned",
       outcome: "success",
       sourceApp: "API",
       actorUserId: input.actorUserId,
@@ -296,7 +321,10 @@ export async function assignIncident(
       resourceType: "operational_incident",
       resourceId: updated.id,
       metadata: {
+        // The full transition, so the audit answers "who moved this, from
+        // whom, to whom" rather than only naming the destination.
         assigneeUserId: input.assigneeUserId,
+        previousAssigneeUserId,
         fingerprint: existing.fingerprint,
         severity: existing.severity,
         category: existing.category,
@@ -486,6 +514,19 @@ export type IncidentProjection = {
   runbookSlug: string | null;
   acknowledgedByUserId: string | null;
   resolvedByUserId: string | null;
+  /**
+   * CLOSURE PASS (2026-08-22) — the CURRENT owner, exposed so the console can
+   * render it. It was persisted and never projected, which is why the
+   * assignment feature was invisible: the capability existed, the write path
+   * existed, and no surface could show who held anything.
+   *
+   * NULL means unassigned. A user who has since left the workspace still
+   * appears here until somebody reassigns — the historical attribution in the
+   * incident's event log is the record of what happened, and this column is
+   * the record of what is true now.
+   */
+  assignedOperatorUserId: string | null;
+  assignedAtUtc: string | null;
 };
 
 export function projectIncident(
@@ -510,6 +551,8 @@ export function projectIncident(
     runbookSlug: i.runbookSlug,
     acknowledgedByUserId: i.acknowledgedByUserId,
     resolvedByUserId: i.resolvedByUserId,
+    assignedOperatorUserId: i.assignedOperatorUserId,
+    assignedAtUtc: i.assignedAtUtc ? i.assignedAtUtc.toISOString() : null,
   };
 }
 

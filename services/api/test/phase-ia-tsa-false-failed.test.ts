@@ -278,7 +278,13 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
 
   it("the update + custody event happen in a single Prisma transaction", () => {
     expect(SCRIPT).toMatch(
-      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,800}tx\.evidence\.update[\s\S]{0,800}appendCustodyEventTx/,
+      // WINDOW WIDENED — Attention Architecture closure pass (2026-08-22).
+      // The transaction is unchanged and still asserted in full; the update
+      // simply grew a field. `integrityCorrelationId` records the identity of
+      // this deliberate multi-record execution so genuinely correlated
+      // failures can form a parent, and the extra lines pushed
+      // `appendCustodyEventTx` past the old 800-char window.
+      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,1600}tx\.evidence\.update[\s\S]{0,1600}appendCustodyEventTx/,
     );
   });
 

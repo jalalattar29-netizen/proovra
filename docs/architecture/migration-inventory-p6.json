@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 237,
-    "classifiedMigrations": 237,
+    "filesystemMigrations": 238,
+    "classifiedMigrations": 238,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 237,
+    "productionSnapshotUnknown": 238,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 237,
-    "classifiedMigrations": 237,
+    "filesystemMigrations": 238,
+    "classifiedMigrations": 238,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 237,
+    "productionSnapshotUnknown": 238,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 23,
+      "EXPAND": 24,
       "BACKFILL": 16,
       "CONTRACT_DROP": 10,
       "REPAIR": 3
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 29,
+      "SAFE_TO_APPLY_NOW": 30,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 237
+    "ProductionMigrationStateUnknown": 238
   },
   "gateFailures": [],
   "migrations": [
@@ -18752,7 +18752,7 @@
       "checksumSha256": "dad9914d739fe3f376d7c4f486f2f71a6b29e1cc689630f5a8e5b79da556c12f",
       "checksumSha256Raw": "dad9914d739fe3f376d7c4f486f2f71a6b29e1cc689630f5a8e5b79da556c12f",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -18804,8 +18804,73 @@
       "evidence": "ATTENTION ARCHITECTURE PHASE 3 — adds EVIDENCE_INTEGRITY to IncidentCategory so per-Evidence RFC3161/OpenTimestamps failures become first-class operational conditions in the EXISTING operational_incidents authority rather than a parallel model. ADD VALUE IF NOT EXISTS is additive and idempotent: no table is created, no column changes type, no existing row is rewritten, and code that never emits the value behaves identically — so it is safe to apply before the code that uses it. Deliberately NOT accompanied by a backfill: opening conditions for historically failed evidence would stamp first_seen_at_utc with the migration clock, which feeds the age-based severity escalation and would manufacture a wave of CRITICALs out of a schema change."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271217000000_evidence_integrity_correlation",
       "order": 236,
+      "sqlPresent": true,
+      "byteLength": 2248,
+      "checksumSha256": "529b9bbc397e9b6cc2d035669287f1d4b2994dd5043a5dee2ff1eb1fc8b505ba",
+      "checksumSha256Raw": "529b9bbc397e9b6cc2d035669287f1d4b2994dd5043a5dee2ff1eb1fc8b505ba",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence"
+        ],
+        "addedColumns": [
+          "integrity_correlation_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "evidence_integrity_correlation_id_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "ATTENTION ARCHITECTURE CLOSURE PASS — adds the nullable evidence.integrity_correlation_id column plus a partial index over its non-null rows. It carries the identity of a DELIBERATE MULTI-RECORD EXECUTION (a repair run), which is the one positive correlator the TSA/OTS pipelines can honestly produce: ordinary work is one BullMQ job per Evidence, so normal failures are independent and the column stays NULL. Purely additive — no table, no type change, no constraint, no row rewritten, and destructiveStatements is empty. Deliberately NO BACKFILL: historical failures have no recorded execution, and deriving one from failure reason, provider, workspace or timestamp would manufacture exactly the grouping the retracted TSA finding forbids. A build that never reads the column behaves identically, so it is safe to apply before the code that uses it."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 237,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

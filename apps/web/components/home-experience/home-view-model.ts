@@ -92,6 +92,20 @@ export const HOME_TSA_FAILURES_HREF = "/evidence?tsaStatus=FAILED,REJECTED,ERROR
 export const HOME_OTS_PENDING_HREF = "/evidence?otsStatus=PENDING,UPGRADING,QUEUED";
 
 /**
+ * Records where `otsStatus` falls in the `otsBucket("failed")` union
+ * (FAILED | ERRORED | ERROR, trust-summary.service.ts:105) — the SAME union
+ * the canonical `trust.otsFailed` aggregate counts.
+ *
+ * CLOSURE PASS (2026-08-22). The terminal-anchoring priority used to link to
+ * the notification list, which is not a place anybody can fix an unanchored
+ * record. It now links here, to exactly the records the count describes, so
+ * the number on Home and the rows behind the link are the same population by
+ * construction rather than by coincidence.
+ */
+export const HOME_ANCHORING_FAILURES_HREF =
+  "/evidence?otsStatus=FAILED,ERRORED,ERROR";
+
+/**
  * Records where verification is not yet public (NOT_PUBLISHED or
  * UNPUBLISHED — both fold into the `publicVerify.unpublished` count).
  */
@@ -938,6 +952,19 @@ export type HomeCommandCenterInput = {
 
 export type HomeTrustSummaryInput = {
   totalEvidence?: number;
+  /**
+   * CLOSURE PASS (2026-08-22) — CANONICAL INTAKE COUNTS.
+   *
+   * `submissionsAwaitingReview` used to be counted out of the caller's own
+   * /v1/me/inbox items, which made a workspace fact move when that one person
+   * archived a notification and capped it at the feed's per-category take.
+   * These come from `EvidenceRequest`, the intake domain's own rows, over the
+   * whole workspace and with no recipient in the predicate.
+   */
+  intake?: {
+    submissionsAwaitingReview?: number;
+    submissionsNeedingMoreInfo?: number;
+  };
   tsa?: { stamped?: number; pending?: number; failed?: number; none?: number };
   ots?: { anchored?: number; pending?: number; failed?: number; none?: number };
   /**
@@ -1833,7 +1860,6 @@ function buildWorkspacePriorities(args: {
   submissionsCount: number;
   collectionStats: CollectionStats;
   reportCount: number;
-  criticalFailuresCount: number;
   mattersNeedingWork: number;
   reportsReady: number;
   storage: StorageUsage | null;
@@ -1871,18 +1897,37 @@ function buildWorkspacePriorities(args: {
       derivedFrom: ["dashboard/trust-summary.tsa.failed"],
     });
   }
-  if (args.criticalFailuresCount > 0) {
+  if (args.trust.otsFailed > 0) {
+    // ==================================================================
+    // CLOSURE PASS (2026-08-22) — THIS ROW STOPPED READING THE MAILBOX.
+    //
+    // It counted `needsFixing.filter(critical).length`, and `needsFixing`
+    // is built from the caller's own `/v1/me/inbox` items — its own
+    // `derivedFrom` said so: "me/inbox.category=ots_failure...". So the
+    // number of TERMINAL ANCHORING FAILURES in a workspace fell when one
+    // person archived a notification, and two operators saw two different
+    // counts for a fact about the records themselves.
+    //
+    // It was also CAPPED: the feed pulls at most PER_CATEGORY_TAKE rows per
+    // category, so a workspace with more failures than the cap silently
+    // under-reported. `trust.otsFailed` is the canonical dashboard/
+    // trust-summary aggregate over Evidence — uncapped, shared, and the same
+    // number the Verification Summary already shows on the Operations tab.
+    //
+    // The CTA moved with it: a notification list is not where you fix an
+    // unanchored record; the filtered Evidence view is.
+    // ==================================================================
     out.push({
       key: "anchoring_terminal",
       severity: "critical",
       domains: ["trust", "evidence"],
-      count: args.criticalFailuresCount,
-      label: `${args.criticalFailuresCount} anchoring failure${args.criticalFailuresCount === 1 ? "" : "s"} are terminal`,
+      count: args.trust.otsFailed,
+      label: `${args.trust.otsFailed} anchoring failure${args.trust.otsFailed === 1 ? "" : "s"} are terminal`,
       whyItMatters: "Blockchain anchoring cannot be retried for these records — they will stay unanchored.",
       recommendedAction: "Open each failure to decide how to document the gap.",
-      actionLabel: "Open to fix",
-      href: "/notifications",
-      derivedFrom: ["me/inbox.category=ots_failure.context.failureCode"],
+      actionLabel: "Open affected records",
+      href: HOME_ANCHORING_FAILURES_HREF,
+      derivedFrom: ["dashboard/trust-summary.ots.failed"],
     });
   }
 
@@ -1914,8 +1959,11 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "External evidence is not part of the trusted record until you review it.",
       recommendedAction: "Review and accept or return each submission.",
       actionLabel: "Review submissions",
-      href: "/notifications",
-      derivedFrom: ["me/inbox.category=intake_submission_pending_review"],
+      // The intake queue is where a submission is reviewed; a notification
+      // list is not. Free and paid users alike land on the same surface,
+      // because reviewing your own intake is not a workbench action.
+      href: "/evidence-requests?status=RESPONSE_RECEIVED,UNDER_REVIEW",
+      derivedFrom: ["dashboard/trust-summary.intake.submissionsAwaitingReview"],
     });
   }
   const packagesMissing =
@@ -3289,10 +3337,23 @@ export function normalizeHomeViewModel(
   });
   const recentReports = buildRecentReports(inputs.reports);
   const caseHealth = buildCaseHealth(cc);
+  // CLOSURE PASS — `submissions` remains the caller's PERSONAL list of
+  // submissions addressed to them (it feeds the "Your recent work" style
+  // rows, which are legitimately per-person). The workspace-level COUNT that
+  // drives the "What needs attention" priority no longer comes from it — see
+  // `submissionsAwaitingReview` below.
   const submissions = buildSubmissions({
     inbox: inputs.inbox,
     workspaceId: inputs.workspaceId,
   });
+  /**
+   * THE canonical workspace count of submissions waiting for a review
+   * decision. `dashboard/trust-summary.intake.submissionsAwaitingReview` is
+   * an uncapped `EvidenceRequest` count owned by the intake domain; the
+   * personal feed is not consulted.
+   */
+  const submissionsAwaitingReview =
+    inputs.trustSummary?.intake?.submissionsAwaitingReview ?? 0;
   const needsFixing = buildNeedsFixing({
     inbox: inputs.inbox,
     workspaceId: inputs.workspaceId,
@@ -3342,7 +3403,7 @@ export function normalizeHomeViewModel(
     activeSpaceType: inputs.activeSpaceType,
     orgs: inputs.orgs,
     workspaceId: inputs.workspaceId,
-    submissionsCount: submissions.length,
+    submissionsCount: submissionsAwaitingReview,
     reportsToday,
   });
 
@@ -3505,7 +3566,10 @@ export function normalizeHomeViewModel(
     submissionsCount: submissions.length,
     collectionStats,
     reportCount,
-    criticalFailuresCount: needsFixing.filter((f) => f.critical).length,
+    // CLOSURE PASS (2026-08-22) — `criticalFailuresCount` is gone. It was
+    // `needsFixing.filter(critical).length`, i.e. a count of the caller's own
+    // notification items, handed to a workspace-level priority row. The row
+    // now reads `trust.otsFailed`, the canonical uncapped aggregate.
     mattersNeedingWork: activeMatters.filter((m) => m.verdict !== "healthy").length,
     reportsReady: reportProduction.reportsReady,
     storage,

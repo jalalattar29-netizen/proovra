@@ -51,6 +51,7 @@
  *     --evidence-id 77406c16-8699-4ddb-b855-e607c8bec6bb --apply
  */
 
+import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -132,6 +133,23 @@ async function cleanup(p: string): Promise<void> {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  /**
+   * CLOSURE PASS (2026-08-22) — THE ONE GENUINE CORRELATOR THIS PIPELINE HAS.
+   *
+   * This script is a DELIBERATE MULTI-RECORD EXECUTION: an operator decides to
+   * repair a set of records in one run, so failures that survive that run
+   * really do share a cause — the run itself. That is positive evidence of
+   * correlation, which is the only kind `deriveParentCorrelation` accepts.
+   *
+   * It is stamped on every record this execution TOUCHES, whether or not the
+   * repair succeeded, because the correlation is a fact about the execution
+   * and not about its outcome.
+   *
+   * Ordinary TSA and OTS work is one BullMQ job per Evidence and gets NO
+   * correlator, which is why `integrityCorrelationId` is NULL for almost every
+   * row. That is the correct state, not a gap.
+   */
+  const repairExecutionId = `tsa-repair:${randomUUID()}`;
   const summary: Summary = {
     scanned: 0,
     repairableDryRun: 0,
@@ -271,6 +289,11 @@ async function main(): Promise<void> {
             tsaInputDigestHex:
               row.tsaInputDigestHex ?? expectedImprint ?? null,
             tsaFailureReason: null,
+            // The execution that touched this record. Read by the integrity
+            // condition writer, which passes it to `deriveParentCorrelation`
+            // as a PERSISTED correlation id — never inferred from the reason,
+            // the provider, the filename or the clock.
+            integrityCorrelationId: repairExecutionId,
           },
         });
         await appendCustodyEventTx(tx, {

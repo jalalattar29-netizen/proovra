@@ -41,6 +41,10 @@ import {
 } from "../config/index.js";
 import { prisma } from "../db.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
+import {
+  isAssignableOperator,
+  listAssignableOperators,
+} from "../services/operations/assignable-operators.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   cronSecretMatches,
@@ -788,8 +792,40 @@ export async function opsRoutes(app: FastifyInstance) {
    * `buildOperationalQueue()` — one person's notification feed reported as the
    * workspace's state, so archiving a notification changed the dashboard.
    *
-   * Gated on `operations.view`, the same permission as the list behind it, so
-   * a caller who cannot see the conditions cannot see their count either.
+   * ==========================================================================
+   * WHO MAY READ THIS, AND WHY IT IS NOT THE WORKBENCH GATE
+   * ==========================================================================
+   * CLOSURE PASS (2026-08-22). Two DIFFERENT questions are gated by two
+   * different things, and conflating them would have cost Personal Free users
+   * sight of their own records' integrity:
+   *
+   *   "may I SEE my workspace's own health?"
+   *        -> the `operations.view` PERMISSION, resolved by
+   *           `evaluateMemberAccess` from the canonical ROLE floor. Every
+   *           ACTIVE member of a workspace holds it, including the sole owner
+   *           of a Personal Free space. Their evidence is their own data, and
+   *           a count of their own failing records is not somebody else's
+   *           secret.
+   *
+   *   "may I ENTER the Operations workbench?"
+   *        -> the `OPERATIONS_VIEW` CAPABILITY, derived from whether the
+   *           workspace can PRODUCE operational conditions (its package
+   *           includes a condition-producing feature, or more than one
+   *           operator shares it). That gates the ROUTE, in
+   *           `apps/web/lib/navigation/routeRegistry.ts`.
+   *
+   * So a Personal Free owner reads this endpoint and gets an honest summary of
+   * their own workspace — which is what Home renders — and still has no
+   * workbench, because there is no shared triage to do in a space with one
+   * operator and no condition-producing package.
+   *
+   * The alternative would have been to grant Free `OPERATIONS_VIEW` to make
+   * Home work, which would have handed them a workbench to solve a reporting
+   * problem. `attention-arch-closure-free-visibility.test.ts` pins both halves.
+   *
+   * Membership lifecycle still applies in full: `evaluateMemberAccess` refuses
+   * a suspended, revoked or expired member, and a non-member gets the
+   * anti-enumeration 404.
    */
   app.get(
     "/v1/ops/summary",
@@ -965,8 +1001,48 @@ export async function opsRoutes(app: FastifyInstance) {
   // `requireOpsCapability` (ops permission + workspace member). Audited via
   // the platform audit log inside the service.
   // ---------------------------------------------------------------------------
+  /**
+   * CLOSURE PASS (2026-08-22) — THE ELIGIBLE-ASSIGNEE PICKER.
+   *
+   * The console had no way to discover who could be assigned, so the feature
+   * was unreachable even though the capability and the write path existed.
+   * This returns exactly the set the mutation below will accept: ACTIVE
+   * members of THIS workspace, with unexpired access, who hold the
+   * operational-action tier.
+   *
+   * Gated on `operations.assign` — the ability to see who you could hand work
+   * to is the same decision as the ability to hand it to them.
+   */
+  app.get(
+    "/v1/ops/assignable-operators",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+      const actor = await requireOpsCapability(
+        req,
+        reply,
+        q.teamId,
+        "operations.assign",
+      );
+      if (!actor) return;
+      const operators = await listAssignableOperators({ teamId: q.teamId });
+      return reply.code(200).send({
+        operators,
+        // The caller's own id, so the UI can offer "assign to me" without a
+        // second round trip or a client-side guess about who it is.
+        selfUserId: actor.userId,
+      });
+    },
+  );
+
   const AssignBody = TeamIdOnly.extend({
-    assigneeUserId: z.string().uuid(),
+    /**
+     * NULL means UNASSIGN. Modelled as a nullable field on the same route
+     * rather than a separate endpoint, because assign / reassign / unassign
+     * are one transition on one column: splitting them would give the same
+     * state change two authorization paths to keep in step.
+     */
+    assigneeUserId: z.string().uuid().nullable(),
   });
   app.post(
     "/v1/ops/incidents/:id/assign",
@@ -976,19 +1052,31 @@ export async function opsRoutes(app: FastifyInstance) {
       const body = AssignBody.parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
-      // The assignee must be an actual workspace member — never assign
-      // an incident to a user outside the workspace. We check the
-      // TeamMember table directly (same authoritative source other
-      // membership checks use).
-      const member = await prisma.teamMember.findFirst({
-        where: { teamId: body.teamId, userId: body.assigneeUserId },
-        select: { id: true },
-      });
-      if (!member) {
-        return reply.code(400).send({
-          error: "invalid_assignee",
-          message: "Assignee must be a member of this workspace.",
+      // CLOSURE PASS (2026-08-22) — ELIGIBILITY, not mere membership.
+      //
+      // This was `teamMember.findFirst({ teamId, userId })` with NO status
+      // predicate, so a SUSPENDED or REVOKED member — or one whose temporary
+      // access had expired — was assignable. The condition then looks owned
+      // and is not, which is worse than unassigned: an unassigned condition
+      // is visibly waiting, and one assigned to a departed colleague is
+      // invisibly stuck.
+      //
+      // The check now runs the SAME resolver that powers the picker, so the
+      // set the operator is shown and the set the server accepts cannot
+      // drift. Cross-workspace assignment is refused by construction: the
+      // resolver is scoped to `teamId`.
+      if (body.assigneeUserId !== null) {
+        const eligible = await isAssignableOperator({
+          teamId: body.teamId,
+          userId: body.assigneeUserId,
         });
+        if (!eligible) {
+          return reply.code(400).send({
+            error: "invalid_assignee",
+            message:
+              "Assignee must be an active member of this workspace who can act on operational work.",
+          });
+        }
       }
       try {
         const updated = await assignIncident({

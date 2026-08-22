@@ -133,6 +133,14 @@ type EvidenceIntegrityRow = {
   otsFailureReason: string | null;
   otsUpgradedAtUtc: Date | null;
   updatedAt: Date;
+  /**
+   * CLOSURE PASS (2026-08-22) — the POSITIVE correlator, when one exists.
+   *
+   * Set only by a deliberate multi-record execution (a repair run, a bulk
+   * re-anchor). NULL for ordinary per-record work, which is independent by
+   * construction — and NULL is the correct, common answer.
+   */
+  integrityCorrelationId: string | null;
 };
 
 const EVIDENCE_SELECT = {
@@ -146,6 +154,7 @@ const EVIDENCE_SELECT = {
   otsFailureReason: true,
   otsUpgradedAtUtc: true,
   updatedAt: true,
+  integrityCorrelationId: true,
 } as const;
 
 function failureReasonFor(
@@ -351,15 +360,35 @@ async function recordIntegrityCondition(
     ? `"${evidence.title.trim().slice(0, 80)}"`
     : `record ${evidence.id.slice(0, 8)}`;
 
-  // CORRELATION (Phase 3.7). Only from positively recorded correlators. The
-  // TSA/OTS pipelines do not currently persist any, so this is null in
-  // practice today — and null is the correct, safe default. It is wired here
-  // rather than omitted so that adding a correlator later is a data change,
-  // not an architecture change, and so the ban on resemblance-based grouping
-  // is expressed at the one place grouping could ever enter.
+  // ---------------------------------------------------------------------
+  // CORRELATION (Phase 3.7, producer wired in the closure pass).
+  //
+  // `Evidence.integrityCorrelationId` is the ONE positive correlator the
+  // current pipelines can honestly produce: the identity of a DELIBERATE
+  // multi-record execution. Ordinary TSA and OTS work is one BullMQ job per
+  // Evidence — `processOtsUpgrade` decodes exactly one `commandId` — so for
+  // normal production failures this is NULL and no parent is formed.
+  //
+  // NULL IS THE COMMON, CORRECT ANSWER. Nothing here falls back to provider,
+  // workspace, filename, reason or time: those are resemblance, and grouping
+  // on resemblance is the retracted finding.
+  // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // CORRELATION (Phase 3.7, producer wired in the closure pass).
+  //
+  // `Evidence.integrityCorrelationId` is the ONE positive correlator the
+  // current pipelines can honestly produce: the identity of a DELIBERATE
+  // multi-record execution. Ordinary TSA and OTS work is one BullMQ job per
+  // Evidence — `processOtsUpgrade` decodes exactly one `commandId` — so for
+  // normal production failures this is NULL and no parent is formed.
+  //
+  // NULL IS THE COMMON, CORRECT ANSWER. Nothing here falls back to provider,
+  // workspace, filename, reason or time: those are resemblance, and grouping
+  // on resemblance is the retracted finding.
+  // ---------------------------------------------------------------------
   const correlationEvidence: CorrelationEvidence = {
     providerIncidentId: null,
-    persistedCorrelationId: null,
+    persistedCorrelationId: evidence.integrityCorrelationId,
     batchRunId: null,
     retryExecutionId: null,
   };

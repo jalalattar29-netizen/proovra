@@ -151,7 +151,24 @@ describe("Phase 32.8C — service layer composition", () => {
     expect(SERVICE).toMatch(/RECENT_EVIDENCE_LIMIT\s*=\s*8/);
     expect(SERVICE).toMatch(/INCIDENTS_LIMIT\s*=\s*10/);
     expect(SERVICE).toMatch(/PRESSURE_TOTAL\s*=\s*32/);
-    expect(SERVICE).toMatch(/PRESSURE_PER_KIND\s*=\s*6/);
+    // CONTRACT MIGRATION — PHASE 4D (2026-08-22).
+    //
+    // `PRESSURE_PER_KIND = 6` capped a per-kind FAN-OUT: the section used
+    // to build its own pressure list by querying each source separately, so
+    // each of those reads needed its own bound. Phase 4D replaced that with
+    // a single projection of the incident authority — one `listIncidents`
+    // call — precisely so the Command Center stops maintaining a second
+    // pressure opinion beside /operations. A per-kind cap now has no
+    // per-kind query to cap, and asserting the dead constant would pin a
+    // variable nothing reads.
+    //
+    // The PROPERTY this test defends — no unbounded read — is unchanged, so
+    // it is asserted at the CALL SITE instead of inferred from a constant's
+    // presence, which is the stronger check of the two.
+    expect(
+      SERVICE,
+      "the pressure read must carry its declared bound",
+    ).toMatch(/listIncidents\(\{[\s\S]*?limit: PRESSURE_TOTAL/);
     expect(SERVICE).toMatch(/TOP_CASES_LIMIT\s*=\s*8/);
     expect(SERVICE).toMatch(/TOP_REVIEWERS_LIMIT\s*=\s*8/);
     expect(SERVICE).toMatch(/TIMELINE_LIMIT\s*=\s*30/);

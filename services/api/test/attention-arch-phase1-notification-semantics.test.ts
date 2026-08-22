@@ -16,7 +16,7 @@
  *   4. Guidance is out of the workload, and the API says so with a number.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -183,7 +183,6 @@ describe("Phase 1.2 — historical dismissals stay personal", () => {
     const MIGRATIONS_DIR = fileURLToPath(
       new URL("../prisma/migrations", import.meta.url),
     );
-    const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
     const offenders: string[] = [];
     for (const dir of readdirSync(MIGRATIONS_DIR)) {
       const full = `${MIGRATIONS_DIR}/${dir}`;
