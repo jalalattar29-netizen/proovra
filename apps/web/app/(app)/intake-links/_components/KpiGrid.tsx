@@ -48,7 +48,11 @@ export function KpiGrid({
             <li key={key}>
               <button
                 type="button"
-                className="ilk-kpi"
+                // The CANONICAL metric card, plus this route's tone hook.
+                // `ilk-kpi` now carries only the tone mapping; the card itself
+                // is one shared primitive, so Notifications and Intake Links
+                // cannot drift into two metric-card designs.
+                className="app-metric-card ilk-kpi"
                 data-ilk-tone={entry.tone}
                 data-intake-links-kpi={key}
                 data-intake-links-kpi-tone={entry.tone}
@@ -58,9 +62,13 @@ export function KpiGrid({
                 aria-describedby={descId}
                 onClick={() => onSelect(tab)}
               >
-                <span className="ilk-kpi__value">{kpis[key]}</span>
-                <span className="ilk-kpi__label">{entry.label}</span>
-                <span className="ilk-kpi__meta" id={descId}>
+                <span className="app-metric-card__value ilk-kpi__value">
+                  {kpis[key]}
+                </span>
+                <span className="app-metric-card__label ilk-kpi__label">
+                  {entry.label}
+                </span>
+                <span className="app-metric-card__meta ilk-kpi__meta" id={descId}>
                   {entry.explanation}
                 </span>
               </button>

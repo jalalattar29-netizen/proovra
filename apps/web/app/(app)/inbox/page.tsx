@@ -35,6 +35,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 
 import { apiFetch } from "../../../lib/api";
 import { useLatestRequest } from "../../../lib/net/useLatestRequest";
@@ -235,6 +236,78 @@ const TONE_LABELS: Record<InboxTone, string> = {
   info: "INFO",
 };
 
+/**
+ * THE NOTIFICATION SUMMARY, AS METRIC CARDS.
+ *
+ * These were inline pills beside a running count — visually the weakest thing
+ * on the page, and inconsistent with how every other PROOVRA surface presents
+ * a row of figures. They are now the canonical `.app-metric-card`, the same
+ * primitive Intake Links uses for its KPI row.
+ *
+ * They are still FILTERS, not a breakdown: `Unread` narrows by read state and
+ * the four severities narrow by tone, so the counts deliberately do not sum to
+ * `All`. Each card says what it means in its own words rather than leaving the
+ * reader to discover that by adding them up.
+ *
+ * ORDER is by what a person opening their notifications actually asks: what
+ * did I miss (Unread), how much is there (All), and then severity descending.
+ *
+ * `accent` names a TONE, never a colour. The stylesheet resolves it to the
+ * canonical `--ops-tone-*` tokens, so this list cannot become a second place
+ * where "critical" is decided.
+ */
+type NotificationMetricKey = "unread" | "all" | InboxTone;
+
+const NOTIFICATION_METRICS: ReadonlyArray<{
+  key: NotificationMetricKey;
+  label: string;
+  explanation: string;
+  accent: string;
+  /** Severity cards filter by tone; Unread and All do not. */
+  tone?: InboxTone;
+}> = [
+  {
+    key: "unread",
+    label: "Unread",
+    explanation: "Not opened yet.",
+    accent: "unread",
+  },
+  {
+    key: "all",
+    label: "All",
+    explanation: "Everything currently addressed to you.",
+    accent: "all",
+  },
+  {
+    key: "critical",
+    label: "Critical",
+    explanation: "Needs attention now.",
+    accent: "critical",
+    tone: "critical",
+  },
+  {
+    key: "high",
+    label: "High",
+    explanation: "Important, not urgent.",
+    accent: "high",
+    tone: "high",
+  },
+  {
+    key: "warning",
+    label: "Warning",
+    explanation: "Worth a look.",
+    accent: "warning",
+    tone: "warning",
+  },
+  {
+    key: "info",
+    label: "Info",
+    explanation: "For your awareness.",
+    accent: "info",
+    tone: "info",
+  },
+];
+
 const CATEGORY_LABELS: Record<InboxCategory, string> = {
   onboarding: "Onboarding",
   org_invite: "Invite",
@@ -345,8 +418,13 @@ const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   due_soon: "Due soon",
   overdue: "Overdue",
   admin: "Admin",
-  snoozed: "Snoozed",
-  history: "History",
+  /* NOTIFICATION VOCABULARY, not operational lifecycle.
+     "Snoozed" named a reminder action this UI no longer exposes, and
+     "History" named the resolved-condition history that belongs to
+     /operations. What this filter actually shows is the reader's own archived
+     notifications, so it says that. */
+  snoozed: "Reminders",
+  history: "Archived",
 };
 
 /** Filters that make sense as a "mark this category as read" scope —
@@ -377,55 +455,21 @@ const TRUNCATION_LABELS: Record<keyof InboxTruncated, string> = {
   case_assignment: "Case assignments",
 };
 
-/** Oxford-comma join for a human-readable inline list. */
-function joinReadable(parts: string[]): string {
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0];
-  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
-  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
-}
-
-/**
- * §8 — context-aware attention areas. The page describes ONLY the
- * categories this workspace/plan can actually surface, so a FREE
- * personal user is never told about reviews or governance they cannot
- * receive. Incoming/universal categories (mentions, invitations,
- * security, integrity) always apply and anchor the list.
+/* `joinReadable` and `describeAttentionAreas` USED TO LIVE HERE.
+ *
+ * They built a capability-aware sentence — "integrity signals, report
+ * failures, intake activity and assignments" — that was spliced into the page
+ * subtitle and the empty state. That machinery existed because the old
+ * subtitle promised to enumerate what could arrive, and enumerating it wrongly
+ * for a Free account was a real defect.
+ *
+ * The Notifications subtitle no longer enumerates anything: it is one short
+ * sentence that is true for every plan, and the empty state says the reader is
+ * caught up rather than describing a taxonomy. With nothing left to splice,
+ * both helpers had no consumer and are removed rather than left behind as
+ * capability logic nothing reads.
  */
-function describeAttentionAreas(
-  uiCtx: ReturnType<typeof useOperationsUiContext>,
-  items: ReturnType<typeof buildActualItemSignal>,
-): string[] {
-  // Universal signals anchor the list; plan/participation areas are added
-  // only when the user can genuinely receive them OR already has a real
-  // item (the same eligibility-OR-item rule as the filters).
-  const has = (cats: InboxCategory[]): boolean =>
-    cats.some((c) => (items.byCategory[c] ?? 0) > 0);
-  const areas: string[] = ["integrity signals"];
-  if (uiCtx.canUseReports || has(["report_failure"]))
-    areas.push("report failures");
-  if (uiCtx.canUseVerificationPackages || has(["verification_package_failure"]))
-    areas.push("verification-package failures");
-  if (
-    uiCtx.canUseIntake ||
-    has([
-      "intake_submission_pending_review",
-      "intake_required_items_missing",
-      "intake_link_expiring",
-    ])
-  )
-    areas.push("intake activity");
-  if (uiCtx.canReceiveAssignments || has(["case_assignment", "discussion_assigned"]))
-    areas.push("assignments");
-  if (uiCtx.canParticipateInReviews || has(["review_decision", "review_escalation"]))
-    areas.push("reviews and escalations");
-  if (uiCtx.canCollaborate || has(["collaboration", "discussion_mention"]))
-    areas.push("mentions");
-  if (uiCtx.canReceiveGovernance || has(["governance"]))
-    areas.push("governance events");
-  areas.push("security alerts");
-  return areas;
-}
+
 
 export default function InboxPage() {
   return (
@@ -460,8 +504,41 @@ function InboxPageInner() {
   // §8 — subtitle + empty-state describe only categories this user can
   // surface (adaptive, never over-promising reviews/governance), plus any
   // category a real item reveals.
-  const attentionAreas = describeAttentionAreas(uiCtx, itemSignal);
-  const attentionSummary = joinReadable(attentionAreas);
+
+  /**
+   * One count per metric card, read from the SCOPE summary.
+   *
+   * `scopeSummary` is filter-independent — it describes the workspace scope
+   * rather than the current filter window — which is what a summary strip has
+   * to be: a set of cards whose numbers changed every time you clicked one of
+   * them would be describing the click, not the inbox.
+   */
+  const metricCount = (
+    key: NotificationMetricKey,
+    data: InboxEnvelope,
+  ): number => {
+    if (key === "unread") return data.scopeSummary?.unread ?? 0;
+    if (key === "all") return data.scopeSummary?.total ?? data.summary.total;
+    return data.scopeSummary?.byTone[key] ?? data.summary.byTone[key];
+  };
+
+  /**
+   * Clicking a card applies the filter it names, and clicking it again clears
+   * it — the card is a toggle, so the surface always matches what the card
+   * promised. `All` clears both axes, because that is what it says.
+   */
+  const selectMetric = (key: NotificationMetricKey) => {
+    if (key === "unread") {
+      setFilter(filter === "unread" ? "all" : "unread");
+      return;
+    }
+    if (key === "all") {
+      setFilter("all");
+      setToneFilter("all");
+      return;
+    }
+    setToneFilter(toneFilter === key ? "all" : key);
+  };
   // Filter grouping (pure policy, unit-tested): a stable primary row +
   // a "More filters" overflow; capability-gated chips (admin,
   // governance) never render for users who can never receive them, and
@@ -765,22 +842,13 @@ function InboxPageInner() {
   );
 
   /** REMIND ME LATER — defer it until a time I choose. Equally private. */
-  const remindItem = useCallback(
-    async (item: InboxItem, untilIso: string) => {
-      if (pendingItemKey) return;
-      setPendingItemKey(item.itemKey);
-      removeItemLocally(item.itemKey);
-      try {
-        await postAction(item.itemKey, "remind", { remindAt: untilIso });
-      } catch (err) {
-        console.error("[inbox] remind failed:", err);
-        void load();
-      } finally {
-        setPendingItemKey(null);
-      }
-    },
-    [pendingItemKey, removeItemLocally, load],
-  );
+  /* `remindItem` USED TO LIVE HERE.
+     It drove a "Remind me tomorrow" row action, which the product does not
+     want exposed. The BACKEND capability is deliberately untouched:
+     `POST /v1/me/inbox/items/:itemKey/snooze` is a live API surface, and
+     removing a published endpoint to satisfy a visual request is an
+     API-breaking change made for the wrong reason. The UI exposure is gone;
+     the endpoint remains for any client that already calls it. */
 
   // The items the page renders: the accumulated list (already filtered
   // server-side by `filter` + `toneFilter` query params).
@@ -804,19 +872,39 @@ function InboxPageInner() {
       data-phase-c-inbox
       data-inbox-total={state.kind === "ready" ? state.data.summary.total : 0}
       header={
+        /* THIS IS THE NOTIFICATIONS PAGE. IT SAYS SO.
+           It used to open with `ACCOUNT · OPERATIONS CENTER`, a title of
+           `Operations Center`, and a subtitle about "operational items that
+           require your attention". All three belong to `/operations`, which is
+           now a separate product surface: the shared workspace workbench. This
+           one is personal awareness — updates addressed to a person — and the
+           eyebrow is dropped entirely rather than replaced, because the title
+           already says where you are and the canonical header does not need a
+           breadcrumb to prove it. */
         <PageHeader
-          eyebrow="Account · Operations Center"
-          title="Operations Center"
-          subtitle={`Operational items that require your attention — ${attentionSummary}.`}
+          title="Notifications"
+          subtitle="Updates, assignments, mentions and integrity alerts relevant to you."
           primaryAction={
-            <Button
-              variant="secondary"
+            /* The CANONICAL primary action, the same one the header's New Case
+               button paints — reused as a class, not re-typed as a hex. It was
+               a legacy `btn secondary`, which is why it read as belonging to a
+               different application than the page around it. */
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() => void load()}
               disabled={state.kind === "loading"}
+              aria-busy={state.kind === "loading"}
               data-action="refresh-inbox"
             >
+              <RefreshCw
+                size={15}
+                strokeWidth={2}
+                aria-hidden="true"
+                data-notifications-refresh-icon
+              />
               {state.kind === "loading" ? "Refreshing…" : "Refresh"}
-            </Button>
+            </button>
           }
         />
       }
@@ -839,17 +927,49 @@ function InboxPageInner() {
            filterable; it is simply no longer the headline.
            ================================================================== */}
       {state.kind === "ready" && (
-        <section data-notifications-summary className="ops-summary-strip">
-          <div data-notifications-unread className="ops-summary-strip__primary">
-            <span className="ops-summary-strip__count">
-              {state.data.scopeSummary?.unread ?? 0}
-            </span>
-            <span className="ops-summary-strip__label">
-              {(state.data.scopeSummary?.unread ?? 0) === 1
-                ? "unread notification"
-                : "unread notifications"}
-            </span>
-          </div>
+        <section
+          data-notifications-summary
+          aria-label="Notification summary"
+          className="ops-metrics"
+        >
+          <ul className="ops-metrics__grid" data-notifications-metric-grid>
+            {NOTIFICATION_METRICS.map((metric) => {
+              const count = metricCount(metric.key, state.data);
+              const active = metric.tone
+                ? toneFilter === metric.tone
+                : metric.key === "unread"
+                  ? filter === "unread"
+                  : toneFilter === "all" && filter === "all";
+              const disabled = metric.tone
+                ? toneTileDisabled(count, active)
+                : false;
+              const descId = `notif-metric-${metric.key}`;
+              return (
+                <li key={metric.key}>
+                  <button
+                    type="button"
+                    className="app-metric-card ops-metric"
+                    data-ops-metric-tone={metric.accent}
+                    data-notifications-metric={metric.key}
+                    data-notifications-metric-count={count}
+                    data-notifications-metric-active={active ? "true" : "false"}
+                    aria-pressed={active}
+                    aria-describedby={descId}
+                    disabled={disabled}
+                    onClick={() => selectMetric(metric.key)}
+                  >
+                    <span className="app-metric-card__value">{count}</span>
+                    <span className="app-metric-card__label">
+                      {metric.label}
+                    </span>
+                    <span className="app-metric-card__meta" id={descId}>
+                      {metric.explanation}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
           {/* PHASE 2.3 — HONESTY BEFORE REASSURANCE.
               A "0 unread" over a partial read is the same lie as a dashboard
@@ -857,68 +977,13 @@ function InboxPageInner() {
               read every source, the page says so instead of implying calm. */}
           {state.data.completeness &&
           !state.data.completeness.mayAssertAllClear ? (
-            <p data-notifications-incomplete className="ops-summary-strip__note">
+            <p data-notifications-incomplete className="ops-metrics__note">
               Some sources could not be read, so this may not be everything.
               {state.data.completeness.incompleteSources.length > 0
                 ? ` Affected: ${state.data.completeness.incompleteSources.join(", ")}.`
                 : ""}
             </p>
           ) : null}
-
-          {/* Severity as METADATA. Same filter behaviour as before, a fraction
-              of the visual weight — these are chips beside the count, not
-              five cards competing with the feed for the page. */}
-          <div data-notifications-severity className="ops-summary-strip__chips">
-            {(["critical", "high", "warning", "info"] as InboxTone[]).map(
-              (tone) => {
-                const count =
-                  state.data.scopeSummary?.byTone[tone] ??
-                  state.data.summary.byTone[tone];
-                const active = toneFilter === tone;
-                const disabled = toneTileDisabled(count, active);
-                return (
-                  <button
-                    key={tone}
-                    type="button"
-                    onClick={() => setToneFilter(active ? "all" : tone)}
-                    aria-pressed={active}
-                    disabled={disabled}
-                    data-inbox-tone-tile={tone}
-                    data-inbox-tone-tile-active={active ? "true" : "false"}
-                    data-inbox-tone-tile-count={count}
-                    data-tone={tone}
-                    data-active={active ? "true" : "false"}
-                    className="ops-severity-chip"
-                  >
-                    <span className="ops-severity-chip__label">
-                      {TONE_LABELS[tone]}
-                    </span>
-                    <span className="ops-severity-chip__count">{count}</span>
-                  </button>
-                );
-              },
-            )}
-            <button
-              type="button"
-              onClick={() => setToneFilter("all")}
-              aria-pressed={toneFilter === "all"}
-              data-inbox-tone-tile="all"
-              data-inbox-tone-tile-active={
-                toneFilter === "all" ? "true" : "false"
-              }
-              data-inbox-tone-tile-count={
-                state.data.scopeSummary?.total ?? state.data.summary.total
-              }
-              data-tone="all"
-              data-active={toneFilter === "all" ? "true" : "false"}
-              className="ops-severity-chip"
-            >
-              <span className="ops-severity-chip__label">ALL</span>
-              <span className="ops-severity-chip__count">
-                {state.data.scopeSummary?.total ?? state.data.summary.total}
-              </span>
-            </button>
-          </div>
         </section>
       )}
 
@@ -930,7 +995,7 @@ function InboxPageInner() {
           role="status"
           className="ops-note"
         >
-          Operations history is not provisioned in this environment yet.
+          Archived notifications are not available in this environment yet.
         </section>
       ) : null}
 
@@ -1020,7 +1085,7 @@ function InboxPageInner() {
       {state.kind === "ready" && (
         <section
           data-inbox-filter-chips
-          aria-label="Operations Center filters"
+          aria-label="Notification filters"
           style={{ display: "flex", flexDirection: "column", gap: 6 }}
         >
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1166,37 +1231,21 @@ function InboxPageInner() {
           <div data-state="empty">
             <EmptyState
               framed
-              title="Nothing requires your attention right now."
-              purpose={`When operational items appear — ${attentionSummary} — they show up here. Items leave this list automatically when their source stops raising them. They stay in History.`}
-              action={
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                  <Link
-                    href="/home"
-                    data-action="empty-open-home"
-                    className="ops-link-btn"
-                    data-variant="primary"
-                  >
-                    Open workspace command center
-                  </Link>
-                  {uiCtx.hasOrganizations ? (
-                    <Link
-                      href="/organizations"
-                      data-action="empty-open-organizations"
-                      className="ops-link-btn"
-                    >
-                      Organizations
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/evidence"
-                      data-action="empty-open-evidence"
-                      className="ops-link-btn"
-                    >
-                      Evidence library
-                    </Link>
-                  )}
-                </div>
-              }
+              /* A NOTIFICATION empty state, not an operations one.
+                 It used to read "Nothing requires your attention right now",
+                 explain that items "leave this list automatically when their
+                 source stops raising them", and offer "Open workspace command
+                 center" as its primary action. All three describe a shared
+                 condition lifecycle — which is what /operations tracks. A
+                 notification is an event addressed to a person; it does not
+                 have a lifecycle the reader needs explained, and the CTA sent
+                 a Personal Free user to Home for a workbench they do not have.
+
+                 NO CTA. There is nothing useful to do from an empty
+                 notification list, and a button that merely navigates
+                 elsewhere is worse than the honest absence of one. */
+              title="You're all caught up"
+              purpose="You don't have any notifications right now. New updates will appear here when something relevant happens."
             />
           </div>
         )}
@@ -1385,78 +1434,72 @@ function InboxPageInner() {
                                 void markRead(item);
                               }
                             }}
-                            className="ops-link-btn"
-                    data-variant="primary"
+                            /* The CANONICAL row action, the same class the
+                               Intake Links row uses for "View submissions" and
+                               "Open". It was `ops-link-btn`, a shape only this
+                               page knew about. */
+                            className="app-secondary-action"
                           >
                             Open
                           </Link>
                           {item.canMarkRead &&
                             (item.isRead ? (
-                              <Button
-                                variant="secondary"
-                                size="sm"
+                              <button
+                                type="button"
+                                className="app-secondary-action"
                                 data-action="mark-unread"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void markUnread(item)}
                                 disabled={pendingItemKey === item.itemKey}
+                                aria-busy={pendingItemKey === item.itemKey}
+                                aria-label={`Mark as unread: ${item.title}`}
                               >
-                                Mark unread
-                              </Button>
+                                Mark as unread
+                              </button>
                             ) : (
-                              <Button
-                                variant="secondary"
-                                size="sm"
+                              <button
+                                type="button"
+                                className="app-secondary-action"
                                 data-action="mark-read"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void markRead(item)}
                                 disabled={pendingItemKey === item.itemKey}
+                                aria-busy={pendingItemKey === item.itemKey}
+                                aria-label={`Mark as read: ${item.title}`}
                               >
-                                Mark read
-                              </Button>
+                                Mark as read
+                              </button>
                             ))}
-                          {item.canSnooze && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              data-action="remind"
-                              data-inbox-item-key={item.itemKey}
-                              onClick={() => {
-                                const oneDay = new Date(
-                                  Date.now() + 24 * 60 * 60 * 1000,
-                                ).toISOString();
-                                void remindItem(item, oneDay);
-                              }}
-                              disabled={pendingItemKey === item.itemKey}
-                            >
-                              Remind me tomorrow
-                            </Button>
-                          )}
                           {/* ARCHIVE vs UNARCHIVE. An already-archived row
                               (History) offers the way back out; anything else
                               offers the way in. */}
                           {item.dismissedAt ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
+                            <button
+                              type="button"
+                              className="app-secondary-action"
                               data-action="unarchive"
                               data-inbox-item-key={item.itemKey}
                               onClick={() => void unarchiveItem(item)}
                               disabled={pendingItemKey === item.itemKey}
+                              aria-busy={pendingItemKey === item.itemKey}
+                              aria-label={`Unarchive: ${item.title}`}
                             >
                               Unarchive
-                            </Button>
+                            </button>
                           ) : (
                             item.canDismiss && (
-                              <Button
-                                variant="secondary"
-                                size="sm"
+                              <button
+                                type="button"
+                                className="app-secondary-action"
                                 data-action="archive"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void archiveItem(item)}
                                 disabled={pendingItemKey === item.itemKey}
+                                aria-busy={pendingItemKey === item.itemKey}
+                                aria-label={`Archive: ${item.title}`}
                               >
                                 Archive
-                              </Button>
+                              </button>
                             )
                           )}
                         </div>

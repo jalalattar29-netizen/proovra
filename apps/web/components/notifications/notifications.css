@@ -686,101 +686,84 @@
    wraps, so it survives 390px and 200% zoom without horizontal overflow.
    =========================================================================== */
 
-.ops-summary-strip {
+/* ---------------------------------------------------------------------------
+ * THE SUMMARY IS A ROW OF METRIC CARDS.
+ *
+ * It was a running count with severity pills beside it — visually the weakest
+ * element on the page and unlike every other PROOVRA surface that presents a
+ * row of figures. The CARD itself is now `.app-metric-card` in
+ * app-primitives.css, the same primitive Intake Links uses for its KPI row, so
+ * there is one metric-card design rather than two that drift.
+ *
+ * What stays here is what is genuinely route-specific: the GRID, and the
+ * mapping from a notification tone to the canonical `--ops-tone-*` token the
+ * card paints. The primitive never learns what "critical" means.
+ *
+ * ACCESSIBILITY. Tone is never the only carrier: every card renders its label
+ * and its explanation as text, and the figure is announced with them.
+ * ------------------------------------------------------------------------- */
+
+.ops-metrics {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  background: var(--surface-card);
+  min-inline-size: 0;
 }
 
-.ops-summary-strip__primary {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.ops-summary-strip__count {
-  font-size: 1.6rem;
-  font-weight: 650;
-  line-height: 1.1;
-  color: var(--ink-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.ops-summary-strip__label {
-  font: var(--font-body);
-  color: var(--ink-secondary);
-}
-
-/* The honesty line. Deliberately reads as a caveat rather than an error:
-   nothing has failed for the USER, we simply cannot promise completeness. */
-.ops-summary-strip__note {
+.ops-metrics__grid {
+  display: grid;
+  /* Six cards across on a wide screen; the track floor is what makes the
+     reflow automatic rather than a stack of breakpoints. `minmax(0, 1fr)`
+     because a grid child without it refuses to shrink below its content,
+     which is how one long label teaches a page to scroll sideways. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
   margin: 0;
-  font: var(--font-label);
-  color: var(--ink-secondary);
-  border-left: 2px solid var(--ops-tone-warning);
-  padding-left: 0.5rem;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+@media (max-width: 1200px) {
+  .ops-metrics__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .ops-metrics__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* One column only when two genuinely stop fitting — a 320px viewport with a
+   doubled text scale. Two columns is the better default on a phone. */
+@media (max-width: 360px) {
+  .ops-metrics__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.ops-summary-strip__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
+/* THE TONE MAPPING. The card paints `--app-metric-tone`; this resolves it
+   from the canonical notification tone tokens declared at the top of this
+   file. No hex literal appears here, and none may. */
+.ops-metric[data-ops-metric-tone="critical"] { --app-metric-tone: var(--ops-tone-critical); }
+.ops-metric[data-ops-metric-tone="high"]     { --app-metric-tone: var(--ops-tone-high); }
+.ops-metric[data-ops-metric-tone="warning"]  { --app-metric-tone: var(--ops-tone-warning); }
+.ops-metric[data-ops-metric-tone="info"]     { --app-metric-tone: var(--ops-tone-info); }
+/* Unread is the page's own question, so it wears the product accent rather
+   than a severity. All is neutral: it is a total, not a judgement. */
+.ops-metric[data-ops-metric-tone="unread"]   { --app-metric-tone: var(--brand-accent); }
+.ops-metric[data-ops-metric-tone="all"]      { --app-metric-tone: var(--border-strong); }
 
-.ops-severity-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid var(--border-default);
-  border-left-width: 3px;
-  border-radius: var(--radius-pill, 999px);
-  background: var(--surface-card);
-  color: var(--ink-primary);
-  cursor: pointer;
-  font: var(--font-label);
-  transition: background 120ms ease, border-color 120ms ease;
-}
-
-.ops-severity-chip:hover:not(:disabled) {
-  background: var(--surface-muted);
-}
-
-.ops-severity-chip:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.ops-severity-chip:disabled {
+/* A card whose count is zero and which is not the active filter is inert —
+   clicking it would apply a filter guaranteed to be empty. */
+.ops-metric:disabled {
   cursor: default;
   opacity: 0.55;
 }
 
-.ops-severity-chip[data-tone="critical"] { border-left-color: var(--ops-tone-critical); }
-.ops-severity-chip[data-tone="high"]     { border-left-color: var(--ops-tone-high); }
-.ops-severity-chip[data-tone="warning"]  { border-left-color: var(--ops-tone-warning); }
-.ops-severity-chip[data-tone="info"]     { border-left-color: var(--ops-tone-info); }
-.ops-severity-chip[data-tone="all"]      { border-left-style: dashed; }
-
-.ops-severity-chip[data-active="true"] {
-  background: var(--surface-muted);
-  border-color: var(--border-strong);
-}
-
-.ops-severity-chip__label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-secondary);
-}
-
-.ops-severity-chip__count {
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
+.ops-metrics__note {
+  margin: 0;
+  font: var(--font-meta);
+  color: var(--ink-muted);
 }
 
 /* ===========================================================================

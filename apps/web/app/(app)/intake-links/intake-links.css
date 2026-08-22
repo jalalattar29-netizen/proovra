@@ -92,99 +92,21 @@
   }
 }
 
+/* THE CARD ITSELF NOW LIVES IN `app-primitives.css` AS `.app-metric-card`.
+ *
+ * Every declaration that used to be here — the translucent surface, the rail,
+ * the hover/focus/selected states, the figure/label/meta typography — was
+ * lifted verbatim when the Notifications page needed the same card. Copying it
+ * would have produced a second metric-card design, and the second one drifts
+ * the first time either page is touched.
+ *
+ * What stays route-owned is what is genuinely route-specific: the seven-up
+ * GRID above, and the tone mapping below. `--app-metric-tone` is the variable
+ * the primitive paints; this route resolves it from its own `--ilk-tone`, so
+ * the primitive never learns what "amber" means here.
+ */
 .ilk-kpi {
-  position: relative;
-  inline-size: 100%;
-  block-size: 100%;
-  min-inline-size: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 14px 14px 13px;
-  padding-inline-start: 16px;
-  text-align: start;
-  font: inherit;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03);
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    box-shadow 140ms ease;
-}
-/* The semantic rail. An inset shadow rather than a border so selecting a card
-   never changes its geometry. */
-.ilk-kpi::before {
-  content: "";
-  position: absolute;
-  inset-block: 12px;
-  inset-inline-start: 0;
-  inline-size: 3px;
-  border-start-end-radius: 3px;
-  border-end-end-radius: 3px;
-  background: var(--ilk-tone, var(--ilk-tone-slate));
-  opacity: 0.85;
-}
-.ilk-kpi:hover {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(15, 23, 42, 0.08);
-}
-.ilk-kpi:focus-visible {
-  outline: none;
-  box-shadow:
-    0 6px 18px rgba(15, 23, 42, 0.03),
-    0 0 0 3px rgba(124, 58, 237, 0.28);
-}
-/* Selected = this KPI's filter is the one in force. Restrained: a tinted
-   surface plus the rail at full strength — never an OS-blue focus border. */
-.ilk-kpi[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(109, 40, 217, 0.24);
-  box-shadow: 0 6px 18px rgba(109, 40, 217, 0.08);
-}
-.ilk-kpi[aria-pressed="true"]::before {
-  opacity: 1;
-  inset-block: 8px;
-}
-
-/* ONE tone contract per card: the rail, the marker and the NUMBER all read the
-   same resolved `--ilk-tone`. A second colour choice for the number is how a
-   card ends up with a green rail over a slate figure. The label and the
-   supporting line stay neutral, so the hierarchy is number → label → note. */
-.ilk-kpi__value {
-  font-size: 26px;
-  font-weight: 720;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  color: var(--ilk-tone, var(--app-ink-heading, #172033));
-  font-variant-numeric: tabular-nums;
-}
-.ilk-kpi__label {
-  font-size: 12.5px;
-  font-weight: 650;
-  line-height: 1.3;
-  color: var(--app-ink-label, #344054);
-}
-.ilk-kpi__meta {
-  margin-block-start: 2px;
-  font-size: 11.5px;
-  line-height: 1.35;
-  color: var(--app-ink-secondary, #667085);
-}
-/* Bounded, not dropped. Below 900px seven full explanations push the records
-   surface most of a screen down; clamping keeps the strip compact while the
-   full sentence stays in the accessibility tree for `aria-describedby`. */
-@media (max-width: 900px) {
-  .ilk-kpi__meta {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
+  --app-metric-tone: var(--ilk-tone, var(--ilk-tone-slate));
 }
 
 /* The overlap disclosure. These seven counts are filters, not a breakdown. */
@@ -395,6 +317,15 @@
 .ilk-table td[data-col="status"] {
   min-inline-size: 17ch;
   max-inline-size: 30ch;
+  /* SLIGHTLY TIGHTER SIDE PADDING, and only here.
+     This is the densest cell in the table — two key/value lines that may not
+     wrap — and at 901px the table's minimum was landing a fraction of a pixel
+     over its frame, which the surface then answered with a 2px sideways
+     scroller. Three pixels a side is the difference between "fits" and "fits
+     with room", and it is taken from the one cell that is paying for the
+     no-wrap contract rather than from the shared table primitive, which every
+     other table in the product also uses. */
+  padding-inline: 13px;
 }
 .ilk-table th[data-col="latest"],
 .ilk-table td[data-col="latest"] {

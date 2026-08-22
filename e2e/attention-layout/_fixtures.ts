@@ -283,9 +283,22 @@ const NOTIFICATION_ITEMS = [1, 2, 3, 4, 5].map((i) => ({
  * indistinguishable from a layout failure and would make every assertion here
  * meaningless.
  */
+export type InstallApiOptions = {
+  /**
+   * Serve an inbox with no items and zero counts.
+   *
+   * The empty state is a real product state with its own copy and its own
+   * (absent) call to action, and Personal Free is the account most likely to
+   * see it. Driving it from the fixture keeps that path measurable instead of
+   * only reachable in theory.
+   */
+  emptyInbox?: boolean;
+};
+
 export async function installApi(
   page: Page,
   context: AttentionContext,
+  options: InstallApiOptions = {},
 ): Promise<void> {
   const json = (body: unknown) => ({
     status: 200,
@@ -354,6 +367,28 @@ export async function installApi(
       return route.fulfill(json({ metrics: { uptimeSeconds: 1000, counters: {}, gauges: {} } }));
     }
     if (path.includes("/v1/me/inbox/summary")) {
+      if (options.emptyInbox) {
+        return route.fulfill(
+          json({
+            unread: 0,
+            critical: 0,
+            high: 0,
+            assignedToMe: 0,
+            overdue: 0,
+            total: 0,
+            hasTruncatedSources: false,
+            degraded: false,
+            degradedSources: [],
+            completeness: {
+              anyIncomplete: false,
+              incompleteSources: [],
+              mayAssertAllClear: true,
+            },
+            generatedAtUtc: "2026-08-22T12:00:00.000Z",
+            workspaceId: WORKSPACE_ID,
+          }),
+        );
+      }
       return route.fulfill(
         json({
           unread: 3,
@@ -376,6 +411,53 @@ export async function installApi(
       );
     }
     if (path.includes("/v1/me/inbox")) {
+      if (options.emptyInbox) {
+        const zeroTones = { critical: 0, high: 0, warning: 0, info: 0 };
+        return route.fulfill(
+          json({
+            generatedAt: "2026-08-22T12:00:00.000Z",
+            caller: {
+              userId: SELF_USER_ID,
+              email: "operator@example.invalid",
+              displayName: "Operator",
+            },
+            summary: {
+              total: 0,
+              byTone: zeroTones,
+              byCategory: {},
+              byPriority: { P1: 0, P2: 0, P3: 0, P4: 0, P5: 0 },
+            },
+            scopeSummary: {
+              total: 0,
+              unread: 0,
+              workload: 0,
+              guidance: 0,
+              byTone: zeroTones,
+              byCategory: {},
+              deadlines: { dueSoon: 0, overdue: 0 },
+            },
+            truncated: {},
+            anyTruncated: false,
+            completeness: {
+              anyIncomplete: false,
+              incompleteSources: [],
+              mayAssertAllClear: true,
+            },
+            items: [],
+            pagination: {
+              offset: 0,
+              pageSize: 25,
+              returned: 0,
+              nextCursor: null,
+              totalEstimate: 0,
+              totalIsExact: true,
+              appliedFilter: "all",
+              appliedTone: null,
+            },
+            historyAvailable: true,
+          }),
+        );
+      }
       return route.fulfill(
         json({
           generatedAt: "2026-08-22T12:00:00.000Z",

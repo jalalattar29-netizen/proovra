@@ -638,7 +638,11 @@ describe("read state is announced, and reading a row moves nothing", () => {
     await mountBell();
     await openPopover("Submission 1 needs review");
     const link = screen.getByRole("link", { name: /view all notifications/i });
-    // A real route, not a placeholder.
-    expect(link.getAttribute("href")).toBe("/inbox");
+    // A real route, not a placeholder — and the CANONICAL one. `/inbox` is
+    // where the implementation file lives, but as a URL it is a compatibility
+    // path that `middleware.ts` 308s to `/notifications`. Linking the bell at
+    // it would spend a redirect to arrive at the same page under a name the
+    // product no longer uses.
+    expect(link.getAttribute("href")).toBe("/notifications");
   });
 });

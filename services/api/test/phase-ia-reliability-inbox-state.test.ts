@@ -529,13 +529,24 @@ describe("Phase IA-reliability — /inbox UI exposes per-item actions", () => {
    * adjudication ("this doesn't matter", "go away") on a surface that is only
    * ever filing one person's mail. `unarchive` is new and NOT optional — an
    * archive with no way back is a delete wearing a softer label.
+   *
+   * SECOND MIGRATION (2026-08-22). `remind` no longer RENDERS. Deferring a
+   * personal notification to tomorrow is an operational-triage gesture; on a
+   * feed whose whole job is "what happened that I should know about?" it added
+   * a third disposition next to read and archived that nobody could describe.
+   * The capability is untouched below the button — the action union, the
+   * client mutation path and `POST .../remind` all still work, so an item that
+   * is already snoozed still shows its reminder and still returns on its own.
+   * What is gone is the control that created new ones.
    */
-  it("renders Mark read / Mark unread / Remind / Archive / Unarchive per item", () => {
+  it("renders Mark read / Mark unread / Archive / Unarchive per item — and no Remind", () => {
     expect(PAGE).toMatch(/data-action="mark-read"/);
     expect(PAGE).toMatch(/data-action="mark-unread"/);
-    expect(PAGE).toMatch(/data-action="remind"/);
     expect(PAGE).toMatch(/data-action="archive"/);
     expect(PAGE).toMatch(/data-action="unarchive"/);
+    expect(PAGE).not.toMatch(/data-action="remind"/);
+    // The state remains legible even though it can no longer be entered.
+    expect(PAGE).toMatch(/Reminder set for/);
     // Optimistic-update with rollback on failure.
     expect(PAGE).toMatch(/applyOptimisticUpdate/);
     expect(PAGE).toMatch(/removeItemLocally/);

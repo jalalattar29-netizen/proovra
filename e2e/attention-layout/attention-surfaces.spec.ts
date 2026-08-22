@@ -224,18 +224,18 @@ for (const surface of SURFACES) {
   });
 }
 
-test("the notification severity chips do not clip in RTL", async ({ page }) => {
+test("the notification metric cards do not clip in RTL", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, "/notifications", "team-admin");
   await setDirection(page, "rtl");
-  const chips = page.locator(".ops-severity-chip");
-  const count = await chips.count();
-  expect(count).toBeGreaterThan(0);
+  const cards = page.locator("[data-notifications-metric]");
+  const count = await cards.count();
+  expect(count).toBe(6);
   for (let i = 0; i < count; i += 1) {
-    const clipped = await chips.nth(i).evaluate(
+    const clipped = await cards.nth(i).evaluate(
       (el) => el.scrollWidth - el.clientWidth > 1,
     );
-    expect(clipped, `severity chip ${i} clips its label in RTL`).toBe(false);
+    expect(clipped, `metric card ${i} clips its label in RTL`).toBe(false);
   }
 });
 
@@ -244,18 +244,18 @@ test("the notification severity chips do not clip in RTL", async ({ page }) => {
 // ============================================================================
 
 test.describe("Accessibility", () => {
-  test("severity chips are keyboard reachable and announce their state", async ({
+  test("metric cards are keyboard reachable and announce their state", async ({
     page,
   }) => {
     await open(page, "/notifications", "team-admin");
-    const chip = page.locator(".ops-severity-chip").first();
+    const chip = page.locator("[data-notifications-metric]:not([disabled])").first();
     await expect(chip).toBeVisible();
 
     // It is a real button, so it takes focus from the keyboard.
     await chip.focus();
     expect(
       await page.evaluate(() =>
-        document.activeElement?.classList.contains("ops-severity-chip"),
+        document.activeElement?.hasAttribute("data-notifications-metric"),
       ),
     ).toBe(true);
 
@@ -265,7 +265,7 @@ test.describe("Accessibility", () => {
 
   test("focus is VISIBLE, not just present", async ({ page }) => {
     await open(page, "/notifications", "team-admin");
-    const chip = page.locator(".ops-severity-chip").first();
+    const chip = page.locator("[data-notifications-metric]:not([disabled])").first();
     await chip.focus();
     const shadow = await chip.evaluate((el) => getComputedStyle(el).boxShadow);
     // The focus ring is a box-shadow token; "none" would mean an invisible
@@ -276,12 +276,20 @@ test.describe("Accessibility", () => {
   test("severity is never communicated by colour alone", async ({ page }) => {
     await open(page, "/notifications", "team-admin");
     const labels = await page
-      .locator(".ops-severity-chip__label")
+      .locator("[data-notifications-metric] .app-metric-card__label")
       .allTextContents();
-    expect(labels.length).toBeGreaterThan(0);
-    // Every chip carries its severity as TEXT beside the count.
+    expect(labels.length).toBe(6);
+    // Every card carries its meaning as TEXT — a label and an explanation —
+    // beside the figure, so the tone rail is a supporting cue and never the
+    // signal itself.
     for (const label of labels) {
       expect(label.trim().length).toBeGreaterThan(0);
+    }
+    const metas = await page
+      .locator("[data-notifications-metric] .app-metric-card__meta")
+      .allTextContents();
+    for (const meta of metas) {
+      expect(meta.trim().length).toBeGreaterThan(0);
     }
   });
 

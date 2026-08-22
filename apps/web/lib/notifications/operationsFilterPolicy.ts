@@ -45,6 +45,24 @@ export type OperationsFilterKey =
   | "snoozed"
   | "history";
 
+/**
+ * THE NOTIFICATION FILTER ROW.
+ *
+ * `snoozed` left BOTH rows when the "Remind me tomorrow" action was withdrawn
+ * from the UI. A filter for a state the reader can no longer create is a chip
+ * that is permanently empty, and its eligibility is universal — there is no
+ * category signal that could reveal it only when it has contents — so leaving
+ * it in "More filters" would show everyone an empty view forever.
+ *
+ * Nothing is stranded by that. A snoozed item is hidden only until its
+ * reminder falls due, at which point it returns to the ordinary list on its
+ * own. The key, the backend state and `POST .../snooze` are all untouched, so
+ * an API client that sets one still works and the item still comes back.
+ *
+ * `history` stays, renamed to "Archived" at the label: what it shows is the
+ * reader's own archived notifications, not the resolved-condition history that
+ * /operations owns.
+ */
 export const PRIMARY_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> = [
   "all",
   "unread",
@@ -53,7 +71,6 @@ export const PRIMARY_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> = [
   "integrity",
   "assigned_to_me",
   "review",
-  "snoozed",
   "history",
 ];
 

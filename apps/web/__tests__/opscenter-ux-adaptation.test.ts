@@ -36,6 +36,7 @@ import {
   visibleSecondaryFilters,
   type ActualItemSignal,
   type InboxCategoryKey,
+  type OperationsFilterKey,
 } from "../lib/notifications/operationsFilterPolicy";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -431,9 +432,40 @@ test("a real item reveals its preference group (no preference hidden while items
 // ---------------------------------------------------------------------------
 
 test("every filter is exactly primary or secondary — nothing lost or duplicated", () => {
+  // `snoozed` is the ONE deliberate exception: the reminder action was
+  // withdrawn from the UI, so its chip could only ever be empty, and its
+  // eligibility is universal — no category count could reveal it selectively,
+  // so "More filters" would have shown everyone an empty view forever. The
+  // key and its backend state remain, and a snoozed item still returns to the
+  // list on its own when the reminder falls due.
+  //
+  // Naming the exception, rather than lowering a count, keeps the partition
+  // honest: any OTHER key that silently leaves both rows still fails here.
   const all = [...PRIMARY_OPERATIONS_FILTERS, ...SECONDARY_OPERATIONS_FILTERS];
-  assert.equal(all.length, 20);
-  assert.equal(new Set(all).size, 20);
+  assert.equal(new Set(all).size, all.length, "no filter appears in both rows");
+  assert.ok(!all.includes("snoozed"), "the reminder filter is withdrawn");
+  const EXPECTED: ReadonlyArray<OperationsFilterKey> = [
+    "all",
+    "unread",
+    "critical",
+    "failures",
+    "integrity",
+    "assigned_to_me",
+    "review",
+    "history",
+    "mentions",
+    "collaboration",
+    "invitations",
+    "reports",
+    "packages",
+    "intake",
+    "due_soon",
+    "overdue",
+    "security",
+    "governance",
+    "admin",
+  ];
+  assert.deepEqual([...all].sort(), [...EXPECTED].sort());
 });
 
 test("the active secondary filter is promoted into the primary row", () => {
@@ -500,19 +532,38 @@ test("OpsCenter: subtitle + empty-state are adaptive (no hardcoded reviews/gover
     PAGE,
     /reviews, mentions, invitations, governance, security, and integrity signals/,
   );
-  assert.match(PAGE, /function describeAttentionAreas/);
-  assert.match(PAGE, /uiCtx\.canParticipateInReviews \|\|/);
-  assert.match(PAGE, /uiCtx\.canReceiveGovernance \|\|/);
-  assert.match(PAGE, /uiCtx\.canCollaborate \|\|/);
+  // WHAT THIS USED TO ASSERT, AND WHY IT CHANGED.
+  //
+  // The subtitle used to enumerate what could arrive — "integrity signals,
+  // report failures, intake activity…" — and `describeAttentionAreas` existed
+  // to build that list per capability, because enumerating it wrongly for a
+  // Free account was a real defect.
+  //
+  // The subtitle no longer enumerates anything: one short sentence, true for
+  // every plan, so there is nothing to adapt and the machinery is gone. That
+  // satisfies the original property more completely than the adaptive list
+  // did — a sentence that names no capability cannot name the wrong one.
+  assert.doesNotMatch(PAGE, /function describeAttentionAreas/);
+  assert.match(
+    PAGE,
+    /subtitle="Updates, assignments, mentions and integrity alerts relevant to you\."/,
+  );
 });
 
 test("OpsCenter: workspace scope selector is hidden for single-workspace users", () => {
   assert.match(PAGE, /workspaceOptions\.length > 2 &&/);
 });
 
-test("Organizations CTA only for org users; personal-only users get evidence remediation", () => {
-  assert.match(PAGE, /uiCtx\.hasOrganizations \? \(/);
-  assert.match(PAGE, /data-action="empty-open-evidence"/);
+test("Notifications: the empty state offers no CTA at all", () => {
+  // The empty state used to branch — Organizations for org users, the evidence
+  // library for everyone else — beneath a primary "Open workspace command
+  // center" that sent a Personal Free user to Home for a workbench they do not
+  // have. There is nothing useful to DO from an empty notification list, and a
+  // button that merely navigates elsewhere is worse than its honest absence.
+  assert.doesNotMatch(PAGE, /data-action="empty-open-home"/);
+  assert.doesNotMatch(PAGE, /data-action="empty-open-evidence"/);
+  assert.doesNotMatch(PAGE, /data-action="empty-open-organizations"/);
+  assert.match(PAGE, /title="You're all caught up"/);
 });
 
 test("bell popover manages focus (trap + restore to trigger); no Bell-only eligibility logic", () => {
@@ -528,9 +579,24 @@ test("bell popover manages focus (trap + restore to trigger); no Bell-only eligi
   assert.doesNotMatch(BELL, /operationalEligibility/);
 });
 
-test("terminology: Operations Center, not Operational inbox", () => {
-  assert.match(PAGE, /eyebrow="Account · Operations Center"/);
-  assert.doesNotMatch(PAGE, /Operational inbox"/);
+test("terminology: the page names itself Notifications, and nothing else", () => {
+  // It was `eyebrow="Account · Operations Center"` — which filed a personal
+  // feed under a shared operational surface, and borrowed a name /operations
+  // already owns. The page is its own destination now: a plain title, no
+  // eyebrow, and no operational vocabulary in anything the reader sees.
+  assert.match(PAGE, /title="Notifications"/);
+  assert.doesNotMatch(PAGE, /eyebrow=/);
+  // Checked in the positions the reader can actually see — a quoted prop value
+  // or JSX text — so the design note above `remindItem`, which still cites the
+  // old name to explain what was withdrawn, is not mistaken for a regression.
+  for (const forbidden of ["Operations Center", "Operational inbox"]) {
+    for (const rendered of [`"${forbidden}"`, `>${forbidden}<`]) {
+      assert.ok(
+        !PAGE.includes(rendered),
+        `the page must not present itself as "${forbidden}"`,
+      );
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------

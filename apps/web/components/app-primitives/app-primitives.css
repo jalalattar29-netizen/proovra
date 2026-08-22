@@ -990,6 +990,124 @@ textarea.app-form-input {
   vertical-align: middle;
 }
 
+/* ---------------------------------------------------------------------------
+ * METRIC CARD — the ONE summary-figure card for internal surfaces.
+ *
+ * WHERE IT CAME FROM
+ *
+ * These declarations were `.ilk-kpi*` in `intake-links.css`, where they were
+ * the accepted look for a row of counts: a translucent card, a semantic rail
+ * on the inline-start edge, a large tabular figure, a label, and an optional
+ * explanation. Notifications needed the same thing, and the two options were
+ * to copy it — producing a second metric-card design that would drift the
+ * first time either page was touched — or to lift it here. It is lifted.
+ *
+ * THE TONE IS A VARIABLE, NOT A PALETTE.
+ *
+ * The card paints `--app-metric-tone`, which the consuming surface resolves
+ * from its own canonical tone tokens. Nothing here names a semantic colour, so
+ * this primitive cannot become a second place where "critical" is decided.
+ *
+ * The FIGURE and the RAIL share that one resolved tone deliberately: a card
+ * with a red rail over a slate number reads as two different claims about the
+ * same count.
+ *
+ * PRESSABLE, BUT NOT NECESSARILY PRESSED. Both current consumers render these
+ * as filter buttons, so hover/focus/selected states are defined here. A purely
+ * informational consumer can render a non-interactive element and simply never
+ * reach them.
+ * ------------------------------------------------------------------------- */
+.app-metric-card {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px 14px 13px;
+  padding-inline-start: 16px;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+/* The semantic rail. Drawn as a pseudo-element rather than a border so
+   selecting a card never changes its geometry. */
+.app-metric-card::before {
+  content: "";
+  position: absolute;
+  inset-block: 12px;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  border-start-end-radius: 3px;
+  border-end-end-radius: 3px;
+  background: var(--app-metric-tone, var(--app-ink-secondary));
+  opacity: 0.85;
+}
+.app-metric-card:hover {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+.app-metric-card:focus-visible {
+  outline: none;
+  box-shadow:
+    0 6px 18px rgba(15, 23, 42, 0.03),
+    0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+/* Selected = this card's filter is the one in force. Restrained: a tinted
+   surface plus the rail at full strength — never an OS-blue focus border. */
+.app-metric-card[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(109, 40, 217, 0.24);
+  box-shadow: 0 6px 18px rgba(109, 40, 217, 0.08);
+}
+.app-metric-card[aria-pressed="true"]::before {
+  opacity: 1;
+  inset-block: 8px;
+}
+.app-metric-card__value {
+  font-size: 26px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--app-metric-tone, var(--app-ink-heading));
+  font-variant-numeric: tabular-nums;
+}
+.app-metric-card__label {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--app-ink-label);
+}
+.app-metric-card__meta {
+  margin-block-start: 2px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--app-ink-secondary);
+}
+/* Bounded, not dropped. On a narrow screen a row of full explanations pushes
+   the content below it most of a screen down; clamping keeps the strip compact
+   while the whole sentence stays in the accessibility tree for the
+   `aria-describedby` every consumer wires up. */
+@media (max-width: 900px) {
+  .app-metric-card__meta {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
 /* Chip rows are LISTS — adjacent chips must never run together into one
    accessible name. Reset the list affordances and keep a real gap. */
 .app-chip-row {

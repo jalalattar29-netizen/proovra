@@ -1559,3 +1559,71 @@ test.describe("Delivery & activity presentation holds at every supported width",
     expect(pageOverflow).toBe(0);
   });
 });
+
+// ===========================================================================
+// THE KPI CARD IS THE SHARED PRIMITIVE, NOT A PRIVATE COPY
+//
+// Notifications reuses this card. "The same as Intake Links" only means
+// something if Intake Links itself consumes the shared primitive — otherwise
+// the two are merely two copies that happen to agree today.
+// ===========================================================================
+
+test("the KPI card resolves the canonical metric-card primitive", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openIntakeLinks(page, "organization");
+
+  const measured = await page.evaluate(() => {
+    // An UNPRESSED card: the selected one resolves the primitive's
+    // `[aria-pressed="true"]` rule, so comparing it against a bare probe would
+    // be comparing two different states of the same primitive.
+    const real = document.querySelector(
+      '.ilk-kpi[aria-pressed="false"]',
+    ) as HTMLElement | null;
+    if (!real) return null;
+
+    // A bare probe carrying ONLY the primitive's class, measured in the same
+    // document. If the two resolve identically, this card IS the primitive.
+    const probe = document.createElement("button");
+    probe.className = "app-metric-card";
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    document.body.appendChild(probe);
+    const p = getComputedStyle(probe);
+    const reference = {
+      radius: p.borderTopLeftRadius,
+      paddingTop: p.paddingTop,
+      paddingInlineStart: p.paddingInlineStart,
+      shadow: p.boxShadow,
+      background: p.backgroundColor,
+      display: p.display,
+    };
+    probe.remove();
+
+    const cs = getComputedStyle(real);
+    return {
+      shared: real.classList.contains("app-metric-card"),
+      reference,
+      resolved: {
+        radius: cs.borderTopLeftRadius,
+        paddingTop: cs.paddingTop,
+        paddingInlineStart: cs.paddingInlineStart,
+        shadow: cs.boxShadow,
+        background: cs.backgroundColor,
+        display: cs.display,
+      },
+      // The route resolves the tone; the primitive only paints it.
+      tone: cs.getPropertyValue("--app-metric-tone").trim(),
+      hasValue: Boolean(real.querySelector(".app-metric-card__value")),
+      hasLabel: Boolean(real.querySelector(".app-metric-card__label")),
+    };
+  });
+
+  expect(measured, "no KPI card rendered").not.toBeNull();
+  expect(measured!.shared).toBe(true);
+  expect(measured!.resolved).toEqual(measured!.reference);
+  expect(measured!.hasValue).toBe(true);
+  expect(measured!.hasLabel).toBe(true);
+  expect(measured!.tone.length).toBeGreaterThan(0);
+});
