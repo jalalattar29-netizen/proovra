@@ -43,51 +43,104 @@ export type OperationsFilterKey =
   | "overdue"
   | "admin"
   | "snoozed"
+  | "archived"
+  /** LEGACY wire name for `archived`; the API normalizes it. */
   | "history";
 
 /**
- * THE NOTIFICATION FILTER ROW.
+ * TWO LEVELS, NOT FIFTEEN CHIPS.
  *
- * `snoozed` left BOTH rows when the "Remind me tomorrow" action was withdrawn
- * from the UI. A filter for a state the reader can no longer create is a chip
- * that is permanently empty, and its eligibility is universal — there is no
- * category signal that could reveal it only when it has contents — so leaving
- * it in "More filters" would show everyone an empty view forever.
+ * This shipped as one permanently-rendered row of every filter the reader was
+ * eligible for, plus a "More filters" row that unfolded the rest — up to
+ * fifteen pills competing with the metric cards directly above them. It did
+ * not scale (every new category made it longer), it did not read as
+ * enterprise software, and it gave a rarely-used filter exactly as much of the
+ * page as `All`.
  *
- * Nothing is stranded by that. A snoozed item is hidden only until its
- * reminder falls due, at which point it returns to the ordinary list on its
- * own. The key, the backend state and `POST .../snooze` are all untouched, so
- * an API client that sets one still works and the item still comes back.
+ * The model is now:
  *
- * `history` stays, renamed to "Archived" at the label: what it shows is the
- * reader's own archived notifications, not the resolved-condition history that
- * /operations owns.
+ *   QUICK      three chips, always visible, always the same three. These are
+ *              the lifecycle of a personal feed — everything, what I have not
+ *              read, what I have filed away — and they are the only filters a
+ *              reader touches on most visits.
+ *
+ *   ADVANCED   everything else, GROUPED, behind one `Filters` control that
+ *              carries a count when something is applied.
+ *
+ * `snoozed` is in neither, deliberately: the reminder action was withdrawn
+ * from the UI, its eligibility is universal (no category count could reveal it
+ * selectively), so its chip could only ever have been empty for everyone. The
+ * key and `POST .../snooze` are untouched, and a snoozed item still returns to
+ * the list on its own when the reminder falls due.
+ *
+ * `critical` is in neither for a different reason: severity already has a
+ * control on this page. The four tone metric cards toggle it, and a second
+ * place to set the same axis is how two controls end up disagreeing about
+ * which one is in force.
+ *
+ * `archived` is the canonical key. `history` was its name while the filter
+ * meant "read OR archived"; that predicate is fixed server-side and the key is
+ * renamed with it, so the label and the population finally agree.
  */
-export const PRIMARY_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> = [
+export const QUICK_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> = [
   "all",
   "unread",
-  "critical",
-  "failures",
-  "integrity",
-  "assigned_to_me",
-  "review",
-  "history",
+  "archived",
 ];
 
-export const SECONDARY_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> =
+/**
+ * THE ADVANCED PANEL, GROUPED.
+ *
+ * Order within a group is stable and hand-chosen; groups are rendered in this
+ * order. A group whose every member is hidden by eligibility renders no
+ * heading — an empty labelled section reads as a loading failure.
+ */
+export interface OperationsFilterGroup {
+  readonly id: "type" | "integrity" | "time";
+  readonly label: string;
+  readonly keys: ReadonlyArray<OperationsFilterKey>;
+}
+
+export const ADVANCED_OPERATIONS_FILTER_GROUPS: ReadonlyArray<OperationsFilterGroup> =
   [
-    "mentions",
-    "collaboration",
-    "invitations",
-    "reports",
-    "packages",
-    "intake",
-    "due_soon",
-    "overdue",
-    "security",
-    "governance",
-    "admin",
+    {
+      id: "type",
+      label: "Type",
+      keys: [
+        "mentions",
+        "assigned_to_me",
+        "collaboration",
+        "invitations",
+        "review",
+        "intake",
+        "reports",
+        "packages",
+        "governance",
+        "security",
+        "admin",
+      ],
+    },
+    {
+      id: "integrity",
+      label: "Evidence & integrity",
+      keys: ["integrity", "failures"],
+    },
+    { id: "time", label: "Time & urgency", keys: ["due_soon", "overdue"] },
   ];
+
+/**
+ * BACK-COMPATIBLE PROJECTIONS.
+ *
+ * The visibility policy below, its unit tests and the Notification Preferences
+ * groups all reason over "primary" and "secondary" rows. Those names now
+ * describe the quick row and the advanced panel's flattened contents, so one
+ * eligibility rule still serves every consumer and no second predicate exists.
+ */
+export const PRIMARY_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> =
+  QUICK_OPERATIONS_FILTERS;
+
+export const SECONDARY_OPERATIONS_FILTERS: ReadonlyArray<OperationsFilterKey> =
+  ADVANCED_OPERATIONS_FILTER_GROUPS.flatMap((g) => [...g.keys]);
 
 /** The subset of resolver context the visibility policy consumes. */
 export type FilterPolicyContext = Pick<
@@ -285,7 +338,7 @@ function eligibleByPolicy(
       return ctx.hasEligibleDeadlineSource;
     default:
       // all, unread, critical, failures, integrity, security, snoozed,
-      // history — universal operational core.
+      // archived — universal operational core.
       return true;
   }
 }
@@ -390,4 +443,57 @@ export function shouldOfferMarkCategoryRead(
  */
 export function toneTileDisabled(count: number, isActive: boolean): boolean {
   return count === 0 && !isActive;
+}
+
+/**
+ * THE ADVANCED PANEL'S CONTENTS, eligibility-filtered and grouped.
+ *
+ * Unlike `visibleSecondaryFilters`, this does NOT drop the active key. That
+ * exclusion exists because the old layout PROMOTED the active secondary filter
+ * into the always-visible row, so leaving it in the overflow would have shown
+ * it twice. A panel has no such row: the active filter has to stay where the
+ * reader can see it is selected — and, more importantly, where they can click
+ * it again to turn it off.
+ *
+ * A group with no eligible members is dropped entirely rather than rendered as
+ * an empty heading, which reads as a section that failed to load.
+ */
+export function visibleAdvancedFilterGroups(
+  ctx: FilterPolicyContext,
+  items: ActualItemSignal = NO_ACTUAL_ITEMS,
+): Array<{ id: OperationsFilterGroup["id"]; label: string; keys: OperationsFilterKey[] }> {
+  return ADVANCED_OPERATIONS_FILTER_GROUPS.map((g) => ({
+    id: g.id,
+    label: g.label,
+    keys: g.keys.filter((k) => filterAllowed(k, ctx, items)),
+  })).filter((g) => g.keys.length > 0);
+}
+
+/**
+ * HOW MANY FILTERS ARE ACTUALLY APPLIED — the number on the `Filters` control.
+ *
+ * Counts the AXES that are narrowing the list, not the chips that exist. There
+ * are three, and they are independent:
+ *
+ *   category    one of the advanced keys (the quick row's `all`/`unread`/
+ *               `archived` are the page's own lifecycle state, not an advanced
+ *               filter, so they never contribute to this badge — a reader who
+ *               has simply clicked "Unread" has not "applied 1 filter")
+ *   tone        set by the severity metric cards
+ *   workspace   set by the workspace selector, when the reader has more than
+ *               one
+ *
+ * Keeping this a pure function means the badge, the "clear all" affordance and
+ * the tests all read the same rule.
+ */
+export function activeAdvancedFilterCount(input: {
+  filter: OperationsFilterKey;
+  tone: string;
+  workspaceId: string;
+}): number {
+  let n = 0;
+  if (!QUICK_OPERATIONS_FILTERS.includes(input.filter)) n += 1;
+  if (input.tone !== "all") n += 1;
+  if (input.workspaceId !== "all") n += 1;
+  return n;
 }

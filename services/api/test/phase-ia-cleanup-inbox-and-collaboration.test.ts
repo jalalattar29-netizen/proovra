@@ -233,6 +233,18 @@ describe("Phase IA-cleanup — response shape", () => {
 
 describe("Phase IA-cleanup — /inbox UI exposes the 5 new categories", () => {
   const PAGE = readSource("../../../apps/web/app/(app)/inbox/page.tsx");
+  /**
+   * The filter VOCABULARY, wherever it lives.
+   *
+   * Filter keys used to be spelled out in the page JSX, so a per-key
+   * assertion against the page was an assertion about the product. They moved
+   * into the policy module when the overflow row became a grouped panel, and
+   * the page now renders from the groups. Concatenating the two keeps these
+   * assertions pointed at the thing they were always about — the key exists
+   * and is offered — instead of at where it happens to be written.
+   */
+  const LABELS_AND_GROUPS =
+    PAGE + readSource("../../../apps/web/lib/notifications/operationsFilterPolicy.ts");
 
   it("InboxCategory union covers the 5 new categories", () => {
     for (const key of [
@@ -265,23 +277,26 @@ describe("Phase IA-cleanup — /inbox UI exposes the 5 new categories", () => {
     // pure, unit-tested policy module (operationsFilterPolicy.ts);
     // the page keeps the label map and renders primary + overflow
     // rows from the policy.
+    // The policy is still the ordering authority; the page keeps the label
+    // map and renders from it. What changed is the SHAPE it renders: a quick
+    // row plus grouped advanced filters, so the page no longer spells each
+    // key as a literal — the policy groups do, which is where a per-key
+    // assertion now belongs (see `opscenter-ux-adaptation`).
     expect(PAGE).toContain("operationsFilterPolicy");
     expect(PAGE).toContain("visiblePrimaryFilters");
+    expect(PAGE).toContain("visibleAdvancedFilterGroups");
     expect(PAGE).toContain("INBOX_FILTER_LABELS");
-    for (const id of [
-      "all",
-      "mentions",
-      "review",
-      "governance",
-      "failures",
-      "admin",
-    ]) {
-      expect(PAGE).toMatch(new RegExp(`"${id}"`));
+    for (const id of ["all", "mentions", "review", "governance", "failures", "admin"]) {
+      expect(LABELS_AND_GROUPS).toMatch(new RegExp(`"${id}"`));
     }
   });
 
   it("renders filter chips", () => {
-    expect(PAGE).toContain("data-inbox-filter-chips");
+    // `data-inbox-filter-chips` named the old permanent two-row wall. The
+    // toolbar replaced it; the per-chip hook is unchanged, so anything that
+    // located a chip still does.
+    expect(PAGE).toContain("data-inbox-toolbar");
+    expect(PAGE).toContain("data-inbox-quick-filters");
     expect(PAGE).toMatch(/data-inbox-filter-chip=/);
   });
 
@@ -590,6 +605,18 @@ describe("Phase IA-enterprise — pagination + server-driven filters", () => {
 
 describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sections", () => {
   const PAGE = readSource("../../../apps/web/app/(app)/inbox/page.tsx");
+  /**
+   * The filter VOCABULARY, wherever it lives.
+   *
+   * Filter keys used to be spelled out in the page JSX, so a per-key
+   * assertion against the page was an assertion about the product. They moved
+   * into the policy module when the overflow row became a grouped panel, and
+   * the page now renders from the groups. Concatenating the two keeps these
+   * assertions pointed at the thing they were always about — the key exists
+   * and is offered — instead of at where it happens to be written.
+   */
+  const LABELS_AND_GROUPS =
+    PAGE + readSource("../../../apps/web/lib/notifications/operationsFilterPolicy.ts");
 
   it("InboxCategory union covers the 3 new failure categories", () => {
     for (const key of [
@@ -618,7 +645,11 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     }
   });
 
-  it("INBOX_FILTER_ORDER lists the 12 enterprise filter chips", () => {
+  it("every enterprise filter key still exists in the vocabulary", () => {
+    // Asserted against the LABEL MAP and the policy groups rather than the
+    // whole page: the keys moved out of the JSX when the overflow row became
+    // a grouped panel, and a whole-file search would now be satisfied by a
+    // comment that merely mentions one.
     for (const key of [
       "all",
       "critical",
@@ -633,7 +664,7 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
       "admin",
       "unread",
     ]) {
-      expect(PAGE).toMatch(new RegExp(`"${key}"`));
+      expect(LABELS_AND_GROUPS).toMatch(new RegExp(`"${key}"`));
     }
   });
 
@@ -649,8 +680,13 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
   });
 
   it("\"Showing X of Y\" indicator renders, with + suffix when total is an estimate", () => {
+    // The "+" suffix is gone. Appending it to a number the reader parses as
+    // exact is a weaker kind of honesty than saying so plainly: an inexact
+    // total now drops the "of N" claim entirely and says more may exist.
     expect(PAGE).toContain("data-inbox-showing-text");
-    expect(PAGE).toMatch(/totalIsExact\s*\?\s*""\s*:\s*"\+"/);
+    expect(PAGE).toMatch(/totalIsExact/);
+    expect(PAGE).toMatch(/more may exist/);
+    expect(PAGE).not.toMatch(/totalIsExact\s*\?\s*""\s*:\s*"\+"/);
   });
 
   it("renders priority section headers grouped by P1..P5", () => {
@@ -672,8 +708,12 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     // Final-completion rebaseline: buildUrl also depends on the
     // server-validated workspace narrowing selector (workspaceFilter),
     // so a scope change is a fresh query too.
+    // SORT joined the dependency list. A reorder is a fresh query for exactly
+    // the reason a filter change is: the cursor is an offset into an ordered
+    // population, so carrying it across a reorder pages into the middle of a
+    // list the reader never saw the start of.
     expect(PAGE).toMatch(
-      /useCallback\([\s\S]{0,900}\[filter,\s*toneFilter,\s*workspaceFilter\]/,
+      /useCallback\([\s\S]{0,900}\[filter,\s*toneFilter,\s*workspaceFilter,\s*sort\]/,
     );
   });
 });

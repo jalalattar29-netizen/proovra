@@ -33,9 +33,9 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
  *     expectations.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { Bell, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 
 import { apiFetch } from "../../../lib/api";
 import { useLatestRequest } from "../../../lib/net/useLatestRequest";
@@ -46,6 +46,7 @@ import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { AppListbox } from "../../../components/app-primitives";
+import { AppAnchoredOverlay } from "../../../components/app-primitives/AppAnchoredOverlay";
 import {
   useOrganizations,
   usePersonalSpace,
@@ -57,7 +58,11 @@ import {
   shouldOfferMarkCategoryRead,
   toneTileDisabled,
   visiblePrimaryFilters,
-  visibleSecondaryFilters,
+  visibleAdvancedFilterGroups,
+  QUICK_OPERATIONS_FILTERS,
+  SECONDARY_OPERATIONS_FILTERS,
+  type OperationsFilterKey,
+  activeAdvancedFilterCount,
 } from "../../../lib/notifications/operationsFilterPolicy";
 
 type InboxTone = "info" | "warning" | "high" | "critical";
@@ -266,17 +271,20 @@ const NOTIFICATION_METRICS: ReadonlyArray<{
   /** Severity cards filter by tone; Unread and All do not. */
   tone?: InboxTone;
 }> = [
-  {
-    key: "unread",
-    label: "Unread",
-    explanation: "Not opened yet.",
-    accent: "unread",
-  },
+  /* ALL LEADS. It is the population every other card is a subset of, and it
+     is the state the page opens in, so the row reads left-to-right from
+     "everything" into the narrowings of it. */
   {
     key: "all",
     label: "All",
     explanation: "Everything currently addressed to you.",
     accent: "all",
+  },
+  {
+    key: "unread",
+    label: "Unread",
+    explanation: "Not opened yet.",
+    accent: "unread",
   },
   {
     key: "critical",
@@ -377,27 +385,23 @@ const PRIORITY_ORDER: ReadonlyArray<InboxPriority> = [
 // key maps 1:1 to the backend's `InboxFilter` enum (validated by the
 // Zod schema on `/v1/me/inbox`). The server applies the filter so
 // admin-only items never reach a non-admin even via crafted requests.
-type InboxFilter =
-  | "all"
-  | "critical"
-  | "assigned_to_me"
-  | "review"
-  | "governance"
-  | "failures"
-  | "security"
-  | "mentions"
-  | "unread"
-  | "due_soon"
-  | "overdue"
-  | "admin"
-  | "invitations"
-  | "intake"
-  | "reports"
-  | "packages"
-  | "integrity"
-  | "collaboration"
-  | "snoozed"
-  | "history";
+/**
+ * THE FILTER VOCABULARY, from its ONE definition.
+ *
+ * This was a second hand-maintained copy of the same union — identical to the
+ * policy module's `OperationsFilterKey` except for whichever key had most
+ * recently been added to one and not the other, which is exactly what happened
+ * when `archived` landed. Aliasing removes the second authority rather than
+ * teaching it the new word.
+ */
+type InboxFilter = OperationsFilterKey;
+
+/** Runtime membership test for a query-string value. Derived from the two
+ *  canonical rows so it cannot drift from the union. */
+const ALL_INBOX_FILTERS: ReadonlyArray<InboxFilter> = [
+  ...QUICK_OPERATIONS_FILTERS,
+  ...SECONDARY_OPERATIONS_FILTERS,
+];
 
 const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   all: "All",
@@ -424,8 +428,41 @@ const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
      /operations. What this filter actually shows is the reader's own archived
      notifications, so it says that. */
   snoozed: "Reminders",
+  archived: "Archived",
+  /* The legacy wire name for `archived`. It is never rendered — the label
+     exists so an envelope echoing `appliedFilter: "history"` from a client
+     that predates the rename cannot print `undefined` at the reader. */
   history: "Archived",
 };
+
+/**
+ * SORT — four orderings, and each one is a QUESTION the reader is asking.
+ *
+ * The server owns every one of them: the selected sort is sent as a query
+ * parameter, applied to the FULL population, and the page is sliced from the
+ * ordered result. Nothing here reorders the rows the browser happens to hold,
+ * because doing that would order page 1 correctly and page 2 by itself.
+ *
+ * "Due soon" is deliberately ABSENT. A due date exists only on the minority of
+ * notifications whose source carries one, so an ordering built on it would
+ * silently be an ordering of "the few with dates, then everything else in some
+ * other order" — and inventing dates for the rest to make the control look
+ * complete is the one thing it must not do.
+ */
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "unread_first", label: "Unread first" },
+  { value: "severity", label: "Highest severity" },
+] as const;
+
+type InboxSort = (typeof SORT_OPTIONS)[number]["value"];
+
+const DEFAULT_SORT: InboxSort = "newest";
+
+function isInboxSort(v: string | null | undefined): v is InboxSort {
+  return SORT_OPTIONS.some((o) => o.value === v);
+}
 
 /** Filters that make sense as a "mark this category as read" scope —
  *  everything except the whole-queue/state views. */
@@ -491,6 +528,17 @@ function InboxPageInner() {
   // all-workspaces scope; a workspace id narrows server-side (the
   // backend validates membership and 403s on anything else).
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("all");
+  /**
+   * ORDERING. Server-applied, like every other axis on this page — see
+   * `SORT_OPTIONS`. Changing it resets pagination for the same reason
+   * changing a filter does: the cursor is an offset into an ordered
+   * population, so carrying it across a reorder would page into the middle of
+   * a list the reader never saw the start of.
+   */
+  const [sort, setSort] = useState<InboxSort>(DEFAULT_SORT);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const filtersPanelRef = useRef<HTMLDivElement | null>(null);
   const personalSpace = usePersonalSpace();
   const organizations = useOrganizations();
   // Canonical UI-context — relevance only; the backend enforces data.
@@ -539,25 +587,186 @@ function InboxPageInner() {
     }
     setToneFilter(toneFilter === key ? "all" : key);
   };
-  // Filter grouping (pure policy, unit-tested): a stable primary row +
-  // a "More filters" overflow; capability-gated chips (admin,
-  // governance) never render for users who can never receive them, and
-  // the ACTIVE filter is always visible even while collapsed.
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const primaryFilters = visiblePrimaryFilters(uiCtx, filter, itemSignal);
-  const secondaryFilters = visibleSecondaryFilters(uiCtx, filter, itemSignal);
-  const workspaceOptions: Array<{ value: string; label: string }> = [
-    { value: "all", label: "All workspaces" },
-    ...(personalSpace?.id
-      ? [{ value: personalSpace.id, label: "Personal Space" }]
-      : []),
-    ...organizations
-      .filter((o) => o.membershipStatus === "ACTIVE")
-      .map((o) => ({
-        value: o.id,
-        label: o.displayName ?? o.name ?? "Organization",
-      })),
-  ];
+  // Filter grouping (pure policy, unit-tested): a stable QUICK row of three,
+  // plus grouped advanced filters behind one control. Capability-gated
+  // options (admin, governance) never render for users who can never receive
+  // them — the policy decides, this page only draws it.
+  const quickFilters = visiblePrimaryFilters(uiCtx, filter, itemSignal);
+  const advancedGroups = visibleAdvancedFilterGroups(uiCtx, itemSignal);
+  const activeFilterCount = activeAdvancedFilterCount({
+    filter,
+    tone: toneFilter,
+    workspaceId: workspaceFilter,
+  });
+  // Memoized: the active-filter summary derives a label from this list, and
+  // a fresh array on every render would rebuild that summary on every render.
+  const workspaceOptions: Array<{ value: string; label: string }> = useMemo(
+    () => [
+      { value: "all", label: "All workspaces" },
+      ...(personalSpace?.id
+        ? [{ value: personalSpace.id, label: "Personal Space" }]
+        : []),
+      ...organizations
+        .filter((o) => o.membershipStatus === "ACTIVE")
+        .map((o) => ({
+          value: o.id,
+          label: o.displayName ?? o.name ?? "Organization",
+        })),
+    ],
+    [personalSpace?.id, organizations],
+  );
+
+  /**
+   * CLOSING THE PANEL RETURNS FOCUS TO THE CONTROL THAT OPENED IT.
+   *
+   * Without this, dismissing the popover drops focus to the document and a
+   * keyboard reader is returned to the top of the page — which is the usual
+   * way a popover becomes technically operable and practically unusable.
+   */
+
+  /**
+   * THE VIEW IS IN THE URL.
+   *
+   * Refreshing used to drop the reader back to "All / Newest", which on a page
+   * whose whole job is narrowing a list is the one thing that makes narrowing
+   * feel unsafe. The three axes and the ordering now round-trip through the
+   * query string, so a refresh keeps the view and a link to it describes it:
+   *
+   *     /notifications?filter=archived&tone=critical&sort=oldest
+   *
+   * READ ONCE, on mount, from `window.location` rather than through
+   * `useSearchParams()`. The hook would put this client component's render
+   * behind a Suspense boundary at build time for a page that is otherwise
+   * fully client-rendered — a real constraint on this app's static render, and
+   * nothing here needs the hook's re-render-on-navigation behaviour.
+   *
+   * WRITTEN with `history.replaceState`, not a router navigation: replacing
+   * means the back button leaves the page rather than walking backwards
+   * through every filter click, and `replaceState` does not re-run the route.
+   * The honest cost is that in-app back/forward does not restore a previous
+   * filter combination; refresh, bookmark and share — the cases people
+   * actually hit — all do.
+   *
+   * VALIDATED on the way in. A hand-edited or stale query string resolves to
+   * the default rather than putting an unknown key into a request.
+   */
+  const [urlHydrated, setUrlHydrated] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const f = params.get("filter");
+    if (f && ALL_INBOX_FILTERS.includes(f as InboxFilter)) {
+      setFilter(f as InboxFilter);
+    }
+    const t = params.get("tone");
+    if (t && (["critical", "high", "warning", "info"] as const).includes(
+      t as InboxTone,
+    )) {
+      setToneFilter(t as InboxTone);
+    }
+    const so = params.get("sort");
+    if (isInboxSort(so)) setSort(so);
+    const ws = params.get("workspaceId");
+    if (ws) setWorkspaceFilter(ws);
+    setUrlHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    // Not before the read above has run, or the first paint's defaults would
+    // overwrite the very query string being restored.
+    if (!urlHydrated) return;
+    const params = new URLSearchParams();
+    if (filter !== "all") params.set("filter", filter);
+    if (toneFilter !== "all") params.set("tone", toneFilter);
+    if (workspaceFilter !== "all") params.set("workspaceId", workspaceFilter);
+    if (sort !== DEFAULT_SORT) params.set("sort", sort);
+    const qs = params.toString();
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, "", next);
+    }
+  }, [urlHydrated, filter, toneFilter, workspaceFilter, sort]);
+
+  const closeFilters = useCallback(() => {
+    setFiltersOpen(false);
+    filtersTriggerRef.current?.focus();
+  }, []);
+
+  /** Escape closes the panel from anywhere inside it, or from the trigger. */
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // The listbox inside the panel handles its own Escape first and stops
+      // propagation, so its dropdown closes without taking the panel with it.
+      e.stopPropagation();
+      closeFilters();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [filtersOpen, closeFilters]);
+
+  /**
+   * A quick filter is the page's LIFECYCLE state, so selecting one clears the
+   * tone narrowing with it: "show me everything I have archived" and "…but
+   * only the critical ones" are two different requests, and silently keeping
+   * the second is how a reader concludes their archive is empty.
+   */
+  const selectQuickFilter = useCallback(
+    (key: InboxFilter) => {
+      setFilter(key);
+      setToneFilter("all");
+    },
+    [],
+  );
+
+  /** Advanced filters are single-choice; clicking the active one clears it. */
+  const selectAdvancedFilter = useCallback(
+    (key: InboxFilter) => {
+      setFilter((current) => (current === key ? "all" : key));
+    },
+    [],
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setFilter("all");
+    setToneFilter("all");
+    setWorkspaceFilter("all");
+  }, []);
+
+  /**
+   * THE ACTIVE-FILTER SUMMARY, derived — never a second copy of the state.
+   *
+   * Only axes that are actually narrowing the list appear, each with the one
+   * action that undoes it. The quick row is excluded for the same reason it
+   * does not count towards the badge: `All`/`Unread`/`Archived` is where the
+   * page always is, not something applied on top of it.
+   */
+  const activeChips = useMemo(() => {
+    const chips: Array<{ id: string; label: string; clear: () => void }> = [];
+    if (!QUICK_OPERATIONS_FILTERS.includes(filter)) {
+      chips.push({
+        id: filter,
+        label: INBOX_FILTER_LABELS[filter],
+        clear: () => setFilter("all"),
+      });
+    }
+    if (toneFilter !== "all") {
+      chips.push({
+        id: `tone:${toneFilter}`,
+        label: TONE_LABELS[toneFilter],
+        clear: () => setToneFilter("all"),
+      });
+    }
+    if (workspaceFilter !== "all") {
+      const ws = workspaceOptions.find((o) => o.value === workspaceFilter);
+      chips.push({
+        id: `workspace:${workspaceFilter}`,
+        label: ws?.label ?? "Workspace",
+        clear: () => setWorkspaceFilter("all"),
+      });
+    }
+    return chips;
+  }, [filter, toneFilter, workspaceFilter, workspaceOptions]);
   // Accumulated items across the current filter window. Reset on
   // filter/tone change; appended on Load More.
   const [items, setItems] = useState<InboxItem[]>([]);
@@ -571,11 +780,16 @@ function InboxPageInner() {
       if (filter !== "all") params.set("filter", filter);
       if (toneFilter !== "all") params.set("tone", toneFilter);
       if (workspaceFilter !== "all") params.set("workspaceId", workspaceFilter);
+      // ALWAYS SENT, including the default. The API's own default is
+      // `priority` — the Operations Center's ordering, which this page is not
+      // — so omitting the parameter when the control reads "Newest first"
+      // would show a list that did not match the control.
+      params.set("sort", sort);
       if (cursor) params.set("cursor", cursor);
       const qs = params.toString();
       return qs ? `/v1/me/inbox?${qs}` : "/v1/me/inbox";
     },
-    [filter, toneFilter, workspaceFilter],
+    [filter, toneFilter, workspaceFilter, sort],
   );
 
   /**
@@ -854,6 +1068,22 @@ function InboxPageInner() {
   // server-side by `filter` + `toneFilter` query params).
   const visibleItems = items;
 
+  /**
+   * WHAT THE COUNT IS COUNTING, in the page's own vocabulary.
+   *
+   * "items" is a queue's word. These are notifications, and when a narrowing
+   * is in force the sentence should say which notifications — "12 archived
+   * notifications" tells the reader what they are looking at, where "12 of 36
+   * items" makes them reconstruct it from the toolbar.
+   */
+  const resultNoun = useMemo(() => {
+    const plural = visibleItems.length === 1 ? "notification" : "notifications";
+    if (filter === "archived") return `archived ${plural}`;
+    if (filter === "unread") return `unread ${plural}`;
+    if (filter === "all") return plural;
+    return `${INBOX_FILTER_LABELS[filter].toLowerCase()} ${plural}`;
+  }, [filter, visibleItems.length]);
+
   // Group visibleItems by priority for the section render. Items keep
   // their server-assigned position within a priority bucket.
   const itemsByPriority: Record<InboxPriority, InboxItem[]> = {
@@ -882,7 +1112,26 @@ function InboxPageInner() {
            already says where you are and the canonical header does not need a
            breadcrumb to prove it. */
         <PageHeader
-          title="Notifications"
+          title={
+            /* THE CASES TITLE TREATMENT, REUSED — not re-cut.
+               `.app-title-row` + `.app-title-icon` are the /cases page title's
+               own geometry, gradient, border and inner highlight, lifted into
+               the shared primitives sheet so both pages render one definition.
+               Only the glyph differs, and it is the canonical Bell from
+               lucide-react, the icon library this app already uses.
+
+               `aria-hidden` because the heading beside it already names the
+               page; announcing "Notifications" twice is noise, not an
+               affordance. This renders INSIDE PageHeader's own <h1>, so there
+               is exactly one heading here — unlike /cases, which nests its
+               own. */
+            <span className="app-title-row">
+              <span aria-hidden className="app-title-icon">
+                <Bell strokeWidth={1.75} data-notifications-title-icon />
+              </span>
+              <span data-notifications-title>Notifications</span>
+            </span>
+          }
           subtitle="Updates, assignments, mentions and integrity alerts relevant to you."
           primaryAction={
             /* The CANONICAL primary action, the same one the header's New Case
@@ -1041,112 +1290,236 @@ function InboxPageInner() {
         </section>
       )}
 
-      {/* ---------- Phase IA-enterprise — server-driven filter chips.
-           These map 1:1 to the backend's `InboxFilter` enum and are
-           validated server-side; the server applies the filter so
-           admin-only items never reach a non-admin even via crafted
-           requests. The chip click triggers a fresh `/v1/me/inbox`
-           request with `filter=...` and resets pagination. */}
-      {/* ---------- workspace scope. The default is the canonical
-           all-workspaces aggregation; picking a workspace narrows
-           SERVER-side (?workspaceId= is membership-validated — a
-           crafted id gets a 403, never data). Hidden for single-
-           workspace users, where scope is meaningless. */}
-      {state.kind === "ready" && workspaceOptions.length > 2 && (
-        <section
-          data-inbox-workspace-scope
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <span
-            id="inbox-workspace-scope-label"
-            style={{ fontSize: 12, fontWeight: 600, opacity: 0.75 }}
-          >
-            Workspace scope
-          </span>
-          <AppListbox
-            value={workspaceFilter}
-            options={workspaceOptions}
-            onChange={(v) => setWorkspaceFilter(v)}
-            ariaLabelledby="inbox-workspace-scope-label"
-          />
-          <span style={{ fontSize: 11.5, opacity: 0.65 }}>
-            {workspaceFilter === "all"
-              ? "Showing items from every workspace you belong to."
-              : "Showing only this workspace’s items."}
-          </span>
-        </section>
-      )}
+      {/* ==================================================================
+           THE TOOLBAR. One row, three controls, and nothing permanent that
+           the reader did not ask for.
 
+           WHAT WAS HERE: up to fifteen filter pills, all rendered all the
+           time, in two uncontrolled rows — a wall that competed with the
+           metric cards directly above it, did not scale as categories were
+           added, and gave a rarely-used filter exactly as much of the page
+           as `All`.
+
+           WHAT IS HERE NOW: three quick filters that ARE the lifecycle of a
+           personal feed, one grouped `Filters` popover carrying a count when
+           something is applied, and a sort control. The advanced filters did
+           not disappear — they stopped being permanent furniture.
+           ================================================================== */}
       {state.kind === "ready" && (
         <section
-          data-inbox-filter-chips
-          aria-label="Notification filters"
-          style={{ display: "flex", flexDirection: "column", gap: 6 }}
+          data-inbox-toolbar
+          className="ops-toolbar"
+          aria-label="Notification filters and sorting"
         >
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {primaryFilters.map((key) => {
+          <div className="ops-toolbar__quick" data-inbox-quick-filters>
+            {quickFilters.map((key) => {
               const active = filter === key;
+              /* Archived items are archived-AND-read by construction — the
+                 archive action writes both stamps in one mutation, so an
+                 "archived but unread" item cannot exist. Offering Unread while
+                 Archived is in force would be offering a view guaranteed to be
+                 empty, so it is disabled and says why. */
+              const meaningless = key === "unread" && filter === "archived";
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setFilter(key)}
+                  onClick={() => selectQuickFilter(key)}
                   aria-pressed={active}
+                  disabled={meaningless}
+                  title={
+                    meaningless
+                      ? "Archived notifications are always marked read."
+                      : undefined
+                  }
                   data-inbox-filter-chip={key}
                   data-inbox-filter-chip-active={active ? "true" : "false"}
                   data-active={active ? "true" : "false"}
-                  className="ops-chip"
+                  className="app-chip ops-quick-chip"
                 >
                   {INBOX_FILTER_LABELS[key]}
                 </button>
               );
             })}
-            {secondaryFilters.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setMoreFiltersOpen((v) => !v)}
-                aria-expanded={moreFiltersOpen}
-                aria-controls="inbox-secondary-filters"
-                data-action="toggle-more-filters"
-                data-active={moreFiltersOpen ? "true" : "false"}
-                className="ops-chip ops-chip--more"
-              >
-                {moreFiltersOpen
-                  ? "Fewer filters"
-                  : `More filters (${secondaryFilters.length})`}
-              </button>
-            ) : null}
           </div>
-          {moreFiltersOpen && secondaryFilters.length > 0 ? (
-            <div
-              id="inbox-secondary-filters"
-              data-inbox-secondary-filters
-              style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
-            >
-              {secondaryFilters.map((key) => {
-                const active = filter === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setFilter(key)}
-                    aria-pressed={active}
-                    data-inbox-filter-chip={key}
-                    data-inbox-filter-chip-active={active ? "true" : "false"}
-                    data-active={active ? "true" : "false"}
-                    className="ops-chip"
-                  >
-                    {INBOX_FILTER_LABELS[key]}
-                  </button>
-                );
-              })}
+
+          <div className="ops-toolbar__controls">
+            {advancedGroups.length > 0 || workspaceOptions.length > 2 ? (
+              <>
+                <button
+                  ref={filtersTriggerRef}
+                  type="button"
+                  className="app-secondary-action ops-filters-trigger"
+                  aria-expanded={filtersOpen}
+                  aria-haspopup="dialog"
+                  aria-controls="inbox-advanced-filters"
+                  data-action="toggle-advanced-filters"
+                  data-active={activeFilterCount > 0 ? "true" : "false"}
+                  onClick={() => setFiltersOpen((v) => !v)}
+                >
+                  <SlidersHorizontal size={15} strokeWidth={2} aria-hidden />
+                  Filters
+                  {activeFilterCount > 0 ? (
+                    <span
+                      className="ops-filters-count"
+                      data-inbox-active-filter-count={activeFilterCount}
+                    >
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </button>
+                <AppAnchoredOverlay
+                  anchorRef={filtersTriggerRef}
+                  open={filtersOpen}
+                  overlayRef={filtersPanelRef}
+                  onPointerDownOutside={() => setFiltersOpen(false)}
+                  // A panel, not a select popup: it sizes from its own CSS
+                  // instead of inheriting the trigger button width.
+                  matchAnchorWidth={false}
+                  role="dialog"
+                  id="inbox-advanced-filters"
+                  aria-label="Filters"
+                  className="ops-filters-panel"
+                  data-inbox-filters-panel
+                >
+                  {advancedGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className="ops-filters-group"
+                      data-inbox-filter-group={group.id}
+                    >
+                      <h3 className="ops-filters-group__label">
+                        {group.label}
+                      </h3>
+                      <div className="ops-filters-group__items">
+                        {group.keys.map((key) => {
+                          const active = filter === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              className="app-chip ops-filter-option"
+                              aria-pressed={active}
+                              data-inbox-filter-chip={key}
+                              data-inbox-filter-chip-active={
+                                active ? "true" : "false"
+                              }
+                              onClick={() => selectAdvancedFilter(key)}
+                            >
+                              {INBOX_FILTER_LABELS[key]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* WORKSPACE lives in the same panel rather than in a strip
+                      of its own above the list — it is one more way to narrow
+                      the population, and it was the only one with a permanent
+                      row. Rendered ONLY for a reader who has somewhere else to
+                      switch to: with a single Personal Space, "All workspaces"
+                      is a choice between one thing. */}
+                  {workspaceOptions.length > 2 ? (
+                    <div
+                      className="ops-filters-group"
+                      data-inbox-filter-group="workspace"
+                      data-inbox-workspace-scope
+                    >
+                      <h3
+                        className="ops-filters-group__label"
+                        id="inbox-workspace-scope-label"
+                      >
+                        Workspace
+                      </h3>
+                      <AppListbox
+                        value={workspaceFilter}
+                        options={workspaceOptions}
+                        onChange={(v) => setWorkspaceFilter(v)}
+                        ariaLabelledby="inbox-workspace-scope-label"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="ops-filters-panel__footer">
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      data-action="clear-advanced-filters"
+                      disabled={activeFilterCount === 0}
+                      onClick={clearAllFilters}
+                    >
+                      Clear filters
+                    </button>
+                    <button
+                      type="button"
+                      className="app-primary-action"
+                      data-action="close-advanced-filters"
+                      onClick={closeFilters}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </AppAnchoredOverlay>
+              </>
+            ) : null}
+
+            <div className="ops-sort">
+              <span className="ops-sort__label" id="inbox-sort-label">
+                Sort
+              </span>
+              <AppListbox
+                value={sort}
+                options={SORT_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: o.label,
+                }))}
+                onChange={(v) => setSort(v as InboxSort)}
+                ariaLabelledby="inbox-sort-label"
+                className="ops-sort__control"
+              />
             </div>
-          ) : null}
+          </div>
+        </section>
+      )}
+
+      {/* ---------- ACTIVE FILTER SUMMARY. Only what is actually applied,
+           each with its own remove control, plus one way out. This is the
+           replacement for reading the state off a wall of pills: the reader
+           never has to scan fifteen chips to find which two are lit. */}
+      {state.kind === "ready" && activeChips.length > 0 && (
+        <section
+          data-inbox-active-filters
+          className="ops-active-filters"
+          aria-label="Active filters"
+        >
+          <ul className="app-chip-row">
+            {activeChips.map((chip) => (
+              <li key={chip.id}>
+                <span className="app-chip ops-active-chip">
+                  {chip.label}
+                  <button
+                    type="button"
+                    className="ops-active-chip__remove"
+                    aria-label={`Remove ${chip.label} filter`}
+                    data-action="remove-filter"
+                    data-inbox-remove-filter={chip.id}
+                    onClick={chip.clear}
+                  >
+                    <X size={12} strokeWidth={2.5} aria-hidden />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="ops-link-btn"
+            data-action="clear-all-filters"
+            onClick={clearAllFilters}
+          >
+            Clear all
+          </button>
         </section>
       )}
 
@@ -1168,10 +1541,16 @@ function InboxPageInner() {
               state.data.pagination.totalIsExact ? "true" : "false"
             }
           >
-            Showing {visibleItems.length} of{" "}
-            {state.data.pagination.totalEstimate}
-            {state.data.pagination.totalIsExact ? "" : "+"}{" "}
-            {filter === "all" ? "items" : `${INBOX_FILTER_LABELS[filter]} items`}
+            {/* NOTIFICATION VOCABULARY, and honest about the total.
+                It said "items" — the word for a row in an operational queue.
+                It also says "of N" only while N is EXACT; when a source was
+                capped the backend reports an estimate, and claiming a precise
+                total we do not have is the one thing a count must not do, so
+                the phrasing changes rather than appending a "+" to a number
+                the reader will read as exact anyway. */}
+            {state.data.pagination.totalIsExact
+              ? `Showing ${visibleItems.length} of ${state.data.pagination.totalEstimate} ${resultNoun}`
+              : `Showing ${visibleItems.length} ${resultNoun} (more may exist)`}
           </strong>
           {state.data.anyTruncated && state.data.truncated && (
             <span style={{ opacity: 0.85 }}>
@@ -1254,31 +1633,40 @@ function InboxPageInner() {
         (state.data.scopeSummary?.total ?? state.data.summary.total) > 0 &&
         visibleItems.length === 0 && (
           <div data-state="filter-empty">
-            <Card variant="empty" padding="comfortable">
-              <span style={{ fontSize: 14 }}>
-                No items match the{" "}
-                <strong>{INBOX_FILTER_LABELS[filter]}</strong> filter
-                {toneFilter !== "all" ? (
-                  <>
-                    {" "}
-                    with <strong>{toneFilter}</strong> tone
-                  </>
-                ) : null}{" "}
-                right now.{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilter("all");
-                    setToneFilter("all");
-                  }}
-                  data-action="clear-filter"
-                  className="ops-link-btn"
-                  style={{ marginLeft: 6 }}
+            {/* THREE DIFFERENT NOTHINGS, three different sentences.
+                One generic "no items match" for all of them made an empty
+                archive look like a broken filter, and a broken filter look
+                like an empty inbox. The reader needs to know which of the
+                three they are in, because only one of them has an action. */}
+            {filter === "archived" && activeFilterCount === 0 ? (
+              <Card variant="empty" padding="comfortable">
+                <span
+                  style={{ fontSize: 14 }}
+                  data-inbox-empty-reason="archive"
                 >
-                  Show all
-                </button>
-              </span>
-            </Card>
+                  No archived notifications. Archiving a notification files it
+                  here and takes it out of your active list.
+                </span>
+              </Card>
+            ) : (
+              <Card variant="empty" padding="comfortable">
+                <span
+                  style={{ fontSize: 14 }}
+                  data-inbox-empty-reason="filters"
+                >
+                  No notifications match these filters.{" "}
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    data-action="clear-filter"
+                    className="ops-link-btn"
+                    style={{ marginInlineStart: 6 }}
+                  >
+                    Clear filters
+                  </button>
+                </span>
+              </Card>
+            )}
           </div>
         )}
 

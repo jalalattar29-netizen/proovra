@@ -332,34 +332,22 @@ export function CasesIndex() {
                  plain-language title + a one-line description of the
                  concept. The pinned cc-title / cc-subtitle nodes are
                  retained inside the premium PageHeader hero. */
-              <div
-                className="cases-page-heading"
-                style={{ display: "flex", alignItems: "center", gap: 12 }}
-              >
+              <div className="cases-page-heading app-title-row">
                 {/* §9 — premium enterprise case/workspace icon surface (no
                     emoji, no cartoon fill, no neon blob). FolderKanban glyph
-                    drawn inline (no new icon library). */}
-                <span
-                  aria-hidden
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 12,
-                    display: "grid",
-                    placeItems: "center",
-                    flexShrink: 0,
-                    background:
-                      "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
-                    border: "1px solid rgba(91,79,233,0.16)",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
-                  }}
-                >
+                    drawn inline (no new icon library).
+
+                    The SURFACE around the glyph is no longer written here.
+                    It was six inline numbers and two hexes, which made this
+                    treatment impossible for another page to adopt without
+                    copying them by eye; it is now `.app-title-icon` in the
+                    shared primitives sheet, lifted from these exact values.
+                    Same pixels, one definition, and /notifications renders the
+                    same surface with a Bell in it. */}
+                <span aria-hidden className="app-title-icon">
                   <svg
-                    width="21"
-                    height="21"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#7C3AED"
                     strokeWidth="1.75"
                     strokeLinecap="round"
                     strokeLinejoin="round"

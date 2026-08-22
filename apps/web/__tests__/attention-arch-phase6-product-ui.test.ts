@@ -196,11 +196,31 @@ test("severity is never carried by colour alone", () => {
   assert.match(NOTIFICATIONS, /app-metric-card__meta/);
   assert.match(NOTIFICATIONS, /\{metric\.label\}/);
   assert.match(NOTIFICATIONS, /\{metric\.explanation\}/);
-  // The tone is a VARIABLE the route resolves from canonical tokens; the
-  // shared card primitive never names a semantic colour.
-  assert.match(
-    NOTIFICATIONS_CSS,
-    /--app-metric-tone: var\(--ops-tone-critical\)/,
+  // The tone is a VARIABLE the route resolves, and it now resolves from the
+  // CANONICAL design tokens rather than from this route's own `--ops-tone-*`
+  // block — the same families the status badges and the Intake Links KPI
+  // cards consume, so a colour cannot be defined twice and drift.
+  for (const token of [
+    "--ink-primary",
+    "--accent-600",
+    "--info",
+    "--orange-500",
+    "--error",
+    "--ink-secondary",
+  ]) {
+    assert.ok(
+      NOTIFICATIONS_CSS.includes(`--app-metric-tone: var(${token})`),
+      `a metric card must resolve its tone from ${token}`,
+    );
+  }
+  // And the mapping names tokens, never literals.
+  const map = NOTIFICATIONS_CSS.slice(
+    NOTIFICATIONS_CSS.indexOf('.ops-metric[data-ops-metric-tone="all"]'),
+    NOTIFICATIONS_CSS.indexOf('.ops-metric[data-ops-metric-tone="all"]') + 800,
+  );
+  assert.ok(
+    !/#[0-9a-fA-F]{3,8}\b/.test(map),
+    "the tone mapping must name tokens, never hexes",
   );
 });
 

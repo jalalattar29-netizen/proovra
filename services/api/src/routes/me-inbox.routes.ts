@@ -161,9 +161,7 @@ const INBOX_FILTER_KEYS = [
   //   collaboration  — collaboration-team notifications + discussion
   //                    mentions/assignments
   //   snoozed        — items with an ACTIVE snooze (normally hidden)
-  //   history        — read or dismissed items whose source signal is
-  //                    still present (source-resolved items leave the
-  //                    aggregation entirely; see the docstring above)
+  //   archived       — items the reader ARCHIVED (see the note below)
   "invitations",
   "intake",
   "reports",
@@ -171,9 +169,43 @@ const INBOX_FILTER_KEYS = [
   "integrity",
   "collaboration",
   "snoozed",
+  "archived",
+  // LEGACY WIRE NAME. Normalized to `archived` before anything reads it —
+  // see `normalizeInboxFilter`.
   "history",
 ] as const;
 type InboxFilter = (typeof INBOX_FILTER_KEYS)[number];
+
+/**
+ * `history` WAS A DIFFERENT QUESTION, AND THE RENAME MADE IT A LIE.
+ *
+ * The filter shipped as "History", meaning "things I have already dealt with"
+ * — read OR archived. When the product renamed the control to "Archived", the
+ * predicate was not narrowed with it, so selecting Archived returned every
+ * notification the reader had merely OPENED alongside the ones they had
+ * actually filed away. That is the user-visible defect this normalization and
+ * the two predicates below exist to close.
+ *
+ * The canonical key is `archived` and it means exactly one thing:
+ *
+ *     archived  ⇔  dismissedAt != null      (`dismissedAt` is the legacy
+ *                                            column name for `archivedAt`)
+ *
+ * READ IS NOT ARCHIVED. Reading is something that happens to a notification
+ * as you look at it; archiving is a decision to file it. A reader who opens
+ * fifty notifications has archived none of them.
+ *
+ * `history` stays accepted on the wire — shipped clients send it, and the
+ * response still carries `historyAvailable` for the same reason — but it is
+ * normalized here so exactly one predicate exists downstream. This mirrors
+ * the `snooze`→`remind` alias table: one implementation, two names, and no
+ * second behaviour able to appear behind the older one.
+ */
+export function normalizeInboxFilter(
+  filter: InboxFilter | undefined,
+): InboxFilter | undefined {
+  return filter === "history" ? "archived" : filter;
+}
 
 const inboxQuerySchema = z.object({
   // Opaque cursor. Encodes a forward offset into the post-filter,
@@ -200,9 +232,41 @@ const inboxQuerySchema = z.object({
    * Both are orderings of ONE aggregation. This is deliberately not a second
    * endpoint: a second endpoint would be a second visibility predicate waiting
    * to drift from this one.
+   *
+   * THE NOTIFICATIONS PAGE ADDS THREE MORE, for the same reason and under the
+   * same rule: one aggregation, one visibility predicate, several orderings.
+   *
+   *   newest        the page default — "what just happened"
+   *   oldest        the backlog reading of the same list
+   *   unread_first  unread ahead of read, newest within each half
+   *   severity      worst first — distinct from `priority`, which leads with
+   *                 P1..P5 and reaches tone only as its third key
+   *
+   * `recent` is the legacy spelling of `newest` and stays accepted for the
+   * shipped header bell. `priority` remains the DEFAULT so the Operations
+   * Center and every existing caller are unchanged by this addition.
    */
-  sort: z.enum(["priority", "recent"]).optional(),
+  sort: z
+    .enum(["priority", "recent", "newest", "oldest", "unread_first", "severity"])
+    .optional(),
 });
+
+/** The canonical ordering names, after `recent` is folded into `newest`. */
+type InboxSort = "priority" | "newest" | "oldest" | "unread_first" | "severity";
+
+export function normalizeInboxSort(
+  sort:
+    | "priority"
+    | "recent"
+    | "newest"
+    | "oldest"
+    | "unread_first"
+    | "severity"
+    | undefined,
+): InboxSort {
+  if (!sort) return "priority";
+  return sort === "recent" ? "newest" : sort;
+}
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -736,7 +800,7 @@ export function isUnreadForRecipient(
   return isVisibleToRecipient(item, nowMs) && !item.isRead;
 }
 
-function matchesFilter(
+export function matchesFilter(
   item: InboxItem,
   filter: InboxFilter | undefined,
   nowMs: number,
@@ -757,8 +821,13 @@ function matchesFilter(
       new Date(item.snoozedUntil).getTime() > nowMs
     );
   }
-  if (filter === "history") {
-    return item.isRead || item.dismissedAt != null;
+  // ARCHIVED IS ARCHIVED. This branch read `item.isRead || item.dismissedAt
+  // != null` — the old "History" question — which is why the Archived filter
+  // returned read-but-active notifications alongside genuinely archived ones.
+  // See `normalizeInboxFilter` for the full account; `history` never reaches
+  // here as itself.
+  if (filter === "archived") {
+    return item.dismissedAt != null;
   }
   if (filter === "critical") return item.tone === "critical";
   if (filter === "overdue") {
@@ -849,6 +918,77 @@ function compareInboxItemsByRecency(a: InboxItem, b: InboxItem): number {
   return a.itemKey.localeCompare(b.itemKey);
 }
 
+/**
+ * OLDEST FIRST — the same total ordering, reversed on its primary key only.
+ *
+ * The tie-break stays ASCENDING on `itemKey` rather than flipping with the
+ * timestamp. Reversing both would be the mirror image of newest-first, which
+ * sounds tidier and is wrong for the job: the tie-break exists to make the
+ * ordering TOTAL so offset pagination cannot show or skip a row, and any
+ * stable unique key does that. Keeping it fixed means the two directions
+ * disagree only about the thing the reader asked them to disagree about.
+ */
+function compareInboxItemsByOldest(a: InboxItem, b: InboxItem): number {
+  const dt = a.occurredAt.localeCompare(b.occurredAt);
+  if (dt !== 0) return dt;
+  return a.itemKey.localeCompare(b.itemKey);
+}
+
+/** UNREAD FIRST, then newest within each half. */
+function compareInboxItemsByUnreadFirst(a: InboxItem, b: InboxItem): number {
+  const au = a.isRead ? 1 : 0;
+  const bu = b.isRead ? 1 : 0;
+  if (au !== bu) return au - bu;
+  return compareInboxItemsByRecency(a, b);
+}
+
+/**
+ * HIGHEST SEVERITY FIRST, then newest within each tone.
+ *
+ * Distinct from the operator `priority` ordering, which leads with P1..P5 and
+ * consults tone only as its third key. This one answers "show me the worst
+ * things first" literally.
+ */
+function compareInboxItemsBySeverity(a: InboxItem, b: InboxItem): number {
+  const dt = TONE_PRIORITY[b.tone] - TONE_PRIORITY[a.tone];
+  if (dt !== 0) return dt;
+  return compareInboxItemsByRecency(a, b);
+}
+
+/**
+ * THE ONE PLACE AN ORDERING IS CHOSEN.
+ *
+ * Every ordering here is TOTAL (unique final tie-break on `itemKey`) and every
+ * one is applied to the FULL filtered population before the page is sliced —
+ * not to the rows a page happens to hold. Both properties are load-bearing
+ * under offset pagination: a partial ordering lets an item drift across a page
+ * boundary between two requests and be served twice or skipped, and sorting
+ * after slicing would reorder page 2 without ever consulting page 1.
+ */
+export function sortInboxItems(
+  items: InboxItem[],
+  sort: InboxSort,
+  nowMs: number,
+): void {
+  switch (sort) {
+    case "newest":
+      items.sort(compareInboxItemsByRecency);
+      return;
+    case "oldest":
+      items.sort(compareInboxItemsByOldest);
+      return;
+    case "unread_first":
+      items.sort(compareInboxItemsByUnreadFirst);
+      return;
+    case "severity":
+      items.sort(compareInboxItemsBySeverity);
+      return;
+    case "priority":
+    default:
+      items.sort((a, b) => compareInboxItems(a, b, nowMs));
+  }
+}
+
 function dueScore(dueAt: string | null | undefined, nowMs: number): number {
   if (!dueAt) return 0;
   const due = new Date(dueAt).getTime();
@@ -879,6 +1019,119 @@ async function snapshotsAvailable(): Promise<boolean> {
     }
   }
   return snapshotTableState === "available";
+}
+
+/**
+ * ONE PAGE OF THE ARCHIVE, IN THE REQUESTED ORDER.
+ *
+ * The archive is served from the snapshot table rather than from the live
+ * aggregation, because an archived notification must stay readable after its
+ * source stops emitting it. That means the ordering has to be expressed to the
+ * DATABASE — it cannot be a comparator over an in-memory array the way the
+ * live path's is — and it still has to be TOTAL, so offset pagination cannot
+ * serve a row twice or skip one.
+ *
+ * Three of the four orderings are a plain multi-key `orderBy`. The fourth is
+ * not, and the reason is worth stating: `severity` is a VarChar holding
+ * "critical" | "high" | "warning" | "info", so ordering on the column sorts it
+ * ALPHABETICALLY — critical, high, info, warning — which puts `info` above
+ * `warning` and quietly mis-ranks the one thing the reader asked to rank.
+ *
+ * Rather than reach for raw SQL and restate the whole `where` clause in a
+ * second dialect, this walks the tones in canonical rank order and pages
+ * ACROSS them: one `groupBy` yields all four counts, and the page is then
+ * taken from whichever tone(s) the requested window actually spans — usually
+ * one findMany, at most a few. The predicate object is the SAME one the count
+ * above uses, so the page and the total can never describe different
+ * populations.
+ */
+const ARCHIVED_TONE_RANK = ["critical", "high", "warning", "info"] as const;
+
+type SnapshotWhere = NonNullable<
+  Parameters<typeof prisma.operationsInboxSnapshot.findMany>[0]
+>["where"];
+
+type SnapshotRow = Awaited<
+  ReturnType<typeof prisma.operationsInboxSnapshot.findMany>
+>[number];
+
+async function readArchivedPage(
+  where: SnapshotWhere,
+  sort: InboxSort,
+  offset: number,
+  pageSize: number,
+): Promise<SnapshotRow[]> {
+  if (sort !== "severity") {
+    // Every one of these ends on `itemKey`, which is unique per row, so the
+    // ordering is total and the page boundary is stable between requests.
+    const orderBy =
+      sort === "oldest"
+        ? [
+            { sourceOccurredAtUtc: "asc" as const },
+            { itemKey: "asc" as const },
+          ]
+        : sort === "unread_first"
+          ? [
+              // Unread is `readAtUtc IS NULL`, so nulls must sort FIRST —
+              // Postgres defaults NULLs last on ASC, which would have put
+              // every read row above every unread one.
+              { readAtUtc: { sort: "asc" as const, nulls: "first" as const } },
+              { sourceOccurredAtUtc: "desc" as const },
+              { itemKey: "asc" as const },
+            ]
+          : [
+              // `newest`, and the `priority` default: the archive is a
+              // history, and operator priority is a work queue's question, so
+              // both resolve to most-recent-first here.
+              { sourceOccurredAtUtc: "desc" as const },
+              { itemKey: "asc" as const },
+            ];
+    return prisma.operationsInboxSnapshot.findMany({
+      where,
+      orderBy,
+      skip: offset,
+      take: pageSize,
+    });
+  }
+
+  const grouped = await prisma.operationsInboxSnapshot.groupBy({
+    by: ["severity"],
+    where,
+    _count: { _all: true },
+  });
+  const countByTone = new Map<string, number>(
+    grouped.map((g) => [g.severity, g._count._all]),
+  );
+
+  const page: SnapshotRow[] = [];
+  // `skipRemaining` walks the virtual concatenation of the tone buckets;
+  // `remaining` is how much of the requested page is still unfilled.
+  let skipRemaining = offset;
+  let remaining = pageSize;
+  for (const tone of ARCHIVED_TONE_RANK) {
+    if (remaining <= 0) break;
+    const inTone = countByTone.get(tone) ?? 0;
+    if (inTone === 0) continue;
+    if (skipRemaining >= inTone) {
+      // The whole bucket sits behind the requested window.
+      skipRemaining -= inTone;
+      continue;
+    }
+    const take = Math.min(remaining, inTone - skipRemaining);
+    const slice = await prisma.operationsInboxSnapshot.findMany({
+      where: { ...where, severity: tone },
+      orderBy: [
+        { sourceOccurredAtUtc: "desc" as const },
+        { itemKey: "asc" as const },
+      ],
+      skip: skipRemaining,
+      take,
+    });
+    page.push(...slice);
+    remaining -= slice.length;
+    skipRemaining = 0;
+  }
+  return page;
 }
 
 /** Bounded metadata copy — string/number/null values only, capped. The
@@ -2894,10 +3147,14 @@ export async function meInboxRoutes(app: FastifyInstance) {
         : {};
       const pageSize = queryParams.pageSize ?? DEFAULT_PAGE_SIZE;
       const offset = decodeCursor(queryParams.cursor);
-      const requestedFilter: InboxFilter = queryParams.filter ?? "all";
+      // Normalized at the boundary, so exactly one spelling of each reaches
+      // the predicates below and a legacy wire name cannot grow a second
+      // behaviour behind it.
+      const requestedFilter: InboxFilter =
+        normalizeInboxFilter(queryParams.filter) ?? "all";
       const requestedTone = queryParams.tone;
       const requestedWorkspaceId = queryParams.workspaceId;
-      const requestedSort = queryParams.sort ?? "priority";
+      const requestedSort = normalizeInboxSort(queryParams.sort);
 
       // Workspace narrowing — the caller may only narrow to a workspace
       // they belong to (anti-enumeration 403 otherwise). Validated up
@@ -2924,7 +3181,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // content the user was already authorized to see when it was
       // surfaced; every query is userId-scoped.
       // ---------------------------------------------------------------
-      if (requestedFilter === "history") {
+      if (requestedFilter === "archived") {
         if (!(await snapshotsAvailable())) {
           return reply.code(200).send({
             generatedAt: now.toISOString(),
@@ -2949,6 +3206,28 @@ export async function meInboxRoutes(app: FastifyInstance) {
         }
         const where = {
           userId,
+          // ==============================================================
+          // THE ARCHIVED DEFECT, AND WHERE IT ACTUALLY LIVED.
+          //
+          // This `where` had NO lifecycle predicate. The snapshot table
+          // holds a per-user row for EVERY item ever surfaced — that is its
+          // job, so History could outlive source resolution — so the query
+          // returned the reader's entire notification history and the
+          // Archived view showed active, unarchived notifications beside
+          // the archived ones.
+          //
+          // The predicate in `matchesFilter` was wrong in the same
+          // direction (`isRead || dismissedAt != null`), but it was never
+          // the cause: this branch returns before the live path runs. Both
+          // are corrected, because leaving a wrong-but-unreachable copy of
+          // a rule is how it comes back.
+          //
+          // `dismissedAtUtc` is the legacy column name for `archivedAt`,
+          // and the per-item action handler mirrors every archive/unarchive
+          // into it in the same transaction as `InboxItemState`, so it is
+          // the authoritative archived marker here.
+          // ==============================================================
+          dismissedAtUtc: { not: null },
           ...(requestedTone ? { severity: requestedTone } : {}),
           // Membership was validated above, so narrowing the snapshot
           // window to one workspace is safe here.
@@ -2964,12 +3243,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
         };
         const [total, rows] = await Promise.all([
           prisma.operationsInboxSnapshot.count({ where }),
-          prisma.operationsInboxSnapshot.findMany({
-            where,
-            orderBy: { lastSeenAtUtc: "desc" },
-            skip: offset,
-            take: pageSize,
-          }),
+          readArchivedPage(where, requestedSort, offset, pageSize),
         ]);
         // Membership-loss redaction — snapshots whose workspace the
         // caller can no longer access keep ONLY safe personal-state
@@ -3240,13 +3514,11 @@ export async function meInboxRoutes(app: FastifyInstance) {
         return true;
       });
 
-      // ONE population, two orderings. See the `sort` field on the query
-      // schema for why the bell cannot use the Operations Center's.
-      if (requestedSort === "recent") {
-        filteredItems.sort(compareInboxItemsByRecency);
-      } else {
-        filteredItems.sort((a, b) => compareInboxItems(a, b, nowMs));
-      }
+      // ONE population, several orderings. See the `sort` field on the query
+      // schema for why the bell cannot use the Operations Center's, and
+      // `sortInboxItems` for why every ordering is total and applied to the
+      // whole population rather than to the page.
+      sortInboxItems(filteredItems, requestedSort, nowMs);
 
       const totalEstimate = filteredItems.length;
       // Exact when no source query hit its take limit. If we capped a
@@ -3567,12 +3839,16 @@ export async function meInboxRoutes(app: FastifyInstance) {
         .object({ filter: z.string().min(1).max(32).optional() })
         .safeParse(req.body ?? {});
       const rawFilter = body.success ? body.data.filter : undefined;
-      // History and snoozed are state views, not attention queues —
-      // bulk-reading them is rejected explicitly.
+      // Archived and snoozed are state views, not attention queues —
+      // bulk-reading them is rejected explicitly. Both spellings of the
+      // archive are named because the guard runs on the RAW body value,
+      // before normalization: accepting `history` here while rejecting
+      // `archived` would leave the old name as a way around the new rule.
       if (
         rawFilter &&
         (!INBOX_FILTER_KEYS.includes(rawFilter as InboxFilter) ||
           rawFilter === "history" ||
+          rawFilter === "archived" ||
           rawFilter === "snoozed")
       ) {
         return reply.code(400).send({

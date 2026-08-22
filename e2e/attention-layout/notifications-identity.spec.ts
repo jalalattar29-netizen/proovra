@@ -182,8 +182,13 @@ test.describe("Notifications reuses the canonical visual systems", () => {
     // it, the two would diverge. The Intake Links side of the same claim is
     // asserted in the intake-links-layout project.
     const measured = await page.evaluate(() => {
+      // An UNPRESSED card. `All` leads the row and is pressed whenever no
+      // narrowing is in force — which is the page's opening state — and the
+      // pressed variant deliberately paints a different surface. Measuring it
+      // against a bare probe would compare the selected style to the resting
+      // one and report a divergence that is the design.
       const real = document.querySelector(
-        "[data-notifications-metric]",
+        '[data-notifications-metric][aria-pressed="false"]',
       ) as HTMLElement | null;
       if (!real) return null;
 

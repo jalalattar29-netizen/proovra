@@ -1612,3 +1612,70 @@ textarea.app-form-input {
 .app-copilot-sources {
   margin-block-start: 4px;
 }
+
+/* ===========================================================================
+ * PAGE TITLE ICON — the glyph that belongs to an <h1>, not a toolbar button.
+ *
+ * LIFTED, NOT REDRAWN. Every value below is the one the /cases page title has
+ * shipped with; it was written there as inline styles on a `<span>` with the
+ * hexes typed out, which is why no other page could adopt the treatment
+ * without copying six numbers by eye and getting one of them wrong. The
+ * geometry, the gradient, the border, the inner highlight and the 12px gap to
+ * the heading are unchanged — Cases now renders this class and looks exactly
+ * as it did.
+ *
+ * WHAT WAS TOKENIZED. The purple literals became `--accent-500` / `--accent-600`
+ * (`#7C3AED` / `#6D28D9`), which are their own values under the names the
+ * design system already gives them, and the tint is exposed as
+ * `--app-title-icon-tone` so a page can carry its own accent without
+ * redeclaring the surface. Nothing else moved.
+ *
+ * IT IS DECORATIVE. The <h1> beside it already names the page, so every
+ * consumer marks it `aria-hidden` — a second announcement of the page name is
+ * noise in a screen reader, not an affordance.
+ * =========================================================================== */
+.app-title-icon {
+  --app-title-icon-tone: var(--accent-500, #7c3aed);
+  inline-size: 42px;
+  block-size: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: linear-gradient(
+    145deg,
+    rgba(91, 79, 233, 0.1),
+    rgba(73, 184, 255, 0.08)
+  );
+  border: 1px solid rgba(91, 79, 233, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  color: var(--app-title-icon-tone);
+}
+/* The glyph takes its colour from the wrapper, so an inline SVG and a
+   lucide icon paint identically without either naming a hex. */
+.app-title-icon svg {
+  inline-size: 21px;
+  block-size: 21px;
+  stroke: currentColor;
+}
+/* The title row. `gap` is logical, so the icon sits before the heading in
+   both directions without a physical margin to flip. */
+.app-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+}
+/* Below the phone breakpoint the 42px block plus a 30px heading is most of
+   the line; the icon steps down rather than wrapping the title. */
+@media (max-width: 420px) {
+  .app-title-icon {
+    inline-size: 36px;
+    block-size: 36px;
+    border-radius: 10px;
+  }
+  .app-title-icon svg {
+    inline-size: 18px;
+    block-size: 18px;
+  }
+}

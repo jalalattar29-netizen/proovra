@@ -27,6 +27,9 @@ import type { PlatformContextOperationalEligibility } from "../lib/platform-cont
 import {
   PRIMARY_OPERATIONS_FILTERS,
   SECONDARY_OPERATIONS_FILTERS,
+  QUICK_OPERATIONS_FILTERS,
+  ADVANCED_OPERATIONS_FILTER_GROUPS,
+  activeAdvancedFilterCount,
   buildActualItemSignal,
   preferenceGroupVisible,
   shouldOfferMarkAllRead,
@@ -431,41 +434,90 @@ test("a real item reveals its preference group (no preference hidden while items
 // Bulk actions + tile states + filter partition (unchanged invariants)
 // ---------------------------------------------------------------------------
 
-test("every filter is exactly primary or secondary — nothing lost or duplicated", () => {
-  // `snoozed` is the ONE deliberate exception: the reminder action was
-  // withdrawn from the UI, so its chip could only ever be empty, and its
-  // eligibility is universal — no category count could reveal it selectively,
-  // so "More filters" would have shown everyone an empty view forever. The
-  // key and its backend state remain, and a snoozed item still returns to the
-  // list on its own when the reminder falls due.
+test("every filter is exactly quick or advanced — nothing lost or duplicated", () => {
+  // The rows became a THREE-CHIP quick row plus a grouped advanced panel;
+  // `PRIMARY_`/`SECONDARY_` are now projections of those, so one eligibility
+  // rule still serves the toolbar and the Notification Preferences groups.
   //
-  // Naming the exception, rather than lowering a count, keeps the partition
-  // honest: any OTHER key that silently leaves both rows still fails here.
+  // TWO deliberate exclusions, both named rather than absorbed into a count:
+  //
+  //   snoozed   the reminder action was withdrawn from the UI, and its
+  //             eligibility is universal — no category count could reveal it
+  //             selectively — so its chip could only ever be empty for
+  //             everyone. The key and `POST .../snooze` are untouched.
+  //   critical  severity already has a control on this page: the four tone
+  //             metric cards. A second place to set the same axis is how two
+  //             controls end up disagreeing about which is in force.
+  //
+  // Any OTHER key that silently leaves both rows still fails here.
   const all = [...PRIMARY_OPERATIONS_FILTERS, ...SECONDARY_OPERATIONS_FILTERS];
   assert.equal(new Set(all).size, all.length, "no filter appears in both rows");
   assert.ok(!all.includes("snoozed"), "the reminder filter is withdrawn");
+  assert.ok(!all.includes("critical"), "severity lives on the metric cards");
+  // `history` is the legacy wire spelling; `archived` is what the UI offers.
+  assert.ok(!all.includes("history"), "the legacy key is never rendered");
   const EXPECTED: ReadonlyArray<OperationsFilterKey> = [
     "all",
     "unread",
-    "critical",
-    "failures",
-    "integrity",
-    "assigned_to_me",
-    "review",
-    "history",
+    "archived",
     "mentions",
+    "assigned_to_me",
     "collaboration",
     "invitations",
+    "review",
+    "intake",
     "reports",
     "packages",
-    "intake",
+    "governance",
+    "security",
+    "admin",
+    "integrity",
+    "failures",
     "due_soon",
     "overdue",
-    "security",
-    "governance",
-    "admin",
   ];
   assert.deepEqual([...all].sort(), [...EXPECTED].sort());
+});
+
+test("the quick row is exactly the personal-feed lifecycle, in order", () => {
+  // Three chips, always the same three, always visible. The wall of up to
+  // fifteen permanent pills is what this replaced.
+  assert.deepEqual([...QUICK_OPERATIONS_FILTERS], ["all", "unread", "archived"]);
+});
+
+test("every advanced group is non-empty and every key belongs to exactly one", () => {
+  const seen = new Set<string>();
+  for (const group of ADVANCED_OPERATIONS_FILTER_GROUPS) {
+    assert.ok(group.keys.length > 0, `group ${group.id} is empty`);
+    assert.ok(group.label.trim().length > 0, `group ${group.id} has no label`);
+    for (const key of group.keys) {
+      assert.ok(!seen.has(key), `${key} appears in two groups`);
+      seen.add(key);
+    }
+  }
+});
+
+test("the Filters badge counts APPLIED narrowings, not the page lifecycle", () => {
+  // Clicking "Unread" is where the page is, not a filter applied on top of it,
+  // so it must not inflate the badge — otherwise the control reads "1" the
+  // moment a reader touches the quick row and the number stops meaning
+  // anything.
+  for (const quick of QUICK_OPERATIONS_FILTERS) {
+    assert.equal(
+      activeAdvancedFilterCount({ filter: quick, tone: "all", workspaceId: "all" }),
+      0,
+      `${quick} must not count as an applied filter`,
+    );
+  }
+  assert.equal(
+    activeAdvancedFilterCount({ filter: "integrity", tone: "all", workspaceId: "all" }),
+    1,
+  );
+  // The three axes are independent and all three count.
+  assert.equal(
+    activeAdvancedFilterCount({ filter: "integrity", tone: "critical", workspaceId: "w-1" }),
+    3,
+  );
 });
 
 test("the active secondary filter is promoted into the primary row", () => {
@@ -504,9 +556,14 @@ test("resolver + filters consume the backend operationalEligibility projection",
 });
 
 test("page threads the actual-item override into the filter policy", () => {
+  // The override still reaches the policy; the SECOND consumer changed shape
+  // when the overflow row became a grouped panel. `visibleAdvancedFilterGroups`
+  // deliberately takes no active-filter argument — a panel does not promote the
+  // active key into a visible row, so it has nothing to de-duplicate, and the
+  // active filter must stay in the panel where it can be clicked off again.
   assert.match(PAGE, /buildActualItemSignal\(/);
   assert.match(PAGE, /visiblePrimaryFilters\(uiCtx, filter, itemSignal\)/);
-  assert.match(PAGE, /visibleSecondaryFilters\(uiCtx, filter, itemSignal\)/);
+  assert.match(PAGE, /visibleAdvancedFilterGroups\(uiCtx, itemSignal\)/);
 });
 
 test("preferences panel uses the SAME predicate + actual-item override", () => {
@@ -551,7 +608,12 @@ test("OpsCenter: subtitle + empty-state are adaptive (no hardcoded reviews/gover
 });
 
 test("OpsCenter: workspace scope selector is hidden for single-workspace users", () => {
-  assert.match(PAGE, /workspaceOptions\.length > 2 &&/);
+  // Same rule, new home: the selector moved INTO the Filters panel, where it
+  // is one more way to narrow the population rather than a permanent strip of
+  // its own. The gate is unchanged — "All workspaces" plus a lone Personal
+  // Space is a choice between one thing, so it renders only above that.
+  assert.match(PAGE, /workspaceOptions\.length > 2 \? \(/);
+  assert.match(PAGE, /data-inbox-filter-group="workspace"/);
 });
 
 test("Notifications: the empty state offers no CTA at all", () => {
@@ -584,7 +646,11 @@ test("terminology: the page names itself Notifications, and nothing else", () =>
   // feed under a shared operational surface, and borrowed a name /operations
   // already owns. The page is its own destination now: a plain title, no
   // eyebrow, and no operational vocabulary in anything the reader sees.
-  assert.match(PAGE, /title="Notifications"/);
+  // The title became a NODE when the Cases-style icon was adopted, so it is
+  // no longer a string prop. What matters is unchanged and is asserted at the
+  // element that renders the word.
+  assert.match(PAGE, /<span data-notifications-title>Notifications<\/span>/);
+  assert.match(PAGE, /className="app-title-icon"/);
   assert.doesNotMatch(PAGE, /eyebrow=/);
   // Checked in the positions the reader can actually see — a quoted prop value
   // or JSX text — so the design note above `remindItem`, which still cites the

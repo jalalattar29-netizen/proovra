@@ -293,7 +293,173 @@ export type InstallApiOptions = {
    * only reachable in theory.
    */
   emptyInbox?: boolean;
+  /**
+   * Serve the ARCHIVE SCENARIO: three active notifications and two archived
+   * ones, with the mock honouring `filter`, `tone` and `sort` the way the real
+   * route does.
+   *
+   * This exists because the Archived defect was user-visible: the filter
+   * returned archived AND active rows. The server half of that is proven
+   * against a real database in
+   * `services/api/test/inbox-archived-and-sort.integration.test.ts`; what
+   * cannot be proven there is that the PAGE asks for the right thing and
+   * renders exactly what came back. So the fixture below is a faithful
+   * implementation of the contract that suite pins — same predicate, same
+   * orderings, same pagination shape — and the browser tests read the DOM.
+   *
+   * A mock that ignored the query string would pass no matter what the page
+   * sent, which is how a filter bug survives a browser suite.
+   */
+  archiveScenario?: boolean;
 };
+
+/**
+ * The archive-scenario population. Deliberately mixed: the three active items
+ * include one already-read row, because "read" was the state the old predicate
+ * wrongly treated as "archived" — if the page or the mock regressed to it,
+ * `active-read` would appear under Archived and the test would catch it.
+ */
+const ARCHIVE_SCENARIO_ITEMS = [
+  {
+    key: "active-unread-critical",
+    tone: "critical",
+    isRead: false,
+    archived: false,
+    occurredAt: "2026-08-22T11:00:00.000Z",
+  },
+  {
+    key: "active-unread-warning",
+    tone: "warning",
+    isRead: false,
+    archived: false,
+    occurredAt: "2026-08-22T09:00:00.000Z",
+  },
+  {
+    key: "active-read-high",
+    tone: "high",
+    isRead: true,
+    archived: false,
+    occurredAt: "2026-08-22T10:00:00.000Z",
+  },
+  {
+    key: "archived-info",
+    tone: "info",
+    isRead: true,
+    archived: true,
+    occurredAt: "2026-08-22T08:00:00.000Z",
+  },
+  {
+    key: "archived-critical",
+    tone: "critical",
+    isRead: true,
+    archived: true,
+    occurredAt: "2026-08-22T07:00:00.000Z",
+  },
+].map((s) => ({
+  id: `tsa_failure:${s.key}`,
+  itemKey: `tsa_failure:${s.key}`,
+  category: "tsa_failure",
+  tone: s.tone,
+  priority: "P1",
+  title: `Timestamp failed — ${s.key}`,
+  body: "Failed timestamping weakens time-based evidence confidence.",
+  href: "/evidence/66666666-6666-4666-8666-000000000001",
+  occurredAt: s.occurredAt,
+  isRead: s.isRead,
+  readAt: s.isRead ? "2026-08-22T12:00:00.000Z" : null,
+  // ARCHIVED IMPLIES READ — the real archive action writes both stamps in one
+  // mutation, so the fixture cannot express an archived-but-unread item either.
+  dismissedAt: s.archived ? "2026-08-22T12:30:00.000Z" : null,
+  snoozedUntil: null,
+  attention: {
+    readState: s.isRead ? "READ" : "UNREAD",
+    lifecycle: s.archived ? "ARCHIVED" : "ACTIVE",
+    remindAt: null,
+    deferred: false,
+  },
+  classification: {
+    channels: ["notification", "operational_condition"],
+    conditionAuthority: "evidence",
+    scope: "WORKSPACE",
+    countsAsWorkload: true,
+    sharedConditionFingerprint: `tsa_failure:${s.key}`,
+  },
+  canMarkRead: true,
+  canDismiss: true,
+  canSnooze: true,
+  context: { teamId: WORKSPACE_ID, teamName: "Meridian Legal" },
+}));
+
+const TONE_RANK: Record<string, number> = {
+  critical: 4,
+  high: 3,
+  warning: 2,
+  info: 1,
+};
+
+/** The same predicate and orderings the API applies, over the fixture set. */
+function projectArchiveScenario(url: URL) {
+  const filter = url.searchParams.get("filter") ?? "all";
+  const tone = url.searchParams.get("tone");
+  const sort = url.searchParams.get("sort") ?? "newest";
+  const canonicalFilter = filter === "history" ? "archived" : filter;
+
+  let items = ARCHIVE_SCENARIO_ITEMS.filter((i) =>
+    canonicalFilter === "archived"
+      ? i.dismissedAt != null
+      : // Everything else is a narrowing of the ACTIVE feed.
+        i.dismissedAt == null,
+  );
+  if (canonicalFilter === "unread") items = items.filter((i) => !i.isRead);
+  if (canonicalFilter === "critical") {
+    items = items.filter((i) => i.tone === "critical");
+  }
+  if (tone) items = items.filter((i) => i.tone === tone);
+
+  const byRecency = (a: typeof items[number], b: typeof items[number]) =>
+    b.occurredAt.localeCompare(a.occurredAt) ||
+    a.itemKey.localeCompare(b.itemKey);
+  const sorted = [...items];
+  if (sort === "oldest") {
+    sorted.sort(
+      (a, b) =>
+        a.occurredAt.localeCompare(b.occurredAt) ||
+        a.itemKey.localeCompare(b.itemKey),
+    );
+  } else if (sort === "unread_first") {
+    sorted.sort(
+      (a, b) => Number(a.isRead) - Number(b.isRead) || byRecency(a, b),
+    );
+  } else if (sort === "severity") {
+    sorted.sort(
+      (a, b) => TONE_RANK[b.tone]! - TONE_RANK[a.tone]! || byRecency(a, b),
+    );
+  } else {
+    sorted.sort(byRecency);
+  }
+
+  const active = ARCHIVE_SCENARIO_ITEMS.filter((i) => i.dismissedAt == null);
+  const zero = { critical: 0, high: 0, warning: 0, info: 0 };
+  const byTone = active.reduce<Record<string, number>>(
+    (acc, i) => ({ ...acc, [i.tone]: (acc[i.tone] ?? 0) + 1 }),
+    { ...zero },
+  );
+  return {
+    items: sorted,
+    canonicalFilter,
+    // The SCOPE summary is filter-independent by contract — it describes the
+    // active population, which is what the metric cards count.
+    scopeSummary: {
+      total: active.length,
+      unread: active.filter((i) => !i.isRead).length,
+      workload: active.length,
+      guidance: 0,
+      byTone,
+      byCategory: { tsa_failure: active.length },
+      deadlines: { dueSoon: 0, overdue: 0 },
+    },
+  };
+}
 
 export async function installApi(
   page: Page,
@@ -367,6 +533,29 @@ export async function installApi(
       return route.fulfill(json({ metrics: { uptimeSeconds: 1000, counters: {}, gauges: {} } }));
     }
     if (path.includes("/v1/me/inbox/summary")) {
+      if (options.archiveScenario) {
+        const p = projectArchiveScenario(new URL("http://x/?filter=all"));
+        return route.fulfill(
+          json({
+            unread: p.scopeSummary.unread,
+            critical: p.scopeSummary.byTone.critical ?? 0,
+            high: p.scopeSummary.byTone.high ?? 0,
+            assignedToMe: 0,
+            overdue: 0,
+            total: p.scopeSummary.total,
+            hasTruncatedSources: false,
+            degraded: false,
+            degradedSources: [],
+            completeness: {
+              anyIncomplete: false,
+              incompleteSources: [],
+              mayAssertAllClear: true,
+            },
+            generatedAtUtc: "2026-08-22T12:00:00.000Z",
+            workspaceId: WORKSPACE_ID,
+          }),
+        );
+      }
       if (options.emptyInbox) {
         return route.fulfill(
           json({
@@ -411,6 +600,57 @@ export async function installApi(
       );
     }
     if (path.includes("/v1/me/inbox")) {
+      if (options.archiveScenario) {
+        const projected = projectArchiveScenario(url);
+        const zero = { critical: 0, high: 0, warning: 0, info: 0 };
+        const byTone = projected.items.reduce<Record<string, number>>(
+          (acc, i) => ({ ...acc, [i.tone]: (acc[i.tone] ?? 0) + 1 }),
+          { ...zero },
+        );
+        return route.fulfill(
+          json({
+            generatedAt: "2026-08-22T12:00:00.000Z",
+            caller: {
+              userId: SELF_USER_ID,
+              email: "operator@example.invalid",
+              displayName: "Operator",
+            },
+            summary: {
+              total: projected.items.length,
+              byTone,
+              byCategory: {},
+              byPriority: {
+                P1: projected.items.length,
+                P2: 0,
+                P3: 0,
+                P4: 0,
+                P5: 0,
+              },
+            },
+            scopeSummary: projected.scopeSummary,
+            truncated: {},
+            anyTruncated: false,
+            completeness: {
+              bySource: {},
+              anyIncomplete: false,
+              incompleteSources: [],
+              mayAssertAllClear: true,
+            },
+            pagination: {
+              offset: 0,
+              pageSize: 25,
+              returned: projected.items.length,
+              nextCursor: null,
+              totalEstimate: projected.items.length,
+              totalIsExact: true,
+              appliedFilter: projected.canonicalFilter,
+              appliedTone: url.searchParams.get("tone"),
+            },
+            items: projected.items,
+            historyAvailable: true,
+          }),
+        );
+      }
       if (options.emptyInbox) {
         const zeroTones = { critical: 0, high: 0, warning: 0, info: 0 };
         return route.fulfill(

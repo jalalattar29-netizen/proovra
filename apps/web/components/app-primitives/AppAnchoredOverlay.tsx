@@ -54,11 +54,31 @@ export interface AppAnchoredOverlayProps {
    * the popup's own max height so it never opens into a sliver.
    */
   flipThreshold?: number;
+  /**
+   * Take the anchor's width (the default), or size from the overlay's own CSS.
+   *
+   * A listbox popup MUST match its trigger — a select whose options are wider
+   * or narrower than the closed control reads as a different control. A filter
+   * PANEL must not: its trigger is a small button, and inheriting ~90px turns
+   * a two-column panel into a shredded ribbon of wrapped headings.
+   *
+   * When false, the overlay is also pinned by whichever edge keeps it on
+   * screen — inline-end when the anchor sits in the far half of the viewport,
+   * inline-start otherwise — because a panel wider than its trigger is the
+   * only case that can overhang the viewport.
+   */
+  matchAnchorWidth?: boolean;
   [dataAttr: `data-${string}`]: unknown;
   [ariaAttr: `aria-${string}`]: unknown;
 }
 
-type Coords = { left: number; width: number; top?: number; bottom?: number };
+type Coords = {
+  left?: number;
+  right?: number;
+  width?: number;
+  top?: number;
+  bottom?: number;
+};
 
 export function AppAnchoredOverlay({
   anchorRef,
@@ -70,6 +90,7 @@ export function AppAnchoredOverlay({
   id,
   overlayRef,
   flipThreshold = 280,
+  matchAnchorWidth = true,
   ...passthrough
 }: AppAnchoredOverlayProps) {
   const [coords, setCoords] = React.useState<Coords | null>(null);
@@ -91,12 +112,20 @@ export function AppAnchoredOverlay({
     // Flip upward only when there is clearly not enough room below AND more
     // room above — otherwise a slightly short viewport makes the menu jump.
     const openUp = spaceBelow < flipThreshold && r.top > spaceBelow;
+    // Horizontal anchoring. Width-matching overlays always pin inline-start,
+    // as they always have; a self-sized one pins to whichever edge keeps it
+    // inside the viewport.
+    const horizontal: Pick<Coords, "left" | "right" | "width"> = matchAnchorWidth
+      ? { left: r.left, width: r.width }
+      : r.left > window.innerWidth / 2
+        ? { right: window.innerWidth - r.right }
+        : { left: r.left };
     setCoords(
       openUp
-        ? { left: r.left, width: r.width, bottom: window.innerHeight - r.top + 6 }
-        : { left: r.left, width: r.width, top: r.bottom + 6 },
+        ? { ...horizontal, bottom: window.innerHeight - r.top + 6 }
+        : { ...horizontal, top: r.bottom + 6 },
     );
-  }, [anchorRef, flipThreshold]);
+  }, [anchorRef, flipThreshold, matchAnchorWidth]);
 
   // Pin to the anchor while open. `true` on the scroll listener catches
   // scrolling inside any ancestor, not just the page.
@@ -139,6 +168,7 @@ export function AppAnchoredOverlay({
       // set here is measured geometry, which no stylesheet can know.
       style={{
         left: coords.left,
+        right: coords.right,
         width: coords.width,
         top: coords.top,
         bottom: coords.bottom,
