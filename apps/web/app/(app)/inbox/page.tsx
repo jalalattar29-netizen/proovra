@@ -54,10 +54,6 @@ import {
 import { useOperationsUiContext } from "../../../lib/notifications/useOperationsUiContext";
 import {
   buildActualItemSignal,
-  shouldOfferMarkAllRead,
-  shouldOfferMarkCategoryRead,
-  toneTileDisabled,
-  visiblePrimaryFilters,
   visibleAdvancedFilterGroups,
   QUICK_OPERATIONS_FILTERS,
   SECONDARY_OPERATIONS_FILTERS,
@@ -234,6 +230,22 @@ type LoadState =
 
 // Tone visuals live in notifications.css (`.ops-*[data-tone]`); the
 // page only supplies the label.
+/**
+ * The PRIMARY VIEW labels — the reader-facing name of each of the six
+ * alternatives. Separate from `TONE_LABELS`, which is the all-caps badge
+ * vocabulary a notification ROW wears, and separate from
+ * `INBOX_FILTER_LABELS`, which names the category filters. Three different
+ * jobs; one map each, so a rename in one cannot silently move the others.
+ */
+const PRIMARY_VIEW_LABELS: Record<PrimaryView, string> = {
+  all: "All",
+  unread: "Unread",
+  critical: "Critical",
+  high: "High",
+  warning: "Warning",
+  info: "Info",
+};
+
 const TONE_LABELS: Record<InboxTone, string> = {
   critical: "CRITICAL",
   high: "HIGH",
@@ -261,7 +273,35 @@ const TONE_LABELS: Record<InboxTone, string> = {
  * canonical `--ops-tone-*` tokens, so this list cannot become a second place
  * where "critical" is decided.
  */
-type NotificationMetricKey = "unread" | "all" | InboxTone;
+/**
+ * THE PRIMARY VIEW. Six alternatives, and the metric cards ARE its control.
+ *
+ * Named as one type rather than assembled from "a filter" and "a tone" so the
+ * mutual exclusion is a property of the model instead of a rule the UI has to
+ * remember to enforce. Nothing can hold two of these at once.
+ */
+type PrimaryView = "all" | "unread" | InboxTone;
+
+/** The metric cards and the quick-filter chips are two controls over the SAME
+ *  value, which is why they always agree about what is selected. */
+type NotificationMetricKey = PrimaryView;
+
+/** The two the quick row shows permanently. Archived is a STATUS and lives in
+ *  the Filters panel; the four severities live on the cards. */
+const QUICK_PRIMARY_VIEWS: ReadonlyArray<PrimaryView> = ["all", "unread"];
+
+const PRIMARY_VIEW_VALUES: ReadonlyArray<PrimaryView> = [
+  "all",
+  "unread",
+  "critical",
+  "high",
+  "warning",
+  "info",
+];
+
+function isPrimaryView(v: string | null | undefined): v is PrimaryView {
+  return !!v && PRIMARY_VIEW_VALUES.includes(v as PrimaryView);
+}
 
 const NOTIFICATION_METRICS: ReadonlyArray<{
   key: NotificationMetricKey;
@@ -344,42 +384,13 @@ const CATEGORY_LABELS: Record<InboxCategory, string> = {
   case_assignment: "Case assignment",
 };
 
-// Phase IA-enterprise — operator-priority tier display metadata. Tiers
-// are rendered as section headers above grouped items, so each tier
-// gets a short label + accent color.
-const PRIORITY_META: Record<
-  InboxPriority,
-  { label: string; tagline: string }
-> = {
-  P1: {
-    label: "P1 · Critical",
-    tagline: "Operational failures and critical signals — act now.",
-  },
-  P2: {
-    label: "P2 · Requires action",
-    tagline: "Items waiting on you (escalations, reviews, approvals, security).",
-  },
-  P3: {
-    label: "P3 · Assigned to me",
-    tagline: "Discussion mentions + assigned threads.",
-  },
-  P4: {
-    label: "P4 · Governance",
-    tagline: "Workspace governance + admin notifications.",
-  },
-  P5: {
-    label: "P5 · Awareness",
-    tagline: "Awareness signals — informational only.",
-  },
-};
+/* PRIORITY_META and PRIORITY_ORDER USED TO LIVE HERE.
 
-const PRIORITY_ORDER: ReadonlyArray<InboxPriority> = [
-  "P1",
-  "P2",
-  "P3",
-  "P4",
-  "P5",
-];
+   They supplied the "P1 · Critical — act now." section headings the list no
+   longer renders. The server still assigns a priority and each row still
+   carries it on `data-inbox-item-priority` for tests and analytics; what is gone
+   is this page's vocabulary for turning it into an operations-queue heading.
+   /operations keeps its own, unchanged. */
 
 // Phase IA-enterprise — server-driven enterprise filter chips. Every
 // key maps 1:1 to the backend's `InboxFilter` enum (validated by the
@@ -464,11 +475,12 @@ function isInboxSort(v: string | null | undefined): v is InboxSort {
   return SORT_OPTIONS.some((o) => o.value === v);
 }
 
-/** Filters that make sense as a "mark this category as read" scope —
- *  everything except the whole-queue/state views. */
-function isCategoryFilter(f: InboxFilter): boolean {
-  return f !== "all" && f !== "unread" && f !== "history" && f !== "snoozed";
-}
+/* `isCategoryFilter` USED TO LIVE HERE.
+
+   It decided whether to offer "Mark <category> as read" beside "Mark all as
+   read". Both buttons are gone from this page, so the predicate had no
+   caller. The BULK-READ CAPABILITY is untouched — see the note where
+   `markAllRead` used to live. */
 
 // Human label for each truncation key. Keep in sync with the InboxTruncated
 // union above.
@@ -518,12 +530,52 @@ export default function InboxPage() {
 
 function InboxPageInner() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  // Phase IA-enterprise — tone tile filter (existing UX) + the 12-key
-  // server-driven filter chip. Both are sent to the backend as query
-  // params; the server applies them and returns the post-filter
-  // summary + paginated items.
-  const [toneFilter, setToneFilter] = useState<"all" | InboxTone>("all");
-  const [filter, setFilter] = useState<InboxFilter>("all");
+  /**
+   * THE LAST ENVELOPE THAT LOADED, KEPT ACROSS THE NEXT LOAD.
+   *
+   * Every filter change puts the page into `loading`, and the metric cards,
+   * the toolbar and the result count were all gated on `state.kind ===
+   * "ready"` — so all three UNMOUNTED on every click and came back a moment
+   * later. On a page whose whole interaction is "click a card, then click
+   * another one", that is the interaction: the control you are aiming at
+   * disappears from under the cursor, the layout jumps, and a keyboard
+   * reader's focus is destroyed with the button that held it.
+   *
+   * The chrome now renders from the retained envelope while the next one is
+   * in flight. Only the LIST swaps, which is the part that is actually
+   * changing. The counts are a moment stale during the request and settle
+   * when it lands — the honest trade, and far smaller than the alternative.
+   */
+  const [lastEnvelope, setLastEnvelope] = useState<InboxEnvelope | null>(null);
+  /**
+   * THE PRIMARY VIEW — ONE value, six alternatives, never a set.
+   *
+   * This was two independent pieces of state: `filter` (which held `all` or
+   * `unread`, among other things) and `toneFilter` (which held a severity).
+   * The six metric cards wrote to whichever of the two matched them, so
+   * clicking `High` while `Unread` was selected left BOTH set. The page then
+   * asked the server for unread-AND-high — an intersection the reader never
+   * requested, usually empty — and the only way out was to click the old card
+   * a second time to clear it. Two pieces of state for one question is what
+   * made that possible; one piece of state makes it unrepresentable.
+   *
+   * The six are ALTERNATIVES, so selecting one replaces the other, always,
+   * and exactly one is selected at every moment.
+   */
+  const [primaryView, setPrimaryView] = useState<PrimaryView>("all");
+  /**
+   * The CATEGORY axis — a type/integrity/time narrowing from the Filters
+   * panel. Independent of the primary view, which is the point: `High +
+   * Reports + Overdue` and `Unread + Mentions` are all legitimate, and none of
+   * them is expressible while one slot has to carry both questions.
+   */
+  const [category, setCategory] = useState<InboxFilter>("all");
+  /**
+   * The LIFECYCLE axis. Archived left the quick row for the Filters panel; it
+   * is a status, not one of the six alternatives, so it composes with them —
+   * "archived High notifications" is a real question.
+   */
+  const [archived, setArchived] = useState(false);
   // Workspace narrowing — "all" (default) keeps the canonical
   // all-workspaces scope; a workspace id narrows server-side (the
   // backend validates membership and 403s on anything else).
@@ -571,31 +623,33 @@ function InboxPageInner() {
   };
 
   /**
-   * Clicking a card applies the filter it names, and clicking it again clears
-   * it — the card is a toggle, so the surface always matches what the card
-   * promised. `All` clears both axes, because that is what it says.
+   * SELECTING A VIEW REPLACES THE PREVIOUS ONE. Always. No toggle-off.
+   *
+   * The cards used to be independent toggles, and clicking an active one
+   * cleared it. That reads fine in isolation and is wrong as a set: with six
+   * toggles over one question, "Unread" and "High" could both be on, and the
+   * reader had to clear the first before the second would show anything.
+   *
+   * There is also no toggle-off here, deliberately. `All` IS the cleared
+   * state and it is always one click away, so a card that emptied itself
+   * would only produce a seventh state meaning the same thing as the first.
+   *
+   * Nothing else moves: the category filter, the archived status, the
+   * workspace and the sort all survive a view change untouched. Only the
+   * cursor resets, because it is an offset into a population that just
+   * changed.
    */
-  const selectMetric = (key: NotificationMetricKey) => {
-    if (key === "unread") {
-      setFilter(filter === "unread" ? "all" : "unread");
-      return;
-    }
-    if (key === "all") {
-      setFilter("all");
-      setToneFilter("all");
-      return;
-    }
-    setToneFilter(toneFilter === key ? "all" : key);
-  };
+  const selectMetric = useCallback((key: PrimaryView) => {
+    setPrimaryView(key);
+  }, []);
   // Filter grouping (pure policy, unit-tested): a stable QUICK row of three,
   // plus grouped advanced filters behind one control. Capability-gated
   // options (admin, governance) never render for users who can never receive
   // them — the policy decides, this page only draws it.
-  const quickFilters = visiblePrimaryFilters(uiCtx, filter, itemSignal);
   const advancedGroups = visibleAdvancedFilterGroups(uiCtx, itemSignal);
   const activeFilterCount = activeAdvancedFilterCount({
-    filter,
-    tone: toneFilter,
+    category,
+    archived,
     workspaceId: workspaceFilter,
   });
   // Memoized: the active-filter summary derives a label from this list, and
@@ -625,14 +679,24 @@ function InboxPageInner() {
    */
 
   /**
-   * THE VIEW IS IN THE URL.
+   * THE VIEW IS IN THE URL, ONE PARAMETER PER AXIS.
    *
    * Refreshing used to drop the reader back to "All / Newest", which on a page
    * whose whole job is narrowing a list is the one thing that makes narrowing
-   * feel unsafe. The three axes and the ordering now round-trip through the
-   * query string, so a refresh keeps the view and a link to it describes it:
+   * feel unsafe. Every axis now round-trips:
    *
-   *     /notifications?filter=archived&tone=critical&sort=oldest
+   *     /notifications?view=high&filter=reports&lifecycle=archived&sort=oldest
+   *
+   * ONE PARAMETER PER AXIS, so switching the primary view REPLACES `view`
+   * rather than accumulating a second, conflicting narrowing beside it. A URL
+   * like `?unread=true&severity=high` cannot be produced here, because the
+   * state it would describe cannot exist.
+   *
+   * BACKWARD COMPATIBLE. `?filter=archived` and `?filter=unread` are shipped
+   * URLs — bookmarked, linked, and asserted by the previous pass's tests — so
+   * they are still READ, and decomposed into the axis each was really asking
+   * about. They are no longer WRITTEN: the canonical spelling is emitted from
+   * here on, and the server accepts both.
    *
    * READ ONCE, on mount, from `window.location` rather than through
    * `useSearchParams()`. The hook would put this client component's render
@@ -643,9 +707,6 @@ function InboxPageInner() {
    * WRITTEN with `history.replaceState`, not a router navigation: replacing
    * means the back button leaves the page rather than walking backwards
    * through every filter click, and `replaceState` does not re-run the route.
-   * The honest cost is that in-app back/forward does not restore a previous
-   * filter combination; refresh, bookmark and share — the cases people
-   * actually hit — all do.
    *
    * VALIDATED on the way in. A hand-edited or stale query string resolves to
    * the default rather than putting an unknown key into a request.
@@ -653,16 +714,39 @@ function InboxPageInner() {
   const [urlHydrated, setUrlHydrated] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    // The canonical primary-view parameter.
+    const view = params.get("view");
+    if (isPrimaryView(view)) setPrimaryView(view);
+
+    const lifecycle = params.get("lifecycle");
+    if (lifecycle === "archived") setArchived(true);
+
     const f = params.get("filter");
     if (f && ALL_INBOX_FILTERS.includes(f as InboxFilter)) {
-      setFilter(f as InboxFilter);
+      // LEGACY DECOMPOSITION — the same rule the server applies, so a shipped
+      // URL selects the same state it always did.
+      if (f === "archived" || f === "history") {
+        setArchived(true);
+      } else if (f === "unread") {
+        if (!isPrimaryView(view)) setPrimaryView("unread");
+      } else if (f === "critical") {
+        if (!isPrimaryView(view)) setPrimaryView("critical");
+      } else {
+        setCategory(f as InboxFilter);
+      }
     }
+
+    // `tone` was the severity axis before the metric cards became one control.
     const t = params.get("tone");
-    if (t && (["critical", "high", "warning", "info"] as const).includes(
-      t as InboxTone,
-    )) {
-      setToneFilter(t as InboxTone);
+    if (
+      !isPrimaryView(view) &&
+      t &&
+      (["critical", "high", "warning", "info"] as const).includes(t as InboxTone)
+    ) {
+      setPrimaryView(t as InboxTone);
     }
+
     const so = params.get("sort");
     if (isInboxSort(so)) setSort(so);
     const ws = params.get("workspaceId");
@@ -675,8 +759,11 @@ function InboxPageInner() {
     // overwrite the very query string being restored.
     if (!urlHydrated) return;
     const params = new URLSearchParams();
-    if (filter !== "all") params.set("filter", filter);
-    if (toneFilter !== "all") params.set("tone", toneFilter);
+    // ONE parameter per axis. `view` is SET, never appended to, so switching
+    // Unread → High replaces the narrowing instead of stacking a second one.
+    if (primaryView !== "all") params.set("view", primaryView);
+    if (category !== "all") params.set("filter", category);
+    if (archived) params.set("lifecycle", "archived");
     if (workspaceFilter !== "all") params.set("workspaceId", workspaceFilter);
     if (sort !== DEFAULT_SORT) params.set("sort", sort);
     const qs = params.toString();
@@ -684,7 +771,7 @@ function InboxPageInner() {
     if (next !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(window.history.state, "", next);
     }
-  }, [urlHydrated, filter, toneFilter, workspaceFilter, sort]);
+  }, [urlHydrated, primaryView, category, archived, workspaceFilter, sort]);
 
   const closeFilters = useCallback(() => {
     setFiltersOpen(false);
@@ -706,55 +793,67 @@ function InboxPageInner() {
   }, [filtersOpen, closeFilters]);
 
   /**
-   * A quick filter is the page's LIFECYCLE state, so selecting one clears the
-   * tone narrowing with it: "show me everything I have archived" and "…but
-   * only the critical ones" are two different requests, and silently keeping
-   * the second is how a reader concludes their archive is empty.
+   * ARCHIVED IS A STATUS, so it composes with the primary view rather than
+   * replacing it — "archived High notifications" is a real question and the
+   * server can answer it.
+   *
+   * The ONE combination it cannot answer is `Archived + Unread`: archiving
+   * writes `readAt` in the same mutation as `dismissedAt`, so an
+   * archived-and-unread notification cannot exist. Rather than leave the
+   * reader holding an impossible filter that silently returns nothing, turning
+   * Archived on while Unread is selected moves the view back to All. The
+   * Unread controls then disable themselves and say why.
    */
-  const selectQuickFilter = useCallback(
-    (key: InboxFilter) => {
-      setFilter(key);
-      setToneFilter("all");
-    },
-    [],
-  );
+  const toggleArchived = useCallback(() => {
+    setArchived((wasArchived) => {
+      const next = !wasArchived;
+      if (next) setPrimaryView((v) => (v === "unread" ? "all" : v));
+      return next;
+    });
+  }, []);
 
-  /** Advanced filters are single-choice; clicking the active one clears it. */
-  const selectAdvancedFilter = useCallback(
-    (key: InboxFilter) => {
-      setFilter((current) => (current === key ? "all" : key));
-    },
-    [],
-  );
+  /** Advanced category filters are single-choice; clicking the active one
+   *  clears it. They never touch the primary view. */
+  const selectAdvancedFilter = useCallback((key: InboxFilter) => {
+    setCategory((current) => (current === key ? "all" : key));
+  }, []);
 
+  /**
+   * CLEAR resets the ADVANCED axes only.
+   *
+   * The primary view is deliberately left alone: `All` is one click away on
+   * the card row directly above, and a "Clear filters" button that also reset
+   * a severity the reader had chosen would be undoing a selection they can
+   * see is still highlighted.
+   */
   const clearAllFilters = useCallback(() => {
-    setFilter("all");
-    setToneFilter("all");
+    setCategory("all");
+    setArchived(false);
     setWorkspaceFilter("all");
   }, []);
 
   /**
    * THE ACTIVE-FILTER SUMMARY, derived — never a second copy of the state.
    *
-   * Only axes that are actually narrowing the list appear, each with the one
-   * action that undoes it. The quick row is excluded for the same reason it
-   * does not count towards the badge: `All`/`Unread`/`Archived` is where the
-   * page always is, not something applied on top of it.
+   * Only the ADVANCED axes appear here, each with the one action that undoes
+   * it. The primary view is excluded because it is never ambiguous: exactly
+   * one metric card is lit at all times, directly above this row, so a chip
+   * repeating it would be a second place to read the same fact.
    */
   const activeChips = useMemo(() => {
     const chips: Array<{ id: string; label: string; clear: () => void }> = [];
-    if (!QUICK_OPERATIONS_FILTERS.includes(filter)) {
+    if (archived) {
       chips.push({
-        id: filter,
-        label: INBOX_FILTER_LABELS[filter],
-        clear: () => setFilter("all"),
+        id: "archived",
+        label: "Archived",
+        clear: () => setArchived(false),
       });
     }
-    if (toneFilter !== "all") {
+    if (category !== "all") {
       chips.push({
-        id: `tone:${toneFilter}`,
-        label: TONE_LABELS[toneFilter],
-        clear: () => setToneFilter("all"),
+        id: category,
+        label: INBOX_FILTER_LABELS[category],
+        clear: () => setCategory("all"),
       });
     }
     if (workspaceFilter !== "all") {
@@ -766,19 +865,25 @@ function InboxPageInner() {
       });
     }
     return chips;
-  }, [filter, toneFilter, workspaceFilter, workspaceOptions]);
+  }, [archived, category, workspaceFilter, workspaceOptions]);
   // Accumulated items across the current filter window. Reset on
   // filter/tone change; appended on Load More.
   const [items, setItems] = useState<InboxItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [bulkBusy, setBulkBusy] = useState<"all" | "category" | null>(null);
 
   const buildUrl = useCallback(
     (cursor: string | null): string => {
       const params = new URLSearchParams();
-      if (filter !== "all") params.set("filter", filter);
-      if (toneFilter !== "all") params.set("tone", toneFilter);
+      // ONE PARAMETER PER AXIS, and the primary view resolves to exactly one
+      // of them. This is what makes the metric cards mutually exclusive on the
+      // WIRE and not merely in the styling: clicking High after Unread sends
+      // `tone=high`, with no `readState` beside it, so the server is asked
+      // the question the reader actually asked.
+      if (primaryView === "unread") params.set("readState", "unread");
+      else if (primaryView !== "all") params.set("tone", primaryView);
+      if (category !== "all") params.set("filter", category);
+      if (archived) params.set("lifecycle", "archived");
       if (workspaceFilter !== "all") params.set("workspaceId", workspaceFilter);
       // ALWAYS SENT, including the default. The API's own default is
       // `priority` — the Operations Center's ordering, which this page is not
@@ -789,7 +894,7 @@ function InboxPageInner() {
       const qs = params.toString();
       return qs ? `/v1/me/inbox?${qs}` : "/v1/me/inbox";
     },
-    [filter, toneFilter, workspaceFilter, sort],
+    [primaryView, category, archived, workspaceFilter, sort],
   );
 
   /**
@@ -818,6 +923,7 @@ function InboxPageInner() {
       // would put this workspace's rows under that workspace's heading.
       if (!attempt.isCurrent()) return;
       setState({ kind: "ready", data });
+      setLastEnvelope(data);
       setItems(data.items);
       setNextCursor(data.pagination?.nextCursor ?? null);
     } catch (err: unknown) {
@@ -835,31 +941,14 @@ function InboxPageInner() {
     }
   }, [buildUrl, request]);
 
-  /**
-   * SERVER-scoped bulk read. The backend re-derives the caller's visible
-   * unread items from the canonical aggregation (optionally narrowed by
-   * ONE validated filter key) — no item keys leave the client. Read is
-   * attention state only.
-   */
-  const markAllRead = useCallback(
-    async (bulkFilter: InboxFilter | null) => {
-      if (bulkBusy) return;
-      setBulkBusy(bulkFilter ? "category" : "all");
-      try {
-        await apiFetch("/v1/me/inbox/mark-all-read", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(bulkFilter ? { filter: bulkFilter } : {}),
-        });
-        await load();
-      } catch {
-        /* server state unchanged on failure; the list stays as-is */
-      } finally {
-        setBulkBusy(null);
-      }
-    },
-    [bulkBusy, load],
-  );
+  /* `markAllRead` USED TO LIVE HERE.
+
+     It drove the two bulk-read buttons this page no longer renders, and with
+     the buttons gone it was an unreachable POST. The CAPABILITY is untouched:
+     `POST /v1/me/inbox/mark-all-read` keeps its server-side scoping, its
+     tests, and its real consumer in the header notification bell. What is
+     removed is this page's copy of the call, not the endpoint. */
+
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
@@ -1068,6 +1157,10 @@ function InboxPageInner() {
   // server-side by `filter` + `toneFilter` query params).
   const visibleItems = items;
 
+  /** The envelope the page CHROME draws from — see `lastEnvelope`. */
+  const shellData: InboxEnvelope | null =
+    state.kind === "ready" ? state.data : lastEnvelope;
+
   /**
    * WHAT THE COUNT IS COUNTING, in the page's own vocabulary.
    *
@@ -1078,24 +1171,19 @@ function InboxPageInner() {
    */
   const resultNoun = useMemo(() => {
     const plural = visibleItems.length === 1 ? "notification" : "notifications";
-    if (filter === "archived") return `archived ${plural}`;
-    if (filter === "unread") return `unread ${plural}`;
-    if (filter === "all") return plural;
-    return `${INBOX_FILTER_LABELS[filter].toLowerCase()} ${plural}`;
-  }, [filter, visibleItems.length]);
+    // Lifecycle first, then the primary view — the order the reader reads the
+    // controls in, so "archived high notifications" comes out in that order.
+    const lifecycle = archived ? "archived " : "";
+    if (primaryView === "unread") return `${lifecycle}unread ${plural}`;
+    if (primaryView !== "all") {
+      return `${lifecycle}${PRIMARY_VIEW_LABELS[primaryView].toLowerCase()} ${plural}`;
+    }
+    if (category !== "all") {
+      return `${lifecycle}${INBOX_FILTER_LABELS[category].toLowerCase()} ${plural}`;
+    }
+    return `${lifecycle}${plural}`;
+  }, [archived, primaryView, category, visibleItems.length]);
 
-  // Group visibleItems by priority for the section render. Items keep
-  // their server-assigned position within a priority bucket.
-  const itemsByPriority: Record<InboxPriority, InboxItem[]> = {
-    P1: [],
-    P2: [],
-    P3: [],
-    P4: [],
-    P5: [],
-  };
-  for (const it of visibleItems) {
-    itemsByPriority[it.priority].push(it);
-  }
 
   return (
     <PageShell
@@ -1175,7 +1263,7 @@ function InboxPageInner() {
            still matters (a failed anchor is not a mention) and it is still
            filterable; it is simply no longer the headline.
            ================================================================== */}
-      {state.kind === "ready" && (
+      {shellData && (
         <section
           data-notifications-summary
           aria-label="Notification summary"
@@ -1183,15 +1271,24 @@ function InboxPageInner() {
         >
           <ul className="ops-metrics__grid" data-notifications-metric-grid>
             {NOTIFICATION_METRICS.map((metric) => {
-              const count = metricCount(metric.key, state.data);
-              const active = metric.tone
-                ? toneFilter === metric.tone
-                : metric.key === "unread"
-                  ? filter === "unread"
-                  : toneFilter === "all" && filter === "all";
-              const disabled = metric.tone
-                ? toneTileDisabled(count, active)
-                : false;
+              const count = metricCount(metric.key, shellData);
+              // ONE comparison, because there is ONE piece of state. Exactly
+              // one card is selected at every moment, and selecting another
+              // transfers it — no card can be "also" selected.
+              const active = primaryView === metric.key;
+              // A ZERO COUNT IS A FACT, NOT A DISABLED CONTROL.
+              //
+              // Zero-count severity cards used to be `disabled` and painted at
+              // 55% opacity, which said "this card is unavailable" when what
+              // was true is "this number is currently zero". It also trapped
+              // the reader: with Unread at 0 selected, every other zero card
+              // was inert, so there was no way out but back to a card that
+              // happened to be non-empty.
+              //
+              // The one card that IS unavailable is Unread while Archived is
+              // on — archiving marks read, so that intersection cannot exist.
+              // That one says why.
+              const impossible = metric.key === "unread" && archived;
               const descId = `notif-metric-${metric.key}`;
               return (
                 <li key={metric.key}>
@@ -1202,9 +1299,15 @@ function InboxPageInner() {
                     data-notifications-metric={metric.key}
                     data-notifications-metric-count={count}
                     data-notifications-metric-active={active ? "true" : "false"}
+                    data-notifications-metric-zero={count === 0 ? "true" : "false"}
                     aria-pressed={active}
                     aria-describedby={descId}
-                    disabled={disabled}
+                    disabled={impossible}
+                    title={
+                      impossible
+                        ? "Archived notifications are always marked read."
+                        : undefined
+                    }
                     onClick={() => selectMetric(metric.key)}
                   >
                     <span className="app-metric-card__value">{count}</span>
@@ -1224,21 +1327,19 @@ function InboxPageInner() {
               A "0 unread" over a partial read is the same lie as a dashboard
               saying "all clear", told in less space. When the server could not
               read every source, the page says so instead of implying calm. */}
-          {state.data.completeness &&
-          !state.data.completeness.mayAssertAllClear ? (
+          {shellData.completeness &&
+          !shellData.completeness.mayAssertAllClear ? (
             <p data-notifications-incomplete className="ops-metrics__note">
               Some sources could not be read, so this may not be everything.
-              {state.data.completeness.incompleteSources.length > 0
-                ? ` Affected: ${state.data.completeness.incompleteSources.join(", ")}.`
+              {shellData.completeness.incompleteSources.length > 0
+                ? ` Affected: ${shellData.completeness.incompleteSources.join(", ")}.`
                 : ""}
             </p>
           ) : null}
         </section>
       )}
 
-      {state.kind === "ready" &&
-      filter === "history" &&
-      state.data.historyAvailable === false ? (
+      {shellData && archived && shellData.historyAvailable === false ? (
         <section
           data-inbox-history-unavailable
           role="status"
@@ -1248,47 +1349,18 @@ function InboxPageInner() {
         </section>
       ) : null}
 
-      {/* ---------- bulk read actions. SERVER-scoped: the backend re-runs
-           the canonical aggregation for the caller and marks exactly the
-           visible unread items (optionally one validated category) — the
-           frontend never submits item keys for mass updates. Read is
-           attention-state only: it never resolves, dismisses, or
-           acknowledges anything. */}
-      {state.kind === "ready" &&
-        filter !== "history" &&
-        filter !== "snoozed" &&
-        shouldOfferMarkAllRead(
-          state.data.scopeSummary?.unread ?? state.data.summary.total,
-        ) && (
-        <section
-          data-inbox-bulk-actions
-          aria-label="Bulk read actions"
-          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-        >
-          <Button
-            variant="secondary"
-            data-action="mark-all-read"
-            loading={bulkBusy === "all"}
-            onClick={() => void markAllRead(null)}
-          >
-            Mark all as read
-          </Button>
-          {shouldOfferMarkCategoryRead(
-            state.data.scopeSummary?.unread ?? state.data.summary.total,
-            state.data.summary.total,
-            isCategoryFilter(filter),
-          ) ? (
-            <Button
-              variant="secondary"
-              data-action="mark-category-read"
-              loading={bulkBusy === "category"}
-              onClick={() => void markAllRead(filter)}
-            >
-              Mark {INBOX_FILTER_LABELS[filter].toLowerCase()} as read
-            </Button>
-          ) : null}
-        </section>
-      )}
+      {/* THE TWO BULK-READ BUTTONS USED TO BE HERE.
+           `Mark all as read` and `Mark <category> as read` sat between the
+           metric cards and the toolbar as a third band of chrome, and in the
+           Archived view — where every row is read by definition — they were
+           two controls offering to do nothing.
+
+           THE UI EXPOSURE IS GONE; THE CAPABILITY IS NOT. `POST
+           /v1/me/inbox/mark-all-read` still has a real consumer in the header
+           notification bell (`NotificationBell.tsx`), which is the surface
+           where "clear all of this" is actually the thing a person wants. The
+           endpoint, its server-side scoping and its tests are untouched, so
+           nothing is broken for that caller or for an API client. */}
 
       {/* ==================================================================
            THE TOOLBAR. One row, three controls, and nothing permanent that
@@ -1305,30 +1377,33 @@ function InboxPageInner() {
            something is applied, and a sort control. The advanced filters did
            not disappear — they stopped being permanent furniture.
            ================================================================== */}
-      {state.kind === "ready" && (
+      {shellData && (
         <section
           data-inbox-toolbar
           className="ops-toolbar"
           aria-label="Notification filters and sorting"
         >
+          {/* TWO quick controls, not three. `Archived` left this row for the
+              Filters panel: it is a STATUS, and standing it beside All and
+              Unread implied the three were alternatives when only the first
+              two are. What remains are the two the reader uses constantly.
+
+              These write the SAME `primaryView` the metric cards do, which is
+              why the chip and the card can never disagree about what is
+              selected — there is one value, and both controls set it. */}
           <div className="ops-toolbar__quick" data-inbox-quick-filters>
-            {quickFilters.map((key) => {
-              const active = filter === key;
-              /* Archived items are archived-AND-read by construction — the
-                 archive action writes both stamps in one mutation, so an
-                 "archived but unread" item cannot exist. Offering Unread while
-                 Archived is in force would be offering a view guaranteed to be
-                 empty, so it is disabled and says why. */
-              const meaningless = key === "unread" && filter === "archived";
+            {QUICK_PRIMARY_VIEWS.map((key) => {
+              const active = primaryView === key;
+              const impossible = key === "unread" && archived;
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => selectQuickFilter(key)}
+                  onClick={() => selectMetric(key)}
                   aria-pressed={active}
-                  disabled={meaningless}
+                  disabled={impossible}
                   title={
-                    meaningless
+                    impossible
                       ? "Archived notifications are always marked read."
                       : undefined
                   }
@@ -1337,7 +1412,7 @@ function InboxPageInner() {
                   data-active={active ? "true" : "false"}
                   className="app-chip ops-quick-chip"
                 >
-                  {INBOX_FILTER_LABELS[key]}
+                  {PRIMARY_VIEW_LABELS[key]}
                 </button>
               );
             })}
@@ -1382,6 +1457,31 @@ function InboxPageInner() {
                   className="ops-filters-panel"
                   data-inbox-filters-panel
                 >
+                  {/* STATUS — the lifecycle axis, in its own group rather
+                      than mixed in among the Type categories. It is not a
+                      kind of notification; it is which half of the archive
+                      boundary you are looking at. */}
+                  <div
+                    className="ops-filters-group"
+                    data-inbox-filter-group="status"
+                  >
+                    <h3 className="ops-filters-group__label">Status</h3>
+                    <div className="ops-filters-group__items">
+                      <button
+                        type="button"
+                        className="app-chip ops-filter-option"
+                        aria-pressed={archived}
+                        data-inbox-filter-chip="archived"
+                        data-inbox-filter-chip-active={
+                          archived ? "true" : "false"
+                        }
+                        onClick={toggleArchived}
+                      >
+                        Archived
+                      </button>
+                    </div>
+                  </div>
+
                   {advancedGroups.map((group) => (
                     <div
                       key={group.id}
@@ -1393,7 +1493,7 @@ function InboxPageInner() {
                       </h3>
                       <div className="ops-filters-group__items">
                         {group.keys.map((key) => {
-                          const active = filter === key;
+                          const active = category === key;
                           return (
                             <button
                               key={key}
@@ -1487,7 +1587,7 @@ function InboxPageInner() {
            each with its own remove control, plus one way out. This is the
            replacement for reading the state off a wall of pills: the reader
            never has to scan fifteen chips to find which two are lit. */}
-      {state.kind === "ready" && activeChips.length > 0 && (
+      {shellData && activeChips.length > 0 && (
         <section
           data-inbox-active-filters
           className="ops-active-filters"
@@ -1531,7 +1631,7 @@ function InboxPageInner() {
       {state.kind === "ready" && state.data.pagination && (
         <section
           data-inbox-pagination-summary
-          className="ops-note"
+          className="ops-result-summary"
         >
           <strong
             data-inbox-showing-text
@@ -1638,7 +1738,7 @@ function InboxPageInner() {
                 archive look like a broken filter, and a broken filter look
                 like an empty inbox. The reader needs to know which of the
                 three they are in, because only one of them has an action. */}
-            {filter === "archived" && activeFilterCount === 0 ? (
+            {archived && activeFilterCount === 1 && category === "all" ? (
               <Card variant="empty" padding="comfortable">
                 <span
                   style={{ fontSize: 14 }}
@@ -1670,52 +1770,42 @@ function InboxPageInner() {
           </div>
         )}
 
-      {/* ---------- Phase IA-enterprise — items grouped by priority.
-           Within each priority section the server's sort order is
-           preserved (priority → due posture → tone → recency). The
-           operator can see at a glance how many critical items they
-           have vs awareness signals. */}
+      {/* ==================================================================
+           ONE FLAT, ORDERED STREAM.
+
+           WHAT WAS HERE: the list was bucketed into P1..P5 sections, each
+           under a heading like "P1 · Critical — Operational failures and
+           critical signals — act now. · 8 items". That is an operations work
+           queue's vocabulary, and /operations is where it belongs. On a
+           personal feed it told the reader their notifications were a
+           prioritised backlog to work through.
+
+           IT ALSO BROKE SORTING. Regrouping by priority AFTER the server
+           returned an ordered page means the reader's chosen ordering only
+           ever applied WITHIN a bucket: "Oldest first" put the oldest P1
+           above the oldest P2, and every P2 below every P1 regardless of age.
+           The control said one thing and the DOM did another.
+
+           The server's order is now the render order, exactly. Severity has
+           not been lost — every row still wears its tone badge, which is
+           where severity belongs on a feed: on the thing that has it.
+           ================================================================== */}
       {state.kind === "ready" && visibleItems.length > 0 && (
         <div
           data-inbox-items
           data-inbox-visible-count={visibleItems.length}
-          style={{ display: "grid", gap: 14 }}
         >
-          {PRIORITY_ORDER.map((priority) => {
-            const groupItems = itemsByPriority[priority];
-            if (groupItems.length === 0) return null;
-            const meta = PRIORITY_META[priority];
-            return (
-              <section
-                key={priority}
-                data-inbox-priority-section={priority}
-                data-inbox-priority-count={groupItems.length}
-              >
-                <header
-                  className="ops-priority-header"
-                  data-priority={priority}
-                >
-                  <span
-                    data-inbox-priority-label={priority}
-                    className="ops-priority-header__label"
-                  >
-                    {meta.label}
-                  </span>
-                  <span className="ops-priority-header__tagline">
-                    {meta.tagline} · {groupItems.length}{" "}
-                    {groupItems.length === 1 ? "item" : "items"}
-                  </span>
-                </header>
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: 0,
-                    display: "grid",
-                    gap: 8,
-                  }}
-                >
-                  {groupItems.map((item) => {
+          <ul
+            data-inbox-stream
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            {visibleItems.map((item) => {
                     return (
                       <li
                         key={item.id}
@@ -1892,12 +1982,9 @@ function InboxPageInner() {
                           )}
                         </div>
                       </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })}
+              );
+            })}
+          </ul>
         </div>
       )}
 

@@ -790,11 +790,27 @@
 .ops-metric[data-ops-metric-tone="warning"]  { --app-metric-tone: var(--error); }
 .ops-metric[data-ops-metric-tone="info"]     { --app-metric-tone: var(--ink-secondary); }
 
-/* A card whose count is zero and which is not the active filter is inert —
-   clicking it would apply a filter guaranteed to be empty. */
+/* ===========================================================================
+   A ZERO COUNT IS A FACT, NOT A DISABLED CONTROL.
+
+   This rule used to be `.ops-metric:disabled { opacity: 0.55 }`, applied to
+   any severity card whose count was zero. It said "this card is unavailable"
+   when what was true is "this number is currently zero", and it made a row of
+   quiet cards look like a half-loaded page. It also trapped the reader: with
+   every zero card inert, a zero-result view had no way out except back to
+   whichever card happened to be non-empty.
+
+   Nothing about a card's appearance now depends on its VALUE — surface,
+   border, accent rail, number colour, label, description, radius and shadow
+   are identical at 0 and at 100+. Only the digits differ.
+
+   The one card that genuinely cannot be selected is Unread while Archived is
+   in force, because archiving marks read and that intersection cannot exist.
+   It carries a title explaining why, and it is the ONLY case that reaches
+   `:disabled` here.
+   =========================================================================== */
 .ops-metric:disabled {
-  cursor: default;
-  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .ops-metrics__note {
@@ -908,9 +924,22 @@
 }
 
 /* A quick filter is a selectable state, so it reads heavier when in force
-   than a metadata chip does. Tone comes from the shared accent token. */
+   than a metadata chip does. Tone comes from the shared accent token.
+
+   SIZED UP from the bare `.app-chip`, which is a metadata label — correct
+   for "DOCUMENT" or "v2", too small for a control the reader aims at
+   constantly. This is a compact enterprise filter control: a 36px box that
+   matches the toolbar's other controls, a real touch target, and text at the
+   weight of something selectable. Deliberately NOT a primary action — it does
+   not take the gradient, and it does not compete with Refresh. */
 .ops-quick-chip {
   cursor: pointer;
+  min-block-size: 36px;
+  padding-inline: 15px;
+  padding-block: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 9px;
 }
 .ops-quick-chip[aria-pressed="true"] {
   background: var(--accent-050);
@@ -1083,4 +1112,44 @@
     min-inline-size: 0;
     flex: 1 1 auto;
   }
+}
+
+/* ===========================================================================
+   THE RESULT SUMMARY — a count, at the size of a count.
+
+   This used `.ops-note`, which is a block-level flex row with a card radius
+   and a muted fill. On a page with nothing beside it that renders as a
+   full-width grey capsule spanning the content column: heavier than the
+   notification rows it introduces, and shaped closely enough like a progress
+   bar to read as one.
+
+   It is a STATUS LABEL. So it sizes to its own text, sits at the inline-start
+   edge aligned with the list beneath it, and uses the quietest surface in the
+   system — the same neutral fill and hairline the metadata chips take, at a
+   small radius. It is deliberately quieter than a row.
+
+   `fit-content` on an inline-size, not `display: inline-flex`, so it still
+   participates in the page's block layout and wraps naturally rather than
+   sitting on the same line as whatever precedes it.
+   =========================================================================== */
+.ops-result-summary {
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 5px 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.6));
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+}
+/* The count itself is not louder than the sentence around it — `<strong>`
+   carries the test hook and the semantics, not a heavier weight. */
+.ops-result-summary strong {
+  font-weight: 600;
+  color: var(--ink-secondary);
 }

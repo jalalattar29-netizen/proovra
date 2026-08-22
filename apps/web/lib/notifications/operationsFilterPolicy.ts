@@ -436,14 +436,18 @@ export function shouldOfferMarkCategoryRead(
   return isCategoryFilter && scopeUnread > 0 && filteredTotal > 0;
 }
 
-/**
- * Severity tiles: a zero-count tile is informational-only (disabled)
- * unless it is the currently active tone — the user must always be
- * able to un-toggle their own selection.
- */
-export function toneTileDisabled(count: number, isActive: boolean): boolean {
-  return count === 0 && !isActive;
-}
+/* `toneTileDisabled` USED TO LIVE HERE.
+
+   It answered "is this severity tile a dead control?" with `count === 0 &&
+   !isActive`, and the notification metric cards used it to disable and fade
+   themselves at zero. A zero count is a FACT about the inbox, not a statement
+   about the control, and treating the two as the same thing made a quiet
+   inbox look broken and left the reader unable to move between empty views.
+
+   The rule is deleted rather than left unused: an exported predicate that
+   encodes a decision the product has reversed is the kind of thing that gets
+   wired back in by someone reading its name and trusting it. */
+
 
 /**
  * THE ADVANCED PANEL'S CONTENTS, eligibility-filtered and grouped.
@@ -472,28 +476,30 @@ export function visibleAdvancedFilterGroups(
 /**
  * HOW MANY FILTERS ARE ACTUALLY APPLIED — the number on the `Filters` control.
  *
- * Counts the AXES that are narrowing the list, not the chips that exist. There
- * are three, and they are independent:
+ * Counts the ADVANCED axes only. There are three, and they are independent:
  *
- *   category    one of the advanced keys (the quick row's `all`/`unread`/
- *               `archived` are the page's own lifecycle state, not an advanced
- *               filter, so they never contribute to this badge — a reader who
- *               has simply clicked "Unread" has not "applied 1 filter")
- *   tone        set by the severity metric cards
+ *   category    one of the grouped Type / Integrity / Time keys
+ *   archived    the lifecycle status, moved here from the quick row
  *   workspace   set by the workspace selector, when the reader has more than
  *               one
+ *
+ * THE PRIMARY VIEW IS NOT COUNTED. `All`/`Unread`/`Critical`/`High`/
+ * `Warning`/`Info` is where the page IS — exactly one of them is lit on the
+ * card row at every moment — not something applied on top of it. Counting it
+ * would make the badge read "1" the instant a reader touched the cards, and a
+ * number that is always on stops carrying information.
  *
  * Keeping this a pure function means the badge, the "clear all" affordance and
  * the tests all read the same rule.
  */
 export function activeAdvancedFilterCount(input: {
-  filter: OperationsFilterKey;
-  tone: string;
+  category: OperationsFilterKey;
+  archived: boolean;
   workspaceId: string;
 }): number {
   let n = 0;
-  if (!QUICK_OPERATIONS_FILTERS.includes(input.filter)) n += 1;
-  if (input.tone !== "all") n += 1;
+  if (input.category !== "all") n += 1;
+  if (input.archived) n += 1;
   if (input.workspaceId !== "all") n += 1;
   return n;
 }

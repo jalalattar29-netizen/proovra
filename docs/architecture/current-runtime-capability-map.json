@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
   "routeInventoryHash": "b235c955634ced33db8649409da2326352352fc463cba69e5b6d9cbb825870d1",
-  "consumerInventoryHash": "30d6786b7eb4a04fda2d23b752bc5063ec9ef0de26a8653a63293346fc548b32",
+  "consumerInventoryHash": "12c371d30a82a1bea4c157c769972944d3a53a9c8c3d6e5680e4007797270923",
   "dispositionsHash": "2bef45feace7daa94e834ad160ef8c4e6e3e1d9099bd16ebb423515be5f4910c",
   "totals": {
     "RegisteredRoutes": 1092,
@@ -6876,7 +6876,7 @@
       "method": "GET",
       "route": "/v1/me/inbox",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:813",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:918",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6900,7 +6900,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/mark-all-read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:849",
+      "productConsumer": "apps/web/components/app-shell-v2/NotificationBell.tsx:427",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6912,7 +6912,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:940",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1029",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6924,7 +6924,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unread",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:940",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1029",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6936,7 +6936,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/archive",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:940",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1029",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6948,7 +6948,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unarchive",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:940",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1029",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6960,7 +6960,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/remind",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:940",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1029",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -18076,8 +18076,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@3888",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3888",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@3999",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3999",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18109,8 +18109,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4036",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4036",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4147",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4147",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18149,8 +18149,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@3893",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3893",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4004",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4004",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18182,8 +18182,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@3906",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3906",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4017",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4017",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18215,8 +18215,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4041",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4041",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4152",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4152",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18255,8 +18255,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1187",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1187",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1278",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1278",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18290,8 +18290,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1220",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1220",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1311",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1311",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18325,8 +18325,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1243",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1243",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1334",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1334",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18360,8 +18360,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@3911",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3911",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4022",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4022",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18393,8 +18393,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4062",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4062",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4173",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4173",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -85018,7 +85018,7 @@
       "method": "GET",
       "path": "/v1/me/inbox",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3132",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3223",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -85029,7 +85029,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 813,
+          "line": 918,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -85037,7 +85037,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 873,
+          "line": 962,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -85071,7 +85071,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:813 (InboxPageInner, WEB); apps/web/app/(app)/inbox/page.tsx:873 (InboxPageInner, WEB); apps/web/components/notifications/NotificationPreferencesPanel.tsx:238 (NotificationPreferencesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:918 (InboxPageInner, WEB); apps/web/app/(app)/inbox/page.tsx:962 (InboxPageInner, WEB); apps/web/components/notifications/NotificationPreferencesPanel.tsx:238 (NotificationPreferencesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85135,7 +85135,7 @@
       "method": "GET",
       "path": "/v1/me/inbox/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3703",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3814",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121482,7 +121482,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4218",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4329",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121493,7 +121493,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 940,
+          "line": 1029,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121503,7 +121503,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:940 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1029 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121536,7 +121536,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4235",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4346",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121590,7 +121590,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4122",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4233",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121601,7 +121601,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 940,
+          "line": 1029,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121619,7 +121619,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:940 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:393 (mutate, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1029 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:393 (mutate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121652,7 +121652,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/remind",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4220",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4331",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121663,7 +121663,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 940,
+          "line": 1029,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121673,7 +121673,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:940 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1029 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121706,7 +121706,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/snooze",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4237",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4348",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121751,7 +121751,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4219",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4330",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121762,7 +121762,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 940,
+          "line": 1029,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121772,7 +121772,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:940 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1029 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121805,7 +121805,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/undismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4236",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4347",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121850,7 +121850,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unread",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4134",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4245",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121861,7 +121861,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 940,
+          "line": 1029,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121871,7 +121871,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:940 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1029 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121904,7 +121904,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/mark-all-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3833",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3944",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121913,14 +121913,6 @@
         "AUTHENTICATED"
       ],
       "productConsumers": [
-        {
-          "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 849,
-          "caller": "InboxPageInner",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
           "line": 427,
@@ -121933,7 +121925,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:849 (InboxPageInner, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:427 (markAllRead, WEB)",
+      "dispositionEvidence": "apps/web/components/app-shell-v2/NotificationBell.tsx:427 (markAllRead, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

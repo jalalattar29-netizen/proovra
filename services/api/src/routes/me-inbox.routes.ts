@@ -207,6 +207,74 @@ export function normalizeInboxFilter(
   return filter === "history" ? "archived" : filter;
 }
 
+/**
+ * THE FOUR AXES, AND WHY `filter` COULD NOT CARRY THEM ALL.
+ *
+ * `filter` is a SINGLE-VALUED enum that mixed four independent questions:
+ *
+ *     all | unread            a read-state question
+ *     archived                a lifecycle question
+ *     critical                a severity question
+ *     mentions | reports | …  a category question
+ *
+ * One slot, four meanings, so any two of them were mutually exclusive by
+ * accident rather than by design. That is what made the notification metric
+ * cards misbehave: `Unread` wrote `filter`, the severity cards wrote `tone`,
+ * and clicking `High` while `Unread` was selected sent BOTH — an intersection
+ * the reader never asked for, which usually returned nothing and could only be
+ * escaped by clicking the old card again to clear it.
+ *
+ * The axes are now separate, and each has exactly one meaning:
+ *
+ *     lifecycle   active | archived        (default active)
+ *     readState   any | unread             (default any)
+ *     tone        critical|high|warning|info
+ *     filter      a CATEGORY, or `all`
+ *
+ * They compose: `Unread + Mentions`, `Archived + High`, `High + Reports +
+ * Overdue` are all expressible now, and none of them needs a second endpoint.
+ *
+ * BACKWARD COMPATIBILITY IS NOT OPTIONAL. `?filter=archived` and
+ * `?filter=unread` are shipped URLs — people have them bookmarked, and the
+ * previous pass's own tests assert them — so they are still accepted and
+ * DECOMPOSED here into the axis each one was really asking about. A caller
+ * that sends the old spelling gets the same answer it always did; a caller
+ * that sends the axes gets combinations the old spelling could not express.
+ */
+export type InboxLifecycle = "active" | "archived";
+export type InboxReadState = "any" | "unread";
+
+export interface InboxAxes {
+  lifecycle: InboxLifecycle;
+  readState: InboxReadState;
+  /** A CATEGORY filter, or "all". Never `unread`/`archived`/`history`. */
+  filter: InboxFilter;
+}
+
+export function resolveInboxAxes(input: {
+  filter?: InboxFilter;
+  lifecycle?: InboxLifecycle;
+  readState?: InboxReadState;
+}): InboxAxes {
+  let lifecycle: InboxLifecycle = input.lifecycle ?? "active";
+  let readState: InboxReadState = input.readState ?? "any";
+  let filter: InboxFilter = normalizeInboxFilter(input.filter) ?? "all";
+
+  // The legacy single-slot spellings decompose into the axis they meant. An
+  // explicit axis parameter always wins, so a client that sends both is not
+  // silently overruled by its own compatibility value.
+  if (filter === "archived") {
+    if (input.lifecycle === undefined) lifecycle = "archived";
+    filter = "all";
+  } else if (filter === "unread") {
+    if (input.readState === undefined) readState = "unread";
+    filter = "all";
+  }
+  // `snoozed` remains a state VIEW rather than an axis: it inverts the default
+  // visibility rule instead of narrowing within it, so it stays in `filter`.
+  return { lifecycle, readState, filter };
+}
+
 const inboxQuerySchema = z.object({
   // Opaque cursor. Encodes a forward offset into the post-filter,
   // post-sort items array. Base64-encoded for forward compatibility
@@ -220,6 +288,9 @@ const inboxQuerySchema = z.object({
   // Existing tone enum — same key as the in-page chips. Server-side
   // tone filtering complements the filter enum.
   tone: z.enum(["critical", "high", "warning", "info"]).optional(),
+  /** See `resolveInboxAxes` — independent of `filter`, and of each other. */
+  lifecycle: z.enum(["active", "archived"]).optional(),
+  readState: z.enum(["any", "unread"]).optional(),
   /**
    * WHICH ORDERING of the same population.
    *
@@ -660,6 +731,26 @@ function priorityForItem(item: {
  * we use this table; tone/due-date filters live inline because they
  * need runtime data.
  */
+/**
+ * The category axis, expressed as a snapshot `where` fragment.
+ *
+ * The archive is a DATABASE query, so a category narrowing has to be pushed
+ * down rather than applied to the page after it comes back — filtering the
+ * page would silently shrink it and make the "of N" count disagree with the
+ * rows beneath it.
+ *
+ * Filters with no category membership (`all`, and the severity/deadline keys
+ * the archive does not model) contribute nothing, which is the correct answer
+ * rather than an empty result: a key that names no categories is not asking
+ * about categories.
+ */
+function ARCHIVE_CATEGORY_MEMBERS(
+  filter: InboxFilter,
+): { category?: { in: string[] } } {
+  const members = FILTER_CATEGORY_MEMBERS[filter];
+  return members && members.length > 0 ? { category: { in: [...members] } } : {};
+}
+
 const FILTER_CATEGORY_MEMBERS: Partial<
   Record<InboxFilter, ReadonlyArray<InboxCategory>>
 > = {
@@ -3150,8 +3241,13 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // Normalized at the boundary, so exactly one spelling of each reaches
       // the predicates below and a legacy wire name cannot grow a second
       // behaviour behind it.
-      const requestedFilter: InboxFilter =
-        normalizeInboxFilter(queryParams.filter) ?? "all";
+      // Decomposed at the boundary into four independent axes, so exactly
+      // one spelling of each reaches the predicates below and a legacy wire
+      // name cannot grow a second behaviour behind it.
+      const axes = resolveInboxAxes(queryParams);
+      const requestedFilter: InboxFilter = axes.filter;
+      const requestedLifecycle = axes.lifecycle;
+      const requestedReadState = axes.readState;
       const requestedTone = queryParams.tone;
       const requestedWorkspaceId = queryParams.workspaceId;
       const requestedSort = normalizeInboxSort(queryParams.sort);
@@ -3181,7 +3277,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // content the user was already authorized to see when it was
       // surfaced; every query is userId-scoped.
       // ---------------------------------------------------------------
-      if (requestedFilter === "archived") {
+      if (requestedLifecycle === "archived") {
         if (!(await snapshotsAvailable())) {
           return reply.code(200).send({
             generatedAt: now.toISOString(),
@@ -3229,6 +3325,17 @@ export async function meInboxRoutes(app: FastifyInstance) {
           // ==============================================================
           dismissedAtUtc: { not: null },
           ...(requestedTone ? { severity: requestedTone } : {}),
+          // The archive honours the SAME axes the active feed does, so
+          // "Archived + Reports" narrows rather than being silently ignored.
+          //
+          // `readState` is accepted here for completeness and is expected to
+          // return nothing: archiving writes `readAt` in the same mutation as
+          // `dismissedAt`, so an archived-and-unread row cannot exist. The UI
+          // disables that combination rather than offering it; honouring it
+          // here means the API answers the question asked instead of quietly
+          // answering a different one.
+          ...(requestedReadState === "unread" ? { readAtUtc: null } : {}),
+          ...(ARCHIVE_CATEGORY_MEMBERS(requestedFilter)),
           // Membership was validated above, so narrowing the snapshot
           // window to one workspace is safe here.
           //
@@ -3510,6 +3617,10 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // other would have kept discarding org invites. One rule, one place.
         if (!isInWorkspaceScope(it, requestedWorkspaceId ?? null)) return false;
         if (requestedTone && it.tone !== requestedTone) return false;
+        // READ STATE is its own axis now, so it composes with a category
+        // rather than competing with it for the single `filter` slot. This is
+        // what makes "Unread + Mentions" expressible.
+        if (requestedReadState === "unread" && it.isRead) return false;
         if (!matchesFilter(it, requestedFilter, nowMs)) return false;
         return true;
       });

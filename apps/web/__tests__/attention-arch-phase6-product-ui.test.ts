@@ -72,16 +72,26 @@ test("the five giant severity KPI cards are gone", () => {
 test("severity survives as filterable METADATA", () => {
   // Severity still matters — a failed anchor is not a mention — so it stays a
   // filter.
-  // Severity now lives in the SAME metric-card row as Unread and All, rather
-  // than in a separate pill strip beside them. It is still a filter, and
-  // clicking a severity card still toggles the tone.
+  // Severity now lives in the SAME metric-card row as Unread and All, and it
+  // is no longer a SECOND axis beside them: the six cards are one value, so
+  // "unread AND high" is not a state the page can hold. Selecting a severity
+  // card replaces whatever was selected.
   for (const tone of ["critical", "high", "warning", "info"]) {
     assert.ok(
       NOTIFICATIONS.includes(`key: "${tone}"`),
       `the summary must offer a ${tone} card`,
     );
   }
-  assert.match(NOTIFICATIONS, /setToneFilter\(toneFilter === key \? "all" : key\)/);
+  assert.match(NOTIFICATIONS, /type PrimaryView = "all" \| "unread" \| InboxTone/);
+  assert.match(NOTIFICATIONS, /setPrimaryView\(key\)/);
+  // The retired two-axis wiring must not come back.
+  assert.ok(
+    !NOTIFICATIONS.includes("setToneFilter("),
+    "severity must not be a second, independently-settable axis",
+  );
+  // And severity still reaches the SERVER as a narrowing, not merely a
+  // highlight — it is a filter, not decoration.
+  assert.match(NOTIFICATIONS, /params\.set\("tone", primaryView\)/);
 });
 
 test("the personal actions read as filing, not adjudication", () => {

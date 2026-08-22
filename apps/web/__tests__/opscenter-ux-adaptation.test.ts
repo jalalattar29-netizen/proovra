@@ -34,7 +34,6 @@ import {
   preferenceGroupVisible,
   shouldOfferMarkAllRead,
   shouldOfferMarkCategoryRead,
-  toneTileDisabled,
   visiblePrimaryFilters,
   visibleSecondaryFilters,
   type ActualItemSignal,
@@ -502,20 +501,25 @@ test("the Filters badge counts APPLIED narrowings, not the page lifecycle", () =
   // so it must not inflate the badge — otherwise the control reads "1" the
   // moment a reader touches the quick row and the number stops meaning
   // anything.
-  for (const quick of QUICK_OPERATIONS_FILTERS) {
-    assert.equal(
-      activeAdvancedFilterCount({ filter: quick, tone: "all", workspaceId: "all" }),
-      0,
-      `${quick} must not count as an applied filter`,
-    );
-  }
+  // Nothing the primary view can be contributes to this number — it is not
+  // even an input any more, which is the strongest form of that guarantee.
   assert.equal(
-    activeAdvancedFilterCount({ filter: "integrity", tone: "all", workspaceId: "all" }),
+    activeAdvancedFilterCount({ category: "all", archived: false, workspaceId: "all" }),
+    0,
+  );
+  assert.equal(
+    activeAdvancedFilterCount({ category: "integrity", archived: false, workspaceId: "all" }),
     1,
   );
-  // The three axes are independent and all three count.
+  // ARCHIVED counts: it moved out of the quick row and into the panel, so it
+  // is an applied filter like any other.
   assert.equal(
-    activeAdvancedFilterCount({ filter: "integrity", tone: "critical", workspaceId: "w-1" }),
+    activeAdvancedFilterCount({ category: "all", archived: true, workspaceId: "all" }),
+    1,
+  );
+  // The three advanced axes are independent and all three count.
+  assert.equal(
+    activeAdvancedFilterCount({ category: "integrity", archived: true, workspaceId: "w-1" }),
     3,
   );
 });
@@ -534,10 +538,32 @@ test("bulk read actions never render with zero unread; category variant needs ro
   assert.equal(shouldOfferMarkCategoryRead(3, 2, false), false);
 });
 
-test("zero-count severity tiles are disabled unless active", () => {
-  assert.equal(toneTileDisabled(0, false), true);
-  assert.equal(toneTileDisabled(0, true), false);
-  assert.equal(toneTileDisabled(5, false), false);
+test("a zero count NEVER disables or fades a metric card", () => {
+  // The inverse of what this used to assert. `toneTileDisabled` decided
+  // "is this tile a dead control?" from `count === 0 && !isActive`, and the
+  // cards disabled and faded themselves accordingly. A zero count is a fact
+  // about the inbox, not a statement about the control: it made a quiet inbox
+  // look broken, and it trapped the reader in a zero-result view because every
+  // other empty card was inert too.
+  //
+  // The predicate is deleted rather than left unused, so this asserts its
+  // ABSENCE from the policy module — an exported helper whose name still
+  // sounds correct is exactly the kind of thing that gets wired back in.
+  const POLICY = read("lib/notifications/operationsFilterPolicy.ts");
+  assert.doesNotMatch(POLICY, /export function toneTileDisabled/);
+
+  // And the page must not have grown its own copy of the rule.
+  const PAGE_SRC = read("app/(app)/inbox/page.tsx");
+  assert.doesNotMatch(PAGE_SRC, /count === 0 &&/);
+  assert.match(PAGE_SRC, /data-notifications-metric-zero=/);
+
+  // The stylesheet carries no value-dependent de-emphasis either.
+  const CSS = read("components/notifications/notifications.css");
+  const metricRules = CSS.slice(CSS.indexOf(".ops-metric"));
+  assert.doesNotMatch(
+    metricRules.slice(0, 2000),
+    /\.ops-metric:disabled \{[^}]*opacity/,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -561,9 +587,14 @@ test("page threads the actual-item override into the filter policy", () => {
   // deliberately takes no active-filter argument — a panel does not promote the
   // active key into a visible row, so it has nothing to de-duplicate, and the
   // active filter must stay in the panel where it can be clicked off again.
+  // The override still reaches the policy. The QUICK row stopped consuming
+  // it: it is now exactly All and Unread, both of which are universal, so
+  // there is no eligibility for an item signal to reveal. Eligibility gating
+  // lives entirely in the advanced groups, which is the only place it can
+  // still change what renders.
   assert.match(PAGE, /buildActualItemSignal\(/);
-  assert.match(PAGE, /visiblePrimaryFilters\(uiCtx, filter, itemSignal\)/);
   assert.match(PAGE, /visibleAdvancedFilterGroups\(uiCtx, itemSignal\)/);
+  assert.match(PAGE, /QUICK_PRIMARY_VIEWS\.map/);
 });
 
 test("preferences panel uses the SAME predicate + actual-item override", () => {

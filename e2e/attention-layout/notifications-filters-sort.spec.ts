@@ -33,6 +33,15 @@ async function openNotifications(
   await page.waitForSelector("[data-inbox-toolbar]", { timeout: 15_000 });
 }
 
+/** Turn Archived on through the Filters panel — its only control now. */
+async function enableArchived(page: Page): Promise<void> {
+  await page.click('[data-action="toggle-advanced-filters"]');
+  await page.click(
+    '[data-inbox-filters-panel] [data-inbox-filter-chip="archived"]',
+  );
+  await page.click('[data-action="close-advanced-filters"]');
+}
+
 /** The item keys currently rendered, in DOM order. */
 async function renderedKeys(page: Page): Promise<string[]> {
   return page.evaluate(() =>
@@ -57,7 +66,7 @@ test.describe("Archived returns archived notifications only", () => {
     expect(active).toHaveLength(3);
     expect(active.every((k) => !k.includes("archived-"))).toBe(true);
 
-    await page.click('[data-inbox-filter-chip="archived"]');
+    await enableArchived(page);
     await expect
       .poll(async () => (await renderedKeys(page)).length)
       .toBe(2);
@@ -77,10 +86,13 @@ test.describe("Archived returns archived notifications only", () => {
     page,
   }) => {
     await openNotifications(page);
-    await page.click('[data-inbox-filter-chip="archived"]');
+    await enableArchived(page);
     await expect.poll(async () => (await renderedKeys(page)).length).toBe(2);
 
-    await page.click('[data-inbox-filter-chip="all"]');
+    // Removing the active-filter chip is the way back: the quick row no
+    // longer carries Archived, so "All" cannot clear it — and should not, since
+    // the primary view and the lifecycle are different axes now.
+    await page.click('[data-inbox-remove-filter="archived"]');
     await expect.poll(async () => (await renderedKeys(page)).length).toBe(3);
 
     const keys = await renderedKeys(page);
@@ -98,16 +110,21 @@ test.describe("Archived returns archived notifications only", () => {
     await installApi(page, "personal-pro", { archiveScenario: true });
     const asked: string[] = [];
     await page.route("**/v1/me/inbox?*", (route) => {
-      asked.push(new URL(route.request().url()).searchParams.get("filter") ?? "");
+      const u = new URL(route.request().url());
+      asked.push(
+        u.searchParams.get("lifecycle") ?? u.searchParams.get("filter") ?? "",
+      );
       return route.fallback();
     });
     await page.goto("/notifications");
     await page.waitForSelector("[data-inbox-toolbar]", { timeout: 15_000 });
-    await page.click('[data-inbox-filter-chip="archived"]');
+    await enableArchived(page);
     await expect.poll(async () => (await renderedKeys(page)).length).toBe(2);
+    // The LIFECYCLE axis carries it now — its own parameter, so it composes
+    // with a severity or a category instead of competing for the single
+    // `filter` slot.
     expect(asked).toContain("archived");
-    // The legacy spelling is a compatibility name on the wire, not something
-    // this client emits.
+    // Neither legacy single-slot spelling is emitted by this client.
     expect(asked).not.toContain("history");
   });
 
@@ -115,10 +132,12 @@ test.describe("Archived returns archived notifications only", () => {
     page,
   }) => {
     await openNotifications(page);
-    const unread = page.locator('[data-inbox-filter-chip="unread"]');
+    const unread = page.locator(
+      '[data-inbox-quick-filters] [data-inbox-filter-chip="unread"]',
+    );
     await expect(unread).toBeEnabled();
 
-    await page.click('[data-inbox-filter-chip="archived"]');
+    await enableArchived(page);
     await expect(unread).toBeDisabled();
     // And it says why, rather than being inert with no explanation.
     await expect(unread).toHaveAttribute("title", /always marked read/i);
@@ -228,10 +247,23 @@ test.describe("The filter toolbar is compact, not a wall of pills", () => {
   }) => {
     await openNotifications(page);
     const quick = page.locator("[data-inbox-quick-filters] button");
-    await expect(quick).toHaveCount(3);
+    await expect(quick).toHaveCount(2);
     await expect(quick.nth(0)).toHaveText("All");
     await expect(quick.nth(1)).toHaveText("Unread");
-    await expect(quick.nth(2)).toHaveText("Archived");
+    // ARCHIVED IS NOT A THIRD PILL. It is a status, and standing it beside All
+    // and Unread implied the three were alternatives when only the first two
+    // are. It lives in the Filters panel's Status group.
+    await expect(
+      page.locator(
+        '[data-inbox-quick-filters] [data-inbox-filter-chip="archived"]',
+      ),
+    ).toHaveCount(0);
+    await page.click('[data-action="toggle-advanced-filters"]');
+    await expect(
+      page.locator(
+        '[data-inbox-filter-group="status"] [data-inbox-filter-chip="archived"]',
+      ),
+    ).toHaveCount(1);
 
     // And the old permanent overflow row is gone entirely.
     await expect(page.locator("[data-inbox-secondary-filters]")).toHaveCount(0);
@@ -271,11 +303,17 @@ test.describe("The filter toolbar is compact, not a wall of pills", () => {
     await page.click('[data-inbox-filters-panel] [data-inbox-filter-chip="integrity"]');
     await expect(trigger.locator(".ops-filters-count")).toHaveText("1");
 
-    // A quick filter is the page's own state, not an applied filter — it must
+    // A primary view is the page's own state, not an applied filter — it must
     // not inflate the badge.
     await page.click('[data-action="close-advanced-filters"]');
-    await page.click('[data-inbox-filter-chip="unread"]');
+    await page.click('[data-inbox-remove-filter="integrity"]');
+    await page.click(
+      '[data-inbox-quick-filters] [data-inbox-filter-chip="unread"]',
+    );
     await expect(trigger.locator(".ops-filters-count")).toHaveCount(0);
+    // Archived DOES count — it is an applied filter like any other now.
+    await enableArchived(page);
+    await expect(trigger.locator(".ops-filters-count")).toHaveText("1");
   });
 
   test("active filters surface as removable chips, not as a permanent row", async ({
@@ -363,7 +401,7 @@ test("the result count speaks about notifications, and about the archive", async
   await expect(showing).toContainText("notifications");
   await expect(showing).not.toContainText(" items");
 
-  await page.click('[data-inbox-filter-chip="archived"]');
+  await enableArchived(page);
   await expect.poll(async () => (await renderedKeys(page)).length).toBe(2);
   await expect(showing).toContainText(/archived notifications/i);
 });
@@ -543,4 +581,160 @@ test("in RTL the title icon leads on the right", async ({ page }) => {
     return icon.left > title.left;
   });
   expect(flipped).toBe(true);
+});
+
+// ===========================================================================
+// §4 / §13–§17 — what the list is NOT any more
+// ===========================================================================
+
+test("the two bulk-read buttons are gone, in every view", async ({ page }) => {
+  await openNotifications(page);
+  for (const view of ["active", "archived"] as const) {
+    if (view === "archived") await enableArchived(page);
+    // They were noise on a personal feed, and in the Archived view — where
+    // every row is read by definition — they offered to do nothing.
+    await expect(
+      page.locator('[data-action="mark-all-read"]'),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('[data-action="mark-category-read"]'),
+    ).toHaveCount(0);
+    await expect(page.locator("[data-inbox-bulk-actions]")).toHaveCount(0);
+    await expect(page.getByText("Mark all as read")).toHaveCount(0);
+  }
+});
+
+test("no P1/P2 priority section heading survives on Notifications", async ({
+  page,
+}) => {
+  await openNotifications(page);
+  const found = await page.evaluate(() => {
+    const body = document.body.textContent ?? "";
+    return {
+      sections: document.querySelectorAll("[data-inbox-priority-section]")
+        .length,
+      headers: document.querySelectorAll(".ops-priority-header").length,
+      labels: document.querySelectorAll("[data-inbox-priority-label]").length,
+      // The exact operational sentence the heading used to carry.
+      tagline: body.includes("Operational failures and critical signals"),
+      pTier: /\bP[1-5]\s*·/.test(body),
+    };
+  });
+  expect(found.sections).toBe(0);
+  expect(found.headers).toBe(0);
+  expect(found.labels).toBe(0);
+  expect(found.tagline).toBe(false);
+  expect(found.pTier).toBe(false);
+
+  // ROW-LEVEL severity remains — that is useful context, and it is what the
+  // heading was a bad substitute for.
+  await expect(page.locator("li[data-inbox-item-tone]").first()).toBeVisible();
+  await expect(page.locator("[data-inbox-item-priority]").first()).toHaveAttribute(
+    "data-inbox-item-priority",
+    /P[1-5]/,
+  );
+});
+
+test("the list is ONE flat stream, and sort decides its DOM order", async ({
+  page,
+}) => {
+  await openNotifications(page);
+
+  // One <ul>, and every row is a direct child of it — no per-priority
+  // sub-lists, which is what made "Oldest first" only apply within a bucket.
+  const shape = await page.evaluate(() => {
+    const lists = document.querySelectorAll("[data-inbox-items] ul");
+    const stream = document.querySelector("[data-inbox-stream]");
+    const rows = Array.from(
+      document.querySelectorAll("li[data-inbox-item-key]"),
+    );
+    return {
+      lists: lists.length,
+      allDirectChildren: rows.every((r) => r.parentElement === stream),
+    };
+  });
+  expect(shape.lists).toBe(1);
+  expect(shape.allDirectChildren).toBe(true);
+
+  // And the ordering is the SERVER's, top to bottom, across tones. Newest
+  // first puts the 11:00 critical above the 10:00 high above the 09:00
+  // warning — an order a P1/P2 regrouping could not have produced.
+  await expect.poll(async () => await renderedKeys(page)).toEqual([
+    "tsa_failure:active-unread-critical",
+    "tsa_failure:active-read-high",
+    "tsa_failure:active-unread-warning",
+  ]);
+
+  await page.click(".ops-sort__control button");
+  await page.click('role=option[name="Oldest first"]');
+  await expect.poll(async () => await renderedKeys(page)).toEqual([
+    "tsa_failure:active-unread-warning",
+    "tsa_failure:active-read-high",
+    "tsa_failure:active-unread-critical",
+  ]);
+});
+
+// ===========================================================================
+// §9–§12 — the result summary is a label, not a bar
+// ===========================================================================
+
+test("the result summary sizes to its content and is not a full-width slab", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openNotifications(page);
+  const m = await page.evaluate(() => {
+    const el = document.querySelector(
+      "[data-inbox-pagination-summary]",
+    ) as HTMLElement;
+    const list = document.querySelector("[data-inbox-items]") as HTMLElement;
+    const cs = getComputedStyle(el);
+    return {
+      width: Math.round(el.getBoundingClientRect().width),
+      containerWidth: Math.round(
+        (el.parentElement as HTMLElement).getBoundingClientRect().width,
+      ),
+      radius: parseFloat(cs.borderTopLeftRadius),
+      role: el.getAttribute("role"),
+      // Aligned with the list it introduces.
+      inlineStartDelta: Math.abs(
+        el.getBoundingClientRect().left - list.getBoundingClientRect().left,
+      ),
+    };
+  });
+  // Sized to its text, nowhere near the content column.
+  expect(m.width).toBeLessThan(m.containerWidth * 0.5);
+  // A label's radius, not a capsule's.
+  expect(m.radius).toBeLessThanOrEqual(12);
+  // It is a count, not a progress indicator.
+  expect(m.role).not.toBe("progressbar");
+  expect(m.inlineStartDelta).toBeLessThanOrEqual(1);
+});
+
+// ===========================================================================
+// §22 — the shipped URL still works
+// ===========================================================================
+
+test("/notifications?filter=archived still selects the archive", async ({
+  page,
+}) => {
+  await installApi(page, "personal-pro", { archiveScenario: true });
+  await page.goto("/notifications?filter=archived");
+  await page.waitForSelector("[data-inbox-toolbar]", { timeout: 15_000 });
+
+  // Archived rows only…
+  await expect.poll(async () => (await renderedKeys(page)).length).toBe(2);
+  const keys = await renderedKeys(page);
+  expect(keys.every((k) => k.includes("archived-"))).toBe(true);
+
+  // …and the control reflects it, inside the panel where it now lives.
+  await expect(
+    page.locator('[data-inbox-remove-filter="archived"]'),
+  ).toHaveCount(1);
+  await page.click('[data-action="toggle-advanced-filters"]');
+  await expect(
+    page.locator(
+      '[data-inbox-filter-group="status"] [data-inbox-filter-chip="archived"]',
+    ),
+  ).toHaveAttribute("aria-pressed", "true");
 });

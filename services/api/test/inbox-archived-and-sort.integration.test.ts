@@ -594,6 +594,114 @@ describe("Inbox archived filter + sorting (live PostgreSQL 16)", () => {
     expect(seededOldest).toEqual([...keys].reverse());
   });
 
+  // =========================================================================
+  // 5. THE FOUR AXES — independent, composable, backward compatible
+  //
+  // `filter` used to be a single slot carrying four different questions
+  // (read-state, lifecycle, severity, category), so any two of them were
+  // mutually exclusive by accident. That is what made the notification metric
+  // cards misbehave: selecting Unread and then High sent BOTH, and the
+  // intersection was usually empty with no way out but clearing the first.
+  // =========================================================================
+
+  it("17. readState and a CATEGORY compose — the old single slot could not", async () => {
+    const seeded: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const { itemKey } = await seedItem({
+        teamId: A.teamId,
+        requestedByUserId: A.ownerUserId,
+        title: `Axis compose ${i} ${randomUUID().slice(0, 8)}`,
+      });
+      seeded.push(itemKey);
+    }
+    await list(A.ownerToken);
+    // Read ONE of them, so unread and the category genuinely disagree.
+    expect(await act(A.ownerToken, seeded[0]!, "read")).toBe(200);
+
+    const composed = await list(A.ownerToken, {
+      readState: "unread",
+      filter: "intake",
+    });
+    const keys = composed.items.map((i) => i.itemKey);
+    // Both narrowings applied: the intake category AND unread.
+    expect(keys).not.toContain(seeded[0]!);
+    expect(keys).toContain(seeded[1]!);
+    expect(keys).toContain(seeded[2]!);
+  });
+
+  it("18. lifecycle and tone compose — archived High is a real question", async () => {
+    const keys = await seedOrderedArchive([
+      { tone: "high", minutesAgo: 10, read: true },
+      { tone: "info", minutesAgo: 20, read: true },
+    ]);
+    const highArchive = await list(A.ownerToken, {
+      lifecycle: "archived",
+      tone: "high",
+    });
+    expect(highArchive.items.map((i) => i.itemKey)).toEqual([keys[0]!]);
+  });
+
+  it("19. an explicit axis is never overruled by the legacy compatibility value", async () => {
+    await seedThreeActiveTwoArchived();
+    // `filter=archived` decomposes to lifecycle=archived — unless the caller
+    // said otherwise, in which case the explicit axis wins and the legacy
+    // value contributes nothing.
+    const explicit = await list(A.ownerToken, {
+      filter: "archived",
+      lifecycle: "active",
+    });
+    expect(explicit.items).toHaveLength(3);
+    expect(explicit.items.every((i) => i.dismissedAt === null)).toBe(true);
+  });
+
+  it("20. the legacy single-slot spellings still answer as they always did", async () => {
+    const seeded: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const { itemKey } = await seedItem({
+        teamId: A.teamId,
+        requestedByUserId: A.ownerUserId,
+        title: `Legacy ${i} ${randomUUID().slice(0, 8)}`,
+      });
+      seeded.push(itemKey);
+    }
+    await list(A.ownerToken);
+    expect(await act(A.ownerToken, seeded[0]!, "read")).toBe(200);
+    expect(await act(A.ownerToken, seeded[1]!, "archive")).toBe(200);
+
+    // `?filter=unread` — a shipped URL.
+    const unread = await list(A.ownerToken, { filter: "unread" });
+    const unreadKeys = unread.items.map((i) => i.itemKey);
+    expect(unreadKeys).toContain(seeded[2]!);
+    expect(unreadKeys).not.toContain(seeded[0]!);
+    expect(unreadKeys).not.toContain(seeded[1]!);
+
+    // …and its canonical axis spelling returns the SAME population.
+    const viaAxis = await list(A.ownerToken, { readState: "unread" });
+    expect(viaAxis.items.map((i) => i.itemKey).sort()).toEqual(
+      [...unreadKeys].sort(),
+    );
+  });
+
+  it("21. the archive honours a CATEGORY narrowing rather than ignoring it", async () => {
+    await seedThreeActiveTwoArchived();
+    // Every seeded item is an intake submission, so the intake category keeps
+    // them and an unrelated category keeps none — pushed down to the query,
+    // which is what makes the count and the rows agree.
+    const intake = await list(A.ownerToken, {
+      lifecycle: "archived",
+      filter: "intake",
+    });
+    expect(intake.items).toHaveLength(2);
+    expect(intake.totalEstimate).toBe(2);
+
+    const reports = await list(A.ownerToken, {
+      lifecycle: "archived",
+      filter: "reports",
+    });
+    expect(reports.items).toHaveLength(0);
+    expect(reports.totalEstimate).toBe(0);
+  });
+
   it("16. an unknown sort value falls back to the default, never to a 500", async () => {
     await seedThreeActiveTwoArchived();
     const res = await harness.app.inject({

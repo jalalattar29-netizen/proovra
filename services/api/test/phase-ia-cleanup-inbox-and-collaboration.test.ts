@@ -283,7 +283,10 @@ describe("Phase IA-cleanup — /inbox UI exposes the 5 new categories", () => {
     // key as a literal — the policy groups do, which is where a per-key
     // assertion now belongs (see `opscenter-ux-adaptation`).
     expect(PAGE).toContain("operationsFilterPolicy");
-    expect(PAGE).toContain("visiblePrimaryFilters");
+    // The QUICK row is now exactly All and Unread — both universal — so there
+    // is no eligibility left for it to project. Gating lives entirely in the
+    // advanced groups, the only place it can still change what renders.
+    expect(PAGE).toContain("QUICK_PRIMARY_VIEWS");
     expect(PAGE).toContain("visibleAdvancedFilterGroups");
     expect(PAGE).toContain("INBOX_FILTER_LABELS");
     for (const id of ["all", "mentions", "review", "governance", "failures", "admin"]) {
@@ -638,11 +641,19 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     }
   });
 
-  it("InboxPriority + PRIORITY_META cover P1..P5", () => {
+  it("InboxPriority still covers P1..P5 as ROW metadata", () => {
+    // The TYPE stays: the server assigns a priority and every row carries it
+    // on `data-inbox-item-priority` for tests and analytics.
+    //
+    // `PRIORITY_META` does NOT stay. It supplied the "P1 · Critical —
+    // Operational failures and critical signals — act now." section headings,
+    // which are an operations work queue's vocabulary on a personal feed —
+    // and, worse, the grouping they labelled re-bucketed the list AFTER the
+    // server had ordered it, so the reader's chosen sort only ever applied
+    // within a bucket.
     expect(PAGE).toMatch(/type InboxPriority\s*=\s*"P1"\s*\|\s*"P2"\s*\|\s*"P3"\s*\|\s*"P4"\s*\|\s*"P5"/);
-    for (const key of ["P1", "P2", "P3", "P4", "P5"]) {
-      expect(PAGE).toMatch(new RegExp(`${key}:\\s*\\{`));
-    }
+    expect(PAGE).toContain("data-inbox-item-priority");
+    expect(PAGE).not.toMatch(/^const PRIORITY_META/m);
   });
 
   it("every enterprise filter key still exists in the vocabulary", () => {
@@ -689,9 +700,23 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     expect(PAGE).not.toMatch(/totalIsExact\s*\?\s*""\s*:\s*"\+"/);
   });
 
-  it("renders priority section headers grouped by P1..P5", () => {
-    expect(PAGE).toContain("data-inbox-priority-section");
-    expect(PAGE).toContain("PRIORITY_ORDER");
+  it("renders ONE flat stream — no priority section headers", () => {
+    // Inverted deliberately. See the note on `InboxPriority` above: the
+    // grouping was stale Operations vocabulary AND it defeated sorting.
+    //
+    // Asserted over CODE. The page keeps a note recording what was removed and
+    // why, and that note names the retired identifiers — a whole-file search
+    // would match the explanation instead of the thing.
+    const CODE = PAGE.replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("//"))
+      .join("\n");
+    expect(CODE).not.toContain("data-inbox-priority-section");
+    expect(CODE).not.toContain("PRIORITY_ORDER");
+    expect(CODE).not.toContain("ops-priority-header");
+    // One list, rendered straight from the server's order.
+    expect(PAGE).toContain("data-inbox-stream");
+    expect(PAGE).toMatch(/visibleItems\.map\(\(item\)/);
   });
 
   it("each item carries a priority data attribute for tests + analytics", () => {
@@ -708,12 +733,16 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     // Final-completion rebaseline: buildUrl also depends on the
     // server-validated workspace narrowing selector (workspaceFilter),
     // so a scope change is a fresh query too.
-    // SORT joined the dependency list. A reorder is a fresh query for exactly
+    // THE AXES joined the dependency list when `filter`/`toneFilter` became
+    // `primaryView`/`category`/`archived`. Selecting a metric card, a
+    // category or the archive is a fresh query starting at offset 0.
+    //
+    // SORT joined it too. A reorder is a fresh query for exactly
     // the reason a filter change is: the cursor is an offset into an ordered
     // population, so carrying it across a reorder pages into the middle of a
     // list the reader never saw the start of.
     expect(PAGE).toMatch(
-      /useCallback\([\s\S]{0,900}\[filter,\s*toneFilter,\s*workspaceFilter,\s*sort\]/,
+      /const buildUrl = useCallback\([\s\S]*?\[primaryView,\s*category,\s*archived,\s*workspaceFilter,\s*sort\]/,
     );
   });
 });

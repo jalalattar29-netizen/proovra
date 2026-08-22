@@ -311,7 +311,97 @@ export type InstallApiOptions = {
    * sent, which is how a filter bug survives a browser suite.
    */
   archiveScenario?: boolean;
+  /**
+   * Serve the METRIC-EXCLUSIVITY population: Unread 0, High 26, Info 2,
+   * All 28.
+   *
+   * Shaped precisely to reproduce the defect this pass fixes. `Unread` at
+   * ZERO is the trap: the six cards used to write two independent pieces of
+   * state, so selecting Unread and then High left both applied, the request
+   * asked for unread-AND-high, and the answer was empty — with no way out
+   * except clicking the old card a second time to clear it. A zero-count
+   * Unread makes the first click land on an empty view, which is exactly the
+   * position a reader could not escape from.
+   */
+  metricScenario?: boolean;
 };
+
+/** 26 High + 2 Info, none unread. See `metricScenario`. */
+const METRIC_SCENARIO_ITEMS = [
+  ...Array.from({ length: 26 }, (_, i) => ({ tone: "high", i })),
+  ...Array.from({ length: 2 }, (_, i) => ({ tone: "info", i: 100 + i })),
+].map((s) => ({
+  id: `tsa_failure:metric-${s.tone}-${s.i}`,
+  itemKey: `tsa_failure:metric-${s.tone}-${s.i}`,
+  category: "tsa_failure",
+  tone: s.tone,
+  priority: "P1",
+  title: `Timestamp failed — ${s.tone} ${s.i}`,
+  body: "Failed timestamping weakens time-based evidence confidence.",
+  href: "/evidence/66666666-6666-4666-8666-000000000001",
+  // Descending minute stamps so every ordering is deterministic.
+  occurredAt: new Date(Date.UTC(2026, 7, 22, 12, 0, 0) - s.i * 60_000).toISOString(),
+  // NONE unread — that is the whole point of the fixture.
+  isRead: true,
+  readAt: "2026-08-22T12:30:00.000Z",
+  dismissedAt: null,
+  snoozedUntil: null,
+  attention: {
+    readState: "READ",
+    lifecycle: "ACTIVE",
+    remindAt: null,
+    deferred: false,
+  },
+  classification: {
+    channels: ["notification", "operational_condition"],
+    conditionAuthority: "evidence",
+    scope: "WORKSPACE",
+    countsAsWorkload: true,
+    sharedConditionFingerprint: `tsa_failure:metric-${s.tone}-${s.i}`,
+  },
+  canMarkRead: true,
+  canDismiss: true,
+  canSnooze: true,
+  context: { teamId: WORKSPACE_ID, teamName: "Meridian Legal" },
+}));
+
+/** The same four axes, over the metric-exclusivity population. */
+function projectMetricScenario(url: URL) {
+  const readState = url.searchParams.get("readState") ?? "any";
+  const tone = url.searchParams.get("tone");
+  const sort = url.searchParams.get("sort") ?? "newest";
+
+  let items = METRIC_SCENARIO_ITEMS.filter((i) => i.dismissedAt == null);
+  if (readState === "unread") items = items.filter((i) => !i.isRead);
+  if (tone) items = items.filter((i) => i.tone === tone);
+
+  const sorted = [...items].sort((a, b) =>
+    sort === "oldest"
+      ? a.occurredAt.localeCompare(b.occurredAt) ||
+        a.itemKey.localeCompare(b.itemKey)
+      : b.occurredAt.localeCompare(a.occurredAt) ||
+        a.itemKey.localeCompare(b.itemKey),
+  );
+
+  const all = METRIC_SCENARIO_ITEMS;
+  return {
+    items: sorted,
+    scopeSummary: {
+      total: all.length,
+      unread: all.filter((i) => !i.isRead).length,
+      workload: all.length,
+      guidance: 0,
+      byTone: {
+        critical: 0,
+        high: all.filter((i) => i.tone === "high").length,
+        warning: 0,
+        info: all.filter((i) => i.tone === "info").length,
+      },
+      byCategory: { tsa_failure: all.length },
+      deadlines: { dueSoon: 0, overdue: 0 },
+    },
+  };
+}
 
 /**
  * The archive-scenario population. Deliberately mixed: the three active items
@@ -399,21 +489,31 @@ const TONE_RANK: Record<string, number> = {
 
 /** The same predicate and orderings the API applies, over the fixture set. */
 function projectArchiveScenario(url: URL) {
-  const filter = url.searchParams.get("filter") ?? "all";
+  // THE FOUR AXES, exactly as the route resolves them — including the legacy
+  // single-slot spellings, so a fixture cannot pass a request the real server
+  // would answer differently.
+  const rawFilter = url.searchParams.get("filter") ?? "all";
+  const legacy = rawFilter === "history" ? "archived" : rawFilter;
+
+  let lifecycle = url.searchParams.get("lifecycle") ?? "active";
+  let readState = url.searchParams.get("readState") ?? "any";
+  let category = legacy;
+  if (legacy === "archived") {
+    if (!url.searchParams.get("lifecycle")) lifecycle = "archived";
+    category = "all";
+  } else if (legacy === "unread") {
+    if (!url.searchParams.get("readState")) readState = "unread";
+    category = "all";
+  }
+
   const tone = url.searchParams.get("tone");
   const sort = url.searchParams.get("sort") ?? "newest";
-  const canonicalFilter = filter === "history" ? "archived" : filter;
+  const canonicalFilter = lifecycle === "archived" ? "archived" : category;
 
   let items = ARCHIVE_SCENARIO_ITEMS.filter((i) =>
-    canonicalFilter === "archived"
-      ? i.dismissedAt != null
-      : // Everything else is a narrowing of the ACTIVE feed.
-        i.dismissedAt == null,
+    lifecycle === "archived" ? i.dismissedAt != null : i.dismissedAt == null,
   );
-  if (canonicalFilter === "unread") items = items.filter((i) => !i.isRead);
-  if (canonicalFilter === "critical") {
-    items = items.filter((i) => i.tone === "critical");
-  }
+  if (readState === "unread") items = items.filter((i) => !i.isRead);
   if (tone) items = items.filter((i) => i.tone === tone);
 
   const byRecency = (a: typeof items[number], b: typeof items[number]) =>
@@ -533,6 +633,29 @@ export async function installApi(
       return route.fulfill(json({ metrics: { uptimeSeconds: 1000, counters: {}, gauges: {} } }));
     }
     if (path.includes("/v1/me/inbox/summary")) {
+      if (options.metricScenario) {
+        const m = projectMetricScenario(new URL("http://x/"));
+        return route.fulfill(
+          json({
+            unread: m.scopeSummary.unread,
+            critical: 0,
+            high: m.scopeSummary.byTone.high,
+            assignedToMe: 0,
+            overdue: 0,
+            total: m.scopeSummary.total,
+            hasTruncatedSources: false,
+            degraded: false,
+            degradedSources: [],
+            completeness: {
+              anyIncomplete: false,
+              incompleteSources: [],
+              mayAssertAllClear: true,
+            },
+            generatedAtUtc: "2026-08-22T12:00:00.000Z",
+            workspaceId: WORKSPACE_ID,
+          }),
+        );
+      }
       if (options.archiveScenario) {
         const p = projectArchiveScenario(new URL("http://x/?filter=all"));
         return route.fulfill(
@@ -600,6 +723,51 @@ export async function installApi(
       );
     }
     if (path.includes("/v1/me/inbox")) {
+      if (options.metricScenario) {
+        const m = projectMetricScenario(url);
+        const zero = { critical: 0, high: 0, warning: 0, info: 0 };
+        const byTone = m.items.reduce<Record<string, number>>(
+          (acc, i) => ({ ...acc, [i.tone]: (acc[i.tone] ?? 0) + 1 }),
+          { ...zero },
+        );
+        return route.fulfill(
+          json({
+            generatedAt: "2026-08-22T12:00:00.000Z",
+            caller: {
+              userId: SELF_USER_ID,
+              email: "operator@example.invalid",
+              displayName: "Operator",
+            },
+            summary: {
+              total: m.items.length,
+              byTone,
+              byCategory: {},
+              byPriority: { P1: m.items.length, P2: 0, P3: 0, P4: 0, P5: 0 },
+            },
+            scopeSummary: m.scopeSummary,
+            truncated: {},
+            anyTruncated: false,
+            completeness: {
+              bySource: {},
+              anyIncomplete: false,
+              incompleteSources: [],
+              mayAssertAllClear: true,
+            },
+            pagination: {
+              offset: 0,
+              pageSize: 50,
+              returned: m.items.length,
+              nextCursor: null,
+              totalEstimate: m.items.length,
+              totalIsExact: true,
+              appliedFilter: "all",
+              appliedTone: url.searchParams.get("tone"),
+            },
+            items: m.items,
+            historyAvailable: true,
+          }),
+        );
+      }
       if (options.archiveScenario) {
         const projected = projectArchiveScenario(url);
         const zero = { critical: 0, high: 0, warning: 0, info: 0 };
