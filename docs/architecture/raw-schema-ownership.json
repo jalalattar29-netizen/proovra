@@ -61,6 +61,11 @@
     "ENUM_LABEL_RESIDUAL": {
       "ownership": "MIGRATION_MANAGED_RAW_SQL",
       "reason": "A superseded enum variant that migration history created and the datamodel no longer declares. Prisma only maps DECLARED variants, so an undeclared label is inert for reads and writes UNLESS a row still carries it. Removing one is a CONTRACT step: it requires proof that no row uses the label, so it is registered here with an explicit removal condition rather than dropped to make a diff clean."
+    },
+    "PARTIAL_INDEX_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "A PARTIAL index — `CREATE INDEX … WHERE <predicate>` — created by hand-written migration SQL. The Prisma schema language has NO syntax for an index predicate: `@@index([field], where: …)` is a validation error, so the datamodel cannot declare this object faithfully. Declaring the column list WITHOUT the predicate would be strictly worse than not declaring it, because `prisma migrate diff` does not compare `pg_index.indpred` at all — it reports a TOTAL index and a PARTIAL index over the same column as identical. The divergence would vanish from this verifier while the datamodel quietly claimed ownership of an object it cannot see, and the next datamodel-derived baseline would emit an UNFILTERED `CREATE INDEX` covering every NULL row. Registering it here keeps one authority and one truth: raw SQL creates it, only a forward migration may change it, and this verifier fails in both directions if it is dropped or its column list changes.",
+      "risk": "none for correctness — a partial index bounds index size and accelerates the planner; it enforces no constraint and changes no result. Its LOSS is nevertheless detected, because the entry is verified in both directions. Its PREDICATE is invisible to `migrate diff`, so the predicate is pinned by the source-contract test in `test/phase-12-point4-raw-schema-ownership.test.ts` rather than left unheld."
     }
   },
   "extensions": [
@@ -85,9 +90,10 @@
     "UNIQUE_DECLARATION": 5,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
-    "ENUM_LABEL_RESIDUAL": 1
+    "ENUM_LABEL_RESIDUAL": 1,
+    "PARTIAL_INDEX_DECLARATION": 1
   },
-  "totalRegisteredObjects": 873,
+  "totalRegisteredObjects": 874,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -1798,6 +1804,21 @@
       "sign": "-",
       "object": "Removed index on columns (team_id, organization_id)",
       "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (integrity_correlation_id)",
+      "category": "PARTIAL_INDEX_DECLARATION",
+      "indexName": "evidence_integrity_correlation_id_idx",
+      "columns": [
+        "integrity_correlation_id"
+      ],
+      "predicate": "integrity_correlation_id IS NOT NULL",
+      "createdBy": "20271217000000_evidence_integrity_correlation",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it — an unfiltered `@@index` would be a false ownership claim, not a fix; see the category reason.",
+      "prismaExpressible": false,
+      "purpose": "Groups the failing records of one deliberate multi-record integrity execution. The column is NULL for ordinary per-record work, so the predicate keeps the index proportional to the rows that can actually form a correlation parent."
     },
     {
       "table": "evidence",

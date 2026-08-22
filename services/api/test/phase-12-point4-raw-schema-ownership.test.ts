@@ -65,7 +65,26 @@ type Manifest = {
   }>;
   categoryCounts: Record<string, number>;
   totalRegisteredObjects: number;
-  objects: Array<{ table: string; sign: string; object: string; category: string }>;
+  objects: Array<{
+    table: string;
+    sign: string;
+    object: string;
+    category: string;
+    /**
+     * POSITIVE OWNERSHIP, carried only by entries the residual line cannot
+     * fully describe. `prisma migrate diff` reports an index by table and
+     * column list; it never reads `pg_index.indpred`. For a PARTIAL index
+     * the residual line is therefore identical whether the predicate is
+     * present, widened or gone, so the manifest states what the diff cannot.
+     */
+    indexName?: string;
+    columns?: string[];
+    predicate?: string;
+    createdBy?: string;
+    mayBeModifiedBy?: string;
+    prismaExpressible?: boolean;
+    purpose?: string;
+  }>;
 };
 
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as Manifest;
@@ -286,5 +305,146 @@ describe("Phase 12 Point 4 — schema ownership is single and explicit", () => {
         `@map("${canonical}")`,
       );
     }
+  });
+
+  // ==========================================================================
+  // THE PARTIAL INDEX ON evidence.integrity_correlation_id
+  //
+  // `clean-db-boot` failed with
+  //
+  //     + evidence::-::Removed index on columns (integrity_correlation_id)
+  //
+  // The sign is `-` and it reads "Removed" because the comparison runs FROM the
+  // database TO the datamodel: it describes what Prisma would do to make the
+  // database match `schema.prisma`. The database had an index the datamodel
+  // does not declare, so the proposal was to drop it. That is the signature of
+  // a RAW-SQL-OWNED object — and this one was unregistered.
+  //
+  // It is raw-owned because it has to be. Two facts were established against a
+  // live PostgreSQL 16 before this registration was written:
+  //
+  //   1. `@@index([integrityCorrelationId], where: …)` is a Prisma VALIDATION
+  //      ERROR. The schema language has no syntax for an index predicate.
+  //   2. Declaring the column list WITHOUT the predicate makes the divergence
+  //      disappear — `migrate diff` does not read `pg_index.indpred`, so a
+  //      TOTAL index and a PARTIAL index over the same column read as the same
+  //      object.
+  //
+  // (2) is why an unfiltered `@@index` is not a cheaper fix: it would silence
+  // the verifier by making the datamodel claim an object it cannot see, and
+  // the next datamodel-derived baseline would emit an unfiltered CREATE INDEX
+  // covering every NULL row. The manifest is the honest authority.
+  // ==========================================================================
+
+  const PARTIAL_INDEX_OBJECT = "Removed index on columns (integrity_correlation_id)";
+  const CORRELATION_MIGRATION = resolve(
+    API_ROOT,
+    "prisma/migrations/20271217000000_evidence_integrity_correlation/migration.sql",
+  );
+
+  it("the integrity-correlation partial index is REGISTERED, not an unregistered divergence", () => {
+    const entry = manifest.objects.find(
+      (o) =>
+        o.table === "evidence" &&
+        o.sign === "-" &&
+        o.object === PARTIAL_INDEX_OBJECT,
+    );
+    expect(
+      entry,
+      "the partial index over evidence.integrity_correlation_id must be registered, " +
+        "or clean-db-boot fails with an UNREGISTERED divergence",
+    ).toBeTruthy();
+    expect(entry!.category).toBe("PARTIAL_INDEX_DECLARATION");
+    // Registered EXACTLY once. A duplicate would keep the count arithmetic in
+    // the category test satisfied while the manifest carried two authorities
+    // for one object.
+    expect(
+      manifest.objects.filter((o) => o.object === PARTIAL_INDEX_OBJECT),
+    ).toHaveLength(1);
+  });
+
+  it("its ownership is stated POSITIVELY — creator, name, columns, predicate, mutation policy", () => {
+    const entry = manifest.objects.find((o) => o.object === PARTIAL_INDEX_OBJECT)!;
+    expect(entry.indexName).toBe("evidence_integrity_correlation_id_idx");
+    expect(entry.columns).toEqual(["integrity_correlation_id"]);
+    expect(entry.predicate).toBe("integrity_correlation_id IS NOT NULL");
+    expect(entry.createdBy).toBe("20271217000000_evidence_integrity_correlation");
+    expect(entry.prismaExpressible).toBe(false);
+    expect(entry.mayBeModifiedBy).toMatch(/forward migration/i);
+
+    const category = manifest.categories.PARTIAL_INDEX_DECLARATION;
+    expect(category, "the category must be declared").toBeTruthy();
+    expect(category.ownership).toBe("MIGRATION_MANAGED_RAW_SQL");
+    // The reason has to name WHY Prisma cannot own it, not merely that it does
+    // not. "Not declared in the datamodel" is true of every one of the 874
+    // registered objects and would explain nothing.
+    expect(category.reason).toMatch(/predicate/i);
+    expect(category.reason).toMatch(/indpred|validation error/i);
+  });
+
+  it("the creating migration still declares that exact index, name and predicate", () => {
+    // THE PREDICATE'S ONLY GUARD.
+    //
+    // Proven against a live database: replacing the partial index with a TOTAL
+    // index of the same name over the same column leaves `raw-schema-verify`
+    // reporting OK, because the predicate is invisible to `migrate diff`. The
+    // verifier therefore cannot detect a predicate that is widened or dropped,
+    // and this assertion is the only thing that holds it. Deleting this case
+    // would leave the predicate unheld by anything in the repository.
+    const sql = readFileSync(CORRELATION_MIGRATION, "utf8");
+    expect(sql).toMatch(
+      /CREATE INDEX IF NOT EXISTS\s+"evidence_integrity_correlation_id_idx"/,
+    );
+    expect(sql).toMatch(/ON\s+"evidence"\s*\(\s*"integrity_correlation_id"\s*\)/);
+    expect(
+      sql,
+      "the partial predicate is the point of the index — it keeps the index " +
+        "proportional to the rows that can actually form a correlation parent",
+    ).toMatch(/WHERE\s+"integrity_correlation_id"\s+IS\s+NOT\s+NULL/);
+    // Additive only. This migration must never grow a destructive verb.
+    expect(sql).not.toMatch(/\bDROP\s+(TABLE|COLUMN|INDEX|CONSTRAINT)\b/i);
+  });
+
+  it("the datamodel does NOT declare the index — an unfiltered @@index would be a false claim", () => {
+    const start = SCHEMA.indexOf("model Evidence {");
+    expect(start).toBeGreaterThan(-1);
+    const body = SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+    // The COLUMN is owned by the datamodel. Existence always is.
+    expect(body).toContain('@map("integrity_correlation_id")');
+    // The INDEX is not, and must not become so through a column-list-only
+    // declaration that Prisma would treat as equivalent to the partial one.
+    expect(
+      body,
+      "declaring @@index([integrityCorrelationId]) would make migrate diff clean " +
+        "while the datamodel claimed an object whose predicate it cannot express",
+    ).not.toMatch(/@@index\(\[integrityCorrelationId\]/);
+  });
+
+  it("the registration is a NAMED object, not a rule that could swallow other divergences", () => {
+    // The forbidden shape of this fix would be an entry broad enough to absorb
+    // a future unexpected index. Every registered object is an exact literal
+    // matched by full `table::sign::object` string, so a pattern would simply
+    // never match — but a wildcard smuggled into the file would still READ as
+    // an approved exemption, so it is asserted out.
+    for (const o of manifest.objects) {
+      expect(o.object, `manifest entry must be a literal: ${o.object}`).not.toMatch(
+        /[*?%]/,
+      );
+    }
+    // And the verifier still compares by exact key in BOTH directions: an
+    // unexpected index fails as UNREGISTERED, a dropped registered index fails
+    // as MISSING. Both were executed against a live PostgreSQL 16 — exit 6 for
+    // an unexpected `evidence (locked_at, status)` index, exit 5 after
+    // dropping evidence_integrity_correlation_id_idx.
+    const verifier = readFileSync(
+      resolve(API_ROOT, "scripts/raw-schema-verify.mjs"),
+      "utf8",
+    );
+    expect(verifier).toMatch(/const key = \(o\) =>/);
+    // No category may be special-cased into a bypass inside the verifier. The
+    // manifest registers objects; it never teaches the verifier to skip a
+    // class of them.
+    expect(verifier).not.toMatch(/PARTIAL_INDEX_DECLARATION/);
+    expect(verifier).not.toMatch(/category\s*===\s*"INDEX/);
   });
 });
