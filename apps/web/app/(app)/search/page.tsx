@@ -66,7 +66,6 @@ import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // enterprise-experience booleans (flags.isEnterpriseWorkspace /
 // platform.isPlatformAdmin), never a client-derived plan/tier.
 import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
-import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
 // PHASE 12B (Evidence Operations) — the Discovery audit log
 // (GET /v1/search/audit) is the sole public authority over the
 // search-activity data domain. It is a DIFFERENT data domain from the
@@ -74,7 +73,7 @@ import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
 // search-operator vs. search-actor), so it is surfaced as a scope tab
 // on this console rather than folded into the content query.
 import { SearchAuditLogPanel } from "../../../components/search/SearchAuditLogPanel";
-import { Info, Search as SearchGlyph } from "lucide-react";
+import { Info, Search as SearchGlyph, X } from "lucide-react";
 // The console's distinct states. Each one is its own component with its own
 // words, so "you have not searched yet", "your query matched nothing" and "the
 // service did not answer" can never be rendered as one another. The outage
@@ -489,8 +488,36 @@ function rowLifecycleState(row: ResultRow): string | null {
 export default function SearchPage() {
   return (
     <PageRouteGate routeId="workspace.search">
-      {/* Phase F1 — deterministic natural-language Evidence-Operations search. */}
-      <NlSearchBox />
+      {/* THE "ASK IN PLAIN LANGUAGE" CARD USED TO MOUNT HERE.
+
+          It was withdrawn from every workspace type after an audit found two
+          defects in what it displayed. Both are recorded on the route itself
+          (`services/api/src/routes/ai-search.routes.ts`); in short:
+
+            NAMES     two of its seven presets never read an evidence name at
+                      all. "Show pending reviews" — one of the four examples
+                      the card advertised — rendered `Review 1a2b3c4d… (IN_
+                      REVIEW)`, an id fragment, and the recent-reports preset
+                      rendered `Report v3` while linking at a piece of
+                      evidence whose actual name it never showed.
+
+            SCOPE     the state presets query `prisma.evidence` and friends
+                      directly on `teamId` alone. They never go through
+                      `executeSearch`, so the reviewer-restriction gate that
+                      the canonical search applies twice does not apply at
+                      all. Cross-WORKSPACE leakage is prevented — every query
+                      carries a teamId and the route authorizes membership —
+                      but a non-reviewer inside a workspace was shown rows
+                      ordinary Search deliberately withholds.
+
+          Ordinary Search already serves the same discovery goal, correctly, so
+          there is no case for keeping an advisory path that can mislead.
+
+          THE BACKEND IS RETAINED. `POST /v1/ai/search/nl` stays registered,
+          authorized and audited — this repository does not delete routes (a
+          previous phase's route deletions had to be reversed wholesale), and
+          an unmounted route is not a hazard. What must be true before this is
+          surfaced again is written at the route. */}
       <SearchInner />
     </PageRouteGate>
   );
@@ -1135,6 +1162,36 @@ function SearchInner() {
     },
     [recent, recentKey],
   );
+  /**
+   * Remove ONE entry, at the same authority as `pushRecent` and
+   * `clearRecent` — the tenant-scoped localStorage key, rewritten in full.
+   *
+   * Deliberately NOT expressed in terms of `clearRecent`: "forget this one
+   * search" and "forget all of them" are different intentions, and a remover
+   * that reached for the global handler is the classic way the first quietly
+   * becomes the second.
+   *
+   * Writing the empty array rather than removing the key keeps "the reader
+   * emptied this list" distinguishable from "this browser has no list yet" for
+   * the load path above, which treats a missing key as first-visit.
+   */
+  const removeRecent = useCallback(
+    (q: string) => {
+      setRecent((prev) => {
+        const next = prev.filter((r) => r !== q);
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(recentKey, JSON.stringify(next));
+          } catch {
+            /* non-fatal */
+          }
+        }
+        return next;
+      });
+    },
+    [recentKey],
+  );
+
   const clearRecent = useCallback(() => {
     setRecent([]);
     if (typeof window === "undefined") return;
@@ -1540,8 +1597,17 @@ function SearchInner() {
     <main className="search-page" data-search-page>
       <header className="search-header">
         <div className="search-header__text">
-          <h1 className="search-header__title" data-search-title>
-            Search
+          {/* THE CANONICAL TITLE TREATMENT, reused — the same
+              `.app-title-row` / `.app-title-icon` pair /cases,
+              /notifications and the Evidence Library render, so all four page
+              titles are one definition. The glyph is the canonical Lucide
+              search icon, already imported by this page for the input.
+              Decorative: the heading beside it names the page. */}
+          <h1 className="search-header__title app-title-row" data-search-title>
+            <span aria-hidden="true" className="app-title-icon">
+              <SearchGlyph strokeWidth={1.75} data-search-title-icon />
+            </span>
+            <span data-search-title-text>Search</span>
           </h1>
           <p className="search-header__description">
             Search evidence, cases, reports, notes and OCR text across this
@@ -1788,6 +1854,7 @@ function SearchInner() {
                   pushRecent(text);
                 }}
                 onClearRecent={clearRecent}
+                onRemoveRecent={removeRecent}
               />
             </AppAnchoredOverlay>
           </div>
@@ -3415,6 +3482,7 @@ function SearchTypeahead({
   highlighted,
   onPick,
   onClearRecent,
+  onRemoveRecent,
 }: {
   query: string;
   suggestions: Array<{
@@ -3427,6 +3495,7 @@ function SearchTypeahead({
   highlighted: number;
   onPick: (text: string) => void;
   onClearRecent: () => void;
+  onRemoveRecent: (text: string) => void;
 }) {
   const trimmed = query.trim();
   const showRecent = trimmed.length < 2;
@@ -3457,25 +3526,62 @@ function SearchTypeahead({
               }}
               data-search-typeahead-clear-recent
             >
-              Clear
+              Clear all
             </button>
           </div>
+          {/* TWO CONTROLS, NOT ONE. The row repeats the search; the button
+              beside it forgets that one entry. They cannot be the same
+              element — a button inside a button is invalid — so the row is a
+              flex pair and the `option` role stays on the half that behaves
+              like an option. */}
           {recent.map((r, idx) => (
-            <button
-              type="button"
+            <div
               key={`recent-${idx}`}
-              className="search-typeahead__item"
-              role="option"
-              aria-selected={highlighted === idx}
-              data-highlighted={highlighted === idx ? "true" : "false"}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onPick(r);
-              }}
-              data-search-typeahead-recent-row={r}
+              className="search-typeahead__row"
+              data-search-typeahead-recent-item={r}
             >
-              <span className="search-typeahead__item-title">{r}</span>
-            </button>
+              <button
+                type="button"
+                className="search-typeahead__item"
+                role="option"
+                aria-selected={highlighted === idx}
+                data-highlighted={highlighted === idx ? "true" : "false"}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onPick(r);
+                }}
+                data-search-typeahead-recent-row={r}
+              >
+                <span className="search-typeahead__item-title">{r}</span>
+              </button>
+              <button
+                type="button"
+                className="search-typeahead__remove"
+                /* NAMES THE ENTRY. "Close" or "Remove" alone would give a
+                   screen-reader user ten identical buttons and no way to tell
+                   which one forgets which search. */
+                aria-label={`Remove search "${r}"`}
+                title={`Remove search "${r}"`}
+                onMouseDown={(e) => {
+                  // THE ROW IS ALSO CLICKABLE. Without stopping propagation
+                  // here, removing an entry would ALSO run the search it was
+                  // removing — the list would close and the query would
+                  // execute, which is the opposite of what was asked for.
+                  // `preventDefault` additionally keeps the input's blur from
+                  // unmounting the list before this click lands.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemoveRecent(r);
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                data-search-typeahead-remove-recent={r}
+              >
+                <X size={13} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </div>
           ))}
         </div>
       ) : null}

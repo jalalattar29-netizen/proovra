@@ -71,102 +71,12 @@
  * panel rather than pretending to be a second search field. Its own presentation
  * used to be fourteen inline objects, including an undeclared `.app-link` that
  * styled nothing at all. */
-.search-nl {
-  display: grid;
-  gap: 8px;
-  margin-block-end: 16px;
-  min-inline-size: 0;
-}
+/* The `.search-nl*` block USED TO LIVE HERE.
 
-.search-nl__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-inline-size: 0;
-}
-
-.search-nl__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 720;
-  letter-spacing: -0.01em;
-  color: var(--app-ink-heading);
-}
-
-.search-nl__form {
-  display: flex;
-  gap: 8px;
-  min-inline-size: 0;
-}
-
-.search-nl__form .app-form-input {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-}
-
-.search-nl__examples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-inline-size: 0;
-}
-
-/* An example is a shortcut, not a primary action: it stays quieter than the
-   Search control it fills in. */
-.search-nl__example {
-  font-size: 12px;
-  min-block-size: 30px;
-  padding-inline: 10px;
-}
-
-/* What the server did with the question, stated before the rows it produced. */
-.search-nl__meta {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--app-ink-secondary);
-}
-
-.search-nl__list {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding-inline-start: 0;
-  list-style: none;
-  min-inline-size: 0;
-}
-
-.search-nl__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-block: 4px;
-  min-inline-size: 0;
-}
-
-/* The result link had no rule at all — it carried an `.app-link` class that
-   nothing declares, so it rendered as a default browser link. */
-.search-nl__link {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent-600, #6d28d9);
-  text-decoration: none;
-}
-
-.search-nl__link:hover {
-  text-decoration: underline;
-}
-
-.search-nl__link:focus-visible {
-  outline: none;
-  border-radius: 6px;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
-}
-
+   It styled the "Ask in plain language" card, which was withdrawn from the
+   console; its component had one consumer and is deleted. Selectors with no
+   consumer are what the convergence suite in this repository exists to catch,
+   so they go with it rather than sitting here waiting to be re-adopted. */
 /* ---- The search form ---------------------------------------------------- */
 .search-form-panel {
   padding: 14px 16px;
@@ -182,45 +92,79 @@
 /* No `position: relative` — the menu is portaled and anchored to this
    element's measured rect, not laid out against it. Leaving a positioning
    ancestor behind would suggest the old mechanism still applies. */
+/* ===========================================================================
+   THE SEARCH FIELD — a real leading-icon slot, not an absolute offset.
+   ===========================================================================
+   WHAT WAS WRONG. The glyph was `position: absolute; inset-inline-start:
+   16px`, and this box — its intended anchor — is deliberately NOT a
+   positioning ancestor: the typeahead menu is portaled through
+   `AppAnchoredOverlay`, and `search-remediation-2` pins the field as
+   non-positioned so the old z-index mechanism cannot creep back. So the glyph
+   resolved against whatever positioned ancestor it found further up the tree,
+   which is why it sat hard against the border instead of at the inset it
+   asked for.
+
+   Adding `position: relative` here would have fixed the symptom and broken
+   that contract. The honest fix is to stop positioning the icon at all: the
+   FIELD is the bordered surface now, and the glyph and the input are two flex
+   children of it. There is no offset to keep in sync with a padding, because
+   there is no offset — the gap between them is a `gap`.
+
+   The input therefore gives up its own border, background and focus ring, and
+   the field takes them via `:focus-within`, so tabbing into the input still
+   lights the whole control. Everything is logical, so Arabic puts the glyph on
+   the text edge without a second rule. */
 .search-form__field {
   display: flex;
   align-items: center;
+  gap: 12px;
   flex: 1 1 auto;
   min-inline-size: 0;
+  box-sizing: border-box;
+  block-size: 50px;
+  padding-inline: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.search-form__field:focus-within {
+  border-color: var(--accent-200, #d9c7fb);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
 }
 
 .search-form__icon {
-  position: absolute;
-  inset-inline-start: 16px;
+  flex: 0 0 auto;
   display: inline-flex;
+  align-items: center;
   color: var(--app-ink-placeholder);
   pointer-events: none;
 }
 
 .search-form__input {
+  flex: 1 1 auto;
   inline-size: 100%;
   min-inline-size: 0;
-  block-size: 50px;
-  padding-block: 0;
-  padding-inline: 46px 16px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  block-size: 100%;
+  padding: 0;
+  /* The surface belongs to the field above; the input is the text. */
+  border: none;
+  background: transparent;
   font-family: inherit;
   font-size: 14.5px;
   color: var(--app-ink-control);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .search-form__input::placeholder {
   color: var(--app-ink-placeholder);
 }
 
+/* The ring is on the FIELD (`:focus-within` above) so it surrounds the glyph
+   and the text together, rather than drawing a second box inside the first. */
 .search-form__input:focus,
 .search-form__input:focus-visible {
   outline: none;
-  border-color: var(--accent-200, #d9c7fb);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14);
+  box-shadow: none;
 }
 
 /* The submit keeps a stable width so the field does not resize as the label
@@ -1496,4 +1440,62 @@
 .search-match-reason[data-match-tone="neutral"] {
   background: #F1F5F9;
   color: #475569;
+}
+
+/* ===========================================================================
+   RECENT-SEARCH ROW — repeat on the left, forget on the right.
+   ===========================================================================
+   The row was ONE button. It could not gain a remove control without nesting
+   a button inside a button, so it is a flex pair: the option keeps the whole
+   row's hit area, and the remove button sits at the inline-end edge.
+
+   The remove control is always in the DOM — never hover-only. A control that
+   appears on hover is unreachable on a touch screen and invisible to a
+   keyboard user until it already has focus; it merely fades UP on hover so it
+   stays quiet while the reader is scanning the list. */
+.search-typeahead__row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.search-typeahead__row .search-typeahead__item {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+/* The query truncates rather than wrapping or pushing the button off the row —
+   a long search is common and the control must stay reachable on a phone. */
+.search-typeahead__item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+.search-typeahead__remove {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 30px;
+  border: none;
+  padding: 0;
+  margin-inline-end: 6px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--app-ink-placeholder);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+.search-typeahead__row:hover .search-typeahead__remove,
+.search-typeahead__remove:hover,
+.search-typeahead__remove:focus-visible {
+  opacity: 1;
+  color: var(--app-ink-control);
+}
+.search-typeahead__remove:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+.search-typeahead__remove:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }

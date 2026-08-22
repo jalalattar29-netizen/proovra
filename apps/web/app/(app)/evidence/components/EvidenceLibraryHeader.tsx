@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FolderPlus, RefreshCw, Upload } from "lucide-react";
+import { Archive, FolderPlus, RefreshCw, Upload } from "lucide-react";
 import { PageHeader } from "../../../../components/ui";
 import {
   EVIDENCE_LIBRARY_LEGAL_BOUNDARY,
@@ -31,7 +31,23 @@ export function EvidenceLibraryHeader({
     <>
       <PageHeader
         className="evidence-library-header"
-        title={EVIDENCE_LIBRARY_TITLE}
+        title={
+          /* THE CANONICAL TITLE TREATMENT, reused — the same
+             `.app-title-row` / `.app-title-icon` pair /cases and
+             /notifications render, so all three page titles are one
+             definition rather than three that resemble each other.
+
+             `Archive` is the evidence glyph: the Library is the preserved
+             record store, and the icon library is the one the app already
+             uses. Decorative — the heading beside it names the page, so a
+             second announcement is noise in a screen reader. */
+          <span className="app-title-row">
+            <span aria-hidden="true" className="app-title-icon">
+              <Archive strokeWidth={1.75} data-evidence-title-icon />
+            </span>
+            <span data-evidence-title>{EVIDENCE_LIBRARY_TITLE}</span>
+          </span>
+        }
         subtitle={
           /* INLINE element — PageHeader wraps `subtitle` in its own <p>. */
           <span className="evidence-library-subtitle" data-evidence-subtitle>

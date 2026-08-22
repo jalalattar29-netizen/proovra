@@ -24,7 +24,7 @@ import {
 
 export type LayoutContext = "personal" | "organization" | "enterprise" | "admin";
 
-const WORKSPACE_ID = "44444444-4444-4444-8444-444444444444";
+export const WORKSPACE_ID = "44444444-4444-4444-8444-444444444444";
 
 /** A deliberately hostile row: long title, long pointers, long summary. */
 const LONG =

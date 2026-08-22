@@ -37,12 +37,13 @@ const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const WEB = resolve(REPO_ROOT, "apps/web");
 const ROUTE = resolve(WEB, "app/(app)/search");
 const PANEL_DIR = resolve(WEB, "components/search");
-/**
- * Rendered by the Search page and by nothing else, so its presentation is this
- * console's to own. Kept as an explicit entry rather than a directory sweep —
- * that is exactly the shape of file a directory sweep misses.
- */
-const NL_BOX = resolve(WEB, "components/ai-copilot/NlSearchBox.tsx");
+/* `NlSearchBox` USED TO BE SWEPT HERE.
+
+   It rendered the "Ask in plain language" card, which was withdrawn from the
+   console after an audit found it displayed synthesised names and bypassed the
+   visibility gates the canonical search applies. The component had exactly one
+   consumer — this console — so it is deleted; the backend route is retained
+   and documented. See `services/api/src/routes/ai-search.routes.ts`. */
 const CSS_PATH = join(ROUTE, "search.css");
 
 function read(p: string): string {
@@ -63,7 +64,6 @@ function walk(dir: string, match: RegExp): string[] {
 const CONSOLE_FILES = [
   ...walk(ROUTE, /\.tsx?$/),
   ...walk(PANEL_DIR, /\.tsx?$/),
-  NL_BOX,
 ];
 const CONSOLE_SOURCE = CONSOLE_FILES.map(read).join("\n");
 

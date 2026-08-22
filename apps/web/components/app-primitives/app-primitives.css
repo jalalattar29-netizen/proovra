@@ -1665,6 +1665,17 @@ textarea.app-form-input {
   align-items: center;
   gap: 12px;
   min-inline-size: 0;
+  /* THE PAGE-TITLE SCALE, in one place.
+     /cases carried these four values in its own sheet and every other page
+     inherited PageHeader's 22px, so the strongest heading in the product was
+     whichever page happened to declare it. A page title that changes size
+     depending on which route you are on is not a hierarchy.
+     Lifted from the /cases heading verbatim, so that page is unchanged and
+     every consumer of this row now reads at the same weight. */
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 720;
+  letter-spacing: -0.025em;
 }
 /* Below the phone breakpoint the 42px block plus a 30px heading is most of
    the line; the icon steps down rather than wrapping the title. */

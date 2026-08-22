@@ -1,4 +1,59 @@
 /**
+ * NOT SURFACED. This route has no UI consumer, deliberately.
+ * ---------------------------------------------------------------------------
+ * The "Ask in plain language" card on /search was withdrawn from every
+ * workspace type (Personal Free, Personal Pro, OWNED, ORGANIZATION,
+ * Enterprise) after an audit of what it actually displayed. The route is
+ * RETAINED — registered, authorized, rate-limited and audited — because this
+ * repository does not delete routes, and an unmounted route is not a hazard.
+ *
+ * WHAT THE AUDIT FOUND. Two defects, both in `runStateQuery` below.
+ *
+ *   1. DISPLAY NAMES ARE FABRICATED FOR TWO OF THE SEVEN PRESETS.
+ *      `REVIEW_BACKLOG` renders `Review ${id.slice(0,8)}… (${status})` and
+ *      `REPORTS_RECENT` renders `Report v${version}` — neither reads a name
+ *      from the record it links to. "Show pending reviews" was one of the four
+ *      examples the card advertised, so a first-time user was invited straight
+ *      into the defect: a list of id fragments that match no evidence name
+ *      anywhere in the product. `REPORTS_RECENT` is worse, because it routes
+ *      to `/evidence/:id` while showing a title belonging to the report.
+ *
+ *      (`REPORTS_RECENT` additionally reports `total: rows.length` — the page
+ *      size, capped at 25 — as if it were the population total.)
+ *
+ *   2. THE STATE PRESETS BYPASS EVERY VISIBILITY GATE.
+ *      They query `prisma.evidence` / `evidenceReviewWorkflow` / `report`
+ *      DIRECTLY with a `teamId` predicate and nothing else. The canonical
+ *      `executeSearch` applies the reviewer-restriction gate TWICE — once in
+ *      the WHERE (`where.reviewerRestricted = false` for a non-reviewer actor)
+ *      and again per row — and none of that runs here.
+ *
+ *      TO BE PRECISE ABOUT THE BLAST RADIUS: cross-WORKSPACE leakage is NOT
+ *      possible. `authorizeOrFail` verifies ACTIVE membership in `body.teamId`
+ *      before anything runs, and every state query carries that teamId. The
+ *      defect is WITHIN a workspace: a non-reviewer received rows that
+ *      ordinary Search deliberately withholds from them.
+ *
+ *      The TEXT_SEARCH branch is unaffected — it delegates to
+ *      `executeSearch` and passes `isReviewerCapable`, which is exactly the
+ *      shape the state branch should have had.
+ *
+ * BEFORE THIS IS SURFACED AGAIN, all four must be true:
+ *
+ *   - the state presets resolve through the canonical authorized search path
+ *     (or apply the identical visibility gates), so no preset can show a row
+ *     ordinary Search would hide;
+ *   - every row displays the canonical current display name of the record it
+ *     links to, never a synthesised one;
+ *   - `total` is a real count of the population, not the page length;
+ *   - there is demonstrated user value over ordinary Search. The card was
+ *     removed partly because Search already serves the same discovery goal,
+ *     and "the code exists" is not a reason to surface a feature.
+ *
+ * There is no capability flag gating this; it is simply not rendered. Do not
+ * add an Enterprise-only flag to bring it back without the four above.
+ * ---------------------------------------------------------------------------
+ *
  * Phase F1 — Enterprise Natural-Language Search.
  *   POST /v1/ai/search/nl
  *

@@ -1649,3 +1649,32 @@
   margin: 0;
   text-align: start;
 }
+
+/* ---- Header hierarchy ----------------------------------------------------
+ *
+ * The title block and the action row were sitting on one optical line, so the
+ * three buttons read as part of the heading rather than as what you do once
+ * you have read it. They are separated deliberately now: the title lifts a
+ * couple of pixels, the actions drop, and the gap between them is the thing
+ * that says "this is the page, and these are its actions".
+ *
+ * Kept SMALL on purpose. This is a dense operational page and the header is
+ * not a hero; the aim is a legible break, not empty space.
+ *
+ * Both offsets are logical (`margin-block-*`), so they behave identically in
+ * Arabic, and both are scoped to this header rather than to the shared
+ * PageHeader, which every other page also uses.
+ */
+.evidence-library-header .app-title-row {
+  margin-block-start: -3px;
+}
+.evidence-library-header .ui-page-header__actions {
+  margin-block-start: 14px;
+}
+/* On a narrow screen the actions already wrap onto their own line, so the
+   offset above would stack on top of the wrap gap. */
+@media (max-width: 720px) {
+  .evidence-library-header .ui-page-header__actions {
+    margin-block-start: 6px;
+  }
+}

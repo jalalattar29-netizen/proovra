@@ -89,10 +89,17 @@ test("Page title is 'Search' (not 'Evidence Discovery')", () => {
   // The invariants are unchanged and re-pinned below: the visible title text
   // is exactly "Search", `data-search-title` is still in the DOM for
   // end-to-end probes, and the page renders exactly one <h1>.
+  // The <h1> gained the CANONICAL title-icon row — the same
+  // `.app-title-row` / `.app-title-icon` pair /cases, /notifications and the
+  // Evidence Library use. The invariants this test protects are unchanged and
+  // asserted below: the visible title text is exactly "Search", the probe
+  // attribute is still in the DOM, and there is exactly one <h1>.
   assert.match(
     SEARCH_PAGE,
-    /<h1 className="search-header__title" data-search-title>\s*\n?\s*Search\s*\n?\s*<\/h1>/,
+    /<h1 className="search-header__title app-title-row" data-search-title>/,
   );
+  assert.match(SEARCH_PAGE, /<span data-search-title-text>Search<\/span>/);
+  assert.match(SEARCH_PAGE, /className="app-title-icon"/);
   assert.doesNotMatch(SEARCH_PAGE, /\{terms\.evidence\} Discovery/);
   assert.equal(
     (SEARCH_PAGE.match(/<h1\b/g) ?? []).length,

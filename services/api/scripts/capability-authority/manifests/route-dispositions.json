@@ -1374,6 +1374,13 @@
       "reason": "SIU profile upsert has no control; the SIU vertical panel is read-only",
       "evidence": "reg services/api/src/routes/siu.routes.ts:299; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
       "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "routeId": "POST /v1/ai/search/nl",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "The 'Ask in plain language' card was WITHDRAWN from /search for every workspace type after an audit of what it displayed, so this route is deliberately unmounted rather than accidentally orphaned. Two defects, both in runStateQuery: (1) two of its seven presets synthesise titles instead of reading the record's name — REVIEW_BACKLOG renders 'Review <id8>… (STATUS)' and REPORTS_RECENT renders 'Report v<n>' while routing to /evidence/:id; (2) the state presets query prisma.evidence / evidenceReviewWorkflow / report directly on teamId alone, bypassing the reviewer-restriction gate executeSearch applies twice, so a non-reviewer saw rows ordinary Search withholds. Cross-workspace leakage was NOT possible — authorizeOrFail verifies ACTIVE membership in body.teamId and every state query carries it. The route is retained (registered, authorized, rate-limited, audited) because this repository does not delete routes; the TEXT_SEARCH branch is unaffected as it delegates to executeSearch. Reintroduction requires: state presets through the authorized search path, canonical display names, a real total rather than the page length, and demonstrated value over ordinary Search.",
+      "evidence": "reg services/api/src/routes/ai-search.routes.ts app.post(\"/v1/ai/search/nl\", { preHandler: requireAuth }) with authorizeOrFail({ permission: \"intelligence.read\", antiEnumeration: true }); the sole product consumer apps/web/components/ai-copilot/NlSearchBox.tsx was deleted in this change and its mount removed from apps/web/app/(app)/search/page.tsx; 0 call sites remain in apps/web + apps/mobile; the withdrawal and its four reintroduction conditions are documented in the route's own docstring and asserted by e2e/search-layout/search-experience.spec.ts \"the plain-language card is gone from the console\"",
+      "reviewedAtUtc": "2026-08-22"
     }
   ]
 }
