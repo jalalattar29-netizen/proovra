@@ -12,6 +12,7 @@
  */
 
 import {
+  getDeliveryPresentation,
   getDeliveryState,
   getLinkOperationalState,
   matchesIntakeTab,
@@ -189,7 +190,14 @@ function matchesDelivery(
   delivery: DeliveryFilterWireValue | "",
 ): boolean {
   if (!delivery) return true;
-  if (delivery === "NONE") return item.delivery.latestStatus === null;
+  // Through the CANONICAL resolver, on the same precedent as FAILED below:
+  // the dropdown and the row must decide "is this manual?" with one rule.
+  // Behaviourally identical to the `latestStatus === null` test it replaces —
+  // a delivery record always carries a status — but now it cannot drift from
+  // what the row renders.
+  if (delivery === "NONE") {
+    return getDeliveryPresentation(item.delivery) === "MANUAL";
+  }
   // FAILED must also catch the states `getDeliveryState` folds into it,
   // otherwise the dropdown and the row chip disagree about the same row.
   if (delivery === "FAILED") return getDeliveryState(item.delivery) === "FAILED";

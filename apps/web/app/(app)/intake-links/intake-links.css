@@ -28,7 +28,10 @@
  * ------------------------------------------------------------------------ */
 .ilk-page {
   --ilk-tone-slate: #64748b;
-  --ilk-tone-indigo: #6d28d9;
+  /* THE canonical brand purple, by reference rather than by a copy of its
+     hex. It was the same six digits as --accent-600; two literals that happen
+     to agree are one edit away from not agreeing. */
+  --ilk-tone-indigo: var(--accent-600);
   --ilk-tone-blue: #2563eb;
   --ilk-tone-green: #167a5b;
   --ilk-tone-amber: #a86612;
@@ -258,6 +261,23 @@
    specificity, not an override layer. */
 .ilk-table.app-table thead th {
   white-space: normal;
+}
+/* …EXCEPT where the column has already declared that it does not wrap.
+   Four columns size themselves to their own content, so their heading IS
+   their floor and letting it break buys nothing: it just splits one word
+   across two lines. "SUBMISSIONS" became "SUBMIS / SIONS", "CHANNEL" became
+   "CHANN / EL".
+
+   This needs its own rule rather than living in each column block because the
+   heading rule above is `(0,2,2)` on specificity and a column's own
+   `.ilk-table th[data-col="…"]` is `(0,2,1)` — the general rule outranks the
+   specific one, which is exactly backwards. Matching its shape and adding the
+   attribute puts the decision back where the column made it. */
+.ilk-table.app-table thead th[data-col="channel"],
+.ilk-table.app-table thead th[data-col="latest"],
+.ilk-table.app-table thead th[data-col="submissions"],
+.ilk-table.app-table thead th[data-col="actions"] {
+  white-space: nowrap;
 }
 /* Chips inside the table may wrap rather than escape their cell.
    `white-space: nowrap` is a badge's contract so it never breaks mid-phrase in

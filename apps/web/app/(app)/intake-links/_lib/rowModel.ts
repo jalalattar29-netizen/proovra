@@ -14,10 +14,10 @@ import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import {
   canArchiveLink,
   canRevokeLink,
-  getDeliveryState,
+  getDeliveryPresentation,
   getLatestSessionState,
   getLinkOperationalState,
-  type DeliveryState,
+  type DeliveryPresentation,
   type LatestSessionState,
   type LinkOperationalState,
 } from "../../../../lib/intake-links/state-model";
@@ -56,7 +56,7 @@ export type IntakeRowModel = {
   activity: LatestSessionState;
   activityVocab: IntakeVocabularyEntry;
 
-  delivery: DeliveryState;
+  delivery: DeliveryPresentation;
   deliveryVocab: IntakeVocabularyEntry;
   /** "· 3 attempts" style suffix, empty when there is nothing to add. */
   deliveryDetail: string;
@@ -128,7 +128,10 @@ export function buildRowModel(
 
   const lifecycle = getLinkOperationalState(link, nowDate);
   const activityState = getLatestSessionState(activity);
-  const deliveryState = getDeliveryState(delivery);
+  // THE CANONICAL RESOLVER, not a JSX guess. `MANUAL` is decided from the
+  // domain (no delivery record exists) in one place that both renderers and
+  // every test read.
+  const deliveryState = getDeliveryPresentation(delivery);
 
   const channelWire = String(delivery.latestChannel ?? "MANUAL").toUpperCase();
 

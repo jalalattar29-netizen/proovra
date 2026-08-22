@@ -20,6 +20,7 @@ import {
   openWizard,
   setDirection,
   type IntakeContext,
+  DELIVERY_MATRIX_ROWS,
 } from "./_fixtures";
 
 const CONTEXTS: IntakeContext[] = [
@@ -740,13 +741,23 @@ test.describe("records surface anatomy", () => {
       blue: [37, 99, 235],
       red: [220, 38, 38],
       slate: [71, 85, 105],
+      green: [22, 122, 91],
     };
-    // THE THREE EXCEPTIONS take the solid fill — they are what an operator
-    // scans this column to find.
+    // ONE STRUCTURE for the whole column: every state is the same filled badge
+    // with white text, and only the semantic colour varies.
+    //
+    // ACTIVE was INDIGO — the product's brand accent standing in for a state,
+    // saying "this is ours" where the column needed "this is healthy". It then
+    // briefly took the SOFT variant, on the reasoning that the ordinary case
+    // should be quieter than the exceptions. Beside three solid chips that
+    // read as a different KIND of thing rather than a different state, so it
+    // is back to the shared treatment in the canonical green. White on
+    // #167A5B measures 5.29:1, so the badge holds WCAG AA.
     const MANDATED: Array<[string, string, string]> = [
       ["EXPIRED", "blue", "Expired"],
       ["REVOKED", "red", "Link disabled"],
       ["ARCHIVED", "slate", "Archived"],
+      ["ACTIVE", "green", "Active"],
     ];
     for (const [state, tone, text] of MANDATED) {
       const v = measured.states[state];
@@ -757,28 +768,6 @@ test.describe("records surface anatomy", () => {
       expect(rgb(v.background), `${state} fill`).toEqual(FILL[tone]);
       expect(rgb(v.color), `${state} ink`).toEqual([255, 255, 255]);
     }
-
-    // ACTIVE IS THE ORDINARY CASE, and it is treated as one.
-    //
-    // It was INDIGO — the product's brand accent standing in for a state,
-    // which said "this is ours" where the column needed "this is healthy".
-    // It is green now, and it is the SOFT variant of the canonical green
-    // rather than a solid slab: usually the majority of rows are Active, and
-    // giving the normal state the loudest treatment is how a lifecycle column
-    // becomes a wall of colour that says nothing.
-    //
-    // The light ground with readable green ink is the standard green treatment
-    // used across the redesigned surfaces. Solid green would be the DARK
-    // `--success-ink` as a slab, and the lighter `--success` cannot be a solid
-    // fill at all: white on it measures 2.5:1 and fails WCAG AA for text this
-    // size. This variant measures 5.29:1.
-    const active = measured.states.ACTIVE;
-    expect(active, "ACTIVE absent from the fixture").toBeTruthy();
-    expect(active.tone).toBe("green");
-    expect(active.text).toBe("Active");
-    expect(active.fill, "Active must not be a solid slab").toBe("soft");
-    expect(rgb(active.background), "Active ground").toEqual([234, 247, 241]);
-    expect(rgb(active.color), "Active ink").toEqual([22, 122, 91]);
     expect(measured.totalBadges).toBe(measured.lifecycleBadges);
     expect(measured.lifecycleBadges).toBeGreaterThan(0);
   });
@@ -1701,4 +1690,188 @@ test("the KPI card resolves the canonical metric-card primitive", async ({
   expect(measured!.hasValue).toBe(true);
   expect(measured!.hasLabel).toBe(true);
   expect(measured!.tone.length).toBeGreaterThan(0);
+});
+
+// ===========================================================================
+// MANUAL vs NOT SENT — four states that must not collapse into each other
+// ===========================================================================
+
+test.describe("delivery semantics", () => {
+  /** The rendered Delivery value + its tone, per row id. */
+  async function deliveryByRow(page: Page) {
+    return page.evaluate(() =>
+      Object.fromEntries(
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".ilk-records--wide [data-intake-links-row-id]",
+          ),
+        ).map((row) => {
+          const v = row.querySelector(
+            "[data-intake-links-row-delivery]",
+          ) as HTMLElement;
+          return [
+            row.getAttribute("data-intake-links-row-id"),
+            {
+              state: v.getAttribute("data-intake-links-row-delivery"),
+              text: v.textContent?.trim() ?? "",
+              tone: v.getAttribute("data-ilk-tone"),
+              color: getComputedStyle(v).color,
+              background: getComputedStyle(v).backgroundColor,
+              title: v.getAttribute("title") ?? "",
+            },
+          ];
+        }),
+      ),
+    );
+  }
+
+  test("a manually-shared link says Manual, and a provider one never does", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, "organization", {
+      rows: DELIVERY_MATRIX_ROWS as unknown as ReadonlyArray<unknown>,
+    });
+    const rows = (await deliveryByRow(page)) as Record<
+      string,
+      {
+        state: string;
+        text: string;
+        tone: string;
+        color: string;
+        background: string;
+        title: string;
+      }
+    >;
+
+    // CASE A — no delivery record at all. Nothing was ever meant to be sent,
+    // so "Not sent" reported a failure that did not happen.
+    expect(rows["d-manual"].state).toBe("MANUAL");
+    expect(rows["d-manual"].text).toBe("Manual");
+    // Purple — the one tone in this palette that carries no severity, because
+    // manual distribution is neither good news nor bad.
+    expect(rows["d-manual"].tone).toBe("indigo");
+    expect(rows["d-manual"].color).toBe("rgb(109, 40, 217)");
+    // TEXT ONLY. No capsule came back with it.
+    expect(rows["d-manual"].background).toBe("rgba(0, 0, 0, 0)");
+    // The word states the fact; colour is supplementary.
+    expect(rows["d-manual"].title).toMatch(/shared manually/i);
+
+    // CASE B — a REAL provider record whose status is not a recognised send.
+    // The manual rule keys on record EXISTENCE, so it cannot claim this one.
+    expect(rows["d-not-sent"].state).toBe("NOT_SENT");
+    expect(rows["d-not-sent"].text).toBe("Not sent");
+    expect(rows["d-not-sent"].tone).toBe("red");
+
+    // CASE C — the provider is holding it.
+    expect(rows["d-provider"].state).toBe("QUEUED");
+    expect(rows["d-provider"].text).toBe("With provider");
+    expect(rows["d-provider"].tone).toBe("green");
+
+    // CASE D — it failed.
+    expect(rows["d-failed"].state).toBe("FAILED");
+    expect(rows["d-failed"].text).toBe("Failed");
+    expect(rows["d-failed"].tone).toBe("red");
+
+    // Four rows, four distinct states — nothing collapsed.
+    const states = Object.values(rows).map((r) => r.state);
+    expect(new Set(states).size).toBe(4);
+  });
+
+  test("the delivery filter labels its manual option to match the rows", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIntakeLinks(page, "organization", {
+      rows: DELIVERY_MATRIX_ROWS as unknown as ReadonlyArray<unknown>,
+    });
+    // The dropdown and the row must never disagree about one population, and
+    // `NONE` selects exactly the rows that render "Manual".
+    const labels = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("option")).map((o) =>
+        o.textContent?.trim(),
+      ),
+    );
+    if (labels.length > 0) {
+      expect(labels).toContain("Manual");
+      expect(labels).not.toContain("Not sent");
+    }
+  });
+});
+
+// ===========================================================================
+// THE LIFECYCLE COLUMN HAS ONE STRUCTURE
+// ===========================================================================
+
+test("every lifecycle state is the same filled badge; only the colour differs", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openIntakeLinks(page, "organization");
+
+  const measured = await page.evaluate(() => {
+    const out: Record<string, Record<string, string>> = {};
+    for (const el of Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".ilk-records--wide [data-intake-links-row-link-state]",
+      ),
+    )) {
+      const state = el.getAttribute("data-intake-links-row-link-state")!;
+      if (out[state]) continue;
+      const cs = getComputedStyle(el);
+      out[state] = {
+        fill: el.getAttribute("data-fill") ?? "",
+        tone: el.getAttribute("data-tone") ?? "",
+        color: cs.color,
+        background: cs.backgroundColor,
+        height: String(Math.round(el.getBoundingClientRect().height)),
+        padding: `${cs.paddingTop}/${cs.paddingRight}`,
+        radius: cs.borderTopLeftRadius,
+        fontSize: cs.fontSize,
+        fontWeight: cs.fontWeight,
+        letterSpacing: cs.letterSpacing,
+        display: cs.display,
+        text: el.textContent?.trim() ?? "",
+      };
+    }
+    return out;
+  });
+
+  const states = Object.keys(measured);
+  expect(states.length).toBeGreaterThanOrEqual(3);
+
+  // ONE STRUCTURE. Active briefly took the soft variant and read as a
+  // different KIND of thing beside three solid chips — a hierarchy the
+  // lifecycle does not have. Everything below must be identical across states.
+  const structural = [
+    "fill",
+    "height",
+    "padding",
+    "radius",
+    "fontSize",
+    "fontWeight",
+    "letterSpacing",
+    "display",
+  ] as const;
+  const first = measured[states[0]!]!;
+  for (const state of states) {
+    for (const key of structural) {
+      expect(measured[state]![key], `${state}.${key}`).toBe(first[key]);
+    }
+    // Filled, with white text — the shared treatment.
+    expect(measured[state]!.fill, state).toBe("solid");
+    expect(measured[state]!.color, state).toBe("rgb(255, 255, 255)");
+    // And the word is always there, so the colour is never the only cue.
+    expect(measured[state]!.text.length, state).toBeGreaterThan(0);
+  }
+
+  // ONLY the colour varies — and Active's is the canonical green.
+  expect(measured.ACTIVE, "ACTIVE absent from the fixture").toBeTruthy();
+  expect(measured.ACTIVE!.tone).toBe("green");
+  expect(measured.ACTIVE!.text).toBe("Active");
+  // `--success-ink` #167A5B. White on it measures 5.29:1 — WCAG AA holds.
+  expect(measured.ACTIVE!.background).toBe("rgb(22, 122, 91)");
+  // It is genuinely distinct from its neighbours.
+  const backgrounds = states.map((k) => measured[k]!.background);
+  expect(new Set(backgrounds).size).toBe(states.length);
 });

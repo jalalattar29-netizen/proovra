@@ -419,7 +419,11 @@ describe("recipient, channel and submission variants", () => {
     expect(bothRenderers("ch2").row.textContent).toContain("Email");
     expect(bothRenderers("ch3").row.textContent).toContain("WhatsApp");
     expect(bothRenderers("ch4").row.textContent).toContain("Copy link");
-    expect(bothRenderers("ch4").row.textContent).toContain("Not sent");
+    // "Not sent" reported a failure that never happened here: this link has no
+    // delivery record because none was ever supposed to exist. See
+    // `getDeliveryPresentation`.
+    expect(bothRenderers("ch4").row.textContent).toContain("Manual");
+    expect(bothRenderers("ch4").row.textContent).not.toContain("Not sent");
   });
 
   it("offers a submissions action only when there is something to open", async () => {
@@ -807,16 +811,16 @@ describe("row status treatment comes from one map", () => {
     });
   }
 
-  it("lifecycle Active is GREEN, and it is the quiet one", async () => {
+  it("lifecycle Active is GREEN, on the SAME filled badge as the rest", async () => {
     // It was INDIGO — the product's brand accent standing in for a state,
-    // which says "this is ours" where the column needs "this is healthy".
+    // saying "this is ours" where the column needs "this is healthy".
     //
-    // And it takes the SOFT variant rather than a solid slab: Active is
-    // usually the majority of rows, and giving the ordinary case the loudest
-    // treatment is how a lifecycle column becomes a wall of colour. Solid
-    // green would also be the DARK green ink as a fill; the lighter
-    // `--success` cannot be a solid fill at all, because white on it measures
-    // 2.5:1 and fails WCAG AA for text this size.
+    // It then briefly took the SOFT variant, on the reasoning that the
+    // ordinary case should be quieter than the exceptions. Beside three solid
+    // chips that read as a different KIND of thing rather than a different
+    // state, so the column has one structure again and only the colour varies.
+    // Canonical green as a solid fill is `--success-ink` (#167A5B); white on
+    // it measures 5.29:1, so the badge holds WCAG AA.
     await mount([{ id: "t-act" }]);
     for (const scope of [".ilk-records--wide", ".ilk-records--narrow"]) {
       const host = document.querySelector(scope) as HTMLElement;
@@ -826,7 +830,7 @@ describe("row status treatment comes from one map", () => {
       expect(badge, `Active missing in ${scope}`).toBeTruthy();
       expect(badge.classList.contains("app-status-badge")).toBe(true);
       expect(badge.getAttribute("data-tone"), scope).toBe("green");
-      expect(badge.getAttribute("data-fill"), scope).not.toBe("solid");
+      expect(badge.getAttribute("data-fill"), scope).toBe("solid");
       expect(badge.textContent?.trim()).toBe("Active");
     }
   });
@@ -867,10 +871,20 @@ describe("row status treatment comes from one map", () => {
       "FAILED",
     ],
     [
+      // A REAL provider record whose status is not one of the recognised
+      // sends — `RECEIVED` is an inbound message, which folds to NOT_SENT.
+      // A record exists, so the manual rule cannot claim it.
       "Not sent",
-      { id: "n-none" },
+      { id: "n-none", channel: "EMAIL", delivery: "RECEIVED", attempts: 1 },
       "data-intake-links-row-delivery",
       "NOT_SENT",
+    ],
+    [
+      // No delivery record at all — the manual-distribution signal.
+      "Manual",
+      { id: "n-manual" },
+      "data-intake-links-row-delivery",
+      "MANUAL",
     ],
   ];
 
@@ -951,7 +965,7 @@ describe("row status treatment comes from one map", () => {
         "[data-intake-links-row-link-state]",
       ) as HTMLElement;
       expect(life.classList.contains("app-status-badge")).toBe(true);
-      expect(["solid", "soft", null]).toContain(life.getAttribute("data-fill"));
+      expect(life.getAttribute("data-fill")).toBe("solid");
       expect(facts.querySelector(".app-status-badge")).toBeNull();
     }
   });

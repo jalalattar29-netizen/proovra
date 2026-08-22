@@ -258,6 +258,44 @@ export const ROWS = [
   row({ id: "r-quiet", title: "Documents", channel: null }),
 ] as const;
 
+/**
+ * THE DELIVERY-SEMANTICS MATRIX — the four cases that must stay distinct.
+ *
+ * `Manual` and `Not sent` looked identical before this pass, and the whole
+ * point of the fix is that they are different facts. These rows exercise the
+ * boundary from both sides:
+ *
+ *   manual    no delivery record at all (attemptCount 0, channel null)
+ *   not-sent  a REAL provider record whose status is not one of the six
+ *             recognised sends — `RECEIVED` is an inbound message, which
+ *             `getDeliveryState` folds to NOT_SENT. A record exists, so the
+ *             manual rule cannot claim it.
+ *   provider  QUEUED — the provider is holding it
+ *   failed    FAILED
+ */
+export const DELIVERY_MATRIX_ROWS = [
+  row({ id: "d-manual", title: "Manual share", channel: null }),
+  row({
+    id: "d-not-sent",
+    title: "Provider, unsent",
+    channel: "EMAIL",
+    delivery: "RECEIVED",
+    attempts: 1,
+  }),
+  row({
+    id: "d-provider",
+    title: "Provider holding",
+    channel: "SMS",
+    delivery: "QUEUED",
+  }),
+  row({
+    id: "d-failed",
+    title: "Provider failed",
+    channel: "EMAIL",
+    delivery: "FAILED",
+  }),
+] as const;
+
 /** A German-length status/title fixture, for the localization audit. */
 export const GERMAN_ROWS = [
   row({

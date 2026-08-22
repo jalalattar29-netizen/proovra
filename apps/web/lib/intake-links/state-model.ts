@@ -46,6 +46,11 @@ export type StateModelItem = {
   delivery: {
     latestStatus: string | null;
     latestFailedAtUtc: string | null;
+    /** How many CommunicationMessage rows exist for this link. ZERO is the
+     *  manual-distribution signal — see `getDeliveryPresentation`. */
+    attemptCount?: number;
+    /** The channel of the latest delivery record, null when none exists. */
+    latestChannel?: string | null;
   };
   activity: {
     sessionsOpened: number;
@@ -176,6 +181,56 @@ export function getDeliveryState(
     default:
       return "NOT_SENT";
   }
+}
+
+// =============================================================================
+// MANUAL vs NOT SENT — the presentation state
+// =============================================================================
+//
+// `Not sent` was shown for BOTH of these, and they are not the same thing:
+//
+//   1. A link the operator created to copy and share themselves. Nothing was
+//      ever supposed to be sent, so "Not sent" reports a failure that did not
+//      happen — it reads as "the send did not go out" when the truth is "there
+//      was no send".
+//   2. A link with a real provider delivery record whose status has not
+//      reached a known terminal. That IS a genuine "not sent" and must keep
+//      saying so.
+//
+// THE DISTINCTION IS IN THE DATA, not in a presentation guess.
+//
+// `deliveryMethod` is a CREATE-time parameter ("MANUAL" | "EMAIL" | "SMS" |
+// "WHATSAPP") and is deliberately NOT persisted on `WorkflowIntakeLink` — the
+// link row stores only recipient context. What a non-manual send leaves behind
+// is a `CommunicationMessage` row, and the list aggregation projects that as
+// `attemptCount` / `latestChannel`.
+//
+// That row is written SYNCHRONOUSLY, inside the create request: the route
+// awaits `dispatchIntakeLinkDelivery`, whose send-helpers create the
+// CommunicationMessage themselves and record the outcome on it — on the
+// failure path as well as the success path. So by the time any list read can
+// observe a link, a provider flow has already left its record.
+//
+//     no delivery record at all   ⇔   deliveryMethod was MANUAL
+//
+// Which is why this cannot swallow a legitimate provider "Not sent": a
+// provider flow ALWAYS has `attemptCount > 0`, whatever its status. The rule
+// keys on the EXISTENCE of a delivery record, never on its status.
+//
+// Both fields are checked, and both must be absent. A record with a null
+// channel would be malformed rather than manual, and a malformed record should
+// not be able to present itself as a deliberate choice.
+
+/** The delivery state as the UI states it — the wire states plus MANUAL. */
+export type DeliveryPresentation = DeliveryState | "MANUAL";
+
+export function getDeliveryPresentation(
+  delivery: StateModelItem["delivery"],
+): DeliveryPresentation {
+  const hasRecord =
+    (delivery.attemptCount ?? 0) > 0 || delivery.latestChannel != null;
+  if (!hasRecord) return "MANUAL";
+  return getDeliveryState(delivery);
 }
 
 // =============================================================================

@@ -18,7 +18,7 @@
  */
 
 import type {
-  DeliveryState,
+  DeliveryPresentation,
   IntakeKpis,
   IntakeTab,
   LatestSessionState,
@@ -73,12 +73,16 @@ export const LINK_STATE_VOCABULARY: Record<
     // GREEN, not indigo. Indigo is the product's BRAND accent — it says "this
     // is ours", not "this is healthy" — and a row scanned for operational
     // state should read its one healthy terminal in the colour the rest of the
-    // application already uses for healthy. Green is that colour everywhere
-    // else in the redesigned surfaces.
+    // application already uses for healthy.
     //
-    // The badge renders it as the canonical soft capsule (light green fill,
-    // readable green ink), which is the "standard green" treatment the rest of
-    // the app shows — not a saturated slab.
+    // It renders with the SAME solid fill as every other lifecycle state, so
+    // the column has one structure and only its colour varies. A soft capsule
+    // beside three solid ones read as a different KIND of thing rather than as
+    // a different state — the treatment implied a hierarchy the lifecycle does
+    // not have.
+    //
+    // Canonical green as a solid fill is `--success-ink` (#167A5B); white on
+    // it measures 5.29:1, so the badge holds WCAG AA.
     //
     // PRESENTATION ONLY. `getLinkOperationalState` is untouched: what counts
     // as ACTIVE, ARCHIVED, REVOKED or EXPIRED is unchanged.
@@ -170,9 +174,27 @@ export const SESSION_STATE_VOCABULARY: Record<
 // =============================================================================
 
 export const DELIVERY_STATE_VOCABULARY: Record<
-  DeliveryState,
+  DeliveryPresentation,
   IntakeVocabularyEntry
 > = {
+  MANUAL: {
+    // THE LINK NOBODY SENT, because nobody was supposed to.
+    //
+    // This state used to render as "Not sent", which reports a failure that
+    // never happened: the operator created a link to copy and share, and there
+    // was no send to miss. See `getDeliveryPresentation` for why this cannot
+    // swallow a genuine provider "Not sent".
+    //
+    // INDIGO — the product's brand accent. Manual distribution is not a
+    // health signal at all: it is neither good news nor bad, so it takes the
+    // one tone in this palette that carries no severity. Every other value in
+    // this column is green, amber or red precisely because it IS reporting on
+    // a send that is going well or badly.
+    label: "Manual",
+    tone: "indigo",
+    explanation:
+      "Shared manually — this link was created to copy and send yourself, so no message was dispatched.",
+  },
   NOT_SENT: {
     // RED. Slate filed this among the neutral facts, where it disappeared —
     // and "no message was sent" is the delivery state most likely to explain
@@ -249,7 +271,16 @@ export type DeliveryFilterWireValue =
   (typeof DELIVERY_FILTER_WIRE_VALUES)[number];
 
 export const DELIVERY_FILTER_LABEL: Record<DeliveryFilterWireValue, string> = {
-  NONE: DELIVERY_STATE_VOCABULARY.NOT_SENT.label,
+  // `NONE` is the wire value for "this link has no delivery record", which is
+  // exactly the manual population: `CommunicationMessage.status` is
+  // non-nullable with a default, so a record always has a status and a null
+  // latest status can only mean there is no record.
+  //
+  // It was labelled "Not sent", which is now the label of a DIFFERENT row
+  // state — a record whose status is not one of the recognised sends. The
+  // dropdown and the row must never disagree about the same population, which
+  // is the contract stated above this table.
+  NONE: DELIVERY_STATE_VOCABULARY.MANUAL.label,
   QUEUED: DELIVERY_STATE_VOCABULARY.QUEUED.label,
   SENT: DELIVERY_STATE_VOCABULARY.SENT.label,
   DELIVERED: DELIVERY_STATE_VOCABULARY.DELIVERED.label,

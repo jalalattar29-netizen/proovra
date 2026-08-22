@@ -93,29 +93,23 @@ function buildActions(
  */
 function LifecycleBadge({ row }: { row: IntakeRowModel }) {
   /**
-   * ACTIVE IS THE QUIET ONE.
+   * ONE STRUCTURE FOR THE WHOLE COLUMN.
    *
-   * The three other lifecycles are EXCEPTIONS — expired, disabled, archived —
-   * and a solid fill is right for them: they are what an operator scans a
-   * column of links to find. `Active` is the ordinary case, usually the
-   * majority of rows, and giving the normal state the loudest treatment in the
-   * table is how a column becomes a wall of colour that says nothing.
+   * Active briefly took the SOFT badge variant, on the reasoning that the
+   * ordinary case should be quieter than the exceptions. In the column it read
+   * as a different KIND of thing rather than a different state: a pale capsule
+   * with coloured text beside three solid chips with white text implied a
+   * hierarchy the lifecycle does not have.
    *
-   * It therefore takes the SOFT variant of the same canonical green token: a
-   * light green ground with readable green ink, which is the standard green
-   * treatment the rest of the redesigned surfaces use for a healthy state.
-   * Solid green would be `--success-ink` as a slab — the dark variant — and
-   * the lighter `--success` cannot be a solid fill because white on it
-   * measures 2.5:1 and fails WCAG AA for a badge this size.
-   *
-   * PRESENTATION ONLY: `getLinkOperationalState` decides what ACTIVE means
-   * and is untouched.
+   * Every state now renders the same filled badge — same height, padding,
+   * radius, size, weight and alignment — and only the semantic colour varies.
+   * Active is the canonical green (`--success-ink`, #167A5B); white on it
+   * measures 5.29:1, so the badge holds WCAG AA.
    */
-  const quiet = row.lifecycle === "ACTIVE";
   return (
     <AppStatusBadge
       tone={row.lifecycleVocab.tone}
-      fill={quiet ? undefined : "solid"}
+      fill="solid"
       title={row.lifecycleVocab.explanation}
       data-intake-links-row-link-state={row.lifecycle}
     >
