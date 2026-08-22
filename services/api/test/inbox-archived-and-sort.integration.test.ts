@@ -702,6 +702,159 @@ describe("Inbox archived filter + sorting (live PostgreSQL 16)", () => {
     expect(reports.totalEstimate).toBe(0);
   });
 
+  // =========================================================================
+  // 6. THE METRIC-CARD BASIS
+  //
+  // The six cards are ALTERNATIVE primary filters. Their counts must describe
+  // the population the reader is currently looking at, MINUS the one axis the
+  // cards themselves set:
+  //
+  //     IN   lifecycle, category, workspace
+  //     OUT  tone, read-state
+  //
+  // They used to read `scopeSummary`, which is deliberately filter-independent
+  // because it drives the filter-chip reveal and must not shrink when a filter
+  // narrows. So selecting Archived showed the ACTIVE severity distribution
+  // above a list of archived rows — the numbers and the list disagreed.
+  // =========================================================================
+
+  /** `metricSummary` as the endpoint reports it. */
+  async function metrics(
+    token: string,
+    query: Record<string, string> = {},
+  ): Promise<{ total: number; unread: number; byTone: Record<string, number> }> {
+    const qs = new URLSearchParams(query).toString();
+    const res = await harness.app.inject({
+      method: "GET",
+      url: qs ? `/v1/me/inbox?${qs}` : "/v1/me/inbox",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    return (res.json() as { metricSummary: {
+      total: number;
+      unread: number;
+      byTone: Record<string, number>;
+    } }).metricSummary;
+  }
+
+  it("22. Archived redistributes every count to the archived population", async () => {
+    // 8 archived High + 2 archived Info, and 18 ACTIVE High that must not be
+    // counted once the archive is selected.
+    const archived = await seedOrderedArchive([
+      ...Array.from({ length: 8 }, (_, i) => ({
+        tone: "high",
+        minutesAgo: 10 + i,
+        read: true,
+      })),
+      ...Array.from({ length: 2 }, (_, i) => ({
+        tone: "info",
+        minutesAgo: 40 + i,
+        read: true,
+      })),
+    ]);
+    expect(archived).toHaveLength(10);
+    for (let i = 0; i < 18; i += 1) {
+      await seedItem({
+        teamId: A.teamId,
+        requestedByUserId: A.ownerUserId,
+        title: `Active high ${i} ${randomUUID().slice(0, 8)}`,
+      });
+    }
+    await list(A.ownerToken);
+
+    const m = await metrics(A.ownerToken, { lifecycle: "archived" });
+    expect(m.total).toBe(10);
+    expect(m.unread).toBe(0);
+    expect(m.byTone).toEqual({ critical: 0, high: 8, warning: 0, info: 2 });
+
+    // …and the list it sits above agrees with it.
+    const rows = await list(A.ownerToken, {
+      lifecycle: "archived",
+      pageSize: "50",
+    });
+    expect(rows.items).toHaveLength(10);
+    expect(rows.totalEstimate).toBe(10);
+  });
+
+  it("23. the cards' OWN axes are excluded from their own basis", async () => {
+    await seedOrderedArchive([
+      { tone: "high", minutesAgo: 10, read: true },
+      { tone: "info", minutesAgo: 20, read: true },
+    ]);
+
+    const base = await metrics(A.ownerToken, { lifecycle: "archived" });
+    expect(base.byTone).toEqual({ critical: 0, high: 1, warning: 0, info: 1 });
+
+    // Selecting High narrows the LIST and leaves the BASIS alone — which is
+    // what keeps the other five cards telling you what is behind them.
+    const withTone = await metrics(A.ownerToken, {
+      lifecycle: "archived",
+      tone: "high",
+    });
+    expect(withTone).toEqual(base);
+
+    const withRead = await metrics(A.ownerToken, {
+      lifecycle: "archived",
+      readState: "unread",
+    });
+    expect(withRead).toEqual(base);
+  });
+
+  it("24. an ADVANCED filter narrows the basis; the list follows it", async () => {
+    await seedThreeActiveTwoArchived();
+    // Every seeded row is an intake submission.
+    const intake = await metrics(A.ownerToken, {
+      lifecycle: "archived",
+      filter: "intake",
+    });
+    expect(intake.total).toBe(2);
+
+    const reports = await metrics(A.ownerToken, {
+      lifecycle: "archived",
+      filter: "reports",
+    });
+    expect(reports.total).toBe(0);
+    expect(reports.byTone).toEqual({
+      critical: 0,
+      high: 0,
+      warning: 0,
+      info: 0,
+    });
+  });
+
+  it("25. sorting and paging never move a count", async () => {
+    await seedOrderedArchive([
+      { tone: "high", minutesAgo: 10, read: true },
+      { tone: "high", minutesAgo: 20, read: true },
+      { tone: "info", minutesAgo: 30, read: true },
+    ]);
+    const base = await metrics(A.ownerToken, { lifecycle: "archived" });
+    expect(base.total).toBe(3);
+
+    for (const sort of ["newest", "oldest", "unread_first", "severity"]) {
+      expect(
+        await metrics(A.ownerToken, { lifecycle: "archived", sort }),
+      ).toEqual(base);
+    }
+    // A single-row page reports the same totals as a whole one — the counts
+    // come from the population, never from the rows this page holds.
+    const paged = await metrics(A.ownerToken, {
+      lifecycle: "archived",
+      pageSize: "1",
+    });
+    expect(paged).toEqual(base);
+  });
+
+  it("26. the ACTIVE basis excludes archived rows", async () => {
+    const { active } = await seedThreeActiveTwoArchived();
+    const m = await metrics(A.ownerToken);
+    expect(m.total).toBe(active.length);
+    // Archiving takes a row out of the normal feed AND out of its counts.
+    const archived = await metrics(A.ownerToken, { lifecycle: "archived" });
+    expect(archived.total).toBe(2);
+    expect(m.total + archived.total).toBe(5);
+  });
+
   it("16. an unknown sort value falls back to the default, never to a 500", async () => {
     await seedThreeActiveTwoArchived();
     const res = await harness.app.inject({

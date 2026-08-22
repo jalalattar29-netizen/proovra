@@ -417,3 +417,222 @@ for (const vp of VIEWPORTS) {
     });
   }
 }
+
+// ===========================================================================
+// THE CARDS DESCRIBE THE POPULATION THE READER IS LOOKING AT.
+//
+// They used to read `scopeSummary`, which is deliberately filter-INDEPENDENT
+// (it drives the filter-chip reveal and must not shrink when a filter narrows).
+// So selecting Archived showed the ACTIVE severity distribution above a list
+// of archived rows: All said 3 while the list held 2, and High counted rows
+// that were nowhere on screen.
+// ===========================================================================
+
+/** Every card's key → its rendered count. */
+async function counts(page: Page): Promise<Record<string, number>> {
+  return page.evaluate(() => {
+    const out: Record<string, number> = {};
+    for (const el of Array.from(
+      document.querySelectorAll("[data-notifications-metric]"),
+    )) {
+      out[el.getAttribute("data-notifications-metric")!] = Number(
+        el.querySelector(".app-metric-card__value")?.textContent?.trim() ?? "-1",
+      );
+    }
+    return out;
+  });
+}
+
+test("Archived redistributes every card to the archived population", async ({
+  page,
+}) => {
+  await installApi(page, "personal-pro", { archiveScenario: true });
+  await page.goto("/notifications");
+  await page.waitForSelector("[data-notifications-summary]", {
+    timeout: 15_000,
+  });
+
+  // ACTIVE: 3 rows — 1 critical, 1 high, 1 warning; 2 of them unread.
+  await expect.poll(() => counts(page)).toEqual({
+    all: 3,
+    unread: 2,
+    critical: 1,
+    high: 1,
+    warning: 1,
+    info: 0,
+  });
+
+  await page.click('[data-action="toggle-advanced-filters"]');
+  await page.click(
+    '[data-inbox-filters-panel] [data-inbox-filter-chip="archived"]',
+  );
+  await page.click('[data-action="close-advanced-filters"]');
+
+  // ARCHIVED: 2 rows — 1 critical, 1 info; both read (archiving marks read).
+  // Every card now describes THOSE two, and the total matches the list.
+  await expect.poll(() => counts(page)).toEqual({
+    all: 2,
+    unread: 0,
+    critical: 1,
+    high: 0,
+    warning: 0,
+    info: 1,
+  });
+  await expect.poll(() => rowCount(page)).toBe(2);
+});
+
+test("the cards' own axes are excluded from their own basis", async ({
+  page,
+}) => {
+  // This is the property that keeps the row usable as a set of alternatives.
+  // If the tone were part of the basis, picking High would make High read its
+  // own count and every other card read 0 — so the row would stop telling you
+  // what is waiting behind the cards you did not pick.
+  await openMetrics(page);
+  const before = await counts(page);
+  expect(before).toEqual({
+    all: 28,
+    unread: 0,
+    critical: 0,
+    high: 26,
+    warning: 0,
+    info: 2,
+  });
+
+  await page.click('[data-notifications-metric="high"]');
+  await expect.poll(() => rowCount(page)).toBe(26);
+  // Unchanged: the list narrowed, the basis did not.
+  expect(await counts(page)).toEqual(before);
+
+  await page.click('[data-notifications-metric="info"]');
+  await expect.poll(() => rowCount(page)).toBe(2);
+  expect(await counts(page)).toEqual(before);
+});
+
+test("sorting never changes a card count", async ({ page }) => {
+  await openMetrics(page);
+  const before = await counts(page);
+
+  for (const label of ["Oldest first", "Unread first", "Highest severity"]) {
+    await page.click(".ops-sort__control button");
+    await page.click(`role=option[name="${label}"]`);
+    await expect.poll(() => rowCount(page)).toBe(28);
+    expect(await counts(page), label).toEqual(before);
+  }
+});
+
+test("paging never changes a card count", async ({ page }) => {
+  // The counts come from the server's full filtered population, not from the
+  // rows this page happens to hold.
+  await installApi(page, "personal-pro", { archiveScenario: true });
+  await page.goto("/notifications?pageSize=1");
+  await page.waitForSelector("[data-notifications-summary]", {
+    timeout: 15_000,
+  });
+  const shown = await rowCount(page);
+  const c = await counts(page);
+  expect(c.all).toBeGreaterThanOrEqual(shown);
+  expect(c.all).toBe(3);
+});
+
+// ===========================================================================
+// THE FILTERED EMPTY STATE
+// ===========================================================================
+
+test("a filter that matches nothing gets a centred, actionable empty state", async ({
+  page,
+}) => {
+  await openMetrics(page);
+  await page.click('[data-notifications-metric="critical"]');
+  await expect.poll(() => rowCount(page)).toBe(0);
+
+  const empty = page.locator('[data-inbox-empty-reason="filters"]');
+  await expect(empty).toBeVisible();
+  await expect(empty).toContainText("No notifications match these filters.");
+  await expect(empty).toContainText("Try changing or clearing");
+
+  const measured = await page.evaluate(() => {
+    const el = document.querySelector(
+      '[data-inbox-empty-reason="filters"]',
+    ) as HTMLElement;
+    const cs = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    const btn = el.querySelector('[data-action="clear-filter"]') as HTMLElement;
+    const bs = getComputedStyle(btn);
+    const bb = btn.getBoundingClientRect();
+    const title = el.querySelector(".ops-empty__title") as HTMLElement;
+    const tb = title.getBoundingClientRect();
+    return {
+      align: cs.alignItems,
+      justify: cs.justifyContent,
+      textAlign: cs.textAlign,
+      minHeight: parseFloat(cs.minBlockSize || cs.minHeight),
+      // The content sits in the MIDDLE of the surface, not against its edge.
+      topGap: Math.round(tb.top - box.top),
+      // The action is a real button: padding, border, radius — not a text link.
+      btnTag: btn.tagName,
+      btnPaddingX: parseFloat(bs.paddingLeft),
+      btnBorderWidth: parseFloat(bs.borderTopWidth),
+      btnRadius: parseFloat(bs.borderTopLeftRadius),
+      btnHeight: Math.round(bb.height),
+      btnCanonical: btn.classList.contains("app-secondary-action"),
+      // Centred horizontally within the surface.
+      centreDelta: Math.abs(
+        bb.left + bb.width / 2 - (box.left + box.width / 2),
+      ),
+    };
+  });
+
+  expect(measured.align).toBe("center");
+  expect(measured.justify).toBe("center");
+  expect(measured.textAlign).toBe("center");
+  expect(measured.minHeight).toBeGreaterThanOrEqual(160);
+  expect(measured.topGap).toBeGreaterThanOrEqual(24);
+  expect(measured.centreDelta).toBeLessThanOrEqual(1);
+
+  // THE CANONICAL ACTION BUTTON, not the text link this used to be.
+  expect(measured.btnTag).toBe("BUTTON");
+  expect(measured.btnCanonical).toBe(true);
+  expect(measured.btnPaddingX).toBeGreaterThanOrEqual(10);
+  expect(measured.btnBorderWidth).toBeGreaterThan(0);
+  expect(measured.btnRadius).toBeGreaterThan(0);
+  expect(measured.btnHeight).toBeGreaterThanOrEqual(30);
+
+  // Keyboard reachable, with a visible focus ring, and it works.
+  const focused = await page.evaluate(() => {
+    const btn = document.querySelector(
+      '[data-action="clear-filter"]',
+    ) as HTMLElement;
+    btn.focus();
+    return document.activeElement === btn;
+  });
+  expect(focused).toBe(true);
+});
+
+test("the three empty states stay distinct", async ({ page }) => {
+  // An empty archive is not a broken filter, and neither is an empty inbox.
+  await installApi(page, "personal-pro", { archiveScenario: true });
+  await page.goto("/notifications");
+  await page.waitForSelector("[data-inbox-toolbar]", { timeout: 15_000 });
+
+  // `integrity` selects `ots_failure`; every fixture row is `tsa_failure`,
+  // so this is a filter that legitimately matches nothing.
+  await page.click('[data-action="toggle-advanced-filters"]');
+  await page.click(
+    '[data-inbox-filters-panel] [data-inbox-filter-chip="integrity"]',
+  );
+  await page.click('[data-action="close-advanced-filters"]');
+  await expect.poll(() => rowCount(page)).toBe(0);
+  await expect(
+    page.locator('[data-inbox-empty-reason="filters"]'),
+  ).toBeVisible();
+
+  // Nothing at all reads as "caught up", with no clear-filters action.
+  await installApi(page, "personal-pro", { emptyInbox: true });
+  await page.goto("/notifications");
+  await page.waitForSelector("[data-state='empty']", { timeout: 15_000 });
+  await expect(page.locator("[data-state='empty']")).toContainText(
+    /all caught up/i,
+  );
+  await expect(page.locator('[data-action="clear-filter"]')).toHaveCount(0);
+});

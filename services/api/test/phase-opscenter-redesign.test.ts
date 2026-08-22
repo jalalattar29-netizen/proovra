@@ -229,7 +229,15 @@ vi.mock("../src/db.js", () => {
             ? (arg as (tx: unknown) => Promise<unknown>)(prisma)
             : Promise.all(arg as Array<Promise<unknown>>);
       }
-      if (prop in overrides) return overrides[prop];
+      // MERGED, not replaced. An override used to SHADOW the generic model
+      // entirely, so a model that declared `findMany` lost `count`,
+      // `groupBy` and the rest — and a route that later reached for one of
+      // them got `undefined is not a function` surfaced as a 500, which is
+      // indistinguishable from a real failure. The override still wins for
+      // anything it defines.
+      if (prop in overrides) {
+        return { ...genericModel, ...(overrides[prop] as object) };
+      }
       return genericModel;
     },
   };

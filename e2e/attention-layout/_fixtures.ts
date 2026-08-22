@@ -384,8 +384,20 @@ function projectMetricScenario(url: URL) {
   );
 
   const all = METRIC_SCENARIO_ITEMS;
+  // Same rule: the cards' own axes are excluded from their own basis.
+  const metricSummary = {
+    total: all.length,
+    unread: all.filter((i) => !i.isRead).length,
+    byTone: {
+      critical: 0,
+      high: all.filter((i) => i.tone === "high").length,
+      warning: 0,
+      info: all.filter((i) => i.tone === "info").length,
+    },
+  };
   return {
     items: sorted,
+    metricSummary,
     scopeSummary: {
       total: all.length,
       unread: all.filter((i) => !i.isRead).length,
@@ -480,6 +492,30 @@ const ARCHIVE_SCENARIO_ITEMS = [
   context: { teamId: WORKSPACE_ID, teamName: "Meridian Legal" },
 }));
 
+/**
+ * The category members the route's own `FILTER_CATEGORY_MEMBERS` declares, for
+ * the categories these fixtures can produce. A mock that ignored the category
+ * axis would answer every category filter with the full list, and a page that
+ * sent the wrong one would still look right.
+ */
+const FIXTURE_CATEGORY_MEMBERS: Record<string, string[]> = {
+  integrity: ["ots_failure"],
+  reports: ["report_failure"],
+  packages: ["verification_package_failure"],
+  intake: [
+    "intake_submission_pending_review",
+    "intake_required_items_missing",
+    "intake_link_expiring",
+  ],
+  failures: ["communication_failure", "report_failure", "tsa_failure"],
+  security: ["security_event_high", "mfa_recovery_pending"],
+};
+
+function matchesFixtureCategory(category: string, itemCategory: string): boolean {
+  const members = FIXTURE_CATEGORY_MEMBERS[category];
+  return !members || members.includes(itemCategory);
+}
+
 const TONE_RANK: Record<string, number> = {
   critical: 4,
   high: 3,
@@ -515,6 +551,9 @@ function projectArchiveScenario(url: URL) {
   );
   if (readState === "unread") items = items.filter((i) => !i.isRead);
   if (tone) items = items.filter((i) => i.tone === tone);
+  if (category !== "all") {
+    items = items.filter((i) => matchesFixtureCategory(category, i.category));
+  }
 
   const byRecency = (a: typeof items[number], b: typeof items[number]) =>
     b.occurredAt.localeCompare(a.occurredAt) ||
@@ -544,9 +583,29 @@ function projectArchiveScenario(url: URL) {
     (acc, i) => ({ ...acc, [i.tone]: (acc[i.tone] ?? 0) + 1 }),
     { ...zero },
   );
+
+  // THE METRIC BASIS — the same rule the route applies: narrowed by the
+  // ADVANCED axes (lifecycle, category) and NOT by the two the cards
+  // themselves set (tone, read-state). A fixture that ignored this would let
+  // the page read global numbers and still pass.
+  const metricBasis = ARCHIVE_SCENARIO_ITEMS.filter(
+    (i) =>
+      (lifecycle === "archived" ? i.dismissedAt != null : i.dismissedAt == null) &&
+      (category === "all" || matchesFixtureCategory(category, i.category)),
+  );
+  const metricSummary = {
+    total: metricBasis.length,
+    unread: metricBasis.filter((i) => !i.isRead).length,
+    byTone: metricBasis.reduce<Record<string, number>>(
+      (acc, i) => ({ ...acc, [i.tone]: (acc[i.tone] ?? 0) + 1 }),
+      { ...zero },
+    ),
+  };
+
   return {
     items: sorted,
     canonicalFilter,
+    metricSummary,
     // The SCOPE summary is filter-independent by contract — it describes the
     // active population, which is what the metric cards count.
     scopeSummary: {
@@ -745,6 +804,7 @@ export async function installApi(
               byPriority: { P1: m.items.length, P2: 0, P3: 0, P4: 0, P5: 0 },
             },
             scopeSummary: m.scopeSummary,
+            metricSummary: m.metricSummary,
             truncated: {},
             anyTruncated: false,
             completeness: {
@@ -796,6 +856,7 @@ export async function installApi(
               },
             },
             scopeSummary: projected.scopeSummary,
+            metricSummary: projected.metricSummary,
             truncated: {},
             anyTruncated: false,
             completeness: {

@@ -780,11 +780,13 @@ describe("row status treatment comes from one map", () => {
   // ---------------------------------------------------------------------
   // Lifecycle: the one state the row is scanned by, and the only fill
   // ---------------------------------------------------------------------
+  // THE THREE EXCEPTIONS keep the solid fill: they are what an operator
+  // scans this column to find. `Active` is handled separately below — it is
+  // the ordinary case and is treated as one.
   const LIFECYCLE: Array<[string, Spec, string]> = [
     ["Expired", { id: "t-exp", status: "EXPIRED", used: 1, expires: PAST }, "blue"],
     ["Link disabled", { id: "t-rev", status: "REVOKED", revoked: PAST }, "red"],
     ["Archived", { id: "t-arch", archived: PAST }, "slate"],
-    ["Active", { id: "t-act" }, "indigo"],
   ];
 
   for (const [label, spec, tone] of LIFECYCLE) {
@@ -804,6 +806,30 @@ describe("row status treatment comes from one map", () => {
       }
     });
   }
+
+  it("lifecycle Active is GREEN, and it is the quiet one", async () => {
+    // It was INDIGO — the product's brand accent standing in for a state,
+    // which says "this is ours" where the column needs "this is healthy".
+    //
+    // And it takes the SOFT variant rather than a solid slab: Active is
+    // usually the majority of rows, and giving the ordinary case the loudest
+    // treatment is how a lifecycle column becomes a wall of colour. Solid
+    // green would also be the DARK green ink as a fill; the lighter
+    // `--success` cannot be a solid fill at all, because white on it measures
+    // 2.5:1 and fails WCAG AA for text this size.
+    await mount([{ id: "t-act" }]);
+    for (const scope of [".ilk-records--wide", ".ilk-records--narrow"]) {
+      const host = document.querySelector(scope) as HTMLElement;
+      const badge = host.querySelector(
+        "[data-intake-links-row-link-state]",
+      ) as HTMLElement;
+      expect(badge, `Active missing in ${scope}`).toBeTruthy();
+      expect(badge.classList.contains("app-status-badge")).toBe(true);
+      expect(badge.getAttribute("data-tone"), scope).toBe("green");
+      expect(badge.getAttribute("data-fill"), scope).not.toBe("solid");
+      expect(badge.textContent?.trim()).toBe("Active");
+    }
+  });
 
   // ---------------------------------------------------------------------
   // Delivery and Activity: neutral text, in both renderers
@@ -890,7 +916,7 @@ describe("row status treatment comes from one map", () => {
     }
   });
 
-  it("the card states the same two facts, the same neutral way", async () => {
+  it("the card states the same two facts, the same TONED way", async () => {
     await mount(COMBINATIONS.map((c) => c.spec));
     for (const combo of COMBINATIONS) {
       const card = document.querySelector(
@@ -904,14 +930,28 @@ describe("row status treatment comes from one map", () => {
         const holder = facts.querySelector(`[${attr}]`) as HTMLElement;
         expect(holder, `${combo.name} / ${attr}`).toBeTruthy();
         expect(badgeIn(holder), `${combo.name} / ${attr} is a badge`).toBeNull();
+        // TONED TEXT, from the shared class the table cell also uses — one
+        // authority, two renderers, so the card cannot drift into a second
+        // design. The capsule these values used to sit in is gone.
+        expect(
+          holder.classList.contains("ilk-state-text"),
+          `${combo.name} / ${attr} lost the shared treatment`,
+        ).toBe(true);
+        expect(
+          holder.getAttribute("data-ilk-tone"),
+          `${combo.name} / ${attr} carries no tone`,
+        ).toBeTruthy();
+        // …and the WORD is always there, so colour is never the only cue.
+        expect((holder.textContent ?? "").trim().length).toBeGreaterThan(0);
       }
-      // The card head keeps the ONE fill: lifecycle.
+      // The card head keeps the ONE badge: lifecycle. Solid for the
+      // exceptions, the soft canonical green for the ordinary Active.
       const head = card.querySelector(".ilk-card__head") as HTMLElement;
       const life = head.querySelector(
         "[data-intake-links-row-link-state]",
       ) as HTMLElement;
       expect(life.classList.contains("app-status-badge")).toBe(true);
-      expect(life.getAttribute("data-fill")).toBe("solid");
+      expect(["solid", "soft", null]).toContain(life.getAttribute("data-fill"));
       expect(facts.querySelector(".app-status-badge")).toBeNull();
     }
   });

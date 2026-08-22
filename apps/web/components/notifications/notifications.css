@@ -1153,3 +1153,50 @@
   font-weight: 600;
   color: var(--ink-secondary);
 }
+
+/* ===========================================================================
+   THE FILTERED / ARCHIVE EMPTY STATE.
+
+   This was a `Card variant="empty"` holding one long sentence with the clear
+   action inlined into it as a text button. At content width that put the copy
+   hard against the top-inline-start corner of a wide outlined rectangle, with
+   the rest of the box empty — which reads as a panel that failed to finish
+   loading rather than as an answer to a question the reader just asked.
+
+   Centred on both axes, with a floor tall enough to look deliberate and not
+   so tall that an ordinary "no matches" takes over the viewport. The action
+   is the canonical `.app-secondary-action`, so it is a real button with real
+   padding, border, radius, hover and focus ring, rather than a link wearing
+   a button's job.
+   =========================================================================== */
+.ops-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  min-block-size: 180px;
+  padding: 28px 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card, 14px);
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.6));
+}
+.ops-empty__title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--ink-primary);
+}
+.ops-empty__body {
+  margin: 0;
+  max-inline-size: 42ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+/* The action gets its own breathing room from the sentence above it — the two
+   are different kinds of thing and should not read as one paragraph. */
+.ops-empty .app-secondary-action {
+  margin-block-start: 10px;
+}

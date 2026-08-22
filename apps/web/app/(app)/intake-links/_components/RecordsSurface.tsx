@@ -92,10 +92,30 @@ function buildActions(
  * reads the same state twice in one record.
  */
 function LifecycleBadge({ row }: { row: IntakeRowModel }) {
+  /**
+   * ACTIVE IS THE QUIET ONE.
+   *
+   * The three other lifecycles are EXCEPTIONS — expired, disabled, archived —
+   * and a solid fill is right for them: they are what an operator scans a
+   * column of links to find. `Active` is the ordinary case, usually the
+   * majority of rows, and giving the normal state the loudest treatment in the
+   * table is how a column becomes a wall of colour that says nothing.
+   *
+   * It therefore takes the SOFT variant of the same canonical green token: a
+   * light green ground with readable green ink, which is the standard green
+   * treatment the rest of the redesigned surfaces use for a healthy state.
+   * Solid green would be `--success-ink` as a slab — the dark variant — and
+   * the lighter `--success` cannot be a solid fill because white on it
+   * measures 2.5:1 and fails WCAG AA for a badge this size.
+   *
+   * PRESENTATION ONLY: `getLinkOperationalState` decides what ACTIVE means
+   * and is untouched.
+   */
+  const quiet = row.lifecycle === "ACTIVE";
   return (
     <AppStatusBadge
       tone={row.lifecycleVocab.tone}
-      fill="solid"
+      fill={quiet ? undefined : "solid"}
       title={row.lifecycleVocab.explanation}
       data-intake-links-row-link-state={row.lifecycle}
     >
@@ -130,7 +150,8 @@ function StatusCluster({ row }: { row: IntakeRowModel }) {
       <div className="ilk-status__line">
         <dt className="ilk-status__key">Delivery</dt>
         <dd
-          className="ilk-status__value app-fact-value"
+          className="ilk-status__value ilk-state-text"
+          data-ilk-tone={row.deliveryVocab.tone}
           data-intake-links-row-delivery={row.delivery}
           title={row.deliveryVocab.explanation}
         >
@@ -140,7 +161,8 @@ function StatusCluster({ row }: { row: IntakeRowModel }) {
       <div className="ilk-status__line">
         <dt className="ilk-status__key">Activity</dt>
         <dd
-          className="ilk-status__value app-fact-value"
+          className="ilk-status__value ilk-state-text"
+          data-ilk-tone={row.activityVocab.tone}
           data-intake-links-row-session-state={row.activity}
           title={row.activityVocab.explanation}
         >
@@ -348,7 +370,8 @@ function RecordCard({
             does not reorder a provider code. */}
         <dd className="ilk-ltr">
           <span
-            className="app-fact-value"
+            className="ilk-state-text"
+            data-ilk-tone={row.deliveryVocab.tone}
             data-intake-links-row-delivery={row.delivery}
             title={row.deliveryVocab.explanation}
           >
@@ -364,7 +387,8 @@ function RecordCard({
             comparing prose. */}
         <dd>
           <span
-            className="app-fact-value"
+            className="ilk-state-text"
+            data-ilk-tone={row.activityVocab.tone}
             data-intake-links-row-session-state={row.activity}
             title={row.activityVocab.explanation}
           >

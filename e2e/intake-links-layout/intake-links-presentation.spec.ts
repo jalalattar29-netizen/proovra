@@ -342,6 +342,29 @@ test.describe("KPI cards resolve the mandated tones", () => {
 // Row anatomy: three regions, canonical badges, real tones
 // ===========================================================================
 
+/**
+ * The canonical `--ilk-tone-*` inks, as the browser reports them.
+ *
+ * Listed as VALUES rather than read from the custom properties at run time on
+ * purpose: reading the token would make the assertion tautological (whatever
+ * the page paints is whatever the page declared). These are the six the design
+ * system owns, so a page-invented literal fails even if someone also adds it
+ * to this route's stylesheet.
+ *
+ *   slate  #64748b   indigo #6d28d9   blue  #2563eb
+ *   green  #167a5b   amber  #a86612   red   #c9363e
+ *   orange #c2410c   (--orange-ink, the readable classification orange)
+ */
+const CANONICAL_TONE_INKS = [
+  "rgb(100, 116, 139)",
+  "rgb(109, 40, 217)",
+  "rgb(37, 99, 235)",
+  "rgb(22, 122, 91)",
+  "rgb(168, 102, 18)",
+  "rgb(201, 54, 62)",
+  "rgb(194, 65, 12)",
+];
+
 test.describe("records surface anatomy", () => {
   test("lifecycle, activity and delivery are three separate painted regions", async ({
     page,
@@ -393,19 +416,19 @@ test.describe("records surface anatomy", () => {
       measured.activity.top < measured.lifecycle.bottom - 0.5;
     expect(intersects).toBe(false);
 
-    // ONE filled surface in the row: the lifecycle chip. The other two are
-    // text on the row's own ground, which is what makes the filled one read as
-    // the state rather than as one of three competing colours.
-    // ONE SEMANTIC fill in the row: the lifecycle chip. The other two now sit
-    // on the shared NEUTRAL surface — a white ground with a hairline border —
-    // which is what keeps them from competing with the chip for the eye. The
-    // property being protected is unchanged: no semantic colour down here.
+    // EXACTLY ONE FILLED SURFACE in the row: the lifecycle chip.
+    //
+    // The other two are now bare text on the row's own ground — no fill, no
+    // border, no capsule. That is what keeps the filled chip reading as THE
+    // state of the link, rather than as one of three competing boxes; and it
+    // is a stricter rule than the one it replaces, which allowed those two a
+    // neutral bordered surface of their own.
     expect(rgb(measured.lifecycleBg)).not.toBeNull();
-    expect(measured.activityBg).toBe("rgba(255, 255, 255, 0.7)");
-    expect(measured.deliveryBg).toBe("rgba(255, 255, 255, 0.7)");
+    expect(measured.activityBg).toBe("rgba(0, 0, 0, 0)");
+    expect(measured.deliveryBg).toBe("rgba(0, 0, 0, 0)");
   });
 
-  test("Delivery & activity is neutral text — no fill, no tone, no chip", async ({
+  test("Delivery & activity is TONED TEXT — no fill, no chip, no capsule", async ({
     page,
   }) => {
     for (const width of [1440, 1280, 1024, 940]) {
@@ -422,7 +445,10 @@ test.describe("records surface anatomy", () => {
           const cs = getComputedStyle(value);
           return {
             badges: cell.querySelectorAll(".app-status-badge").length,
-            toned: cell.querySelectorAll("[data-tone], [data-fill]").length,
+            // The BADGE tone attributes must stay absent from this column…
+            badgeToned: cell.querySelectorAll("[data-tone], [data-fill]").length,
+            // …and the two values must each carry the text tone.
+            toned: cell.querySelectorAll("[data-ilk-tone]").length,
             lifecycle: cell.querySelectorAll("[data-intake-links-row-link-state]")
               .length,
             keys: Array.from(cell.querySelectorAll(".ilk-status__key")).map((k) =>
@@ -434,6 +460,11 @@ test.describe("records surface anatomy", () => {
             valueShadow: cs.boxShadow,
             valueTextShadow: cs.textShadow,
             valueBorder: cs.borderTopColor,
+            valueBorderWidth: cs.borderTopWidth,
+            valuePadding: cs.paddingTop,
+            valueTexts: Array.from(
+              cell.querySelectorAll(".ilk-status__value"),
+            ).map((v) => v.textContent?.trim()),
             valueWhiteSpace: cs.whiteSpace,
             valueWidth: value.getBoundingClientRect().width,
             cellWidth: cell.getBoundingClientRect().width,
@@ -448,47 +479,56 @@ test.describe("records surface anatomy", () => {
 
       expect(measured.length, `${width}px`).toBeGreaterThan(0);
       for (const cell of measured) {
-        // 1. No coloured status treatment anywhere in this column.
+        // WHAT CHANGED, AND WHY.
+        //
+        // These values used to sit on `.app-fact-value` — a bordered, tinted,
+        // padded inline surface. One per line, two lines per row, every row:
+        // because each capsule sizes to its own words, the column became a
+        // ragged stack of boxes of six different widths, and it read as the
+        // busiest thing in the table while carrying two of its quietest facts.
+        //
+        // The state is now the TEXT. The rule this test enforces flipped from
+        // "no tone" to "tone, and NOTHING ELSE" — which is the stricter of the
+        // two, because a capsule can hide a lot inside its border.
+
+        // 1. No capsule, in any form.
         expect(cell.badges, `${width}px: a badge survived`).toBe(0);
-        expect(cell.toned, `${width}px: a tone survived`).toBe(0);
-        // The value now sits on a NEUTRAL inline surface. What "no fill" was
-        // protecting is unchanged and asserted above and below: no badge, no
-        // tone, no semantic colour. What it additionally protects now is that
-        // the surface is the CANONICAL neutral one, shared with the card.
+        expect(cell.badgeToned, `${width}px: a badge tone survived`).toBe(0);
         expect(
           cell.usesSharedAuthority,
-          `${width}px: value is not on the shared fact surface`,
-        ).toBe(true);
-        expect(cell.valueBackground, `${width}px`).toBe("rgba(255, 255, 255, 0.7)");
-        expect(cell.valueBorder, `${width}px`).toBe("rgba(15, 23, 42, 0.1)");
-        // A LIFT, and a restrained one — box-shadow, never text-shadow.
-        expect(cell.valueShadow, `${width}px`).toBe(
-          "rgba(15, 23, 42, 0.06) 0px 1px 2px 0px",
-        );
+          `${width}px: the bordered fact surface came back`,
+        ).toBe(false);
+        expect(cell.valueBackground, `${width}px`).toBe("rgba(0, 0, 0, 0)");
+        // `border: 0` leaves `border-top-color` resolving to `currentColor`,
+        // so the WIDTH is the thing that proves there is no border.
+        expect(cell.valueBorderWidth, `${width}px: a border survived`).toBe("0px");
+        expect(cell.valueShadow, `${width}px`).toBe("none");
         expect(cell.valueTextShadow, `${width}px`).toBe("none");
-        // The CANONICAL radius token, whatever it currently resolves to —
-        // asserting a literal here would pin this surface to a number the
-        // design system is free to change for every other chip.
-        expect(cell.valueRadius, `${width}px`).toBe(cell.radiusToken);
-        // Content-width, not cell-width. A surface as wide as the cell is a
-        // painted column, which is the thing this test exists to refuse.
+        expect(cell.valueRadius, `${width}px`).toBe("0px");
+        expect(cell.valuePadding, `${width}px`).toBe("0px");
+        // Content-width, not cell-width — nothing paints a column.
         expect(cell.valueWidth, `${width}px`).toBeLessThan(cell.cellWidth);
         // One line, always: a state phrase split in two reads as two states.
         expect(cell.valueWhiteSpace, `${width}px`).toBe("nowrap");
-        // 2. Lifecycle is still absent from it.
+        // 2. Lifecycle is still absent from this column.
         expect(cell.lifecycle, `${width}px: lifecycle came back`).toBe(0);
         // 3. Both labelled facts survive.
         expect(cell.keys, `${width}px`).toEqual(["Delivery", "Activity"]);
-        // 4. The value is the canonical control ink, and the key stays the
-        //    label tier — a neutral column is still a hierarchy.
-        expect(rgb(cell.valueColor), `${width}px value ink`).toEqual([38, 50, 71]);
-        expect(rgb(cell.keyColor), `${width}px key ink`).toEqual([52, 64, 84]);
+        // 4. THE VALUE IS TONED, and the tone is a CANONICAL token — never a
+        //    literal this page invented. The key stays the quiet half.
+        expect(cell.toned, `${width}px: the value carries no tone`).toBe(2);
+        expect(
+          CANONICAL_TONE_INKS,
+          `${width}px value ink ${cell.valueColor}`,
+        ).toContain(cell.valueColor);
         expect(cell.valueColor, `${width}px`).not.toBe(cell.keyColor);
+        // 5. AND THE WORD IS ALWAYS THERE. Colour is never the only cue.
+        expect(cell.valueTexts.every((t) => (t ?? "").length > 0)).toBe(true);
       }
     }
   });
 
-  test("the card renders the same two facts with the same neutral treatment", async ({
+  test("the card renders the same two facts with the same TONED treatment", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -519,8 +559,10 @@ test.describe("records surface anatomy", () => {
           activityShadow: getComputedStyle(act).boxShadow,
           // EXACTLY the authority the table cell uses — one class, two
           // renderers, so the card cannot drift into a second design.
-          deliverySharedAuthority: del.classList.contains("app-fact-value"),
-          activitySharedAuthority: act.classList.contains("app-fact-value"),
+          deliverySharedAuthority: del.classList.contains("ilk-state-text"),
+          activitySharedAuthority: act.classList.contains("ilk-state-text"),
+          deliveryText: del.textContent?.trim() ?? "",
+          activityText: act.textContent?.trim() ?? "",
           // The card's ONE fill is the lifecycle chip, in the card head.
           lifecycleFill: life.getAttribute("data-fill"),
           lifecycleBg: getComputedStyle(life).backgroundColor,
@@ -534,18 +576,25 @@ test.describe("records surface anatomy", () => {
     expect(measured.length).toBeGreaterThan(0);
     for (const card of measured) {
       expect(card.factBadges).toBe(0);
-      expect(rgb(card.deliveryColor)).toEqual([38, 50, 71]);
-      expect(rgb(card.activityColor)).toEqual([38, 50, 71]);
       // EXACTLY the table cell's authority — one class, two renderers, so the
-      // card cannot drift into a second design.
+      // card cannot drift into a second design. The class changed with the
+      // treatment; that it is SHARED has not.
       expect(card.deliverySharedAuthority).toBe(true);
       expect(card.activitySharedAuthority).toBe(true);
-      expect(card.deliveryBg).toBe("rgba(255, 255, 255, 0.7)");
-      expect(card.activityBg).toBe("rgba(255, 255, 255, 0.7)");
-      expect(card.deliveryShadow).toBe("rgba(15, 23, 42, 0.06) 0px 1px 2px 0px");
-      expect(card.activityShadow).toBe("rgba(15, 23, 42, 0.06) 0px 1px 2px 0px");
+      // Toned text, from the canonical palette, on no surface at all.
+      expect(CANONICAL_TONE_INKS).toContain(card.deliveryColor);
+      expect(CANONICAL_TONE_INKS).toContain(card.activityColor);
+      expect(card.deliveryBg).toBe("rgba(0, 0, 0, 0)");
+      expect(card.activityBg).toBe("rgba(0, 0, 0, 0)");
+      expect(card.deliveryShadow).toBe("none");
+      expect(card.activityShadow).toBe("none");
+      // The WORD is always present, so colour is never the only cue.
+      expect(card.deliveryText.length).toBeGreaterThan(0);
+      expect(card.activityText.length).toBeGreaterThan(0);
       // Lifecycle keeps its independent semantic treatment.
-      expect(card.lifecycleFill).toBe("solid");
+      // The card head carries the same lifecycle treatment as the table: solid
+      // for the exceptions, the soft canonical green for the ordinary Active.
+      expect(["solid", "soft"]).toContain(card.lifecycleFill);
       expect(rgb(card.lifecycleBg)).not.toBeNull();
       expect(card.lifecycleInFacts).toBe(false);
     }
@@ -691,13 +740,13 @@ test.describe("records surface anatomy", () => {
       blue: [37, 99, 235],
       red: [220, 38, 38],
       slate: [71, 85, 105],
-      indigo: [109, 40, 217],
     };
+    // THE THREE EXCEPTIONS take the solid fill — they are what an operator
+    // scans this column to find.
     const MANDATED: Array<[string, string, string]> = [
       ["EXPIRED", "blue", "Expired"],
       ["REVOKED", "red", "Link disabled"],
       ["ARCHIVED", "slate", "Archived"],
-      ["ACTIVE", "indigo", "Active"],
     ];
     for (const [state, tone, text] of MANDATED) {
       const v = measured.states[state];
@@ -708,6 +757,28 @@ test.describe("records surface anatomy", () => {
       expect(rgb(v.background), `${state} fill`).toEqual(FILL[tone]);
       expect(rgb(v.color), `${state} ink`).toEqual([255, 255, 255]);
     }
+
+    // ACTIVE IS THE ORDINARY CASE, and it is treated as one.
+    //
+    // It was INDIGO — the product's brand accent standing in for a state,
+    // which said "this is ours" where the column needed "this is healthy".
+    // It is green now, and it is the SOFT variant of the canonical green
+    // rather than a solid slab: usually the majority of rows are Active, and
+    // giving the normal state the loudest treatment is how a lifecycle column
+    // becomes a wall of colour that says nothing.
+    //
+    // The light ground with readable green ink is the standard green treatment
+    // used across the redesigned surfaces. Solid green would be the DARK
+    // `--success-ink` as a slab, and the lighter `--success` cannot be a solid
+    // fill at all: white on it measures 2.5:1 and fails WCAG AA for text this
+    // size. This variant measures 5.29:1.
+    const active = measured.states.ACTIVE;
+    expect(active, "ACTIVE absent from the fixture").toBeTruthy();
+    expect(active.tone).toBe("green");
+    expect(active.text).toBe("Active");
+    expect(active.fill, "Active must not be a solid slab").toBe("soft");
+    expect(rgb(active.background), "Active ground").toEqual([234, 247, 241]);
+    expect(rgb(active.color), "Active ink").toEqual([22, 122, 91]);
     expect(measured.totalBadges).toBe(measured.lifecycleBadges);
     expect(measured.lifecycleBadges).toBeGreaterThan(0);
   });
@@ -1413,9 +1484,13 @@ test.describe("Delivery & activity presentation holds at every supported width",
           if (doc.scrollWidth - doc.clientWidth > 0) bad.push("page scrolls sideways");
 
           const values = Array.from(
-            document.querySelectorAll<HTMLElement>(".app-fact-value"),
+            // The status VALUES, wherever they render — table cell or card.
+            // They stopped being `.app-fact-value` capsules and became toned
+            // text; what this matrix protects is unchanged, so it follows the
+            // element rather than the old class name.
+            document.querySelectorAll<HTMLElement>(".ilk-state-text"),
           ).filter((v) => v.offsetParent !== null);
-          if (values.length === 0) bad.push("no fact value rendered");
+          if (values.length === 0) bad.push("no status value rendered");
 
           for (const v of values) {
             const vb = v.getBoundingClientRect();
@@ -1448,7 +1523,7 @@ test.describe("Delivery & activity presentation holds at every supported width",
 
       const measured = await page.evaluate(() => {
         const v = Array.from(
-          document.querySelectorAll<HTMLElement>(".app-fact-value"),
+          document.querySelectorAll<HTMLElement>(".ilk-state-text"),
         ).find((el) => el.offsetParent !== null && el.textContent?.trim() === "With provider");
         if (!v) return null;
         const cs = getComputedStyle(v);
@@ -1500,7 +1575,7 @@ test.describe("Delivery & activity presentation holds at every supported width",
         const doc = document.documentElement;
         if (doc.scrollWidth - doc.clientWidth > 0) bad.push("page scrolls sideways");
         for (const v of Array.from(
-          document.querySelectorAll<HTMLElement>(".app-fact-value"),
+          document.querySelectorAll<HTMLElement>(".ilk-state-text"),
         ).filter((el) => el.offsetParent !== null)) {
           const host = (v.closest("td") ?? v.closest(".ilk-card__facts")) as HTMLElement;
           const hb = host.getBoundingClientRect();
@@ -1529,7 +1604,7 @@ test.describe("Delivery & activity presentation holds at every supported width",
 
     const measured = await page.evaluate(() => {
       const values = Array.from(
-        document.querySelectorAll<HTMLElement>(".app-fact-value"),
+        document.querySelectorAll<HTMLElement>(".ilk-state-text"),
       ).filter((v) => v.offsetParent !== null);
       return values.map((v) => {
         const host = v.closest("td") as HTMLElement;

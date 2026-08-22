@@ -70,7 +70,19 @@ export const LINK_STATE_VOCABULARY: Record<
 > = {
   ACTIVE: {
     label: "Active",
-    tone: "indigo",
+    // GREEN, not indigo. Indigo is the product's BRAND accent — it says "this
+    // is ours", not "this is healthy" — and a row scanned for operational
+    // state should read its one healthy terminal in the colour the rest of the
+    // application already uses for healthy. Green is that colour everywhere
+    // else in the redesigned surfaces.
+    //
+    // The badge renders it as the canonical soft capsule (light green fill,
+    // readable green ink), which is the "standard green" treatment the rest of
+    // the app shows — not a saturated slab.
+    //
+    // PRESENTATION ONLY. `getLinkOperationalState` is untouched: what counts
+    // as ACTIVE, ARCHIVED, REVOKED or EXPIRED is unchanged.
+    tone: "green",
     explanation: "This link can still accept submissions.",
   },
   ARCHIVED: {
@@ -116,31 +128,38 @@ export const SESSION_STATE_VOCABULARY: Record<
   IntakeVocabularyEntry
 > = {
   NO_ACTIVITY: {
-    // ORANGE — the classification orange the product already owns
-    // (`--orange-fill`). "Nobody has looked at this yet" is the state an
-    // operator most needs to find, and slate hid it among the terminal ones.
-    tone: "orange",
+    // RED. "Nobody has looked at this yet" is the state an operator most needs
+    // to find, and it is the one outcome this surface exists to prevent —
+    // orange read as a caution among other cautions rather than as the thing
+    // to act on.
+    tone: "red",
     label: "Not opened",
     explanation: "Nobody has opened this link yet.",
   },
   OPENED: {
+    // AMBER — progress, not completion. With `Not opened` red and
+    // `Submitted` blue, the middle of the journey needs its own reading:
+    // somebody arrived, nothing has been delivered yet.
     label: "Opened",
-    tone: "green",
+    tone: "amber",
     explanation: "The link was opened but no upload has started.",
   },
   UPLOAD_STARTED: {
+    // AMBER, with `Opened` — both are "in flight". Indigo was the brand
+    // accent standing in for a state, which is the same conflation the
+    // lifecycle `Active` had.
     label: "Upload started",
-    tone: "indigo",
+    tone: "amber",
     explanation: "An upload is in progress and has not been submitted.",
   },
   SUBMITTED: {
-    // GREEN — the canonical success ink. A completed submission is the
-    // outcome this whole surface exists to produce.
+    // BLUE — the completed terminal of the contributor journey.
     //
-    // It shares green with OPENED, which is a deliberate, bounded collision:
-    // both are healthy progress, they never appear as the only signal, and
-    // every consumer renders `label` as text beside the colour.
-    tone: "green",
+    // Green now belongs to the DELIVERY axis, where it means "the message got
+    // where it was going". Keeping green here made the two orthogonal columns
+    // share one colour for two unrelated successes, so a row scanned quickly
+    // read as one fact instead of two.
+    tone: "blue",
     label: "Submitted",
     explanation: "At least one contributor completed a submission.",
   },
@@ -155,8 +174,16 @@ export const DELIVERY_STATE_VOCABULARY: Record<
   IntakeVocabularyEntry
 > = {
   NOT_SENT: {
+    // RED. Slate filed this among the neutral facts, where it disappeared —
+    // and "no message was sent" is the delivery state most likely to explain
+    // why a contributor never appeared.
+    //
+    // A DELIBERATE OVERSTATEMENT, recorded as one: manual sharing is a
+    // legitimate choice, so this is not always a fault. The `explanation`
+    // ("the link is shared manually") is what every consumer surfaces as the
+    // accessible description, and it still says so.
     label: "Not sent",
-    tone: "slate",
+    tone: "red",
     explanation: "No message was sent — the link is shared manually.",
   },
   QUEUED: {
@@ -171,13 +198,19 @@ export const DELIVERY_STATE_VOCABULARY: Record<
     // carried is preserved verbatim in `explanation`, which every renderer
     // surfaces as the accessible description.
     label: "With provider",
-    tone: "amber",
+    // GREEN — the message is where it should be. Amber implied something
+    // needed attention; the provider holding a message is the normal, healthy
+    // middle of a send.
+    tone: "green",
     explanation:
       "Queued with the provider — the provider accepted the message and has not handed it off yet.",
   },
   SENT: {
+    // GREEN, with the rest of the healthy send path. Blue is the ACTIVITY
+    // axis's completion colour now, and reusing it here would put the same
+    // colour on two unrelated facts in one row.
     label: "Sent to provider",
-    tone: "blue",
+    tone: "green",
     explanation: "The provider accepted the send; delivery is not confirmed.",
   },
   DELIVERED: {

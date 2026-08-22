@@ -3285,6 +3285,11 @@ export async function meInboxRoutes(app: FastifyInstance) {
             degradedSources: [],
             historyAvailable: false,
             summary: { total: 0, byTone: {}, byCategory: {}, byPriority: {} },
+            metricSummary: {
+              total: 0,
+              unread: 0,
+              byTone: { critical: 0, high: 0, warning: 0, info: 0 },
+            },
             truncated: {},
             anyTruncated: false,
             pagination: {
@@ -3348,10 +3353,44 @@ export async function meInboxRoutes(app: FastifyInstance) {
             ? { OR: [{ teamId: requestedWorkspaceId }, { teamId: null }] }
             : {}),
         };
-        const [total, rows] = await Promise.all([
-          prisma.operationsInboxSnapshot.count({ where }),
-          readArchivedPage(where, requestedSort, offset, pageSize),
-        ]);
+        // THE METRIC BASIS, for the archive. Same rule as the live path:
+        // lifecycle + category + workspace, WITHOUT the tone and read-state
+        // the cards themselves set. Expressed as its own predicate rather
+        // than reusing `where`, which carries both of those.
+        const metricWhere = {
+          userId,
+          dismissedAtUtc: { not: null },
+          ...(requestedWorkspaceId
+            ? { OR: [{ teamId: requestedWorkspaceId }, { teamId: null }] }
+            : {}),
+          ...ARCHIVE_CATEGORY_MEMBERS(requestedFilter),
+        };
+        const [total, rows, metricTotal, metricUnread, metricTones] =
+          await Promise.all([
+            prisma.operationsInboxSnapshot.count({ where }),
+            readArchivedPage(where, requestedSort, offset, pageSize),
+            prisma.operationsInboxSnapshot.count({ where: metricWhere }),
+            prisma.operationsInboxSnapshot.count({
+              where: { ...metricWhere, readAtUtc: null },
+            }),
+            prisma.operationsInboxSnapshot.groupBy({
+              by: ["severity"],
+              where: metricWhere,
+              _count: { _all: true },
+            }),
+          ]);
+        const toneCount = (t: string): number =>
+          metricTones.find((g) => g.severity === t)?._count._all ?? 0;
+        const archivedMetricSummary = {
+          total: metricTotal,
+          unread: metricUnread,
+          byTone: {
+            critical: toneCount("critical"),
+            high: toneCount("high"),
+            warning: toneCount("warning"),
+            info: toneCount("info"),
+          },
+        };
         // Membership-loss redaction — snapshots whose workspace the
         // caller can no longer access keep ONLY safe personal-state
         // metadata; tenant-sensitive content and deep links are
@@ -3444,6 +3483,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
           degradedSources: [],
           historyAvailable: true,
           summary: { total, byTone: {}, byCategory: {}, byPriority: {} },
+          metricSummary: archivedMetricSummary,
           truncated: {},
           anyTruncated: false,
           pagination: {
@@ -3548,6 +3588,46 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // an item — visibility only. No second aggregation runs.
       const scopeCategoryCount = (category: InboxCategory): number =>
         scopeItems.filter((i) => i.category === category).length;
+
+      // -----------------------------------------------------------------
+      // THE METRIC-CARD BASIS.
+      //
+      // The six cards are ALTERNATIVE primary filters, so their counts have
+      // to describe the population the reader is currently looking at, minus
+      // the one axis the cards themselves set.
+      //
+      //   IN   lifecycle (active / archived), category, workspace
+      //   OUT  tone, read-state — the axes the cards ARE
+      //
+      // Leaving tone in would make each card count only the rows it had
+      // already selected: pick High, and High reads 8 while every other card
+      // reads 0, which destroys the one thing the row is for — telling you
+      // what is waiting behind the OTHER cards.
+      //
+      // Leaving the advanced filters OUT was the actual defect. `scopeSummary`
+      // is deliberately filter-independent (it answers "does an eligible item
+      // exist in category X?" for the filter-chip reveal, and must not shrink
+      // when a filter narrows), and the cards were reading it. So selecting
+      // Archived showed the ACTIVE severity distribution above a list of
+      // archived rows.
+      //
+      // A separate, purpose-named summary rather than a change to
+      // `scopeSummary`: the two answer different questions, and collapsing
+      // them would have broken the chip-reveal signal instead.
+      // -----------------------------------------------------------------
+      const metricItems = scopeItems.filter((it) =>
+        matchesFilter(it, requestedFilter, nowMs),
+      );
+      const metricSummary = {
+        total: metricItems.length,
+        unread: metricItems.filter((i) => !i.isRead).length,
+        byTone: {
+          critical: metricItems.filter((i) => i.tone === "critical").length,
+          high: metricItems.filter((i) => i.tone === "high").length,
+          warning: metricItems.filter((i) => i.tone === "warning").length,
+          info: metricItems.filter((i) => i.tone === "info").length,
+        },
+      };
       const scopeSummary = {
         total: scopeItems.length,
         unread: scopeItems.filter((i) => !i.isRead).length,
@@ -3750,6 +3830,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // conditions. Absent on History responses (snapshot store, not
         // the live aggregation).
         scopeSummary,
+        metricSummary,
         // Phase IA-cleanup — honest pagination signal. Per-category +
         // top-level boolean. UI banners read these so the operator
         // knows when to drill into the canonical console for the

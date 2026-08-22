@@ -275,6 +275,16 @@
 .ilk-table .app-chip {
   white-space: normal;
 }
+/* …EXCEPT THE CHANNEL CHIP, which holds one short word.
+   The rule above lets a long chip wrap rather than push the table wider, which
+   is right for a chip whose text can run long. The channel chip cannot: it is
+   "Email", "SMS" or "Link", and `overflow-wrap: anywhere` on the cell was
+   therefore free to break those into "Ema / il" and "SM / S" — a single word
+   split down a column, which reads as a rendering fault rather than as a
+   value. The column floor above reserves the width this needs. */
+.ilk-table td[data-col="channel"] .app-chip {
+  white-space: nowrap;
+}
 /* Column geometry — floors and ceilings, in CHARACTERS, so the sizing follows
    the text a locale actually produces rather than a pixel count measured from
    English. `ch` is resolved against the cell font, so a larger text scale
@@ -301,7 +311,14 @@
 }
 .ilk-table th[data-col="channel"],
 .ilk-table td[data-col="channel"] {
-  min-inline-size: 7ch;
+  /* ONE LINE, for the same reason the Latest activity column takes one.
+     The floor was 7ch — the character count of "CHANNEL" — but `ch` measures
+     the "0" glyph, and this heading is uppercase with letter-spacing, so it
+     was reliably wider than its own floor and broke to "CHANN / EL". The
+     values ("Email", "SMS") were being squeezed onto a letter per line by the
+     same shortfall. */
+  white-space: nowrap;
+  min-inline-size: 9.5ch;
 }
 .ilk-table th[data-col="lifecycle"],
 .ilk-table td[data-col="lifecycle"] {
@@ -329,8 +346,20 @@
 }
 .ilk-table th[data-col="latest"],
 .ilk-table td[data-col="latest"] {
-  min-inline-size: 9ch;
-  max-inline-size: 14ch;
+  /* ONE LINE, HEADING AND VALUE.
+     Both were wrapping at desktop width: "Latest activity" broke after
+     "Latest", and "04 Jul 2026" broke after "Jul" — a date split across two
+     lines stops reading as a date at all.
+
+     The floor is sized to the HEADING, which is the widest thing this column
+     carries (15ch against the value's 11ch). The ceiling moves with it,
+     because a max below the floor would re-introduce the wrap the nowrap is
+     there to prevent. That is ~2ch more than before; the Delivery & activity
+     column beside it gave up more than that when its values stopped being
+     padded, bordered capsules, so the row is not wider overall. */
+  white-space: nowrap;
+  min-inline-size: 15ch;
+  max-inline-size: 16ch;
 }
 /* Wide enough for the longest value this column carries — and that value is
    now a DATE, "01 Jan 2020", not the "Expired 01 Jan 2020" phrase it used to
@@ -434,6 +463,7 @@
 }
 .ilk-status__line {
   display: flex;
+  gap: 8px;
   /* CENTRE, not baseline: the value is now a bordered surface with its own
      padding, and baseline-aligning a box against a bare label leaves the box
      sitting low. */
@@ -463,9 +493,55 @@
    was ~20px of air per row that the value now needs to stay on the line. */
 .ilk-status__key {
   flex: 0 0 auto;
-  inline-size: 3.2rem;
-  font-weight: 600;
+  /* A FIXED label column, so "Delivery" and "Activity" put their values at the
+     same inline offset on every row. The values themselves are ragged — the
+     words are different lengths and that is fine — but the column they start
+     in must not be. */
+  inline-size: 3.9rem;
+  font-weight: 500;
+  /* The label is the quiet half of the pair; the value carries the colour. */
+  color: var(--ink-muted);
 }
+/* ===========================================================================
+   DELIVERY & ACTIVITY — TONED TEXT, NOT CAPSULES.
+
+   These two values used `.app-fact-value`: a bordered, tinted, padded inline
+   surface. One per line, two lines per row, across every row — and because
+   each capsule sizes to its own words, the column became a ragged stack of
+   boxes of six different widths. It read as the busiest thing in the table
+   while carrying two of its quietest facts.
+
+   The state is now the TEXT. No background, no border, no shadow, no radius —
+   only weight and a semantic colour, which is what the rest of the redesigned
+   tables do with a secondary fact.
+
+   COLOUR IS NEVER THE ONLY CUE: the label ("Submitted", "Not opened") is the
+   content of the element, and `title` still carries the full explanation.
+   Every colour below is a canonical `--ilk-tone-*` token, which are the same
+   values the app-wide status badges use.
+   =========================================================================== */
+.ilk-state-text {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  /* A state phrase split across two lines reads as two states. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-inline-size: 100%;
+  font-weight: 600;
+  color: var(--ilk-tone, var(--ilk-tone-slate));
+}
+.ilk-state-text[data-ilk-tone="slate"] { --ilk-tone: var(--ilk-tone-slate); }
+.ilk-state-text[data-ilk-tone="indigo"] { --ilk-tone: var(--ilk-tone-indigo); }
+.ilk-state-text[data-ilk-tone="blue"] { --ilk-tone: var(--ilk-tone-blue); }
+.ilk-state-text[data-ilk-tone="green"] { --ilk-tone: var(--ilk-tone-green); }
+.ilk-state-text[data-ilk-tone="amber"] { --ilk-tone: var(--ilk-tone-amber); }
+.ilk-state-text[data-ilk-tone="red"] { --ilk-tone: var(--ilk-tone-red); }
+.ilk-state-text[data-ilk-tone="orange"] { --ilk-tone: var(--orange-ink); }
+
 /* The VALUE treatment moved to `.app-fact-value` in app-primitives.css.
    Both renderers now put that one class on the element that carries the wire
    probe, so the table cell and the card fact cannot drift — previously the

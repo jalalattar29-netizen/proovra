@@ -199,6 +199,29 @@ type InboxEnvelope = {
      *  filter eligibility. */
     deadlines?: { dueSoon: number; overdue: number };
   };
+  /**
+   * THE METRIC-CARD BASIS — the population the six cards describe.
+   *
+   * Narrowed by the ADVANCED axes the reader has applied (lifecycle,
+   * category, workspace) and NOT by the two the cards themselves set (tone,
+   * read-state). That combination is what keeps the row useful: every card
+   * answers "how many would I get if I picked this one instead", over
+   * whatever the advanced filters currently allow.
+   *
+   * Distinct from `scopeSummary`, which is deliberately filter-INDEPENDENT
+   * because it drives the filter-chip reveal and must not shrink when a
+   * filter narrows. The cards used to read that one, which is why selecting
+   * Archived showed the ACTIVE severity distribution above a list of archived
+   * rows.
+   *
+   * Server-computed over the FULL filtered population, never the loaded page —
+   * so paging cannot move a card's number.
+   */
+  metricSummary?: {
+    total: number;
+    unread: number;
+    byTone: Record<InboxTone, number>;
+  };
   truncated?: InboxTruncated;
   anyTruncated?: boolean;
   /**
@@ -606,20 +629,30 @@ function InboxPageInner() {
   // category a real item reveals.
 
   /**
-   * One count per metric card, read from the SCOPE summary.
+   * One count per metric card.
    *
-   * `scopeSummary` is filter-independent — it describes the workspace scope
-   * rather than the current filter window — which is what a summary strip has
-   * to be: a set of cards whose numbers changed every time you clicked one of
-   * them would be describing the click, not the inbox.
+   * The numbers move with the ADVANCED filters and stay still under the
+   * cards' own axes — which is the property that makes them work as
+   * alternatives. Select Archived and every card re-describes the archive;
+   * select High within it and the other five keep telling you what is waiting
+   * behind them, rather than collapsing to zero because High is now the only
+   * thing counted.
    */
   const metricCount = (
     key: NotificationMetricKey,
     data: InboxEnvelope,
   ): number => {
-    if (key === "unread") return data.scopeSummary?.unread ?? 0;
-    if (key === "all") return data.scopeSummary?.total ?? data.summary.total;
-    return data.scopeSummary?.byTone[key] ?? data.summary.byTone[key];
+    // `metricSummary` is the canonical basis — see its docstring on the
+    // envelope. The fallbacks keep a pre-deploy envelope rendering numbers
+    // rather than blanks; they are not a second aggregation.
+    const m = data.metricSummary;
+    if (key === "unread") return m?.unread ?? data.scopeSummary?.unread ?? 0;
+    if (key === "all") {
+      return m?.total ?? data.scopeSummary?.total ?? data.summary.total;
+    }
+    return (
+      m?.byTone[key] ?? data.scopeSummary?.byTone[key] ?? data.summary.byTone[key] ?? 0
+    );
   };
 
   /**
@@ -1737,35 +1770,41 @@ function InboxPageInner() {
                 One generic "no items match" for all of them made an empty
                 archive look like a broken filter, and a broken filter look
                 like an empty inbox. The reader needs to know which of the
-                three they are in, because only one of them has an action. */}
+                three they are in, because only one of them has an action.
+
+                CENTRED, and sized to the message. The copy used to sit hard
+                against the top-inline-start corner of a wide outlined
+                rectangle, which reads as a panel that failed to finish
+                loading rather than as an answer. */}
             {archived && activeFilterCount === 1 && category === "all" ? (
-              <Card variant="empty" padding="comfortable">
-                <span
-                  style={{ fontSize: 14 }}
-                  data-inbox-empty-reason="archive"
-                >
-                  No archived notifications. Archiving a notification files it
-                  here and takes it out of your active list.
-                </span>
-              </Card>
+              <div className="ops-empty" data-inbox-empty-reason="archive">
+                <p className="ops-empty__title">No archived notifications.</p>
+                <p className="ops-empty__body">
+                  Archiving a notification files it here and takes it out of
+                  your active list.
+                </p>
+              </div>
             ) : (
-              <Card variant="empty" padding="comfortable">
-                <span
-                  style={{ fontSize: 14 }}
-                  data-inbox-empty-reason="filters"
+              <div className="ops-empty" data-inbox-empty-reason="filters">
+                <p className="ops-empty__title">
+                  No notifications match these filters.
+                </p>
+                <p className="ops-empty__body">
+                  Try changing or clearing the active filters.
+                </p>
+                {/* The CANONICAL action button, not a text link. Clearing is a
+                    real action with a real consequence, and it is the only
+                    thing to do from this state — it should look like something
+                    you press. */}
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  data-action="clear-filter"
+                  className="app-secondary-action"
                 >
-                  No notifications match these filters.{" "}
-                  <button
-                    type="button"
-                    onClick={clearAllFilters}
-                    data-action="clear-filter"
-                    className="ops-link-btn"
-                    style={{ marginInlineStart: 6 }}
-                  >
-                    Clear filters
-                  </button>
-                </span>
-              </Card>
+                  Clear filters
+                </button>
+              </div>
             )}
           </div>
         )}
