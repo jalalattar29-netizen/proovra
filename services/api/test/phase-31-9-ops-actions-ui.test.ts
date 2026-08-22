@@ -28,7 +28,7 @@ function readSource(rel: string): string {
 }
 
 const PAGE_SRC = readSource(
-  "../../../apps/web/app/(app)/operations/media-graph/page.tsx",
+  "../../../apps/web/app/(app)/admin/platform/media-graph/page.tsx",
 );
 
 // =============================================================================

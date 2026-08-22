@@ -116,7 +116,7 @@ export function PageRouteGate({
   if (access.accessState === "PLATFORM_ADMIN_ONLY") {
     // PRODUCTION FIX: previously this branch returned `null`, leaving
     // non-platform-admin users on a blank URL whenever they typed a
-    // platform-admin route directly (e.g. `/operations/observability`).
+    // platform-admin route directly (e.g. `/admin/platform/observability`).
     // That violates this component's own header rule: "NEVER renders a
     // blank page. Every denied state has a structured panel with primary
     // + (optional) secondary action."

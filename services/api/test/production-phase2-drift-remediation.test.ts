@@ -1101,7 +1101,19 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // which would have made the registration order load-bearing.
 //
 // The pin continues to detect further unaudited route adds.
-const ROUTE_COUNT_PHASE_2_BASELINE = 127;
+// ATTENTION ARCHITECTURE PHASE 7 (2026-08-22) — 127 -> 126, a REMOVAL.
+//
+// This pin exists to catch unaudited route ADDS, and it just caught a
+// DELETION, which is the direction it was never guarding. The file removed is
+// `me-operational-priorities.routes.ts`: a duplicate general-attention
+// authority that computed "what needs your attention right now" from its own
+// reads of org invites, org-admin governance and onboarding, all three of
+// which already had a canonical home in the notification aggregation.
+//
+// The pin is lowered rather than removed. It still detects the thing it was
+// written for, and lowering it deliberately is exactly the "argued for in that
+// phase's brief" the note below asks for.
+const ROUTE_COUNT_PHASE_2_BASELINE = 126;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

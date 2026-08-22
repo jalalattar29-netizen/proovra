@@ -17,7 +17,7 @@
  *     - `workspace.evidence_requests` → `/evidence-requests` (C3 inspector)
  *  5. The `next.config.js` redirects table:
  *     - Removed the `/review → /reviewer-ops` redirect (was bypassing C0).
- *     - Added `/ops/reliability → /operations/reliability` alias for the
+ *     - Added `/ops/reliability → /admin/platform/reliability` alias for the
  *       inconsistent path prefix.
  *  6. A canonical `OperationalBreadcrumb` component exists, is wired
  *     into the Matter Workspace and the Evidence Request inspector,
@@ -224,9 +224,9 @@ describe("Phase B — next.config.js redirects", () => {
     );
   });
 
-  it("added the /ops/reliability → /operations/reliability alias", () => {
+  it("added the /ops/reliability → /admin/platform/reliability alias", () => {
     expect(NEXT_CONFIG).toMatch(
-      /source:\s*"\/ops\/reliability",\s*destination:\s*"\/operations\/reliability"/,
+      /source:\s*"\/ops\/reliability",\s*destination:\s*"\/admin\/platform\/reliability"/,
     );
   });
 

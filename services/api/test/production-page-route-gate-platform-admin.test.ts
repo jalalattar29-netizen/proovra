@@ -3,7 +3,7 @@
  * not a blank page.
  *
  * Pins the fix for the production bug where non-platform-admin users
- * who typed `/operations/observability` (or any other platform-admin
+ * who typed `/admin/platform/observability` (or any other platform-admin
  * route) directly into the URL bar saw a completely blank page. The
  * component's header rule explicitly says "NEVER renders a blank page",
  * but the PLATFORM_ADMIN_ONLY branch returned `null`. This test holds

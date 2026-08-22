@@ -73,7 +73,7 @@ describe("R2 Part 1 — root primary navigation is bounded to the Phase B canoni
       "workspace.evidence",
       "workspace.capture",
       "workspace.intake_links",
-      "account.inbox",
+      "account.notifications",
       "workspace.search",
       "workspace.reports",
     ];

@@ -1,11 +1,23 @@
-"use client";
-
 /**
- * Phase IA-self-serve-simplification — ENTERPRISE-tier route group
- * gate. Re-exports the shared `EnterpriseSurfaceLayout` so every page
- * in this directory inherits the surface-tier visibility check. Non-
- * eligible users hitting this URL directly are redirected (or 404'd
- * per the rule table) by `SurfaceGate` before the page renders.
+ * ATTENTION ARCHITECTURE PHASE 5 (2026-08-22).
+ *
+ * The ENTERPRISE-tier surface gate that used to guard this directory is GONE.
+ * It guarded the outbound delivery LOG, which was an enterprise admin surface;
+ * this directory now holds the PERSONAL NOTIFICATION CENTER, and a person's own
+ * notifications are not an enterprise feature. Gating them behind a plan tier
+ * would hide someone's own mail from them.
+ *
+ * The delivery log kept its gate: it moved to
+ * `/settings/notifications/deliveries`, which sits under the settings surface
+ * and remains capability-gated on SETTINGS_VIEW.
+ *
+ * Access to what a caller may SEE inside the feed is unchanged and is decided
+ * server-side by the aggregation's own authorization, not by this layout.
  */
-
-export { default } from "../../../components/surface/EnterpriseSurfaceLayout";
+export default function NotificationsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return children;
+}

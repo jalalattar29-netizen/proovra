@@ -6635,6 +6635,9 @@ enum IncidentCategory {
   DATABASE
   WORKER
   RECONCILIATION
+  // ATTENTION ARCHITECTURE PHASE 3 — per-Evidence TSA/OTS integrity gaps.
+  // Added by migration 20271216000000_evidence_integrity_incident_category.
+  EVIDENCE_INTEGRITY
 }
 
 // OperationalIncident — one row per deduplicated incident. The

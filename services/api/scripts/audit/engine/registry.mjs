@@ -562,6 +562,27 @@ export const PRODUCTION_RUNTIME_ROOTS = Object.freeze([
    * files sitting beside it are not swept in with it.
    */
   "apps/web/middleware.ts",
+  /**
+   * ATTENTION ARCHITECTURE (2026-08-22) — the Next.js ROUTING CONFIGURATION,
+   * which sits at the app root beside `middleware.ts` and matched none of
+   * the directory prefixes above.
+   *
+   * The table refused it rather than defaulting it — again the behaviour it
+   * exists for. Having looked: `next.config.js` holds `redirects()`, and a
+   * redirect executes on every matching request exactly as middleware does.
+   * It is also, as of this pass, where the TENANT/PLATFORM namespace
+   * boundary is written down: the `/operations/* → /admin/platform/*`
+   * entries are what keep a historical URL for an internal console landing
+   * on the platform-admin-gated route rather than inside the tenant
+   * Operations namespace. A file that decides where a request lands is
+   * production runtime; filing it as RELEASE_CONFIGURATION beside
+   * `tsconfig.json` would put a routing authority outside the rule that
+   * says an audit-engine pass may not touch production runtime.
+   *
+   * Named as an exact file, for the same reason `middleware.ts` is: so the
+   * type-declaration and config files beside it are not swept in.
+   */
+  "apps/web/next.config.js",
   "apps/mobile/",
   "packages/",
 ]);

@@ -156,10 +156,10 @@ describe("Phase IA-collapse — Account Security home (unified /settings Securit
 // ---------------------------------------------------------------------------
 
 describe("Phase IA-collapse — standalone /collaboration retired", () => {
-  it("next.config.js redirects /collaboration → /inbox", () => {
+  it("next.config.js redirects /collaboration → /notifications", () => {
     const cfg = readSource("../../../apps/web/next.config.js");
     expect(cfg).toMatch(
-      /source:\s*["']\/collaboration["'][\s\S]{0,150}destination:\s*["']\/inbox["']/,
+      /source:\s*["']\/collaboration["'][\s\S]{0,900}destination:\s*["']\/notifications["']/,
     );
   });
 

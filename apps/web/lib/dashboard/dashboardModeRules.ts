@@ -136,7 +136,7 @@ export const MODE_QUICK_ACTIONS: Record<
     {
       id: "org.collaboration",
       label: "Check your inbox",
-      href: "/inbox",
+      href: "/notifications",
       intent: "secondary",
     },
   ],

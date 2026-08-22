@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "a22d8c1ae81f43a123dd1d03e1aeccc0f6b47b77d8bce9e53755c3af2c7a8145",
+  "capabilityRouteInventoryHash": "2be280d81a37f5b6bfffd7cfe29ef12a783c1dfada28550694d71f220cf678fe",
   "totals": {
-    "routes": 1087,
+    "routes": 1091,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -2039,12 +2039,6 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "GET /v1/me/operational-priorities",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
       "routeId": "GET /v1/me/orgs",
       "testCallerCount": 0,
       "testOnly": false,
@@ -2214,6 +2208,12 @@
     },
     {
       "routeId": "GET /v1/ops/seed/reviewer-ops",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/ops/summary",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5340,6 +5340,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/archive",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/me/inbox/items/:itemKey/dismiss",
       "testCallerCount": 0,
       "testOnly": false,
@@ -5352,7 +5358,25 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/remind",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/me/inbox/items/:itemKey/snooze",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/unarchive",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/undismiss",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6604,5 +6628,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "9d614b8c59c9f33fd96e00a9b0f0182378d7ccb6a0a02c8ddc376a9cdcee45b9"
+  "contentHash": "743a51585bfc88574bb99f5414f13c2b31bf032c97ef0281c349f891743b8893"
 }

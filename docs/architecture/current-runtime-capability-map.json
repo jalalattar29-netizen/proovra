@@ -4,20 +4,20 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
-  "routeInventoryHash": "a22d8c1ae81f43a123dd1d03e1aeccc0f6b47b77d8bce9e53755c3af2c7a8145",
-  "consumerInventoryHash": "c9a740c5459e3bd4c8af9f48783d64884c0d2b3c2b38bea3348506a9807410cb",
-  "dispositionsHash": "e6c29ce2e6f9d44469f62dbff1faff8f87ae2d55fbd42d8c550b1774eef77e02",
+  "routeInventoryHash": "2be280d81a37f5b6bfffd7cfe29ef12a783c1dfada28550694d71f220cf678fe",
+  "consumerInventoryHash": "511d23c3cb458c5dbb77e9942f0a4be3af2e5c5c5de828a25dbf8ef00b6b38c3",
+  "dispositionsHash": "d0cfdefd8dd28d4ca9dc2409583aaba86e57a95e5afb9a8c28f685f1ae3e1db0",
   "totals": {
-    "RegisteredRoutes": 1087,
-    "ProductionRegisteredRoutes": 1086,
+    "RegisteredRoutes": 1091,
+    "ProductionRegisteredRoutes": 1090,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 860,
-    "NonProductDispositionedRoutes": 226,
+    "ProductConsumedRoutes": 862,
+    "NonProductDispositionedRoutes": 228,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 860,
+    "ProductConsumerRoutes": 862,
     "MachineOnlyConsumerRoutes": 4,
-    "NoConsumerRoutes": 223,
+    "NoConsumerRoutes": 225,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -50,15 +50,15 @@
       "MACHINE_OR_CRON": 2,
       "WEBHOOK": 0,
       "ADMIN_OPERATOR": 19,
-      "COMPATIBILITY_TOMBSTONE": 19,
+      "COMPATIBILITY_TOMBSTONE": 21,
       "INTENTIONALLY_BACKEND_ONLY": 3,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
-    "TerminalWriters": 1213,
-    "ReachableSensitiveMutations": 1207,
-    "ClassifiedSensitiveMutations": 1207,
+    "TerminalWriters": 1217,
+    "ReachableSensitiveMutations": 1211,
+    "ClassifiedSensitiveMutations": 1211,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 6,
@@ -83,7 +83,7 @@
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 103,
       "REPORT_EXPORT_REDACTION": 46,
-      "API_KEY_SECRET_OPERATIONAL_ADMIN": 87
+      "API_KEY_SECRET_OPERATIONAL_ADMIN": 91
     },
     "byNonRequestDisposition": {
       "REGISTERED_CLI": 3,
@@ -98,7 +98,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1087,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1091,
       "JOB_ATTRIBUTED_REACHABLE": 114,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -121,7 +121,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7781,
+      "METHOD_ON_VALUE": 7801,
       "UNRESOLVED_IDENTIFIER": 985
     },
     "MutationFixpointRounds": 9,
@@ -131,25 +131,25 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 860,
+      "PRODUCT_CONNECTED": 862,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
       "ADMIN_OPERATOR": 19,
-      "COMPATIBILITY_TOMBSTONE": 22,
+      "COMPATIBILITY_TOMBSTONE": 24,
       "INTENTIONALLY_BACKEND_ONLY": 5,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1085,
+    "TenantBindingResolved": 1089,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
-      "GLOBAL_USER_SELF": 55,
-      "PLATFORM_GLOBAL": 41,
-      "WORKSPACE_SCOPED": 742,
+      "GLOBAL_USER_SELF": 59,
+      "PLATFORM_GLOBAL": 42,
+      "WORKSPACE_SCOPED": 741,
       "ORGANIZATION_SCOPED": 88,
       "MULTI_TENANT_PLATFORM_ADMIN": 69,
       "TOKEN_SCOPED": 45,
@@ -158,11 +158,11 @@
       "NO_DATA_ACCESS": 11
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 188,
+    "OrganizationRoutesMeasured": 187,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1085,
+    "ClassifiedSecurityRoutes": 1089,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -176,8 +176,8 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 439,
-        "tagged": 439
+        "primary": 442,
+        "tagged": 442
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 366,
@@ -232,25 +232,25 @@
         "tagged": 34
       },
       "OPERATIONAL_HEALTH_METRICS_DEBUG_SEED": {
-        "primary": 44,
-        "tagged": 44
+        "primary": 45,
+        "tagged": 45
       }
     }
   },
-  "totalRoutes": 1087,
+  "totalRoutes": 1091,
   "classificationCounts": {
-    "TARGET_COMPLETE": 860,
-    "INTERNAL_REQUIRED": 224,
+    "TARGET_COMPLETE": 862,
+    "INTERNAL_REQUIRED": 226,
     "COMPATIBILITY_TEMPORARY": 3
   },
   "evidenceLevelCounts": {
-    "UNPROVEN": 156,
+    "UNPROVEN": 160,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
     "BEHAVIORALLY_PROVEN": 400,
     "BEHAVIORAL_SERVICE_ONLY": 15
   },
   "verticalCounts": {
-    "PLATFORM_CORE": 361,
+    "PLATFORM_CORE": 365,
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "OPERATIONS_INTELLIGENCE": 126,
     "OPERATIONS_AUTOMATION": 1,
@@ -1092,7 +1092,7 @@
       "method": "GET",
       "route": "/v1/analytics/operations",
       "registeringFile": "services/api/src/routes/analytics-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/analytics/page.tsx:299",
+      "productConsumer": "apps/web/app/(app)/admin/platform/analytics/page.tsx:299",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1104,7 +1104,7 @@
       "method": "GET",
       "route": "/v1/analytics/reviewer",
       "registeringFile": "services/api/src/routes/analytics-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/analytics/page.tsx:300",
+      "productConsumer": "apps/web/app/(app)/admin/platform/analytics/page.tsx:300",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1116,7 +1116,7 @@
       "method": "GET",
       "route": "/v1/analytics/governance",
       "registeringFile": "services/api/src/routes/analytics-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/analytics/page.tsx:301",
+      "productConsumer": "apps/web/app/(app)/admin/platform/analytics/page.tsx:301",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1128,7 +1128,7 @@
       "method": "GET",
       "route": "/v1/analytics/automation",
       "registeringFile": "services/api/src/routes/analytics-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/analytics/page.tsx:302",
+      "productConsumer": "apps/web/app/(app)/admin/platform/analytics/page.tsx:302",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1140,7 +1140,7 @@
       "method": "GET",
       "route": "/v1/analytics/artifacts",
       "registeringFile": "services/api/src/routes/analytics-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/analytics/page.tsx:303",
+      "productConsumer": "apps/web/app/(app)/admin/platform/analytics/page.tsx:303",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1152,7 +1152,7 @@
       "method": "GET",
       "route": "/v1/analytics/_window",
       "registeringFile": "services/api/src/routes/analytics-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/analytics/page.tsx:248",
+      "productConsumer": "apps/web/app/(app)/admin/platform/analytics/page.tsx:248",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1428,7 +1428,7 @@
       "method": "GET",
       "route": "/v1/automation/rules",
       "registeringFile": "services/api/src/routes/automation.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/automation/page.tsx:109",
+      "productConsumer": "apps/web/app/(app)/admin/platform/automation/page.tsx:109",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1488,7 +1488,7 @@
       "method": "GET",
       "route": "/v1/automation/runs",
       "registeringFile": "services/api/src/routes/automation.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/automation/page.tsx:112",
+      "productConsumer": "apps/web/app/(app)/admin/platform/automation/page.tsx:112",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3000,7 +3000,7 @@
       "method": "GET",
       "route": "/v1/dashboard/command-center",
       "registeringFile": "services/api/src/routes/dashboard.routes.ts",
-      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:109",
+      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:110",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3012,7 +3012,7 @@
       "method": "GET",
       "route": "/v1/dashboard/trust-summary",
       "registeringFile": "services/api/src/routes/dashboard.routes.ts",
-      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:115",
+      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:116",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3024,7 +3024,7 @@
       "method": "GET",
       "route": "/v1/dashboard/records-by-type",
       "registeringFile": "services/api/src/routes/dashboard.routes.ts",
-      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:128",
+      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:129",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6876,7 +6876,7 @@
       "method": "GET",
       "route": "/v1/me/inbox",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:488",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:522",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6900,7 +6900,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/mark-all-read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:514",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:558",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6912,7 +6912,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:593",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:649",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6924,11 +6924,47 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unread",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:593",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:649",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/me/inbox/items/:itemKey/archive",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/me/inbox/items/:itemKey/archive",
+      "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:649",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/me/inbox/items/:itemKey/unarchive",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/me/inbox/items/:itemKey/unarchive",
+      "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:649",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/me/inbox/items/:itemKey/remind",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/me/inbox/items/:itemKey/remind",
+      "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:649",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "POST:/v1/me/inbox/items/:itemKey/dismiss",
@@ -6936,11 +6972,23 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/dismiss",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:593",
+      "productConsumer": "apps/web/components/app-shell-v2/NotificationBell.tsx:393",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/me/inbox/items/:itemKey/undismiss",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/me/inbox/items/:itemKey/undismiss",
+      "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "POST:/v1/me/inbox/items/:itemKey/snooze",
@@ -6948,23 +6996,11 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/snooze",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:593",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
-    },
-    {
-      "capabilityId": "GET:/v1/me/operational-priorities",
-      "vertical": "PLATFORM_CORE",
-      "method": "GET",
-      "route": "/v1/me/operational-priorities",
-      "registeringFile": "services/api/src/routes/me-operational-priorities.routes.ts",
-      "productConsumer": "apps/web/components/command-center/AccountPrioritiesBanner.tsx:122",
-      "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
-      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/evidence/:evidenceId/media-intelligence",
@@ -7476,7 +7512,7 @@
       "method": "GET",
       "route": "/v1/notifications/deliveries",
       "registeringFile": "services/api/src/routes/notifications.routes.ts",
-      "productConsumer": "apps/web/app/(app)/notifications/page.tsx:133",
+      "productConsumer": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx:133",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7500,7 +7536,7 @@
       "method": "POST",
       "route": "/v1/notifications/deliveries/:id/resend",
       "registeringFile": "services/api/src/routes/notifications.routes.ts",
-      "productConsumer": "apps/web/app/(app)/notifications/page.tsx:160",
+      "productConsumer": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx:160",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7548,7 +7584,7 @@
       "method": "GET",
       "route": "/v1/operations/exports",
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/exports/page.tsx:193",
+      "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:193",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7560,7 +7596,7 @@
       "method": "GET",
       "route": "/v1/operations/exports/object-lock",
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/exports/page.tsx:196",
+      "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:196",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7572,7 +7608,7 @@
       "method": "GET",
       "route": "/v1/operations/exports/:id",
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/exports/page.tsx:196",
+      "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:196",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7596,7 +7632,7 @@
       "method": "POST",
       "route": "/v1/operations/exports/:id/verify",
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/exports/page.tsx:535",
+      "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:535",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7608,7 +7644,7 @@
       "method": "GET",
       "route": "/v1/operations/queues",
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/queues/page.tsx:151",
+      "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:151",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7620,7 +7656,7 @@
       "method": "GET",
       "route": "/v1/operations/queues/workers",
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/queues/page.tsx:154",
+      "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:154",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7632,7 +7668,7 @@
       "method": "GET",
       "route": "/v1/operations/queues/replay-safety",
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/queues/page.tsx:158",
+      "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:158",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7644,7 +7680,7 @@
       "method": "GET",
       "route": "/v1/operations/queues/:queueName/failed",
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/queues/page.tsx:177",
+      "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:177",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7656,7 +7692,7 @@
       "method": "POST",
       "route": "/v1/operations/queues/:queueName/jobs/:jobId/retry",
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/queues/page.tsx:242",
+      "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:242",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7668,7 +7704,7 @@
       "method": "POST",
       "route": "/v1/operations/queues/:queueName/jobs/:jobId/replay",
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/queues/page.tsx:223",
+      "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:223",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7692,7 +7728,7 @@
       "method": "GET",
       "route": "/v1/operations/readiness",
       "registeringFile": "services/api/src/routes/operations-readiness.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/readiness/page.tsx:166",
+      "productConsumer": "apps/web/app/(app)/admin/platform/readiness/page.tsx:166",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7704,7 +7740,7 @@
       "method": "GET",
       "route": "/v1/operations/recovery",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/recovery/page.tsx:133",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:133",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7716,7 +7752,7 @@
       "method": "POST",
       "route": "/v1/operations/recovery/validate-backup",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/recovery/page.tsx:153",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:153",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7728,7 +7764,7 @@
       "method": "POST",
       "route": "/v1/operations/recovery/validate-restore",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/recovery/page.tsx:179",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:179",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7752,7 +7788,7 @@
       "method": "GET",
       "route": "/v1/operations/recovery/reports/:id",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/recovery/page.tsx:208",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:208",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7764,7 +7800,7 @@
       "method": "GET",
       "route": "/v1/operations/signers",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:232",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:232",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7776,7 +7812,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:541",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:541",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7788,7 +7824,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id/health",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:564",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:564",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7800,7 +7836,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id/audit",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:551",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:551",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7824,7 +7860,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/preview",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:581",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:581",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7836,7 +7872,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/promote",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:606",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:606",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7848,7 +7884,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/retire",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:606",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:606",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7860,7 +7896,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/revoke",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:606",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:606",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7872,7 +7908,7 @@
       "method": "GET",
       "route": "/v1/operations/custody-attestations",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:235",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:235",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7884,7 +7920,7 @@
       "method": "POST",
       "route": "/v1/operations/custody-attestations/backfill",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:292",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:292",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7896,7 +7932,7 @@
       "method": "POST",
       "route": "/v1/operations/custody-attestations/:id/verify",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/signers/page.tsx:263",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:263",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8004,7 +8040,7 @@
       "method": "GET",
       "route": "/v1/ops/metrics",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:205",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:248",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8028,7 +8064,7 @@
       "method": "GET",
       "route": "/v1/ops/alerts",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/observability/page.tsx:306",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:306",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8059,6 +8095,18 @@
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
+      "capabilityId": "GET:/v1/ops/summary",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/ops/summary",
+      "registeringFile": "services/api/src/routes/ops.routes.ts",
+      "productConsumer": "apps/web/components/home-experience/useHomeData.ts:172",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/ops/incidents",
       "vertical": "OPERATIONS_INTELLIGENCE",
       "method": "GET",
@@ -8076,7 +8124,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/ack",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:272",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:323",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8088,7 +8136,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/resolve",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:272",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:323",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8100,7 +8148,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/suppress",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:272",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:323",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8292,7 +8340,7 @@
       "method": "POST",
       "route": "/v1/ops/media-intelligence/runs/:runId/retry",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/media-graph/page.tsx:284",
+      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:284",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8316,7 +8364,7 @@
       "method": "POST",
       "route": "/v1/ops/media-intelligence/dlq/replay",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/media-graph/page.tsx:319",
+      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:319",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -10008,7 +10056,7 @@
       "method": "GET",
       "route": "/v1/reliability/summary",
       "registeringFile": "services/api/src/routes/reliability.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/reliability/page.tsx:117",
+      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:117",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10020,7 +10068,7 @@
       "method": "GET",
       "route": "/v1/reliability/upload-sessions",
       "registeringFile": "services/api/src/routes/reliability.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/reliability/page.tsx:121",
+      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:121",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10032,7 +10080,7 @@
       "method": "POST",
       "route": "/v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
       "registeringFile": "services/api/src/routes/reliability.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/reliability/page.tsx:156",
+      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:156",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10044,7 +10092,7 @@
       "method": "POST",
       "route": "/v1/reliability/upload-sessions/:evidenceId/request-review",
       "registeringFile": "services/api/src/routes/reliability.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/reliability/page.tsx:179",
+      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:179",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -18016,8 +18064,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@3271",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3271",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@3612",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3612",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18049,8 +18097,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@3419",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3419",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@3760",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3760",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18059,9 +18107,13 @@
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": true,
       "entryRoutes": [
+        "POST /v1/me/inbox/items/:itemKey/archive",
         "POST /v1/me/inbox/items/:itemKey/dismiss",
         "POST /v1/me/inbox/items/:itemKey/read",
+        "POST /v1/me/inbox/items/:itemKey/remind",
         "POST /v1/me/inbox/items/:itemKey/snooze",
+        "POST /v1/me/inbox/items/:itemKey/unarchive",
+        "POST /v1/me/inbox/items/:itemKey/undismiss",
         "POST /v1/me/inbox/items/:itemKey/unread"
       ],
       "entryJobs": [],
@@ -18085,8 +18137,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@3276",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3276",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@3617",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3617",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18118,8 +18170,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@3289",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3289",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@3630",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3630",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18151,8 +18203,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@3424",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3424",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@3765",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3765",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18161,9 +18213,13 @@
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": true,
       "entryRoutes": [
+        "POST /v1/me/inbox/items/:itemKey/archive",
         "POST /v1/me/inbox/items/:itemKey/dismiss",
         "POST /v1/me/inbox/items/:itemKey/read",
+        "POST /v1/me/inbox/items/:itemKey/remind",
         "POST /v1/me/inbox/items/:itemKey/snooze",
+        "POST /v1/me/inbox/items/:itemKey/unarchive",
+        "POST /v1/me/inbox/items/:itemKey/undismiss",
         "POST /v1/me/inbox/items/:itemKey/unread"
       ],
       "entryJobs": [],
@@ -18187,8 +18243,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@803",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:803",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@934",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:934",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18222,8 +18278,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@3294",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3294",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@3635",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3635",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18255,8 +18311,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@3445",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3445",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@3786",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:3786",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18265,9 +18321,13 @@
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": true,
       "entryRoutes": [
+        "POST /v1/me/inbox/items/:itemKey/archive",
         "POST /v1/me/inbox/items/:itemKey/dismiss",
         "POST /v1/me/inbox/items/:itemKey/read",
+        "POST /v1/me/inbox/items/:itemKey/remind",
         "POST /v1/me/inbox/items/:itemKey/snooze",
+        "POST /v1/me/inbox/items/:itemKey/unarchive",
+        "POST /v1/me/inbox/items/:itemKey/undismiss",
         "POST /v1/me/inbox/items/:itemKey/unread"
       ],
       "entryJobs": [],
@@ -18291,8 +18351,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@836",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:836",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@967",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:967",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18326,8 +18386,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@847",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:847",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@990",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:990",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18394,8 +18454,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@1709",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:1709",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@1882",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:1882",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -18427,8 +18487,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#communicationMessage.update@209",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:209",
+      "writerId": "services/api/src/routes/ops.routes.ts#communicationMessage.update@295",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:295",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "runMasterReconcile",
       "kind": "DATABASE",
@@ -18460,8 +18520,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#stepUpChallenge.updateMany@152",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:152",
+      "writerId": "services/api/src/routes/ops.routes.ts#stepUpChallenge.updateMany@238",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:238",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "runMasterReconcile",
       "kind": "DATABASE",
@@ -18493,8 +18553,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#trustedDevice.updateMany@161",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:161",
+      "writerId": "services/api/src/routes/ops.routes.ts#trustedDevice.updateMany@247",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:247",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "runMasterReconcile",
       "kind": "DATABASE",
@@ -21799,7 +21859,6 @@
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
@@ -34896,7 +34955,6 @@
         "MODULE services/api/src/routes/intelligence-platform.routes.ts",
         "MODULE services/api/src/routes/internal-media-intelligence-extract.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/redaction.routes.ts",
@@ -38077,7 +38135,6 @@
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
@@ -42217,6 +42274,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -42764,7 +42822,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -43050,6 +43107,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -43597,7 +43655,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -43882,6 +43939,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -44428,7 +44486,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -44713,6 +44770,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -45259,7 +45317,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -45545,6 +45602,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -46092,7 +46150,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -46377,6 +46434,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -46923,7 +46981,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -47208,6 +47265,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -47754,7 +47812,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -48316,6 +48373,138 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.update@314",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:314",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "enclosingDeclaration": "recordIntegrityCondition",
+      "kind": "DATABASE",
+      "target": "operationalIncident",
+      "mutationKind": "update",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/dashboard/command-center"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/dashboard.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.update@455",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:455",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "enclosingDeclaration": "resolveRecoveredConditions",
+      "kind": "DATABASE",
+      "target": "operationalIncident",
+      "mutationKind": "update",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/dashboard/command-center"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/dashboard.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@323",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:323",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "enclosingDeclaration": "recordIntegrityCondition",
+      "kind": "DATABASE",
+      "target": "operationalIncidentEvent",
+      "mutationKind": "create",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/dashboard/command-center"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/dashboard.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@467",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:467",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "enclosingDeclaration": "resolveRecoveredConditions",
+      "kind": "DATABASE",
+      "target": "operationalIncidentEvent",
+      "mutationKind": "create",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/dashboard/command-center"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/dashboard.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -50508,6 +50697,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/orgs/:orgId/domains",
@@ -51144,7 +51334,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -51208,8 +51397,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@306",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:306",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@344",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:344",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -51242,8 +51431,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@368",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:368",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@426",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:426",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -56374,6 +56563,7 @@
         "GET /v1/ops/incidents",
         "GET /v1/ops/metrics",
         "GET /v1/ops/seed/reviewer-ops",
+        "GET /v1/ops/summary",
         "GET /v1/ops/workflows",
         "GET /v1/ops/workflows/:id",
         "GET /v1/packaging/entitlements",
@@ -56920,7 +57110,6 @@
         "MODULE services/api/src/routes/internal-reindex.routes.ts",
         "MODULE services/api/src/routes/investigation-diagnostics.routes.ts",
         "MODULE services/api/src/routes/me-inbox.routes.ts",
-        "MODULE services/api/src/routes/me-operational-priorities.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
@@ -66759,7 +66948,7 @@
       "method": "GET",
       "path": "/admin/runtime/schema-status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:627",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:713",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -66855,7 +67044,7 @@
       "method": "GET",
       "path": "/healthz",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:350",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:436",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -66892,7 +67081,7 @@
       "method": "GET",
       "path": "/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:536",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:622",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -67006,7 +67195,7 @@
       "method": "GET",
       "path": "/readyz",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:359",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:445",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -69137,7 +69326,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/analytics/page.tsx",
           "line": 248,
           "caller": "AnalyticsPageInner",
           "class": "WEB",
@@ -69148,7 +69337,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/analytics/page.tsx:248 (AnalyticsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/analytics/page.tsx:248 (AnalyticsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -69187,7 +69376,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/analytics/page.tsx",
           "line": 303,
           "caller": "AnalyticsPageInner",
           "class": "WEB",
@@ -69198,7 +69387,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/analytics/page.tsx:303 (AnalyticsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/analytics/page.tsx:303 (AnalyticsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -69252,7 +69441,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/analytics/page.tsx",
           "line": 302,
           "caller": "AnalyticsPageInner",
           "class": "WEB",
@@ -69263,7 +69452,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/analytics/page.tsx:302 (AnalyticsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/analytics/page.tsx:302 (AnalyticsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -69319,7 +69508,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/analytics/page.tsx",
           "line": 301,
           "caller": "AnalyticsPageInner",
           "class": "WEB",
@@ -69330,7 +69519,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/analytics/page.tsx:301 (AnalyticsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/analytics/page.tsx:301 (AnalyticsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -69383,7 +69572,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/analytics/page.tsx",
           "line": 299,
           "caller": "AnalyticsPageInner",
           "class": "WEB",
@@ -69394,7 +69583,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/analytics/page.tsx:299 (AnalyticsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/analytics/page.tsx:299 (AnalyticsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -69450,7 +69639,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/analytics/page.tsx",
           "line": 300,
           "caller": "AnalyticsPageInner",
           "class": "WEB",
@@ -69461,7 +69650,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/analytics/page.tsx:300 (AnalyticsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/analytics/page.tsx:300 (AnalyticsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -70195,7 +70384,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/automation/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/automation/page.tsx",
           "line": 109,
           "caller": "AutomationPageInner",
           "class": "WEB",
@@ -70206,7 +70395,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/automation/page.tsx:109 (AutomationPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/automation/page.tsx:109 (AutomationPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -70259,7 +70448,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/automation/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/automation/page.tsx",
           "line": 112,
           "caller": "AutomationPageInner",
           "class": "WEB",
@@ -70270,7 +70459,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/automation/page.tsx:112 (AutomationPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/automation/page.tsx:112 (AutomationPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -70712,7 +70901,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 133,
+          "line": 134,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -73674,7 +73863,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 156,
+          "line": 185,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -73684,7 +73873,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:46 (DeliveryHistoryDrawer, WEB); apps/web/app/(app)/communications/page.tsx:372 (loadMessages, WEB); apps/web/components/home-experience/useHomeData.ts:156 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:46 (DeliveryHistoryDrawer, WEB); apps/web/app/(app)/communications/page.tsx:372 (loadMessages, WEB); apps/web/components/home-experience/useHomeData.ts:185 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -73738,7 +73927,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 109,
+          "line": 110,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -73756,7 +73945,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:109 (useHomeData, WEB); apps/web/components/command-center/CommandCenter.tsx:168 (CommandCenter, WEB)",
+      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:110 (useHomeData, WEB); apps/web/components/command-center/CommandCenter.tsx:168 (CommandCenter, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -73833,14 +74022,14 @@
         "services/api/src/routes/dashboard.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/dashboard.routes.ts)",
         "services/api/src/services/dashboard/command-center.service.ts: caseEvidenceLink.groupBy — no tenant or self predicate",
         "services/api/src/services/dashboard/command-center.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts: operationalIncident.update — no tenant or self predicate",
         "services/api/src/services/dashboard/command-center.service.ts: caseEvidenceLink.groupBy — no tenant or self predicate",
         "services/api/src/services/dashboard/command-center.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/services/dashboard/command-center.service.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "services/api/src/services/dashboard/command-center.service.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "services/api/src/services/dashboard/command-center.service.ts: evidence.findMany — no tenant or self predicate"
+        "services/api/src/services/dashboard/command-center.service.ts: caseEvidenceLink.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -73931,7 +74120,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 128,
+          "line": 129,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -73941,7 +74130,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:128 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:129 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -73989,7 +74178,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 115,
+          "line": 116,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -73999,7 +74188,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:115 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:116 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -74068,7 +74257,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 166,
+          "line": 195,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -74134,7 +74323,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/setup/page.tsx:293 (OrganizationSetupInner, WEB); apps/web/app/(app)/evidence/page.tsx:441 (EvidenceLibraryPageInner, WEB); apps/web/components/home-experience/useHomeData.ts:166 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/setup/page.tsx:293 (OrganizationSetupInner, WEB); apps/web/app/(app)/evidence/page.tsx:441 (EvidenceLibraryPageInner, WEB); apps/web/components/home-experience/useHomeData.ts:195 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -84807,7 +84996,7 @@
       "method": "GET",
       "path": "/v1/me/inbox",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:2640",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:2879",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -84818,7 +85007,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 488,
+          "line": 522,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -84826,7 +85015,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 533,
+          "line": 582,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -84842,7 +85031,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 149,
+          "line": 150,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -84860,7 +85049,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:488 (InboxPageInner, WEB); apps/web/app/(app)/inbox/page.tsx:533 (InboxPageInner, WEB); apps/web/components/notifications/NotificationPreferencesPanel.tsx:238 (NotificationPreferencesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:522 (InboxPageInner, WEB); apps/web/app/(app)/inbox/page.tsx:582 (InboxPageInner, WEB); apps/web/components/notifications/NotificationPreferencesPanel.tsx:238 (NotificationPreferencesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -84903,7 +85092,11 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/access/accessible-workspaces.ts: the canonical accessible-workspace resolver",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/routes/me-inbox.routes.ts: operationsInboxSnapshot.count — no tenant or self predicate",
+        "services/api/src/routes/me-inbox.routes.ts: operationsInboxSnapshot.findMany — no tenant or self predicate",
+        "services/api/src/routes/me-inbox.routes.ts: organizationInvite.findMany — no tenant or self predicate",
+        "services/api/src/routes/me-inbox.routes.ts: workflowReviewDecision.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -84918,7 +85111,7 @@
       "method": "GET",
       "path": "/v1/me/inbox/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3119",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3431",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -84979,7 +85172,9 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/access/accessible-workspaces.ts: the canonical accessible-workspace resolver",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/routes/me-inbox.routes.ts: organizationInvite.findMany — no tenant or self predicate",
+        "services/api/src/routes/me-inbox.routes.ts: workflowReviewDecision.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -85114,61 +85309,6 @@
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
-      "tenantUnboundInsertSites": []
-    },
-    {
-      "routeId": "GET /v1/me/operational-priorities",
-      "method": "GET",
-      "path": "/v1/me/operational-priorities",
-      "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-operational-priorities.routes.ts:51",
-      "authorizationClass": "AUTHENTICATED",
-      "authorizationEvidence": [
-        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
-      ],
-      "gates": [
-        "AUTHENTICATED"
-      ],
-      "productConsumers": [
-        {
-          "file": "apps/web/components/command-center/AccountPrioritiesBanner.tsx",
-          "line": 122,
-          "caller": "AccountPrioritiesBanner",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
-      "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/command-center/AccountPrioritiesBanner.tsx:122 (AccountPrioritiesBanner, WEB)",
-      "dispositionReason": "reached from a product surface",
-      "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
-      "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "inline-membership-status-check",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "organizationInvite",
-        "organizationMembership",
-        "user"
-      ],
-      "modelsWritten": [],
-      "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/routes/me-operational-priorities.routes.ts: organizationMembership.findMany paired with a lifecycle-status predicate (services/api/src/routes/me-operational-priorities.routes.ts)",
-        "services/api/src/routes/me-operational-priorities.routes.ts: organizationInvite.findMany — no tenant or self predicate"
-      ],
-      "tenantIdSource": "MEMBERSHIP_LOOKUP",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
-      "crossTenantRefusalSemantics": "refusal raised by the named authority",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -85308,7 +85448,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/notifications/page.tsx",
+          "file": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx",
           "line": 133,
           "caller": "NotificationsPageInner",
           "class": "WEB",
@@ -85319,7 +85459,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/notifications/page.tsx:133 (NotificationsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx:133 (NotificationsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85425,7 +85565,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 235,
           "caller": "OperationsSignersContent",
           "class": "WEB",
@@ -85436,7 +85576,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:235 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:235 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85481,7 +85621,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/exports/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
           "line": 193,
           "caller": "OperationsExportsContent",
           "class": "WEB",
@@ -85492,7 +85632,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/exports/page.tsx:193 (OperationsExportsContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:193 (OperationsExportsContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85540,7 +85680,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/exports/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
           "line": 196,
           "caller": "OperationsExportsContent",
           "class": "WEB",
@@ -85548,7 +85688,7 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/operations/exports/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
           "line": 519,
           "caller": "ExportDrawer",
           "class": "WEB",
@@ -85559,7 +85699,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/exports/page.tsx:196 (OperationsExportsContent, WEB); apps/web/app/(app)/operations/exports/page.tsx:519 (ExportDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:196 (OperationsExportsContent, WEB); apps/web/app/(app)/admin/platform/exports/page.tsx:519 (ExportDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85657,7 +85797,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/exports/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
           "line": 196,
           "caller": "OperationsExportsContent",
           "class": "WEB",
@@ -85668,7 +85808,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/exports/page.tsx:196 (OperationsExportsContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:196 (OperationsExportsContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85714,7 +85854,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 151,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -85725,7 +85865,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/queues/page.tsx:151 (OperationsQueuesContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/queues/page.tsx:151 (OperationsQueuesContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85769,7 +85909,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 177,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -85780,7 +85920,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/queues/page.tsx:177 (OperationsQueuesContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/queues/page.tsx:177 (OperationsQueuesContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85824,7 +85964,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 158,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -85835,7 +85975,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/queues/page.tsx:158 (OperationsQueuesContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/queues/page.tsx:158 (OperationsQueuesContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85879,7 +86019,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 154,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -85890,7 +86030,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/queues/page.tsx:154 (OperationsQueuesContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/queues/page.tsx:154 (OperationsQueuesContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85936,7 +86076,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/readiness/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/readiness/page.tsx",
           "line": 166,
           "caller": "OperationsReadinessContent",
           "class": "WEB",
@@ -85947,7 +86087,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/readiness/page.tsx:166 (OperationsReadinessContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/readiness/page.tsx:166 (OperationsReadinessContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85994,7 +86134,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/recovery/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
           "line": 133,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
@@ -86005,7 +86145,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/recovery/page.tsx:133 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:133 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86097,7 +86237,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/recovery/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
           "line": 208,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
@@ -86108,7 +86248,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/recovery/page.tsx:208 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:208 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86153,7 +86293,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 232,
           "caller": "OperationsSignersContent",
           "class": "WEB",
@@ -86164,7 +86304,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:232 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:232 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86209,7 +86349,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 541,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -86220,7 +86360,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:541 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:541 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86265,7 +86405,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 551,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -86276,7 +86416,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:551 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:551 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86321,7 +86461,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 564,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -86332,7 +86472,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:564 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:564 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86366,7 +86506,7 @@
       "method": "GET",
       "path": "/v1/ops/alerts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:582",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:668",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86376,7 +86516,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/observability/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
           "line": 306,
           "caller": "tick",
           "class": "WEB",
@@ -86387,7 +86527,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/observability/page.tsx:306 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:306 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86421,7 +86561,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1741",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1914",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86467,7 +86607,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1492",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1629",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86522,7 +86662,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1515",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1652",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86570,7 +86710,7 @@
       "method": "GET",
       "path": "/v1/ops/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:397",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:483",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86589,7 +86729,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 203,
+          "line": 246,
           "caller": "OpsPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86599,7 +86739,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:225 (ReadinessTab, WEB); apps/web/app/(app)/operations/page.tsx:203 (OpsPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:225 (ReadinessTab, WEB); apps/web/app/(app)/operations/page.tsx:246 (OpsPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86634,7 +86774,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:694",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:811",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86653,7 +86793,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 204,
+          "line": 247,
           "caller": "OpsPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86661,7 +86801,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 279,
+          "line": 330,
           "caller": "transitionIncident",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86679,7 +86819,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:228 (ReadinessTab, WEB); apps/web/app/(app)/operations/page.tsx:204 (OpsPageInner, WEB); apps/web/app/(app)/operations/page.tsx:279 (transitionIncident, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:228 (ReadinessTab, WEB); apps/web/app/(app)/operations/page.tsx:247 (OpsPageInner, WEB); apps/web/app/(app)/operations/page.tsx:330 (transitionIncident, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86714,7 +86854,7 @@
       "method": "GET",
       "path": "/v1/ops/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:478",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:564",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86725,24 +86865,8 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 205,
+          "line": 248,
           "caller": "OpsPageInner",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/app/(app)/operations/observability/page.tsx",
-          "line": 302,
-          "caller": "tick",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/app/(app)/operations/media-graph/page.tsx",
-          "line": 232,
-          "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -86754,12 +86878,28 @@
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
+        },
+        {
+          "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
+          "line": 302,
+          "caller": "tick",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
+          "line": 232,
+          "caller": "load",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
         }
       ],
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:205 (OpsPageInner, WEB); apps/web/app/(app)/operations/observability/page.tsx:302 (tick, WEB); apps/web/app/(app)/operations/media-graph/page.tsx:232 (load, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:248 (OpsPageInner, WEB); apps/web/app/(app)/investigation/page.tsx:239 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:302 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86837,11 +86977,67 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/ops/summary",
+      "method": "GET",
+      "path": "/v1/ops/summary",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:794",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/components/home-experience/useHomeData.ts",
+          "line": 172,
+          "caller": "useHomeData",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:172 (useHomeData, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "OPERATIONAL_HEALTH_METRICS_DEBUG_SEED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "PLATFORM_GLOBAL",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "operationalIncident",
+        "teamMember"
+      ],
+      "modelsWritten": [
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/ops/workflows",
       "method": "GET",
       "path": "/v1/ops/workflows",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1063",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1200",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86896,7 +87092,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1101",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1238",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -88334,6 +88530,7 @@
       "modelsRead": [
         "collaborationTeamInvite",
         "collaborationTeamMember",
+        "enterpriseContract",
         "entitlement",
         "organizationInvite",
         "organizationMembership",
@@ -90063,7 +90260,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/reliability/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/reliability/page.tsx",
           "line": 117,
           "caller": "ReliabilityPageInner",
           "class": "WEB",
@@ -90074,7 +90271,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/reliability/page.tsx:117 (ReliabilityPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:117 (ReliabilityPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90127,7 +90324,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/reliability/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/reliability/page.tsx",
           "line": 121,
           "caller": "ReliabilityPageInner",
           "class": "WEB",
@@ -90138,7 +90335,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/reliability/page.tsx:121 (ReliabilityPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:121 (ReliabilityPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90198,7 +90395,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 138,
+          "line": 139,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90208,7 +90405,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reports-experience/ReportsIndex.tsx:111 (tryUserScopedReports, WEB); apps/web/components/home-experience/useHomeData.ts:138 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/components/reports-experience/ReportsIndex.tsx:111 (tryUserScopedReports, WEB); apps/web/components/home-experience/useHomeData.ts:139 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95465,7 +95662,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 144,
+          "line": 145,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95475,7 +95672,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:153 (IntakeLinksManagement, WEB); apps/web/components/home-experience/useHomeData.ts:144 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:153 (IntakeLinksManagement, WEB); apps/web/components/home-experience/useHomeData.ts:145 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107137,7 +107334,7 @@
         },
         {
           "file": "apps/web/components/home-experience/HomeSections.tsx",
-          "line": 529,
+          "line": 296,
           "caller": "retry",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107147,7 +107344,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:70 (retry, WEB); apps/web/app/(app)/communications/page.tsx:173 (retryNow, WEB); apps/web/components/home-experience/HomeSections.tsx:529 (retry, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:70 (retry, WEB); apps/web/app/(app)/communications/page.tsx:173 (retryNow, WEB); apps/web/components/home-experience/HomeSections.tsx:296 (retry, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121202,11 +121399,11 @@
       "tenantUnboundInsertSites": []
     },
     {
-      "routeId": "POST /v1/me/inbox/items/:itemKey/dismiss",
+      "routeId": "POST /v1/me/inbox/items/:itemKey/archive",
       "method": "POST",
-      "path": "/v1/me/inbox/items/:itemKey/dismiss",
+      "path": "/v1/me/inbox/items/:itemKey/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3500",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3942",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121217,12 +121414,58 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 593,
+          "line": 649,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
-        },
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:649 (postAction, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "operationsInboxSnapshot"
+      ],
+      "modelsWritten": [
+        "collaborationTeamNotification",
+        "inboxItemState",
+        "operationsInboxSnapshot"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/dismiss",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/dismiss",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3959",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
           "line": 393,
@@ -121235,7 +121478,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:593 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:393 (mutate, WEB)",
+      "dispositionEvidence": "apps/web/components/app-shell-v2/NotificationBell.tsx:393 (mutate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121268,7 +121511,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3464",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3846",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121279,7 +121522,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 593,
+          "line": 649,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121297,7 +121540,61 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:593 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:393 (mutate, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:649 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:393 (mutate, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "operationsInboxSnapshot"
+      ],
+      "modelsWritten": [
+        "collaborationTeamNotification",
+        "inboxItemState",
+        "operationsInboxSnapshot"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/remind",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/remind",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3944",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/inbox/page.tsx",
+          "line": 649,
+          "caller": "postAction",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:649 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121330,7 +121627,52 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/snooze",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3525",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3961",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/me-inbox.routes.ts app.post(\"/v1/me/inbox/items/:itemKey/snooze\", { preHandler: requireAuthAndLegal }, remindHandler) — the handler constant is shared with POST /v1/me/inbox/items/:itemKey/remind, so there is one implementation behind both names and no second behaviour can appear. Alias declared in services/api/src/services/notifications/personal-attention-state.ts LEGACY_ACTION_ALIASES { snooze: \"remind\" } and reconciled against the registrations at boot (REGISTERED_LEGACY_ALIASES throws on drift). Product consumer migrated: apps/web/app/(app)/inbox/page.tsx postAction(item.itemKey, \"remind\", { remindAt }) — the canonical route is product-connected. Retained deliberately because shipped clients POST /snooze with body { snoozedUntil }, which remindHandler still parses (raw.remindAt ?? raw.snoozedUntil). Contract pinned by services/api/test/phase-ia-reliability-inbox-state.test.ts \"keeps the legacy /dismiss and /snooze URLs alive via the alias table\".",
+      "dispositionReason": "Legacy product name for the canonical `remind` action. Registered as a literal alias pointing at the SAME handler constant; the web client was migrated to the canonical name in Attention Architecture Phase 1, which is why it now shows zero product consumers.",
+      "replacement": "POST /v1/me/inbox/items/:itemKey/remind",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "operationsInboxSnapshot"
+      ],
+      "modelsWritten": [
+        "collaborationTeamNotification",
+        "inboxItemState",
+        "operationsInboxSnapshot"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/unarchive",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/unarchive",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3943",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121341,7 +121683,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 593,
+          "line": 649,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121351,10 +121693,55 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:593 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:649 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "operationsInboxSnapshot"
+      ],
+      "modelsWritten": [
+        "collaborationTeamNotification",
+        "inboxItemState",
+        "operationsInboxSnapshot"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/undismiss",
+      "method": "POST",
+      "path": "/v1/me/inbox/items/:itemKey/undismiss",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3960",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/me-inbox.routes.ts app.post(\"/v1/me/inbox/items/:itemKey/undismiss\", { preHandler: requireAuthAndLegal }, unarchiveHandler) — same handler constant as POST /v1/me/inbox/items/:itemKey/unarchive. Name originates in services/api/prisma/schema.prisma InboxItemState.dismissedAt doc comment: \"Reversible via /v1/me/inbox/items/:itemKey/undismiss in a future phase.\" Alias declared in services/api/src/services/notifications/personal-attention-state.ts LEGACY_ACTION_ALIASES { undismiss: \"unarchive\" } and reconciled at boot. Product consumer is on the CANONICAL name: apps/web/app/(app)/inbox/page.tsx unarchiveItem -> postAction(item.itemKey, \"unarchive\"), rendered as the History row's \"Unarchive\" control (data-action=\"unarchive\").",
+      "dispositionReason": "Legacy product name for the canonical `unarchive` action. The name was promised by the InboxItemState schema comment before the action existed; it is registered as a literal alias onto the canonical handler so the promised URL resolves rather than 404s.",
+      "replacement": "POST /v1/me/inbox/items/:itemKey/unarchive",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -121384,7 +121771,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unread",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3482",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3858",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121395,7 +121782,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 593,
+          "line": 649,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121405,7 +121792,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:593 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:649 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121438,7 +121825,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/mark-all-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3220",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3561",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121449,7 +121836,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 514,
+          "line": 558,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121467,7 +121854,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:514 (InboxPageInner, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:427 (markAllRead, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:558 (InboxPageInner, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:427 (markAllRead, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121687,7 +122074,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/notifications/page.tsx",
+          "file": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx",
           "line": 160,
           "caller": "resend",
           "class": "WEB",
@@ -121698,7 +122085,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/notifications/page.tsx:160 (resend, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx:160 (resend, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122009,7 +122396,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 263,
           "caller": "OperationsSignersContent",
           "class": "WEB",
@@ -122020,7 +122407,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:263 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:263 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122066,7 +122453,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 292,
           "caller": "OperationsSignersContent",
           "class": "WEB",
@@ -122077,7 +122464,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:292 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:292 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122128,7 +122515,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/exports/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
           "line": 535,
           "caller": "ExportDrawer",
           "class": "WEB",
@@ -122139,7 +122526,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/exports/page.tsx:535 (ExportDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:535 (ExportDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122233,7 +122620,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 223,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -122241,7 +122628,7 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 242,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -122252,7 +122639,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/queues/page.tsx:223 (OperationsQueuesContent, WEB); apps/web/app/(app)/operations/queues/page.tsx:242 (OperationsQueuesContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/queues/page.tsx:223 (OperationsQueuesContent, WEB); apps/web/app/(app)/admin/platform/queues/page.tsx:242 (OperationsQueuesContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122301,7 +122688,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/queues/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
           "line": 242,
           "caller": "OperationsQueuesContent",
           "class": "WEB",
@@ -122312,7 +122699,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/queues/page.tsx:242 (OperationsQueuesContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/queues/page.tsx:242 (OperationsQueuesContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122356,7 +122743,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/recovery/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
           "line": 153,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
@@ -122367,7 +122754,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/recovery/page.tsx:153 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:153 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122417,7 +122804,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/recovery/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
           "line": 179,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
@@ -122428,7 +122815,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/recovery/page.tsx:179 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:179 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122478,7 +122865,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 581,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -122489,7 +122876,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:581 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:581 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122534,7 +122921,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 606,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -122545,7 +122932,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:606 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:606 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122595,7 +122982,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 606,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -122606,7 +122993,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:606 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:606 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122655,7 +123042,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/signers/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
           "line": 606,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
@@ -122666,7 +123053,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/signers/page.tsx:606 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:606 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122752,7 +123139,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1633",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1793",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -122801,7 +123188,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/ops.routes.ts: bulkOperationalActionItem.findMany — no tenant or self predicate",
         "services/api/src/routes/ops.routes.ts: bulkOperationalActionRun.update — no tenant or self predicate",
@@ -122818,7 +123205,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/ack",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:748",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:885",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -122829,7 +123216,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 272,
+          "line": 323,
           "caller": "transitionIncident",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -122839,7 +123226,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:272 (transitionIncident, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:323 (transitionIncident, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122864,7 +123251,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
@@ -122881,7 +123268,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:834",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:971",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -122918,7 +123305,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -122932,7 +123319,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:772",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:909",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -122943,7 +123330,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 272,
+          "line": 323,
           "caller": "transitionIncident",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -122953,7 +123340,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:272 (transitionIncident, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:323 (transitionIncident, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122978,7 +123365,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
@@ -122995,7 +123382,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:797",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:934",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123006,7 +123393,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 272,
+          "line": 323,
           "caller": "transitionIncident",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123016,7 +123403,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:272 (transitionIncident, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:323 (transitionIncident, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123041,7 +123428,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
@@ -123058,7 +123445,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1910",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2083",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123068,7 +123455,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/media-graph/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
           "line": 319,
           "caller": "runReplayDlq",
           "class": "WEB",
@@ -123079,7 +123466,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/media-graph/page.tsx:319 (runReplayDlq, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:319 (runReplayDlq, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123099,7 +123486,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123113,7 +123500,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1885",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2058",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123145,7 +123532,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123159,7 +123546,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1829",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2002",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123169,7 +123556,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/media-graph/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
           "line": 284,
           "caller": "runRetry",
           "class": "WEB",
@@ -123180,7 +123567,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/media-graph/page.tsx:284 (runRetry, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:284 (runRetry, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123200,7 +123587,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123214,7 +123601,7 @@
       "method": "POST",
       "path": "/v1/ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:672",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:758",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -123226,7 +123613,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:672 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:758 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -123369,7 +123756,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1978",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2151",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123419,7 +123806,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1159",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1296",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123468,7 +123855,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123484,7 +123871,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1253",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1390",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123533,7 +123920,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123549,7 +123936,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/mitigation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1292",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1429",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123598,7 +123985,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123614,7 +124001,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1411",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1548",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123663,7 +124050,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123679,7 +124066,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1332",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1469",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123728,7 +124115,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123744,7 +124131,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/schedule-retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1450",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1587",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123793,7 +124180,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123809,7 +124196,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1214",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1351",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123858,7 +124245,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -123874,7 +124261,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1372",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1509",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123923,7 +124310,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/ops.routes.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -125528,6 +125915,7 @@
         "authenticatedSession",
         "collaborationTeamInvite",
         "collaborationTeamMember",
+        "enterpriseContract",
         "entitlement",
         "organization",
         "organizationInvite",
@@ -127676,7 +128064,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/reliability/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/reliability/page.tsx",
           "line": 156,
           "caller": "markAbandoned",
           "class": "WEB",
@@ -127687,7 +128075,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/reliability/page.tsx:156 (markAbandoned, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:156 (markAbandoned, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127745,7 +128133,7 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/operations/reliability/page.tsx",
+          "file": "apps/web/app/(app)/admin/platform/reliability/page.tsx",
           "line": 179,
           "caller": "requestReview",
           "class": "WEB",
@@ -127756,7 +128144,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/reliability/page.tsx:179 (requestReview, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:179 (requestReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

@@ -33,7 +33,6 @@
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { CommandCenter } from "../../../components/command-center/CommandCenter";
-import { AccountPrioritiesBanner } from "../../../components/command-center/AccountPrioritiesBanner";
 import { SelfServeHomeDashboard } from "../../../components/home-experience/SelfServeHomeDashboard";
 import { HomeSkeleton } from "../../../components/home-experience/HomeSections";
 import { resolveHomeSurface } from "../../../components/home-experience/resolveHomeSurface";
@@ -42,6 +41,29 @@ import {
   usePlatformContext,
 } from "../../../lib/platform-context";
 
+/**
+ * ATTENTION ARCHITECTURE PHASE 7 (2026-08-22) — the account-priorities
+ * banner was REMOVED from this page.
+ *
+ * It was a SECOND general attention authority on Home, fed by a dedicated
+ * account-priorities endpoint, computing "what needs your attention right
+ * now" from its own reads of org invites, org-admin governance and
+ * onboarding state.
+ *
+ * Every one of those signals already had a canonical home, which is what
+ * made it duplication rather than coverage:
+ *
+ *   pending org invites  ->  org_invite notifications (ORGANIZATION scope,
+ *                            addressed to the person by email; Phase 2.4
+ *                            stopped workspace narrowing from hiding them)
+ *   org-admin backlog    ->  org_admin notifications
+ *   onboarding           ->  GUIDANCE, which Phase 1.6 removed from the
+ *                            attention workload entirely
+ *
+ * The content did not disappear; its second computation did. Home consumes
+ * the canonical Operations summary, links to /notifications and
+ * /operations, and holds no attention authority of its own.
+ */
 export default function HomePage() {
   const { envelope } = usePlatformContext();
   const activeSpace = useActiveSpace();
@@ -67,7 +89,6 @@ export default function HomePage() {
         // Enterprise ONLY (platform admin / enterprise workspace).
         // Never reached by self-serve or unresolved users.
         <div data-home-page data-phase-a-1c-home>
-          <AccountPrioritiesBanner />
           <CommandCenter />
         </div>
       ) : decision === "loading" ? (

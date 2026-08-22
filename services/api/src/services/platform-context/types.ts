@@ -282,11 +282,42 @@ export const CAPABILITY_KEYS = [
   "LEGAL_HOLD_RELEASE",
   "RETENTION_MANAGE",
   "EXPORT_GOVERNANCE_MANAGE",
-  // Platform health
+  // ===========================================================================
+  // PLATFORM health — PROOVRA-INTERNAL consoles.
+  //
+  // PHASE 4A (2026-08-22): these gate `/platform/*`, not tenant surfaces.
+  // They were previously granted to every TEAM-scope member while the
+  // routes carrying them were `requiredActiveSpace: "PLATFORM_ADMIN"` —
+  // a capability and a gate that contradicted each other. They are now
+  // platform-admin-only, which is what the routes always enforced.
+  // ===========================================================================
   "OPS_CENTER_VIEW",
   "OBSERVABILITY_VIEW",
   "RUNBOOKS_VIEW",
   "SECURITY_CENTER_VIEW",
+  // ===========================================================================
+  // TENANT OPERATIONS — the workspace Operations Center (`/operations`).
+  //
+  // Distinct from the PLATFORM keys above: these describe what an operator
+  // may do with their OWN workspace's unresolved operational conditions.
+  //
+  // `OPERATIONS_VIEW` is deliberately NOT a plan check. It is granted when
+  // the workspace can actually PRODUCE operational conditions — reports,
+  // packages, intake or reviews are included, or the workspace is shared.
+  // That rule yields the intended tier behaviour (Personal Free: no;
+  // Personal Pro: yes; Team/Org/Enterprise: yes) without a single
+  // plan-name comparison, and stays correct when packaging changes.
+  //
+  // RETRY is deliberately absent. Retry authority belongs to the domain
+  // (`evidence.generate_report`, `notification.delivery.resend`, evidence
+  // integrity). Operations INVOKES the domain action; it never overrides
+  // the domain's permission model with a generic operations grant.
+  // ===========================================================================
+  "OPERATIONS_VIEW",
+  "OPERATIONS_ACKNOWLEDGE",
+  "OPERATIONS_ASSIGN",
+  "OPERATIONS_RESOLVE",
+  "OPERATIONS_SUPPRESS",
   // Administration
   "TEAM_VIEW",
   "TEAM_MANAGE",
@@ -417,15 +448,83 @@ export type PlatformContextWorkspace = {
   status: "active" | "no-workspace";
   id: string | null;
   name: string | null;
+  /**
+   * @deprecated ATTENTION ARCHITECTURE (2026-08-22) — LEGACY two-value classification.
+   *
+   * `scope` was derived as `team.isPersonal ? "PERSONAL" : "TEAM"`, which
+   * collapses the canonical three-value `workspaceKind` (PERSONAL / OWNED /
+   * ORGANIZATION) into two — precisely the distinction the P1 domain
+   * remediation created `Team.workspaceKind` to make, and that migration
+   * `20271125000000` made NOT NULL to enforce.
+   *
+   * It is now DERIVED from `workspaceKind` rather than from `isPersonal`,
+   * so the two can no longer disagree, and is retained only while
+   * first-party consumers migrate. New code MUST read `workspaceKind`.
+   */
   scope: WorkspaceScope | null;
+  /**
+   * CANONICAL structural classification of the active workspace, read from
+   * the persisted `Team.workspaceKind` via the canonical classifier
+   * (`resolveWorkspaceKind`). `UNKNOWN` means the kind could not be
+   * proven — consumers MUST fail closed rather than assume PERSONAL.
+   */
+  workspaceKind: ResolvedWorkspaceKind | null;
+  /**
+   * Structural classification of the workspace's parent Organization.
+   *
+   * `Team.organizationId` is NOT NULL, so EVERY workspace — including a
+   * FREE personal space — is organization-backed at the database level.
+   * `SYSTEM` is the internal 1:1 bootstrap container and must never
+   * surface as an "Organization" in product UI; only `CUSTOMER` is a
+   * governance / contract boundary.
+   */
+  organizationKind: OrganizationKindValue | null;
+  organizationId: string | null;
+  /**
+   * LEGACY BILLING PACKAGE on the workspace. This answers "what is
+   * included in this workspace's package", NOT "is this an Enterprise
+   * customer" — that is `enterprise.isEnterpriseCustomer`.
+   */
   plan: WorkspacePlan | null;
   membership: PlatformContextMembership;
+};
+
+export const ORGANIZATION_KINDS = ["SYSTEM", "CUSTOMER"] as const;
+export type OrganizationKindValue = (typeof ORGANIZATION_KINDS)[number];
+
+export const RESOLVED_WORKSPACE_KINDS = [
+  "PERSONAL",
+  "OWNED",
+  "ORGANIZATION",
+  "UNKNOWN",
+] as const;
+export type ResolvedWorkspaceKind = (typeof RESOLVED_WORKSPACE_KINDS)[number];
+
+/**
+ * ATTENTION ARCHITECTURE (2026-08-22) — the enterprise verdict plus its provenance.
+ * Mirrors `EnterpriseAuthority` in `enterprise-authority.ts`; declared here
+ * so the envelope type has no import cycle back into the service layer.
+ */
+export type PlatformContextEnterprise = {
+  isEnterpriseCustomer: boolean;
+  source: "contract" | "legacy_plan" | "none" | "unavailable";
+  contractStatus: string | null;
+  contractInEffect: boolean | null;
+  organizationId: string | null;
 };
 
 export type PlatformContextFlags = {
   isPersonalWorkspace: boolean;
   isTeamWorkspace: boolean;
+  /** ACCOUNT-tier entitlement. Follows the USER, not the workspace. */
   isProAccount: boolean;
+  /**
+   * ATTENTION ARCHITECTURE (2026-08-22) — now sourced from the canonical
+   * `EnterpriseContract` authority via `resolveEnterpriseAuthority()`,
+   * with a bounded legacy plan-string fallback. Retained under its
+   * long-standing name so existing consumers keep working; read
+   * `enterprise` for the provenance.
+   */
   isEnterpriseWorkspace: boolean;
 };
 
@@ -562,6 +661,22 @@ export type PlatformContextOrganization = {
   membershipStatus: "ACTIVE" | "PENDING" | "INACTIVE";
   plan: WorkspacePlan | null;
   memberCount: number;
+  /**
+   * ATTENTION ARCHITECTURE (2026-08-22) — this array is named `organizations` but is
+   * populated with EVERY non-personal workspace the caller belongs to,
+   * which is both self-service OWNED workspaces and real CUSTOMER-backed
+   * ORGANIZATION workspaces. Consumers that mean "organizations" in the
+   * product sense (org navigation, org counters, enterprise context,
+   * governance) must filter on these two fields rather than on the array's
+   * name.
+   *
+   * Entries are NOT removed here: the switcher and several first-party
+   * consumers legitimately want every non-personal workspace, and dropping
+   * rows would silently break them. The distinction is exposed instead.
+   */
+  workspaceKind?: ResolvedWorkspaceKind;
+  /** SYSTEM = internal bootstrap container; CUSTOMER = real organization. */
+  organizationKind?: OrganizationKindValue | null;
 };
 
 /**
@@ -901,6 +1016,20 @@ export type PlatformContextEnvelope = {
    * importing the billing package.
    */
   planFeatures: PlatformContextPlanFeatures;
+  /**
+   * ATTENTION ARCHITECTURE (2026-08-22) — CANONICAL enterprise commercial authority.
+   *
+   * The five concepts this envelope keeps deliberately apart:
+   *   `workspace.workspaceKind`     structural  (PERSONAL/OWNED/ORGANIZATION)
+   *   `workspace.organizationKind`  structural  (SYSTEM/CUSTOMER)
+   *   `account.accountPlan`         commercial  (follows the USER)
+   *   `workspace.plan`              commercial  (billing package, workspace)
+   *   `enterprise`                  commercial  (contract, CUSTOMER org)
+   *
+   * Capabilities are derived FROM these. They are not one of them, and no
+   * page may reconstruct any of them from a plan-name comparison.
+   */
+  enterprise: PlatformContextEnterprise;
   /** Operational eligibility projection (see type doc). */
   operationalEligibility: PlatformContextOperationalEligibility;
   navigation: PlatformContextNavigation;

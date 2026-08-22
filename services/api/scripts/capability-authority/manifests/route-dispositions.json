@@ -1145,6 +1145,22 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/snooze",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "Legacy product name for the canonical `remind` action. Registered as a literal alias pointing at the SAME handler constant; the web client was migrated to the canonical name in Attention Architecture Phase 1, which is why it now shows zero product consumers.",
+      "evidence": "reg services/api/src/routes/me-inbox.routes.ts app.post(\"/v1/me/inbox/items/:itemKey/snooze\", { preHandler: requireAuthAndLegal }, remindHandler) — the handler constant is shared with POST /v1/me/inbox/items/:itemKey/remind, so there is one implementation behind both names and no second behaviour can appear. Alias declared in services/api/src/services/notifications/personal-attention-state.ts LEGACY_ACTION_ALIASES { snooze: \"remind\" } and reconciled against the registrations at boot (REGISTERED_LEGACY_ALIASES throws on drift). Product consumer migrated: apps/web/app/(app)/inbox/page.tsx postAction(item.itemKey, \"remind\", { remindAt }) — the canonical route is product-connected. Retained deliberately because shipped clients POST /snooze with body { snoozedUntil }, which remindHandler still parses (raw.remindAt ?? raw.snoozedUntil). Contract pinned by services/api/test/phase-ia-reliability-inbox-state.test.ts \"keeps the legacy /dismiss and /snooze URLs alive via the alias table\".",
+      "reviewedAtUtc": "2026-08-22",
+      "replacement": "POST /v1/me/inbox/items/:itemKey/remind"
+    },
+    {
+      "routeId": "POST /v1/me/inbox/items/:itemKey/undismiss",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "Legacy product name for the canonical `unarchive` action. The name was promised by the InboxItemState schema comment before the action existed; it is registered as a literal alias onto the canonical handler so the promised URL resolves rather than 404s.",
+      "evidence": "reg services/api/src/routes/me-inbox.routes.ts app.post(\"/v1/me/inbox/items/:itemKey/undismiss\", { preHandler: requireAuthAndLegal }, unarchiveHandler) — same handler constant as POST /v1/me/inbox/items/:itemKey/unarchive. Name originates in services/api/prisma/schema.prisma InboxItemState.dismissedAt doc comment: \"Reversible via /v1/me/inbox/items/:itemKey/undismiss in a future phase.\" Alias declared in services/api/src/services/notifications/personal-attention-state.ts LEGACY_ACTION_ALIASES { undismiss: \"unarchive\" } and reconciled at boot. Product consumer is on the CANONICAL name: apps/web/app/(app)/inbox/page.tsx unarchiveItem -> postAction(item.itemKey, \"unarchive\"), rendered as the History row's \"Unarchive\" control (data-action=\"unarchive\").",
+      "reviewedAtUtc": "2026-08-22",
+      "replacement": "POST /v1/me/inbox/items/:itemKey/unarchive"
+    },
+    {
       "routeId": "POST /v1/operations/queues/:queueName/jobs/:jobId/cancel",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "job cancel has no control; the queues console exposes retry and replay only",

@@ -164,7 +164,7 @@ export function SelfServeHomeDashboard() {
               ) : (
                 <WorkspacePrioritiesCard
                   priorities={vm.workspacePriorities}
-                  operationalQueue={vm.operationalQueue}
+                  operations={vm.operations}
                 />
               )}
             </div>

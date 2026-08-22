@@ -40,6 +40,7 @@ import {
   type HomeCommunicationsInput,
   type HomeEvidenceListInput,
   type HomeInboxInput,
+  type HomeOperationsSummaryInput,
   type HomeIntakeLinksInput,
   type HomeOrgsInput,
   type HomePlan,
@@ -151,6 +152,34 @@ export function useHomeData(): HomeData {
       { method: "GET" },
     ).catch(() => null);
 
+    /**
+     * ATTENTION ARCHITECTURE PHASE 4C (2026-08-22) — THE canonical workspace
+     * Operations summary.
+     *
+     * Home used to answer "how healthy is this workspace?" from
+     * `/v1/me/inbox` above, through `buildOperationalQueue()`. That read ONE
+     * PERSON'S notification feed and reported it as the WORKSPACE'S state, so
+     * archiving a notification lowered the workspace's issue count.
+     *
+     * This reads shared operational truth instead. On failure it resolves to
+     * null, and the view model turns that into an explicit "unavailable" —
+     * it never falls back to the feed, because a substituted health number is
+     * worse than an absent one. A 403 (no Operations capability here) lands
+     * on the same path for the same reason.
+     */
+    const operationsSummaryPromise: Promise<HomeOperationsSummaryInput | null> =
+      workspaceId
+        ? apiFetch(
+            `/v1/ops/summary?teamId=${encodeURIComponent(workspaceId)}`,
+            { method: "GET" },
+          )
+            .then((res) =>
+              (res as { summary?: HomeOperationsSummaryInput } | null)
+                ?.summary ?? null,
+            )
+            .catch(() => null)
+        : Promise.resolve(null);
+
     const communicationsPromise: Promise<HomeCommunicationsInput | null> =
       workspaceId
         ? apiFetch(scoped("/v1/communications/messages?purpose=INTAKE_LINK"), {
@@ -178,6 +207,7 @@ export function useHomeData(): HomeData {
       communications,
       evidenceList,
       recordsByType,
+      operationsSummary,
     ] = await Promise.all([
       ccPromise,
       trustPromise,
@@ -188,6 +218,7 @@ export function useHomeData(): HomeData {
       communicationsPromise,
       evidenceListPromise,
       recordsByTypePromise,
+      operationsSummaryPromise,
     ]);
 
     const orgsInput: HomeOrgsInput = orgsRef.current.map((o) => ({
@@ -215,6 +246,9 @@ export function useHomeData(): HomeData {
       orgs: orgsInput,
       evidenceList,
       recordsByType,
+      // PHASE 4C — CONSUMED, never derived. null means unavailable, and the
+      // view model renders that honestly rather than substituting the feed.
+      operationsSummary,
     });
 
     setState({ status: "ready", viewModel });

@@ -21,19 +21,19 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 7150a89bbba50f177b6dc6142cf5bb2cb20a5d314e2919475ebe2211e617405f |
+| engineHash    | a53c8b19aba1b6e5cba841976857675db7f0c85dc12a5415b00388c992aa77ed |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1087  |
+| registeredRoutes              | 1091  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 860   |
+| productConsumerRoutes         | 862   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 223   |
-| dispositionedNonProductRoutes | 226   |
+| noConsumerRoutes              | 225   |
+| dispositionedNonProductRoutes | 228   |
 | undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 282   |
+| AuditFilesInventoried                      | 284   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -128,7 +128,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 164   |
+| ProductBehaviorTestsInventoried            | 166   |
 
 ### Report roles
 

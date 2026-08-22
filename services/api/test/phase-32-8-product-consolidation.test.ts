@@ -99,7 +99,7 @@ describe("32.8 Test 1 — root nav stays bounded to the canonical primaries", ()
     "workspace.evidence",
     "workspace.capture",
     "workspace.intake_links",
-    "account.inbox",
+    "account.notifications",
     "workspace.search",
     "workspace.reports",
   ];
@@ -264,7 +264,7 @@ describe("32.8 Test 5 — 4 canonical hubs exist with intact membership", () => 
     { landingId: "investigation.hub", quickActionsMin: 3 },
     { landingId: "governance.hub", quickActionsMin: 3 },
     { landingId: "review.queue", quickActionsMin: 3 },
-    { landingId: "platform.ops_center", quickActionsMin: 3 },
+    { landingId: "workspace.operations", quickActionsMin: 3 },
   ];
 
   it.each(EXPECTED_HUBS)(
@@ -509,6 +509,14 @@ describe("32.8 Test 11 — documentation + registry updated", () => {
       "investigation.hub",
       "governance.hub",
       "review.queue",
+      // HISTORICAL ID, deliberately. This assertion reads the Phase-32.8
+      // decision RECORD, which is closed and dated 2026-05-25; the id it
+      // names is the id that existed when the decision was taken. Attention
+      // Architecture Phase 4B renamed the live route to `workspace.operations`
+      // when it stopped being a platform console, and rewriting a closed
+      // record to match today's identifier would be falsifying the history
+      // this file exists to preserve. The LIVE id is asserted against the
+      // LIVE registry in `attention-arch-phase4b-workspace-operations.test.ts`.
       "platform.ops_center",
     ]) {
       expect(doc).toContain(landing);

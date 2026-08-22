@@ -263,7 +263,7 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
       existsSync(webPath("app/(app)/operations/batch-analysis/page.tsx")),
     ).toBe(true);
     expect(
-      existsSync(webPath("app/(app)/operations/reliability/page.tsx")),
+      existsSync(webPath("app/(app)/admin/platform/reliability/page.tsx")),
     ).toBe(true);
     expect(existsSync(webPath("app/(app)/review/operations/page.tsx"))).toBe(
       true,

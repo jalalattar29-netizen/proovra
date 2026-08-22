@@ -3,7 +3,7 @@
  *
  * Source-contract pins (node:test style, matching sibling web tests):
  *
- *   1. The page exists at app/(app)/operations/readiness/page.tsx.
+ *   1. The page exists at app/(app)/admin/platform/readiness/page.tsx.
  *   2. It is gated by <PageRouteGate routeId="operations.readiness">.
  *   3. It renders honest posture — the DB-backup label is a neutral
  *      "Managed platform (assumed)" / "Not configured", never a
@@ -27,14 +27,14 @@ import { dirname, resolve } from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 const APP_ROOT = resolve(dirname(__filename), "..");
-const PAGE = resolve(APP_ROOT, "app/(app)/operations/readiness/page.tsx");
+const PAGE = resolve(APP_ROOT, "app/(app)/admin/platform/readiness/page.tsx");
 
 function read(p: string): string {
   return readFileSync(p, "utf8");
 }
 
 describe("Pin 1 — page exists", () => {
-  it("app/(app)/operations/readiness/page.tsx exists", () => {
+  it("app/(app)/admin/platform/readiness/page.tsx exists", () => {
     assert.ok(existsSync(PAGE), "readiness page.tsx should exist");
   });
 });

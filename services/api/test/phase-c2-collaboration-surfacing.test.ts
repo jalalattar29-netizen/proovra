@@ -404,9 +404,21 @@ describe("Header Notification Bell", () => {
     expect(NOTIFICATION_BELL).not.toMatch(/WebSocket|EventSource|socket\.io/);
   });
 
-  it("popover footer deep-links to the Operations Center", () => {
-    expect(NOTIFICATION_BELL).toMatch(/href="\/inbox"/);
-    // The route is unchanged; the LABEL now says what the link is for, because
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 5 (2026-08-22).
+   *
+   * /inbox and /notifications swapped meaning. The personal notification
+   * centre's canonical URL is now /notifications; /inbox is a PERMANENT
+   * compatibility redirect. Every first-party link points at the canonical
+   * URL so we stop minting new traffic through a redirect, and the old URL
+   * keeps resolving for links already shipped in email.
+   */
+  it("popover footer deep-links to the notification centre", () => {
+    expect(NOTIFICATION_BELL).toMatch(/href="\/notifications"/);
+    // PHASE 5 (2026-08-22) — the route MOVED. /notifications is the canonical
+    // personal notification centre and /inbox is a permanent compatibility
+    // redirect, so the bell links to the canonical URL rather than sending
+    // every click through a 308. The LABEL says what the link is for, because
     // the popover shows five recent items and the destination holds the rest.
     expect(NOTIFICATION_BELL).toContain("View all notifications");
   });

@@ -85,7 +85,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     // Navigation stays predictable — never data- or persona-reordered.
     primary: [
       "workspace.home",
-      "account.inbox",
+      "account.notifications",
       "workspace.review",
       "workspace.cases",
       "workspace.evidence",
@@ -288,7 +288,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // surfaces.
       "account.security",
       "account.billing",
-      "workspace.notifications",
+      "workspace.notification_deliveries",
       "workspace.integrations",
       "workspace.tools",
       // Enterprise AI Program — workspace AI governance + reviewer
@@ -328,7 +328,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // PHASE 12B C10 — support access + break-glass (PLATFORM_ADMIN only).
       "platform.support_access",
 
-      "platform.ops_center",
+      "workspace.operations",
       "platform.observability",
       // Phase 8 — Platform production-readiness posture surface.
       "operations.readiness",
@@ -342,7 +342,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "platform.automation",
       "platform.analytics",
       // Phase Final-Closure-Verification — `platform.queue_ops` (the
-      // BullMQ queue triage surface at `/operations/queues`) was
+      // BullMQ queue triage surface at `/admin/platform/queues`) was
       // promoted from typed-URL-only to a discoverable canonical
       // surface; map it to SYSTEM/secondary so the Phase B coverage
       // contract still holds.

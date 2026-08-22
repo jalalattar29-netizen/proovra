@@ -369,7 +369,7 @@ function InvestigationTimelinePageInner() {
               reason={queryFailedReason}
               nextAction={{ label: "Capture evidence", href: "/capture" }}
               adminAction={{ label: "Open cases", href: "/cases" }}
-              diagnosticsLink="/operations/observability"
+              diagnosticsLink="/admin/platform/observability"
               isAdmin={canDiagnostics}
             />
           ) : (
@@ -388,7 +388,7 @@ function InvestigationTimelinePageInner() {
                   reason={reason}
                   nextAction={{ label: "Capture evidence", href: "/capture" }}
                   adminAction={{ label: "Open cases", href: "/cases" }}
-                  diagnosticsLink="/operations/observability"
+                  diagnosticsLink="/admin/platform/observability"
                   isAdmin={canDiagnostics}
                 />
               );
@@ -490,7 +490,7 @@ function formatTime(iso: string): string {
 }
 
 // =============================================================================
-// Styles — inline, dense, enterprise. Matches /operations/media-graph register.
+// Styles — inline, dense, enterprise. Matches /admin/platform/media-graph register.
 // =============================================================================
 
 const pageStyle: React.CSSProperties = {

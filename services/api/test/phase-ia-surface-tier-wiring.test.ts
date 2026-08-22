@@ -190,9 +190,32 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
     );
   });
 
-  it("/notifications is ENTERPRISE — redirects to /settings", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 5 (2026-08-22).
+   *
+   * This rule guarded the OUTBOUND DELIVERY LOG that used to own
+   * `/notifications` — an admin debugging surface of provider errors and
+   * resend buttons, which a self-serve user should indeed be redirected away
+   * from. It is unchanged in every respect EXCEPT its path: the log moved to
+   * `/settings/notifications/deliveries`, and its tier rule moved with it.
+   *
+   * `/notifications` itself is now the PERSONAL NOTIFICATION CENTRE and is
+   * CORE, because a person's own mail is not a paid feature. What they may
+   * SEE inside it is decided server-side by the aggregation's authorization,
+   * not by a surface tier.
+   */
+  it("the outbound delivery log is ENTERPRISE — redirects to /settings", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/notifications",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/settings"/,
+      /pathPrefix:\s*"\/settings\/notifications\/deliveries",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/settings"/,
+    );
+  });
+
+  it("the personal notification centre is CORE, and so is its compatibility path", () => {
+    expect(TIERS).toMatch(
+      /pathPrefix:\s*"\/notifications",\s*tier:\s*"CORE",\s*directAccessPolicy:\s*"allow"/,
+    );
+    expect(TIERS).toMatch(
+      /pathPrefix:\s*"\/inbox",\s*tier:\s*"CORE",\s*directAccessPolicy:\s*"allow"/,
     );
   });
 

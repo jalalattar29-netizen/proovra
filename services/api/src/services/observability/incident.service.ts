@@ -400,22 +400,71 @@ export type ListIncidentsInput = {
   severity?: IncidentSeverity;
   category?: IncidentCategory;
   limit?: number;
+  /**
+   * PHASE 2.7 — keyset cursor. The `id` of the last row the caller received.
+   * An opaque token to the client; a unique key to the database.
+   */
+  cursor?: string | null;
 };
 
+export type ListIncidentsPage = {
+  incidents: prismaPkg.OperationalIncident[];
+  /** Pass back verbatim for the next page. Null when the caller has seen all. */
+  nextCursor: string | null;
+  /**
+   * PHASE 2.2 — did this read reach the end of the collection?
+   *
+   * `false` means MORE ROWS EXIST, and no caller may conclude anything from an
+   * incident's absence in this page. Operations is a mutable collection; a
+   * partial read of it is not evidence that anything was resolved.
+   */
+  complete: boolean;
+};
+
+/**
+ * ONE PAGE of workspace incidents, ordered deterministically.
+ *
+ * PAGINATION (Phase 2.7). This used to be a bare `take` with no cursor: the
+ * console asked for up to 500 rows and got the first 500 under a NON-UNIQUE
+ * ordering, with no way to ask for the rest and no signal that a rest existed.
+ * Two defects in one — a silent cap on a mutable operational collection, and
+ * an unstable order (`status` + `lastSeenAtUtc` tie constantly; a fan-out
+ * writes many incidents in the same millisecond), so even re-reading the same
+ * page could return a different set.
+ *
+ * The ordering now ends in `id`, which makes it TOTAL, which is exactly the
+ * precondition keyset pagination needs. `cursor` + `skip: 1` then walks the
+ * collection without offsets, so rows inserted or resolved between pages
+ * cannot cause a skip or a duplicate the way `OFFSET n` does.
+ */
 export async function listIncidents(
   input: ListIncidentsInput,
   client: PrismaClient = defaultPrisma,
-): Promise<prismaPkg.OperationalIncident[]> {
-  return client.operationalIncident.findMany({
+): Promise<ListIncidentsPage> {
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+  const rows = await client.operationalIncident.findMany({
     where: {
       teamId: input.teamId,
       ...(input.status ? { status: input.status as prismaPkg.IncidentStatus } : {}),
       ...(input.severity ? { severity: input.severity as prismaPkg.IncidentSeverity } : {}),
       ...(input.category ? { category: input.category as prismaPkg.IncidentCategory } : {}),
     },
-    orderBy: [{ status: "asc" }, { lastSeenAtUtc: "desc" }],
-    take: Math.min(Math.max(input.limit ?? 100, 1), 500),
+    // OPEN first, then most-recently-seen, then `id` as the unique tie-break
+    // that makes the whole ordering total.
+    orderBy: [{ status: "asc" }, { lastSeenAtUtc: "desc" }, { id: "desc" }],
+    // One extra row is the honest way to answer "is there more?" — a count
+    // query would be a second read of a collection that can change between
+    // the two.
+    take: limit + 1,
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
+  const hasMore = rows.length > limit;
+  const incidents = hasMore ? rows.slice(0, limit) : rows;
+  return {
+    incidents,
+    nextCursor: hasMore ? (incidents[incidents.length - 1]?.id ?? null) : null,
+    complete: !hasMore,
+  };
 }
 
 export type IncidentProjection = {

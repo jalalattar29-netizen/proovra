@@ -34,14 +34,58 @@ import {
   type WorkspacePlan,
   type WorkspaceRole,
   type WorkspaceScope,
+  type ResolvedWorkspaceKind,
 } from "./types.js";
 
 export type CapabilityResolverInput = {
+  /**
+   * @deprecated ATTENTION ARCHITECTURE — legacy two-value scope. Retained so existing
+   * callers keep compiling; prefer `workspaceKind`, which distinguishes
+   * OWNED from ORGANIZATION. When both are supplied, `workspaceKind`
+   * decides and `scope` is ignored.
+   */
   scope: WorkspaceScope | null;
   role: WorkspaceRole | null;
   plan: WorkspacePlan | null;
   isPlatformAdmin: boolean;
+  /**
+   * ATTENTION ARCHITECTURE (2026-08-22) — CANONICAL structural kind of the active
+   * workspace. Optional during migration; when omitted the resolver falls
+   * back to `scope`, which cannot tell OWNED from ORGANIZATION.
+   */
+  workspaceKind?: ResolvedWorkspaceKind | null;
+  /**
+   * PHASE 4B — can this workspace's package PRODUCE operational conditions?
+   *
+   * ONE pre-resolved boolean, deliberately. The caller derives it from the
+   * canonical commercial catalog; this module never learns a feature name.
+   * That keeps the resolver a pure role/kind function and keeps commercial
+   * vocabulary out of an authorization input — a property the E8 contract
+   * test pins by asserting this type's shape stays free of feature and
+   * guest-actor nouns.
+   */
+  packageProducesOperationalConditions?: boolean | null;
+  /**
+   * PHASE 4B — ACTIVE member count of the workspace. A shared workspace
+   * always has operations to coordinate, whatever its package includes.
+   */
+  memberCount?: number | null;
 };
+
+/**
+ * ATTENTION ARCHITECTURE — one place that answers "which structural kind is this?", so a
+ * caller that has not yet been migrated to `workspaceKind` still gets a
+ * consistent (if coarser) answer instead of a second derivation.
+ */
+function effectiveKind(input: CapabilityResolverInput): ResolvedWorkspaceKind {
+  if (input.workspaceKind) return input.workspaceKind;
+  if (input.scope === "PERSONAL") return "PERSONAL";
+  // A legacy TEAM scope cannot distinguish OWNED from ORGANIZATION. OWNED
+  // is the weaker of the two for gating purposes, so it is the safe
+  // stand-in until the caller supplies the real kind.
+  if (input.scope === "TEAM") return "OWNED";
+  return "UNKNOWN";
+}
 
 function emptyMap(): CapabilityMap {
   const out = {} as Record<string, boolean>;
@@ -68,8 +112,14 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
   const map = emptyMap();
 
   const { scope, role, isPlatformAdmin } = input;
-  const isPersonal = scope === "PERSONAL";
-  const isTeam = scope === "TEAM";
+  // ATTENTION ARCHITECTURE — classification now runs through the canonical kind. `isTeam`
+  // keeps its long-standing meaning ("a shared, non-personal workspace")
+  // and is now the union of the two kinds the legacy scope collapsed.
+  const kind = effectiveKind(input);
+  const isPersonal = kind === "PERSONAL";
+  const isOwnedWorkspace = kind === "OWNED";
+  const isOrganizationWorkspace = kind === "ORGANIZATION";
+  const isTeam = isOwnedWorkspace || isOrganizationWorkspace;
   const isOwner = role === "OWNER";
   const isAdmin = role === "ADMIN" || role === "OWNER";
   const isMember = role === "MEMBER" || isAdmin;
@@ -196,9 +246,12 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         "ESCALATIONS_VIEW",
         "GOVERNANCE_VIEW",
         "LIFECYCLE_VIEW",
-        "OPS_CENTER_VIEW",
-        "OBSERVABILITY_VIEW",
-        "RUNBOOKS_VIEW",
+        // PHASE 4A (2026-08-22) — OPS_CENTER_VIEW / OBSERVABILITY_VIEW /
+        // RUNBOOKS_VIEW were granted here and are PLATFORM-tier keys
+        // gating `/platform/*`. Every route carrying them has always been
+        // `requiredActiveSpace: "PLATFORM_ADMIN"`, so no tenant surface
+        // ever consumed them — the grant was dead and contradicted the
+        // gate. Tenant operational access is `OPERATIONS_VIEW` below.
       ],
       true,
     );
@@ -279,6 +332,47 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
       // OWNER gets everything ADMIN does + nothing extra here. Kept
       // as a branch for clarity / future expansion.
       map.BILLING_MANAGE = true;
+    }
+  }
+
+  // ============================================================
+  // PHASE 4B (2026-08-22) — TENANT OPERATIONS.
+  //
+  // Gated on whether the workspace can PRODUCE operational conditions,
+  // never on a plan name. Two independent qualifiers:
+  //
+  //   1. The package includes a condition-producing feature (reports,
+  //      verification packages, intake, reviewer operations). A solo
+  //      Pro investigator qualifies; a Free personal space does not.
+  //   2. The workspace is SHARED (>1 ACTIVE member). The moment two
+  //      operators exist, "has anyone dealt with this?" needs shared
+  //      state regardless of package.
+  //
+  // A PERSONAL Free workspace reaches neither, so it gets no Operations
+  // surface — its integrity failures stay a notification plus the
+  // Evidence record's own remediation path, which is the right amount
+  // of ceremony for one operator and one record.
+  // ============================================================
+  const packageProducesConditions =
+    input.packageProducesOperationalConditions === true;
+  const workspaceIsShared = (input.memberCount ?? 0) > 1;
+  // UNKNOWN never qualifies — an unprovable workspace fails closed.
+  const kindCanOperate = isPersonal || isTeam;
+  const canOperate =
+    kindCanOperate && (packageProducesConditions || workspaceIsShared);
+
+  if (canOperate) {
+    map.OPERATIONS_VIEW = true;
+    // VIEWER may look and may not act. Every mutation below requires a
+    // non-viewer role; assignment and suppression additionally require
+    // admin tier, mirroring CASE_ASSIGN and GOVERNANCE_ACT.
+    if (isWriter) {
+      map.OPERATIONS_ACKNOWLEDGE = true;
+      map.OPERATIONS_RESOLVE = true;
+    }
+    if (isAdmin) {
+      map.OPERATIONS_ASSIGN = true;
+      map.OPERATIONS_SUPPRESS = true;
     }
   }
 

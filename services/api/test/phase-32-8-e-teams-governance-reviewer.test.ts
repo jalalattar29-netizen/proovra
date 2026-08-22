@@ -710,13 +710,13 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/sla"/);
     expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/escalations"/);
     expect(REVIEWER_PANEL).toMatch(/href="\/governance\/policy"/);
-    expect(REVIEWER_PANEL).toMatch(/href="\/operations\/observability"/);
+    expect(REVIEWER_PANEL).toMatch(/href="\/admin\/platform\/observability"/);
   });
 
   it("gates the operator deep-link behind a canonical capability", () => {
     expect(REVIEWER_PANEL).toMatch(/useCan\(\s*"OBSERVABILITY_VIEW"\s*\)/);
     expect(REVIEWER_PANEL).toMatch(
-      /canObservability \?[\s\S]{0,200}\/operations\/observability/,
+      /canObservability \?[\s\S]{0,200}\/admin\/platform\/observability/,
     );
   });
 

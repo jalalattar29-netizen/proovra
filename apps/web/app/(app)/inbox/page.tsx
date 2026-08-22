@@ -37,6 +37,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
+import { useLatestRequest } from "../../../lib/net/useLatestRequest";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../components/ui";
@@ -118,7 +119,14 @@ type InboxItem = {
   snoozedUntil?: string | null;
   /** History (snapshot-backed) rows only — when the canonical source
    * resolved the item upstream. */
+  /** LEGACY NAME. See `sourceClearedAt` — this is a NOTIFICATION-history
+   *  fact (the source stopped addressing this to me), never the shared
+   *  Operations lifecycle status. */
   resolvedAt?: string | null;
+  /** PHASE 2.1 — canonical name. When the canonical source stopped emitting
+   *  this item for THIS user. Says nothing about whether the underlying
+   *  workspace condition was resolved; Operations owns that. */
+  sourceClearedAt?: string | null;
   canMarkRead: boolean;
   canDismiss: boolean;
   canSnooze: boolean;
@@ -191,6 +199,21 @@ type InboxEnvelope = {
   };
   truncated?: InboxTruncated;
   anyTruncated?: boolean;
+  /**
+   * ATTENTION ARCHITECTURE PHASE 2.3 (2026-08-22) — DEGRADED-STATE HONESTY.
+   *
+   * `degraded` says a source threw; `anyTruncated` says a source was capped.
+   * Both mean the same thing to the person reading the screen — "you are not
+   * looking at everything" — and leaving them as two separate flags is how one
+   * banner ends up checking only one of them. This carries the per-source
+   * verdict, the reason, and the single boolean any surface must read before
+   * it is allowed to print a reassuring number.
+   */
+  completeness?: {
+    anyIncomplete: boolean;
+    incompleteSources: string[];
+    mayAssertAllClear: boolean;
+  };
   /** History responses only — false when the persistent snapshot store
    * is not provisioned in this environment. */
   historyAvailable?: boolean;
@@ -406,7 +429,7 @@ function describeAttentionAreas(
 
 export default function InboxPage() {
   return (
-    <PageRouteGate routeId="account.inbox">
+    <PageRouteGate routeId="account.notifications">
       <InboxPageInner />
     </PageRouteGate>
   );
@@ -478,18 +501,39 @@ function InboxPageInner() {
     [filter, toneFilter, workspaceFilter],
   );
 
+  /**
+   * PHASE 2.6 — LATEST REQUEST WINS.
+   *
+   * `buildUrl` closes over the workspace filter, so switching workspaces
+   * fires a new load while the previous one is still in flight. Without an
+   * identity guard the LAST response to arrive commits, which is how one
+   * workspace's notifications render under another workspace's heading.
+   */
+  const request = useLatestRequest();
+
   const load = useCallback(async () => {
+    const attempt = request.begin();
     setState({ kind: "loading" });
     try {
       // `apiFetch` already returns the parsed JSON body (see
       // `apps/web/lib/api.ts:233`). Calling `.json()` on the result
       // throws `TypeError: e.json is not a function` in production
       // (the local variable is minified to `e`).
-      const data = (await apiFetch(buildUrl(null))) as InboxEnvelope;
+      const data = (await apiFetch(buildUrl(null), {
+        signal: attempt.signal,
+      })) as InboxEnvelope;
+      // A newer load (workspace switch, filter change) has taken over. Its
+      // response is the one the operator is waiting for; committing ours
+      // would put this workspace's rows under that workspace's heading.
+      if (!attempt.isCurrent()) return;
       setState({ kind: "ready", data });
       setItems(data.items);
       setNextCursor(data.pagination?.nextCursor ?? null);
     } catch (err: unknown) {
+      // A superseded request's abort is not an error the operator caused, and
+      // surfacing it would replace the newer request's live results with a
+      // failure banner.
+      if (!attempt.isCurrent()) return;
       const status =
         typeof (err as { statusCode?: number }).statusCode === "number"
           ? ((err as { statusCode: number }).statusCode)
@@ -498,7 +542,7 @@ function InboxPageInner() {
         toSafeUserError(err, { message: "Could not load inbox." }).message;
       setState({ kind: "error", status, message });
     }
-  }, [buildUrl]);
+  }, [buildUrl, request]);
 
   /**
    * SERVER-scoped bulk read. The backend re-derives the caller's visible
@@ -528,9 +572,17 @@ function InboxPageInner() {
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
+    // Same generation as `load`, deliberately: a workspace switch mid-page
+    // must discard this page too. Appending a page fetched under the previous
+    // workspace to the new workspace's list is the same defect as replacing
+    // it, and harder to spot because only part of the list is wrong.
+    const attempt = request.begin();
     setLoadingMore(true);
     try {
-      const data = (await apiFetch(buildUrl(nextCursor))) as InboxEnvelope;
+      const data = (await apiFetch(buildUrl(nextCursor), {
+        signal: attempt.signal,
+      })) as InboxEnvelope;
+      if (!attempt.isCurrent()) return;
       // Append the new page; refresh the envelope so summary counts +
       // truncation flags stay current. We deliberately do NOT reset
       // items on a Load-More response — the user is paging forward.
@@ -546,11 +598,11 @@ function InboxPageInner() {
       // what the user is already looking at. Surface a one-shot error
       // alert via state.error? Simpler: log + leave UI unchanged.
       // The Load More button itself becomes the retry surface.
-      console.error("[inbox] load-more failed:", message);
+      if (attempt.isCurrent()) console.error("[inbox] load-more failed:", message);
     } finally {
       setLoadingMore(false);
     }
-  }, [buildUrl, nextCursor, loadingMore]);
+  }, [buildUrl, nextCursor, loadingMore, request]);
 
   // Reset + reload whenever the filter or tone changes. We don't paginate
   // across filter changes — the operator's new filter is a fresh query.
@@ -585,9 +637,13 @@ function InboxPageInner() {
     setItems((prev) => prev.filter((it) => it.itemKey !== itemKey));
   }, []);
 
+  // ATTENTION ARCHITECTURE PHASE 1 — the CANONICAL personal action names.
+  // `dismiss`/`snooze` remain live compatibility aliases on the server for
+  // shipped clients; this client calls the canonical names so the product and
+  // the API agree about what the operator just did.
   async function postAction(
     itemKey: string,
-    action: "read" | "unread" | "dismiss" | "snooze",
+    action: "read" | "unread" | "archive" | "unarchive" | "remind",
     body?: Record<string, unknown>,
   ) {
     return apiFetch(
@@ -655,18 +711,24 @@ function InboxPageInner() {
     [pendingItemKey, applyOptimisticUpdate],
   );
 
-  const dismissItem = useCallback(
+  /**
+   * ARCHIVE — file this notification out of MY active feed.
+   *
+   * It is not "dismiss", and the difference is not cosmetic. Nothing shared
+   * moves: if this message is about unresolved work, that work is still
+   * unresolved, still counted, and still visible to every other operator.
+   */
+  const archiveItem = useCallback(
     async (item: InboxItem) => {
       if (pendingItemKey) return;
       setPendingItemKey(item.itemKey);
-      // Optimistic remove; if the server rejects we'll re-fetch (the
-      // operator's mental model is "I clicked dismiss, it should be
-      // gone").
+      // Optimistic remove; if the server rejects we re-fetch (the operator's
+      // mental model is "I archived it, it should be gone from here").
       removeItemLocally(item.itemKey);
       try {
-        await postAction(item.itemKey, "dismiss");
+        await postAction(item.itemKey, "archive");
       } catch (err) {
-        console.error("[inbox] dismiss failed:", err);
+        console.error("[inbox] archive failed:", err);
         // Re-fetch to restore truth.
         void load();
       } finally {
@@ -676,17 +738,42 @@ function InboxPageInner() {
     [pendingItemKey, removeItemLocally, load],
   );
 
-  const snoozeItem = useCallback(
+  /**
+   * UNARCHIVE — put it back.
+   *
+   * An archive you cannot come back out of is a delete with a friendlier
+   * label, and the schema has carried a note promising this endpoint since
+   * the state table was written. It is reachable from History, where archived
+   * items live.
+   */
+  const unarchiveItem = useCallback(
+    async (item: InboxItem) => {
+      if (pendingItemKey) return;
+      setPendingItemKey(item.itemKey);
+      const previous = item.dismissedAt ?? null;
+      applyOptimisticUpdate(item.itemKey, { dismissedAt: null });
+      try {
+        await postAction(item.itemKey, "unarchive");
+      } catch (err) {
+        applyOptimisticUpdate(item.itemKey, { dismissedAt: previous });
+        console.error("[inbox] unarchive failed:", err);
+      } finally {
+        setPendingItemKey(null);
+      }
+    },
+    [pendingItemKey, applyOptimisticUpdate],
+  );
+
+  /** REMIND ME LATER — defer it until a time I choose. Equally private. */
+  const remindItem = useCallback(
     async (item: InboxItem, untilIso: string) => {
       if (pendingItemKey) return;
       setPendingItemKey(item.itemKey);
       removeItemLocally(item.itemKey);
       try {
-        await postAction(item.itemKey, "snooze", {
-          snoozedUntil: untilIso,
-        });
+        await postAction(item.itemKey, "remind", { remindAt: untilIso });
       } catch (err) {
-        console.error("[inbox] snooze failed:", err);
+        console.error("[inbox] remind failed:", err);
         void load();
       } finally {
         setPendingItemKey(null);
@@ -734,71 +821,104 @@ function InboxPageInner() {
         />
       }
     >
-      {/* ---------- summary strip ---------- */}
+      {/* ==================================================================
+           ATTENTION ARCHITECTURE PHASE 6.1 (2026-08-22) — THIS IS A
+           NOTIFICATION CENTRE, NOT AN INCIDENT CONSOLE.
+
+           WHAT WAS HERE: five giant severity KPI tiles — CRITICAL, HIGH,
+           WARNING, INFO, ALL — as the page's hero. That is the chrome of an
+           operations dashboard, and it made a personal feed look like the
+           workspace's operational state, which is the confusion this entire
+           program removes. It also put "CRITICAL 0" at the top of a page whose
+           actual question is "what did I miss?".
+
+           WHAT IS HERE NOW: the two facts a person opening their notifications
+           needs — how many are unread, and whether we can be trusted to have
+           shown them everything — plus severity as compact METADATA. Severity
+           still matters (a failed anchor is not a mention) and it is still
+           filterable; it is simply no longer the headline.
+           ================================================================== */}
       {state.kind === "ready" && (
-        <section
-          data-inbox-summary
-          style={{
-            display: "grid",
-            gap: 8,
-            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-          }}
-        >
-          {(["critical", "high", "warning", "info"] as InboxTone[]).map(
-            (tone) => {
-              const count =
-                state.data.scopeSummary?.byTone[tone] ??
-                state.data.summary.byTone[tone];
-              const active = toneFilter === tone;
-              const disabled = toneTileDisabled(count, active);
-              return (
-                <button
-                  key={tone}
-                  type="button"
-                  onClick={() => setToneFilter(active ? "all" : tone)}
-                  aria-pressed={active}
-                  disabled={disabled}
-                  data-inbox-tone-tile={tone}
-                  data-inbox-tone-tile-active={active ? "true" : "false"}
-                  data-inbox-tone-tile-count={count}
-                  data-tone={tone}
-                  data-active={active ? "true" : "false"}
-                  className="ops-tone-tile"
-                >
-                  <div className="ops-tone-tile__label">
-                    {TONE_LABELS[tone]}
-                  </div>
-                  <div className="ops-tone-tile__count">{count}</div>
-                  <div className="ops-tone-tile__hint">
-                    {count === 1 ? "item" : "items"}
-                  </div>
-                </button>
-              );
-            },
-          )}
-          <button
-            type="button"
-            onClick={() => setToneFilter("all")}
-            aria-pressed={toneFilter === "all"}
-            data-inbox-tone-tile="all"
-            data-inbox-tone-tile-active={toneFilter === "all" ? "true" : "false"}
-            data-inbox-tone-tile-count={
-              state.data.scopeSummary?.total ?? state.data.summary.total
-            }
-            data-tone="all"
-            data-active={toneFilter === "all" ? "true" : "false"}
-            className="ops-tone-tile"
-          >
-            <div className="ops-tone-tile__label">ALL</div>
-            <div className="ops-tone-tile__count">
-              {state.data.scopeSummary?.total ?? state.data.summary.total}
-            </div>
-            <div className="ops-tone-tile__hint">
-              {(state.data.scopeSummary?.total ?? state.data.summary.total) === 1
-                ? "open item"
-                : "open items"}
-            </div>
-          </button>
+        <section data-notifications-summary className="ops-summary-strip">
+          <div data-notifications-unread className="ops-summary-strip__primary">
+            <span className="ops-summary-strip__count">
+              {state.data.scopeSummary?.unread ?? 0}
+            </span>
+            <span className="ops-summary-strip__label">
+              {(state.data.scopeSummary?.unread ?? 0) === 1
+                ? "unread notification"
+                : "unread notifications"}
+            </span>
+          </div>
+
+          {/* PHASE 2.3 — HONESTY BEFORE REASSURANCE.
+              A "0 unread" over a partial read is the same lie as a dashboard
+              saying "all clear", told in less space. When the server could not
+              read every source, the page says so instead of implying calm. */}
+          {state.data.completeness &&
+          !state.data.completeness.mayAssertAllClear ? (
+            <p data-notifications-incomplete className="ops-summary-strip__note">
+              Some sources could not be read, so this may not be everything.
+              {state.data.completeness.incompleteSources.length > 0
+                ? ` Affected: ${state.data.completeness.incompleteSources.join(", ")}.`
+                : ""}
+            </p>
+          ) : null}
+
+          {/* Severity as METADATA. Same filter behaviour as before, a fraction
+              of the visual weight — these are chips beside the count, not
+              five cards competing with the feed for the page. */}
+          <div data-notifications-severity className="ops-summary-strip__chips">
+            {(["critical", "high", "warning", "info"] as InboxTone[]).map(
+              (tone) => {
+                const count =
+                  state.data.scopeSummary?.byTone[tone] ??
+                  state.data.summary.byTone[tone];
+                const active = toneFilter === tone;
+                const disabled = toneTileDisabled(count, active);
+                return (
+                  <button
+                    key={tone}
+                    type="button"
+                    onClick={() => setToneFilter(active ? "all" : tone)}
+                    aria-pressed={active}
+                    disabled={disabled}
+                    data-inbox-tone-tile={tone}
+                    data-inbox-tone-tile-active={active ? "true" : "false"}
+                    data-inbox-tone-tile-count={count}
+                    data-tone={tone}
+                    data-active={active ? "true" : "false"}
+                    className="ops-severity-chip"
+                  >
+                    <span className="ops-severity-chip__label">
+                      {TONE_LABELS[tone]}
+                    </span>
+                    <span className="ops-severity-chip__count">{count}</span>
+                  </button>
+                );
+              },
+            )}
+            <button
+              type="button"
+              onClick={() => setToneFilter("all")}
+              aria-pressed={toneFilter === "all"}
+              data-inbox-tone-tile="all"
+              data-inbox-tone-tile-active={
+                toneFilter === "all" ? "true" : "false"
+              }
+              data-inbox-tone-tile-count={
+                state.data.scopeSummary?.total ?? state.data.summary.total
+              }
+              data-tone="all"
+              data-active={toneFilter === "all" ? "true" : "false"}
+              className="ops-severity-chip"
+            >
+              <span className="ops-severity-chip__label">ALL</span>
+              <span className="ops-severity-chip__count">
+                {state.data.scopeSummary?.total ?? state.data.summary.total}
+              </span>
+            </button>
+          </div>
         </section>
       )}
 
@@ -1047,7 +1167,7 @@ function InboxPageInner() {
             <EmptyState
               framed
               title="Nothing requires your attention right now."
-              purpose={`When operational items appear — ${attentionSummary} — they show up here. Items disappear automatically when their underlying state resolves. Resolved items remain in History.`}
+              purpose={`When operational items appear — ${attentionSummary} — they show up here. Items leave this list automatically when their source stops raising them. They stay in History.`}
               action={
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                   <Link
@@ -1227,18 +1347,21 @@ function InboxPageInner() {
                                 timestamp, never inferred. */}
                             {item.resolvedAt ? (
                               <span data-inbox-item-resolved>
-                                Resolved {formatUserDate(item.resolvedAt)}
+                                No longer active{" "}
+                                {formatUserDate(
+                                  item.sourceClearedAt ?? item.resolvedAt,
+                                )}
                               </span>
                             ) : null}
                             {item.dismissedAt ? (
                               <span data-inbox-item-dismissed>
-                                Dismissed {formatUserDate(item.dismissedAt)}
+                                Archived {formatUserDate(item.dismissedAt)}
                               </span>
                             ) : null}
                             {item.snoozedUntil &&
                             new Date(item.snoozedUntil).getTime() > Date.now() ? (
                               <span data-inbox-item-snoozed>
-                                Snoozed until {formatUserDate(item.snoozedUntil)}
+                                Reminder set for {formatUserDate(item.snoozedUntil)}
                               </span>
                             ) : null}
                           </div>
@@ -1295,30 +1418,46 @@ function InboxPageInner() {
                             <Button
                               variant="secondary"
                               size="sm"
-                              data-action="snooze"
+                              data-action="remind"
                               data-inbox-item-key={item.itemKey}
                               onClick={() => {
                                 const oneDay = new Date(
                                   Date.now() + 24 * 60 * 60 * 1000,
                                 ).toISOString();
-                                void snoozeItem(item, oneDay);
+                                void remindItem(item, oneDay);
                               }}
                               disabled={pendingItemKey === item.itemKey}
                             >
-                              Snooze 1d
+                              Remind me tomorrow
                             </Button>
                           )}
-                          {item.canDismiss && (
+                          {/* ARCHIVE vs UNARCHIVE. An already-archived row
+                              (History) offers the way back out; anything else
+                              offers the way in. */}
+                          {item.dismissedAt ? (
                             <Button
                               variant="secondary"
                               size="sm"
-                              data-action="dismiss"
+                              data-action="unarchive"
                               data-inbox-item-key={item.itemKey}
-                              onClick={() => void dismissItem(item)}
+                              onClick={() => void unarchiveItem(item)}
                               disabled={pendingItemKey === item.itemKey}
                             >
-                              Dismiss
+                              Unarchive
                             </Button>
+                          ) : (
+                            item.canDismiss && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                data-action="archive"
+                                data-inbox-item-key={item.itemKey}
+                                onClick={() => void archiveItem(item)}
+                                disabled={pendingItemKey === item.itemKey}
+                              >
+                                Archive
+                              </Button>
+                            )
                           )}
                         </div>
                       </li>

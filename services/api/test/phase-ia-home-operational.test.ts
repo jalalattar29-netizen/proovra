@@ -132,45 +132,55 @@ function build(overrides: Partial<NormalizeInputs> = {}) {
 // 2. Operational Queue
 // ============================================================================
 
-describe("Phase IA-home-operational — Operational Queue", () => {
-  it("orders real work: submission + failed delivery + report failure all present", () => {
+/**
+ * CONTRACT MIGRATION — Attention Architecture Phase 4C (2026-08-22).
+ *
+ * These five tests exercised `vm.operationalQueue`, which Home built for
+ * itself out of the caller's own `/v1/me/inbox` feed and then rendered as the
+ * WORKSPACE'S operational state. The queue is gone, and with it every one of
+ * the properties tested here — ordering, capping, inline-retry-vs-fallback —
+ * because those are properties of a WORK SURFACE and Home is not one.
+ *
+ * They are not lost. They moved to where the work actually lives:
+ *
+ *   ordering / capping / paging   -> /operations (Phase 6 console)
+ *   inline vs fallback actions    -> /operations, capability-gated
+ *   "no actionable work" hero     -> Home, but now gated on whether the
+ *                                    canonical summary could be READ, which
+ *                                    the old empty-queue check could not
+ *                                    distinguish from "we saw nothing".
+ *
+ * What replaces them here is the property Home must now have: it CONSUMES a
+ * shared summary and derives nothing.
+ */
+describe("Phase IA-home-operational — Operations summary is consumed, not built", () => {
+  it("Home exposes no operational queue of its own", () => {
     const vm = build();
-    const types = vm.operationalQueue.map((q) => q.type);
-    expect(types).toContain("review_submission");
-    expect(types).toContain("retry_delivery");
-    expect(types).toContain("report_failure");
+    expect(
+      (vm as unknown as Record<string, unknown>).operationalQueue,
+    ).toBeUndefined();
   });
 
-  it("the failed-delivery item is an INLINE retry (not a nav fallback)", () => {
+  it("Home carries the canonical summary and a link to act on it", () => {
     const vm = build();
-    const retry = vm.operationalQueue.find((q) => q.type === "retry_delivery");
-    expect(retry?.action.kind).toBe("retry_delivery");
-    expect(retry?.action.messageId).toBe("m-2");
-    expect(retry?.fallback).toBe(false);
+    expect(vm.operations).toBeDefined();
+    expect(vm.operations.href).toBe("/operations");
   });
 
-  it("navigation items are flagged as fallbacks (honest about no inline flow)", () => {
+  it("without a summary Home says UNAVAILABLE rather than showing zero work", () => {
+    // The old empty-queue assertion could not tell "nothing to do" from
+    // "we could not look". This one can, and must.
     const vm = build();
-    const review = vm.operationalQueue.find((q) => q.type === "review_submission");
-    expect(review?.action.kind).toBe("navigate");
-    expect(review?.fallback).toBe(true);
+    expect(vm.operations.available).toBe(false);
+    expect(vm.operations.mayAssertAllClear).toBe(false);
   });
 
-  it("caps the queue and prioritizes — submission outranks production gaps", () => {
+  it("a rich notification feed does not populate the workspace summary", () => {
+    // The coupling this phase removed, asserted directly: personal items in
+    // the feed contribute nothing to shared operational counts.
     const vm = build();
-    expect(vm.operationalQueue.length).toBeLessThanOrEqual(8);
-    const subIdx = vm.operationalQueue.findIndex((q) => q.type === "review_submission");
-    const genIdx = vm.operationalQueue.findIndex((q) => q.type === "generate_report");
-    expect(subIdx).toBeGreaterThanOrEqual(0);
-    expect(subIdx).toBeLessThan(genIdx);
-  });
-
-  it("when there is no actionable work the queue is empty and the hero is shown", () => {
-    const vm = build({ commandCenter: null, trustSummary: { totalEvidence: 5 }, reports: REPORTS, intakeLinks: null, inbox: null, communications: null });
-    expect(vm.operationalQueue).toHaveLength(0);
-    // The component renders the hero when the queue is empty.
-    expect(SECTIONS).toMatch(/items\.length === 0/);
-    expect(SECTIONS).toMatch(/<HeroNextAction action=\{hero\}/);
+    expect(vm.operations.open).toBe(0);
+    expect(vm.operations.critical).toBe(0);
   });
 });
 

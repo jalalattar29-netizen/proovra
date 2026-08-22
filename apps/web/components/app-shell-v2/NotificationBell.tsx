@@ -682,7 +682,7 @@ export function NotificationBell() {
           </div>
 
           <Link
-            href="/inbox"
+            href="/notifications"
             onClick={() => setOpen(false)}
             className="ops-bell-footer"
           >

@@ -117,15 +117,15 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   "workspace.reports": FileText,
   "workspace.search": Search,
   // Operations Center — the single sidebar entry for /inbox.
-  "account.inbox": Inbox,
-  "workspace.notifications": Bell,
+  "account.notifications": Inbox,
+  "workspace.notification_deliveries": Bell,
   "workspace.integrations": Plug,
   "workspace.collaboration_teams": UsersRound,
   "review.queue": ListTodo,
   "review.sla": GaugeCircle,
   "governance.hub": ShieldCheck,
   "governance.retention": ClipboardList,
-  "platform.ops_center": Radio,
+  "workspace.operations": Radio,
   "platform.observability": Activity,
   "platform.runbooks": BookOpen,
   "platform.security_center": ShieldAlert,
@@ -146,7 +146,7 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
 
 const BADGE_KEY_BY_ROUTE_ID: Record<string, string> = {
   "review.queue": "escalations_open",
-  "platform.ops_center": "ops_center_runtime",
+  "workspace.operations": "ops_center_runtime",
   "platform.observability": "observability_runtime",
   "governance.hub": "governance_incidents",
 };

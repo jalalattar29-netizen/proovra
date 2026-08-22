@@ -293,7 +293,7 @@ export async function runDigestScheduler(
     }
     // Persist snapshots for inactive users too — history must not
     // depend on the user opening the app.
-    await syncInboxSnapshots(userId, agg.allItems, now, log);
+    await syncInboxSnapshots(userId, agg.allItems, now, log, agg.completeness);
     aggregationByUser.set(userId, agg.allItems);
     return agg.allItems;
   }
@@ -478,7 +478,7 @@ export async function runDigestScheduler(
             })),
             totalUnread: batch.length,
             operationsCenterUrl: appBase
-              ? absoluteInternalUrl(appBase, internalNavPath("/inbox"))
+              ? absoluteInternalUrl(appBase, internalNavPath("/notifications"))
               : null,
           },
         },

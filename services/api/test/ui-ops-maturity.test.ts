@@ -141,9 +141,9 @@ describe("GlobalRuntimeIndicator (Phase 28-J)", () => {
 
   it("dropdown footer exposes the four quick links to canonical operator pages", () => {
     expect(src).toMatch(/href="\/operations"/);
-    expect(src).toMatch(/href="\/operations\/observability"/);
+    expect(src).toMatch(/href="\/admin\/platform\/observability"/);
     expect(src).toMatch(/href="\/reviewer-ops\/escalations"/);
-    expect(src).toMatch(/href="\/operations\/runbooks"/);
+    expect(src).toMatch(/href="\/admin\/platform\/runbooks"/);
   });
 
   it("on any source failure the dropdown labels rows as unavailable, never silently empty", () => {
@@ -325,7 +325,7 @@ describe("Sparkline (Phase 28-J)", () => {
 
 describe("Observability page — Phase 28-J maturity", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/operations/observability/page.tsx",
+    "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
   );
 
   it("imports Sparkline from the operational barrel", () => {
@@ -446,7 +446,7 @@ describe("Phase 28-J cross-surface invariants", () => {
     "../../../apps/web/components/operational/GlobalRuntimeIndicator.tsx",
     "../../../apps/web/components/operational/Sparkline.tsx",
     "../../../apps/web/components/operational/OperationalTimelinePanel.tsx",
-    "../../../apps/web/app/(app)/operations/observability/page.tsx",
+    "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
   ];
 
   it("no operational surface uses banned wording in string literals", () => {
@@ -480,7 +480,7 @@ describe("Phase 28-J cross-surface invariants", () => {
       "../../../apps/web/components/operational/GlobalRuntimeIndicator.tsx",
       "../../../apps/web/components/operational/Sparkline.tsx",
       "../../../apps/web/components/operational/OperationalTimelinePanel.tsx",
-      "../../../apps/web/app/(app)/operations/observability/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
     ];
     for (const rel of LIGHT_SURFACES) {
       const src = readSource(rel);

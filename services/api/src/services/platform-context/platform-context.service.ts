@@ -32,6 +32,9 @@ import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.ser
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
+// ATTENTION ARCHITECTURE (2026-08-22) — the canonical answer to "is this an Enterprise
+// customer?", replacing a `billingPlan === "ENTERPRISE"` string comparison.
+import { resolveEnterpriseAuthority } from "./enterprise-authority.js";
 import {
   buildNavigationProjection,
   filterNavigationRegistry,
@@ -53,6 +56,9 @@ import {
   type SectionStatus,
   type WorkspacePlan,
   type WorkspaceRole,
+  type WorkspaceScope,
+  type ResolvedWorkspaceKind,
+  type OrganizationKindValue,
   PLATFORM_CONTEXT_VERSION,
   type CanonicalContextOrganization,
   type CanonicalContextOrganizationMembership,
@@ -81,8 +87,27 @@ import { personalSpaceAllowed as resolvePersonalSpaceAllowed } from "../identity
 // TEAM retains its PROFESSIONAL tier + all TEAM plan capabilities via the
 // plan path (`tiersAllowedByPlan`) and `getPlanCapabilities("TEAM")`; those
 // are independent of this flag.
-const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["ENTERPRISE"]);
 const PRO_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["PRO", "TEAM"]);
+
+/**
+ * ATTENTION ARCHITECTURE (2026-08-22) — the LEGACY two-value scope, derived from the
+ * canonical three-value kind instead of from `isPersonal`.
+ *
+ * `scope` used to be computed independently as
+ * `team.isPersonal ? "PERSONAL" : "TEAM"`. Deriving it here means the
+ * envelope cannot report a scope that contradicts `Team.workspaceKind`,
+ * and it gives the eventual removal of `scope` a single call site.
+ *
+ * UNKNOWN maps to null rather than to a guess: a workspace whose kind
+ * could not be proven must not be presented as either.
+ */
+function legacyScopeFromKind(
+  kind: ResolvedWorkspaceKind,
+): WorkspaceScope | null {
+  if (kind === "PERSONAL") return "PERSONAL";
+  if (kind === "OWNED" || kind === "ORGANIZATION") return "TEAM";
+  return null;
+}
 
 function coercePlan(raw: string | null | undefined): WorkspacePlan | null {
   if (!raw) return null;
@@ -206,6 +231,11 @@ export async function buildPlatformContext(
     id: null,
     name: null,
     scope: "PERSONAL",
+    // No workspace has been selected yet, so nothing about its kind is
+    // proven. Null rather than an assumed PERSONAL — consumers fail closed.
+    workspaceKind: null,
+    organizationKind: null,
+    organizationId: null,
     plan: null,
     membership: {
       role: "OWNER",
@@ -272,6 +302,14 @@ export async function buildPlatformContext(
           name: true,
           billingPlan: true,
           isPersonal: true,
+          // ATTENTION ARCHITECTURE (2026-08-22) — the CANONICAL structural discriminator.
+          // `isPersonal` alone cannot distinguish OWNED from ORGANIZATION;
+          // both are `isPersonal = false`.
+          workspaceKind: true,
+          organizationId: true,
+          // SYSTEM containers are internal bootstrap objects and must never
+          // surface as customer Organizations in product UI.
+          organization: { select: { kind: true } },
           _count: { select: { members: true } },
         },
       });
@@ -313,17 +351,33 @@ export async function buildPlatformContext(
           }
         }
       } else {
-        // Healthy team selection. Distinguish PERSONAL vs TEAM scope
-        // via the `isPersonal` column.
+        // Healthy team selection.
+        //
+        // ATTENTION ARCHITECTURE (2026-08-22) — classification now runs through the
+        // CANONICAL classifier rather than reading `isPersonal` directly.
+        // The legacy two-value `scope` is DERIVED from the three-value
+        // kind, so the envelope can no longer report a classification that
+        // disagrees with `Team.workspaceKind`.
         const role: WorkspaceRole | null = coerceRole(
           membership!.role as unknown as string,
         );
         workspaceSource = "current_workspace_id";
+        const resolvedKind = resolveWorkspaceKind({
+          workspaceKind: team.workspaceKind as unknown as string | null,
+          isPersonal: team.isPersonal,
+          billingPlan: team.billingPlan as unknown as string | null,
+          teamLoaded: true,
+        });
         workspace = {
           status: "active",
           id: team.id,
           name: team.name ?? null,
-          scope: team.isPersonal ? "PERSONAL" : "TEAM",
+          scope: legacyScopeFromKind(resolvedKind),
+          workspaceKind: resolvedKind,
+          organizationKind:
+            (team.organization?.kind as OrganizationKindValue | undefined) ??
+            null,
+          organizationId: team.organizationId ?? null,
           plan: coercePlan(team.billingPlan as unknown as string),
           membership: {
             role,
@@ -349,6 +403,10 @@ export async function buildPlatformContext(
         id: personalTeamId,
         name: personalTeamName,
         scope: "PERSONAL",
+        // The bootstrap only ever produces a Personal Space (isPersonal=true).
+        workspaceKind: "PERSONAL",
+        organizationKind: null,
+        organizationId: null,
         plan: null,
         membership: {
           role: "OWNER",
@@ -383,6 +441,11 @@ export async function buildPlatformContext(
         id: null,
         name: null,
         scope: "PERSONAL",
+        // Synthetic recovery shell — no Team row was read, so the kind is
+        // unprovable. UNKNOWN keeps every downstream gate fail-closed.
+        workspaceKind: "UNKNOWN",
+        organizationKind: null,
+        organizationId: null,
         plan: null,
         membership: {
           role: "OWNER",
@@ -405,6 +468,9 @@ export async function buildPlatformContext(
         id: null,
         name: null,
         scope: null,
+        workspaceKind: null,
+        organizationKind: null,
+        organizationId: null,
         plan: null,
         membership: {
           role: null,
@@ -472,14 +538,47 @@ export async function buildPlatformContext(
     accountPlan = null;
   }
 
-  const isPersonalWorkspace = workspace.scope === "PERSONAL";
-  const isTeamWorkspace = workspace.scope === "TEAM";
+  // ATTENTION ARCHITECTURE — read from the CANONICAL kind. `isTeamWorkspace` keeps its
+  // long-standing meaning ("shared, non-personal") and is now the union of
+  // the two kinds the legacy scope collapsed into one.
+  const isPersonalWorkspace = workspace.workspaceKind === "PERSONAL";
+  const isTeamWorkspace =
+    workspace.workspaceKind === "OWNED" ||
+    workspace.workspaceKind === "ORGANIZATION";
   const isProAccount = accountPlan ? PRO_PLAN_KEYS.has(accountPlan) : false;
-  // `isEnterpriseWorkspace` is intentionally workspace-scoped — Enterprise
-  // is a workspace/team tier, distinct from the account-level PRO flag above.
-  const isEnterpriseWorkspace = workspace.plan
-    ? ENTERPRISE_PLAN_KEYS.has(workspace.plan)
-    : false;
+  // ATTENTION ARCHITECTURE (2026-08-22) — CANONICAL enterprise authority.
+  //
+  // This used to be `ENTERPRISE_PLAN_KEYS.has(workspace.plan)` — a string
+  // comparison against a billing package. `EnterpriseContract` is the
+  // schema's declared "ONE authoritative record of an Enterprise
+  // customer's commercial scope", and the plan string is documented there
+  // as a LEGACY signal. The resolver consults the contract first and falls
+  // back to the plan string ONLY on an ORGANIZATION workspace with no
+  // contract row, so the fallback cannot promote a PERSONAL or OWNED
+  // workspace whose plan column drifted.
+  //
+  // Never throws: a failed contract read yields `source: "unavailable"`
+  // and a false verdict, so a database blip cannot upgrade a tenant.
+  const enterprise = await resolveEnterpriseAuthority({
+    workspaceKind: workspace.workspaceKind ?? "UNKNOWN",
+    organizationKind: workspace.organizationKind,
+    organizationId: workspace.organizationId,
+    workspaceBillingPlan: workspace.plan,
+  });
+  const isEnterpriseWorkspace = enterprise.isEnterpriseCustomer;
+
+  // -------------------------------------------------------------------------
+  // Canonical plan capabilities.
+  //
+  // PHASE 4B — resolved BEFORE capabilities (it used to be computed after)
+  // because `OPERATIONS_VIEW` is granted from whether the workspace can
+  // PRODUCE operational conditions, which is a plan-capability question.
+  // The same resolved object feeds `planFeatures` below, so there is still
+  // exactly one call to the commercial catalog per envelope.
+  // -------------------------------------------------------------------------
+  const planCaps = getPlanCapabilities(
+    (workspace.plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0],
+  );
 
   // -------------------------------------------------------------------------
   // Capabilities
@@ -492,6 +591,19 @@ export async function buildPlatformContext(
       role: workspace.membership.role,
       plan: workspace.plan,
       isPlatformAdmin,
+      // ATTENTION ARCHITECTURE — the canonical structural kind, so OWNED and ORGANIZATION
+      // stop resolving through one collapsed value.
+      workspaceKind: workspace.workspaceKind,
+      // PHASE 4B — the two independent qualifiers for tenant Operations.
+      // The commercial derivation happens HERE, against the canonical
+      // catalog, so the capability resolver stays a pure role/kind
+      // function with no feature vocabulary in its input.
+      packageProducesOperationalConditions:
+        planCaps.reportsIncluded ||
+        planCaps.verificationPackageIncluded ||
+        planCaps.intakeIncluded ||
+        planCaps.reviewerOperationsIncluded,
+      memberCount: workspace.membership.memberCount,
     });
   } catch {
     capabilityStatus = "degraded";
@@ -510,10 +622,10 @@ export async function buildPlatformContext(
   // entitlement-aware WITHOUT the frontend importing the billing package
   // or duplicating the commercial table. This is the single source of
   // truth; no parallel entitlement system.
+  //
+  // PHASE 4B — `planCaps` is now resolved once, above, before capability
+  // resolution needs it. This block projects that same object.
   // -------------------------------------------------------------------------
-  const planCaps = getPlanCapabilities(
-    (workspace.plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0],
-  );
   const planFeatures = {
     reportsIncluded: planCaps.reportsIncluded,
     verificationPackageIncluded: planCaps.verificationPackageIncluded,
@@ -744,6 +856,14 @@ export async function buildPlatformContext(
             : "INACTIVE",
         plan: coercePlan(m.team.billingPlan as unknown as string),
         memberCount: m.team._count?.members ?? 0,
+        // ATTENTION ARCHITECTURE — expose the structural distinction this array's name
+        // hides. `organizations` holds every non-personal workspace, so a
+        // consumer that means "real customer organization" must filter on
+        // these rather than trust the field name.
+        workspaceKind: resolvedKind,
+        organizationKind:
+          (m.team.organization?.kind as OrganizationKindValue | undefined) ??
+          null,
       });
     }
   } catch {
@@ -1323,6 +1443,10 @@ export async function buildPlatformContext(
     persona: { resolvedPersona },
     capabilities,
     planFeatures,
+    // ATTENTION ARCHITECTURE — the enterprise verdict PLUS its provenance, so a support
+    // engineer can distinguish a contract-backed Enterprise from a legacy
+    // plan-string one without opening the database.
+    enterprise,
     operationalEligibility,
     navigation: {
       status: navigationStatus,

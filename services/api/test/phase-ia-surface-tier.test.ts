@@ -270,7 +270,23 @@ describe("Phase IA-surface-tier — hidden surfaces for personal/small-office us
 
   // INTERNAL hides — should return notFound for ALL non-platform-admin
   // users including OWNER/ADMIN of any workspace.
-  const INTERNAL_PATHS = ["/tools", "/ops", "/operations", "/platform"];
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 4B (2026-08-22).
+   *
+   * `/operations` LEFT this list. It was tiered INTERNAL with
+   * `directAccessPolicy: "notFound"`, so the surface that answers "what
+   * unresolved work does MY workspace have?" 404'd for every tenant — which
+   * is not what this test was written to protect. PROOVRA's internal consoles
+   * are `/ops` and `/admin/platform/*`, and both are still asserted below.
+   *
+   * The tier was never what gated it. Access is now decided by the
+   * OPERATIONS_VIEW capability, which Phase 0 derives from whether a workspace
+   * can PRODUCE operational conditions — so a Free personal space still gets
+   * nothing, for a reason the product can state. The replacement assertions
+   * live in `attention-arch-phase4b-workspace-operations.test.ts` and in
+   * `apps/web/__tests__/platform-admin-route-access.test.ts`.
+   */
+  const INTERNAL_PATHS = ["/tools", "/ops", "/platform"];
 
   for (const path of INTERNAL_PATHS) {
     it(`INTERNAL hidden: ${path} → notFound for non-platform-admin`, () => {

@@ -412,7 +412,7 @@ export function NoEscalationsEmptyState() {
       actions={[
         { label: "Check reviewer ops queue", href: "/reviewer-ops" },
         { label: "View SLA policy", href: "/reviewer-ops/policy" },
-        { label: "Open observability dashboard", href: "/operations/observability" },
+        { label: "Open observability dashboard", href: "/admin/platform/observability" },
       ]}
     />
   );
@@ -444,7 +444,7 @@ export function NoGovernanceIncidentsEmptyState() {
       runtimeDependency="Immutable-storage reconciliation worker + reviewer reconciliation worker. Both write incidents on detected conflicts."
       actions={[
         { label: "Open Operations Center", href: "/operations" },
-        { label: "View runbooks", href: "/operations/runbooks" },
+        { label: "View runbooks", href: "/admin/platform/runbooks" },
       ]}
     />
   );
@@ -493,8 +493,8 @@ export function RuntimeDegradedNotice({
       runtimeDependency={`Failing subsystems: ${failingSubsystems.join(", ")}.`}
       variant="degraded"
       actions={[
-        { label: "Open Observability dashboard", href: "/operations/observability" },
-        { label: "Review runbooks", href: "/operations/runbooks" },
+        { label: "Open Observability dashboard", href: "/admin/platform/observability" },
+        { label: "Review runbooks", href: "/admin/platform/runbooks" },
       ]}
     />
   );
@@ -518,10 +518,10 @@ export function GovernanceSnapshotUnavailableNotice({
           ? [
               {
                 label: `Reference request ${requestId.slice(0, 12)}`,
-                href: "/operations/observability",
+                href: "/admin/platform/observability",
               },
             ]
-          : [{ label: "Open Observability dashboard", href: "/operations/observability" }]
+          : [{ label: "Open Observability dashboard", href: "/admin/platform/observability" }]
       }
     />
   );

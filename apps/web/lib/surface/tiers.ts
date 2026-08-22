@@ -150,10 +150,44 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // (operationsFilterPolicy). Tier is therefore CORE; the previous
   // plan-literal PROFESSIONAL tier left FREE users receiving operational
   // items with no surface to work them.
-  { pathPrefix: "/inbox", tier: "CORE", directAccessPolicy: "allow", reason: "operations center — operational surface; categories governed by operationalEligibility" },
+  // ATTENTION ARCHITECTURE PHASE 5 (2026-08-22) — /notifications is the
+  // PERSONAL NOTIFICATION CENTRE, and /inbox is its permanent compatibility
+  // path. Both are CORE: a person's own mail is not a paid feature, and what
+  // they may SEE inside it is decided server-side by the aggregation's own
+  // authorization, never by a surface tier.
+  //
+  // These two rules must precede the delivery-log rule further down, which
+  // used to own /notifications — first match wins, and the log is now at
+  // /settings/notifications/deliveries.
+  { pathPrefix: "/notifications", tier: "CORE", directAccessPolicy: "allow", reason: "personal notification centre — content governed server-side by the aggregation's authorization" },
+  { pathPrefix: "/inbox", tier: "CORE", directAccessPolicy: "allow", reason: "compatibility path for the personal notification centre; 308s to /notifications" },
+  // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — /operations MOVED here
+  // from the INTERNAL tier, where it was `directAccessPolicy: "notFound"` and
+  // described as "platform operations".
+  //
+  // It is not platform operations. It is the workspace's own unresolved work,
+  // and a tenant admin looking at a failed report needs it. The surface tier
+  // is CORE for the same reason the notification centre is: what a caller may
+  // actually SEE is decided by the OPERATIONS_VIEW capability and by the
+  // route gate, not by a tier that 404s the URL before either can be asked.
+  //
+  // PROOVRA's internal consoles did not move. They are under
+  // `/admin/platform/*`, and `/ops` above (the raw platform ops console)
+  // stays INTERNAL.
+  { pathPrefix: "/operations", tier: "CORE", directAccessPolicy: "allow", reason: "tenant Operations — shared unresolved workspace work; gated on OPERATIONS_VIEW" },
   // CORE alias for the canonical `/trust-center` URL — pinned by the
   // surface-tier wiring test (Phase IA-surface-tier-wiring).
   { pathPrefix: "/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },
+  // would silently inherit CORE.
+  // placed after it, this rule would never be reached and the delivery log
+  // First match wins, and "/settings" matches "/settings/anything" — so
+  // ORDERING: this MUST precede the broad "/settings" CORE rule below.
+  // PHASE 5 — retargeted with the page. This rule guarded the OUTBOUND
+  // DELIVERY LOG, which moved from /notifications to
+  // /settings/notifications/deliveries. Left on the old prefix it would have
+  // been dead code shadowed by the CORE rule above, and the surface it is
+  // supposed to gate would have had no rule at all.
+  { pathPrefix: "/settings/notifications/deliveries", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "outbound delivery log (admin debugging) → /settings for self-serve users" },
   { pathPrefix: "/settings", tier: "CORE", directAccessPolicy: "allow", reason: "unified account settings workspace (/settings — incl. the Security section)" },
   { pathPrefix: "/billing", tier: "CORE", directAccessPolicy: "allow", reason: "billing" },
   // Phase IA-surface-tier-finishing — these surfaces were CORE in the
@@ -175,7 +209,6 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // operators inside the canonical Settings location instead of a
   // hard 404.
   { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/collaboration-teams", reason: "Phase 2B — workspace switcher is ENTERPRISE; self-serve users are sent to the canonical Teams product (/collaboration-teams), NOT the deleted /teams landing (which would loop)" },
-  { pathPrefix: "/notifications", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "notifications → /settings (self-serve)" },
   // Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY
   // per the pricing page. Self-serve TEAM users manage collaboration
   // through /teams; the Organizations entity (departments, governance,
@@ -241,7 +274,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // until each one is product-ready as a polished self-serve surface.
   // Per-rule redirect targets land the user on the closest self-serve
   // equivalent so they're never lost.
-  { pathPrefix: "/collaboration", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/inbox", reason: "collaboration legacy → /inbox" },
+  { pathPrefix: "/collaboration", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/notifications", reason: "collaboration legacy → /notifications" },
   { pathPrefix: "/evidence-lifecycle", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/evidence", reason: "evidence lifecycle → /evidence (self-serve)" },
   { pathPrefix: "/exchange", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/reports", reason: "exchange → /reports (self-serve uses Reports for share/export)" },
   { pathPrefix: "/integrations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "API keys + webhooks (ENTERPRISE until packaged)" },
@@ -294,7 +327,6 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // ---------------------------------------------------------------------
   { pathPrefix: "/tools", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "All Tools — internal/debug catalog" },
   { pathPrefix: "/ops", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "platform ops console" },
-  { pathPrefix: "/operations", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "platform operations" },
   { pathPrefix: "/platform", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "platform internal" },
 ];
 

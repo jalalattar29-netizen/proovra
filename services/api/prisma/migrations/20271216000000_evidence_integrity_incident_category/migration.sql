@@ -1,0 +1,28 @@
+-- ATTENTION ARCHITECTURE PHASE 3 (2026-08-22) — EVIDENCE_INTEGRITY conditions.
+--
+-- Purely ADDITIVE. One new value on an existing enum; no table is created, no
+-- column changes type, and no existing row is rewritten. Every incident that
+-- exists before this migration keeps its category and its history.
+--
+-- WHY A NEW CATEGORY RATHER THAN REUSING ONE
+-- ------------------------------------------
+-- RFC3161 timestamping and OpenTimestamps anchoring failures are per-EVIDENCE
+-- integrity gaps: the question they answer is "can this record be proven?".
+-- UPLOAD and STORAGE answer "did the bytes move?", REPORT and PACKAGE answer
+-- "did the document build?". Filing integrity failures under any of those
+-- makes the one query an operator most needs — "which records are currently
+-- unprovable" — impossible to express as a filter.
+--
+-- WHAT THIS MIGRATION DELIBERATELY DOES NOT DO
+-- --------------------------------------------
+-- It does NOT backfill conditions for evidence that is currently failed. The
+-- writer opens those on its next scan, with first-seen timestamps it actually
+-- observed. Backfilling would stamp `first_seen_at_utc` with the migration's
+-- own clock, which then feeds the age-based severity escalation — inventing
+-- an age for every historical failure and, on a workspace with old failures,
+-- inventing a wave of CRITICALs out of a schema change.
+--
+-- It also does NOT group anything. There is no correlation backfill, because
+-- historical grouping without positive correlation evidence is precisely the
+-- retracted finding this phase exists to undo.
+ALTER TYPE "IncidentCategory" ADD VALUE IF NOT EXISTS 'EVIDENCE_INTEGRITY';

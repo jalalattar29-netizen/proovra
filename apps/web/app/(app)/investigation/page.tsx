@@ -10,7 +10,7 @@
  *   * Recent non-dismissed signals — bounded list, severity-ordered.
  *   * Recent graph activity — bounded list of new nodes + edges.
  *   * Queue health — gauges from the existing /v1/ops/metrics
- *     endpoint (reused from /operations/media-graph).
+ *     endpoint (reused from /admin/platform/media-graph).
  *
  * Phase 7C — VISUAL redesign only. The page now composes the shared
  * PageShell / PageHeader / PageSection foundation with token-driven
@@ -178,7 +178,7 @@ export default function InvestigationOverviewPage() {
 
 function InvestigationOverviewPageInner() {
   const teamId = useTeamId();
-  // STAGE 2 — /operations/media-graph maps to OBSERVABILITY_VIEW in the
+  // STAGE 2 — /admin/platform/media-graph maps to OBSERVABILITY_VIEW in the
   // canonical route registry. The "Open operations console" pivot
   // below is the only deep-link off this page into an ops surface
   // and must be hidden for actors without the capability.
@@ -492,7 +492,7 @@ function InvestigationOverviewPageInner() {
         <QueueHealthGrid metrics={metrics} />
         {canObservability ? (
           <div style={pivotsStyle}>
-            <Link href="/operations/media-graph" style={pivotLinkStyle}>
+            <Link href="/admin/platform/media-graph" style={pivotLinkStyle}>
               Open operations console →
             </Link>
           </div>
@@ -601,7 +601,7 @@ function RecentSignalsList({
         reason={reason}
         nextAction={{ label: "Capture evidence", href: "/capture" }}
         adminAction={{ label: "Open cases", href: "/cases" }}
-        diagnosticsLink="/operations/observability"
+        diagnosticsLink="/admin/platform/observability"
         isAdmin={isAdmin}
       />
     );
@@ -694,7 +694,7 @@ function GraphActivityList({
         reason={reason}
         nextAction={{ label: "Capture evidence", href: "/capture" }}
         adminAction={{ label: "Open cases", href: "/cases" }}
-        diagnosticsLink="/operations/observability"
+        diagnosticsLink="/admin/platform/observability"
         isAdmin={isAdmin}
       />
     );

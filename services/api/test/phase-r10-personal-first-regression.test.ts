@@ -315,10 +315,13 @@ describe("Phase R10 — Stage 2: hardcoded /ops links sit behind useCan() checks
     it(`${rel} gates /ops links behind a useCan() capability check`, () => {
       const src = readWeb(rel);
       // Hardcoded operations deep-link somewhere in the file. Phase 3
-      // canonicalized /ops → /operations, so these operator deep-links now
-      // point at /operations/* (the useCan() gating relationship is
-      // unchanged — operator links stay behind a capability check).
-      expect(src).toMatch(/href=["']\/operations/);
+      // canonicalized /ops → /operations. PHASE 4A (2026-08-22) then split
+      // that namespace by AUDIENCE: `/operations` is the tenant Operations
+      // Center, and the PROOVRA-internal consoles moved to
+      // `/admin/platform/*`. A file in this list may now legitimately link
+      // to either — what this test protects is unchanged, and is the
+      // useCan() gating relationship, not the URL.
+      expect(src).toMatch(/href=["']\/(operations|admin\/platform)/);
       // useCan() call somewhere in the file — the relationship is
       // structural (a capability is read and a link is conditionally
       // rendered against it). Pairing the two is enforced by code
@@ -336,8 +339,8 @@ describe("Phase R10 — Stage 2/3: next.config.js redirect cleanliness", () => {
   // The pre-cleanup config had /ops/* -> /operations/* redirects whose
   // destinations did not exist on disk, so the canonical /ops/* pages
   // were 308-ing into 404s. The cleanup pruned every redirect whose
-  // destination was missing; only /ops/reliability -> /operations/reliability
-  // remains because /operations/reliability genuinely exists.
+  // destination was missing; only /ops/reliability -> /admin/platform/reliability
+  // remains because /admin/platform/reliability genuinely exists.
 
   function opsPagesOnDisk(): string[] {
     const opsDir = webPath("app/(app)/ops");

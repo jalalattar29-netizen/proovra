@@ -147,8 +147,22 @@ const REGISTRY = parseRegistry();
 // Stage 7 — Platform-OPS routes are PLATFORM_ADMIN-gated
 // =============================================================================
 
+/**
+ * CONTRACT MIGRATION — Attention Architecture Phase 4B (2026-08-22).
+ *
+ * `/operations` LEFT this list. It was registered as `platform.ops_center`
+ * with `requiredActiveSpace: PLATFORM_ADMIN`, which meant the surface that
+ * answers "what unresolved work does MY workspace have?" was reachable only
+ * by PROOVRA staff. It is now `workspace.operations`, gated on a valid active
+ * workspace plus OPERATIONS_VIEW.
+ *
+ * Every genuinely PROOVRA-internal console below is unchanged and still
+ * asserted, which is what this Stage-7 gate exists for. The tenant route's
+ * own gating is asserted in
+ * `attention-arch-phase4b-workspace-operations.test.ts`, and the boundary
+ * between the two in `apps/web/__tests__/platform-admin-route-access.test.ts`.
+ */
 const PLATFORM_OPS_ROUTE_IDS = [
-  "platform.ops_center",
   "platform.observability",
   "platform.runbooks",
   "platform.automation",

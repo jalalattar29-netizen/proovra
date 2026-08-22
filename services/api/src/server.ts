@@ -92,7 +92,6 @@ import { adminBillingRoutes } from "./routes/admin-billing.routes.js";
 // Phase 3 — Enterprise Identity: DNS-verified organization domain ownership.
 import { organizationDomainsRoutes } from "./routes/organization-domains.routes.js";
 // Phase A.1C — Account-level operational priorities (above-workspace surface).
-import { meOperationalPrioritiesRoutes } from "./routes/me-operational-priorities.routes.js";
 // Phase C — Operational Inbox (caller-scoped unified attention stream).
 import { meInboxRoutes } from "./routes/me-inbox.routes.js";
 import { presenceRoutes } from "./routes/presence.routes.js";
@@ -1146,7 +1145,6 @@ allowedHeaders: [
   // Phase 3 — Enterprise Identity: organization domain verification write
   // surfaces (add / verify / list / remove). Enterprise-gated + step-up.
   await app.register(organizationDomainsRoutes);
-  await app.register(meOperationalPrioritiesRoutes);
   await app.register(meInboxRoutes);
   // Phase G3 — bounded in-process presence routes
   // (heartbeat + here-now query). No persistence, no audit emission.

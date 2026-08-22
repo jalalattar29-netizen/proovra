@@ -166,6 +166,35 @@ export const PERMISSIONS = [
   "redaction.version.publish",
   "redaction.derivative.download",
   "redaction.administer",
+
+  // ==========================================================================
+  // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — TENANT OPERATIONS.
+  //
+  // THE DEFECT THESE REPLACE (D29)
+  // ------------------------------
+  // Generic Operations mutations — acknowledge, resolve, suppress, assign on
+  // an OperationalIncident — were authorized by `identity.access_review.action`.
+  // That permission governs a SECURITY decision: approving or rejecting
+  // somebody's continued access to a workspace. Borrowing it to acknowledge a
+  // failed report is wrong in both directions at once. It hands every operator
+  // who may triage an incident the authority to adjudicate access reviews, and
+  // it makes "who may run operations here?" unanswerable without knowing that
+  // an unrelated identity permission is standing in for it.
+  //
+  // WHAT IS DELIBERATELY ABSENT
+  // ---------------------------
+  // There is no `operations.retry`. Retrying a report, re-anchoring a record
+  // or re-sending a message is a DOMAIN action, authorized by that domain's
+  // own permission (`evidence.generate_report`, `notification.delivery.resend`,
+  // …). Operations may link to it; it does not acquire the right to perform
+  // it. A generic retry permission would be Operations quietly becoming a
+  // second authority over every domain it displays.
+  // ==========================================================================
+  "operations.view",
+  "operations.acknowledge",
+  "operations.assign",
+  "operations.resolve",
+  "operations.suppress",
 ] as const;
 
 export const PermissionSchema = z.enum(PERMISSIONS);
@@ -327,6 +356,15 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "identity.external_mapping.manage",
     "billing.read",
     // NOT: billing.manage — OWNER-only.
+    // PHASE 4B — the full Operations set. Assignment and suppression are
+    // admin-tier for the same reason CASE_ASSIGN and GOVERNANCE_ACT are:
+    // one decides somebody else's workload, the other decides that a
+    // workspace stops being told about unresolved work.
+    "operations.view",
+    "operations.acknowledge",
+    "operations.assign",
+    "operations.resolve",
+    "operations.suppress",
   ],
 
   REVIEWER: [
@@ -378,6 +416,13 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "identity.access_review.read",
     "identity.external_mapping.read",
     "billing.read",
+    // PHASE 4B — a reviewer OPERATES: they may see shared work, say they
+    // have it, and say it is done. They may not hand it to somebody else,
+    // and they may not decide the workspace stops hearing about it.
+    "operations.view",
+    "operations.acknowledge",
+    "operations.resolve",
+    // NOT: operations.assign, operations.suppress
     // NOT: delete, archive, governance.manage, legal_hold.manage,
     // retention.manage, audit.export, workflow.template.manage,
     // any identity.member.{invite,suspend,revoke,restore,role.change},
@@ -405,6 +450,10 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "intelligence.read",
     "collaboration.thread.read",
     "collaboration.message.post",
+    // PHASE 4B — a contributor can SEE the workspace's unresolved work (it
+    // explains why their upload has not produced a report yet) and acts on
+    // none of it.
+    "operations.view",
   ],
 
   VIEWER: [
@@ -417,6 +466,10 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "collaboration.thread.read",
     "identity.member.read",
     "identity.org_policy.read",
+    // PHASE 4B — VIEWER may look and may not act. Every Operations mutation
+    // is absent here, deliberately and by omission rather than by a runtime
+    // role-name comparison somewhere else.
+    "operations.view",
   ],
 
   EXTERNAL_CONTRIBUTOR: [],

@@ -416,13 +416,32 @@ describe("Phase 32.8C FINAL-3 — bulk actions", () => {
     );
   });
 
-  it("bulk-action POST uses requireOpsActorAction (mutating gate)", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 4B / D29 (2026-08-22).
+   *
+   * The INVARIANT is unchanged and still asserted: this mutation sits behind
+   * `requireAuth` AND an authorization gate, and cannot reach its handler
+   * without both. What changed is WHICH permission the gate asks for.
+   *
+   * `requireOpsActorAction` resolved to `identity.access_review.action` — the
+   * permission that decides whether somebody keeps their ACCESS to a
+   * workspace. Sixteen generic Operations mutations were gated on it, so
+   * anyone allowed to acknowledge a failed report was thereby allowed to
+   * adjudicate access reviews. The gate is now `requireOpsCapability` with the
+   * Operations permission that describes the action, which is strictly
+   * NARROWER than what this test used to accept.
+   */
+  it("bulk-action POST gates on the permission of the action it fans out into", () => {
     const block = OPS_ROUTES.match(
       /app\.post\(\s*"\/v1\/ops\/bulk-actions"[\s\S]*?\}\s*,\s*\)/,
     );
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/preHandler:\s*requireAuth/);
-    expect(block![0]).toMatch(/requireOpsActorAction/);
+    expect(block![0]).toMatch(/requireOpsCapability/);
+    // STRONGER than the assertion this replaces: the bulk gate is per
+    // ACTION TYPE, so an operator authorized only to acknowledge cannot
+    // suppress 200 conditions by routing through this endpoint.
+    expect(block![0]).toMatch(/BULK_ACTION_PERMISSION\[body\.actionType\]/);
   });
 
   it("body schema caps targetIds at 200 + validates UUIDs", () => {

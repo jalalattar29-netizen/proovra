@@ -23,10 +23,27 @@ const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Routes that are platform-admin-scoped in the resolver (requiredActiveSpace
 // or domain === PLATFORM_ADMIN). /tools is INTERNAL at the surface tier but
 // ACCOUNT-scoped in the resolver, so it is tested separately.
+/**
+ * CONTRACT MIGRATION — Attention Architecture Phase 4B (2026-08-22).
+ *
+ * `/operations` LEFT this list, deliberately, and that is the point of the
+ * phase rather than a weakening of this gate.
+ *
+ * It was registered as `platform.ops_center` with the platform-tier
+ * `OPS_CENTER_VIEW` capability and `requiredActiveSpace: PLATFORM_ADMIN`,
+ * which meant the one surface answering "what unresolved work does MY
+ * workspace have?" was reachable only by PROOVRA staff. It is now
+ * `workspace.operations`, gated on a valid active workspace plus
+ * `OPERATIONS_VIEW`.
+ *
+ * The gate this file exists to enforce is UNCHANGED and is now stronger: the
+ * platform consoles below are still platform-only, and a new test asserts the
+ * property that actually matters after the unlock — a tenant who CAN reach
+ * `/operations` still cannot reach any `/admin/platform/*` console.
+ */
 const PLATFORM_ADMIN_ROUTE_IDS = [
-  "platform.ops_center", // /operations
-  "platform.observability", // /operations/observability
-  "operations.readiness", // /operations/readiness
+  "platform.observability", // /admin/platform/observability
+  "operations.readiness", // /admin/platform/readiness
   "platform.provisioning", // /admin/provisioning
 ] as const;
 
@@ -87,9 +104,8 @@ test("Non-platform user CANNOT access platform-admin routes even WITH the capabi
 
 test("canAccessSurface: INTERNAL surfaces are admin-only", () => {
   const internalSurfaces = [
-    "/operations",
-    "/operations/observability",
-    "/operations/readiness",
+    "/admin/platform/observability",
+    "/admin/platform/readiness",
     "/tools",
   ];
   for (const href of internalSurfaces) {
@@ -123,9 +139,9 @@ test("/admin/provisioning loads for a Platform Admin in Personal Space", () => {
 
 test("no INTERNAL route 404s for a Platform Admin — every registered route has a page on disk", () => {
   const pages: Record<string, string> = {
-    "platform.ops_center": "app/(app)/operations/page.tsx",
-    "platform.observability": "app/(app)/operations/observability/page.tsx",
-    "operations.readiness": "app/(app)/operations/readiness/page.tsx",
+    "workspace.operations": "app/(app)/operations/page.tsx",
+    "platform.observability": "app/(app)/admin/platform/observability/page.tsx",
+    "operations.readiness": "app/(app)/admin/platform/readiness/page.tsx",
     "platform.provisioning": "app/(app)/admin/provisioning/page.tsx",
     "workspace.tools": "app/(app)/tools/page.tsx",
   };
@@ -135,5 +151,93 @@ test("no INTERNAL route 404s for a Platform Admin — every registered route has
       existsSync(resolve(APP_ROOT, page)),
       `${id} must resolve to a page on disk: ${page}`,
     );
+  }
+});
+
+// ============================================================================
+// ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — THE UNLOCK, AND ITS BOUNDARY.
+//
+// Unlocking tenant Operations is only safe if the platform boundary survives
+// it. These four tests are the proof, and they are the reason the route was
+// allowed to leave PLATFORM_ADMIN_ROUTE_IDS above.
+// ============================================================================
+
+test("a tenant WITH OPERATIONS_VIEW can load /operations", () => {
+  const res = resolveRouteAccess({
+    route: routeById("workspace.operations"),
+    activeSpaceType: "ORGANIZATION",
+    isPlatformAdmin: false,
+    capabilities: { OPERATIONS_VIEW: true } as never,
+  });
+  assert.equal(res.canLoad, true, "a tenant operator must reach Operations");
+  assert.equal(res.accessState, "ALLOWED");
+});
+
+test("a tenant WITHOUT OPERATIONS_VIEW cannot load /operations", () => {
+  // A Free personal workspace produces no operational conditions, so it is
+  // granted no OPERATIONS_VIEW and gets no Operations surface. This is
+  // capability-driven, not a plan-name comparison anywhere.
+  const res = resolveRouteAccess({
+    route: routeById("workspace.operations"),
+    activeSpaceType: "PERSONAL",
+    isPlatformAdmin: false,
+    capabilities: {} as never,
+  });
+  assert.equal(res.canLoad, false);
+  assert.notEqual(res.accessState, "ALLOWED");
+});
+
+test("the tenant Operations route is NOT platform-gated any more", () => {
+  const route = routeById("workspace.operations") as {
+    requiredActiveSpace: string;
+    requiredCapabilities: readonly string[];
+  };
+  assert.notEqual(
+    route.requiredActiveSpace,
+    "PLATFORM_ADMIN",
+    "tenant Operations must not require the platform space",
+  );
+  assert.ok(
+    route.requiredCapabilities.includes("OPERATIONS_VIEW"),
+    "tenant Operations must be gated on OPERATIONS_VIEW",
+  );
+  // And it must NOT be gated on a platform-tier key, which would re-lock it
+  // by a different name.
+  for (const platformKey of [
+    "OPS_CENTER_VIEW",
+    "OBSERVABILITY_VIEW",
+    "RUNBOOKS_VIEW",
+    "PLATFORM_ADMIN",
+  ]) {
+    assert.ok(
+      !route.requiredCapabilities.includes(platformKey),
+      `tenant Operations must not require the platform key ${platformKey}`,
+    );
+  }
+});
+
+test("a tenant who CAN reach Operations still cannot reach any platform console", () => {
+  // THE property the unlock had to preserve. Holding every Operations
+  // capability grants nothing under /admin/platform/*.
+  const operatorCapabilities = {
+    OPERATIONS_VIEW: true,
+    OPERATIONS_ACKNOWLEDGE: true,
+    OPERATIONS_ASSIGN: true,
+    OPERATIONS_RESOLVE: true,
+    OPERATIONS_SUPPRESS: true,
+  } as never;
+  for (const id of PLATFORM_ADMIN_ROUTE_IDS) {
+    const res = resolveRouteAccess({
+      route: routeById(id),
+      activeSpaceType: "ORGANIZATION",
+      isPlatformAdmin: false,
+      capabilities: operatorCapabilities,
+    });
+    assert.equal(
+      res.canLoad,
+      false,
+      `${id} must stay denied to a tenant operator`,
+    );
+    assert.equal(res.accessState, "PLATFORM_ADMIN_ONLY");
   }
 });

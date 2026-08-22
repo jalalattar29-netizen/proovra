@@ -1,0 +1,252 @@
+{
+  "$schema": "proovra/attention-architecture-command-center-decomposition@1",
+  "phase": "Attention Architecture Phase 4D",
+  "date": "2026-08-22",
+  "why": [
+    "The Enterprise Command Center was a SECOND product architecture: a page that",
+    "answered every question the rest of the product answers, from its own",
+    "computations, with its own vocabularies. This file assigns every one of its",
+    "sections a single final owner, so the page becomes a set of projections of",
+    "authorities that already exist rather than an authority of its own.",
+    "",
+    "OWNERS",
+    "  HOME        cockpit summary — 'what is the state of my workspace?'",
+    "  OPERATIONS  shared unresolved work — 'what must we act on?'",
+    "  SECURITY    security-specialised decisions, Security Center owned",
+    "  ANALYTICS   intelligence and analysis surfaces",
+    "  PLATFORM    PROOVRA-internal telemetry, /admin/platform/*",
+    "  DOMAIN      a specific domain surface already owns it",
+    "  REMOVE      a true duplicate; deleted with its consumers",
+    "",
+    "'projection' means the Command Center may RENDER it and must not COMPUTE",
+    "it: the numbers come from the owner's authority, and acting on them",
+    "happens on the owner's surface where the capability gates live."
+  ],
+  "sections": {
+    "accessSecurityAnomalies": {
+      "owner": "SECURITY",
+      "disposition": "link",
+      "destination": "/security-center",
+      "authority": "identity-security services",
+      "note": "A security decision. Operations may summarise and link; it must never adjudicate."
+    },
+    "accessSecurityClassifier": {
+      "owner": "SECURITY",
+      "disposition": "link",
+      "destination": "/security-center",
+      "authority": "identity-security services",
+      "note": "Same. Classification of access risk stays Security-owned."
+    },
+    "attentionQueue": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "same as operationalPressure",
+      "note": "Backward-compatible alias of operationalPressure.items. Kept only for shipped clients; carries no independent computation."
+    },
+    "auditReadiness": {
+      "owner": "HOME",
+      "disposition": "projection",
+      "authority": "readiness-posture.service",
+      "note": "Readiness summary, not readiness work."
+    },
+    "caseOperations": {
+      "owner": "DOMAIN",
+      "disposition": "keep",
+      "destination": "/cases",
+      "authority": "case services",
+      "note": "Case state belongs to the case domain; the Command Center summarises it."
+    },
+    "coordinationSignals": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "collaboration + reviewer-ops",
+      "note": "Cross-operator coordination backlog. Shared, unresolved, and already owned."
+    },
+    "crossCaseIntelligenceV2": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/investigation",
+      "authority": "intelligence services",
+      "note": "Cross-case analysis, second generation. Analysis answers 'what does this mean?'; it is never a piece of shared work and it never resolves anything."
+    },
+    "custodyIntegrityAnomalies": {
+      "owner": "SECURITY",
+      "disposition": "link",
+      "destination": "/security-center",
+      "authority": "custody-attestation.service",
+      "note": "Chain-of-custody anomalies are forensic-security decisions."
+    },
+    "deepIntegrityWatch": {
+      "owner": "SECURITY",
+      "disposition": "link",
+      "destination": "/security-center",
+      "authority": "evidence integrity services",
+      "note": "Per-Evidence integrity FAILURES are Operations conditions (Phase 3). The WATCH surface — ongoing scrutiny of records not yet failing — stays Security."
+    },
+    "governancePosture": {
+      "owner": "HOME",
+      "disposition": "projection",
+      "authority": "governance-lifecycle services",
+      "note": "A posture summary is cockpit material. Governance actions live on the governance surfaces."
+    },
+    "incidents": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "OperationalIncident",
+      "note": "Already a projection. Adjudication (acknowledge/assign/resolve/suppress) is capability-gated on /operations and never here."
+    },
+    "investigationIntelligence": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/investigation",
+      "authority": "intelligence services",
+      "note": "Investigation analysis surface."
+    },
+    "operationalGraph": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/investigation/graph",
+      "authority": "operational-graph.service",
+      "note": "Despite the name this is a graph VISUALISATION, not an operations queue."
+    },
+    "operationalPressure": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "services/api/src/services/operations/operations-summary.service.ts + observability/incident.service.ts listIncidents",
+      "note": "WAS a second general Operations computation — a dozen bespoke scans with their own severity ranking and caps, reporting a workspace's operational pressure independently of /operations. Rewritten to project the canonical summary and the canonical condition list. This is the duplicate-pressure-authority removal the phase exists for."
+    },
+    "organizationalHealth": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/executive",
+      "authority": "org-health.service",
+      "note": "Organisational health analytics for executives; distinct from the workspace Operations summary, which counts unresolved work."
+    },
+    "organizationalIntelligence": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/intelligence",
+      "authority": "intelligence services",
+      "note": "Analysis, not operations. It answers 'what does this mean?', never 'what must we do?'."
+    },
+    "organizationalIntelligenceV2": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/intelligence",
+      "authority": "intelligence services",
+      "note": "Versioned variant of the above; same destination and same authority."
+    },
+    "pipeline": {
+      "owner": "HOME",
+      "disposition": "projection",
+      "authority": "evidence/report/package pipeline counters",
+      "note": "The compact pipeline counters. Cockpit material — the same numbers Home already renders, from the same projection."
+    },
+    "pipelineDetail": {
+      "owner": "HOME",
+      "disposition": "projection",
+      "authority": "evidence/report/package pipeline counters",
+      "note": "The cockpit pipeline view Home already consumes."
+    },
+    "pipelineIntelligence": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/intelligence",
+      "authority": "intelligence services",
+      "note": "Predictive and comparative reading of pipeline throughput. Advisory only: it never opens, escalates or resolves a condition."
+    },
+    "predictiveRisk": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/intelligence",
+      "authority": "intelligence services",
+      "note": "A prediction is advisory. It is never an operational condition, and it never resolves anything."
+    },
+    "queueCongestion": {
+      "owner": "PLATFORM",
+      "disposition": "move",
+      "destination": "/admin/platform/queues",
+      "authority": "queue-inventory.service",
+      "note": "BullMQ depth is PROOVRA infrastructure telemetry, not a tenant's work."
+    },
+    "queueWorkerTelemetry": {
+      "owner": "PLATFORM",
+      "disposition": "move",
+      "destination": "/admin/platform/observability",
+      "authority": "worker heartbeat / metrics",
+      "note": "Worker liveness is platform health. A tenant cannot act on it."
+    },
+    "recentEvidence": {
+      "owner": "HOME",
+      "disposition": "projection",
+      "authority": "Evidence",
+      "note": "Recent records — cockpit context."
+    },
+    "reconstructedTimeline": {
+      "owner": "DOMAIN",
+      "disposition": "keep",
+      "destination": "/investigation/timeline",
+      "authority": "operational-timeline.service",
+      "note": "Same authority, reconstruction view."
+    },
+    "relationshipIntelligence": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/investigation/relationships",
+      "authority": "graph / relationship services",
+      "note": "Entity relationships are an analytical product."
+    },
+    "reviewerCapacity": {
+      "owner": "DOMAIN",
+      "disposition": "keep",
+      "destination": "/reviewer-ops",
+      "authority": "reviewer-ops engine",
+      "note": "Capacity planning is a reviewer-ops surface."
+    },
+    "reviewerOrchestration": {
+      "owner": "DOMAIN",
+      "disposition": "keep",
+      "destination": "/review",
+      "authority": "review workflow",
+      "note": "Review has its own lifecycle and must not acquire a second one."
+    },
+    "reviewerWorkload": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "reviewer-ops workload service",
+      "note": "Who is carrying how much review work. Operator workload is an Operations concern; the reviewer-ops engine stays its authority and its assignment lifecycle."
+    },
+    "routingQueue": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "OperationalWorkflow",
+      "note": "Routing is operational work assignment; the workflow authority owns its lifecycle."
+    },
+    "summary": {
+      "owner": "HOME",
+      "disposition": "projection",
+      "authority": "command-center.service runSummary (workspace counters)",
+      "note": "A cockpit header. Counts only; no lifecycle, no actions."
+    },
+    "timeline": {
+      "owner": "DOMAIN",
+      "disposition": "keep",
+      "destination": "/investigation/timeline",
+      "authority": "operational-timeline.service",
+      "note": "Investigation timeline."
+    },
+    "timelineIntelligence": {
+      "owner": "ANALYTICS",
+      "disposition": "move",
+      "destination": "/investigation",
+      "authority": "operational-timeline.service",
+      "note": "Analytical reading of the timeline, as distinct from the timeline itself. Analysis surface, not an operations queue."
+    },
+    "workloadEngine": {
+      "owner": "OPERATIONS",
+      "disposition": "projection",
+      "authority": "reviewer-ops workload service",
+      "note": "Operator workload is an Operations concern; the reviewer-ops engine remains the authority."
+    }
+  }
+}

@@ -24,6 +24,8 @@
  */
 
 import { prisma } from "../../db.js";
+import { listIncidents } from "../observability/incident.service.js";
+import { buildOperationsSummary } from "../operations/operations-summary.service.js";
 // Phase 37.98 — Projection-backed dashboard reads.
 import {
   readLatestOrgHealthProjection,
@@ -1168,6 +1170,21 @@ const REVIEWER_INACTIVITY_HOURS = 72;
 const UNSIGNED_EVIDENCE_AGE_DAYS = 7;
 const RETRY_STORM_OCCURRENCE_THRESHOLD = 5;
 
+/**
+ * PHASE 4D (2026-08-22) — incident severity -> Command Center tone.
+ *
+ * ONE mapping. The Command Center now PROJECTS the incident authority, so it
+ * must not develop a second severity vocabulary alongside it: a condition
+ * that reads CRITICAL on /operations has to read critical here, and the only
+ * way to guarantee that is to translate in exactly one place.
+ */
+const SEVERITY_FROM_INCIDENT: Record<string, SeverityTone> = {
+  CRITICAL: "critical",
+  HIGH: "high",
+  WARNING: "warning",
+  INFO: "info",
+};
+
 const SEVERITY_RANK: Record<SeverityTone, number> = {
   critical: 4,
   high: 3,
@@ -1198,633 +1215,125 @@ async function detectWorkspaceScope(teamId: string): Promise<{
   };
 }
 
-// ---------------------------------------------------------------------------
-// Section: Operational pressure
-// ---------------------------------------------------------------------------
-
+/**
+ * Section: Operational pressure — A PROJECTION, NOT AN AUTHORITY.
+ *
+ * ---------------------------------------------------------------------------
+ * ATTENTION ARCHITECTURE PHASE 4D (2026-08-22)
+ * ---------------------------------------------------------------------------
+ * This function used to be a SECOND general Operations computation. It ran
+ * about a dozen bespoke scans of its own — overdue reviews, stalled reviews,
+ * unassigned reviews, open escalations, stuck uploads, missing/failed reports
+ * and packages, TSA/OTS failures, retry storms, governance conflicts, unsigned
+ * evidence, blocked exports — sorted them by its own severity ranking, capped
+ * them with its own limits, and reported the result as the workspace's
+ * operational pressure.
+ *
+ * Meanwhile `/operations` reported the same workspace's operational state from
+ * `OperationalIncident`. Two authorities, two severity vocabularies, two caps,
+ * two answers to one question — and an operator who acknowledged something in
+ * one surface saw no change in the other, because the other had never heard of
+ * acknowledgement.
+ *
+ * It is now a PROJECTION of the one authority:
+ *
+ *   counts  <- buildOperationsSummary()   the canonical workspace summary
+ *   items   <- listIncidents()            the canonical condition list
+ *
+ * so the number on the Command Center and the number on /operations are the
+ * same number, computed once. The Command Center still deep-links every row,
+ * which is what it is good at; ACTING on a condition happens on /operations,
+ * where the capability gates live.
+ *
+ * The individual signals the old scans surfaced did not disappear. Those that
+ * are genuinely shared unresolved work are opened as conditions by the
+ * incident generator and by the Phase-3 evidence-integrity writer, which is
+ * where they can be acknowledged, assigned, resolved and audited.
+ */
 async function runOperationalPressure(
   teamId: string,
   scope: WorkspaceScope,
   viewerRole: string,
 ): Promise<CommandCenterEnvelope["sections"]["operationalPressure"]> {
-  const now = new Date();
-  const stuckUploadCutoff = new Date(
-    Date.now() - STUCK_UPLOAD_HOURS * 60 * 60 * 1000,
+  // `scope` is no longer consulted: shared operational conditions are shared
+  // regardless of how many operators a workspace has, and the SINGLE_OCCUPANT
+  // branches the old scans carried were a UI concern that now lives in the
+  // Operations console's density, not in what gets counted.
+  void scope;
+
+  const summary = await buildOperationsSummary({ workspaceId: teamId });
+
+  // An unreadable summary is UNAVAILABLE, never a tidy set of zeros. The
+  // Command Center renders the section's status; it must never present a
+  // failed read as a healthy workspace.
+  if (!summary.complete && summary.incompleteReason === "SOURCE_FAILED") {
+    return {
+      status: "unavailable",
+      items: [],
+      counts: { critical: 0, high: 0, warning: 0, info: 0 },
+    };
+  }
+
+  let page: Awaited<ReturnType<typeof listIncidents>>;
+  try {
+    page = await listIncidents({
+      teamId,
+      // Unresolved work only. RESOLVED and SUPPRESSED conditions belong to
+      // the Operations history, not to current pressure.
+      status: undefined,
+      limit: PRESSURE_TOTAL,
+    });
+  } catch {
+    return {
+      status: "degraded",
+      items: [],
+      // The COUNTS still come from the summary, which succeeded — a failed
+      // list read costs the rows, not the totals.
+      counts: {
+        critical: summary.critical,
+        high: summary.high,
+        warning: summary.warning,
+        info: summary.info,
+      },
+    };
+  }
+
+  const unresolved = page.incidents.filter(
+    (incident) =>
+      incident.status === "OPEN" || incident.status === "ACKNOWLEDGED",
   );
-  const stalledReviewCutoff = new Date(
-    Date.now() - STALLED_REVIEW_HOURS * 60 * 60 * 1000,
-  );
-  const unsignedAgeCutoff = new Date(
-    Date.now() - UNSIGNED_EVIDENCE_AGE_DAYS * 24 * 60 * 60 * 1000,
-  );
 
-  // Phase 32.8C+ — local raw shape (omits routing fields, which are
-  // added uniformly by `enrichPressureItems` at the end).
-  type RawPressure = Omit<
-    OperationalPressureItem,
-    | "reasonCode"
-    | "affectedDomain"
-    | "affectedEntityType"
-    | "affectedEntityId"
-    | "operationalExplanation"
-    | "recommendedAction"
-    | "primaryRoute"
-    | "secondaryRoute"
-    | "ageMs"
-    | "sourceTable"
-    | "requiredPermission"
-    | "requiredRoles"
-    | "canCurrentUserAct"
-    | "safeActionLabel"
-    | "escalationPath"
-  > & { affectedEntityId?: string | null };
-
-  const collected: RawPressure[] = [];
-  let anyOk = false;
-  let anyFailed = false;
-
-  const pushKindResults = (
-    items: RawPressure[],
-    sliced: number = PRESSURE_PER_KIND,
-  ) => {
-    for (const item of items.slice(0, sliced)) collected.push(item);
-  };
-
-  // Overdue reviews (team only) — workflows past dueAt that are still open.
-  if (scope === "SHARED") {
-    try {
-      const rows = await prisma.evidenceReviewWorkflow.findMany({
-        where: {
-          teamId,
-          status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-          dueAt: { lt: now },
-        },
-        orderBy: [{ priority: "desc" }, { dueAt: "asc" }],
-        take: PRESSURE_PER_KIND,
-        select: {
-          id: true,
-          evidenceId: true,
-          status: true,
-          priority: true,
-          dueAt: true,
-        },
-      });
-      anyOk = true;
-      pushKindResults(
-        rows.map((r) => ({
-          id: `overdue_review:${r.id}`,
-          category: "overdue_review",
-          severity: (r.priority === "URGENT"
-            ? "critical"
-            : r.priority === "HIGH"
-              ? "high"
-              : "warning") as SeverityTone,
-          title: `Overdue review — ${r.status}`,
-          subtitle: r.dueAt
-            ? `Due ${r.dueAt.toISOString().slice(0, 10)} · ${r.priority}`
-            : null,
-          href: `/evidence/${r.evidenceId}`,
-          occurredAt: r.dueAt?.toISOString() ?? null,
-        })),
-      );
-    } catch {
-      anyFailed = true;
-    }
-  }
-
-  // Stalled review workflows (IN_REVIEW / NEEDS_INFO not touched in N hours)
-  if (scope === "SHARED") {
-    try {
-      const rows = await prisma.evidenceReviewWorkflow.findMany({
-        where: {
-          teamId,
-          status: { in: ["IN_REVIEW", "NEEDS_INFO"] },
-          updatedAt: { lt: stalledReviewCutoff },
-        },
-        orderBy: { updatedAt: "asc" },
-        take: PRESSURE_PER_KIND,
-        select: {
-          id: true,
-          evidenceId: true,
-          status: true,
-          updatedAt: true,
-        },
-      });
-      anyOk = true;
-      pushKindResults(
-        rows.map((r) => ({
-          id: `stalled_review:${r.id}`,
-          category: "stalled_review",
-          severity: "warning",
-          title: `Stalled review — no progress in ${STALLED_REVIEW_HOURS}h`,
-          subtitle: `${r.status} · last touched ${r.updatedAt.toISOString().slice(0, 10)}`,
-          href: `/evidence/${r.evidenceId}`,
-          occurredAt: r.updatedAt.toISOString(),
-        })),
-      );
-    } catch {
-      anyFailed = true;
-    }
-  }
-
-  // Unassigned review workflows (queued for > N hours)
-  if (scope === "SHARED") {
-    try {
-      const queuedTooLong = await prisma.evidenceReviewWorkflow.findMany({
-        where: {
-          teamId,
-          status: "QUEUED",
-          createdAt: { lt: stalledReviewCutoff },
-        },
-        orderBy: { createdAt: "asc" },
-        take: PRESSURE_PER_KIND,
-        select: { id: true, evidenceId: true, createdAt: true },
-      });
-      anyOk = true;
-      pushKindResults(
-        queuedTooLong.map((r) => ({
-          id: `unassigned_review:${r.id}`,
-          category: "unassigned_review",
-          severity: "warning",
-          title: `Unassigned review — queued > ${STALLED_REVIEW_HOURS}h`,
-          subtitle: `Queued ${r.createdAt.toISOString().slice(0, 10)}`,
-          href: "/reviewer-ops",
-          occurredAt: r.createdAt.toISOString(),
-        })),
-      );
-    } catch {
-      anyFailed = true;
-    }
-  }
-
-  // Open escalations (CRITICAL/HIGH first)
-  if (scope === "SHARED") {
-    try {
-      const rows = await prisma.reviewEscalation.findMany({
-        where: { teamId, status: "OPEN" },
-        orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
-        take: PRESSURE_PER_KIND,
-        select: {
-          id: true,
-          severity: true,
-          reason: true,
-          workflowId: true,
-          evidenceId: true,
-          createdAt: true,
-        },
-      });
-      anyOk = true;
-      pushKindResults(
-        rows.map((r) => ({
-          id: `escalation:${r.id}`,
-          category: "open_escalation",
-          severity: (r.severity === "CRITICAL"
-            ? "critical"
-            : r.severity === "HIGH"
-              ? "high"
-              : "warning") as SeverityTone,
-          title: humanize(String(r.reason)) || "Reviewer escalation",
-          subtitle: `Workflow ${r.workflowId.slice(0, 8)}`,
-          href: "/reviewer-ops/escalations",
-          occurredAt: r.createdAt.toISOString(),
-        })),
-      );
-    } catch {
-      anyFailed = true;
-    }
-  }
-
-  // Stuck uploads — UPLOADING > N hours
-  try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        teamId,
-        status: "UPLOADING",
-        updatedAt: { lt: stuckUploadCutoff },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: PRESSURE_PER_KIND,
-      select: { id: true, title: true, updatedAt: true },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `stuck_upload:${r.id}`,
-        category: "stuck_upload",
-        severity: "warning",
-        title: `Upload stalled — ${r.title ?? "Untitled"}`,
-        subtitle: `No progress in ${STUCK_UPLOAD_HOURS}h+`,
-        href: `/evidence/${r.id}`,
-        occurredAt: r.updatedAt.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Missing reports — evidence in SIGNED with no Report row.
-  try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        teamId,
-        status: "SIGNED",
-        reports: { none: {} },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: PRESSURE_PER_KIND,
-      select: { id: true, title: true, updatedAt: true },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `missing_report:${r.id}`,
-        category: "missing_report",
-        severity: "warning",
-        title: `Report not generated — ${r.title ?? "Untitled"}`,
-        subtitle: "Evidence finalized · report pipeline pending",
-        href: `/evidence/${r.id}`,
-        occurredAt: r.updatedAt.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Missing packages — evidence in REPORTED with no VerificationPackage.
-  try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        teamId,
-        status: "REPORTED",
-        verificationPackages: { none: {} },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: PRESSURE_PER_KIND,
-      select: { id: true, title: true, updatedAt: true },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `missing_package:${r.id}`,
-        category: "missing_package",
-        severity: "warning",
-        title: `Verification package not generated — ${r.title ?? "Untitled"}`,
-        subtitle: "Report ready · package pipeline pending",
-        href: `/evidence/${r.id}`,
-        occurredAt: r.updatedAt.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Phase HOME-TRUTH-FIX — TSA failures. Surfacing the count was
-  // previously buried inside the Trust State card; an operator who
-  // skimmed the Operational Queue would miss it entirely. We escalate
-  // each failed-TSA evidence as a `tsa_failed` pressure item so the
-  // top-of-page queue cannot stay silent when timestamping is broken.
-  //
-  // Vocabulary: this is an *operational timestamp issue* — wording
-  // deliberately avoids "integrity failure" / "invalid evidence" /
-  // any claim about the underlying record being untrustworthy. TSA
-  // failure means the RFC 3161 anchoring step failed, not that the
-  // captured content is wrong.
-  try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        teamId,
-        deletedAt: null,
-        tsaStatus: { in: ["FAILED", "REJECTED", "ERROR"] as never },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: PRESSURE_PER_KIND,
-      select: { id: true, title: true, updatedAt: true },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `tsa_failed:${r.id}`,
-        category: "tsa_failed",
-        severity: "warning",
-        title: `Trusted timestamp issue — ${r.title ?? "Untitled"}`,
-        subtitle: "RFC 3161 anchoring did not complete",
-        href: `/evidence/${r.id}`,
-        occurredAt: r.updatedAt.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Phase HOME-TRUTH-FIX — OTS failures. Same rationale + vocabulary
-  // discipline as the TSA item above. OpenTimestamps anchoring is a
-  // separate timestamp provider; a failure here does not imply
-  // content-integrity failure, only that the anchor step did not
-  // succeed.
-  try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        teamId,
-        deletedAt: null,
-        otsStatus: { in: ["FAILED", "ERRORED", "ERROR"] as never },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: PRESSURE_PER_KIND,
-      select: { id: true, title: true, updatedAt: true },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `ots_failed:${r.id}`,
-        category: "ots_failed",
-        severity: "warning",
-        title: `OpenTimestamps anchor issue — ${r.title ?? "Untitled"}`,
-        subtitle: "Public timestamp anchoring did not complete",
-        href: `/evidence/${r.id}`,
-        occurredAt: r.updatedAt.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Failed report / package jobs — via operational incidents
-  try {
-    const incidents = await prisma.operationalIncident.findMany({
-      where: {
-        OR: [{ teamId }, { teamId: null }],
-        status: { in: ["OPEN", "ACKNOWLEDGED"] },
-        category: { in: ["REPORT", "PACKAGE"] },
-      },
-      orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
-      take: PRESSURE_PER_KIND,
-      select: {
-        id: true,
-        category: true,
-        severity: true,
-        title: true,
-        runbookSlug: true,
-        relatedEvidenceId: true,
-        lastSeenAtUtc: true,
-      },
-    });
-    anyOk = true;
-    pushKindResults(
-      incidents.map((i) => ({
-        id: `failed_${String(i.category).toLowerCase()}:${i.id}`,
-        category: i.category === "REPORT" ? "failed_report" : "failed_package",
-        severity: (i.severity === "CRITICAL"
-          ? "critical"
-          : i.severity === "HIGH"
-            ? "high"
-            : "warning") as SeverityTone,
-        title: i.title,
-        subtitle: i.runbookSlug ? `Runbook · ${i.runbookSlug}` : null,
-        href: i.relatedEvidenceId
-          ? `/evidence/${i.relatedEvidenceId}`
-          : i.runbookSlug
-            ? `/ops/runbooks#${i.runbookSlug}`
-            : "/ops/observability",
-        occurredAt: i.lastSeenAtUtc.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Retry storms — operational incidents with high occurrence count
-  try {
-    const incidents = await prisma.operationalIncident.findMany({
-      where: {
-        OR: [{ teamId }, { teamId: null }],
-        status: { in: ["OPEN", "ACKNOWLEDGED"] },
-        occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
-      },
-      orderBy: { occurrenceCount: "desc" },
-      take: PRESSURE_PER_KIND,
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        severity: true,
-        occurrenceCount: true,
-        runbookSlug: true,
-        lastSeenAtUtc: true,
-      },
-    });
-    anyOk = true;
-    pushKindResults(
-      incidents.map((i) => ({
-        id: `retry_storm:${i.id}`,
-        category: "retry_storm",
-        severity: (i.severity === "CRITICAL" ? "critical" : "high") as SeverityTone,
-        title: `Retry storm · ${i.category}`,
-        subtitle: `${i.occurrenceCount} occurrences · ${i.title}`,
-        href: i.runbookSlug
-          ? `/ops/runbooks#${i.runbookSlug}`
-          : "/ops/observability",
-        occurredAt: i.lastSeenAtUtc.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Governance conflicts (policy conflicts)
-  if (scope === "SHARED") {
-    try {
-      const { countActivePolicyConflicts } = await import(
-        "../governance-lifecycle/retention-engine.service.js"
-      );
-      const conflicts = await countActivePolicyConflicts(teamId);
-      anyOk = true;
-      if (conflicts > 0) {
-        collected.push({
-          id: `policy_conflict:${teamId}`,
-          category: "policy_conflict",
-          severity: "high",
-          title: `${conflicts} active policy conflict${conflicts === 1 ? "" : "s"}`,
-          subtitle: "Retention policy overlap detected",
-          href: "/governance/policy",
-          occurredAt: null,
-        });
-      }
-    } catch {
-      // best-effort
-    }
-  }
-
-  // Blocked exports — evidence with verificationPackageMetadata.blocked === true
-  if (scope === "SHARED") {
-    try {
-      const sample = await prisma.evidence.findMany({
-        where: {
-          teamId,
-          status: { in: ["SIGNED", "REPORTED"] },
-        },
-        take: 200,
-        select: {
-          id: true,
-          title: true,
-          updatedAt: true,
-          verificationPackageMetadata: true,
-        },
-      });
-      anyOk = true;
-      const blocked: RawPressure[] = [];
-      for (const row of sample) {
-        const meta = row.verificationPackageMetadata as Record<
-          string,
-          unknown
-        > | null;
-        if (meta && meta.blocked === true) {
-          blocked.push({
-            id: `blocked_export:${row.id}`,
-            category: "blocked_export",
-            severity: "high",
-            title: `Export blocked by governance — ${row.title ?? "Untitled"}`,
-            subtitle:
-              typeof meta.reason === "string"
-                ? String(meta.reason).slice(0, 120)
-                : "Governance gate denied package",
-            href: `/evidence/${row.id}`,
-            occurredAt: row.updatedAt.toISOString(),
-          });
-          if (blocked.length >= PRESSURE_PER_KIND) break;
-        }
-      }
-      pushKindResults(blocked);
-    } catch {
-      anyFailed = true;
-    }
-  }
-
-  // Evidence without case linkage (team only)
-  if (scope === "SHARED") {
-    try {
-      const rows = await prisma.evidence.findMany({
-        where: { teamId, caseLinks: { none: {} } },
-        orderBy: { createdAt: "desc" },
-        take: PRESSURE_PER_KIND,
-        select: { id: true, title: true, createdAt: true },
-      });
-      anyOk = true;
-      pushKindResults(
-        rows.map((r) => ({
-          id: `evidence_no_case:${r.id}`,
-          category: "evidence_no_case",
-          severity: "info",
-          title: `Evidence without case — ${r.title ?? "Untitled"}`,
-          subtitle: `Captured ${r.createdAt.toISOString().slice(0, 10)}`,
-          href: `/evidence/${r.id}`,
-          occurredAt: r.createdAt.toISOString(),
-        })),
-        Math.min(PRESSURE_PER_KIND, 4),
-      );
-    } catch {
-      anyFailed = true;
-    }
-  }
-
-  // Unsigned evidence > 7 days old
-  try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        teamId,
-        status: { in: ["CREATED", "UPLOADING", "UPLOADED"] },
-        createdAt: { lt: unsignedAgeCutoff },
-      },
-      orderBy: { createdAt: "asc" },
-      take: PRESSURE_PER_KIND,
-      select: { id: true, title: true, createdAt: true, status: true },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `unsigned_old:${r.id}`,
-        category: "unsigned_evidence_old",
-        severity: "warning",
-        title: `Unsigned evidence > ${UNSIGNED_EVIDENCE_AGE_DAYS}d — ${r.title ?? "Untitled"}`,
-        subtitle: `${r.status} · captured ${r.createdAt.toISOString().slice(0, 10)}`,
-        href: `/evidence/${r.id}`,
-        occurredAt: r.createdAt.toISOString(),
-      })),
-      Math.min(PRESSURE_PER_KIND, 4),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Operational incidents (CRITICAL severity, non-report/package categories
-  // — those are handled above)
-  try {
-    const rows = await prisma.operationalIncident.findMany({
-      where: {
-        OR: [{ teamId }, { teamId: null }],
-        status: { in: ["OPEN", "ACKNOWLEDGED"] },
-        severity: { in: ["HIGH", "CRITICAL"] },
-        category: {
-          notIn: ["REPORT", "PACKAGE"],
-        },
-      },
-      orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
-      take: PRESSURE_PER_KIND,
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        severity: true,
-        runbookSlug: true,
-        lastSeenAtUtc: true,
-      },
-    });
-    anyOk = true;
-    pushKindResults(
-      rows.map((r) => ({
-        id: `incident:${r.id}`,
-        category: "operational_incident",
-        severity: (r.severity === "CRITICAL" ? "critical" : "high") as SeverityTone,
-        title: r.title,
-        subtitle: `${r.category}${r.runbookSlug ? ` · ${r.runbookSlug}` : ""}`,
-        href: r.runbookSlug
-          ? `/ops/runbooks#${r.runbookSlug}`
-          : "/ops/observability",
-        occurredAt: r.lastSeenAtUtc.toISOString(),
-      })),
-    );
-  } catch {
-    anyFailed = true;
-  }
-
-  // Sort raw items, then enrich with bounded routing metadata.
-  collected.sort((a, b) => {
-    const d = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
-    if (d !== 0) return d;
-    if (a.occurredAt && b.occurredAt)
-      return b.occurredAt.localeCompare(a.occurredAt);
-    if (a.occurredAt) return -1;
-    if (b.occurredAt) return 1;
-    return 0;
-  });
   const items = enrichPressureItems(
-    collected.slice(0, PRESSURE_TOTAL),
+    unresolved.map((incident) => ({
+      id: `operational_incident:${incident.id}`,
+      // ONE category, because these are all the same KIND of thing now: a
+      // shared operational condition. The condition's own category lives on
+      // the row and is rendered by /operations, which owns that vocabulary.
+      category: "operational_incident" as const,
+      severity: SEVERITY_FROM_INCIDENT[incident.severity] ?? "warning",
+      title: incident.title,
+      subtitle: incident.safeSummary,
+      // Deep-link into the canonical surface. The Command Center shows what
+      // is outstanding; acting on it is capability-gated on /operations.
+      href: `/operations?incidentId=${encodeURIComponent(incident.id)}`,
+      occurredAt: incident.firstSeenAtUtc.toISOString(),
+      affectedEntityId: incident.relatedEvidenceId,
+    })),
     viewerRole,
   );
 
-  const counts = {
-    critical: items.filter((i) => i.severity === "critical").length,
-    high: items.filter((i) => i.severity === "high").length,
-    warning: items.filter((i) => i.severity === "warning").length,
-    info: items.filter((i) => i.severity === "info").length,
+  return {
+    // `complete: false` from a bounded read is DEGRADED, not ok: the section
+    // is showing a floor rather than a total, and says so.
+    status: summary.complete && page.complete ? "ok" : "degraded",
+    items,
+    counts: {
+      critical: summary.critical,
+      high: summary.high,
+      warning: summary.warning,
+      info: summary.info,
+    },
   };
-
-  const status: SectionStatus = !anyOk
-    ? "unavailable"
-    : anyFailed
-      ? "degraded"
-      : "ok";
-
-  return { status, items, counts };
 }
 
 // ---------------------------------------------------------------------------

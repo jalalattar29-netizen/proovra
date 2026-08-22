@@ -9,7 +9,7 @@
  *   PATCH /v1/automation/rules/:id   — services/api/src/routes/automation.routes.ts:305
  *
  * Before this component the page admitted, in its own copy, that rules could
- * only be created "via API" — the empty state at `/operations/automation`
+ * only be created "via API" — the empty state at `/admin/platform/automation`
  * could never be escaped from the product.
  *
  * Contract mirrored EXACTLY from the server:

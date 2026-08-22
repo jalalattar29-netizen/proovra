@@ -3,19 +3,19 @@
  *
  * Covers P2.2 → P2.7:
  *
- *   * P2.2 — `/operations/exports` frontend uses the right endpoints,
+ *   * P2.2 — `/admin/platform/exports` frontend uses the right endpoints,
  *            never renders fake immutable badges, exposes manifest
  *            JSON viewer + reproducibility verify.
  *   * P2.3 — Queue operations backend exposes the documented routes,
  *            replay safety matrix is the canonical source, forbidden
  *            jobs are hard-refused, replay routes require a reason.
- *   * P2.4 — `/operations/queues` frontend renders replay-safety
+ *   * P2.4 — `/admin/platform/queues` frontend renders replay-safety
  *            badges, never renders a replay button for `forbidden`
  *            jobs, integrates step-up wrapper.
  *   * P2.5 — DR backend exposes the documented routes, restore
  *            validation is step-up gated, unsupported domains are
  *            present in every report.
- *   * P2.6 — `/operations/recovery` frontend surfaces the unsupported
+ *   * P2.6 — `/admin/platform/recovery` frontend surfaces the unsupported
  *            domains panel, never renders fake all-green.
  *   * P2.7 — operations routes registered in server.ts; metrics +
  *            event types are extended; step-up purposes added.
@@ -41,15 +41,15 @@ function exists(rel: string): boolean {
 // ============================================================================
 
 describe("Phase P2.2 — WORM Export Frontend", () => {
-  it("/operations/exports page exists", () => {
+  it("/admin/platform/exports page exists", () => {
     expect(
-      exists("../../../apps/web/app/(app)/operations/exports/page.tsx"),
+      exists("../../../apps/web/app/(app)/admin/platform/exports/page.tsx"),
     ).toBe(true);
   });
 
   it("calls the P2.1 backend endpoints", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/exports/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/exports/page.tsx",
     );
     expect(p).toContain("/v1/operations/exports");
     expect(p).toContain("/v1/operations/exports/object-lock");
@@ -58,7 +58,7 @@ describe("Phase P2.2 — WORM Export Frontend", () => {
 
   it("manifest viewer + hash + verify button exist", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/exports/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/exports/page.tsx",
     );
     expect(p).toContain('data-testid="manifest-json"');
     expect(p).toContain('data-testid="manifest-hash"');
@@ -67,7 +67,7 @@ describe("Phase P2.2 — WORM Export Frontend", () => {
 
   it("immutable badge is gated on platformMode==='verified'", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/exports/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/exports/page.tsx",
     );
     // Two-part contract:
     //   1. There is a boolean `immutable` derived from
@@ -81,7 +81,7 @@ describe("Phase P2.2 — WORM Export Frontend", () => {
 
   it("renders the four bounded reproducibility outcome states", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/exports/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/exports/page.tsx",
     );
     expect(p).toContain('"artifact_missing"');
     expect(p).toContain('"artifact_drift"');
@@ -154,9 +154,9 @@ describe("Phase P2.3 — Queue Operations Backend", () => {
 // ============================================================================
 
 describe("Phase P2.4 — Queue Operations Frontend", () => {
-  it("/operations/queues page exists and references the matrix endpoint", () => {
+  it("/admin/platform/queues page exists and references the matrix endpoint", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/queues/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/queues/page.tsx",
     );
     expect(p).toContain("/v1/operations/queues/replay-safety");
     expect(p).toContain("/v1/operations/queues/workers");
@@ -164,7 +164,7 @@ describe("Phase P2.4 — Queue Operations Frontend", () => {
 
   it("renders the four bounded replay-safety categories", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/queues/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/queues/page.tsx",
     );
     expect(p).toContain('"safe"');
     expect(p).toContain('"requires_step_up"');
@@ -174,7 +174,7 @@ describe("Phase P2.4 — Queue Operations Frontend", () => {
 
   it("hides the replay button for forbidden / unknown categories", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/queues/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/queues/page.tsx",
     );
     // The disabled gate compares cat to "forbidden" or "unknown".
     expect(p).toMatch(
@@ -186,7 +186,7 @@ describe("Phase P2.4 — Queue Operations Frontend", () => {
 
   it("integrates the step-up modal via useStepUpAction", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/queues/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/queues/page.tsx",
     );
     expect(p).toContain("useStepUpAction");
     expect(p).toContain("StepUpModal");
@@ -195,7 +195,7 @@ describe("Phase P2.4 — Queue Operations Frontend", () => {
 
   it("replay dialog requires a reason input", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/queues/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/queues/page.tsx",
     );
     expect(p).toContain('data-testid="replay-reason"');
     expect(p).toMatch(/reason\.trim\(\)\.length\s*===\s*0/);
@@ -268,15 +268,15 @@ describe("Phase P2.5 — DR / Recovery Backend", () => {
 // ============================================================================
 
 describe("Phase P2.6 — DR / Recovery Frontend", () => {
-  it("/operations/recovery page exists", () => {
+  it("/admin/platform/recovery page exists", () => {
     expect(
-      exists("../../../apps/web/app/(app)/operations/recovery/page.tsx"),
+      exists("../../../apps/web/app/(app)/admin/platform/recovery/page.tsx"),
     ).toBe(true);
   });
 
   it("calls the P2.5 backend endpoints", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/recovery/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/recovery/page.tsx",
     );
     expect(p).toContain("/v1/operations/recovery");
     expect(p).toContain("/v1/operations/recovery/validate-backup");
@@ -285,7 +285,7 @@ describe("Phase P2.6 — DR / Recovery Frontend", () => {
 
   it("surfaces the unsupported-domains panel (no fake all-green)", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/recovery/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/recovery/page.tsx",
     );
     expect(p).toContain('data-testid="unsupported-domains"');
     expect(p).toContain("Unsupported domains (honest disclosure)");
@@ -296,7 +296,7 @@ describe("Phase P2.6 — DR / Recovery Frontend", () => {
 
   it("renders the four bounded outcome states", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/recovery/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/recovery/page.tsx",
     );
     expect(p).toContain('"passed"');
     expect(p).toContain('"warning"');
@@ -306,7 +306,7 @@ describe("Phase P2.6 — DR / Recovery Frontend", () => {
 
   it("restore button is wired through useStepUpAction", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/recovery/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/recovery/page.tsx",
     );
     expect(p).toContain("useStepUpAction");
     expect(p).toContain("runStepUpAction");

@@ -260,7 +260,20 @@ test("recent-evidence titles use the fallback chain — never UUID/generic spam"
 // 7 — Operational Queue severity breakdown.
 // ---------------------------------------------------------------------------
 
-test("integrity queue item carries the real severity breakdown", () => {
+/**
+ * CONTRACT MIGRATION — Attention Architecture Phase 4C (2026-08-22).
+ *
+ * The operational QUEUE this asserted against is gone. It was assembled by
+ * `buildOperationalQueue()` from the caller's own notification feed, and Home
+ * rendered the result as workspace health — so a personal archive lowered a
+ * shared number and two admins saw two different healths.
+ *
+ * The INVARIANT worth keeping is that the integrity signal carries a REAL,
+ * itemised breakdown rather than one opaque count, and that survives on
+ * `workspacePriorities`, which is derived from the trust projection (domain
+ * state) rather than from anybody's mailbox. That is what is asserted now.
+ */
+test("integrity priority carries the real counts from the trust projection", () => {
   const vm = normalizeHomeViewModel(
     baseInputs({
       trustSummary: {
@@ -272,13 +285,39 @@ test("integrity queue item carries the real severity breakdown", () => {
       },
     }),
   );
-  const integrity = vm.operationalQueue.find((q) => q.type === "fix_integrity");
-  assert.ok(integrity, "integrity item must exist when needingAttention > 0");
-  assert.deepEqual(integrity?.breakdown, [
-    "3 TSA failed",
-    "10 OTS pending",
-    "5 unsigned",
-  ]);
+  const integrity = vm.workspacePriorities.find(
+    (p) => p.key === "resolve_integrity",
+  );
+  assert.ok(integrity, "integrity priority must exist when needingAttention > 0");
+  assert.equal(integrity?.count, 14, "the count is the real projection value");
+  // The TSA failures are their own priority — per-record integrity failures
+  // are never collapsed into one number (Attention Architecture Phase 3).
+  const tsa = vm.workspacePriorities.find((p) => p.key === "tsa_failures");
+  assert.ok(tsa, "TSA failures surface as their own priority");
+  assert.equal(tsa?.count, 3);
+});
+
+test("Home no longer derives an operational queue at all", () => {
+  const vm = normalizeHomeViewModel(baseInputs({}));
+  assert.equal(
+    (vm as unknown as Record<string, unknown>).operationalQueue,
+    undefined,
+    "operationalQueue must not exist on the view model",
+  );
+  assert.ok(vm.operations, "Home consumes a canonical Operations summary");
+  assert.equal(
+    vm.operations.href,
+    "/operations",
+    "Home LINKS to Operations; it does not become a second work queue",
+  );
+});
+
+test("with no Operations summary, Home reports unavailable — never all-clear", () => {
+  // THE 4C.3 rule. An absent summary must not be substituted with a health
+  // number derived from the notification feed, and must not read as good news.
+  const vm = normalizeHomeViewModel(baseInputs({}));
+  assert.equal(vm.operations.available, false);
+  assert.equal(vm.operations.mayAssertAllClear, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -737,7 +776,11 @@ test("INTEL: report needs-action surfaces failures without fabricating a retry",
   );
   const issues = Object.fromEntries(vm.reportProduction.needsAction.map((i) => [i.key, i]));
   assert.equal(issues.failed_deliverables.count, 4); // 3 + 1
-  assert.equal(issues.failed_deliverables.href, "/inbox");
+  // PHASE 5 (2026-08-22) — the personal notification centre is at
+  // /notifications now; /inbox is a permanent compatibility redirect. First-
+  // party links point at the canonical URL so we stop minting new traffic
+  // through a redirect.
+  assert.equal(issues.failed_deliverables.href, "/notifications");
   assert.equal(issues.package_gap.count, 2);
   // No retry endpoint exists for report jobs — the card must not ship one.
   const cardStart = SECTIONS_SRC.indexOf("export function ReportProductionCard");
@@ -1019,7 +1062,15 @@ test("CTA-NORM: Header CTA is 'All evidence' → /evidence (never duplicates the
   );
 });
 
-test("CTA-NORM: Operational Queue integrity CTA reuses HOME_INTEGRITY_REVIEW_HREF — same dataset as the priority row", () => {
+/**
+ * CONTRACT MIGRATION — Attention Architecture Phase 4C (2026-08-22).
+ *
+ * The queue side of this comparison is gone (see above). The property it
+ * protected — the integrity CTA points at ONE dataset, not at a bare
+ * `/evidence` fallback — is unchanged and is now asserted between the two
+ * surviving surfaces: the workspace priority and the hero action.
+ */
+test("CTA-NORM: the integrity CTA is one dataset across every Home surface", () => {
   const vm = normalizeHomeViewModel(
     baseInputs({
       trustSummary: {
@@ -1031,15 +1082,20 @@ test("CTA-NORM: Operational Queue integrity CTA reuses HOME_INTEGRITY_REVIEW_HRE
       },
     }),
   );
-  const queueIntegrity = vm.operationalQueue.find((q) => q.type === "fix_integrity");
-  const priorityIntegrity = vm.workspacePriorities.find((p) => p.key === "resolve_integrity");
-  assert.ok(queueIntegrity, "operational queue integrity item exists");
+  const priorityIntegrity = vm.workspacePriorities.find(
+    (p) => p.key === "resolve_integrity",
+  );
   assert.ok(priorityIntegrity, "workspace priority integrity row exists");
-  // The exact same href — single source of truth.
-  assert.equal(queueIntegrity!.action.href, "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED");
-  assert.equal(queueIntegrity!.action.href, priorityIntegrity!.href);
-  // Used to be a navigation fallback (bare /evidence) — now real.
-  assert.equal(queueIntegrity!.fallback, false);
+  // The real filtered dataset, never a bare /evidence navigation fallback.
+  assert.equal(
+    priorityIntegrity!.href,
+    "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED",
+  );
+  // And the hero action points at the SAME dataset, which is what made the
+  // original comparison worth making.
+  if (vm.heroAction?.kind === "fix_integrity") {
+    assert.equal(vm.heroAction.href, priorityIntegrity!.href);
+  }
 });
 
 test("CTA-NORM: heroAction.fix_integrity also points at the same integrity dataset (used by Operational Queue empty-state)", () => {

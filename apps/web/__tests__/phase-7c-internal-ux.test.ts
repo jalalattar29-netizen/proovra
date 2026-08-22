@@ -202,7 +202,7 @@ test("migrated internal pages import the shared design-system shell", () => {
     "app/(app)/investigation/page.tsx",
     "app/(app)/audit-transparency/page.tsx",
     "app/(app)/operations/page.tsx",
-    "app/(app)/operations/readiness/page.tsx",
+    "app/(app)/admin/platform/readiness/page.tsx",
     "app/(app)/capture/page.tsx",
     "app/(app)/evidence/page.tsx",
     // 2026-07-17 IA refactor — /settings/security merged into the

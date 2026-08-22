@@ -491,13 +491,30 @@ describe("Phase 32.8C FINAL-2 — API routes", () => {
     }
   });
 
-  it("all workflow mutating routes go through requireOpsActorAction", () => {
-    // The mutating routes are listed above; we count requireOpsActorAction
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 4B / D29 (2026-08-22).
+   *
+   * The INVARIANT is unchanged and still asserted: this mutation sits behind
+   * `requireAuth` AND an authorization gate, and cannot reach its handler
+   * without both. What changed is WHICH permission the gate asks for.
+   *
+   * `requireOpsActorAction` resolved to `identity.access_review.action` — the
+   * permission that decides whether somebody keeps their ACCESS to a
+   * workspace. Sixteen generic Operations mutations were gated on it, so
+   * anyone allowed to acknowledge a failed report was thereby allowed to
+   * adjudicate access reviews. The gate is now `requireOpsCapability` with the
+   * Operations permission that describes the action, which is strictly
+   * NARROWER than what this test used to accept.
+   */
+  it("all workflow mutating routes go through the canonical capability gate", () => {
+    // The mutating routes are listed above; we count requireOpsCapability
     // occurrences AFTER the workflow section starts.
     const startIdx = OPS_ROUTES.indexOf("Phase 32.8C FINAL-2 — Workflow Orchestration routes");
     expect(startIdx).toBeGreaterThanOrEqual(0);
     const block = OPS_ROUTES.slice(startIdx);
-    const calls = block.match(/requireOpsActorAction\(req, reply, body\.teamId\)/g);
+    const calls = block.match(
+      /requireOpsCapability\(req, reply, body\.teamId, "operations\.[a-z]+"\)/g,
+    );
     expect(calls).not.toBeNull();
     expect(calls!.length).toBeGreaterThanOrEqual(7);
   });
@@ -639,13 +656,13 @@ describe("Phase 32.8C FINAL-2 — frontend rendering", () => {
     );
   });
 
-  it("dashboard is read-only: footnote explicitly delegates lifecycle to /operations/observability", () => {
+  it("dashboard is read-only: footnote explicitly delegates lifecycle to /admin/platform/observability", () => {
     // Allow whitespace (including newlines) between "workflow" and
     // "ownership transitions" since the JSX wraps the phrase.
     expect(CC_TSX).toMatch(
       /workflow\s+ownership transitions[\s\S]{0,300}Operations Center/,
     );
-    expect(CC_TSX).toMatch(/href="\/operations\/observability/);
+    expect(CC_TSX).toMatch(/href="\/admin\/platform\/observability/);
   });
 
   it("no inline mutation buttons in causality chains / workflows strips", () => {

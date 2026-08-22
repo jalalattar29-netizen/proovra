@@ -236,7 +236,7 @@ describe("Phase 24-B — worker emits a started event for upstream metrics", () 
 
 describe("Phase 24-B — observability dashboard surfaces a Search indexing tile", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/operations/observability/page.tsx",
+    "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
   );
 
   it("reads the search_indexing subsystem from the readiness payload", () => {

@@ -211,6 +211,22 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
     // Phase 4A — Governance Platform discoverability. The /governance-platform
     // page is the canonical org governance hub (departments, delegated admin,
     // policies, access reviews, cross-org). Gated by GOVERNANCE_VIEW.
+    // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — TENANT OPERATIONS.
+    //
+    // "What unresolved shared work must we act on?" is a workspace question,
+    // so it is a workspace nav item. OPERATIONS_VIEW is granted by whether
+    // the workspace can PRODUCE operational conditions, never by a plan name,
+    // so a solo Pro investigator sees it and a Free personal space does not —
+    // and neither outcome is hardcoded anywhere.
+    {
+      id: "workspace.operations",
+      label: "Operations",
+      href: "/operations",
+      iconKey: "ops_center",
+      domain: "WORKSPACE",
+      badgeKey: "ops_center_runtime",
+      requiresCapability: "OPERATIONS_VIEW",
+    },
     {
       id: "workspace.governance_platform",
       label: "Governance Platform",
@@ -431,19 +447,17 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
   domain: "PLATFORM_HEALTH",
   order: 3,
   items: [
-    {
-      id: "platform.ops_center",
-      label: "Operations Center",
-      href: "/operations",
-      iconKey: "ops_center",
-      domain: "PLATFORM_HEALTH",
-      badgeKey: "ops_center_runtime",
-      requiresCapability: "OPS_CENTER_VIEW",
-    },
+    // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — Operations LEFT this
+    // group. It was listed under PLATFORM HEALTH with the platform-tier
+    // OPS_CENTER_VIEW capability, which made the one surface that answers
+    // "what unresolved work does MY workspace have?" visible only to PROOVRA
+    // staff. It is now a WORKSPACE item gated on OPERATIONS_VIEW; see the
+    // WORKSPACE group above. Nothing PROOVRA-internal moved with it — the
+    // platform consoles below stay exactly where they were.
     {
       id: "platform.observability",
       label: "Observability",
-      href: "/operations/observability",
+      href: "/admin/platform/observability",
       iconKey: "observability",
       domain: "PLATFORM_HEALTH",
       badgeKey: "observability_runtime",
@@ -452,7 +466,7 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
     {
       id: "platform.runbooks",
       label: "Runbooks",
-      href: "/operations/runbooks",
+      href: "/admin/platform/runbooks",
       iconKey: "runbooks",
       domain: "PLATFORM_HEALTH",
       badgeKey: null,

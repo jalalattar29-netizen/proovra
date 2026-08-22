@@ -176,7 +176,13 @@ vi.mock("../src/db.js", () => {
       findFirst: async () => null, // availability probe → "available"
       findMany: async ({
         where,
-      }: { where?: { itemKey?: { in: string[] }; teamId?: string } } = {}) => {
+      }: {
+        where?: {
+          itemKey?: { in: string[] };
+          teamId?: string;
+          OR?: Array<{ teamId: string | null }>;
+        };
+      } = {}) => {
         let rows = H.snapshotRows;
         if (where?.itemKey?.in) {
           rows = rows.filter((r) =>
@@ -186,6 +192,18 @@ vi.mock("../src/db.js", () => {
         // History workspace narrowing applies a plain teamId equality.
         if (where?.teamId) {
           rows = rows.filter((r) => r.teamId === where.teamId);
+        }
+        // PHASE 2.4 — narrowing is now `teamId = <selected> OR teamId IS NULL`,
+        // because a snapshot with no workspace binding is an org invite or a
+        // personal security event: it belongs to the CALLER, not to a tenant,
+        // and dropping it would delete the user's own history the moment they
+        // selected a workspace. The mock models the real predicate so this
+        // suite keeps testing the query the product actually runs.
+        if (where?.OR) {
+          const allowed = new Set(where.OR.map((clause) => clause.teamId));
+          rows = rows.filter((r) =>
+            allowed.has((r.teamId ?? null) as string | null),
+          );
         }
         return rows;
       },
@@ -576,7 +594,7 @@ describe("Persistent history — snapshots survive source resolution", () => {
         priority: "P1",
         title: "Report generation failure — Workspace A",
         body: "The incident was resolved upstream.",
-        href: "/operations/observability",
+        href: "/admin/platform/observability",
         dueAtUtc: null,
         sourceOccurredAtUtc: new Date("2026-07-01T00:00:00Z"),
         lastSeenAtUtc: new Date("2026-07-02T00:00:00Z"),
@@ -902,16 +920,39 @@ describe("Workspace narrowing — all-workspaces scope with explicit filter", ()
         teamId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         metadataJson: {},
       },
+      {
+        // PHASE 2.4 — an ACCOUNT-tier row: addressed to the caller, bound to
+        // no workspace. Narrowing must keep it. It used to disappear, so a
+        // pending organization invitation became invisible exactly when the
+        // user was looking at a workspace, which is most of the time.
+        itemKey: "org_invite:account-tier",
+        category: "org_invite",
+        severity: "warning",
+        priority: "P2",
+        title: "Account-tier snapshot",
+        body: "b",
+        href: "/org-invites",
+        dueAtUtc: null,
+        sourceOccurredAtUtc: new Date("2026-07-01T00:00:00Z"),
+        lastSeenAtUtc: new Date("2026-07-02T00:00:00Z"),
+        readAtUtc: null,
+        dismissedAtUtc: null,
+        snoozedUntilUtc: null,
+        resolvedAtUtc: null,
+        resolutionSource: null,
+        teamId: null,
+        metadataJson: {},
+      },
     ];
     const narrowed = await getInbox(
       `?filter=history&workspaceId=${H.teamId}`,
     );
     expect(narrowed.status).toBe(200);
     expect(
-      (narrowed.body.items as Array<{ itemKey: string }>).map(
-        (i) => i.itemKey,
-      ),
-    ).toEqual(["governance:in-scope"]);
+      (narrowed.body.items as Array<{ itemKey: string }>)
+        .map((i) => i.itemKey)
+        .sort(),
+    ).toEqual(["governance:in-scope", "org_invite:account-tier"]);
 
     // The membership gate runs BEFORE the history branch.
     H.wsMember = false;

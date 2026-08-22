@@ -444,51 +444,11 @@ export type CaseHealthSummary = {
 // Operational surface types (world-class Home)
 // ============================================================================
 
-/**
- * A single thing the user can act on right now. The Operational Queue is
- * the prioritized list of these — the first major widget on Home. Every
- * item is sourced from real backend state; `action.inline` items can be
- * resolved without leaving Home (today: failed-delivery retry), the rest
- * deep-link to the working detail/page route and are flagged
- * `fallback: true` so we never pretend an inline flow exists.
- */
-export type OperationalQueueItem = {
-  id: string;
-  type:
-    | "review_submission"
-    | "retry_delivery"
-    | "report_failure"
-    | "package_failure"
-    | "ots_failure"
-    | "generate_report"
-    | "complete_package"
-    | "publish_verification"
-    | "fix_integrity"
-    | "complete_case";
-  /** Short category label, e.g. "Submission waiting review". */
-  label: string;
-  /** The specific entity / count this item concerns. */
-  title: string;
-  /** Real timestamp where one exists (receipt, failure time); else null. */
-  occurredAt: string | null;
-  severity: "critical" | "warn" | "action";
-  action: {
-    /** "retry_delivery" runs an inline POST; "navigate" opens a route. */
-    kind: "retry_delivery" | "navigate";
-    label: string;
-    href: string;
-    /** Communication message id — only for inline retry. */
-    messageId?: string;
-  };
-  /** True when the action is a navigation fallback (no inline flow yet). */
-  fallback: boolean;
-  /**
-   * Phase HOME-POLISH — optional supporting breakdown lines (e.g. the
-   * integrity item lists "3 TSA failed · 10 OTS pending · 5 unsigned").
-   * Every line is a real count; empty/omitted when nothing to break down.
-   */
-  breakdown?: string[];
-};
+// PHASE 4C (2026-08-22) — `OperationalQueueItem` removed. It described a row
+// of the notification-feed-derived queue Home used to build for itself; the
+// queue, its renderer and its severity mapping all went with it. Home now
+// consumes `HomeOperationsSummary`, which is a projection of shared workspace
+// truth rather than a shape Home computes.
 
 /** A matter/case row — work-centric, shows portfolio + what needs work. */
 export type ActiveMatterRow = {
@@ -622,6 +582,37 @@ export type ReportProduction = {
   needsAction: DeliverableIssue[];
   /** Latest generated reports with their deliverable actions. */
   recent: RecentReportRow[];
+};
+
+/**
+ * The canonical workspace Operations summary, as Home receives it.
+ *
+ * Every field is a projection of `GET /v1/ops/summary`, which reads SHARED
+ * operational truth. Home adds nothing to it and recomputes none of it.
+ */
+export type HomeOperationsSummary = {
+  /**
+   * False when the summary could not be loaded, or when the caller has no
+   * Operations capability in this workspace. Both are honest absences and
+   * neither may be rendered as "no issues".
+   */
+  available: boolean;
+  /** Unresolved conditions (OPEN + ACKNOWLEDGED). */
+  open: number;
+  critical: number;
+  high: number;
+  warning: number;
+  /** Unattended and past the overdue age. */
+  overdue: number;
+  /** Assigned to the viewer specifically. */
+  assignedToMe: number;
+  /**
+   * PHASE 2.3 — false when the underlying read was bounded or failed. NO
+   * surface may render "0 issues" / "all clear" while this is false.
+   */
+  mayAssertAllClear: boolean;
+  /** Where the operator goes to act on any of it. Home links; it never acts. */
+  href: string;
 };
 
 /** A verifiable record the user can open on the public verify page. */
@@ -775,7 +766,23 @@ export type HomeViewModel = {
   inboxCount: number;
   heroAction: HeroAction;
   /** The prioritized list of actionable items — Home's first widget. */
-  operationalQueue: OperationalQueueItem[];
+  /**
+   * ATTENTION ARCHITECTURE PHASE 4C (2026-08-22) — CONSUMED, NOT COMPUTED.
+   *
+   * This replaced `operationalQueue: OperationalQueueItem[]`, which Home
+   * built itself out of `/v1/me/inbox` via `buildOperationalQueue()`. That
+   * made one person's NOTIFICATION FEED the source of the WORKSPACE'S
+   * operational health: archiving a notification lowered the workspace's
+   * issue count, deferring one hid a problem until tomorrow, and two admins
+   * looking at the same workspace saw two different healths while the work
+   * itself had not changed.
+   *
+   * Home now consumes the canonical workspace summary (`GET /v1/ops/summary`)
+   * and derives nothing. When the summary cannot be loaded, `available` is
+   * false and Home says so — it does NOT fall back to the notification feed,
+   * because a substitute health number is worse than an absent one.
+   */
+  operations: HomeOperationsSummary;
   submissions: SubmissionRow[];
   /** Real failures the user can act on (report/package/OTS). */
   needsFixing: NeedsFixingRow[];
@@ -1639,7 +1646,7 @@ function buildActivity(args: {
       kind: mapped.kind,
       label: isUntitled ? mapped.label : rawLabel,
       occurredAt: it.occurredAt,
-      href: it.href ?? "/inbox",
+      href: it.href ?? "/notifications",
     });
   }
 
@@ -1874,7 +1881,7 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Blockchain anchoring cannot be retried for these records — they will stay unanchored.",
       recommendedAction: "Open each failure to decide how to document the gap.",
       actionLabel: "Open to fix",
-      href: "/inbox",
+      href: "/notifications",
       derivedFrom: ["me/inbox.category=ots_failure.context.failureCode"],
     });
   }
@@ -1907,7 +1914,7 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "External evidence is not part of the trusted record until you review it.",
       recommendedAction: "Review and accept or return each submission.",
       actionLabel: "Review submissions",
-      href: "/inbox",
+      href: "/notifications",
       derivedFrom: ["me/inbox.category=intake_submission_pending_review"],
     });
   }
@@ -2298,180 +2305,23 @@ type PipelineData = NonNullable<
 >["data"];
 
 /**
- * The Operational Queue — the prioritized list of things the user can act
- * on now. Built ENTIRELY from real backend state already in the view
- * model. Inline actions are used where a real flow exists (failed-delivery
- * retry); everything else deep-links to the working route and is flagged
- * `fallback: true`. When this list is empty the dashboard shows the
- * onboarding/caught-up hero instead.
+ * PHASE 4C (2026-08-22) — `buildOperationalQueue()` IS GONE.
+ *
+ * It assembled a workspace "operational queue" out of the caller's own
+ * notification feed plus a handful of Home-local slices, and Home rendered the
+ * result as workspace health. Nothing about it was shared: a second admin's
+ * queue was a different queue over the same workspace, and every personal
+ * read/archive/defer moved it.
+ *
+ * The replacement is `GET /v1/ops/summary`, backed by
+ * `services/api/src/services/operations/operations-summary.service.ts`, which
+ * counts SHARED `OperationalIncident` rows scoped to the workspace. Home
+ * consumes that summary and links to /operations; it computes nothing and it
+ * mutates nothing.
  */
-function buildOperationalQueue(args: {
-  submissions: SubmissionRow[];
-  needsFixing: NeedsFixingRow[];
-  collection: CollectionRow[];
-  caseHealth: CaseHealthRow[];
-  trust: TrustState;
-  pipeline: PipelineData;
-  reportCount: number;
-}): OperationalQueueItem[] {
-  const items: OperationalQueueItem[] = [];
-  const p = args.pipeline ?? null;
 
-  // 1. Critical operational failures first (terminal OTS, etc.).
-  for (const f of args.needsFixing.filter((f) => f.critical)) {
-    items.push({
-      id: `fix:${f.id}`,
-      type: failureType(f.category),
-      label: `${f.categoryLabel} failed`,
-      title: f.title,
-      occurredAt: f.occurredAt,
-      severity: "critical",
-      action: { kind: "navigate", label: "Open to fix", href: f.href },
-      fallback: true,
-    });
-  }
-
-  // 2. Submissions waiting — a real person is waiting on a decision.
-  for (const s of args.submissions) {
-    items.push({
-      id: `sub:${s.id}`,
-      type: "review_submission",
-      label: s.overdue ? "Submission overdue" : "Submission waiting review",
-      title: s.title,
-      occurredAt: s.receivedAt,
-      severity: s.overdue ? "warn" : "action",
-      action: { kind: "navigate", label: "Review", href: s.href },
-      fallback: true,
-    });
-  }
-
-  // 3. Failed deliveries — inline retry (a real flow that exists today).
-  for (const c of args.collection) {
-    if (!c.delivery?.failed) continue;
-    items.push({
-      id: `deliver:${c.delivery.messageId}`,
-      type: "retry_delivery",
-      label: "Delivery failed",
-      title: c.label,
-      occurredAt: c.delivery.at,
-      severity: "warn",
-      action: {
-        kind: "retry_delivery",
-        label: "Retry delivery",
-        href: c.href,
-        messageId: c.delivery.messageId,
-      },
-      fallback: false,
-    });
-  }
-
-  // 4. Non-critical operational failures (report/package — often transient).
-  for (const f of args.needsFixing.filter((f) => !f.critical)) {
-    items.push({
-      id: `fix:${f.id}`,
-      type: failureType(f.category),
-      label: `${f.categoryLabel} failed`,
-      title: f.title,
-      occurredAt: f.occurredAt,
-      severity: "warn",
-      action: { kind: "navigate", label: "Open to fix", href: f.href },
-      fallback: true,
-    });
-  }
-
-  // 5. Evidence ready for a report (signed, no report yet).
-  const reportsToGenerate = p?.reports?.missingFromSigned ?? 0;
-  if (reportsToGenerate > 0) {
-    items.push({
-      id: "gen:reports",
-      type: "generate_report",
-      label: "Records ready for a report",
-      title: `${reportsToGenerate} signed record${reportsToGenerate === 1 ? "" : "s"} can be finalized`,
-      occurredAt: null,
-      severity: "action",
-      action: { kind: "navigate", label: "Generate reports", href: "/reports" },
-      fallback: true,
-    });
-  }
-
-  // 6. Packages to complete (report exists, package missing/blocked).
-  const packagesToComplete =
-    (p?.packages?.missingFromReported ?? 0) + (p?.packages?.blocked ?? 0);
-  if (packagesToComplete > 0) {
-    items.push({
-      id: "complete:packages",
-      type: "complete_package",
-      label: "Verification packages to complete",
-      title: `${packagesToComplete} report${packagesToComplete === 1 ? "" : "s"} missing a package`,
-      occurredAt: null,
-      severity: "warn",
-      action: { kind: "navigate", label: "Complete packages", href: "/reports" },
-      fallback: true,
-    });
-  }
-
-  // 7. Verification ready to publish.
-  const unpublished = p?.publicVerify?.unpublished ?? 0;
-  if (unpublished > 0 && args.reportCount > 0) {
-    items.push({
-      id: "publish:verify",
-      type: "publish_verification",
-      label: "Verification ready to publish",
-      title: `${unpublished} record${unpublished === 1 ? "" : "s"} can be made publicly verifiable`,
-      occurredAt: null,
-      severity: "action",
-      action: { kind: "navigate", label: "Publish verification", href: "/evidence" },
-      fallback: true,
-    });
-  }
-
-  // 8. Integrity needing attention — with the real severity breakdown
-  // (Phase HOME-POLISH): every line is a live trust-summary counter.
-  if (args.trust.needingAttention > 0) {
-    const unsigned = Math.max(0, args.trust.totalEvidence - args.trust.signed);
-    const breakdown: string[] = [];
-    if (args.trust.tsaFailed > 0) breakdown.push(`${args.trust.tsaFailed} TSA failed`);
-    if (args.trust.otsFailed > 0) breakdown.push(`${args.trust.otsFailed} OTS failed`);
-    if (args.trust.otsPending > 0) breakdown.push(`${args.trust.otsPending} OTS pending`);
-    if (unsigned > 0) breakdown.push(`${unsigned} unsigned`);
-    items.push({
-      id: "integrity:attention",
-      type: "fix_integrity",
-      label: "Records need an integrity review",
-      title: `${args.trust.needingAttention} record${args.trust.needingAttention === 1 ? "" : "s"} flagged`,
-      occurredAt: null,
-      severity: "warn",
-      // Phase HOME-CTA-NORMALIZATION — share the single integrity
-      // href used by the Workspace Priorities row, so clicking either
-      // CTA opens the same dataset (count matches displayed N).
-      action: { kind: "navigate", label: "Review integrity", href: HOME_INTEGRITY_REVIEW_HREF },
-      fallback: false,
-      breakdown,
-    });
-  }
-
-  // 9. Matters with incomplete work.
-  for (const c of args.caseHealth) {
-    items.push({
-      id: `case:${c.caseId}`,
-      type: "complete_case",
-      label: "Matter needs work",
-      title: `${c.caseName} · ${c.reason}`,
-      occurredAt: null,
-      severity: "warn",
-      action: { kind: "navigate", label: "Open matter", href: c.href },
-      fallback: true,
-    });
-  }
-
-  return items.slice(0, 8);
-}
-
-function failureType(category: string): OperationalQueueItem["type"] {
-  if (category === "report_failure") return "report_failure";
-  if (category === "verification_package_failure") return "package_failure";
-  return "ots_failure";
-}
+// PHASE 4C (2026-08-22) — `failureType()` removed with the queue it mapped
+// categories into. Its only caller was `buildOperationalQueue()`.
 
 /**
  * Active Matters — the work-centric matter portfolio. Shows the most
@@ -2636,7 +2486,7 @@ function buildReportProduction(args: {
       count: reportsFailed + packagesFailed,
       tone: "danger",
       actionLabel: "Open inbox",
-      href: "/inbox",
+      href: "/notifications",
     });
   }
   if (packagesPending > 0) {
@@ -2793,7 +2643,15 @@ function buildWorkspaceHealth(args: {
   const signed = p?.evidence?.signed ?? 0;
   const needReport = p?.reports?.missingFromSigned ?? 0;
   const submissionsWaiting = args.submissions.length;
-  const integrityIssues = args.trust.needingAttention + args.needsFixing.length;
+  // PHASE 4C — DOMAIN-DERIVED ONLY.
+  //
+  // This read `args.trust.needingAttention + args.needsFixing.length`, and
+  // `needsFixing` was built from the caller's own `/v1/me/inbox` items. So a
+  // workspace's "integrity issues" tile counted whatever happened to be
+  // visible in ONE person's notification feed at that moment, and fell when
+  // they archived something. `trust.needingAttention` is domain state
+  // (evidence verificationStatus) and is what this metric is actually about.
+  const integrityIssues = args.trust.needingAttention;
   const operationalIssues =
     args.trust.signedWithoutReport +
     args.trust.reportedWithoutPackage +
@@ -3343,6 +3201,22 @@ function buildKpis(args: {
   ];
 }
 
+/**
+ * The raw shape of `GET /v1/ops/summary`'s `summary` field.
+ *
+ * Only the fields Home reads are declared. It is a projection of shared
+ * workspace truth; nothing here is per-recipient.
+ */
+export type HomeOperationsSummaryInput = {
+  open: number;
+  critical: number;
+  high: number;
+  warning: number;
+  overdue: number;
+  assignedToMe: number;
+  mayAssertAllClear: boolean;
+};
+
 export type NormalizeInputs = {
   /** DISPLAY-ONLY plan label (e.g. the data-self-serve-plan attribute). */
   plan: HomePlan;
@@ -3362,6 +3236,16 @@ export type NormalizeInputs = {
   reports: HomeReportsInput | null;
   intakeLinks: HomeIntakeLinksInput | null;
   inbox: HomeInboxInput | null;
+  /**
+   * ATTENTION ARCHITECTURE PHASE 4C (2026-08-22) — GET /v1/ops/summary.
+   *
+   * THE canonical workspace Operations summary. Home CONSUMES this and does
+   * not derive it. `null` means the summary could not be loaded, or the
+   * caller holds no Operations capability in this workspace — both are
+   * honest absences, and Home renders an unavailable state rather than
+   * substituting a health number derived from `inbox` above.
+   */
+  operationsSummary?: HomeOperationsSummaryInput | null;
   communications: HomeCommunicationsInput | null;
   orgs: HomeOrgsInput | null;
   /** GET /v1/evidence?limit=100 — KPI sparkline / chart / donut source. */
@@ -3506,15 +3390,35 @@ export function normalizeHomeViewModel(
   // command-center pipeline projection. No new fetches, no fabrication.
   const pipeline = cc?.sections?.pipelineDetail?.data ?? null;
   const reportProduction = buildReportProduction({ pipeline, recentReports });
-  const operationalQueue = buildOperationalQueue({
-    submissions,
-    needsFixing,
-    collection,
-    caseHealth,
-    trust: trustState,
-    pipeline,
-    reportCount,
-  });
+  // PHASE 4C — CONSUMED. `inputs.operationsSummary` is the response of the
+  // canonical `GET /v1/ops/summary`; null means it could not be loaded or the
+  // caller holds no Operations capability here. Either way Home reports an
+  // honest absence rather than substituting a number it derived itself.
+  const operations: HomeOperationsSummary = inputs.operationsSummary
+    ? {
+        available: true,
+        open: inputs.operationsSummary.open,
+        critical: inputs.operationsSummary.critical,
+        high: inputs.operationsSummary.high,
+        warning: inputs.operationsSummary.warning,
+        overdue: inputs.operationsSummary.overdue,
+        assignedToMe: inputs.operationsSummary.assignedToMe,
+        mayAssertAllClear: inputs.operationsSummary.mayAssertAllClear,
+        href: "/operations",
+      }
+    : {
+        available: false,
+        open: 0,
+        critical: 0,
+        high: 0,
+        warning: 0,
+        overdue: 0,
+        assignedToMe: 0,
+        // UNAVAILABLE IS NOT HEALTHY. The zeros above exist only so the type
+        // stays total; this flag is what any UI must read first.
+        mayAssertAllClear: false,
+        href: "/operations",
+      };
   // Phase HOME-INTELLIGENCE — caseIds that already have a report
   // (from /v1/reports items[].caseId — exposed all along).
   const reportCaseIds = new Set<string>(
@@ -3636,7 +3540,7 @@ export function normalizeHomeViewModel(
     richRecentEvidence,
     inboxCount,
     heroAction,
-    operationalQueue,
+    operations,
     submissions,
     needsFixing,
     collection,

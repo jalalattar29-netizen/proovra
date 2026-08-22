@@ -26,7 +26,6 @@ import type {
   ChecklistStep,
   HeroAction,
   IntakePipeline,
-  OperationalQueueItem,
   ReportProduction,
   StorageUsage,
   TeamWork,
@@ -40,16 +39,13 @@ import {
   HOME_COLORS,
   HOME_SEMANTIC,
   HOME_TINTS,
-  HOME_WARN,
   homeCardCtaStyle,
   homeCardHeaderStyle,
-  homeCardStyle,
   homeCardTitleStyle,
   homeChipStyle,
   homeOpsRowStyle,
   homeOuterCardStyle,
   homeSecondaryButtonStyle,
-  homeWarningCardStyle,
   infoBadgeStyle,
   successBadgeStyle,
   toneColor,
@@ -135,43 +131,10 @@ const innerRowSurfaceStyle: React.CSSProperties = {
   border: "1px solid rgba(15, 23, 42, 0.05)",
 };
 
-/** The premium light secondary action — white surface, indigo text, subtle
- * indigo border — with an inline hover (matches the design tokens). */
-function HomeSecondaryLink({
-  href,
-  external,
-  children,
-  extraProps,
-  style,
-}: {
-  href: string;
-  external?: boolean;
-  children: ReactNode;
-  extraProps?: Record<string, unknown>;
-  style?: React.CSSProperties;
-}) {
-  const [hover, setHover] = useState(false);
-  const hoverStyle: React.CSSProperties = hover
-    ? { background: "rgba(124, 58, 237, 0.06)", borderColor: "rgba(124, 58, 237, 0.32)" }
-    : {};
-  const merged: React.CSSProperties = { ...homeSecondaryButtonStyle, ...style, ...hoverStyle };
-  const handlers = {
-    onMouseEnter: () => setHover(true),
-    onMouseLeave: () => setHover(false),
-  };
-  if (external) {
-    return (
-      <a href={href} style={merged} {...handlers} {...extraProps}>
-        {children}
-      </a>
-    );
-  }
-  return (
-    <Link href={href} style={merged} {...handlers} {...extraProps}>
-      {children}
-    </Link>
-  );
-}
+// PHASE 4C (2026-08-22) — `HomeSecondaryLink` removed with the operational
+// queue, which was its only caller. The queue was built from the caller's
+// own notification feed and rendered as workspace state; see
+// home-view-model.ts for why that had to go.
 
 // ============================================================================
 // Shared primitives
@@ -292,216 +255,20 @@ export function HeroNextAction({ action }: { action: HeroAction }) {
 }
 
 // ============================================================================
-// 1. OPERATIONAL QUEUE — the most important widget. What needs action now.
+// 1. OPERATIONAL QUEUE — REMOVED (Attention Architecture Phase 4C, 2026-08-22)
 // ============================================================================
-
-// Phase HOME-POLISH (amber) — the queue no longer paints saturated
-// orange/red surfaces. Every action card is the premium ivory
-// `homeWarningCardStyle`; severity only selects a restrained badge
-// label (the accent stays amber across the board). Critical still
-// reads as "Needs attention" so the surface never turns into a loud
-// red block.
-function severityStyle(sev: OperationalQueueItem["severity"]): {
-  chipLabel: string;
-} {
-  if (sev === "critical") return { chipLabel: "Needs attention" };
-  if (sev === "warn") return { chipLabel: "Needs attention" };
-  return { chipLabel: "Action" };
-}
-
-/** Small amber pill used for the severity/status label — restrained
- * badge tokens, never a loud orange fill. */
-const warnBadgeStyle: React.CSSProperties = {
-  ...homeChipStyle,
-  background: HOME_WARN.badgeBg,
-  color: HOME_WARN.badgeText,
-};
-
-/** The clearly-clickable action button shared by both queue cards — now the
- * premium LIGHT secondary treatment (white surface, indigo text, subtle
- * indigo border + hover), matching the "All evidence →" action language
- * instead of the old heavy dark fill. */
-function QueueActionLink({
-  href,
-  fallback,
-  children,
-}: {
-  href: string;
-  fallback: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <HomeSecondaryLink
-      href={href}
-      extraProps={{ "data-queue-action": fallback ? "navigate-fallback" : "navigate" }}
-      style={{ padding: "9px 15px", fontSize: 13 }}
-    >
-      {children}
-    </HomeSecondaryLink>
-  );
-}
-
-function QueueRow({
-  item,
-  prominent,
-  workspaceId,
-  onChanged,
-}: {
-  item: OperationalQueueItem;
-  prominent: boolean;
-  workspaceId: string | null;
-  onChanged?: () => void;
-}) {
-  const s = severityStyle(item.severity);
-  return (
-    <li
-      data-queue-item={item.id}
-      data-queue-type={item.type}
-      data-queue-severity={item.severity}
-      data-queue-fallback={String(item.fallback)}
-      style={{
-        ...homeWarningCardStyle,
-        listStyle: "none",
-        padding: 18,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <span data-queue-priority-chip={item.severity} style={warnBadgeStyle}>
-            {s.chipLabel}
-          </span>
-          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: HOME_WARN.accentDeep, textTransform: "uppercase" }}>
-            {item.label}
-          </span>
-        </span>
-        <span style={listItemTimeStyle}>{item.occurredAt ? formatRelative(item.occurredAt) : ""}</span>
-      </div>
-      <div style={{ fontSize: prominent ? 16 : 15, fontWeight: 650, color: HOME_COLORS.ink, margin: "8px 0 10px 0", lineHeight: 1.35 }}>
-        {item.title}
-      </div>
-      {item.breakdown && item.breakdown.length > 0 ? (
-        <div data-queue-breakdown style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "0 0 14px 0" }}>
-          {item.breakdown.map((b) => (
-            <span
-              key={b}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: HOME_COLORS.slate,
-              }}
-            >
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: HOME_WARN.accent, flexShrink: 0 }} />
-              {b}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: "auto" }}>
-        {item.action.kind === "retry_delivery" && item.action.messageId ? (
-          <RetryDeliveryButton
-            messageId={item.action.messageId}
-            workspaceId={workspaceId}
-            fallbackHref={item.action.href}
-            onRetried={onChanged}
-          />
-        ) : (
-          <QueueActionLink href={item.action.href} fallback={item.fallback}>
-            {item.action.label}
-          </QueueActionLink>
-        )}
-      </div>
-    </li>
-  );
-}
-
-export function OperationalQueue({
-  items,
-  hero,
-  workspaceId,
-  onChanged,
-}: {
-  items: OperationalQueueItem[];
-  hero: HeroAction;
-  workspaceId: string | null;
-  onChanged?: () => void;
-}) {
-  return (
-    <section
-      data-self-serve-section="operational-queue"
-      data-queue-count={items.length}
-      style={{ ...cardStyle, padding: 18 }}
-    >
-      <header style={cardHeaderStyle}>
-        <h2 style={{ ...cardTitleStyle, display: "inline-flex", alignItems: "center", gap: 8 }}>
-          {/* Phase HOME-COPY — "Action needed" is plainer than the
-              previous "Operational queue" (enterprise jargon that
-              didn't read well for individuals, journalists, or small
-              businesses). Same data; clearer intent — these are the
-              things the user can act on right now. */}
-          Action needed
-          {items.length > 0 ? (
-            <span
-              style={{
-                ...homeChipStyle,
-                background: HOME_WARN.badgeBg,
-                color: HOME_WARN.badgeText,
-                letterSpacing: 0,
-                textTransform: "none",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {items.length}
-            </span>
-          ) : null}
-        </h2>
-      </header>
-      {items.length === 0 ? (
-        // Nothing needs action — show the onboarding/caught-up primary.
-        <HeroNextAction action={hero} />
-      ) : (
-        <>
-          {/* Phase HOME-POLISH — top 3 only; the queue stays scannable.
-              Compact 2-up grid on desktop, stacking on tablet/mobile. */}
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
-              gap: 16,
-              alignItems: "stretch",
-            }}
-          >
-            {items.slice(0, 3).map((item, i) => (
-              <QueueRow
-                key={item.id}
-                item={item}
-                prominent={i === 0}
-                workspaceId={workspaceId}
-                onChanged={onChanged}
-              />
-            ))}
-          </ul>
-          {items.length > 3 ? (
-            <Link
-              href="/inbox"
-              data-queue-more={items.length - 3}
-              style={{ display: "inline-block", marginTop: 10, fontSize: 12, fontWeight: 600, color: HOME_COLORS.indigo, textDecoration: "none" }}
-            >
-              +{items.length - 3} more in your inbox →
-            </Link>
-          ) : null}
-        </>
-      )}
-    </section>
-  );
-}
+//
+// `OperationalQueue`, `QueueRow` and `severityStyle` rendered the queue that
+// `buildOperationalQueue()` produced from the caller's own notification feed.
+// Home presented that as the WORKSPACE's operational state, so one person
+// archiving a message lowered a shared number and two admins saw two
+// different healths over identical work.
+//
+// The queue authority is gone (see home-view-model.ts), and these had zero
+// remaining consumers — verified by search across apps/web before removal.
+// Home now consumes `GET /v1/ops/summary` and LINKS to /operations; it does
+// not render a second work surface, because a cockpit that is also a queue is
+// how the two authorities grow back.
 
 // ============================================================================
 // Inline failed-delivery retry — the one real inline mutation flow today.
@@ -1772,7 +1539,10 @@ export function HomeSkeleton() {
 
 // Phase HOME-POLISH — every SectionCard now uses the shared premium
 // card vocabulary from home-theme.ts (glassy white, soft depth).
-const cardStyle: React.CSSProperties = homeCardStyle;
+// PHASE 4C (2026-08-22) — the `cardStyle` alias is gone. The comment below
+// still describes it because it explains why `outerCardStyle` is the
+// translucent one; the near-solid surface it names backed the Action-needed
+// queue module, which no longer exists.
 // Phase HOME-POLISH (#2/#12) — the shared SectionCard OUTER surface is the
 // translucent glass module (~0.48 white + blur) so large modules integrate
 // with the branded page background instead of stacking "white card inside

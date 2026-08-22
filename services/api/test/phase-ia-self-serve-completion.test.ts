@@ -95,11 +95,24 @@ describe("Phase IA-self-serve-completion — /home wiring", () => {
     expect(HOME).not.toMatch(/isSelfServePlan/);
   });
 
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 7 (2026-08-22).
+   *
+   * The INVARIANT is unchanged: the self-serve Home must not delete the
+   * enterprise dashboard branch, and <CommandCenter /> is still asserted.
+   *
+   * <AccountPrioritiesBanner /> is no longer part of that branch because it
+   * was a SECOND general attention authority on Home. It computed "what
+   * needs your attention" from its own reads of org invites, org-admin
+   * governance and onboarding — all three of which already had a canonical
+   * home (org_invite / org_admin notifications, and guidance, which Phase
+   * 1.6 removed from the attention workload entirely). The content did not
+   * disappear; its duplicate computation did.
+   */
   it("preserves the existing CommandCenter branch for enterprise users", () => {
-    // Self-serve home MUST NOT delete the legacy dashboard — enterprise
-    // users continue to see AccountPrioritiesBanner + CommandCenter.
-    expect(HOME).toMatch(/<AccountPrioritiesBanner\s*\/>/);
     expect(HOME).toMatch(/<CommandCenter\s*\/>/);
+    // And the duplicate attention authority stays gone.
+    expect(HOME).not.toMatch(/<AccountPrioritiesBanner/);
   });
 
   it("keeps the canonical PageRouteGate at the outer boundary", () => {
@@ -125,7 +138,18 @@ describe("Phase IA-self-serve-completion — ENTERPRISE layout.tsx files added",
   // boundary, applying the tier rule before any page content mounts.
   const SELF_SERVE_COMPLETION_DIRS = [
     "app/(app)/workspaces",
-    "app/(app)/notifications",
+    // CONTRACT MIGRATION — Attention Architecture Phase 5 (2026-08-22).
+    //
+    // `app/(app)/notifications` LEFT this list. Its enterprise gate guarded
+    // the OUTBOUND DELIVERY LOG, which was an enterprise admin surface; the
+    // directory now holds the PERSONAL NOTIFICATION CENTRE, and a person's own
+    // notifications are not an enterprise feature — gating them behind a plan
+    // tier would hide someone's own mail from them.
+    //
+    // Nothing became ungated. The delivery log moved to
+    // `/settings/notifications/deliveries` and kept BOTH its SETTINGS_VIEW
+    // capability and its ENTERPRISE surface-tier rule, which
+    // `attention-arch-phase5-canonical-routes.test.ts` asserts directly.
     "app/(app)/collaboration",
     "app/(app)/evidence-lifecycle",
     "app/(app)/exchange",

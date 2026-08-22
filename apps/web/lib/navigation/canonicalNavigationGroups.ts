@@ -49,7 +49,7 @@ export const CANONICAL_PRIMARY_ROUTE_IDS: ReadonlySet<string> = new Set([
   "workspace.evidence",
   "workspace.capture",
   "workspace.intake_links",
-  "account.inbox",
+  "account.notifications",
   "workspace.search",
   "workspace.reports",
 ]);

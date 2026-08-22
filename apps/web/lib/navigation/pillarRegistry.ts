@@ -154,8 +154,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // HOME
   // -----------------------------------------------------------------
   ["workspace.home", "HOME"],
-  ["account.inbox", "HOME"],
-  ["workspace.notifications", "HOME"],
+  ["account.notifications", "HOME"],
+  ["workspace.notification_deliveries", "HOME"],
   // Phase 6 cleanup — dashboard.insights retired.
 
   // -----------------------------------------------------------------
@@ -234,7 +234,7 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // -----------------------------------------------------------------
   // OPERATIONS (platform-health, ops-discipline)
   // -----------------------------------------------------------------
-  ["platform.ops_center", "OPERATIONS"],
+  ["workspace.operations", "OPERATIONS"],
   ["platform.observability", "OPERATIONS"],
   // Phase 8 — Platform production-readiness posture (backup/DR, keys, resiliency).
   ["operations.readiness", "OPERATIONS"],

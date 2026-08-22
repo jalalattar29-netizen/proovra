@@ -36,7 +36,7 @@ test("admin nav exposes Enterprise Provisioning (no direct-URL guessing)", () =>
 
 test("admin nav exposes the platform operations surfaces", () => {
   const hrefs = ADMIN_NAV_ITEMS.map((i) => i.href);
-  for (const href of ["/operations/readiness", "/operations/observability", "/tools"]) {
+  for (const href of ["/admin/platform/readiness", "/admin/platform/observability", "/tools"]) {
     assert.ok(hrefs.includes(href), `admin nav must include ${href}`);
   }
 });

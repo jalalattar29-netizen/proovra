@@ -4,7 +4,7 @@
  * Defends three fixes from the remediation program (findings F7, F8, F18):
  *
  *   1. F8 — the platform-operations pages that mutate global state
- *      (`/operations/queues|signers|exports|recovery`) were gated by the
+ *      (`/admin/platform/queues|signers|exports|recovery`) were gated by the
  *      WRONG routeId `workspace.security_center` (OPS-tier,
  *      PERSONAL_OR_ORG, `SECURITY_CENTER_VIEW`) — a weaker gate than their
  *      PLATFORM_ADMIN siblings. R2 repoints them to PLATFORM_ADMIN routeIds
@@ -36,10 +36,10 @@ const registrySrc = read("../lib/navigation/routeRegistry.ts");
 const middlewareSrc = read("../middleware.ts");
 
 const OPS_PAGES: Array<{ path: string; routeId: string }> = [
-  { path: "../app/(app)/operations/queues/page.tsx", routeId: "platform.queue_ops" },
-  { path: "../app/(app)/operations/signers/page.tsx", routeId: "operations.signers" },
-  { path: "../app/(app)/operations/exports/page.tsx", routeId: "operations.exports" },
-  { path: "../app/(app)/operations/recovery/page.tsx", routeId: "operations.recovery" },
+  { path: "../app/(app)/admin/platform/queues/page.tsx", routeId: "platform.queue_ops" },
+  { path: "../app/(app)/admin/platform/signers/page.tsx", routeId: "operations.signers" },
+  { path: "../app/(app)/admin/platform/exports/page.tsx", routeId: "operations.exports" },
+  { path: "../app/(app)/admin/platform/recovery/page.tsx", routeId: "operations.recovery" },
 ];
 
 test("F8 — global-ops pages use PLATFORM_ADMIN routeIds, not workspace.security_center", () => {

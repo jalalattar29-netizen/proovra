@@ -28,6 +28,7 @@ import {
 
 import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
+import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
 
 // ---------- Thresholds — every one is real platform state -----------------
 
@@ -68,6 +69,37 @@ export async function generateIncidentsForWorkspace(
   const rules: string[] = [];
   let recorded = 0;
   let failed = 0;
+
+  // ---------------------------------------------------------------------
+  // ATTENTION ARCHITECTURE PHASE 3 — per-Evidence integrity conditions.
+  //
+  // Run FIRST and separately from the threshold rules below, because it is a
+  // different shape of scan: the rules each answer "has this workspace-level
+  // threshold been crossed?" and produce at most one incident, while this
+  // one answers "which individual records currently cannot be proven?" and
+  // produces one condition PER RECORD.
+  //
+  // That difference is the point. A threshold rule that said "17 records
+  // failed timestamping" would be exactly the grouping this phase retracts:
+  // seventeen records that each need fixing, rendered as one number nobody
+  // can act on. Each record gets its own condition, its own acknowledgement
+  // and its own resolution, driven by that record's own status column.
+  // ---------------------------------------------------------------------
+  try {
+    const integrity = await syncEvidenceIntegrityConditions({
+      teamId: ctx.teamId,
+    });
+    recorded += integrity.opened + integrity.reobserved;
+    if (integrity.opened > 0 || integrity.reobserved > 0) {
+      rules.push("evidence_integrity:per_record");
+    }
+    if (!integrity.complete) {
+      // Say so rather than reporting a tidy number over a bounded read.
+      rules.push("evidence_integrity:scan_incomplete");
+    }
+  } catch {
+    failed += 1;
+  }
 
   for (const rule of [
     () => scanReportBacklog(ctx),

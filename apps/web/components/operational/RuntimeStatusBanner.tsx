@@ -231,7 +231,7 @@ export function RuntimeStatusBanner({
             {" "}
             Open the{" "}
             <a
-              href="/operations/observability"
+              href="/admin/platform/observability"
               style={{
                 color: OPS_TONES.warning.link,
                 fontWeight: 700,
@@ -286,7 +286,7 @@ export function RuntimeStatusBanner({
             {" "}
             Review the{" "}
             <a
-              href="/operations/runbooks"
+              href="/admin/platform/runbooks"
               style={{
                 color: OPS_TONES.critical.link,
                 fontWeight: 700,

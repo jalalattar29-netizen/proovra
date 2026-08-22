@@ -236,7 +236,24 @@ describe("Phase IA-reliability — read/unread/dismiss/snooze endpoints", () => 
     expect(ROUTES).toMatch(/itemKey\.length\s*>\s*200/);
   });
 
-  it("declares POST endpoints for read / unread / dismiss / snooze", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 1.1 (2026-08-22).
+   *
+   * The INVARIANT this test protects is "the four personal mutations are
+   * reachable as POST endpoints", and that is unchanged and still asserted
+   * below. What changed is HOW two of them are registered: `dismiss` and
+   * `snooze` are legacy names for `archive` and `remind`, and are now
+   * registered by iterating `LEGACY_ACTION_ALIASES` rather than by a second
+   * literal `app.post("…/dismiss")` call.
+   *
+   * That is strictly stronger than what this test used to check. Two literal
+   * registrations are two implementations that can drift; one table-driven
+   * registration cannot. So the test now asserts the alias TABLE covers the
+   * legacy names and that the canonical names exist as literals — the
+   * behaviour ("POST /dismiss still works") is preserved, and the thing that
+   * makes it work is what gets pinned.
+   */
+  it("declares POST endpoints for read / unread / archive / remind", () => {
     expect(ROUTES).toMatch(
       /app\.post\(\s*"\/v1\/me\/inbox\/items\/:itemKey\/read"/,
     );
@@ -244,11 +261,35 @@ describe("Phase IA-reliability — read/unread/dismiss/snooze endpoints", () => 
       /app\.post\(\s*"\/v1\/me\/inbox\/items\/:itemKey\/unread"/,
     );
     expect(ROUTES).toMatch(
-      /app\.post\(\s*"\/v1\/me\/inbox\/items\/:itemKey\/dismiss"/,
+      /app\.post\("\/v1\/me\/inbox\/items\/:itemKey\/archive"/,
     );
     expect(ROUTES).toMatch(
-      /app\.post\(\s*"\/v1\/me\/inbox\/items\/:itemKey\/snooze"/,
+      /app\.post\("\/v1\/me\/inbox\/items\/:itemKey\/remind"/,
     );
+  });
+
+  it("keeps the legacy /dismiss and /snooze URLs alive via the alias table", async () => {
+    const { LEGACY_ACTION_ALIASES } = await import(
+      "../src/services/notifications/personal-attention-state.js"
+    );
+    expect(LEGACY_ACTION_ALIASES.dismiss).toBe("archive");
+    expect(LEGACY_ACTION_ALIASES.snooze).toBe("remind");
+    // Registered as LITERAL paths (every route in this service must be
+    // statically resolvable for the capability analyzer), each pointing at
+    // the canonical handler so there is one implementation per pair.
+    for (const legacy of ["dismiss", "undismiss", "snooze"]) {
+      expect(ROUTES).toContain(
+        `app.post("/v1/me/inbox/items/:itemKey/${legacy}"`,
+      );
+    }
+    expect(ROUTES).toMatch(
+      /app\.post\("\/v1\/me\/inbox\/items\/:itemKey\/dismiss",[^)]*archiveHandler\)/,
+    );
+    expect(ROUTES).toMatch(
+      /app\.post\("\/v1\/me\/inbox\/items\/:itemKey\/snooze",[^)]*remindHandler\)/,
+    );
+    // And the table and the registrations are reconciled at boot.
+    expect(ROUTES).toContain("REGISTERED_LEGACY_ALIASES");
   });
 
   it("every endpoint upserts by the (userId, itemKey) compound unique", () => {
@@ -260,10 +301,23 @@ describe("Phase IA-reliability — read/unread/dismiss/snooze endpoints", () => 
     );
   });
 
-  it("snooze bounds reject past dates + more-than-365-days futures", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 1.1 (2026-08-22).
+   *
+   * The BOUNDS are unchanged: a reminder in the past is rejected, and one
+   * more than 365 days out is rejected. Both are still asserted. Only the
+   * user-facing field name in the error copy moved, `snoozedUntil` ->
+   * `remindAt`, because the product now calls this "remind me later". The
+   * legacy request field is still accepted (see the alias handling in
+   * `remindHandler`); it simply is not the name we say back to the caller.
+   */
+  it("remind bounds reject past dates + more-than-365-days futures", () => {
     expect(ROUTES).toMatch(/365\s*\*\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
-    expect(ROUTES).toMatch(/snoozedUntil must be in the future/);
+    expect(ROUTES).toMatch(/remindAt must be in the future/);
     expect(ROUTES).toMatch(/cannot be more than 365 days out/);
+    // The legacy request field name still parses, so shipped clients that
+    // POST `{ snoozedUntil }` keep working.
+    expect(ROUTES).toMatch(/raw\.remindAt \?\? raw\.snoozedUntil/);
   });
 
   it("every mutation endpoint uses requireAuthAndLegal (no anonymous writes)", () => {
@@ -465,11 +519,23 @@ describe("Phase IA-reliability — /inbox UI exposes per-item actions", () => {
     expect(PAGE).toMatch(/canSnooze:\s*boolean/);
   });
 
-  it("renders Mark read / Mark unread / Snooze 1d / Dismiss actions per item", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 1.1 (2026-08-22).
+   *
+   * The INVARIANT is "every per-item personal action is reachable from the
+   * page, optimistically applied, and rolled back on failure". All of that is
+   * still asserted. What moved is the PRODUCT VOCABULARY: `dismiss` became
+   * `archive` and `snooze` became `remind`, because the old names described
+   * adjudication ("this doesn't matter", "go away") on a surface that is only
+   * ever filing one person's mail. `unarchive` is new and NOT optional — an
+   * archive with no way back is a delete wearing a softer label.
+   */
+  it("renders Mark read / Mark unread / Remind / Archive / Unarchive per item", () => {
     expect(PAGE).toMatch(/data-action="mark-read"/);
     expect(PAGE).toMatch(/data-action="mark-unread"/);
-    expect(PAGE).toMatch(/data-action="snooze"/);
-    expect(PAGE).toMatch(/data-action="dismiss"/);
+    expect(PAGE).toMatch(/data-action="remind"/);
+    expect(PAGE).toMatch(/data-action="archive"/);
+    expect(PAGE).toMatch(/data-action="unarchive"/);
     // Optimistic-update with rollback on failure.
     expect(PAGE).toMatch(/applyOptimisticUpdate/);
     expect(PAGE).toMatch(/removeItemLocally/);
@@ -486,8 +552,14 @@ describe("Phase IA-reliability — /inbox UI exposes per-item actions", () => {
     expect(PAGE).toMatch(/!item\.isRead[\s\S]{0,200}markRead\(item\)/);
   });
 
-  it("the UI POSTs to /v1/me/inbox/items/:itemKey/{read,unread,dismiss,snooze}", () => {
+  it("the UI POSTs to /v1/me/inbox/items/:itemKey/{read,unread,archive,unarchive,remind}", () => {
     expect(PAGE).toMatch(/\/v1\/me\/inbox\/items\/\$\{[^}]+\}\/\$\{action\}/);
+    // CONTRACT MIGRATION — the action union is the canonical set now. The
+    // legacy URLs still resolve server-side for shipped clients; this client
+    // no longer emits them.
+    expect(PAGE).toMatch(
+      /"read" \| "unread" \| "archive" \| "unarchive" \| "remind"/,
+    );
   });
 
   it("the UI renders intake categories under their own labels", () => {

@@ -2820,6 +2820,13 @@
       "safeBeforeCodeDeployment": true,
       "requiresBackfill": false,
       "evidence": "REDESIGN/SEARCH — adds SEARCH_INDEX to GovernanceReconciliationKind so Search index reconciliation records its runs in the existing governance_reconciliation_runs authority, reusing that table's partial unique index (kind, lock_key) WHERE status=RUNNING for per-workspace exclusion, its lease and its terminal transitions. ADD VALUE IF NOT EXISTS is additive and idempotent: existing rows and readers are unaffected, and code that never emits the value behaves identically, so it is safe to apply before the code that uses it."
+    },
+    "20271216000000_evidence_integrity_incident_category": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "evidence": "ATTENTION ARCHITECTURE PHASE 3 — adds EVIDENCE_INTEGRITY to IncidentCategory so per-Evidence RFC3161/OpenTimestamps failures become first-class operational conditions in the EXISTING operational_incidents authority rather than a parallel model. ADD VALUE IF NOT EXISTS is additive and idempotent: no table is created, no column changes type, no existing row is rewritten, and code that never emits the value behaves identically — so it is safe to apply before the code that uses it. Deliberately NOT accompanied by a backfill: opening conditions for historically failed evidence would stamp first_seen_at_utc with the migration clock, which feeds the age-based severity escalation and would manufacture a wave of CRITICALs out of a schema change."
     }
   }
 }

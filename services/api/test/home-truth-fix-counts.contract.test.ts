@@ -174,20 +174,57 @@ describe("HOME-TRUTH-FIX — Operational Queue includes timestamp-provider failu
     expect(COMMAND_CENTER).toMatch(/\|\s*"OTS_FAILED"/);
   });
 
-  it("emits tsa_failed pressure items from evidence with FAILED/REJECTED/ERROR tsaStatus", () => {
-    const start = COMMAND_CENTER.indexOf("TSA failures. Surfacing the count");
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phases 3 + 4D (2026-08-22).
+   *
+   * THE INVARIANT IS UNCHANGED AND IS NOW MUCH STRONGER: a TSA or OTS failure
+   * must SURFACE, rather than living only as a count in a Trust State row.
+   * What changed is where it surfaces from.
+   *
+   * The Command Center used to scan `Evidence` for failed timestamp statuses
+   * itself and emit a `tsa_failed` / `ots_failed` pressure item. That was a
+   * second authority over the same question /operations was answering, and it
+   * had no lifecycle at all — the item could not be acknowledged, assigned,
+   * resolved or audited, and it reappeared on every page load for as long as
+   * the record stayed broken.
+   *
+   * Those failures are now first-class SHARED OPERATIONAL CONDITIONS, one per
+   * Evidence record, opened by
+   * `services/api/src/services/operations/evidence-integrity-conditions.service.ts`,
+   * resolved from the record's own status column, and projected here through
+   * the canonical summary. The per-record independence, idempotency, reopen
+   * and severity behaviour are proven in
+   * `attention-arch-phase3-evidence-integrity.test.ts`.
+   *
+   * So what this file now asserts is that the Command Center does NOT scan for
+   * them itself, and that the writer which does exists and is wired.
+   */
+  it("the Command Center no longer scans Evidence for failed timestamp statuses", () => {
+    const start = COMMAND_CENTER.indexOf(
+      "async function runOperationalPressure(",
+    );
     expect(start).toBeGreaterThan(0);
-    const tail = COMMAND_CENTER.slice(start, start + 1200);
-    expect(tail).toMatch(/tsaStatus:\s*\{\s*in:\s*\[\s*"FAILED",\s*"REJECTED",\s*"ERROR"\s*\]/);
-    expect(tail).toMatch(/category:\s*"tsa_failed"/);
+    const body = COMMAND_CENTER.slice(start, COMMAND_CENTER.indexOf("\n}\n", start));
+    expect(body).not.toContain("tsaStatus:");
+    expect(body).not.toContain("otsStatus:");
+    expect(body).not.toMatch(/prisma\.evidence\.findMany/);
   });
 
-  it("emits ots_failed pressure items from evidence with FAILED/ERRORED/ERROR otsStatus", () => {
-    const start = COMMAND_CENTER.indexOf("OTS failures. Same rationale");
-    expect(start).toBeGreaterThan(0);
-    const tail = COMMAND_CENTER.slice(start, start + 1200);
-    expect(tail).toMatch(/otsStatus:\s*\{\s*in:\s*\[\s*"FAILED",\s*"ERRORED",\s*"ERROR"\s*\]/);
-    expect(tail).toMatch(/category:\s*"ots_failed"/);
+  it("per-Evidence integrity failures are opened as conditions with their own lifecycle", () => {
+    const WRITER = readFileSync(
+      resolve(
+        REPO_ROOT,
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      ),
+      "utf8",
+    );
+    // One condition per record per proof class — never grouped by reason,
+    // filename, provider, workspace or date.
+    expect(WRITER).toContain("export function integrityConditionFingerprint(");
+    expect(WRITER).toContain("return `${integrityClass}:${evidenceId}`;");
+    // Resolution comes from the record's own status column, positively read.
+    expect(WRITER).toContain("isCurrentlyFailing(");
+    expect(WRITER).toContain("resolved_by_domain_truth");
   });
 
   it("tsa/ots wording is operationally neutral — does NOT claim invalid evidence", () => {

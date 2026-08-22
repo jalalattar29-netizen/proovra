@@ -23,7 +23,11 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
-import { useTeamWorkspaceGate } from "../../../lib/platform-context";
+import {
+  usePlatformContext,
+  useTeamWorkspaceGate,
+} from "../../../lib/platform-context";
+import type { CapabilityKey } from "../../../lib/platform-context/types";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 import { formatUserDateTime } from "../../../lib/date";
@@ -155,7 +159,7 @@ const STATUSES: IncidentStatus[] = [
 // rich existing operations content stays below unchanged.
 export default function OpsPage() {
   return (
-    <PageRouteGate routeId="platform.ops_center">
+    <PageRouteGate routeId="workspace.operations">
       <div data-hub-page data-hub-page-id="operations">
         <HubQuickActionsBar hubId="operations" />
         <OpsPageInner />
@@ -173,6 +177,43 @@ function OpsPageInner() {
   const teamId =
     workspace.status === "ready" ? workspace.workspaceId : null;
 
+  // =========================================================================
+  // ATTENTION ARCHITECTURE PHASE 6 (2026-08-22) — CAPABILITY-AWARE ACTIONS.
+  //
+  // The console rendered Ack / Resolve / Suppress unconditionally and let the
+  // server refuse. That is three buttons that look available and are not, on
+  // a surface where being able to act is the whole point — and it taught
+  // operators that a 403 is a normal part of using the product.
+  //
+  // These are the SERVER-RESOLVED capabilities. The UI does not compare role
+  // names, does not read a plan, and does not re-derive who may act; the
+  // backend remains authoritative on every mutation and this only decides
+  // what to draw.
+  //
+  // 6.3 — the same booleans give the single-operator (Personal Pro) shape for
+  // free: OPERATIONS_ASSIGN is not granted where there is nobody to assign
+  // to, so no assignment control renders. There is no PersonalOperationsPage
+  // and no plan branch anywhere in this file.
+  // =========================================================================
+  const { envelope } = usePlatformContext();
+  const capabilities: Partial<Record<CapabilityKey, boolean>> =
+    envelope?.capabilities ?? {};
+  const canAcknowledge = capabilities.OPERATIONS_ACKNOWLEDGE === true;
+  const canResolve = capabilities.OPERATIONS_RESOLVE === true;
+  const canSuppress = capabilities.OPERATIONS_SUPPRESS === true;
+  // PHASE 6.3 — read and named, prefixed to say it has no control YET.
+  //
+  // Assignment is the capability that separates a shared workspace from a
+  // single-operator one, and it is deliberately resolved here so the Personal
+  // Pro shape is a CAPABILITY outcome rather than a plan branch. There is no
+  // assignment control on this console today, so the binding is unused — and
+  // it is kept rather than deleted because deleting it is how the next person
+  // adds an assignment button gated on a role-name comparison instead.
+  const _canAssign = capabilities.OPERATIONS_ASSIGN === true;
+  // A VIEWER holds OPERATIONS_VIEW and nothing else: they see the work and
+  // the row action column simply is not drawn for them.
+  const canActOnAnything = canAcknowledge || canResolve || canSuppress;
+
   // Phase 32.6.4 — per-panel independent state. A 503 from any one
   // of (health / incidents / metrics) MUST NOT blank the other two
   // panels.
@@ -186,6 +227,8 @@ function OpsPageInner() {
   const [status, setStatus] = useState<IncidentStatus | "">("OPEN");
   const [severity, setSeverity] = useState<IncidentSeverity | "">("");
   const [busy, setBusy] = useState(false);
+  /** PHASE 2.2 — did the incident list reach the end of the collection? */
+  const [incidentsComplete, setIncidentsComplete] = useState(true);
   const [lastCheckedAtUtc, setLastCheckedAtUtc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -219,7 +262,15 @@ function OpsPageInner() {
       }
 
       if (incidentsR.status === "fulfilled") {
-        const value = incidentsR.value as { incidents: Incident[] };
+        const value = incidentsR.value as {
+          incidents: Incident[];
+          completeness?: { complete: boolean; mayAssertAllClear: boolean };
+        };
+        // PHASE 2.2 / 2.3 — carry the completeness verdict to the render.
+        // "No incidents" over a partial read is not the same statement as
+        // "no incidents", and an operations console is the last place that
+        // difference may be blurred.
+        setIncidentsComplete(value.completeness?.complete ?? true);
         setIncidentsPanel({
           status: "ready",
           data: value.incidents ?? [],
@@ -557,7 +608,11 @@ function OpsPageInner() {
 
           <PageSection
             title="Operational incidents"
-            description="System behaviour anomalies. Acknowledge, resolve, or suppress from the row actions."
+            description={
+              canActOnAnything
+                ? "Unresolved work this workspace has to act on. Acknowledge, resolve, or suppress from the row actions."
+                : "Unresolved work this workspace has to act on. You have read access here; acting on a condition needs an operator role."
+            }
             action={
               <FilterBar>
                 <FilterBar.Select
@@ -601,56 +656,83 @@ function OpsPageInner() {
                 loading={incidentsPanel.status === "loading"}
                 density="comfortable"
                 emptyState={
-                  <EmptyState
-                    compact
-                    title="No incidents match the filters"
-                    purpose="Operational anomalies matching the selected status and severity appear here."
-                  />
+                  incidentsComplete ? (
+                    <EmptyState
+                      compact
+                      title="No incidents match the filters"
+                      purpose="Operational anomalies matching the selected status and severity appear here."
+                    />
+                  ) : (
+                    // PHASE 2.3 — an empty list over an INCOMPLETE read is not
+                    // an empty collection, and must not read like one.
+                    <EmptyState
+                      compact
+                      title="Showing part of the list"
+                      purpose="More conditions exist beyond this page, so this view is not the full picture. Narrow the filters or page forward to see the rest."
+                    />
+                  )
                 }
-                rowActions={(i) => (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      gap: 6,
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    {i.status === "OPEN" ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => void transitionIncident(i.id, "ack")}
-                      >
-                        Ack
-                      </Button>
-                    ) : null}
-                    {i.status === "OPEN" || i.status === "ACKNOWLEDGED" ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          disabled={busy}
-                          onClick={() =>
-                            void transitionIncident(i.id, "resolve")
-                          }
+                rowActions={
+                  // A read-only operator gets no action column at all. An
+                  // empty column of nothing is worse than no column: it reads
+                  // as "these actions failed to load".
+                  canActOnAnything
+                    ? (i) => (
+                        <div
+                          data-ops-row-actions
+                          style={{
+                            display: "inline-flex",
+                            gap: 6,
+                            justifyContent: "flex-end",
+                          }}
                         >
-                          Resolve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busy}
-                          onClick={() =>
-                            void transitionIncident(i.id, "suppress")
-                          }
-                        >
-                          Suppress
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                )}
+                          {canAcknowledge && i.status === "OPEN" ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              data-ops-action="acknowledge"
+                              disabled={busy}
+                              onClick={() =>
+                                void transitionIncident(i.id, "ack")
+                              }
+                            >
+                              Acknowledge
+                            </Button>
+                          ) : null}
+                          {canResolve &&
+                          (i.status === "OPEN" ||
+                            i.status === "ACKNOWLEDGED") ? (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              data-ops-action="resolve"
+                              disabled={busy}
+                              onClick={() =>
+                                void transitionIncident(i.id, "resolve")
+                              }
+                            >
+                              Resolve
+                            </Button>
+                          ) : null}
+                          {canSuppress &&
+                          (i.status === "OPEN" ||
+                            i.status === "ACKNOWLEDGED") ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              data-ops-action="suppress"
+                              disabled={busy}
+                              onClick={() =>
+                                void transitionIncident(i.id, "suppress")
+                              }
+                            >
+                              Suppress
+                            </Button>
+                          ) : null}
+                        </div>
+                      )
+                    : undefined
+                }
               />
             )}
           </PageSection>

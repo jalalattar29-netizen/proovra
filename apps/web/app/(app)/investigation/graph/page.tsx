@@ -339,7 +339,7 @@ useEffect(() => {
                   reason={reason}
                   nextAction={{ label: "Capture evidence", href: "/capture" }}
                   adminAction={{ label: "Open cases", href: "/cases" }}
-                  diagnosticsLink="/operations/observability"
+                  diagnosticsLink="/admin/platform/observability"
                   isAdmin={canDiagnostics}
                 />
               );

@@ -95,13 +95,25 @@ describe("Home tabbed IA — Overview leads, diagnostics live in Operations/Anal
     expect(DASH.indexOf(ANALYTICS_PANEL)).toBeGreaterThan(boundary);
   });
 
-  it("the standalone OperationalQueue is gone and its data is wired into WorkspacePrioritiesCard", () => {
-    // The merge the approved redesign performed: no standalone widget…
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 4C (2026-08-22).
+   *
+   * The first half of this assertion is unchanged and still holds: there is no
+   * standalone `<OperationalQueue>` widget on Home.
+   *
+   * The second half said the queue's DATA was "not discarded" and flowed into
+   * the priorities card. That data was the caller's own notification feed
+   * reshaped as workspace state, and it is now discarded, deliberately. What
+   * flows into the priorities card instead is the canonical workspace
+   * Operations summary — shared truth, read from one authority, used by the
+   * card for exactly one decision: whether it is entitled to say "All clear".
+   */
+  it("no standalone OperationalQueue, and the priorities card consumes the SHARED summary", () => {
     expect(DASH).not.toMatch(/<OperationalQueue/);
-    // …but the operational-queue data is NOT discarded — it flows into the
-    // consolidated priorities surface.
     expect(DASH).toMatch(
-      /<WorkspacePrioritiesCard[\s\S]{0,200}?operationalQueue=\{vm\.operationalQueue\}/,
+      /<WorkspacePrioritiesCard[\s\S]{0,200}?operations=\{vm\.operations\}/,
     );
+    // The old personal-feed wiring must not survive anywhere on the surface.
+    expect(DASH).not.toMatch(/operationalQueue=\{/);
   });
 });

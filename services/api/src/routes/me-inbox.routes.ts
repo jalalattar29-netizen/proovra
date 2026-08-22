@@ -13,7 +13,8 @@
  *
  *   1. Pending organization invites addressed to the caller (Phase
  *      2.7X Stage 5 email-matched invites). Reuses the same query
- *      shape as /v1/me/operational-priorities.
+ *      shape as the account-priorities endpoint that Attention
+ *      Architecture Phase 7 removed as a duplicate authority.
  *
  *   2. Admin pending invites — count of open invites in orgs where
  *      the caller is ORG_OWNER / ORG_ADMIN, surfaced as a single
@@ -57,7 +58,7 @@
  *   - No cross-org / cross-workspace data leak. Every query is
  *     scoped to memberships the caller already has.
  */
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
@@ -80,6 +81,35 @@ import {
   invalidateOperationsSummary,
   setCachedOperationsSummary,
 } from "../services/notifications/operations-summary-cache.js";
+// ATTENTION ARCHITECTURE PHASE 1 — this file is now explicitly a PERSONAL
+// NOTIFICATION system. The three modules below are the canonical authorities
+// for what that means: personal attention state (per-user, never shared),
+// category classification (which channels an event projects onto), and the
+// projection split itself. The route name is unchanged here on purpose —
+// route migration is Phase 5; semantics come first.
+import {
+  derivePersonalAttentionState,
+  LEGACY_ACTION_ALIASES,
+  type PersonalAttentionState,
+  type PersonalAttentionAction,
+} from "../services/notifications/personal-attention-state.js";
+import {
+  sharedConditionFingerprint,
+} from "../services/notifications/attention-projection.js";
+import {
+  buildSourceCompleteness,
+  exhaustivelyEvaluatedSources,
+  type SourceCompleteness,
+} from "../services/notifications/source-completeness.js";
+import {
+  classifyCategory,
+  countsAsWorkload,
+  isGuidance,
+  producesOperationalCondition,
+  scopeForCategory,
+  type AttentionChannel,
+  type ConditionAuthority,
+} from "../services/notifications/notification-classification.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { formatTimestampForReportUtc } from "@proovra/shared";
 
@@ -342,10 +372,52 @@ export type InboxItem = {
    */
   isRead: boolean;
   readAt?: string | null;
-  /** Set only when the user actively dismissed an earlier occurrence. */
+  /**
+   * LEGACY FIELD NAME, kept for shipped clients. Product name: `archivedAt`.
+   * Set only when the user archived an earlier occurrence. This is PERSONAL
+   * state and is never read as a shared suppression — see
+   * `personal-attention-state.ts`.
+   */
   dismissedAt?: string | null;
-  /** Set only when the user snoozed this item; null after expiry. */
+  /** LEGACY FIELD NAME. Product name: `remindAt`. Null after expiry. */
   snoozedUntil?: string | null;
+  /**
+   * PHASE 1 — the canonical personal attention state, on three orthogonal
+   * axes (readState / lifecycle / remindAt). `isRead`, `dismissedAt` and
+   * `snoozedUntil` above are the same three facts under their legacy names;
+   * they are emitted from this value rather than beside it, so the two can
+   * never disagree.
+   */
+  attention: PersonalAttentionState;
+  /**
+   * PHASE 1 — which channels this event projects onto, and who owns lifecycle
+   * truth for the shared condition when it produces one. Consumers use this
+   * instead of re-deriving "is this operational?" from the category name.
+   */
+  classification: {
+    channels: readonly AttentionChannel[];
+    conditionAuthority: ConditionAuthority;
+    scope: "ACCOUNT" | "WORKSPACE" | "ORGANIZATION";
+    /**
+     * PHASE 1.6 — guidance is excluded. "Nothing needs doing, here is how to
+     * start" is not workload, and counting it as workload is how an attention
+     * surface teaches operators to stop believing it.
+     */
+    countsAsWorkload: boolean;
+    /**
+     * PHASE 1.3 — the identity of the SHARED operational condition this event
+     * also projects onto, or null when it projects onto none.
+     *
+     * It is deliberately NOT the `itemKey`. They are computed from the same
+     * two facts and they are different things: `itemKey` addresses one
+     * person's copy of a message and is what the archive endpoint writes;
+     * this addresses the workspace's single piece of work and is what
+     * Operations adjudicates. Emitting both, plainly labelled, is what lets a
+     * notification link to its condition without either surface inferring the
+     * other's identity.
+     */
+    sharedConditionFingerprint: string | null;
+  };
   /** Operator-visible action capabilities. All true today; future
    * categories that don't make sense to mark read or snooze can flip
    * these without breaking the UI. */
@@ -416,6 +488,23 @@ const INBOX_ITEM_KEY_PREFIXES = new Set<string>([
   // `tsa_failure:${evidence.id}` / `case_assignment:${assignment.id}`.
   "tsa_failure",
   "case_assignment",
+]);
+
+/**
+ * PHASE 2.2 — EVERY source this aggregation evaluates, declared.
+ *
+ * The completeness descriptor is TOTAL over this list, so a source added to
+ * the aggregation without being added here is a source nothing can vouch for
+ * — and `mayInferResolutionFromAbsence` fails closed on exactly that case,
+ * which means the mistake costs a stale History row instead of a fabricated
+ * resolution.
+ *
+ * It is deliberately the same set as the itemKey prefixes: one source, one
+ * key prefix, one snapshot `sourceType`. Deriving it keeps the two from
+ * drifting, which they would if this were a second hand-written list.
+ */
+const INBOX_EVALUATED_SOURCES: readonly string[] = Object.freeze([
+  ...INBOX_ITEM_KEY_PREFIXES,
 ]);
 
 /**
@@ -617,7 +706,23 @@ function isInWorkspaceScope(
   workspaceId: string | null,
 ): boolean {
   if (!workspaceId) return true;
-  return item.context?.teamId === workspaceId;
+  const itemWorkspaceId = item.context?.teamId;
+  // PHASE 2.4 — NARROWING IS NOT DISCARDING.
+  //
+  // This was `item.context?.teamId === workspaceId`, which silently deleted
+  // every notification that has no workspace at all: your own HIGH-severity
+  // security events, and the organization invitation waiting for you to
+  // accept it. Those are ACCOUNT- and ORGANIZATION-scoped — addressed to the
+  // person, not to a tenant — so they are not "in a different workspace", and
+  // treating them as if they were meant an invite could become invisible the
+  // moment the user selected a workspace, which is when they are most likely
+  // to be looking.
+  //
+  // The rule is now: an item is excluded only if it BELONGS to a workspace
+  // and that workspace is not the selected one. No workspace binding, no
+  // exclusion.
+  if (itemWorkspaceId == null) return true;
+  return itemWorkspaceId === workspaceId;
 }
 
 /** Visible AND not yet read. The one definition of the badge's population. */
@@ -708,7 +813,23 @@ function compareInboxItems(a: InboxItem, b: InboxItem, nowMs: number): number {
   if (aDueScore !== bDueScore) return bDueScore - aDueScore;
   const dt = TONE_PRIORITY[b.tone] - TONE_PRIORITY[a.tone];
   if (dt !== 0) return dt;
-  return b.occurredAt.localeCompare(a.occurredAt);
+  const dOccurred = b.occurredAt.localeCompare(a.occurredAt);
+  if (dOccurred !== 0) return dOccurred;
+  // PHASE 2.7 — A UNIQUE TIE-BREAK, because the ordering is paginated.
+  //
+  // This comparator used to end at `occurredAt`, which is not unique: a
+  // fan-out that emits several items from one event stamps them all with the
+  // same instant. `Array.prototype.sort` is stable, but the input order is
+  // the emitter order, which changes as sources are added and as per-category
+  // caps bite — so two requests over identical data could order those items
+  // differently. Under offset pagination that is not cosmetic: an item can be
+  // pushed across the page boundary between requests and be shown twice, or
+  // skipped entirely.
+  //
+  // `itemKey` is stable, unique per item, and already the identity every
+  // mutation uses. The recency comparator has always tie-broken on it; this
+  // one now does too, so both orderings are total.
+  return a.itemKey.localeCompare(b.itemKey);
 }
 
 /**
@@ -782,12 +903,22 @@ function boundedSnapshotMetadata(
  * snapshots RESOLVED when their source stopped emitting them. Title/body
  * are written ONCE at first surface and never rewritten. Bounded to four
  * statements per request. Failures never break the inbox response.
+ *
+ * PHASE 2.2 — THE AUTO-RESOLUTION IS NOW GATED ON COMPLETENESS.
+ *
+ * This function used to resolve every snapshot absent from `items`. `items`
+ * is capped per category and substitutes an empty array for any source whose
+ * query threw, so a single failed read marked an entire category resolved
+ * with `resolutionSource: "SOURCE_STATE"` — system provenance on a conclusion
+ * nothing supported. `completeness` is now required, and absence is only
+ * treated as resolution for sources this evaluation actually read to the end.
  */
 export async function syncInboxSnapshots(
   userId: string,
   items: InboxItem[],
   now: Date,
   log: FastifyRequest["log"],
+  completeness: SourceCompleteness,
 ): Promise<void> {
   if (!(await snapshotsAvailable())) return;
   try {
@@ -843,17 +974,40 @@ export async function syncInboxSnapshots(
         },
       });
     }
-    // Previously live, absent now → the canonical source resolved it.
-    await prisma.operationsInboxSnapshot.updateMany({
-      where: {
-        userId,
-        resolvedAtUtc: null,
-        ...(keys.length > 0 ? { itemKey: { notIn: keys } } : {}),
-      },
-      // Provenance is labeled SYSTEM/source-state — no human resolver is
-      // ever fabricated for automatic resolutions.
-      data: { resolvedAtUtc: now, resolutionSource: "SOURCE_STATE" },
-    });
+    // ---------------------------------------------------------------------
+    // Previously live, absent now. THIS IS ONLY EVIDENCE OF RESOLUTION FOR
+    // SOURCES WE READ EXHAUSTIVELY.
+    //
+    // The `sourceType` predicate is the whole fix. A snapshot whose source
+    // was degraded (query threw, empty array substituted) or truncated (rows
+    // past the cap never read) is left exactly as it was: still unresolved,
+    // still in History as an open item, waiting for an evaluation that can
+    // actually see it. Nothing is lost by waiting; a false resolution can
+    // never be undone.
+    // ---------------------------------------------------------------------
+    const resolvableSourceTypes = exhaustivelyEvaluatedSources(completeness);
+    if (resolvableSourceTypes.length > 0) {
+      await prisma.operationsInboxSnapshot.updateMany({
+        where: {
+          userId,
+          resolvedAtUtc: null,
+          sourceType: { in: resolvableSourceTypes },
+          ...(keys.length > 0 ? { itemKey: { notIn: keys } } : {}),
+        },
+        // Provenance is labeled SYSTEM/source-state — no human resolver is
+        // ever fabricated for automatic resolutions.
+        data: { resolvedAtUtc: now, resolutionSource: "SOURCE_STATE" },
+      });
+    }
+    if (completeness.anyIncomplete) {
+      // Say so out loud. An operator debugging "why is this still in my
+      // history" deserves to find the reason in the log rather than in the
+      // source of this function.
+      log.warn(
+        { userId, incompleteSources: completeness.incompleteSources },
+        "inbox.snapshot_sync_partial_no_auto_resolution",
+      );
+    }
   } catch (err) {
     log.error({ err, userId }, "inbox.snapshot_sync_failed");
   }
@@ -879,6 +1033,16 @@ export type InboxAggregationResult =
       degradedSources: string[];
       truncated: Record<string, boolean>;
       anyTruncated: boolean;
+      /**
+       * PHASE 2.2 / 2.3 — per-source "did we read this to the end?".
+       *
+       * Carried on the RESULT rather than recomputed by each consumer,
+       * because the snapshot sync, the response envelope and the digest all
+       * have to agree about which sources this particular run may draw
+       * conclusions from. Two derivations of that answer is how one surface
+       * comes to auto-resolve what another still shows as open.
+       */
+      completeness: SourceCompleteness;
       generatedAt: Date;
     }
   | { ok: false };
@@ -1307,6 +1471,24 @@ export async function buildInboxAggregation(
         () =>
           prisma.accessReview.findMany({
             where: {
+              // PHASE 2.5 — TENANT ISOLATION.
+              //
+              // This predicate was `status + (subject OR initiator)` with NO
+              // workspace scope, and `AccessReview.teamId` is NOT NULL — so
+              // every row this query returned belonged to some workspace, and
+              // nothing checked that the caller could still reach it. A user
+              // whose membership had been REVOKED, SUSPENDED, or expired kept
+              // receiving that workspace's access reviews on their personal
+              // attention surface, complete with a deep link into it, for as
+              // long as the review stayed PENDING.
+              //
+              // "The caller is the subject" is not a tenancy gate. It says who
+              // the row is ABOUT, not which tenant it belongs to or whether
+              // the caller may still see that tenant's data. The gate is
+              // membership, and `teamIds` is the ONE canonical accessible-
+              // workspace set (ACTIVE membership, live parent organization,
+              // honoured access expiry) that every other source here uses.
+              teamId: { in: teamIds },
               status: { in: ["PENDING", "IN_PROGRESS"] },
               OR: [
                 { subjectUserId: userId },
@@ -1755,6 +1937,22 @@ export async function buildInboxAggregation(
           prisma.collaborationTeamNotification.findMany({
             where: {
               userId,
+              // PHASE 2.5 — TENANT ISOLATION.
+              //
+              // `userId` alone answers "who was this addressed to", not "may
+              // they still see the workspace it came from". Every row carries
+              // a NOT NULL `workspaceId`, and a caller removed from that
+              // workspace kept receiving its team notifications — titles,
+              // bodies and deep links — on their personal surface.
+              //
+              // Mind the naming collision this model carries: `workspaceId`
+              // is the TEAM (workspace) id — the emitter below resolves it
+              // through `teamNameById` and publishes it as `context.teamId` —
+              // while the nullable `teamId` column is the CollaborationTeam,
+              // a feature entity inside the workspace. The tenancy gate is
+              // therefore `workspaceId`, and using the column literally named
+              // `teamId` here would have gated on the wrong thing entirely.
+              workspaceId: { in: teamIds },
               createdAt: { gte: new Date(nowMs - COLLAB_WINDOW_MS) },
             },
             select: {
@@ -1833,6 +2031,10 @@ export async function buildInboxAggregation(
         | "canMarkRead"
         | "canDismiss"
         | "canSnooze"
+        // PHASE 1 — both are computed centrally in the finalize loop from the
+        // canonical modules, so an emitter can never classify its own item.
+        | "attention"
+        | "classification"
       >;
       const items: Array<AssembledItem> = [];
 
@@ -2234,7 +2436,7 @@ export async function buildInboxAggregation(
           body: `${inc.safeSummary}${occBlurb}`,
           href: inc.relatedEvidenceId
             ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
-            : "/operations/observability",
+            : `/operations?incidentId=${encodeURIComponent(inc.id)}`,
           occurredAt: inc.lastSeenAtUtc.toISOString(),
           dueAt: null,
           context: {
@@ -2271,7 +2473,7 @@ export async function buildInboxAggregation(
           body: `${inc.safeSummary}${occBlurb}`,
           href: inc.relatedEvidenceId
             ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
-            : "/operations/observability",
+            : `/operations?incidentId=${encodeURIComponent(inc.id)}`,
           occurredAt: inc.lastSeenAtUtc.toISOString(),
           dueAt: null,
           context: {
@@ -2606,24 +2808,60 @@ export async function buildInboxAggregation(
         const suppressedInApp =
           optionalType != null &&
           !(await isAllowed(teamIdForPref, optionalType));
+        // PHASE 1 — ONE derivation of personal state, from the canonical
+        // module, feeding BOTH the legacy field names and the new `attention`
+        // object. Emitting them from a single value is what makes it
+        // impossible for `isRead` and `attention.readState` to drift.
+        const attention = derivePersonalAttentionState(
+          {
+            readAt: effectiveReadAt ?? null,
+            dismissedAt: state?.dismissedAt ?? null,
+            snoozedUntil: state?.snoozedUntil ?? null,
+          },
+          now,
+        );
+        const classification = classifyCategory(it.category);
+        // The shared condition's identity, when this category produces one.
+        // Derived from the SOURCE row id — never from the recipient, never
+        // from the filename, reason, provider or date.
+        const parsedKey = parseInboxItemKey(it.id);
+        const conditionFingerprint =
+          producesOperationalCondition(it.category) && parsedKey?.sourceId
+            ? sharedConditionFingerprint(it.category, parsedKey.sourceId)
+            : null;
         allItems.push({
           ...it,
           itemKey: it.id,
           priority,
-          isRead: effectiveReadAt != null,
+          isRead: attention.readState === "READ",
           readAt: effectiveReadAt ? effectiveReadAt.toISOString() : null,
           dismissedAt: state?.dismissedAt
             ? state.dismissedAt.toISOString()
             : null,
-          snoozedUntil: state?.snoozedUntil
-            ? state.snoozedUntil.toISOString()
-            : null,
+          snoozedUntil: attention.remindAt,
+          attention,
+          classification: {
+            channels: classification?.channels ?? ["notification"],
+            conditionAuthority: classification?.conditionAuthority ?? "none",
+            scope: scopeForCategory(it.category),
+            countsAsWorkload: countsAsWorkload(it.category),
+            sharedConditionFingerprint: conditionFingerprint,
+          },
           canMarkRead: true,
           canDismiss: true,
           canSnooze: true,
           ...(suppressedInApp ? { suppressedInApp: true } : {}),
         } satisfies InboxItem);
       }
+
+      // PHASE 2.2 — the completeness verdict for THIS run. Built once, from
+      // the two signals the aggregation already produced, and handed to every
+      // consumer so nothing has to re-derive "could we see everything?".
+      const completeness = buildSourceCompleteness({
+        knownSources: INBOX_EVALUATED_SOURCES,
+        degradedSources,
+        truncated,
+      });
 
       return {
         ok: true as const,
@@ -2632,6 +2870,7 @@ export async function buildInboxAggregation(
         degradedSources,
         truncated,
         anyTruncated,
+        completeness,
         generatedAt: now,
       };
 }
@@ -2713,7 +2952,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
           ...(requestedTone ? { severity: requestedTone } : {}),
           // Membership was validated above, so narrowing the snapshot
           // window to one workspace is safe here.
-          ...(requestedWorkspaceId ? { teamId: requestedWorkspaceId } : {}),
+          //
+          // PHASE 2.4 — and narrowing keeps account-tier rows, for the same
+          // reason the live view does. A snapshot with a NULL `teamId` is an
+          // org invite or a personal security event: it belongs to the
+          // caller, not to a tenant, so `teamId = <selected>` would have
+          // deleted their own history the moment they picked a workspace.
+          ...(requestedWorkspaceId
+            ? { OR: [{ teamId: requestedWorkspaceId }, { teamId: null }] }
+            : {}),
         };
         const [total, rows] = await Promise.all([
           prisma.operationsInboxSnapshot.count({ where }),
@@ -2759,7 +3006,16 @@ export async function meInboxRoutes(app: FastifyInstance) {
               readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
               dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
               snoozedUntil: null,
+              attention: derivePersonalAttentionState(
+                {
+                  readAt: s.readAtUtc,
+                  dismissedAt: s.dismissedAtUtc,
+                  snoozedUntil: null,
+                },
+                now,
+              ),
               resolvedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
+              sourceClearedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
               resolutionSource: s.resolutionSource ?? null,
               canMarkRead: false,
               canDismiss: false,
@@ -2782,7 +3038,16 @@ export async function meInboxRoutes(app: FastifyInstance) {
           readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
           dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
           snoozedUntil: s.snoozedUntilUtc ? s.snoozedUntilUtc.toISOString() : null,
+          attention: derivePersonalAttentionState(
+            {
+              readAt: s.readAtUtc,
+              dismissedAt: s.dismissedAtUtc,
+              snoozedUntil: s.snoozedUntilUtc,
+            },
+            now,
+          ),
           resolvedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
+          sourceClearedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
           resolutionSource: s.resolutionSource ?? null,
           canMarkRead: s.resolvedAtUtc == null,
           canDismiss: s.resolvedAtUtc == null,
@@ -2810,6 +3075,27 @@ export async function meInboxRoutes(app: FastifyInstance) {
             appliedFilter: requestedFilter,
             appliedTone: requestedTone ?? null,
           },
+          // PHASE 2.1 — WHICH HISTORY THIS IS.
+          //
+          // There are two histories in this product and they answer different
+          // questions:
+          //
+          //   NOTIFICATION HISTORY  messages previously addressed to ME, and
+          //                         what I did with each of them.
+          //   OPERATIONS HISTORY    a workspace condition's shared lifecycle:
+          //                         OPEN / ACKNOWLEDGED / RESOLVED /
+          //                         SUPPRESSED / REOPENED, with the events
+          //                         and the operator behind each transition.
+          //
+          // This endpoint serves the FIRST, from a per-user snapshot table.
+          // It is stated on the envelope because these rows carry a column
+          // named `resolvedAtUtc`, and a reader who assumes that is the
+          // Operations status would be treating one person's mail as the
+          // workspace's record of what was done. The canonical Operations
+          // history is `OperationalIncidentEvent`, read through the
+          // Operations surface, and nothing here substitutes for it.
+          historyKind: "PERSONAL_NOTIFICATION",
+          isOperationsLifecycleHistory: false,
           items,
         });
       }
@@ -2818,7 +3104,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       if (!agg.ok) {
         return reply.code(401).send({ message: "Unknown caller" });
       }
-      const { allItems, degradedSources, truncated, anyTruncated, caller: me } = agg;
+      const { allItems, degradedSources, truncated, anyTruncated, completeness, caller: me } = agg;
 
       // Persist/refresh history snapshots for everything surfaced in this
       // response window (bounded; skipped gracefully on un-migrated envs).
@@ -2828,6 +3114,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
         allItems.filter((it) => !it.suppressedInApp),
         now,
         req.log,
+        completeness,
       );
 
       // Visibility (per-user state) BEFORE category/tone filters: dismissed
@@ -2883,6 +3170,14 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const scopeSummary = {
         total: scopeItems.length,
         unread: scopeItems.filter((i) => !i.isRead).length,
+        // PHASE 1.6 — WORKLOAD is not the same number as TOTAL, and saying so
+        // is the point. Guidance ("you haven't joined an organization yet")
+        // is a Home concern; counting it here produced a permanent non-zero
+        // attention count for a brand-new workspace where literally nothing
+        // needed doing. `countsAsWorkload` is the canonical predicate.
+        workload: scopeItems.filter((i) => i.classification.countsAsWorkload)
+          .length,
+        guidance: scopeItems.filter((i) => isGuidance(i.category)).length,
         byTone: {
           critical: scopeItems.filter((i) => i.tone === "critical").length,
           high: scopeItems.filter((i) => i.tone === "high").length,
@@ -2934,12 +3229,12 @@ export async function meInboxRoutes(app: FastifyInstance) {
       };
 
       const filteredItems = visibleItems.filter((it) => {
-        if (
-          requestedWorkspaceId &&
-          it.context?.teamId !== requestedWorkspaceId
-        ) {
-          return false;
-        }
+        // PHASE 2.4 — through the SHARED predicate, not a second copy of it.
+        // This site carried its own inline `context?.teamId !== workspaceId`
+        // test, so the list and the counts above it applied two textually
+        // similar rules — and when the account-scope fix landed in one, the
+        // other would have kept discarding org invites. One rule, one place.
+        if (!isInWorkspaceScope(it, requestedWorkspaceId ?? null)) return false;
         if (requestedTone && it.tone !== requestedTone) return false;
         if (!matchesFilter(it, requestedFilter, nowMs)) return false;
         return true;
@@ -3078,6 +3373,23 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // remainder; we never silently truncate.
         truncated,
         anyTruncated,
+        // PHASE 2.3 — DEGRADED-STATE HONESTY, as one field instead of two
+        // that each surface has to combine correctly.
+        //
+        // `degraded` says a source threw. `anyTruncated` says a source was
+        // capped. Both mean the same thing to the person reading the screen —
+        // "you are not looking at everything" — and leaving them separate is
+        // how one banner ends up checking one flag. `completeness` carries
+        // the per-source verdict, the reason, and the single boolean any
+        // surface needs before it is allowed to say "all clear".
+        completeness: {
+          bySource: completeness.bySource,
+          anyIncomplete: completeness.anyIncomplete,
+          incompleteSources: completeness.incompleteSources,
+          // NEVER render "0 issues" / "everything healthy" when this is
+          // false. Home consumes the same field for the same reason.
+          mayAssertAllClear: completeness.mayAssertAllClear,
+        },
         // Phase IA-enterprise — pagination block. `nextCursor` is null
         // when the client has seen every item; otherwise pass it back
         // verbatim on the next request. `totalEstimate` + `totalIsExact`
@@ -3169,7 +3481,27 @@ export async function meInboxRoutes(app: FastifyInstance) {
         (it) =>
           isVisibleToRecipient(it, nowMs) && isInWorkspaceScope(it, workspaceId),
       );
-      const unreadItems = visible.filter((i) => isUnreadForRecipient(i, nowMs));
+      // PHASE 1.6 — GUIDANCE IS NOT A NOTIFICATION, so it is not a badge.
+      //
+      // The bell answers "what happened that I should know about?". Onboarding
+      // guidance is the one category where nothing happened and nobody is
+      // waiting: it is a getting-started prompt that Home owns. Counting it
+      // put a permanent unread badge on a brand-new account with literally
+      // nothing to do, which is the fastest way to teach somebody that the
+      // number beside the bell does not mean anything.
+      //
+      // It stays VISIBLE in the list — a person who opens their notifications
+      // should still find the prompt. It simply does not demand attention it
+      // has not earned.
+      //
+      // This became load-bearing with Phase 2.4: account-tier items no longer
+      // vanish when a workspace is selected (that fix stopped org invitations
+      // and personal security events from being hidden), so guidance now
+      // reaches the workspace-scoped count too, and the live bell suite caught
+      // it immediately.
+      const unreadItems = visible.filter(
+        (i) => isUnreadForRecipient(i, nowMs) && !isGuidance(i.category),
+      );
       const assignedCats = FILTER_CATEGORY_MEMBERS.assigned_to_me ?? [];
       const summary = {
         unread: unreadItems.length,
@@ -3185,6 +3517,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
         hasTruncatedSources: agg.anyTruncated,
         degraded: agg.degradedSources.length > 0,
         degradedSources: agg.degradedSources,
+        // PHASE 2.3 — the bell needs this too. A badge reading "0" over a
+        // partial read is the same lie as a dashboard reading "all clear",
+        // told in less space; the client renders an indeterminate state
+        // instead of a confident zero when this is false.
+        completeness: {
+          anyIncomplete: agg.completeness.anyIncomplete,
+          incompleteSources: agg.completeness.incompleteSources,
+          mayAssertAllClear: agg.completeness.mayAssertAllClear,
+        },
         generatedAtUtc: agg.generatedAt.toISOString(),
         // Echoed so a client can tell WHICH scope this count describes, and so
         // a response cached under one workspace cannot be mistaken for another.
@@ -3460,6 +3801,47 @@ export async function meInboxRoutes(app: FastifyInstance) {
     await invalidateOperationsSummary(userId);
     return row;
   }
+  // ==========================================================================
+  // PERSONAL ATTENTION MUTATIONS (Attention Architecture, Phase 1.1).
+  //
+  // Every one of these writes PER-USER state and nothing else. None of them
+  // can reach `OperationalIncident`, and there is no code path from this
+  // section to a shared status — see `personal-attention-state.ts` for why
+  // that separation is load-bearing rather than stylistic.
+  //
+  // NAMES. The product now says ARCHIVE and REMIND ME LATER. The persisted
+  // columns keep their historical names (`dismissedAt`, `snoozedUntil`) so
+  // every existing row stays interpretable exactly as it was written, and the
+  // legacy URLs keep working — `/dismiss` and `/snooze` resolve through
+  // `LEGACY_ACTION_ALIASES` into the SAME handler as their canonical name, so
+  // the two names cannot acquire two behaviours.
+  // ==========================================================================
+
+  /**
+   * ONE response shape for every personal mutation.
+   *
+   * It carries the legacy trio (shipped clients read `isRead` / `dismissedAt`
+   * / `snoozedUntil`) AND the canonical `attention` object, both derived from
+   * the same row by the same function the aggregation uses. A mutation
+   * response that disagreed with the next list read is exactly the class of
+   * bug the unread-badge suite was written for.
+   */
+  function personalStateResponse(row: {
+    itemKey: string;
+    readAt: Date | null;
+    dismissedAt: Date | null;
+    snoozedUntil: Date | null;
+  }) {
+    const attention = derivePersonalAttentionState(row, new Date());
+    return {
+      itemKey: row.itemKey,
+      isRead: attention.readState === "READ",
+      readAt: row.readAt ? row.readAt.toISOString() : null,
+      dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
+      snoozedUntil: attention.remindAt,
+      attention,
+    };
+  }
 
   app.post(
     "/v1/me/inbox/items/:itemKey/read",
@@ -3469,13 +3851,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const parsed = await resolveItemKey(req, reply);
       if (!parsed) return;
       const row = await applyStateMutation(userId, parsed, { readAt: new Date() });
-      return reply.code(200).send({
-        itemKey: row.itemKey,
-        isRead: row.readAt != null,
-        readAt: row.readAt ? row.readAt.toISOString() : null,
-        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
-        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
-      });
+      return reply.code(200).send(personalStateResponse(row));
     },
   );
 
@@ -3487,86 +3863,126 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const parsed = await resolveItemKey(req, reply);
       if (!parsed) return;
       const row = await applyStateMutation(userId, parsed, { readAt: null });
-      return reply.code(200).send({
-        itemKey: row.itemKey,
-        isRead: row.readAt != null,
-        readAt: row.readAt ? row.readAt.toISOString() : null,
-        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
-        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
-      });
+      return reply.code(200).send(personalStateResponse(row));
     },
   );
 
-  app.post(
-    "/v1/me/inbox/items/:itemKey/dismiss",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const parsed = await resolveItemKey(req, reply);
-      if (!parsed) return;
-      const row = await applyStateMutation(userId, parsed, {
-        dismissedAt: new Date(),
-        // Dismissing implicitly marks the item read — we'd rather be
-        // strict about read-state than have a "dismissed but unread"
-        // ghost item polluting unread counters. For collaboration items
-        // the canonical row's readAt updates in the same transaction.
-        readAt: new Date(),
-      });
-      return reply.code(200).send({
-        itemKey: row.itemKey,
-        isRead: row.readAt != null,
-        readAt: row.readAt ? row.readAt.toISOString() : null,
-        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
-        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
-      });
-    },
-  );
+  /**
+   * ARCHIVE — file this notification out of my active feed.
+   *
+   * What it is NOT: a decision that the underlying work is done, a signal to
+   * anybody else, or an input to any shared status. If a second admin is
+   * looking at the same unresolved condition, this call changes nothing they
+   * can see. `attention-arch-two-admin-invariant.test.ts` holds that line.
+   */
+  const archiveHandler = async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = getAuthUserId(req);
+    const parsed = await resolveItemKey(req, reply);
+    if (!parsed) return;
+    const row = await applyStateMutation(userId, parsed, {
+      dismissedAt: new Date(),
+      // Archiving implicitly marks the item read — we'd rather be strict
+      // about read-state than have an "archived but unread" ghost polluting
+      // unread counters. For collaboration items the canonical row's readAt
+      // updates in the same transaction.
+      readAt: new Date(),
+    });
+    return reply.code(200).send(personalStateResponse(row));
+  };
 
-  app.post(
-    "/v1/me/inbox/items/:itemKey/snooze",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const parsed = await resolveItemKey(req, reply);
-      if (!parsed) return;
-      const bodyResult = snoozeBodySchema.safeParse(req.body ?? {});
-      if (!bodyResult.success) {
-        return reply.code(400).send({
-          message: "SNOOZE_PAYLOAD_INVALID",
-          details:
-            "Body must include `snoozedUntil` as an ISO-8601 datetime.",
-        });
-      }
-      const snoozedUntil = new Date(bodyResult.data.snoozedUntil);
-      // Defensive bounds — snoozedUntil must be in the future and no
-      // farther than one year out. Past-due snoozes are pointless;
-      // forever-snooze is what /dismiss is for.
-      const now = new Date();
-      const maxSnooze = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-      if (snoozedUntil.getTime() <= now.getTime()) {
-        return reply.code(400).send({
-          message: "SNOOZE_PAYLOAD_INVALID",
-          details: "snoozedUntil must be in the future.",
-        });
-      }
-      if (snoozedUntil.getTime() > maxSnooze.getTime()) {
-        return reply.code(400).send({
-          message: "SNOOZE_PAYLOAD_INVALID",
-          details: "snoozedUntil cannot be more than 365 days out.",
-        });
-      }
-      const row = await applyStateMutation(userId, parsed, {
-        snoozedUntil,
+  /** UNARCHIVE — put it back in my active feed. Equally personal. */
+  const unarchiveHandler = async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = getAuthUserId(req);
+    const parsed = await resolveItemKey(req, reply);
+    if (!parsed) return;
+    const row = await applyStateMutation(userId, parsed, { dismissedAt: null });
+    return reply.code(200).send(personalStateResponse(row));
+  };
+
+  /** REMIND ME LATER — defer it until a time I choose. */
+  const remindHandler = async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = getAuthUserId(req);
+    const parsed = await resolveItemKey(req, reply);
+    if (!parsed) return;
+    // `remindAt` is the canonical body field; `snoozedUntil` is accepted for
+    // shipped clients. Exactly one implementation reads whichever arrived.
+    const raw = (req.body ?? {}) as Record<string, unknown>;
+    const bodyResult = snoozeBodySchema.safeParse({
+      snoozedUntil: raw.remindAt ?? raw.snoozedUntil,
+    });
+    if (!bodyResult.success) {
+      return reply.code(400).send({
+        message: "SNOOZE_PAYLOAD_INVALID",
+        details:
+          "Body must include `remindAt` (or legacy `snoozedUntil`) as an ISO-8601 datetime.",
       });
-      return reply.code(200).send({
-        itemKey: row.itemKey,
-        isRead: row.readAt != null,
-        readAt: row.readAt ? row.readAt.toISOString() : null,
-        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
-        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
+    }
+    const snoozedUntil = new Date(bodyResult.data.snoozedUntil);
+    // Defensive bounds — the reminder must be in the future and no farther
+    // than one year out. A past reminder is pointless; forever is archive.
+    const now = new Date();
+    const maxSnooze = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+    if (snoozedUntil.getTime() <= now.getTime()) {
+      return reply.code(400).send({
+        message: "SNOOZE_PAYLOAD_INVALID",
+        details: "remindAt must be in the future.",
       });
-    },
-  );
+    }
+    if (snoozedUntil.getTime() > maxSnooze.getTime()) {
+      return reply.code(400).send({
+        message: "SNOOZE_PAYLOAD_INVALID",
+        details: "remindAt cannot be more than 365 days out.",
+      });
+    }
+    const row = await applyStateMutation(userId, parsed, { snoozedUntil });
+    return reply.code(200).send(personalStateResponse(row));
+  };
+
+  // CANONICAL names.
+  app.post("/v1/me/inbox/items/:itemKey/archive", { preHandler: requireAuthAndLegal }, archiveHandler);
+  app.post("/v1/me/inbox/items/:itemKey/unarchive", { preHandler: requireAuthAndLegal }, unarchiveHandler);
+  app.post("/v1/me/inbox/items/:itemKey/remind", { preHandler: requireAuthAndLegal }, remindHandler);
+
+  // BACKWARD-COMPATIBLE aliases for shipped clients.
+  //
+  // Registered as LITERAL paths, not built from the alias table. Every route
+  // in this service must be statically resolvable — the capability analyzer
+  // walks the source to produce the canonical route inventory, and a path
+  // assembled from a template literal is a route that inventory cannot see.
+  // An unlisted route is an unaudited route, which is a worse trade than the
+  // small duplication of writing three URLs out.
+  //
+  // The duplication is bounded by pointing at the SAME handler constant, so
+  // there is still exactly one implementation behind each pair of names, and
+  // by the assertion below, which fails at boot if the alias table and these
+  // registrations ever disagree about which legacy names exist.
+  app.post("/v1/me/inbox/items/:itemKey/dismiss", { preHandler: requireAuthAndLegal }, archiveHandler);
+  app.post("/v1/me/inbox/items/:itemKey/undismiss", { preHandler: requireAuthAndLegal }, unarchiveHandler);
+  app.post("/v1/me/inbox/items/:itemKey/snooze", { preHandler: requireAuthAndLegal }, remindHandler);
+
+  // The alias table is the DOCUMENTED list of legacy names. These are the
+  // REGISTERED ones. They must be the same set: a name added to the table
+  // without a registration is a route the product promises and does not
+  // serve, and a registration missing from the table is an undocumented
+  // legacy surface nobody will remember to retire.
+  const REGISTERED_LEGACY_ALIASES = ["dismiss", "undismiss", "snooze"] as const;
+  const canonicalTargets: Record<string, PersonalAttentionAction> = {
+    dismiss: "archive",
+    undismiss: "unarchive",
+    snooze: "remind",
+  };
+  for (const legacyName of Object.keys(LEGACY_ACTION_ALIASES)) {
+    if (!REGISTERED_LEGACY_ALIASES.includes(legacyName as never)) {
+      throw new Error(
+        `me-inbox: LEGACY_ACTION_ALIASES declares "${legacyName}" but no route registers it.`,
+      );
+    }
+    if (canonicalTargets[legacyName] !== LEGACY_ACTION_ALIASES[legacyName]) {
+      throw new Error(
+        `me-inbox: legacy alias "${legacyName}" is registered against the wrong canonical action.`,
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

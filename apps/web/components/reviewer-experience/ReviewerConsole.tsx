@@ -820,7 +820,7 @@ export function ReviewerConsole({
                   capability so personal / non-operator reviewers never
                   see a link they cannot use. */}
               {canObservability ? (
-                <a href="/operations/observability">
+                <a href="/admin/platform/observability">
                   Diagnose: Worker &amp; cron health
                 </a>
               ) : null}

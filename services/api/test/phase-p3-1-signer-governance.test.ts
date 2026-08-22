@@ -256,15 +256,15 @@ describe("Phase P3.1 — Bounded registries extended", () => {
 });
 
 describe("Phase P3.1 — Frontend signer governance page", () => {
-  it("/operations/signers page exists", () => {
+  it("/admin/platform/signers page exists", () => {
     expect(
-      exists("../../../apps/web/app/(app)/operations/signers/page.tsx"),
+      exists("../../../apps/web/app/(app)/admin/platform/signers/page.tsx"),
     ).toBe(true);
   });
 
   it("page calls all documented backend endpoints", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/signers/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/signers/page.tsx",
     );
     for (const ep of [
       "/v1/operations/signers",
@@ -284,7 +284,7 @@ describe("Phase P3.1 — Frontend signer governance page", () => {
 
   it("page integrates step-up modal", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/signers/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/signers/page.tsx",
     );
     expect(p).toContain("useStepUpAction");
     expect(p).toContain("StepUpModal");
@@ -293,7 +293,7 @@ describe("Phase P3.1 — Frontend signer governance page", () => {
 
   it("renders the 4 bounded purpose labels", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/signers/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/signers/page.tsx",
     );
     expect(p).toContain("Report PDF");
     expect(p).toContain("Verification Package");
@@ -303,7 +303,7 @@ describe("Phase P3.1 — Frontend signer governance page", () => {
 
   it("does NOT contain legal-admissibility wording", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/signers/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/signers/page.tsx",
     );
     expect(p).not.toMatch(/admissible/i);
     expect(p).not.toMatch(/legally binding/i);
@@ -313,7 +313,7 @@ describe("Phase P3.1 — Frontend signer governance page", () => {
 
   it("exposes the verification outcome states without fake-green paths", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/signers/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/signers/page.tsx",
     );
     for (const o of [
       '"verified"',
@@ -329,7 +329,7 @@ describe("Phase P3.1 — Frontend signer governance page", () => {
 
   it("does not log or render raw AWS access-key material", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/operations/signers/page.tsx",
+      "../../../apps/web/app/(app)/admin/platform/signers/page.tsx",
     );
     expect(p).not.toMatch(/AWS_ACCESS_KEY_ID/);
     expect(p).not.toMatch(/AWS_SECRET_ACCESS_KEY/);

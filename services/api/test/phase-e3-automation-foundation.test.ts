@@ -83,7 +83,7 @@ const CAP_REGISTRY = readApi(
   "src/services/platform-context/capability-registry.ts",
 );
 const ROUTE_REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
-const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
+const PAGE = readWeb("app/(app)/admin/platform/automation/page.tsx");
 
 // ===========================================================================
 // PART 1 — Bounded trigger + action allowlists
@@ -435,9 +435,9 @@ describe("E3 Test 8 — automation security events registered", () => {
 // ===========================================================================
 
 describe("E3 Test 9 — automation route is in registry but NOT root nav", () => {
-  it("route registry contains platform.automation entry under /operations/automation", () => {
+  it("route registry contains platform.automation entry under /admin/platform/automation", () => {
     expect(ROUTE_REGISTRY).toMatch(/id:\s*["']platform\.automation["']/);
-    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/operations\/automation["']/);
+    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/admin\/platform\/automation["']/);
   });
 
   it("platform.automation requires AUTOMATION_VIEW", () => {
@@ -468,7 +468,7 @@ describe("E3 Test 9 — automation route is in registry but NOT root nav", () =>
 describe("E3 Test 10 — frontend page exists + UI guardrails", () => {
   it("page file exists under /ops/automation", () => {
     expect(
-      existsSync(webPath("app/(app)/operations/automation/page.tsx")),
+      existsSync(webPath("app/(app)/admin/platform/automation/page.tsx")),
     ).toBe(true);
   });
 

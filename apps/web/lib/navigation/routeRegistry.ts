@@ -197,7 +197,7 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   // The page keeps its real gates: `requiredCapabilities: ["TEAM_VIEW"]` here,
   // and server-side ownership plus step-up on every `/v1/teams/:id/closure`,
   // `/cancel`, `/reopen` and transfer route.
-  "workspace.notifications",
+  "workspace.notification_deliveries",
   "workspace.evidence_lifecycle",
   "workspace.exchange",
   "workspace.integrations",
@@ -452,17 +452,31 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false,
     sidebarEligible: false,
   },
-  // Phase C — Operational Inbox. Caller-scoped unified attention
-  // stream. Domain ACCOUNT because it's identity-level, not workspace-
-  // scoped; the underlying inbox endpoint already filters to data the
-  // caller is authorized to see. Command-palette eligible so power
-  // users can jump straight there.
+  // ========================================================================
+  // ATTENTION ARCHITECTURE PHASE 5 (2026-08-22) — THE PERSONAL NOTIFICATION
+  // CENTRE.
+  //
+  // WAS: id `account.notifications`, href `/inbox`, label "Operations Center".
+  //
+  // Every part of that was wrong after Phases 1–4. It is not an Operations
+  // Center — Operations is the SHARED workspace surface at `/operations`, and
+  // calling a personal feed by that name is what let one person's archive read
+  // as a workspace decision. And the answer to "where are my notifications?"
+  // was a route called /inbox while /notifications served an email delivery
+  // log.
+  //
+  // Domain stays ACCOUNT: notifications follow the PERSON, so an
+  // account-scoped security event and an organization invitation both belong
+  // here regardless of which workspace happens to be active.
+  //
+  // `/inbox` remains a permanent compatibility redirect (next.config.js).
+  // ========================================================================
   {
-    id: "account.inbox",
-    href: "/inbox",
-    label: "Operations Center",
+    id: "account.notifications",
+    href: "/notifications",
+    label: "Notifications",
     description:
-      "Operational items that require your attention — reviews, mentions, invitations, governance, security, integrity, and delivery signals.",
+      "Everything addressed to you — mentions, assignments, invitations, security events, and integrity signals. Read, archive, or set a reminder; nothing you do here changes shared work.",
     domain: "ACCOUNT",
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
@@ -594,9 +608,21 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // ========================================================================
+  // ATTENTION ARCHITECTURE PHASE 5 (2026-08-22) — THE DELIVERY LOG MOVED.
+  //
+  // This surface owned `/notifications`, and its own description said what
+  // was wrong with that: "an operations/admin debugging surface, NOT user
+  // notifications". A person looking for their notifications found a list of
+  // provider errors with resend buttons.
+  //
+  // It moved intact — same page, same capability gate, same resend actions —
+  // to a location that says what it is. `/notifications/deliveries` redirects
+  // here for anybody holding the old link.
+  // ========================================================================
   {
-    id: "workspace.notifications",
-    href: "/notifications",
+    id: "workspace.notification_deliveries",
+    href: "/settings/notifications/deliveries",
     label: "Notification deliveries",
     description:
       "Outbound delivery log (email) with retry actions — an operations/admin debugging surface, not user notifications.",
@@ -728,7 +754,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.runbooks",
-    href: "/operations/runbooks",
+    href: "/admin/platform/runbooks",
     label: "Runbooks",
     description: "Operator runbook catalog for incidents and recovery.",
     domain: "OPS",
@@ -836,7 +862,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.observability",
-    href: "/operations/observability",
+    href: "/admin/platform/observability",
     label: "Observability",
     description: "Runtime metrics + firing alerts.",
     domain: "OPS",
@@ -944,7 +970,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.reliability",
-    href: "/operations/reliability",
+    href: "/admin/platform/reliability",
     label: "Reliability operations",
     description: "Upload pipeline, session-state recovery, queue policy summaries.",
     domain: "OPS",
@@ -961,14 +987,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // without prior knowledge.
     sidebarEligible: true,
   },
-  // Phase Final-Closure-Verification — `/operations/queues` was the
+  // Phase Final-Closure-Verification — `/admin/platform/queues` was the
   // canonical BullMQ queue-triage surface but lived only at typed URL;
   // not in sidebar, not in cmd-K, not in "all tools". Operators
   // discovered it through tribal knowledge. Now `commandPaletteVisible:
   // true` so SREs can jump to it from anywhere.
   {
     id: "platform.queue_ops",
-    href: "/operations/queues",
+    href: "/admin/platform/queues",
     label: "Queue operations",
     description:
       "BullMQ queue triage — failed jobs, replay safety, DLQ, stuck OTS.",
@@ -987,7 +1013,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.media_graph",
-    href: "/operations/media-graph",
+    href: "/admin/platform/media-graph",
     label: "Media intelligence ops",
     description: "Media intelligence + investigation graph operational metrics.",
     domain: "OPS",
@@ -1349,28 +1375,56 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: true,
   },
   {
-    id: "platform.ops_center",
+    id: "workspace.operations",
     href: "/operations",
-    label: "Operations Center",
-    description: "Operational pressure, queue health, incidents.",
+    label: "Operations",
+    description: "Unresolved work this workspace has to act on.",
     domain: "OPS",
-    requiredCapabilities: ["OPS_CENTER_VIEW"],
-    // PHASE 4 — Operations is a platform-admin area (rule 9).
-    requiredActiveSpace: "PLATFORM_ADMIN",
+    // ========================================================================
+    // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — TENANT OPERATIONS UNLOCK.
+    //
+    // WHAT THIS ROUTE USED TO BE
+    // --------------------------
+    //   id:                  platform.ops_center
+    //   requiredCapabilities: OPS_CENTER_VIEW      (a PLATFORM-tier key)
+    //   requiredActiveSpace:  PLATFORM_ADMIN
+    //
+    // So the one surface that answers "what unresolved work does MY workspace
+    // have?" was reachable only by PROOVRA staff. A tenant admin with a failed
+    // report and an unanchored record had nowhere to see either as shared
+    // work; the only thing that showed them was their own personal feed, which
+    // is exactly the conflation this program removes.
+    //
+    // WHAT IT IS NOW
+    // --------------
+    // A TENANT surface, gated on a valid active workspace plus OPERATIONS_VIEW
+    // — the capability the server derives from whether a workspace can
+    // actually PRODUCE operational conditions (its package includes a
+    // condition-producing feature, or more than one operator shares it),
+    // never from a plan name.
+    //
+    // PROOVRA's own internal consoles did NOT move here. They live under
+    // `/admin/platform/*` with PLATFORM_ADMIN, and the Phase-4A isolation gate
+    // proves a tenant holding OPERATIONS_VIEW still cannot reach them.
+    // ========================================================================
+    requiredCapabilities: ["OPERATIONS_VIEW"],
+    // A valid ACTIVE workspace of either kind. Operations is about the
+    // workspace you are in, so there is nothing to show without one.
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
-    advancedByDefault: true,
+    advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: true,
   },
   // Phase E3 — Operational Automation Foundation. Lives UNDER the
-  // Operations Center hub (`/operations/automation`), NOT as a root nav item.
+  // Operations Center hub (`/admin/platform/automation`), NOT as a root nav item.
   // No new root entries are introduced — the 32.8 canonical primaries
   // remain bounded at 6.
   {
     id: "platform.automation",
-    href: "/operations/automation",
+    href: "/admin/platform/automation",
     label: "Automation rules",
     description:
       "Bounded operational automation: trigger + action rules with audit history.",
@@ -1386,12 +1440,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   // Phase E4 — Bounded operational analytics. Lives UNDER the Operations
-  // Center hub (`/operations/analytics`), NOT as a root nav item. The 32.8
+  // Center hub (`/admin/platform/analytics`), NOT as a root nav item. The 32.8
   // canonical primaries remain bounded at 6. Read-only surface; every
   // metric is source-traceable to a real Prisma model, never fabricated.
   {
     id: "platform.analytics",
-    href: "/operations/analytics",
+    href: "/admin/platform/analytics",
     label: "Operational analytics",
     description:
       "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
@@ -2429,7 +2483,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // Phase 8 — Platform production-readiness posture (backup/DR, keys,
     // resiliency, runbooks). Platform-admin only; read-only; no secrets.
     id: "operations.readiness",
-    href: "/operations/readiness",
+    href: "/admin/platform/readiness",
     label: "Production readiness",
     description:
       "Backup/DR, key management, resiliency posture and runbooks (verified config only).",
@@ -2445,7 +2499,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     // Phase R2 — dedicated PLATFORM_ADMIN gate for the signer-operations
-    // surface. Previously `/operations/signers` used the WRONG routeId
+    // surface. Previously `/admin/platform/signers` used the WRONG routeId
     // (`workspace.security_center` → OPS-tier PERSONAL_OR_ORG), which let
     // any org member with SECURITY_CENTER_VIEW satisfy the client gate.
     // These are platform-admin operator tools (rule 9). Discovery flags
@@ -2453,7 +2507,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // Hub, not primary nav — R2 corrects the gate without changing the
     // nav surface.
     id: "operations.signers",
-    href: "/operations/signers",
+    href: "/admin/platform/signers",
     label: "Signer operations",
     description:
       "Evidence-signing key custody and signer health (platform-admin only).",
@@ -2471,7 +2525,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // Phase R2 — dedicated PLATFORM_ADMIN gate for the exports surface.
     // See `operations.signers` for the routeId-correction rationale.
     id: "operations.exports",
-    href: "/operations/exports",
+    href: "/admin/platform/exports",
     label: "Evidence exports",
     description:
       "Operator export jobs and delivery status (platform-admin only).",
@@ -2489,7 +2543,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // Phase R2 — dedicated PLATFORM_ADMIN gate for the recovery surface.
     // See `operations.signers` for the routeId-correction rationale.
     id: "operations.recovery",
-    href: "/operations/recovery",
+    href: "/admin/platform/recovery",
     label: "Recovery operations",
     description:
       "Disaster-recovery validation and restore posture (platform-admin only).",

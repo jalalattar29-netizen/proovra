@@ -39,13 +39,13 @@ test("declarative contract: Home is first and Operations Center second in the Wo
   );
   assert.ok(workspace);
   assert.equal(workspace.primary[0], "workspace.home");
-  assert.equal(workspace.primary[1], "account.inbox");
+  assert.equal(workspace.primary[1], "account.notifications");
 });
 
 test("resolver enforces the order even when items arrive scrambled (all personas share it)", () => {
   // Deliberately scrambled arrival order — the historical emergent bug.
   const scrambled = [
-    "account.inbox",
+    "account.notifications",
     "workspace.search",
     "workspace.cases",
     "workspace.home",
@@ -60,11 +60,11 @@ test("resolver enforces the order even when items arrive scrambled (all personas
   const workspaceGroup = result.groups.find((g) => g.title === "Workspace");
   assert.ok(workspaceGroup);
   const order = workspaceGroup.items.map((i) => i.route.id);
-  assert.deepEqual(order.slice(0, 2), ["workspace.home", "account.inbox"]);
+  assert.deepEqual(order.slice(0, 2), ["workspace.home", "account.notifications"]);
   // The remainder follows the declarative array, not arrival order.
   assert.deepEqual(order, [
     "workspace.home",
-    "account.inbox",
+    "account.notifications",
     "workspace.cases",
     "workspace.evidence",
     "workspace.capture",
@@ -74,7 +74,7 @@ test("resolver enforces the order even when items arrive scrambled (all personas
 
 test("unlisted routes never outrank declared ones", () => {
   const result = resolveNavigationGroups({
-    primaryItems: ["workspace.home", "account.inbox"].map(item),
+    primaryItems: ["workspace.home", "account.notifications"].map(item),
     secondaryItems: [],
   });
   const workspaceGroup = result.groups.find((g) => g.title === "Workspace");

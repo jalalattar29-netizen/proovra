@@ -3,7 +3,7 @@
  *
  * Mirrors the projection returned by `projectRule` in
  * `services/api/src/routes/automation.routes.ts`. Kept in one place so the
- * page (`app/(app)/operations/automation/page.tsx`) and the lifecycle
+ * page (`app/(app)/admin/platform/automation/page.tsx`) and the lifecycle
  * controls (`AutomationRuleForm`, `AutomationRuleToggle`) cannot drift.
  */
 

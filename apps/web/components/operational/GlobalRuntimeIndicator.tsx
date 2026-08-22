@@ -551,7 +551,7 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
       ) : null}
       {canObservability ? (
         <FooterLink
-          href="/operations/observability"
+          href="/admin/platform/observability"
           icon={<Activity size={13} strokeWidth={2} />}
           label="Observability"
           onClose={onClose}
@@ -567,7 +567,7 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
       ) : null}
       {canRunbooks ? (
         <FooterLink
-          href="/operations/runbooks"
+          href="/admin/platform/runbooks"
           icon={<BookOpen size={13} strokeWidth={2} />}
           label="Runbooks"
           onClose={onClose}

@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(WEB_ROOT, rel), "utf8");
 
-const PAGE = "app/(app)/operations/automation/page.tsx";
+const PAGE = "app/(app)/admin/platform/automation/page.tsx";
 const FORM = "components/automation/AutomationRuleForm.tsx";
 const TOGGLE = "components/automation/AutomationRuleToggle.tsx";
 const BUDGET = "components/intelligence/ProviderBudgetPanel.tsx";

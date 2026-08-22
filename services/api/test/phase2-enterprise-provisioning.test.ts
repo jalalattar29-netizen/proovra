@@ -776,12 +776,16 @@ describe("enterprise capability + gate wiring", () => {
     );
   });
 
-  it("platform-context ENTERPRISE_PLAN_KEYS is ENTERPRISE-only (TEAM is NOT enterprise — locked model)", () => {
+  it("the enterprise plan key set is ENTERPRISE-only (TEAM is NOT enterprise — locked model)", () => {
+    // PHASE 0 (2026-08-22) — same invariant, new home. The plan-key set
+    // moved from platform-context.service.ts into the canonical enterprise
+    // authority, where it is now only the bounded LEGACY fallback for an
+    // ORGANIZATION workspace with no EnterpriseContract row.
     const src = readSource(
-      "../src/services/platform-context/platform-context.service.ts",
+      "../src/services/platform-context/enterprise-authority.ts",
     );
     const match = src.match(
-      /ENTERPRISE_PLAN_KEYS[^=]*=\s*new Set\(\[([\s\S]*?)\]\)/,
+      /LEGACY_ENTERPRISE_PLAN_KEYS[^=]*=\s*new Set\(\[([\s\S]*?)\]\)/,
     );
     expect(match).not.toBeNull();
     const body = match![1]!;

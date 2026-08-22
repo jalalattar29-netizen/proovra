@@ -48,13 +48,13 @@ describe("Phase IA-cleanup — dashboard quick action no longer points at /colla
     "../../../apps/web/lib/dashboard/dashboardModeRules.ts",
   );
 
-  it("the org.collaboration quick action is retargeted to /inbox", () => {
+  it("the org.collaboration quick action is retargeted to /notifications", () => {
     // The quick-action id is preserved (persona-priority + analytics
     // tests reference it by id), but the href + label move.
     const idx = RULES.indexOf('id: "org.collaboration"');
     expect(idx, "org.collaboration quick-action not found").toBeGreaterThan(-1);
     const block = RULES.slice(idx, idx + 600);
-    expect(block).toMatch(/href:\s*"\/inbox"/);
+    expect(block).toMatch(/href:\s*"\/notifications"/);
     expect(block).toMatch(/label:\s*"Check your inbox"/);
     // Defensive: do NOT silently revert to /collaboration.
     expect(block).not.toMatch(/href:\s*"\/collaboration"/);
@@ -683,10 +683,10 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
 // ============================================================================
 
 describe("Phase IA-cleanup — /collaboration is legacy-redirect only", () => {
-  it("next.config.js still redirects /collaboration → /inbox", () => {
+  it("next.config.js still redirects /collaboration → /notifications", () => {
     const cfg = readSource("../../../apps/web/next.config.js");
     expect(cfg).toMatch(
-      /source:\s*["']\/collaboration["'][\s\S]{0,150}destination:\s*["']\/inbox["']/,
+      /source:\s*["']\/collaboration["'][\s\S]{0,900}destination:\s*["']\/notifications["']/,
     );
   });
 

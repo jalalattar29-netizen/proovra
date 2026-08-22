@@ -46,7 +46,13 @@ describe("Phase HOME-COPY — Operational queue → Action needed", () => {
     // inline format — that was a brittle formatting assertion). The
     // contract that matters: plain-English "Action needed", never the
     // enterprise "Operational queue" wording as a rendered title.
-    expect(HOME_SECTIONS).toMatch(/Action needed/);
+    // PHASE 4C (2026-08-22) — the heading moved with its card. The
+    // "Action needed" surface was the OperationalQueue widget, which is gone
+    // along with the notification-feed-derived queue behind it. The
+    // plain-English action surface on Home is now "What needs attention",
+    // rendered by WorkspacePrioritiesCard in HomeDashboardSections.tsx, so
+    // that is where this contract is asserted.
+    expect(HOME_DASH).toMatch(/What needs attention/);
     // "Operational queue" survives only in explanatory comments; it must
     // not appear as executable/rendered copy.
     const stripped = HOME_SECTIONS.replace(/\/\*[\s\S]*?\*\//g, "").replace(

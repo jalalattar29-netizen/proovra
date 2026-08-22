@@ -232,11 +232,11 @@ describe("Phase 1A — Trust pillar surface (Trust Hub removed 2026-07-15)", () 
 
 describe("Phase 1A — legacy IA redirects", () => {
   const REDIRECTS = [
-    ["/ops/observability", "/operations/observability"],
-    ["/ops/runbooks", "/operations/runbooks"],
-    ["/ops/media-graph", "/operations/media-graph"],
-    ["/ops/automation", "/operations/automation"],
-    ["/ops/analytics", "/operations/analytics"],
+    ["/ops/observability", "/admin/platform/observability"],
+    ["/ops/runbooks", "/admin/platform/runbooks"],
+    ["/ops/media-graph", "/admin/platform/media-graph"],
+    ["/ops/automation", "/admin/platform/automation"],
+    ["/ops/analytics", "/admin/platform/analytics"],
     ["/dashboard/insights", "/home"],
     ["/dashboard/batch-analysis", "/operations/batch-analysis"],
     ["/dashboard/quotas", "/operations/quotas"],

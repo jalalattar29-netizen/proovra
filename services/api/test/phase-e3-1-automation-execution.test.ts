@@ -55,7 +55,7 @@ const PROCESSOR = readApi(
   "src/services/automation/automation-dispatch-runtime.service.ts",
 );
 const TRIGGERS = readApi("src/services/automation/automation-triggers.ts");
-const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
+const PAGE = readWeb("app/(app)/admin/platform/automation/page.tsx");
 
 // ===========================================================================
 // PART 1 — Pure condition evaluator (no eval / vm / Function)

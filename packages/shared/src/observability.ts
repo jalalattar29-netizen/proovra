@@ -93,6 +93,21 @@ export const INCIDENT_CATEGORIES = [
   "DATABASE",
   "WORKER",
   "RECONCILIATION",
+  /**
+   * ATTENTION ARCHITECTURE PHASE 3 (2026-08-22) — per-Evidence integrity.
+   *
+   * RFC3161 timestamping and OpenTimestamps anchoring failures. Deliberately
+   * its own category rather than folded into UPLOAD or STORAGE: those are
+   * about moving bytes, and this is about whether a record can be PROVEN.
+   * An operator triaging "which records are currently unprovable" is asking a
+   * different question from "which uploads failed", and a category they can
+   * filter on is what makes that question answerable.
+   *
+   * One condition per (Evidence, failure class). Never grouped by reason,
+   * filename, provider, workspace or date — see
+   * `services/api/src/services/operations/evidence-integrity-correlation.ts`.
+   */
+  "EVIDENCE_INTEGRITY",
 ] as const;
 export const IncidentCategorySchema = z.enum(INCIDENT_CATEGORIES);
 export type IncidentCategory = z.infer<typeof IncidentCategorySchema>;

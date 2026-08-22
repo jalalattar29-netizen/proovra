@@ -281,6 +281,22 @@ export const CAPABILITY_KEYS = [
   "AUTOMATION_MANAGE",
   // Phase E4 — operational analytics (single bounded VIEW capability).
   "ANALYTICS_VIEW",
+  // ==========================================================================
+  // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — TENANT OPERATIONS.
+  //
+  // Mirrors the server capability set exactly. The UI consumes these RESOLVED
+  // booleans; it never re-derives them from a plan name, a role string or a
+  // workspace kind. That is the whole contract: pricing and authorization are
+  // decided once, on the server, and the client renders what it is told.
+  //
+  // There is no OPERATIONS_RETRY — retry is authorized by the domain that owns
+  // the work, so a retry control is gated on that domain's capability.
+  // ==========================================================================
+  "OPERATIONS_VIEW",
+  "OPERATIONS_ACKNOWLEDGE",
+  "OPERATIONS_ASSIGN",
+  "OPERATIONS_RESOLVE",
+  "OPERATIONS_SUPPRESS",
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 
@@ -309,13 +325,52 @@ export type PlatformContextMembership = {
   memberCount: number;
 };
 
+export const ORGANIZATION_KINDS = ["SYSTEM", "CUSTOMER"] as const;
+export type OrganizationKindValue = (typeof ORGANIZATION_KINDS)[number];
+
+export const RESOLVED_WORKSPACE_KINDS = [
+  "PERSONAL",
+  "OWNED",
+  "ORGANIZATION",
+  "UNKNOWN",
+] as const;
+export type ResolvedWorkspaceKind = (typeof RESOLVED_WORKSPACE_KINDS)[number];
+
 export type PlatformContextWorkspace = {
   status: "active" | "no-workspace";
   id: string | null;
   name: string | null;
+  /**
+   * @deprecated ATTENTION ARCHITECTURE (2026-08-22) — LEGACY two-value classification,
+   * now DERIVED server-side from `workspaceKind`. New code reads
+   * `workspaceKind`, which distinguishes OWNED from ORGANIZATION.
+   */
   scope: WorkspaceScope | null;
+  /** CANONICAL structural kind. `UNKNOWN`/null → consumers fail closed. */
+  workspaceKind?: ResolvedWorkspaceKind | null;
+  /**
+   * Parent organization kind. `SYSTEM` is an internal bootstrap container
+   * that every workspace has and that must NEVER render as a customer
+   * Organization; only `CUSTOMER` is a governance boundary.
+   */
+  organizationKind?: OrganizationKindValue | null;
+  organizationId?: string | null;
+  /** LEGACY billing package. Not the enterprise authority. */
   plan: WorkspacePlan | null;
   membership: PlatformContextMembership;
+};
+
+/**
+ * ATTENTION ARCHITECTURE (2026-08-22) — canonical enterprise commercial verdict, sourced
+ * from `EnterpriseContract` with a bounded legacy plan-string fallback.
+ * Optional on the client type so an older cached envelope still parses.
+ */
+export type PlatformContextEnterprise = {
+  isEnterpriseCustomer: boolean;
+  source: "contract" | "legacy_plan" | "none" | "unavailable";
+  contractStatus: string | null;
+  contractInEffect: boolean | null;
+  organizationId: string | null;
 };
 
 export type PlatformContextFlags = {
@@ -567,6 +622,12 @@ export type PlatformContextEnvelope = {
   persona: PlatformContextPersona;
   capabilities: CapabilityMap;
   planFeatures: PlatformContextPlanFeatures;
+  /**
+   * ATTENTION ARCHITECTURE — canonical enterprise authority. Optional on the client so a
+   * cached older envelope still parses; consumers that need it must
+   * fail closed on absence rather than fall back to a plan-name check.
+   */
+  enterprise?: PlatformContextEnterprise;
   /** Operational eligibility projection (see type doc). REQUIRED, matching
    *  the canonical server contract — `deriveOperationalEligibility` runs on
    *  every envelope build. Phase 12 Point 4 (Pass E) removed the optional

@@ -83,6 +83,7 @@ Every one is backward-compatible with the currently deployed build.
 | `20271129000000_automation_runtime_durability_expand` | EXPAND | yes — widens two VARCHAR(20) status columns to (32), adds nullable/defaulted fence + ambiguity columns and partial indexes, and WIDENS two status CHECKs. Widening a CHECK or a VARCHAR can never invalidate an existing row |
 | `20271130000000_automation_runtime_durability_backfill` | BACKFILL | yes — deterministic, re-runnable; leaves historical source-event ids NULL and historical RUNNING runs unresolved rather than inventing either |
 | `20271215000000_search_index_reconciliation_kind` | EXPAND | yes — one `ALTER TYPE … ADD VALUE IF NOT EXISTS` on `GovernanceReconciliationKind`. Idempotent, additive, and unread by the deployed build until the Search reconciliation code ships |
+| `20271216000000_evidence_integrity_incident_category` | EXPAND | yes — one `ALTER TYPE … ADD VALUE IF NOT EXISTS` on `IncidentCategory`. Idempotent and additive: no table, no column, no row rewritten, and unread by the deployed build until the Attention-Architecture Phase-3 integrity writer ships. Deliberately carries NO backfill — opening conditions for historically failed evidence would stamp `first_seen_at_utc` with the migration clock, and that column feeds age-based severity escalation, so a backfill would manufacture CRITICALs out of a schema change |
 | `email_password_auth` | EXPAND | yes — proven byte-identical no-op twin |
 
 > **PHASE 12 CORRECTIVE PASS §2/§3/§5.2 (2026-08-06).**

@@ -233,12 +233,12 @@ function sidebarRouteIds(plan: "FREE" | "PAYG" | "PRO" | "TEAM"): string[] {
 
 test("sidebar matrix — Operations Center for every plan; only intake varies by entitlement", () => {
   // The exact per-plan visible sets (pre-remediation these lacked
-  // account.inbox everywhere except PRO/TEAM; nothing else moved).
+  // account.notifications everywhere except PRO/TEAM; nothing else moved).
   const BASE = [
     // Account-menu refactor (2026-07-21) — Billing joined the sidebar
     // (Phase 6) via the same canonical /billing route; visible on every plan.
     "account.billing",
-    "account.inbox",
+    "account.notifications",
     "workspace.capture",
     "workspace.cases",
     "workspace.collaboration_teams",

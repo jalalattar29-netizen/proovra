@@ -152,18 +152,18 @@ export const HUB_DEFINITIONS: Readonly<Record<string, HubDefinition>> = {
     title: "Operations Center",
     subtitle:
       "Operational oversight — system health, runbooks, integrations, observability, and reliability tooling.",
-    landingRouteId: "platform.ops_center",
+    landingRouteId: "workspace.operations",
     quickActions: [
       {
         id: "operations.observability",
         label: "Open observability",
-        href: "/operations/observability",
+        href: "/admin/platform/observability",
         intent: "primary",
       },
       {
         id: "operations.runbooks",
         label: "Open runbooks",
-        href: "/operations/runbooks",
+        href: "/admin/platform/runbooks",
         intent: "primary",
       },
       {
@@ -174,7 +174,7 @@ export const HUB_DEFINITIONS: Readonly<Record<string, HubDefinition>> = {
       },
     ],
     memberRouteIds: [
-      "platform.ops_center",
+      "workspace.operations",
       "platform.observability",
       "platform.runbooks",
       "platform.reliability",

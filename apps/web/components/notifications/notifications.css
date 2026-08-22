@@ -671,3 +671,114 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===========================================================================
+   ATTENTION ARCHITECTURE PHASE 6.1 (2026-08-22) — NOTIFICATION-CENTRE HEADER.
+
+   The page used to open with five severity KPI cards, which is the chrome of
+   an incident console. This strip answers the two questions a person actually
+   opens their notifications with — "how many did I miss?" and "am I seeing
+   everything?" — and demotes severity to metadata beside them.
+
+   ACCESSIBILITY. Severity is never carried by colour alone: every chip renders
+   its LABEL ("CRITICAL", "HIGH", …) as text next to the count, and the colour
+   is a supporting cue on the left edge. The strip is a normal flow layout that
+   wraps, so it survives 390px and 200% zoom without horizontal overflow.
+   =========================================================================== */
+
+.ops-summary-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+.ops-summary-strip__primary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ops-summary-strip__count {
+  font-size: 1.6rem;
+  font-weight: 650;
+  line-height: 1.1;
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-summary-strip__label {
+  font: var(--font-body);
+  color: var(--ink-secondary);
+}
+
+/* The honesty line. Deliberately reads as a caveat rather than an error:
+   nothing has failed for the USER, we simply cannot promise completeness. */
+.ops-summary-strip__note {
+  margin: 0;
+  font: var(--font-label);
+  color: var(--ink-secondary);
+  border-left: 2px solid var(--ops-tone-warning);
+  padding-left: 0.5rem;
+}
+
+.ops-summary-strip__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ops-severity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border-default);
+  border-left-width: 3px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-card);
+  color: var(--ink-primary);
+  cursor: pointer;
+  font: var(--font-label);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.ops-severity-chip:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.ops-severity-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ops-severity-chip:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ops-severity-chip[data-tone="critical"] { border-left-color: var(--ops-tone-critical); }
+.ops-severity-chip[data-tone="high"]     { border-left-color: var(--ops-tone-high); }
+.ops-severity-chip[data-tone="warning"]  { border-left-color: var(--ops-tone-warning); }
+.ops-severity-chip[data-tone="info"]     { border-left-color: var(--ops-tone-info); }
+.ops-severity-chip[data-tone="all"]      { border-left-style: dashed; }
+
+.ops-severity-chip[data-active="true"] {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
+}
+
+.ops-severity-chip__label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+}
+
+.ops-severity-chip__count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}

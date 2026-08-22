@@ -146,6 +146,16 @@ test("VIEWER has only read-ish permissions", () => {
     // org policy) but never mutate them.
     "identity.member.read",
     "identity.org_policy.read",
+    // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — tenant Operations.
+    //
+    // `operations.view` is READ-ONLY by construction and belongs on this
+    // list: a VIEWER may SEE what unresolved work the workspace has, and may
+    // change none of it. The four mutations —
+    // operations.{acknowledge,assign,resolve,suppress} — are deliberately
+    // absent, and the bidirectional half of this test is what proves it: any
+    // future grant of one to VIEWER fails here as a privilege escalation
+    // rather than shipping.
+    "operations.view",
   ]);
   for (const perm of PERMISSIONS) {
     const allowed = roleHasPermission("VIEWER", perm);

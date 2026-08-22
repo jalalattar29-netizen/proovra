@@ -40,6 +40,7 @@ import {
   getFeatureSnapshot,
 } from "../config/index.js";
 import { prisma } from "../db.js";
+import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   cronSecretMatches,
@@ -91,10 +92,89 @@ import { requireStepUpForSensitiveAction } from "../services/identity-security/s
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 
-async function requireOpsActor(
+/**
+ * ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — canonical Operations gate.
+ *
+ * THE DEFECT THIS REPLACES (D29)
+ * ------------------------------
+ * Reads were gated on `identity.member.read` and mutations on
+ * `identity.access_review.action`. Neither describes Operations. The second is
+ * the permission that decides whether somebody keeps their access to a
+ * workspace, and using it to acknowledge a failed report both over-grants
+ * (every incident triager could adjudicate access reviews) and obscures
+ * (nothing named Operations answered "who may run Operations here?").
+ *
+ * `operations.view` / `.acknowledge` / `.assign` / `.resolve` / `.suppress`
+ * are now the authority, granted by the canonical role matrix in
+ * `packages/shared/src/permissions.ts` and resolved through the same
+ * `evaluateMemberAccess` every other gate uses — so member lifecycle
+ * (suspension, revocation, access expiry, parent-organization state) applies
+ * here exactly as it does everywhere else.
+ *
+ * NOT INCLUDED: retry. Re-running a report or re-anchoring a record stays
+ * authorized by the domain that owns it. Operations links to those actions and
+ * does not acquire the right to perform them.
+ */
+async function requireOpsCapability(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
+  permission:
+    | "operations.view"
+    | "operations.acknowledge"
+    | "operations.assign"
+    | "operations.resolve"
+    | "operations.suppress",
+): Promise<{ userId: string } | null> {
+  const userId = getAuthUserId(req);
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { id: true },
+  });
+  // Anti-enumeration: a non-member is told the workspace does not exist
+  // rather than that they lack permission on it.
+  if (!member) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  const decision = await evaluateMemberAccess({ teamId, userId, permission });
+  if (!decision.allowed) {
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: decision.reason,
+        detail: decision.detail ?? null,
+        // Name the capability that was missing. An operator who cannot
+        // acknowledge an incident should not have to guess which permission
+        // they need, and "access_review" was actively misleading.
+        requiredPermission: permission,
+      },
+    });
+    return null;
+  }
+  return { userId };
+}
+
+/**
+ * PHASE 4B — a DOMAIN action reached through the Operations surface.
+ *
+ * Re-running a media-intelligence job, re-anchoring a record, re-sending a
+ * message: Operations SHOWS these and links to them, and the authority to
+ * perform them stays with the domain that owns the work. This helper exists as
+ * a separate function from `requireOpsCapability` so the boundary is visible
+ * at the call site — reading `requireDomainActionOnOpsSurface(…,
+ * "intelligence.run")` says exactly what is being asserted, where a widened
+ * `requireOpsCapability` would have quietly let a domain permission look like
+ * an operational one.
+ *
+ * This is why there is no `operations.retry`: it would be the generic
+ * permission this split exists to avoid.
+ */
+async function requireDomainActionOnOpsSurface(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+  permission: "intelligence.run",
 ): Promise<{ userId: string } | null> {
   const userId = getAuthUserId(req);
   const member = await prisma.teamMember.findUnique({
@@ -105,22 +185,28 @@ async function requireOpsActor(
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "identity.member.read",
-  });
+  const decision = await evaluateMemberAccess({ teamId, userId, permission });
   if (!decision.allowed) {
     reply.code(403).send({
       error: {
         code: "permission_denied",
         reason: decision.reason,
         detail: decision.detail ?? null,
+        requiredPermission: permission,
       },
     });
     return null;
   }
   return { userId };
+}
+
+/** READ the workspace's shared operational state. */
+async function requireOpsActor(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+): Promise<{ userId: string } | null> {
+  return requireOpsCapability(req, reply, teamId, "operations.view");
 }
 
 // -----------------------------------------------------------------------------
@@ -687,9 +773,40 @@ export async function opsRoutes(app: FastifyInstance) {
   // POST   /v1/ops/incidents/:id/resolve — resolve + optional note
   // POST   /v1/ops/incidents/:id/suppress — suppress dedup re-fires
   //
-  // All session-auth + identity.access_review.action gate (mutations)
-  // or identity.member.read (read). Anti-enumeration 404 for non-members.
+  // All session-auth + the CANONICAL Operations permissions: operations.view
+  // to read, and operations.{acknowledge,resolve,suppress,assign} per
+  // mutation. Anti-enumeration 404 for non-members.
   // ---------------------------------------------------------------------------
+
+  /**
+   * ATTENTION ARCHITECTURE PHASE 4C (2026-08-22) — THE canonical workspace
+   * Operations summary.
+   *
+   * ONE authority for "how much unresolved shared work does this workspace
+   * have?". Home consumes this; Home does not compute it. Before this
+   * endpoint, Home derived workspace health from `GET /v1/me/inbox` through
+   * `buildOperationalQueue()` — one person's notification feed reported as the
+   * workspace's state, so archiving a notification changed the dashboard.
+   *
+   * Gated on `operations.view`, the same permission as the list behind it, so
+   * a caller who cannot see the conditions cannot see their count either.
+   */
+  app.get(
+    "/v1/ops/summary",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const summary = await buildOperationsSummary({
+        workspaceId: q.teamId,
+        viewerUserId: actor.userId,
+      });
+      return reply.code(200).send({ summary });
+    },
+  );
 
   app.get(
     "/v1/ops/incidents",
@@ -708,20 +825,40 @@ export async function opsRoutes(app: FastifyInstance) {
             .enum(INCIDENT_CATEGORIES as unknown as [string, ...string[]])
             .optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
+          // PHASE 2.7 — keyset cursor. Opaque to the client; echoed back
+          // verbatim from `nextCursor` on the previous page.
+          cursor: z.string().uuid().optional(),
         })
         .parse(req.query ?? {});
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
-      const rows = await listIncidents({
+      const page = await listIncidents({
         teamId: q.teamId,
         status: q.status as never,
         severity: q.severity as never,
         category: q.category as never,
         limit: q.limit,
+        cursor: q.cursor ?? null,
       });
-      return reply
-        .code(200)
-        .send({ incidents: rows.map(projectIncident) });
+      return reply.code(200).send({
+        incidents: page.incidents.map(projectIncident),
+        pagination: {
+          nextCursor: page.nextCursor,
+          returned: page.incidents.length,
+        },
+        // PHASE 2.2 / 2.3 — say whether this read reached the end.
+        //
+        // `complete: false` means rows exist beyond this page, so NOTHING may
+        // conclude "no such incident" or "all clear" from this response. The
+        // flag travels with the data rather than being inferred from
+        // `nextCursor != null` at each call site, because that inference is
+        // exactly the kind a surface gets wrong once and then reports a
+        // confident zero forever.
+        completeness: {
+          complete: page.complete,
+          mayAssertAllClear: page.complete,
+        },
+      });
     },
   );
 
@@ -751,7 +888,7 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsIncidentId.parse(req.params);
       const body = TeamIdOnly.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       try {
         const updated = await acknowledgeIncident({
@@ -775,7 +912,7 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsIncidentId.parse(req.params);
       const body = ResolveBody.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
       if (!actor) return;
       try {
         const updated = await resolveIncident({
@@ -800,7 +937,7 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsIncidentId.parse(req.params);
       const body = TeamIdOnly.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
       if (!actor) return;
       try {
         const updated = await suppressIncident({
@@ -825,7 +962,7 @@ export async function opsRoutes(app: FastifyInstance) {
   // Body: { teamId, assigneeUserId }
   //
   // Sets the operator-owner for an incident. Permission-gated via
-  // `requireOpsActorAction` (ops actor + workspace member). Audited via
+  // `requireOpsCapability` (ops permission + workspace member). Audited via
   // the platform audit log inside the service.
   // ---------------------------------------------------------------------------
   const AssignBody = TeamIdOnly.extend({
@@ -837,7 +974,7 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsIncidentId.parse(req.params);
       const body = AssignBody.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
       // The assignee must be an actual workspace member — never assign
       // an incident to a user outside the workspace. We check the
@@ -890,7 +1027,7 @@ export async function opsRoutes(app: FastifyInstance) {
   // All routes:
   //   - preHandler: requireAuth
   //   - workspace-scoped via teamId
-  //   - mutating routes go through requireOpsActorAction + audit log
+  //   - mutating routes go through requireOpsCapability + audit log
   // ---------------------------------------------------------------------------
 
   const ParamsWorkflowId = z.object({ id: z.string().uuid() });
@@ -936,7 +1073,7 @@ export async function opsRoutes(app: FastifyInstance) {
   // PHASE 12 — VERTICAL B. Shared workflow-mutation composer.
   //
   // Every lifecycle route funnels through this one function AFTER its own
-  // `requireOpsActorAction` gate, so the composition order is identical
+  // `requireOpsCapability` gate, so the composition order is identical
   // for all eight actions:
   //
   //   persisted-record workspace binding (done by the caller)
@@ -1174,7 +1311,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
       const member = await prisma.teamMember.findFirst({
         where: { teamId: bound.teamId, userId: body.assigneeUserId },
@@ -1224,7 +1361,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1263,7 +1400,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1302,7 +1439,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1342,7 +1479,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1382,7 +1519,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1421,7 +1558,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1460,7 +1597,7 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       return runWorkflowAction({
         req,
@@ -1615,6 +1752,29 @@ export async function opsRoutes(app: FastifyInstance) {
   });
 
   /**
+   * PHASE 4B — bulk action type -> the permission its single-item equivalent
+   * requires. TOTAL over the `actionType` enum above; TypeScript will not
+   * compile a new action type into that enum without an entry here, which is
+   * the point: an unmapped bulk action is an unauthorized one.
+   */
+  const BULK_ACTION_PERMISSION: Record<
+    z.infer<typeof BulkActionBody>["actionType"],
+    | "operations.acknowledge"
+    | "operations.assign"
+    | "operations.resolve"
+    | "operations.suppress"
+  > = {
+    BULK_ASSIGN_WORKFLOWS: "operations.assign",
+    BULK_ESCALATE_WORKFLOWS: "operations.assign",
+    BULK_SUPPRESS_INCIDENTS: "operations.suppress",
+    BULK_RESOLVE_WORKFLOWS: "operations.resolve",
+    BULK_SCHEDULE_RETRY: "operations.acknowledge",
+    BULK_ACKNOWLEDGE_INCIDENTS: "operations.acknowledge",
+    BULK_ADD_MITIGATION: "operations.acknowledge",
+    BULK_DISMISS_RECOMMENDATIONS: "operations.acknowledge",
+  };
+
+  /**
    * PHASE 12 — VERTICAL B. Bounded per-item projection so the operator
    * sees exactly which target succeeded, was skipped, or failed — never
    * one global "bulk action failed" banner.
@@ -1635,7 +1795,20 @@ export async function opsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = BulkActionBody.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      // PHASE 4B / D29 — the bulk gate is the SAME gate as the single-item
+      // action it fans out into.
+      //
+      // A blanket "may run bulk actions" permission would be a hole through
+      // every one of them: an operator authorized to acknowledge could
+      // suppress 200 conditions at once by routing through this endpoint.
+      // The action type therefore selects its own permission, from the same
+      // table the single-item routes use.
+      const actor = await requireOpsCapability(
+        req,
+        reply,
+        body.teamId,
+        BULK_ACTION_PERMISSION[body.actionType],
+      );
       if (!actor) return;
 
       // 1. Durable idempotency replay — the marker is persisted on the
@@ -1832,7 +2005,7 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { runId } = RetryRunParams.parse(req.params);
       const body = RetryRunBody.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireDomainActionOnOpsSurface(req, reply, body.teamId, "intelligence.run");
       if (!actor) return;
       const { retryMediaIntelligenceJob } = await import(
         "../queue/media-intelligence-queue.js"
@@ -1888,7 +2061,7 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { runId } = DismissRunParams.parse(req.params);
       const body = DismissRunBody.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireDomainActionOnOpsSurface(req, reply, body.teamId, "intelligence.run");
       if (!actor) return;
       const { dismissRun } = await import(
         "@proovra/shared-runtime/media-intelligence"
@@ -1912,7 +2085,7 @@ export async function opsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = ReplayDlqBody.parse(req.body ?? {});
-      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      const actor = await requireDomainActionOnOpsSurface(req, reply, body.teamId, "intelligence.run");
       if (!actor) return;
       const { replayMediaIntelligenceDlq } = await import(
         "../queue/media-intelligence-queue.js"
@@ -2031,43 +2204,22 @@ function requestUa(req: FastifyRequest): string | null {
 }
 
 /**
- * Stricter variant of requireOpsActor for incident mutations: requires
- * the access-review.action permission (the canonical Phase 17
- * "operator can take corrective action" gate).
+ * PHASE 4B / D29 (2026-08-22) — `requireOpsActorAction` IS GONE.
+ *
+ * It was the "stricter variant of requireOpsActor for incident mutations",
+ * and what made it stricter was `identity.access_review.action` — the
+ * permission that decides whether a person keeps their access to a workspace.
+ * Sixteen generic Operations mutations were gated on it: acknowledge, resolve,
+ * suppress, assign, escalate, bulk actions, media-intelligence retry.
+ *
+ * That is over-granting and mislabelling in one move. Anyone allowed to
+ * acknowledge a failed report was thereby allowed to adjudicate access
+ * reviews, and nothing in the codebase answered "who may run Operations in
+ * this workspace?" — the answer lived in an identity permission nobody would
+ * think to look at.
+ *
+ * Every call site now uses `requireOpsCapability` with the permission that
+ * describes the action, and the three media-intelligence routes use the
+ * INTELLIGENCE domain's own permission, because re-running a job is the
+ * domain's decision and not a generic operational one.
  */
-async function requireOpsActorAction(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string } | null> {
-  // Local import — avoids re-running the file-level imports against
-  // the action-flavor of requireOpsActor.
-  const { evaluateMemberAccess } = await import(
-    "../services/identity/access-policy.service.js"
-  );
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "identity.access_review.action",
-  });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
-}

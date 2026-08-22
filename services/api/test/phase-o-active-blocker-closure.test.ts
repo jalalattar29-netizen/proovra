@@ -338,7 +338,10 @@ describe("D-1 — frontend double-.json() sweep is complete", () => {
       // NotificationBell.tsx (same double-.json() rule applies).
       "apps/web/components/app-shell-v2/NotificationBell.tsx",
       "apps/web/components/governance/RetentionInheritanceSummary.tsx",
-      "apps/web/components/command-center/AccountPrioritiesBanner.tsx",
+      // Attention Architecture Phase 7 (2026-08-22) — AccountPrioritiesBanner
+      // was DELETED as a duplicate general-attention authority, so it is no
+      // longer a file this sweep can assert about. The D-1 invariant it
+      // carried cannot regress in a file that does not exist.
       "apps/web/components/governance/RetentionConflictAlert.tsx",
       // ExportEligibilityPreflight was deleted in Phase 12 Point 4 as a
       // duplicate of GovernedExportAction; the wrapper below is the

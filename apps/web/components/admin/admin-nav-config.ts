@@ -43,7 +43,7 @@ export const ADMIN_NAV_ITEMS: ReadonlyArray<AdminNavItem> = [
   { href: "/admin/identity", label: "Identity Governance" },
   // Platform operations surfaces (platform-admin only, reachable from the
   // admin console so no internal route requires guessing a URL).
-  { href: "/operations/readiness", label: "Operations Readiness" },
-  { href: "/operations/observability", label: "Observability" },
+  { href: "/admin/platform/readiness", label: "Operations Readiness" },
+  { href: "/admin/platform/observability", label: "Observability" },
   { href: "/tools", label: "Tools" },
 ] as const;

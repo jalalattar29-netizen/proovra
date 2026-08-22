@@ -237,10 +237,10 @@ describe("Phase G0 (B.3) — terminology normalized in primary navigation", () =
 // ===========================================================================
 
 describe("Phase G0 (B.4) — operations path alias preserved", () => {
-  it("next.config.js still aliases /ops/reliability → /operations/reliability", () => {
+  it("next.config.js still aliases /ops/reliability → /admin/platform/reliability", () => {
     const cfg = readSource("../../../apps/web/next.config.js");
     expect(cfg).toMatch(
-      /source:\s*"\/ops\/reliability",\s*destination:\s*"\/operations\/reliability"/,
+      /source:\s*"\/ops\/reliability",\s*destination:\s*"\/admin\/platform\/reliability"/,
     );
   });
 });

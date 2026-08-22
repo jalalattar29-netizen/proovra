@@ -113,7 +113,7 @@ describe("R5 Part 2 — beginner layer bounded to canonical primary set", () => 
     );
     const ids = (setMatch![1].match(/"[a-z0-9._]+"/gi) ?? []).length;
     // Post-G0 IA: canonical primary set grew from 6 → 9 (added
-    // workspace.review, workspace.intake_links, account.inbox).
+    // workspace.review, workspace.intake_links, account.notifications).
     expect(ids).toBe(9);
   });
 

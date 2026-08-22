@@ -51,7 +51,6 @@ const MUST_NOT_BE_CORE: ReadonlyArray<{ path: string; label: string }> = [
   { path: "/reviewer-ops", label: "Reviewer ops" },
   { path: "/investigation", label: "Investigation power tools" },
   { path: "/ops", label: "Internal platform ops" },
-  { path: "/operations", label: "Internal platform operations" },
   { path: "/platform", label: "Platform internal" },
   { path: "/tools", label: "All Tools (internal catalog)" },
 ];
@@ -59,6 +58,22 @@ const MUST_NOT_BE_CORE: ReadonlyArray<{ path: string; label: string }> = [
 // Surfaces that the simple self-serve product MUST keep for every plan.
 const MUST_STAY_CORE: ReadonlyArray<string> = [
   "/home",
+  // CONTRACT MIGRATION — Attention Architecture Phase 4B (2026-08-22).
+  //
+  // /operations MOVED from MUST_NOT_BE_CORE to here, deliberately.
+  //
+  // It was listed as "Internal platform operations" and tiered INTERNAL with
+  // directAccessPolicy "notFound", so the surface that answers "what
+  // unresolved work does MY workspace have?" 404'd for every tenant. That is
+  // not a leak this list should have been preventing: PROOVRA's internal
+  // consoles are /ops and /admin/platform/*, and both stay INTERNAL above.
+  //
+  // The tier is not what gates it. Access is decided by OPERATIONS_VIEW,
+  // which Phase 0 derives from whether a workspace can PRODUCE operational
+  // conditions — so a Free personal space still gets nothing, and it gets
+  // nothing for a reason the product can state rather than because a URL
+  // 404s.  proves the boundary held.
+  "/operations",
   "/capture",
   "/evidence",
   "/evidence/abc123",

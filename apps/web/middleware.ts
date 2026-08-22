@@ -41,7 +41,7 @@ function applySurfaceTierGate(
   //
   // Previously this rewrote to /not-found UNCONDITIONALLY, which also
   // 404'd authenticated PLATFORM_ADMINs hitting the admin-nav links
-  // (`/operations/observability`, `/operations/readiness`, `/tools`) in
+  // (`/admin/platform/observability`, `/admin/platform/readiness`, `/tools`) in
   // production — a real functional bug. Authenticated requests now fall
   // through to the page-level `PageRouteGate`, which runs with the full
   // PlatformContext and correctly renders the surface for platform
@@ -370,6 +370,12 @@ export function middleware(req: NextRequest) {
       "/search",
       "/communications",
       "/collaboration",
+      // PHASE 5 (2026-08-22) — BOTH paths stay listed.
+      //
+      // `/notifications` is the canonical personal notification centre.
+      // `/inbox` is its permanent compatibility path and still has a page on
+      // disk, so it is a live (app)-tree prefix and must be recognised here;
+      // dropping it would take the compatibility route outside the app shell.
       "/notifications",
       "/inbox",
       "/organizations",

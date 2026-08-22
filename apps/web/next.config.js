@@ -19,6 +19,32 @@ const nextConfig = {
   async redirects() {
     return [
       { source: "/dashboard", destination: "/home", permanent: true },
+      // ======================================================================
+      // ATTENTION ARCHITECTURE PHASE 5 (2026-08-22) — NOTIFICATION ROUTES.
+      //
+      // Two routes swapped meaning, and both old URLs keep working:
+      //
+      //   /inbox  ->  /notifications
+      //       The personal notification centre's canonical URL. The old path
+      //       is a PERMANENT compatibility redirect, because shipped emails,
+      //       digests and collaboration links point at it and always will.
+      //
+      //   /notifications/deliveries  ->  /settings/notifications/deliveries
+      //       The OUTBOUND DELIVERY LOG that used to own /notifications. It is
+      //       an admin debugging surface — provider errors and resend buttons
+      //       — and a user guessing "where are my notifications?" landed on
+      //       it. It moved intact; only its address changed.
+      //
+      // Ordering matters: the more specific deliveries rule is declared before
+      // the bare /inbox rule, and no source here is also a destination, so
+      // there is no redirect loop.
+      // ======================================================================
+      {
+        source: "/notifications/deliveries",
+        destination: "/settings/notifications/deliveries",
+        permanent: true,
+      },
+      { source: "/inbox", destination: "/notifications", permanent: true },
       {
         source: "/archive",
         destination: "/evidence?filter=archived",
@@ -51,9 +77,86 @@ const nextConfig = {
       // appears consistent (`/ops/*`). A future phase may rename the
       // filesystem path; for now the redirect masks the inconsistency
       // without breaking the actual route.
+      // PHASE 4A (2026-08-22) — ATTENTION ARCHITECTURE.
+      //
+      // `/operations` becomes the TENANT Operations Center. The
+      // PROOVRA-internal consoles that lived under it are PLATFORM
+      // surfaces and now live under `/admin/platform/*`, where the
+      // `requiredActiveSpace: "PLATFORM_ADMIN"` gate they always carried
+      // matches the name of the namespace.
+      //
+      // `/admin/*` — not a bare `/platform/*` — because `/platform` is
+      // already a PUBLIC marketing page (`app/platform/page.tsx`), and
+      // `/admin/*` is the established platform-admin family under `(app)`
+      // with its own layout. Consumer inventory chose the namespace.
+      //
+      // This ordering is deliberate and non-negotiable: the platform
+      // children were moved and re-gated BEFORE `/operations` itself was
+      // opened to tenants, so no window exists in which a tenant-reachable
+      // parent sits above a platform console.
+      //
+      // `/operations/quotas` and `/operations/batch-analysis` are NOT here
+      // — they are already `PERSONAL_OR_ORG` tenant surfaces and stay.
+      {
+        source: "/operations/runbooks",
+        destination: "/admin/platform/runbooks",
+        permanent: true,
+      },
+      {
+        source: "/operations/observability",
+        destination: "/admin/platform/observability",
+        permanent: true,
+      },
+      {
+        source: "/operations/reliability",
+        destination: "/admin/platform/reliability",
+        permanent: true,
+      },
+      {
+        source: "/operations/queues",
+        destination: "/admin/platform/queues",
+        permanent: true,
+      },
+      {
+        source: "/operations/media-graph",
+        destination: "/admin/platform/media-graph",
+        permanent: true,
+      },
+      {
+        source: "/operations/automation",
+        destination: "/admin/platform/automation",
+        permanent: true,
+      },
+      {
+        source: "/operations/analytics",
+        destination: "/admin/platform/analytics",
+        permanent: true,
+      },
+      {
+        source: "/operations/readiness",
+        destination: "/admin/platform/readiness",
+        permanent: true,
+      },
+      {
+        source: "/operations/signers",
+        destination: "/admin/platform/signers",
+        permanent: true,
+      },
+      {
+        source: "/operations/exports",
+        destination: "/admin/platform/exports",
+        permanent: true,
+      },
+      {
+        source: "/operations/recovery",
+        destination: "/admin/platform/recovery",
+        permanent: true,
+      },
+      // Legacy `/ops/reliability` now lands on the platform route in one
+      // hop rather than chaining through `/operations/reliability`.
       {
         source: "/ops/reliability",
-        destination: "/operations/reliability",
+        destination: "/admin/platform/reliability",
         permanent: true,
       },
       {
@@ -268,27 +371,27 @@ const nextConfig = {
       },
       {
         source: "/ops/observability",
-        destination: "/operations/observability",
+        destination: "/admin/platform/observability",
         permanent: true,
       },
       {
         source: "/ops/runbooks",
-        destination: "/operations/runbooks",
+        destination: "/admin/platform/runbooks",
         permanent: true,
       },
       {
         source: "/ops/media-graph",
-        destination: "/operations/media-graph",
+        destination: "/admin/platform/media-graph",
         permanent: true,
       },
       {
         source: "/ops/automation",
-        destination: "/operations/automation",
+        destination: "/admin/platform/automation",
         permanent: true,
       },
       {
         source: "/ops/analytics",
-        destination: "/operations/analytics",
+        destination: "/admin/platform/analytics",
         permanent: true,
       },
       {
@@ -311,9 +414,17 @@ const nextConfig = {
       // /v1/collaboration/threads/* routes all remain intact — they
       // continue to power the evidence detail discussion panel. This
       // redirect only retires the standalone front-end entry point.
+      // PHASE 5 (2026-08-22) — retargeted from /inbox to /notifications.
+      //
+      // /inbox is itself now a redirect to /notifications, so leaving this
+      // pointing there would send a visitor through two hops AND make one
+      // redirect's destination another's source — the chain the loop gate
+      // above forbids, and the shape that turns into an actual loop the first
+      // time somebody adds a rule in the other direction. Every compatibility
+      // route points at the CANONICAL destination, not at another alias.
       {
         source: "/collaboration",
-        destination: "/inbox",
+        destination: "/notifications",
         permanent: true,
       },
       // Marketing — Platform mega-menu consolidation. The eight legacy

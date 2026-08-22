@@ -310,11 +310,28 @@ describe("Phase 32.8C control plane — routes", () => {
     );
   });
 
-  it("assign route requires auth + ops actor action", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 4B / D29 (2026-08-22).
+   *
+   * The INVARIANT is unchanged and still asserted: this mutation sits behind
+   * `requireAuth` AND an authorization gate, and cannot reach its handler
+   * without both. What changed is WHICH permission the gate asks for.
+   *
+   * `requireOpsActorAction` resolved to `identity.access_review.action` — the
+   * permission that decides whether somebody keeps their ACCESS to a
+   * workspace. Sixteen generic Operations mutations were gated on it, so
+   * anyone allowed to acknowledge a failed report was thereby allowed to
+   * adjudicate access reviews. The gate is now `requireOpsCapability` with the
+   * Operations permission that describes the action, which is strictly
+   * NARROWER than what this test used to accept.
+   */
+  it("assign route requires auth + the operations.assign capability", () => {
     const block = OPS_ROUTES.match(/app\.post\(\s*"\/v1\/ops\/incidents\/:id\/assign"[\s\S]*?\}\s*,\s*\)/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/preHandler:\s*requireAuth/);
-    expect(block![0]).toMatch(/requireOpsActorAction\(req,\s*reply,\s*body\.teamId\)/);
+    expect(block![0]).toMatch(
+      /requireOpsCapability\(req,\s*reply,\s*body\.teamId,\s*"operations\.assign"\)/,
+    );
   });
 
   it("assign route validates assigneeUserId as a UUID", () => {
@@ -470,10 +487,12 @@ describe("Phase 32.8C control plane — no-regression invariants", () => {
     expect(CC_TSX).toMatch(/section\.correlations \?\? \[\]/);
   });
 
-  it("control plane does NOT bypass auth: assign route still gates via requireOpsActorAction", () => {
+  it("control plane does NOT bypass auth: assign route still gates on a capability", () => {
     const block = OPS_ROUTES.match(/app\.post\(\s*"\/v1\/ops\/incidents\/:id\/assign"[\s\S]*?\}\s*,\s*\)/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/preHandler:\s*requireAuth/);
-    expect(block![0]).toMatch(/requireOpsActorAction/);
+    expect(block![0]).toMatch(/requireOpsCapability/);
+    // And specifically NOT the identity permission it used to borrow.
+    expect(block![0]).not.toMatch(/identity\.access_review\.action/);
   });
 });

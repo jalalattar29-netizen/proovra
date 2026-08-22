@@ -661,20 +661,32 @@ describe("Phase IA-home-findings — Needs Fixing strip (real failure categories
     expect(ots?.categoryLabel).toBe("Blockchain anchoring");
   });
 
-  it("failures are promoted into the Operational Queue (critical first) with an Open-to-fix action", () => {
+  /**
+   * CONTRACT MIGRATION — Attention Architecture Phase 4C (2026-08-22).
+   *
+   * "Failures from the inbox are promoted into Home's operational queue" is
+   * exactly the coupling this phase removes. Those items came from the
+   * CALLER'S notification feed, and promoting them into a workspace surface
+   * meant the workspace's operational picture changed when that one person
+   * read or archived a message.
+   *
+   * The failures themselves did not stop mattering — they are now SHARED
+   * operational conditions, one per Evidence record, opened by the Phase-3
+   * integrity writer and counted by the canonical workspace summary. What is
+   * asserted here is the property that had to replace the promotion: the feed
+   * does not reach the workspace summary at all.
+   */
+  it("inbox failures do NOT populate Home's workspace Operations summary", () => {
     const vm = build("PRO", { inbox: FAILURES });
-    const failureItems = vm.operationalQueue.filter((q) =>
-      ["report_failure", "package_failure", "ots_failure"].includes(q.type),
-    );
-    expect(failureItems.length).toBe(2);
-    // The terminal OTS failure is critical and sits at the very top.
-    expect(vm.operationalQueue[0].type).toBe("ots_failure");
-    expect(vm.operationalQueue[0].severity).toBe("critical");
-    // Each failure deep-links to its fix surface and is flagged as a
-    // navigation fallback (no inline retry endpoint exists from Home).
-    const ots = failureItems.find((q) => q.type === "ots_failure");
-    expect(ots?.action.href).toBe("/evidence/ev-9?tab=integrity");
-    expect(ots?.fallback).toBe(true);
+    expect(
+      (vm as unknown as Record<string, unknown>).operationalQueue,
+    ).toBeUndefined();
+    expect(vm.operations.open).toBe(0);
+    expect(vm.operations.critical).toBe(0);
+    // And with no summary supplied, Home is honest about not knowing rather
+    // than reporting the zeros above as good news.
+    expect(vm.operations.available).toBe(false);
+    expect(vm.operations.mayAssertAllClear).toBe(false);
   });
 });
 

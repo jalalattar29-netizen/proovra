@@ -152,7 +152,14 @@ describe("SCOPE E — Operations Center ships per-user state without developer-f
     expect(INBOX_PAGE).toMatch(
       /\/v1\/me\/inbox\/items\/\$\{encodeURIComponent\(itemKey\)\}\/\$\{action\}/,
     );
-    expect(INBOX_PAGE).toMatch(/"read" \| "unread" \| "dismiss" \| "snooze"/);
+    // CONTRACT MIGRATION — Attention Architecture Phase 1.1 (2026-08-22).
+    // The guard's purpose is unchanged and still met: the mutation calls are
+    // still wired, and there are now MORE of them, not fewer. Only the
+    // product names moved (`dismiss` -> `archive`, `snooze` -> `remind`),
+    // with `unarchive` added so an archived notification can be recovered.
+    expect(INBOX_PAGE).toMatch(
+      /"read" \| "unread" \| "archive" \| "unarchive" \| "remind"/,
+    );
   });
 
   it("the formerly-deferred notification preferences UI now EXISTS as a real page", () => {
