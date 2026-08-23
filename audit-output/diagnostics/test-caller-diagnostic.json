@@ -5,7 +5,7 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "b235c955634ced33db8649409da2326352352fc463cba69e5b6d9cbb825870d1",
+  "capabilityRouteInventoryHash": "8f585f4eebde2de8b15bfdb13b97cb9ae56acaf9f2af0cb360f87ec7edd48c28",
   "totals": {
     "routes": 1092,
     "routesWithAnyTestCaller": 33,
@@ -2207,6 +2207,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/ops/incidents/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/ops/metrics",
       "testCallerCount": 0,
       "testOnly": false,
@@ -3573,12 +3579,6 @@
     },
     {
       "routeId": "POST /v1/ai/evidence/:evidenceId/copilot",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "POST /v1/ai/operations/summary",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6634,5 +6634,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "389875623e29b5cf3891b0380ceb351d315d0e1c82389f92970d4b3492f0df77"
+  "contentHash": "d500cbbe0f3545b2150a31d4ad3ed05a8f27f55e3f8718a621e903a77666271d"
 }
