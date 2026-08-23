@@ -68,6 +68,11 @@ export const COUNTER_NAMES = [
   "operational_incident_suppressed",
   // Phase 32.8C control plane — incident assignment lifecycle.
   "operational_incident_assigned",
+  // Operations remediation — one bump per ACCEPTED request. Deliberately not
+  // per completion: this module cannot know whether the queued job succeeded,
+  // and a counter that implied it could would be the same false-completion
+  // the executor exists to avoid.
+  "operations_remediation_queued_total",
   "alert_sent",
   "alert_suppressed_rate_limit",
   "alert_provider_failed",

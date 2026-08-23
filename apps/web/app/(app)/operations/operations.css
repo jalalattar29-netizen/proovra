@@ -670,3 +670,51 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   REMEDIATION
+   Actions are stacked rather than laid out in a row: each carries a sentence
+   explaining what it starts, and a row of buttons with prose underneath makes
+   it ambiguous which sentence belongs to which control.
+   --------------------------------------------------------------------------- */
+.opsw-remediation__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.opsw-remediation__action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.opsw-remediation__hint {
+  max-inline-size: 46ch;
+}
+
+/* The reason no action exists. Given the same weight as the guidance above
+   it, not a warning colour: it states a boundary, it is not an alert. */
+.opsw-remediation__unsafe {
+  margin-block-start: 8px;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--border-subtle);
+}
+
+/* The answer to the request. Toned as information rather than success, since
+   nothing here observed the work complete. */
+.opsw-remediation__outcome {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-translucent-outer);
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+}
+
+.opsw-remediation__actions + .opsw-affected-link,
+.opsw-remediation__outcome + .opsw-affected-link {
+  margin-block-start: 12px;
+}

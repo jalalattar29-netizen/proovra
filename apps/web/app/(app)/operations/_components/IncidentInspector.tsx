@@ -32,11 +32,14 @@ import * as React from "react";
 import Link from "next/link";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { formatUserDateTime } from "../../../../lib/date";
 import { describeRelativeTime } from "../../../../lib/relative-time";
 import type {
   AssignableOperator,
   IncidentDetail,
+  ProjectedRemediation,
+  RemediationOutcome,
   OperationsCapabilities,
   SourceState,
 } from "../_lib/types";
@@ -105,6 +108,10 @@ export function IncidentInspector({
   onSuppress,
   onAssign,
   pending,
+  remediation,
+  remediationBusy,
+  remediationOutcome,
+  onRemediate,
 }: {
   /** The row model for the condition, already in the list. */
   row: OperationsRowModel;
@@ -128,7 +135,22 @@ export function IncidentInspector({
   onSuppress: () => void;
   onAssign: (assigneeUserId: string | null) => void;
   pending: boolean;
+  /**
+   * What the SERVER says this caller may do about this condition.
+   *
+   * `null` while the detail read is in flight or after it failed. There is no
+   * local fallback: a component that guesses at an action when the projection
+   * is missing is a second authority, and the whole point of projecting this
+   * is that there is only one.
+   */
+  remediation: ProjectedRemediation | null;
+  /** The action id currently in flight, if any. */
+  remediationBusy: string | null;
+  /** The answer to the last REQUEST — never a claim about the work. */
+  remediationOutcome: RemediationOutcome | null;
+  onRemediate: (actionId: string) => void;
 }) {
+  const { confirm: confirmAction } = useConfirmAction();
   const panelRef = React.useRef<HTMLElement | null>(null);
   const restoreRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
@@ -230,6 +252,127 @@ export function IncidentInspector({
               ) : null}
             </dl>
           </section>
+
+          {/* ---------------------------------------------------------- */}
+          {/* What you can do                                             */}
+          {/*                                                             */}
+          {/* Rendered ONLY from the server projection. Every branch below */}
+          {/* is a different honest answer, and the section is omitted     */}
+          {/* entirely when there is nothing true to say — an empty        */}
+          {/* "What you can do" heading reads as a missing feature.        */}
+          {/* ---------------------------------------------------------- */}
+          {remediation &&
+          (remediation.actions.length > 0 ||
+            remediation.deepLink ||
+            remediation.guidance ||
+            remediation.unsafeReason) ? (
+            <section
+              className="opsw-drawer__section"
+              data-ops-remediation={remediation.disposition}
+            >
+              <h3 className="opsw-drawer__section-title">What you can do</h3>
+
+              {remediation.guidance ? (
+                <p className="opsw-summary-text">{remediation.guidance}</p>
+              ) : null}
+
+              {/* Why no action exists. Stated plainly, because "no button"
+                  with no explanation reads as a product gap rather than a
+                  deliberate refusal to assert something untrue. */}
+              {remediation.unsafeReason ? (
+                <p
+                  className="opsw-muted opsw-remediation__unsafe"
+                  data-ops-remediation-unsafe
+                >
+                  {remediation.unsafeReason}
+                </p>
+              ) : null}
+
+              {remediation.actions.length > 0 ? (
+                <div className="opsw-remediation__actions">
+                  {remediation.actions.map((action) => (
+                    <div key={action.actionId} className="opsw-remediation__action">
+                      <button
+                        type="button"
+                        className="app-primary-action"
+                        // Busy is per-ACTION, so a second action stays usable
+                        // while one is in flight and the operator can see
+                        // exactly which request they started.
+                        disabled={remediationBusy !== null || pending}
+                        aria-busy={remediationBusy === action.actionId}
+                        data-ops-remediate={action.actionId}
+                        onClick={() => {
+                          // The CANONICAL confirmation surface, not the
+                          // browser's. It is focus-managed, themed and
+                          // announced; a native dialog is none of those and
+                          // is banned app-wide for exactly that reason.
+                          if (!action.confirm) {
+                            onRemediate(action.actionId);
+                            return;
+                          }
+                          void confirmAction({
+                            title: action.label + "?",
+                            description: action.description,
+                            confirmLabel: action.label,
+                            // Neutral, not danger: these actions RESUME work
+                            // the record was already supposed to complete.
+                            // Dressing them as destructive would misdescribe
+                            // them and blunt the tone where it is real.
+                            tone: "neutral",
+                            testId: "ops-remediate-confirm",
+                          }).then((ok) => {
+                            if (ok) onRemediate(action.actionId);
+                          });
+                        }}
+                      >
+                        {remediationBusy === action.actionId ? (
+                          <>
+                            <IconSpinner size={14} /> Starting…
+                          </>
+                        ) : (
+                          action.label
+                        )}
+                      </button>
+                      <p className="opsw-muted opsw-remediation__hint">
+                        {action.description}
+                        {action.async ? (
+                          <>
+                            {" "}
+                            This runs in the background; this condition closes
+                            on its own once the record recovers.
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* The answer to the REQUEST. Deliberately not phrased as a
+                  completion: nothing here observed the work finish. */}
+              {remediationOutcome ? (
+                <p
+                  className="opsw-remediation__outcome"
+                  role="status"
+                  aria-live="polite"
+                  data-ops-remediation-result={remediationOutcome.result}
+                >
+                  {remediationOutcome.message}
+                </p>
+              ) : null}
+
+              {remediation.deepLink ? (
+                <Link
+                  className="app-secondary-action opsw-affected-link"
+                  href={remediation.deepLink.href}
+                  data-ops-remediation-link
+                >
+                  <span>{remediation.deepLink.label}</span>
+                  <IconExternal size={14} />
+                </Link>
+              ) : null}
+            </section>
+          ) : null}
 
           {/* ---------------------------------------------------------- */}
           {/* When                                                        */}

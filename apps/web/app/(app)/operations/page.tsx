@@ -125,6 +125,9 @@ import type {
   AssignableOperator,
   Incident,
   IncidentDetail,
+  IncidentDetailResponse,
+  ProjectedRemediation,
+  RemediationOutcome,
   IncidentListResponse,
   OperationsCapabilities,
   OperationsSummary,
@@ -261,6 +264,22 @@ function OperationsWorkbench() {
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [detail, setDetail] =
     React.useState<SourceState<IncidentDetail>>(LOADING);
+
+  /**
+   * WHAT THIS OPERATOR MAY DO ABOUT THE OPEN CONDITION.
+   *
+   * Server-projected, and held separately from the detail so the browser has
+   * no path that could reconstruct it: there is no plan name, no role string
+   * and no severity here from which an action could be re-derived locally.
+   * When the server sends nothing, nothing is offered.
+   */
+  const [remediation, setRemediation] =
+    React.useState<ProjectedRemediation | null>(null);
+  const [remediationBusy, setRemediationBusy] = React.useState<string | null>(
+    null,
+  );
+  const [remediationOutcome, setRemediationOutcome] =
+    React.useState<RemediationOutcome | null>(null);
 
   const [markedIds, setMarkedIds] = React.useState<ReadonlySet<string>>(
     () => new Set(),
@@ -422,16 +441,23 @@ function OperationsWorkbench() {
     )
       .then((res) => {
         if (seq !== requestSeq.current) return;
-        setDetail({
-          kind: "ready",
-          data: (res as { incident: IncidentDetail }).incident,
-        });
+        const v = res as IncidentDetailResponse;
+        setDetail({ kind: "ready", data: v.incident });
+        setRemediation(v.remediation ?? null);
       })
       .catch((err) => {
         if (seq !== requestSeq.current) return;
         setDetail({ kind: "error", ...sourceErrorFor("detail", err) });
+        setRemediation(null);
       });
   }, [openId, teamId, reloadToken]);
+
+  // Opening a different condition clears the previous one's answer, so a
+  // stale "Accepted and queued" can never appear beside a record it did not
+  // describe.
+  React.useEffect(() => {
+    setRemediationOutcome(null);
+  }, [openId]);
 
   const loadMore = React.useCallback(() => {
     if (!teamId || !nextCursor || loadingMore) return;
@@ -524,6 +550,55 @@ function OperationsWorkbench() {
       }
     },
     [teamId, busy, refresh],
+  );
+
+  /**
+   * REQUEST ONE REGISTERED REMEDIATION.
+   *
+   * The answer this reports is the answer to the REQUEST, not to the work.
+   * Both remediations are asynchronous, so the operator is told the request
+   * was accepted and queued — never that the condition is fixed. The
+   * condition closes when the source domain's own truth converges and the
+   * resolver observes it, which is the only signal that is actually true.
+   *
+   * Nothing is applied optimistically and the incident is NOT locally marked
+   * resolved: a queue accepting work is not evidence that the work succeeded,
+   * and showing it as one is the false-clear this surface exists to prevent.
+   */
+  const remediate = React.useCallback(
+    async (actionId: string) => {
+      if (!teamId || !openId || remediationBusy) return;
+      setRemediationBusy(actionId);
+      setRemediationOutcome(null);
+      setMutationError(null);
+      try {
+        const res = await apiFetch(
+          `/v1/ops/incidents/${encodeURIComponent(openId)}/remediate`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ teamId, actionId }),
+          },
+        );
+        const outcome = (res as { remediation?: RemediationOutcome })
+          .remediation;
+        setRemediationOutcome(
+          outcome ?? { result: "QUEUED", message: "Accepted and queued." },
+        );
+        // Re-read rather than patch: the server owns the condition's state and
+        // its timeline now has an entry the browser cannot author.
+        refresh();
+      } catch (err) {
+        setMutationError(
+          toSafeUserError(err, {
+            message: "That action could not be started.",
+          }),
+        );
+      } finally {
+        setRemediationBusy(null);
+      }
+    },
+    [teamId, openId, remediationBusy, refresh],
   );
 
   const runBulk = React.useCallback(
@@ -851,6 +926,10 @@ function OperationsWorkbench() {
           onResolve={() => void runTransition(openRow.id, "resolve")}
           onSuppress={() => void runTransition(openRow.id, "suppress")}
           onAssign={(userId) => void assign(openRow.id, userId)}
+          remediation={remediation}
+          remediationBusy={remediationBusy}
+          remediationOutcome={remediationOutcome}
+          onRemediate={(actionId) => void remediate(actionId)}
         />
       ) : null}
     </PageShell>

@@ -63,6 +63,12 @@ import { evaluateAlerts } from "@proovra/shared";
 import { buildObservabilityHealth } from "../services/observability/registry.js";
 import { buildAlertHealth } from "../services/alerts/alert.service.js";
 import {
+  actionById,
+  resolveRemediations,
+  type RemediationPermission,
+} from "../services/operations/remediation-registry.js";
+import { executeRemediation } from "../services/operations/remediation-executor.js";
+import {
   IncidentError,
   acknowledgeIncident,
   assignIncident,
@@ -989,7 +995,63 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!detail) {
         return reply.code(404).send({ error: { code: "incident_not_found" } });
       }
-      return reply.code(200).send({ incident: detail });
+
+      /**
+       * WHAT THIS CALLER MAY DO ABOUT THIS CONDITION.
+       *
+       * Resolved SERVER-side, per incident, per caller. The browser renders
+       * what comes back and has no input that would let it reconstruct
+       * eligibility from a label, a severity or a plan name — which is the
+       * only way a client-side action gate stays honest.
+       *
+       * Every predicate below is a real authorization question asked of the
+       * canonical authority, not a cached guess:
+       *   - may this operator take THIS action?      evaluateMemberAccess
+       *   - may they open the deep link's target?    evaluateMemberAccess
+       *   - may this workspace mutate at all?        the same lifecycle gate
+       *     `requireOpsCapability` already applied to reach this line.
+       */
+      const permissionCache = new Map<string, boolean>();
+      const allows = async (permission: string): Promise<boolean> => {
+        const cached = permissionCache.get(permission);
+        if (cached !== undefined) return cached;
+        const decision = await evaluateMemberAccess({
+          teamId: q.teamId,
+          userId: actor.userId,
+          permission: permission as never,
+        }).catch(() => ({ allowed: false }) as { allowed: boolean });
+        permissionCache.set(permission, decision.allowed === true);
+        return decision.allowed === true;
+      };
+
+      // Resolve the small closed set of permissions the registry can ask for,
+      // once, before the pure resolver runs.
+      for (const permission of [
+        "operations.acknowledge",
+        "operations.resolve",
+        "evidence.read",
+        "integration.webhook.manage",
+        "governance.policy.read",
+        "audit.read",
+      ]) {
+        await allows(permission);
+      }
+
+      const remediation = resolveRemediations(
+        { category: detail.category, fingerprint: detail.fingerprint },
+        {
+          can: (permission: RemediationPermission) =>
+            permissionCache.get(permission) === true,
+          hasPermission: (permission: string) =>
+            permissionCache.get(permission) === true,
+          // Reaching this line already required an ACTIVE member of a live
+          // workspace; `requireOpsActor` refuses a suspended or revoked one.
+          workspaceCanMutate: true,
+          incidentStatus: detail.status,
+        },
+      );
+
+      return reply.code(200).send({ incident: detail, remediation });
     },
   );
 
@@ -1011,6 +1073,76 @@ export async function opsRoutes(app: FastifyInstance) {
     }
     return false;
   }
+
+  /**
+   * POST /v1/ops/incidents/:id/remediate
+   *
+   * Executes ONE registered remediation against the domain authority that owns
+   * the work. This route owns no queue, no job id and no artifact lifecycle —
+   * it authorizes, then dispatches.
+   *
+   * 202 for accepted asynchronous work, because that is what happened: the
+   * request was accepted and the work is queued. A 200 would invite the caller
+   * to read it as completion, and asynchronous work reporting itself complete
+   * is the most misleading thing an operations surface can do.
+   *
+   * The permission is the ACTION's, not a blanket "may remediate": resuming
+   * anchoring and regenerating a signed artifact are different decisions, and
+   * a single gate over both would let the smaller authority perform the
+   * larger action.
+   */
+  app.post(
+    "/v1/ops/incidents/:id/remediate",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsIncidentId.parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          actionId: z.string().min(1).max(64),
+        })
+        .parse(req.body ?? {});
+
+      const action = actionById(body.actionId);
+      if (!action) {
+        // An unregistered action id is refused before any workspace lookup, so
+        // probing for action names reveals nothing about the workspace.
+        return reply
+          .code(400)
+          .send({ error: { code: "unknown_remediation_action" } });
+      }
+
+      const actor = await requireOpsCapability(
+        req,
+        reply,
+        body.teamId,
+        action.permission,
+      );
+      if (!actor) return;
+
+      const result = await executeRemediation({
+        incidentId: id,
+        teamId: body.teamId,
+        actionId: action.actionId,
+        actorUserId: actor.userId,
+        ipAddress: requestIp(req),
+        userAgent: requestUa(req),
+      });
+
+      const status =
+        result.result === "QUEUED"
+          ? 202
+          : result.result === "REFUSED"
+            ? 403
+            : result.result === "NOT_ELIGIBLE"
+              ? 409
+              : result.result === "QUEUE_UNAVAILABLE"
+                ? 503
+                : 200;
+
+      return reply.code(status).send({ remediation: result });
+    },
+  );
 
   app.post(
     "/v1/ops/incidents/:id/ack",

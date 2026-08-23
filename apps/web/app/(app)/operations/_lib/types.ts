@@ -94,6 +94,12 @@ export type IncidentDetail = Incident & {
   timelineComplete: boolean;
 };
 
+/** `GET /v1/ops/incidents/:id` — the detail plus its remediation projection. */
+export type IncidentDetailResponse = {
+  incident: IncidentDetail;
+  remediation: ProjectedRemediation;
+};
+
 export type IncidentListResponse = {
   incidents: Incident[];
   pagination?: { nextCursor: string | null; returned: number };
@@ -154,3 +160,58 @@ export type SourceState<T> =
   | { kind: "loading" }
   | { kind: "ready"; data: T }
   | { kind: "error"; message: string; requestId?: string };
+
+// ---------------------------------------------------------------------------
+// REMEDIATION
+//
+// The server's projection of what THIS caller may do about ONE condition. It
+// arrives already authorized and already filtered for eligibility — there is
+// deliberately no input here from which the browser could re-derive either,
+// which is what keeps a client-side action gate from existing at all.
+// ---------------------------------------------------------------------------
+
+export type RemediationDisposition =
+  | "DIRECT_REMEDIATION"
+  | "SAFE_DEEP_LINK"
+  | "READ_ONLY_GUIDANCE"
+  | "NO_SAFE_REMEDIATION_AUTHORITY";
+
+export type RemediationAction = {
+  actionId: string;
+  label: string;
+  description: string;
+  /** Ask before spending real work. */
+  confirm: boolean;
+  /** Asynchronous work reports ACCEPTED, never a completion. */
+  async: boolean;
+};
+
+export type ProjectedRemediation = {
+  disposition: RemediationDisposition;
+  actions: RemediationAction[];
+  deepLink: { href: string; label: string } | null;
+  guidance: string | null;
+  /** Present only for NO_SAFE_REMEDIATION_AUTHORITY. */
+  unsafeReason: string | null;
+};
+
+/**
+ * What happened to a remediation REQUEST.
+ *
+ * `QUEUED` is a terminal answer to the request and says nothing about the
+ * work. There is no `SUCCEEDED` here because the browser cannot observe one.
+ */
+export type RemediationResult =
+  | "QUEUED"
+  | "ALREADY_IN_PROGRESS"
+  | "ALREADY_SATISFIED"
+  | "REFUSED"
+  | "NOT_ELIGIBLE"
+  | "QUEUE_UNAVAILABLE"
+  | "FAILED";
+
+export type RemediationOutcome = {
+  result: RemediationResult;
+  message: string;
+  reference?: string;
+};
