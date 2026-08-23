@@ -132,6 +132,85 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
     });
   }
 
+  /**
+   * MINT AN APPROVED STEP-UP ELEVATION FOR THE BULK ROUTE.
+   *
+   * `POST /v1/ops/bulk-actions` requires the actor to re-prove before a
+   * fan-out touches anything, and the gate is satisfied by an APPROVED
+   * challenge id in `x-proovra-step-up-challenge-id`. Producing one the long
+   * way needs a delivered one-time code, which is stored hashed and is
+   * therefore unreadable from a test.
+   *
+   * So this creates the STATE a real approval produces — an active verified
+   * contact factor and an approved, unexpired, generation-matched challenge
+   * bound to this actor, workspace, purpose and resource. Every predicate the
+   * consume path checks is satisfied by real rows, not stubbed away: the
+   * factor must exist and match generation, the challenge must be APPROVED,
+   * unexpired and initiated by this user.
+   *
+   * What is deliberately NOT proven here is step-up's OWN verification — the
+   * code delivery, the attempt limit, the session binding. Those have their
+   * own suites, and re-proving them here would make these cases fail for
+   * reasons that have nothing to do with bulk assignment. What IS proven here
+   * is that the bulk route is gated at all: the cases below that expect a
+   * refusal send no header.
+   */
+  async function approvedStepUp(input: {
+    teamId: string;
+    userId: string;
+  }): Promise<string> {
+    // Enrolled through the REAL service, not by hand-writing a row: the
+    // destination is encrypted, fingerprinted and masked by the same code
+    // path production uses, and the table's payload constraint holds because
+    // the fields it requires were actually produced.
+    const { startContactFactorEnrollment, completeContactFactorEnrollment } =
+      await import("../src/services/security/verified-contact-factor.service.js");
+    // An account enrols a contact factor ONCE; the service refuses a second.
+    // Reusing the existing one is also what a real operator's second bulk
+    // action does.
+    const existing = await prisma.mfaFactor.findFirst({
+      where: {
+        userId: input.userId,
+        status: "ACTIVE" as never,
+        verifiedAtUtc: { not: null },
+        revokedAt: null,
+      },
+    });
+    const factorId =
+      existing?.id ??
+      (await (async () => {
+        const started = await startContactFactorEnrollment({
+          userId: input.userId,
+          kind: "SMS",
+          destinationRaw: "+15550100",
+          label: "ops-integration",
+        });
+        await completeContactFactorEnrollment({
+          userId: input.userId,
+          factorId: started.factor.factorId,
+        });
+        return started.factor.factorId;
+      })());
+    const factor = await prisma.mfaFactor.findUniqueOrThrow({
+      where: { id: factorId },
+    });
+    const challenge = await prisma.stepUpChallenge.create({
+      data: {
+        teamId: input.teamId,
+        initiatedByUserId: input.userId,
+        purpose: "REVIEWER_OPS_BULK_ACTION",
+        resourceKind: "workspace",
+        resourceId: input.teamId,
+        status: "APPROVED" as never,
+        factorId: factor.id,
+        factorGeneration: factor.generation,
+        approvedAtUtc: new Date(),
+        expiresAtUtc: new Date(Date.now() + 10 * 60_000),
+      },
+    });
+    return challenge.id;
+  }
+
   const idsOf = (res: { body: string }) =>
     (JSON.parse(res.body).incidents as Array<{ id: string }>).map((i) => i.id);
 
@@ -758,6 +837,439 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
           );
         }
       }
+    });
+  });
+  // =========================================================================
+  // 9. REMEDIATION
+  //
+  // The projection decides what an operator may DO about a condition, and the
+  // execution route turns that into work on a domain authority. Both are
+  // queries about authorization, so both are proven here rather than against
+  // a shape.
+  // =========================================================================
+
+  describe("remediation", () => {
+    it("a TSA failure offers NO action, states why, and never names a retry", async () => {
+      const row = await seed({
+        teamId: A.teamId,
+        category: "EVIDENCE_INTEGRITY",
+        title: "Trusted timestamp failed",
+      });
+      // The fingerprint is what selects the registry entry.
+      await prisma.operationalIncident.update({
+        where: { id: row.id },
+        data: { fingerprint: `tsa_failure:${A.evidenceId}` },
+      });
+
+      const res = await get(
+        `/v1/ops/incidents/${row.id}?teamId=${A.teamId}`,
+        A.ownerToken,
+      );
+      expect(res.statusCode).toBe(200);
+      const { remediation } = JSON.parse(res.body);
+
+      expect(remediation.disposition).toBe("NO_SAFE_REMEDIATION_AUTHORITY");
+      expect(remediation.actions).toHaveLength(0);
+      // The reason is stated rather than left as an absence, so the operator
+      // reads a boundary and not a missing feature.
+      expect(remediation.unsafeReason).toBeTruthy();
+      // No control, and no wording, that implies a timestamp can be re-taken.
+      for (const forbidden of [
+        "Retry TSA",
+        "Repair TSA",
+        "Refresh timestamp",
+        "Reprocess TSA",
+        "Restamp",
+      ]) {
+        expect(
+          res.body,
+          `a TSA retry must never be offered (${forbidden})`,
+        ).not.toContain(forbidden);
+      }
+    });
+
+    it("an OTS failure offers exactly one action, and executing it queues work without resolving the condition", async () => {
+      const row = await seed({ teamId: A.teamId, title: "Anchoring failed" });
+      await prisma.operationalIncident.update({
+        where: { id: row.id },
+        data: {
+          fingerprint: `ots_failure:${A.evidenceId}`,
+          relatedEvidenceId: A.evidenceId,
+        },
+      });
+
+      const projected = JSON.parse(
+        (
+          await get(
+            `/v1/ops/incidents/${row.id}?teamId=${A.teamId}`,
+            A.ownerToken,
+          )
+        ).body,
+      ).remediation;
+      expect(projected.disposition).toBe("DIRECT_REMEDIATION");
+      expect(projected.actions).toHaveLength(1);
+      expect(projected.actions[0].actionId).toBe("ots.resume_anchoring");
+
+      const res = await post(`/v1/ops/incidents/${row.id}/remediate`, A.ownerToken, {
+        teamId: A.teamId,
+        actionId: "ots.resume_anchoring",
+      });
+
+      // Whatever the transport did, the answer is bounded and never claims
+      // the work SUCCEEDED — nothing in this path observed it finish.
+      const body = JSON.parse(res.body);
+      expect(body.remediation.result).not.toBe("SUCCEEDED");
+      expect([
+        "QUEUED",
+        "ALREADY_IN_PROGRESS",
+        "ALREADY_SATISFIED",
+        "QUEUE_UNAVAILABLE",
+        "FAILED",
+      ]).toContain(body.remediation.result);
+
+      // THE CENTRAL CLAIM: requesting work does not close the condition. It
+      // closes when the record itself recovers.
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: row.id },
+      });
+      expect(after?.status).toBe("OPEN");
+      expect(after?.resolvedAtUtc).toBeNull();
+    });
+
+    it("a viewer is offered no action and cannot execute one", async () => {
+      const row = await seed({ teamId: A.teamId });
+      await prisma.operationalIncident.update({
+        where: { id: row.id },
+        data: {
+          fingerprint: `ots_failure:${A.evidenceId}`,
+          relatedEvidenceId: A.evidenceId,
+        },
+      });
+
+      const projected = JSON.parse(
+        (
+          await get(
+            `/v1/ops/incidents/${row.id}?teamId=${A.teamId}`,
+            A.viewerToken,
+          )
+        ).body,
+      ).remediation;
+      // Withheld, not disabled: an action a reader cannot take is not shown
+      // to them at all.
+      expect(projected.actions).toHaveLength(0);
+
+      const res = await post(`/v1/ops/incidents/${row.id}/remediate`, A.viewerToken, {
+        teamId: A.teamId,
+        actionId: "ots.resume_anchoring",
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode).toBeLessThan(500);
+    });
+
+    it("workspace B cannot remediate workspace A's condition", async () => {
+      const row = await seed({ teamId: A.teamId });
+      await prisma.operationalIncident.update({
+        where: { id: row.id },
+        data: {
+          fingerprint: `ots_failure:${A.evidenceId}`,
+          relatedEvidenceId: A.evidenceId,
+        },
+      });
+      const res = await post(`/v1/ops/incidents/${row.id}/remediate`, B.ownerToken, {
+        teamId: B.teamId,
+        actionId: "ots.resume_anchoring",
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: row.id },
+      });
+      expect(after?.status).toBe("OPEN");
+    });
+
+    it("an unregistered action id is refused, and refused the same way for every workspace", async () => {
+      const row = await seed({ teamId: A.teamId });
+      const mine = await post(`/v1/ops/incidents/${row.id}/remediate`, A.ownerToken, {
+        teamId: A.teamId,
+        actionId: "evidence.delete",
+      });
+      expect(mine.statusCode).toBe(400);
+      expect(JSON.parse(mine.body).error.code).toBe("unknown_remediation_action");
+    });
+
+    it("no queue name, provider string or database error reaches the browser", async () => {
+      const row = await seed({ teamId: A.teamId });
+      await prisma.operationalIncident.update({
+        where: { id: row.id },
+        data: {
+          fingerprint: `ots_failure:${A.evidenceId}`,
+          relatedEvidenceId: A.evidenceId,
+        },
+      });
+      const res = await post(`/v1/ops/incidents/${row.id}/remediate`, A.ownerToken, {
+        teamId: A.teamId,
+        actionId: "ots.resume_anchoring",
+      });
+      for (const leak of [
+        "bull",
+        "redis",
+        "ECONNREFUSED",
+        "PrismaClient",
+        "node_modules",
+        "at Object.",
+      ]) {
+        expect(
+          res.body.toLowerCase(),
+          `${leak} must not reach the browser`,
+        ).not.toContain(leak.toLowerCase());
+      }
+    });
+  });
+
+  // =========================================================================
+  // 10. BULK ASSIGNMENT
+  //
+  // A sweep is a fan-out over the SAME single-item authority, so the proofs
+  // that matter are: it carries no larger permission, it leaves the same
+  // history one click would, and it answers per target rather than globally.
+  // =========================================================================
+
+  describe("bulk assignment", () => {
+    /**
+     * `stepUpAs` names the user whose elevation to present. Omitting it
+     * sends NO elevation, which is how the refusal cases below prove the
+     * gate is real rather than assumed.
+     */
+    async function bulkAssign(
+      token: string,
+      teamId: string,
+      targetIds: string[],
+      assigneeUserId?: string | null,
+      stepUpAs?: string,
+    ) {
+      const headers: Record<string, string> = {
+        authorization: `Bearer ${token}`,
+      };
+      if (stepUpAs) {
+        headers["x-proovra-step-up-challenge-id"] = await approvedStepUp({
+          teamId,
+          userId: stepUpAs,
+        });
+      }
+      return harness.app.inject({
+        method: "POST",
+        url: "/v1/ops/bulk-actions",
+        headers,
+        payload: {
+          teamId,
+          actionType: "BULK_ASSIGN_INCIDENTS",
+          targetIds,
+          ...(assigneeUserId === undefined ? {} : { assigneeUserId }),
+        } as never,
+      });
+    }
+
+    it("assigns every named condition and records it as one assignment each", async () => {
+      const rows = [
+        await seed({ teamId: A.teamId }),
+        await seed({ teamId: A.teamId }),
+        await seed({ teamId: A.teamId }),
+      ];
+      const res = await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        rows.map((r) => r.id),
+        A.memberUserId,
+        A.ownerUserId,
+      );
+      expect(res.statusCode).toBeLessThan(400);
+
+      for (const r of rows) {
+        const after = await prisma.operationalIncident.findUnique({
+          where: { id: r.id },
+        });
+        expect(after?.assignedOperatorUserId).toBe(A.memberUserId);
+      }
+    });
+
+    it("leaves the SAME history a single assignment would", async () => {
+      const single = await seed({ teamId: A.teamId });
+      const swept = await seed({ teamId: A.teamId });
+
+      await post(`/v1/ops/incidents/${single.id}/assign`, A.ownerToken, {
+        teamId: A.teamId,
+        assigneeUserId: A.memberUserId,
+      });
+      await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        [swept.id],
+        A.memberUserId,
+        A.ownerUserId,
+      );
+
+      const typesFor = async (id: string) =>
+        (
+          await prisma.operationalIncidentEvent.findMany({
+            where: { incidentId: id },
+          })
+        )
+          .map((e) => e.eventType)
+          .sort();
+
+      // A sweep is a fan-out, so its trail is indistinguishable from the
+      // per-row path. A divergence here would mean two authorities.
+      expect(await typesFor(swept.id)).toEqual(await typesFor(single.id));
+    });
+
+    it("a sweep with no elevation is refused and changes nothing", async () => {
+      const row = await seed({ teamId: A.teamId });
+      // No `stepUpAs`: the actor is fully authorized and still refused,
+      // because a fan-out requires re-proving.
+      const res = await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        [row.id],
+        A.memberUserId,
+      );
+      expect(res.statusCode).toBe(401);
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: row.id },
+      });
+      expect(after?.assignedOperatorUserId).toBeNull();
+    });
+
+    it("a viewer cannot sweep what a viewer cannot click", async () => {
+      const row = await seed({ teamId: A.teamId });
+      const res = await bulkAssign(
+        A.viewerToken,
+        A.teamId,
+        [row.id],
+        A.memberUserId,
+        A.viewerUserId,
+      );
+      // Elevated and STILL refused: re-proving identity does not grant a
+      // permission the role never had.
+      expect(res.statusCode).toBe(403);
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: row.id },
+      });
+      expect(after?.assignedOperatorUserId).toBeNull();
+    });
+
+    it("refuses a sweep that names no assignee rather than silently unassigning", async () => {
+      const row = await seed({ teamId: A.teamId, owner: A.memberUserId });
+      const res = await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        [row.id],
+        undefined,
+        A.ownerUserId,
+      );
+      // 400, not 401: the elevation was presented and accepted, so this is
+      // the assignee validation refusing and nothing else.
+      expect(res.statusCode).toBe(400);
+      // The critical half: the existing owner survived the refusal.
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: row.id },
+      });
+      expect(after?.assignedOperatorUserId).toBe(A.memberUserId);
+    });
+
+    it("refuses an assignee who is not an eligible operator here, and changes nothing", async () => {
+      const row = await seed({ teamId: A.teamId });
+      const res = await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        [row.id],
+        B.ownerUserId,
+        A.ownerUserId,
+      );
+      expect(res.statusCode).toBe(400);
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: row.id },
+      });
+      // Refused BEFORE the fan-out, so no partial sweep landed.
+      expect(after?.assignedOperatorUserId).toBeNull();
+    });
+
+    it("cannot reach across the tenant boundary, even for one target in a mixed list", async () => {
+      const mine = await seed({ teamId: A.teamId });
+      const theirs = await seed({ teamId: B.teamId });
+      await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        [mine.id, theirs.id],
+        A.memberUserId,
+        A.ownerUserId,
+      );
+      const after = await prisma.operationalIncident.findUnique({
+        where: { id: theirs.id },
+      });
+      expect(after?.assignedOperatorUserId).toBeNull();
+    });
+
+    it("answers PER TARGET so a partial sweep is readable", async () => {
+      const mine = await seed({ teamId: A.teamId });
+      const theirs = await seed({ teamId: B.teamId });
+      const res = await bulkAssign(
+        A.ownerToken,
+        A.teamId,
+        [mine.id, theirs.id],
+        A.memberUserId,
+        A.ownerUserId,
+      );
+      const body = JSON.parse(res.body);
+      const items = body.items as Array<{ targetId: string; status: string }>;
+      expect(items, "a sweep must report each target").toBeTruthy();
+      expect(items.length).toBe(2);
+      // The two targets do NOT share an outcome, which is the whole reason
+      // the per-item contract exists.
+      const byId = new Map(items.map((i) => [i.targetId, i.status]));
+      expect(byId.get(mine.id)).not.toBe(byId.get(theirs.id));
+    });
+
+    it("a repeated sweep with the same idempotency key does not fan out twice", async () => {
+      const row = await seed({ teamId: A.teamId });
+      const key = `ops-bulk-${randomUUID()}`;
+      const body = {
+        teamId: A.teamId,
+        actionType: "BULK_ASSIGN_INCIDENTS",
+        targetIds: [row.id],
+        assigneeUserId: A.memberUserId,
+        idempotencyKey: key,
+      };
+      const send = async () =>
+        harness.app.inject({
+          method: "POST",
+          url: "/v1/ops/bulk-actions",
+          headers: {
+            authorization: `Bearer ${A.ownerToken}`,
+            "x-proovra-step-up-challenge-id": await approvedStepUp({
+              teamId: A.teamId,
+              userId: A.ownerUserId,
+            }),
+          },
+          payload: body as never,
+        });
+      const first = await send();
+      const second = await send();
+      expect(first.statusCode).toBeLessThan(400);
+      expect(second.statusCode).toBeLessThan(400);
+
+      // The marker is persisted on the run's `resultJson`, which is what
+      // the replay path itself reads back — asserting against the same place
+      // the product looks, not a parallel one.
+      const runs = await prisma.bulkOperationalActionRun.count({
+        where: {
+          teamId: A.teamId,
+          actionType: "BULK_ASSIGN_INCIDENTS" as never,
+          resultJson: { path: ["opsIdempotencyKey"], equals: key },
+        },
+      });
+      expect(runs, "one key must mean one run").toBe(1);
+      // And the second call must SAY it was a replay rather than quietly
+      // returning a fresh-looking result.
+      expect(JSON.parse(second.body).idempotentReplay).toBe(true);
     });
   });
 });

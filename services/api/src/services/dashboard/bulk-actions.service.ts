@@ -31,6 +31,7 @@ export type BulkActionType =
   | "BULK_RESOLVE_WORKFLOWS"
   | "BULK_SCHEDULE_RETRY"
   | "BULK_ACKNOWLEDGE_INCIDENTS"
+  | "BULK_ASSIGN_INCIDENTS"
   | "BULK_ADD_MITIGATION"
   | "BULK_DISMISS_RECOMMENDATIONS";
 
@@ -48,7 +49,13 @@ export type RunBulkActionInput = ActorContext & {
   targetIds: string[];
   /** Optional bounded note (used for ADD_MITIGATION). */
   note?: string | null;
-  /** Optional assignee UUID for BULK_ASSIGN_WORKFLOWS. */
+  /**
+   * Optional assignee UUID for BULK_ASSIGN_WORKFLOWS and
+   * BULK_ASSIGN_INCIDENTS. `null` is a real value for the latter: it
+   * UNASSIGNS, which is the one bulk correction an operator needs after a
+   * mis-targeted sweep. `undefined` means the caller named no assignee at
+   * all, and the route refuses that separately.
+   */
   assigneeUserId?: string | null;
   /** Optional next retry ISO datetime for BULK_SCHEDULE_RETRY. */
   nextRetryAtUtc?: string | null;
@@ -197,6 +204,7 @@ function targetTypeForAction(actionType: BulkActionType): string {
       return "OperationalWorkflow";
     case "BULK_SUPPRESS_INCIDENTS":
     case "BULK_ACKNOWLEDGE_INCIDENTS":
+    case "BULK_ASSIGN_INCIDENTS":
       return "OperationalIncident";
     case "BULK_DISMISS_RECOMMENDATIONS":
       return "ReviewerRoutingRecommendation";
@@ -340,6 +348,30 @@ async function runOneItem(input: {
         {
           incidentId: input.targetId,
           teamId: input.teamId,
+          actorUserId: input.actor.actorUserId,
+          ipAddress: input.actor.ipAddress,
+          userAgent: input.actor.userAgent,
+        },
+        c,
+      );
+      return;
+    }
+    case "BULK_ASSIGN_INCIDENTS": {
+      // Fans out to the SAME `assignIncident` a single row calls. It owns
+      // the eligibility check, the assignment event and the audit record, so
+      // a bulk sweep and one click leave identical history — and adding a
+      // rule there cannot be missed here.
+      const { assignIncident } = await import(
+        "../observability/incident.service.js"
+      );
+      await assignIncident(
+        {
+          incidentId: input.targetId,
+          teamId: input.teamId,
+          // `undefined` never reaches this point: the route rejects a bulk
+          // assign that names no assignee, because silently unassigning 200
+          // conditions is not a plausible reading of a missing field.
+          assigneeUserId: input.actor.assigneeUserId ?? null,
           actorUserId: input.actor.actorUserId,
           ipAddress: input.actor.ipAddress,
           userAgent: input.actor.userAgent,

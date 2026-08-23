@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
   "routeInventoryHash": "dc46a78301b550ca8cbe833e6fa225ad0ce2ee9d68fb0405b1e7912ec21d006e",
-  "consumerInventoryHash": "26329e0f4bfe91973eb6c799a9a12af917276066ff9c9386d81d16969cd01814",
+  "consumerInventoryHash": "84180ee001643001019f00cca19f661c8eba9317cbeec89e6ea4d9cc255f1512",
   "dispositionsHash": "57b1dc947d2dcce5e0ee11272e021a4279c6fadd7be8b55480d53201535bd7e9",
   "totals": {
     "RegisteredRoutes": 1093,
@@ -122,7 +122,7 @@
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
       "METHOD_ON_VALUE": 7813,
-      "UNRESOLVED_IDENTIFIER": 986
+      "UNRESOLVED_IDENTIFIER": 987
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -8088,7 +8088,7 @@
       "method": "GET",
       "route": "/v1/ops/summary",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:351",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:365",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8112,7 +8112,7 @@
       "method": "GET",
       "route": "/v1/ops/incidents/:id",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:438",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:452",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8124,7 +8124,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/remediate",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:575",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:589",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8136,7 +8136,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/ack",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:506",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:520",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8148,7 +8148,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/resolve",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:506",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:520",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8160,7 +8160,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/suppress",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:506",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:520",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8172,7 +8172,7 @@
       "method": "GET",
       "route": "/v1/ops/assignable-operators",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:415",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:429",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8184,7 +8184,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/assign",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:534",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:548",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8340,7 +8340,7 @@
       "method": "POST",
       "route": "/v1/ops/bulk-actions",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:610",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:653",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -18485,8 +18485,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@2196",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:2196",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@2234",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:2234",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -28818,8 +28818,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.createMany@86",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:86",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.createMany@93",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:93",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runBulkAction",
       "kind": "DATABASE",
@@ -28851,8 +28851,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.updateMany@109",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:109",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.updateMany@116",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:116",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runBulkAction",
       "kind": "DATABASE",
@@ -28884,8 +28884,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.updateMany@120",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:120",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.updateMany@127",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:127",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runBulkAction",
       "kind": "DATABASE",
@@ -28917,8 +28917,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.updateMany@129",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:129",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionItem.updateMany@136",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:136",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runBulkAction",
       "kind": "DATABASE",
@@ -28950,8 +28950,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionRun.create@72",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:72",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionRun.create@79",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:79",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runBulkAction",
       "kind": "DATABASE",
@@ -28983,8 +28983,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionRun.update@148",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:148",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#bulkOperationalActionRun.update@155",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:155",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runBulkAction",
       "kind": "DATABASE",
@@ -29016,8 +29016,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#reviewerRoutingRecommendation.updateMany@352",
-      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:352",
+      "writerId": "services/api/src/services/dashboard/bulk-actions.service.ts#reviewerRoutingRecommendation.updateMany@384",
+      "terminalLocation": "services/api/src/services/dashboard/bulk-actions.service.ts:384",
       "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
       "enclosingDeclaration": "runOneItem",
       "kind": "DATABASE",
@@ -86676,7 +86676,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 415,
+          "line": 429,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86686,7 +86686,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:415 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:429 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -86720,7 +86720,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2228",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2266",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86944,7 +86944,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 354,
+          "line": 368,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86952,7 +86952,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 466,
+          "line": 480,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -86970,7 +86970,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:228 (ReadinessTab, WEB); apps/web/app/(app)/operations/page.tsx:354 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:466 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:228 (ReadinessTab, WEB); apps/web/app/(app)/operations/page.tsx:368 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:480 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87016,7 +87016,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 438,
+          "line": 452,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87026,7 +87026,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:438 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:452 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87192,7 +87192,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 351,
+          "line": 365,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87210,7 +87210,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:351 (OperationsWorkbench, WEB); apps/web/components/home-experience/useHomeData.ts:172 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:365 (OperationsWorkbench, WEB); apps/web/components/home-experience/useHomeData.ts:172 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123246,7 +123246,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2107",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2111",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123257,7 +123257,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 610,
+          "line": 653,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123275,7 +123275,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:610 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:457 (WorkflowOperationsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:653 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:457 (WorkflowOperationsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123331,7 +123331,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 506,
+          "line": 520,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123341,7 +123341,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:506 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:520 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123394,7 +123394,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 534,
+          "line": 548,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123404,7 +123404,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:534 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:548 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123454,7 +123454,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 575,
+          "line": 589,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123464,7 +123464,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:575 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:589 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123526,7 +123526,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 506,
+          "line": 520,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123536,7 +123536,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:506 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:520 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123589,7 +123589,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 506,
+          "line": 520,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123599,7 +123599,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:506 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:520 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123641,7 +123641,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2397",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2435",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123696,7 +123696,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2372",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2410",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123742,7 +123742,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2316",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2354",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123952,7 +123952,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2465",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2503",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

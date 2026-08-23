@@ -2834,6 +2834,13 @@
       "safeBeforeCodeDeployment": true,
       "requiresBackfill": false,
       "evidence": "ATTENTION ARCHITECTURE CLOSURE PASS — adds the nullable evidence.integrity_correlation_id column plus a partial index over its non-null rows. It carries the identity of a DELIBERATE MULTI-RECORD EXECUTION (a repair run), which is the one positive correlator the TSA/OTS pipelines can honestly produce: ordinary work is one BullMQ job per Evidence, so normal failures are independent and the column stays NULL. Purely additive — no table, no type change, no constraint, no row rewritten, and destructiveStatements is empty. Deliberately NO BACKFILL: historical failures have no recorded execution, and deriving one from failure reason, provider, workspace or timestamp would manufacture exactly the grouping the retracted TSA finding forbids. A build that never reads the column behaves identically, so it is safe to apply before the code that uses it."
+    },
+    "20271218000000_bulk_assign_incidents": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "evidence": "PHASE B §8 — bulk incident assignment. A single ALTER TYPE ... ADD VALUE IF NOT EXISTS on the existing BulkOperationalActionType enum. No table is created, no column changes type, no constraint is added and no row is rewritten; destructiveStatements is empty. Safe BEFORE the code deployment because an enum value nothing yet writes is inert: the old application never emits BULK_ASSIGN_INCIDENTS, so applying this ahead of the rollout changes no behaviour, while the reverse order would make the new route fail on an enum the database does not know. Deliberately NO BACKFILL and no reclassification of historical runs — a past sweep that assigned workflows assigned workflows, and relabelling it would rewrite the record of what an operator actually did. The new value carries no new authority: it maps to operations.assign, the same permission a single row's assignment requires, and fans out to the same assignIncident service."
     }
   }
 }

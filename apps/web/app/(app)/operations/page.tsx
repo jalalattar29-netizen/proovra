@@ -96,6 +96,10 @@ import "./operations.css";
 
 import { BulkToolbar } from "./_components/BulkToolbar";
 import { FilterToolbar } from "./_components/FilterToolbar";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../components/identity-security/StepUpModal";
 import { IncidentInspector } from "./_components/IncidentInspector";
 import { IncidentSurface } from "./_components/IncidentSurface";
 import { QueueSummary } from "./_components/QueueSummary";
@@ -126,6 +130,7 @@ import type {
   Incident,
   IncidentDetail,
   IncidentDetailResponse,
+  BulkActionResponse,
   ProjectedRemediation,
   RemediationOutcome,
   IncidentListResponse,
@@ -286,6 +291,8 @@ function OperationsWorkbench() {
   );
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  /** The PER-TARGET answer to the last sweep. */
+  const [bulkOutcome, setBulkOutcome] = React.useState<string | null>(null);
   const [mutationError, setMutationError] =
     React.useState<SafeUserError | null>(null);
 
@@ -300,6 +307,13 @@ function OperationsWorkbench() {
    * both questions correctly.
    */
   const requestSeq = React.useRef(0);
+
+  /**
+   * The CANONICAL step-up control, shared with every other surface that runs
+   * a bulk fan-out. It owns the challenge, the retry and the cancel signal;
+   * this page only says which request needs it.
+   */
+  const stepUp = useStepUpAction({ teamId });
 
   /**
    * MAY THIS CONTEXT READ OPERATIONAL DATA AT ALL?
@@ -601,34 +615,79 @@ function OperationsWorkbench() {
     [teamId, openId, remediationBusy, refresh],
   );
 
+  /**
+   * RUN ONE BULK ACTION AND REPORT PER TARGET.
+   *
+   * The runner answers for every target it touched, and this preserves that
+   * distinction rather than collapsing it. A sweep where 12 of 15 conditions
+   * moved is neither a success nor a failure, and reporting it as either is
+   * actively harmful: "done" leaves three conditions unowned while the
+   * operator believes otherwise, and "failed" sends them to redo twelve that
+   * already landed.
+   *
+   * The selection is cleared only when EVERY target succeeded. Keeping the
+   * failures marked leaves the operator holding exactly the set that still
+   * needs attention, which is the set they would otherwise have to
+   * reconstruct by hand.
+   */
   const runBulk = React.useCallback(
-    async (actionType: "BULK_ACKNOWLEDGE_INCIDENTS" | "BULK_SUPPRESS_INCIDENTS") => {
+    async (
+      actionType:
+        | "BULK_ACKNOWLEDGE_INCIDENTS"
+        | "BULK_SUPPRESS_INCIDENTS"
+        | "BULK_ASSIGN_INCIDENTS",
+      extra?: { assigneeUserId?: string },
+    ) => {
       if (!teamId || busy || markedIds.size === 0) return;
+      const targetIds = Array.from(markedIds);
       setBusy(true);
       setMutationError(null);
+      setBulkOutcome(null);
       try {
-        await apiFetch(`/v1/ops/bulk-actions`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            teamId,
-            actionType,
-            targetIds: Array.from(markedIds),
-          }),
-        });
-        setMarkedIds(new Set());
-        refresh();
-      } catch (err) {
-        setMutationError(
-          toSafeUserError(err, {
-            message: "That bulk action could not be applied.",
+        // A sweep mutates many operator records at once, so the server
+        // requires the actor to re-prove before the runner touches anything.
+        // `runStepUpAction` re-issues the SAME request once the challenge is
+        // satisfied; without it every bulk action returns 401 and the
+        // operator sees a generic failure with no way to proceed.
+        const res = await stepUp.runStepUpAction((headers) =>
+          apiFetch(`/v1/ops/bulk-actions`, {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ teamId, actionType, targetIds, ...extra }),
           }),
         );
+        const run = res as BulkActionResponse;
+        const items = run.items ?? [];
+        const failedIds = new Set(
+          items
+            .filter((i) => i.status !== "SUCCEEDED")
+            .map((i) => i.targetId),
+        );
+        const succeeded = targetIds.length - failedIds.size;
+
+        setBulkOutcome(
+          failedIds.size === 0
+            ? `${succeeded} of ${targetIds.length} updated.`
+            : `${succeeded} of ${targetIds.length} updated. ${failedIds.size} could not be changed and ${failedIds.size === 1 ? "remains" : "remain"} selected.`,
+        );
+        // Only the ones that did NOT move stay marked.
+        setMarkedIds(failedIds);
+        refresh();
+      } catch (err) {
+        if ((err as { code?: string }).code === "STEP_UP_CANCEL") {
+          setBulkOutcome("Nothing was changed — verification was cancelled.");
+        } else {
+          setMutationError(
+            toSafeUserError(err, {
+              message: "That bulk action could not be applied.",
+            }),
+          );
+        }
       } finally {
         setBusy(false);
       }
     },
-    [teamId, busy, markedIds, refresh],
+    [teamId, busy, markedIds, refresh, stepUp],
   );
 
   // -------------------------------------------------------------------------
@@ -866,7 +925,17 @@ function OperationsWorkbench() {
             busy={busy}
             onAcknowledge={() => void runBulk("BULK_ACKNOWLEDGE_INCIDENTS")}
             onSuppress={() => void runBulk("BULK_SUPPRESS_INCIDENTS")}
-            onClear={() => setMarkedIds(new Set())}
+            onClear={() => {
+              setMarkedIds(new Set());
+              setBulkOutcome(null);
+            }}
+            showOwnership={collaborative}
+            operators={operators}
+            selfUserId={selfUserId}
+            onAssign={(assigneeUserId) =>
+              void runBulk("BULK_ASSIGN_INCIDENTS", { assigneeUserId })
+            }
+            outcome={bulkOutcome}
           />
 
           {rows.length === 0 ? (
@@ -911,6 +980,8 @@ function OperationsWorkbench() {
           ) : null}
         </>
       ) : null}
+
+      <StepUpModal control={stepUp} />
 
       {openRow ? (
         <IncidentInspector

@@ -1,0 +1,27 @@
+-- PHASE B §8 — bulk incident assignment.
+--
+-- Purely ADDITIVE. One new value on an existing enum; no table is created, no
+-- column changes type, and no existing row is rewritten. Every bulk run that
+-- exists before this migration keeps its action type and its item history.
+--
+-- WHY A NEW ACTION TYPE RATHER THAN REUSING BULK_ASSIGN_WORKFLOWS
+-- ---------------------------------------------------------------
+-- The two act on DIFFERENT tables. `BULK_ASSIGN_WORKFLOWS` targets
+-- `OperationalWorkflow`; assigning a condition targets `OperationalIncident`.
+-- The runner derives a target type from the action type, so reusing the
+-- workflow value would make every item in a condition sweep claim to have
+-- mutated a workflow row that was never touched — and the per-item audit
+-- trail, which exists to say exactly what a sweep changed, would be wrong for
+-- every one of them.
+--
+-- The new value carries NO new authority: it maps to `operations.assign`, the
+-- same permission a single row's assignment requires, and it fans out to the
+-- same `assignIncident` service. A bulk action is a fan-out, never a larger
+-- authority than its single-item equivalent.
+--
+-- WHAT THIS MIGRATION DELIBERATELY DOES NOT DO
+-- --------------------------------------------
+-- It does NOT backfill or reclassify any historical run. A past sweep that
+-- assigned workflows assigned workflows; relabelling it would rewrite the
+-- record of what an operator actually did.
+ALTER TYPE "BulkOperationalActionType" ADD VALUE IF NOT EXISTS 'BULK_ASSIGN_INCIDENTS';

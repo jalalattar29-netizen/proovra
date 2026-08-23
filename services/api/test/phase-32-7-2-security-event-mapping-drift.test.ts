@@ -1063,6 +1063,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // multi-record execution identity. Nothing to do with Phase 32.7.2;
       // permitted by exact name, like every entry above.
       "20271217000000_evidence_integrity_correlation",
+      // PHASE B §8 (2026-08-23). Adds BULK_ASSIGN_INCIDENTS to the
+      // BulkOperationalActionType enum so a sweep can assign conditions
+      // through the SAME `assignIncident` authority a single row uses.
+      // Nothing to do with Phase 32.7.2's security-event mapping; permitted
+      // by exact name, like every entry above, so the allowlist never becomes
+      // a pattern.
+      "20271218000000_bulk_assign_incidents",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

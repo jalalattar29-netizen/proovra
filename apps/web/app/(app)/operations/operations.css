@@ -718,3 +718,15 @@
 .opsw-remediation__outcome + .opsw-affected-link {
   margin-block-start: 12px;
 }
+
+/* The bulk bar's assignment control and its per-target answer. */
+.opsw-bulk__assign {
+  min-inline-size: 200px;
+}
+
+.opsw-bulk__outcome {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+}

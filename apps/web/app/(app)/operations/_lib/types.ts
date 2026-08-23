@@ -215,3 +215,27 @@ export type RemediationOutcome = {
   message: string;
   reference?: string;
 };
+
+// ---------------------------------------------------------------------------
+// BULK ACTIONS
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /v1/ops/bulk-actions` — the run and its PER-TARGET items.
+ *
+ * The items are what make a sweep readable. A run-level status alone cannot
+ * distinguish "nothing moved" from "most of it moved", and those need
+ * different next actions from the operator.
+ */
+export type BulkActionResponse = {
+  run?: { id: string; status: string };
+  items?: Array<{
+    id: string;
+    targetType: string;
+    targetId: string;
+    status: string;
+    errorCode: string | null;
+    completedAtUtc: string | null;
+  }>;
+  idempotentReplay?: boolean;
+};

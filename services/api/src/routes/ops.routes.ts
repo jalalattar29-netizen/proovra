@@ -2053,6 +2053,7 @@ export async function opsRoutes(app: FastifyInstance) {
       "BULK_RESOLVE_WORKFLOWS",
       "BULK_SCHEDULE_RETRY",
       "BULK_ACKNOWLEDGE_INCIDENTS",
+      "BULK_ASSIGN_INCIDENTS",
       "BULK_ADD_MITIGATION",
       "BULK_DISMISS_RECOMMENDATIONS",
     ]),
@@ -2084,6 +2085,9 @@ export async function opsRoutes(app: FastifyInstance) {
     BULK_RESOLVE_WORKFLOWS: "operations.resolve",
     BULK_SCHEDULE_RETRY: "operations.acknowledge",
     BULK_ACKNOWLEDGE_INCIDENTS: "operations.acknowledge",
+    // The SAME permission one row's assignment requires. A bulk sweep is a
+    // fan-out, never a larger authority than its single-item equivalent.
+    BULK_ASSIGN_INCIDENTS: "operations.assign",
     BULK_ADD_MITIGATION: "operations.acknowledge",
     BULK_DISMISS_RECOMMENDATIONS: "operations.acknowledge",
   };
@@ -2158,6 +2162,40 @@ export async function opsRoutes(app: FastifyInstance) {
             },
             items: priorItems.map(projectBulkItem),
             idempotentReplay: true,
+          });
+        }
+      }
+
+      // 1b. Assignee eligibility, checked ONCE before the fan-out.
+      //
+      //     The SAME resolver the single-item route and the operator picker
+      //     use, so the set shown, the set one row accepts and the set a
+      //     sweep accepts cannot drift. Cross-workspace assignment is
+      //     refused by construction — the resolver is scoped to `teamId`.
+      //
+      //     Checked BEFORE the run is created rather than per item, because
+      //     an ineligible assignee fails identically for all 200 targets:
+      //     fanning out to record 200 copies of one answer would leave the
+      //     operator reading a per-item failure list to learn a single fact.
+      if (body.actionType === "BULK_ASSIGN_INCIDENTS") {
+        // A bulk assign with no assignee is refused rather than read as an
+        // unassign. Bulk-unassigning 200 conditions is a deliberate act, and
+        // a missing field is not a plausible way to express it.
+        if (body.assigneeUserId === undefined) {
+          return reply.code(400).send({
+            error: "assignee_required",
+            message: "Choose who should own these conditions.",
+          });
+        }
+        const eligible = await isAssignableOperator({
+          teamId: body.teamId,
+          userId: body.assigneeUserId,
+        });
+        if (!eligible) {
+          return reply.code(400).send({
+            error: "invalid_assignee",
+            message:
+              "Assignee must be an active member of this workspace who can act on operational work.",
           });
         }
       }
