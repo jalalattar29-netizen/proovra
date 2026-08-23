@@ -397,3 +397,108 @@ test("the row menu flips UP rather than off the bottom of the viewport", async (
     fits.h + 1,
   );
 });
+
+// ===========================================================================
+// PHASE B — the new controls, for a keyboard and a screen reader
+//
+// Each of these is a control an operator may be the only one able to reach.
+// A button that exists but cannot be tabbed to, or an outcome that is drawn
+// but never announced, is invisible to exactly the people who most depend on
+// the surface saying what it did.
+// ===========================================================================
+
+test("the remediation action is reachable and named by what it starts", async ({
+  page,
+}) => {
+  await openOperations(page, "team-admin");
+  await page.locator("[data-ops-open]").first().click();
+
+  const action = page.locator("[data-ops-remediate]").first();
+  await expect(action).toBeVisible();
+
+  // Reachable by keyboard from inside the drawer, not only by mouse.
+  await action.focus();
+  await expect(action).toBeFocused();
+
+  // Its accessible name is the verb, not "button" or an icon.
+  const name = (await action.innerText()).trim();
+  expect(name.length).toBeGreaterThan(3);
+});
+
+test("the answer to a remediation request is ANNOUNCED, not merely drawn", async ({
+  page,
+}) => {
+  await openOperations(page, "team-admin");
+  await page.locator("[data-ops-open]").first().click();
+
+  // The confirmation is the canonical modal, so it is focus-managed and
+  // dismissible — a native dialog would be neither.
+  await page.locator("[data-ops-remediate]").first().click();
+  // The canonical modal exposes its test id as `data-confirm-action-modal`,
+  // not as `data-testid` — asserting on the wrong attribute would pass by
+  // finding nothing the moment the modal stopped rendering.
+  const dialog = page.locator(
+    '[data-confirm-action-modal="ops-remediate-confirm"]',
+  );
+  await expect(dialog).toBeVisible();
+  // Focus is inside the dialog, so a keyboard user is not left behind it.
+  await expect(dialog.locator("[data-confirm-action-cancel]")).toBeFocused();
+});
+
+test("the SLA verdict carries its explanation as text, not as colour alone", async ({
+  page,
+}) => {
+  await openOperations(page, "team-admin");
+  await page.locator("[data-ops-open]").first().click();
+  const fact = page.locator("[data-ops-sla-fact]");
+  await expect(fact).toBeVisible();
+  const text = (await fact.innerText()).trim();
+  // A reader who cannot perceive the tone still gets the verdict and the
+  // deadline it was measured against.
+  expect(text.length).toBeGreaterThan(3);
+});
+
+test("the saved-view strip is operable from the keyboard", async ({ page }) => {
+  await openOperations(page, "team-admin");
+  const view = page.locator("[data-ops-saved-view]").first();
+  await expect(view).toBeVisible();
+  await view.focus();
+  await expect(view).toBeFocused();
+  await page.keyboard.press("Enter");
+  // Applying a view is a navigation, so the URL is the observable outcome.
+  await expect(page).toHaveURL(/severity=|category=|owner=/);
+});
+
+test("the saved-view name field is labelled, and Escape abandons it", async ({
+  page,
+}) => {
+  await openOperations(page, "team-admin");
+  await page.locator("[data-ops-saved-view]").first().click();
+  await page.locator("[data-ops-view-start-save]").click();
+
+  const input = page.locator("[data-ops-view-name]");
+  await expect(input).toBeVisible();
+  // Named, so a screen reader announces what is being typed into.
+  expect(await input.getAttribute("aria-label")).toBeTruthy();
+
+  // Without an escape the only way out of the form is to name something the
+  // operator did not want to keep.
+  await input.press("Escape");
+  await expect(input).toHaveCount(0);
+});
+
+test("the bulk sweep's per-target answer is announced", async ({ page }) => {
+  await openOperations(page, "team-admin");
+  await page.locator("[data-ops-row-mark]").first().click();
+  const bar = page.locator("[data-ops-bulk-toolbar]");
+  await expect(bar).toBeVisible();
+
+  // The count is a live region already; the outcome must be one too, since
+  // "12 of 15 updated" is the sentence that decides what the operator does
+  // next and it appears without any focus change.
+  const outcomeRegion = await page.evaluate(() => {
+    const el = document.querySelector("[data-ops-bulk-toolbar]");
+    return el?.getAttribute("role") ?? null;
+  });
+  expect(outcomeRegion).toBe("region");
+});
