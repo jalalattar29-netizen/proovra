@@ -297,11 +297,12 @@ export const PENDING_AUTHORIZATION_MIGRATIONS: ReadonlyArray<PendingAuthorizatio
     // redaction-rbac.service.ts (resolveRedactionRoles is now ACTIVE-only).
     // MIGRATED (removed from PENDING; now canonical, detected by the static
     // test): ai-evidence.routes.ts, ai-case.routes.ts, ai-reviewer.routes.ts,
-    // ai-search.routes.ts, ai-operations.routes.ts — all route through
+    // ai-search.routes.ts — all route through
     // authorizeOrFail against the RESOURCE's team (evidence/case/review/run)
     // or the claimed workspace, enforcing ACTIVE membership + org lifecycle +
-    // intelligence.read/run capability + anti-enumeration. ai-operations keeps
-    // its stricter OWNER/ADMIN role constraint on top of intelligence.run.
+    // intelligence.read/run capability + anti-enumeration.
+    // (ai-operations.routes.ts was in this list and is DELETED: the Operations
+    // redesign removed its only consumer, the six-button AI snapshot panel.)
     // MIGRATED (removed from PENDING; now canonical): evidence-requests.routes.ts
     // (requireMember → authorizeOrFail; capability-precise per operation).
     //

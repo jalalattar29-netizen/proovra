@@ -1113,7 +1113,25 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // The pin is lowered rather than removed. It still detects the thing it was
 // written for, and lowering it deliberately is exactly the "argued for in that
 // phase's brief" the note below asks for.
-const ROUTE_COUNT_PHASE_2_BASELINE = 126;
+// OPERATIONS REDESIGN (2026-08-23) — 126 -> 125, a second REMOVAL.
+//
+// `ai-operations.routes.ts` is deleted. It registered exactly one route,
+// POST /v1/ai/operations/summary, whose only consumer was the six-button
+// Operations Intelligence panel on /operations. Every one of those buttons
+// sent the SAME deterministic workspace snapshot to a language model and got
+// back a paraphrase of counts the page had already rendered deterministically
+// — spending an AI operation per press, producing prose with no validated
+// citations, and occasionally suggesting remediation the product does not
+// offer.
+//
+// The panel is gone, so the route had zero consumers. Keeping it would have
+// left a provider-calling, budget-consuming endpoint reachable by anyone with
+// a session and no surface that calls it, which is a strictly worse outcome
+// than removing it: the audit engine reported it as the workspace's single
+// undisposed route the moment its consumer disappeared.
+//
+// Lowered rather than removed, on the Phase-7 precedent immediately above.
+const ROUTE_COUNT_PHASE_2_BASELINE = 125;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

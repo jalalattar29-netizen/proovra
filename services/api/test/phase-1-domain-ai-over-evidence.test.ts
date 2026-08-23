@@ -27,7 +27,6 @@ const FILES = [
   "ai-case.routes.ts",
   "ai-reviewer.routes.ts",
   "ai-search.routes.ts",
-  "ai-operations.routes.ts",
 ];
 
 describe("AI-over-evidence — intelligence.run is authorization-closed", () => {
@@ -58,9 +57,8 @@ describe("AI-over-evidence — every route composes the canonical primitive", ()
     expect(read("ai-reviewer.routes.ts")).toMatch(/teamId:\s*run\.workspaceId/);
   });
 
-  it("ai-operations keeps its stricter OWNER/ADMIN constraint on top of intelligence.run", () => {
-    const src = read("ai-operations.routes.ts");
-    expect(src).toMatch(/permission:\s*"intelligence\.run"/);
-    expect(src).toMatch(/membership\.role !== "OWNER" && membership\.role !== "ADMIN"/);
-  });
+  // `ai-operations.routes.ts` held a stricter OWNER/ADMIN constraint on top of
+  // intelligence.run and was DELETED by the Operations redesign.
+  // OPERATIONS REDESIGN (2026-08-23) — the six-button Operations Intelligence panel was the ONLY consumer of POST /v1/ai/operations/summary. Every button ran the same deterministic workspace snapshot through a language model and returned a paraphrase of counts already rendered on the page, spending an AI operation per press, with no validated citations and no action the operator could take from the answer.
+  // The conformance rules above are unchanged for every AI route that remains.
 });

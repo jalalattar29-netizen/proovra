@@ -169,7 +169,6 @@ import { aiCaseRoutes } from "./routes/ai-case.routes.js";
 import { aiReviewerRoutes } from "./routes/ai-reviewer.routes.js";
 import { aiEvidenceRoutes } from "./routes/ai-evidence.routes.js";
 import { reviewerCriteriaRoutes } from "./routes/reviewer-criteria.routes.js";
-import { aiOperationsRoutes } from "./routes/ai-operations.routes.js";
 import { aiSearchRoutes } from "./routes/ai-search.routes.js";
 import { orgNotificationPolicyRoutes } from "./routes/org-notification-policy.routes.js";
 import { governanceLifecycleRoutes } from "./routes/governance-lifecycle.routes.js";
@@ -1278,7 +1277,6 @@ allowedHeaders: [
   await app.register(aiReviewerRoutes);
   await app.register(aiEvidenceRoutes);
   await app.register(reviewerCriteriaRoutes);
-  await app.register(aiOperationsRoutes);
   await app.register(aiSearchRoutes);
   await app.register(orgNotificationPolicyRoutes);
   // Phase 27 — Governance lifecycle (retention policies, destruction

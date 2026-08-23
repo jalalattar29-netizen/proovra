@@ -109,7 +109,9 @@ describe("F-1/F-2 — every provider-calling AI route reserves on the durable le
     { file: "../src/routes/ai.routes.ts", feature: "SUPPORT_CHAT" },
     { file: "../src/routes/ai.routes.ts", feature: "CAPTURE_ASSISTANCE" },
     { file: "../src/routes/evidence.routes.ts", feature: "EVIDENCE_CATEGORIZATION" },
-    { file: "../src/routes/ai-operations.routes.ts", feature: "OPERATIONS_INTELLIGENCE" },
+    // OPERATIONS_INTELLIGENCE was the sixth. Its route file was DELETED by the
+    // Operations redesign, so there is no longer a provider-calling route to
+    // hold to the ledger contract. OPERATIONS REDESIGN (2026-08-23) — the six-button Operations Intelligence panel was the ONLY consumer of POST /v1/ai/operations/summary. Every button ran the same deterministic workspace snapshot through a language model and returned a paraphrase of counts already rendered on the page, spending an AI operation per press, with no validated citations and no action the operator could take from the answer.
     { file: "../src/routes/ai-evidence.routes.ts", feature: "EVIDENCE_COPILOT" },
     { file: "../src/routes/ai-case.routes.ts", feature: "CASE_COPILOT" },
     { file: "../src/routes/ai-reviewer.routes.ts", feature: "REVIEWER_COPILOT" },

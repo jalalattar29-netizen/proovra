@@ -152,7 +152,11 @@ describe("UI honesty — no provider/model names in any AI component", () => {
       "components/ai-copilot/EvidenceCopilotPanel.tsx",
       "components/ai-copilot/ReviewerCopilotPanel.tsx",
       "components/ai-copilot/CaseCopilotPanel.tsx",
-      "components/ai-copilot/OperationsIntelligencePanel.tsx",
+      // `OperationsIntelligencePanel.tsx` was DELETED by the Operations
+      // redesign. Its six buttons ran one deterministic snapshot through a
+      // language model and returned a paraphrase of counts already on the
+      // page, spending an AI operation per press. The rule below is unchanged
+      // for every component that still exists.
       "app/(app)/settings/reviewer-criteria/page.tsx",
     ]) {
       const src = read(rel).toLowerCase();

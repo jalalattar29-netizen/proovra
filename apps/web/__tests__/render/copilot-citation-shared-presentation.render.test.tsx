@@ -127,12 +127,17 @@ describe("CopilotCitation — zero static inline presentation", () => {
 // 2. All four consumers still route through the shared component
 // ---------------------------------------------------------------------------
 
-describe("CopilotCitation — four consumers, one authority", () => {
+describe("CopilotCitation — three consumers, one authority", () => {
+  // `OperationsIntelligencePanel.tsx` was the fourth. It was DELETED by the
+  // Operations redesign: its six buttons ran one deterministic snapshot through
+  // a language model and returned a paraphrase of counts already on the page,
+  // spending an AI operation per press. It was also the only consumer that
+  // mounted the citation list bare, which is why the wrapper check below has a
+  // `continue` branch it no longer reaches.
   const CONSUMERS = [
     "EvidenceCopilotPanel.tsx",
     "CaseCopilotPanel.tsx",
     "ReviewerCopilotPanel.tsx",
-    "OperationsIntelligencePanel.tsx",
   ];
 
   it.each(CONSUMERS)("%s imports and renders CopilotCitationList", (file) => {
@@ -145,7 +150,7 @@ describe("CopilotCitation — four consumers, one authority", () => {
     for (const file of CONSUMERS) {
       const src = readFileSync(join(WEB, "components", "ai-copilot", file), "utf8");
       const wrapper = /<div className="([^"]*)"><CopilotCitationList/.exec(src)?.[1];
-      if (!wrapper) continue; // OperationsIntelligencePanel mounts it bare.
+      if (!wrapper) continue;
       // The Evidence surface used to wrap it in `evd-block--tight`, a class
       // that only exists on the Evidence Detail route — 6px there against the
       // other surfaces' 4px, and dead styling anywhere else.
