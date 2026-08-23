@@ -259,12 +259,11 @@ describe("32.8 Test 4 — engineering terminology not exposed as routeRegistry l
 // PART 5 — 4 canonical hubs exist with their member routes
 // ===========================================================================
 
-describe("32.8 Test 5 — 4 canonical hubs exist with intact membership", () => {
+describe("32.8 Test 5 — 3 canonical hubs exist with intact membership", () => {
   const EXPECTED_HUBS = [
     { landingId: "investigation.hub", quickActionsMin: 3 },
     { landingId: "governance.hub", quickActionsMin: 3 },
     { landingId: "review.queue", quickActionsMin: 3 },
-    { landingId: "workspace.operations", quickActionsMin: 3 },
   ];
 
   it.each(EXPECTED_HUBS)(
@@ -275,6 +274,14 @@ describe("32.8 Test 5 — 4 canonical hubs exist with intact membership", () => 
       );
     },
   );
+
+  it("workspace.operations is NOT a hub — it is the tenant Operations workbench", () => {
+    // The Operations hub was a header bar plus three shortcuts to
+    // platform-admin consoles, stacked above a page that already had its own
+    // canonical header. Both halves of that were defects. The route still
+    // exists and is still canonical; it is simply not a hub.
+    expect(HUBS_SRC.includes("workspace.operations")).toBe(false);
+  });
 
   it("HUB_QUICK_ACTIONS_MAX enforces ≤ 4 actions per hub", () => {
     expect(HUBS_SRC).toMatch(/HUB_QUICK_ACTIONS_MAX\s*=\s*4/);

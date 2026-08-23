@@ -58,15 +58,28 @@ const REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
 // =============================================================================
 
 describe("R6 Part 1 — canonical hub vocabulary + pure orchestration", () => {
-  it("HUB_IDS is bounded to exactly the 4 canonical hubs", () => {
+  it("HUB_IDS is bounded to exactly the 3 canonical hubs", () => {
     const listMatch = TYPES.match(/HUB_IDS\s*=\s*\[([\s\S]*?)\]\s*as const/);
     expect(listMatch).toBeTruthy();
     const ids = (listMatch![1].match(/"[a-z]+"/g) ?? []).length;
-    expect(ids).toBe(4);
+    expect(ids).toBe(3);
     expect(TYPES).toMatch(/"investigation"/);
     expect(TYPES).toMatch(/"governance"/);
     expect(TYPES).toMatch(/"reviewer"/);
-    expect(TYPES).toMatch(/"operations"/);
+  });
+
+  it("'operations' is NOT a hub id — the tenant workbench owns its own header", () => {
+    // The Operations redesign removed the hub bar from /operations: mounting
+    // it produced TWO page headers in production, an <h1> from the bar and a
+    // second canonical PageHeader from the console below it. All three of its
+    // quick actions pointed at platform-admin consoles a tenant is refused
+    // from invisibly.
+    //
+    // Removing the id from the UNION, not merely the definition, is what makes
+    // that stick: hubId="operations" is now a type error.
+    const idList = TYPES.match(/HUB_IDS = [^]*?] as const/)![0];
+    expect(idList.includes("operations")).toBe(false);
+    expect(DEFS.includes("  operations: {")).toBe(false);
   });
 
   it("resolver is pure (no fetches, no await, no auth predicates)", () => {
@@ -103,7 +116,7 @@ describe("R6 Part 2 — quick actions bounded + reference registered routes", ()
   });
 
   it("each hub definition stays within the bound (≤ 4 quick actions)", () => {
-    for (const hub of ["investigation", "governance", "reviewer", "operations"]) {
+    for (const hub of ["investigation", "governance", "reviewer"]) {
       // Each hub block is a key inside HUB_DEFINITIONS; the
       // quickActions array is a fixed shape.
       const blockMatch = DEFS.match(
@@ -153,10 +166,22 @@ describe("R6 Part 3 — HubQuickActionsBar mounted on each hub page", () => {
     expect(REVIEWER_PAGE).toMatch(/routeId="review\.queue"/);
   });
 
-  it("ops page mounts the hub bar with hubId='operations'", () => {
-    expect(OPS_PAGE).toMatch(/HubQuickActionsBar/);
-    expect(OPS_PAGE).toMatch(/hubId="operations"/);
-    expect(OPS_PAGE).toMatch(/data-hub-page-id="operations"/);
+  it("operations page mounts NO hub bar (the redesign supersedes it, on the same precedent as the reviewer console)", () => {
+    // Same disposition as /review above: a redesigned canonical surface owns
+    // its own header instead of stacking one on top of the hub bar's.
+    //
+    // Production rendered "Operations Center" from the bar and "Operations
+    // Center" again from the console PageHeader, above quick actions pointing
+    // at /admin/platform/observability and /admin/platform/runbooks.
+    expect(OPS_PAGE.includes("<HubQuickActionsBar")).toBe(false);
+    expect(OPS_PAGE.includes("components/hubs/HubQuickActionsBar")).toBe(false);
+    expect(OPS_PAGE.includes('hubId="operations"')).toBe(false);
+    // The canonical replacements, asserted positively so "no hub bar" cannot
+    // be satisfied by an empty page.
+    expect(OPS_PAGE.includes('routeId="workspace.operations"')).toBe(true);
+    expect(OPS_PAGE.includes("app-page-header__title")).toBe(true);
+    // And it links to no platform-admin console.
+    expect(OPS_PAGE.includes('href="/admin/platform/')).toBe(false);
   });
 });
 
@@ -342,12 +367,16 @@ describe("R6 Part 7 — no workflow/persona authorization regression", () => {
 // =============================================================================
 
 describe("R6 Part 8 — hub copy uses R4 canonical vocabulary", () => {
-  it("hub definitions use operational terms (governance / lifecycle / reviewer / SLA / observability)", () => {
+  it("hub definitions use operational terms (governance / lifecycle / reviewer / SLA)", () => {
     expect(DEFS).toMatch(/governance/i);
     expect(DEFS).toMatch(/lifecycle/i);
     expect(DEFS).toMatch(/reviewer/i);
     expect(DEFS).toMatch(/SLA/);
-    expect(DEFS).toMatch(/observability/i);
+    // NOT observability. The only hub that carried the word was Operations,
+    // whose quick actions linked /admin/platform/observability from a TENANT
+    // page — a shortcut to a console the reader is refused from. The hub is
+    // gone and the platform console keeps the term where it belongs.
+    expect(DEFS.includes("observability")).toBe(false);
   });
 
   it("hub copy contains no marketing / dramatic / debug language", () => {

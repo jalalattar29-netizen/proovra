@@ -10,11 +10,29 @@
  * presentation hints only.
  */
 
+/**
+ * The canonical hub ids.
+ *
+ * `operations` was removed here deliberately, and the removal is the point:
+ * the tenant Operations route is a WORKBENCH, not a hub. A hub bar is a
+ * title + subtitle + a strip of shortcuts to sibling surfaces, and mounting
+ * one above /operations produced the two-header page in production — an
+ * `<h1>Operations Center</h1>` from the bar, then a second canonical
+ * PageHeader from the console below it.
+ *
+ * Its quick actions were worse than redundant. All three pointed at surfaces
+ * the tenant reading them cannot open: /admin/platform/observability and
+ * /admin/platform/runbooks are platform-admin consoles, and the tenant is
+ * refused invisibly by the route gate. A shortcut to a 404 is not navigation.
+ *
+ * Dropping the id from the union rather than only deleting the definition is
+ * what makes this stick: `hubId="operations"` is now a type error, so the bar
+ * cannot be remounted there by a later edit that looks locally reasonable.
+ */
 export const HUB_IDS = [
   "investigation",
   "governance",
   "reviewer",
-  "operations",
 ] as const;
 
 export type HubId = (typeof HUB_IDS)[number];

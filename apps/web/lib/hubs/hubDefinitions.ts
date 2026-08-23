@@ -147,40 +147,6 @@ export const HUB_DEFINITIONS: Readonly<Record<string, HubDefinition>> = {
       "review.queue_detail",
     ],
   },
-  operations: {
-    id: "operations",
-    title: "Operations Center",
-    subtitle:
-      "Operational oversight — system health, runbooks, integrations, observability, and reliability tooling.",
-    landingRouteId: "workspace.operations",
-    quickActions: [
-      {
-        id: "operations.observability",
-        label: "Open observability",
-        href: "/admin/platform/observability",
-        intent: "primary",
-      },
-      {
-        id: "operations.runbooks",
-        label: "Open runbooks",
-        href: "/admin/platform/runbooks",
-        intent: "primary",
-      },
-      {
-        id: "operations.integrations",
-        label: "Manage integrations",
-        href: "/integrations",
-        intent: "secondary",
-      },
-    ],
-    memberRouteIds: [
-      "workspace.operations",
-      "platform.observability",
-      "platform.runbooks",
-      "platform.reliability",
-      "workspace.integrations",
-    ],
-  },
 };
 
 /** Max quick actions allowed per hub (Test pins this). */
