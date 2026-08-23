@@ -149,10 +149,24 @@ describe("Phase 32.6.4 — Ops page resilience", () => {
     expect(allCalls.length).toBe(0);
   });
 
-  it("each panel has independent loading / ready / error state", () => {
-    expect(src).toContain("healthPanel");
-    expect(src).toContain("incidentsPanel");
-    expect(src).toContain("metricsPanel");
+  it("each source has independent loading / ready / error state", () => {
+    // The panels changed when the tenant workbench stopped rendering PLATFORM
+    // runtime. `healthPanel` and `metricsPanel` read /v1/ops/health and
+    // /v1/ops/metrics — database status, Sentry status, process uptime,
+    // in-process counters — which describe the API process, are identical for
+    // every tenant on the instance, and no tenant can act on any of them.
+    // They live on /admin/platform/observability.
+    //
+    // The property under test is unchanged: one source failing must not blank
+    // the others. It now covers the three sources this route DOES read.
+    expect(src).toContain("SourceState");
+    expect(src).toContain("setSummary({ kind: \"error\"");
+    expect(src).toContain("setIncidents({");
+    expect(src).toContain("setDetail({ kind: \"error\"");
+    // And the two retired ones are genuinely gone, not merely unrendered.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toContain("healthPanel");
+    expect(code).not.toContain("metricsPanel");
   });
 
   it("uses bounded UX wording (no forbidden vocabulary)", () => {
