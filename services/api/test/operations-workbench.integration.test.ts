@@ -1272,4 +1272,86 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(JSON.parse(second.body).idempotentReplay).toBe(true);
     });
   });
+  // =========================================================================
+  // 11. SLA POSTURE
+  //
+  // The arithmetic has its own pure suite. What is proven HERE is that the
+  // posture reaches the wire at all, on both surfaces, from the workspace's
+  // real policy — the half a pure test cannot see.
+  // =========================================================================
+
+  describe("sla posture", () => {
+    it("the list carries the workspace's commitment and a posture per row", async () => {
+      await seed({ teamId: A.teamId, minutesAgo: 1 });
+      const body = JSON.parse(
+        (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
+      );
+      expect(body.sla, "the page must state the commitment").toBeTruthy();
+      expect(typeof body.sla.responseHours).toBe("number");
+      expect(Array.isArray(body.sla.attentionPostures)).toBe(true);
+      expect(body.incidents[0].sla).toBeTruthy();
+      expect(body.incidents[0].sla.dueAtUtc).toBeTruthy();
+    });
+
+    it("the drawer reports the SAME posture the row does", async () => {
+      const row = await seed({ teamId: A.teamId, minutesAgo: 1 });
+      const listed = JSON.parse(
+        (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).incidents.find((i: { id: string }) => i.id === row.id);
+      const detail = JSON.parse(
+        (
+          await get(
+            `/v1/ops/incidents/${row.id}?teamId=${A.teamId}`,
+            A.ownerToken,
+          )
+        ).body,
+      ).incident;
+      // Two surfaces, one helper. A divergence here is the queue and the
+      // drawer disagreeing about whether something is late.
+      expect(detail.sla).toEqual(listed.sla);
+    });
+
+    it("an old unattended condition is BREACHED against the workspace's own window", async () => {
+      // 400 hours: past any policy the resolver can produce, so this asserts
+      // the measurement happened rather than a particular number.
+      const row = await seed({ teamId: A.teamId, minutesAgo: 400 * 60 });
+      const listed = JSON.parse(
+        (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).incidents.find((i: { id: string }) => i.id === row.id);
+      expect(listed.sla.posture).toBe("BREACHED");
+      expect(listed.sla.obligation).toBe("RESPONSE");
+    });
+
+    it("a suppressed condition reports no posture and no deadline", async () => {
+      const row = await seed({
+        teamId: A.teamId,
+        status: "SUPPRESSED",
+        minutesAgo: 400 * 60,
+      });
+      const listed = JSON.parse(
+        (
+          await get(
+            `/v1/ops/incidents?teamId=${A.teamId}&status=SUPPRESSED`,
+            A.ownerToken,
+          )
+        ).body,
+      ).incidents.find((i: { id: string }) => i.id === row.id);
+      expect(listed.sla.posture).toBe("NOT_APPLICABLE");
+      expect(listed.sla.dueAtUtc).toBeNull();
+    });
+
+    it("the recorded lifecycle instants are projected, since the posture is measured from them", async () => {
+      const row = await seed({ teamId: A.teamId });
+      await post(`/v1/ops/incidents/${row.id}/ack`, A.ownerToken, {
+        teamId: A.teamId,
+      });
+      const listed = JSON.parse(
+        (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).incidents.find((i: { id: string }) => i.id === row.id);
+      expect(listed.acknowledgedAtUtc).toBeTruthy();
+      expect(listed.resolvedAtUtc).toBeNull();
+      // Acknowledged -> the live obligation is now RESOLUTION.
+      expect(listed.sla.obligation).toBe("RESOLUTION");
+    });
+  });
 });

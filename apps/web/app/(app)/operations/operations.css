@@ -730,3 +730,10 @@
   font: var(--font-meta);
   color: var(--ink-secondary);
 }
+
+/* The SLA explanation sits under its verdict, not beside it: the verdict is
+   scannable and the sentence is only read when the verdict is questioned. */
+.opsw-sla-hint {
+  display: block;
+  margin-block-start: 2px;
+}

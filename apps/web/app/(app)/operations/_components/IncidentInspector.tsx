@@ -13,14 +13,21 @@
  * why the geometry of the list is deliberately unchanged when this opens.
  *
  * ---------------------------------------------------------------------------
- * WHAT IS DELIBERATELY ABSENT
+ * THE TIME COMMITMENT
  * ---------------------------------------------------------------------------
- * There is no due date and no SLA section. `OperationalIncident` has no
- * `dueAt`, no policy authority and no escalation clock — the only time-based
- * signal the platform owns for a condition is its AGE, and the canonical
- * summary's `overdue` is exactly that: open and unattended past a fixed number
- * of hours. Rendering "Due in 4h" from an age threshold would be inventing an
- * SLA the product does not have and cannot honour. The age is shown as an age.
+ * The commitment shown here is the workspace's OWN, resolved by the server
+ * from the canonical SLA policy it publishes at `/governance/policy`, and
+ * measured from instants that were actually recorded. It is rendered verbatim:
+ * the browser holds no threshold of its own, because a second threshold here
+ * would be a second SLA authority and the two would disagree the first time a
+ * workspace edited its policy.
+ *
+ * `OperationalIncident` still carries NO due, breach or escalation column and
+ * this adds none. The deadline is DERIVED from `firstSeenAtUtc` and the
+ * current policy, so historical conditions read against the policy in force
+ * now rather than against one invented for them by a backfill. A workspace
+ * whose policy cannot be resolved gets no envelope and this section does not
+ * render — an absent commitment is stated by absence, never by a default.
  *
  * There is also no runbook link. `runbookSlug` points into `docs/runbooks/*`,
  * which is not a tenant-reachable destination, and a link a tenant cannot open
@@ -393,6 +400,29 @@ export function IncidentInspector({
                 </span>
               </Fact>
               <Fact term="Times seen">{row.occurrenceCount}</Fact>
+              {/* The commitment, beside the instants it is measured from —
+                  so the reader sees the promise and the verdict together
+                  rather than a bare word like "Overdue". */}
+              {row.sla ? (
+                <Fact term="Time commitment">
+                  <span data-ops-sla-fact={row.sla.posture}>
+                    {row.sla.label}
+                    {row.sla.dueAtUtc ? (
+                      <>
+                        {" — "}
+                        {row.sla.posture === "MET" ||
+                        row.sla.posture === "MET_LATE"
+                          ? "was due "
+                          : "due "}
+                        {formatUserDateTime(row.sla.dueAtUtc)}
+                      </>
+                    ) : null}
+                  </span>
+                  <span className="opsw-muted opsw-sla-hint">
+                    {row.sla.explanation}
+                  </span>
+                </Fact>
+              ) : null}
             </dl>
           </section>
 

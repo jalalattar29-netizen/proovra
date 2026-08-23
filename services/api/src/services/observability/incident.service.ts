@@ -598,6 +598,16 @@ export type IncidentProjection = {
   acknowledgedByUserId: string | null;
   resolvedByUserId: string | null;
   /**
+   * WHEN each lifecycle duty was discharged.
+   *
+   * Persisted since the lifecycle existed and never projected, so a surface
+   * could say a condition was acknowledged and not when — which is the half
+   * that makes "has anyone dealt with this?" answerable, and the half an SLA
+   * posture is measured from. Null means the duty is still open.
+   */
+  acknowledgedAtUtc: string | null;
+  resolvedAtUtc: string | null;
+  /**
    * CLOSURE PASS (2026-08-22) — the CURRENT owner, exposed so the console can
    * render it. It was persisted and never projected, which is why the
    * assignment feature was invisible: the capability existed, the write path
@@ -634,6 +644,8 @@ export function projectIncident(
     runbookSlug: i.runbookSlug,
     acknowledgedByUserId: i.acknowledgedByUserId,
     resolvedByUserId: i.resolvedByUserId,
+    acknowledgedAtUtc: i.acknowledgedAtUtc ? i.acknowledgedAtUtc.toISOString() : null,
+    resolvedAtUtc: i.resolvedAtUtc ? i.resolvedAtUtc.toISOString() : null,
     assignedOperatorUserId: i.assignedOperatorUserId,
     assignedAtUtc: i.assignedAtUtc ? i.assignedAtUtc.toISOString() : null,
   };

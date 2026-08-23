@@ -176,15 +176,46 @@ function Activity({ row }: { row: OperationsRowModel }) {
   );
 }
 
+/**
+ * HOW LONG THIS HAS BEEN OPEN, AND WHETHER THAT IS LATE.
+ *
+ * ONE time signal per row, deliberately.
+ *
+ * There are two available answers to "is this late?". The SLA posture
+ * measures the condition against the commitment the workspace itself
+ * published; the age heuristic measures it against a fixed threshold this
+ * product chose. When the workspace HAS a policy, its own promise is the
+ * authority and the heuristic is not shown — two "Overdue" badges built from
+ * different thresholds would eventually disagree on the same row, and an
+ * operator has no way to tell which one to believe.
+ *
+ * The heuristic still renders when no policy could be resolved, so a
+ * workspace without one loses nothing.
+ */
 function Age({ row }: { row: OperationsRowModel }) {
+  const sla = row.sla;
   return (
-    <span className="opsw-age" data-ops-overdue={row.overdue ? "true" : "false"}>
+    <span
+      className="opsw-age"
+      data-ops-overdue={row.overdue ? "true" : "false"}
+      data-ops-sla={sla?.posture ?? "none"}
+    >
       <span title={formatUserDateTime(row.firstSeenAtUtc)}>
         {describeRelativeTime(row.firstSeenAtUtc)}
       </span>
-      {/* Overdue is a WORD as well as a colour, because an operator who cannot
-          distinguish the two reds still has to be able to triage. */}
-      {row.overdue ? (
+      {/* Lateness is a WORD as well as a colour, because an operator who
+          cannot distinguish the two reds still has to be able to triage. */}
+      {sla ? (
+        sla.needsAttention ? (
+          <AppStatusBadge
+            tone={sla.tone}
+            title={sla.explanation}
+            data-ops-sla-badge={sla.posture}
+          >
+            {sla.label}
+          </AppStatusBadge>
+        ) : null
+      ) : row.overdue ? (
         <AppStatusBadge tone="red" data-ops-overdue-badge="true">
           Overdue
         </AppStatusBadge>

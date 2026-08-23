@@ -129,36 +129,82 @@ describe("SLA disposition", () => {
   });
 
   /**
-   * THE DISPOSITION.
+   * THE DISPOSITION, AND HOW IT WAS DISCHARGED (PHASE B §6).
    *
-   * For the REVIEW SLA authority:      DIFFERENT_DOMAIN_NOT_APPLICABLE
-   * For an incident-level SLA:         GENUINELY_MISSING
+   * For the REVIEW SLA authority:      DIFFERENT_DOMAIN — but REUSED, not
+   *                                    duplicated. See below.
+   * For an incident-level SLA:         WAS GENUINELY_MISSING; now DERIVED.
    *
-   * `OperationalWorkflow.dueAtUtc` is not a reusable projection — it is a dead
-   * column. Surfacing it would render "Due —" on every condition forever,
-   * which is worse than absence because it looks like a working feature that
-   * nobody has configured.
+   * The original finding stands and is still asserted above:
+   * `OperationalWorkflow.dueAtUtc` remains a dead column with no writer, and
+   * `OperationalIncident` still carries no due, breach or escalation column.
+   * Phase B did NOT add one.
+   *
+   * What changed is that the missing piece turned out not to be a column. The
+   * workspace already publishes an SLA policy, with real overrides and a real
+   * settings surface; nothing was applying it to conditions. So the posture is
+   * DERIVED per read from `firstSeenAtUtc` — an instant that was observed —
+   * against that same policy, which is why there is no migration and no
+   * backfill here. A stored deadline would have had to be written when each
+   * condition opened, and nothing was writing one, so every existing row would
+   * have needed a policy invented for it retroactively.
    */
-  it("the workbench therefore renders NO due date and NO SLA", () => {
-    expect(INSPECTOR).toContain("There is no due date and no SLA section");
+  it("the incident SLA REUSES the canonical policy and defines no hours of its own", () => {
+    const SLA = read("../src/services/operations/incident-sla.ts");
+    // One authority: the hours come from the resolver asserted above.
+    expect(SLA).toContain("resolveEffectiveSlaPolicy");
+    // And it adds no persistence of its own — the point of deriving.
+    // It must not WRITE a deadline. The projection legitimately NAMES one —
+    // it is the derived value it returns — so the guard is on persistence,
+    // not on the word.
+    for (const forbidden of [
+      "prisma.operationalIncident.update",
+      "operationalIncident.create",
+      ".update({",
+      ".upsert({",
+    ]) {
+      expect(
+        SLA,
+        `the incident SLA must not persist a deadline (${forbidden})`,
+      ).not.toContain(forbidden);
+    }
+  });
+
+  it("the workbench renders the workspace's commitment, never a default", () => {
+    // The note the inspector carries is the one a later reader will trust, so
+    // it must describe what the file now does.
+    expect(INSPECTOR).toContain("THE TIME COMMITMENT");
+    expect(INSPECTOR).toContain("no envelope and this section does not");
+
     const code = INSPECTOR.replace(/\/\*[\s\S]*?\*\//g, "").replace(
       /^\s*\/\/.*$/gm,
       "",
     );
-    for (const f of ["dueAt", "slaBreach", "Due in", "escalationLevel"]) {
+    // The browser renders the server's verdict and computes no threshold:
+    // these are the shapes a client-side SLA would take.
+    for (const f of ["slaBreach", "Due in", "escalationLevel", "HOURS ="]) {
       expect(code, `${f} must not reach the inspector`).not.toContain(f);
     }
   });
 
-  it("what the workbench DOES show is AGE, and it says so", () => {
-    // The one time-based signal the platform actually owns. Derived from the
-    // same threshold the canonical summary uses, so the row and the card
-    // cannot disagree.
+  it("the AGE heuristic survives, and yields to the workspace's own policy", () => {
+    // The heuristic is still the answer for a workspace with no resolvable
+    // policy, and the summary card still counts by it — so it must not be
+    // quietly deleted.
     expect(SUMMARY_SERVICE).toContain("UNATTENDED_OVERDUE_HOURS = 48");
     expect(SUMMARY_SERVICE).toContain(
       "Deliberately a property of the CONDITION rather than of any SLA",
     );
     expect(ROW_MODEL).toContain("const OVERDUE_MS = 48 * 60 * 60 * 1000");
+
+    // ONE time signal per row: when a policy exists its verdict is shown and
+    // the heuristic badge is not, because two "Overdue" badges built from
+    // different thresholds would eventually disagree on the same row.
+    const SURFACE = read(
+      "../../../apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+    );
+    expect(SURFACE).toContain("data-ops-sla-badge");
+    expect(SURFACE).toContain("ONE time signal per row");
   });
 });
 
@@ -349,14 +395,39 @@ const FEATURES: readonly Feature[] = [
   },
   {
     name: "bulk assignment",
-    disposition: "DEFERRED_WITH_REASON",
-    why: "the runner's BULK_ASSIGN_WORKFLOWS targets operational WORKFLOWS, a different authority with a different lifecycle. Sending workflow verbs at incident ids would be a second assignment path",
+    disposition: "IMPLEMENTED",
+    why: "PHASE B §8. The original reason to defer still holds and was honoured rather than worked around: BULK_ASSIGN_WORKFLOWS targets operational WORKFLOWS, so it was NOT reused. A distinct BULK_ASSIGN_INCIDENTS action joins the SAME canonical runner, maps to the same operations.assign the single-item route requires, and fans out to the same assignIncident service — so a sweep and a click leave identical history",
     check: () => {
-      expect(OPS_ROUTES).toContain("BULK_ASSIGN_WORKFLOWS");
-      // …and the workbench does NOT send it.
+      expect(OPS_ROUTES).toContain("BULK_ASSIGN_INCIDENTS");
+      // The workflow verb is still never sent at incident ids — the defect
+      // the original deferral existed to avoid.
+      const toolbar = read(
+        "../../../apps/web/app/(app)/operations/_components/BulkToolbar.tsx",
+      );
+      expect(toolbar).not.toContain("BULK_ASSIGN_WORKFLOWS");
       expect(
-        read("../../../apps/web/app/(app)/operations/_components/BulkToolbar.tsx"),
+        read("../../../apps/web/app/(app)/operations/page.tsx"),
       ).not.toContain("BULK_ASSIGN_WORKFLOWS");
+
+      // No second assignment authority: the runner dispatches to the same
+      // service the single-item route calls.
+      const RUNNER = read(
+        "../src/services/dashboard/bulk-actions.service.ts",
+      );
+      // `lastIndexOf`: the action type appears twice — once in the
+      // target-table switch and once in the dispatcher. The dispatcher is
+      // the one that must not carry its own write.
+      const branch = RUNNER.slice(
+        RUNNER.lastIndexOf('case "BULK_ASSIGN_INCIDENTS"'),
+        RUNNER.lastIndexOf('case "BULK_DISMISS_RECOMMENDATIONS"'),
+      );
+      expect(branch).toContain("assignIncident");
+      expect(branch).not.toContain("operationalIncident.update");
+
+      // And it carries no larger permission than one row's assignment.
+      expect(OPS_ROUTES).toContain(
+        'BULK_ASSIGN_INCIDENTS: "operations.assign"',
+      );
     },
   },
   {

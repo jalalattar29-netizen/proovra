@@ -79,6 +79,49 @@ export type Incident = {
   resolvedByUserId: string | null;
   assignedOperatorUserId: string | null;
   assignedAtUtc: string | null;
+  acknowledgedAtUtc: string | null;
+  resolvedAtUtc: string | null;
+  /**
+   * The condition's posture against the workspace's OWN published SLA.
+   *
+   * Absent when the workspace's commitment could not be resolved — in which
+   * case the surface says nothing about lateness rather than measuring
+   * against a default nobody agreed to.
+   */
+  sla?: IncidentSla;
+};
+
+/**
+ * SLA POSTURE.
+ *
+ * Resolved entirely on the server from recorded instants and the workspace's
+ * policy. The browser renders the verdict and never recomputes it: a second
+ * threshold in the client is a second SLA authority, and the two would
+ * disagree the first time the policy changed.
+ */
+export type SlaPosture =
+  | "ON_TRACK"
+  | "DUE_SOON"
+  | "BREACHED"
+  | "MET"
+  | "MET_LATE"
+  | "NOT_APPLICABLE";
+
+export type IncidentSla = {
+  posture: SlaPosture;
+  /** Which commitment the posture is measured against. */
+  obligation: "RESPONSE" | "RESOLUTION";
+  dueAtUtc: string | null;
+  targetHours: number | null;
+};
+
+/** The workspace's commitment, sent once per page beside the rows. */
+export type SlaEnvelope = {
+  responseHours: number;
+  resolutionHours: number;
+  dueSoonHours: number;
+  /** The postures the SERVER considers "needs attention on time grounds". */
+  attentionPostures: SlaPosture[];
 };
 
 export type IncidentTimelineEntry = {
@@ -101,6 +144,8 @@ export type IncidentDetailResponse = {
 };
 
 export type IncidentListResponse = {
+  /** The workspace's SLA commitment, or null when it could not be resolved. */
+  sla?: SlaEnvelope | null;
   incidents: Incident[];
   pagination?: { nextCursor: string | null; returned: number };
   completeness?: { complete: boolean; mayAssertAllClear: boolean };

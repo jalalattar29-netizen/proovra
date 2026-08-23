@@ -69,6 +69,12 @@ import {
 } from "../services/operations/remediation-registry.js";
 import { executeRemediation } from "../services/operations/remediation-executor.js";
 import {
+  loadIncidentSlaPolicy,
+  projectIncidentSla,
+  SLA_ATTENTION_POSTURES,
+  type IncidentSlaPolicy,
+} from "../services/operations/incident-sla.js";
+import {
   IncidentError,
   acknowledgeIncident,
   assignIncident,
@@ -938,8 +944,31 @@ export async function opsRoutes(app: FastifyInstance) {
         limit: q.limit,
         cursor: q.cursor ?? null,
       });
+      // ONE policy read per page, and ONE clock. Re-resolving the policy per
+      // row would issue a query per condition to learn the same number, and a
+      // fresh `new Date()` per row would measure the first and last rows of a
+      // long page against different presents.
+      const slaPolicy = await loadIncidentSlaPolicy(q.teamId);
+      const slaNow = new Date();
       return reply.code(200).send({
-        incidents: page.incidents.map(projectIncident),
+        incidents: page.incidents.map((row) =>
+          withSla(projectIncident(row), slaPolicy, slaNow),
+        ),
+        /**
+         * WHAT THE WORKSPACE COMMITTED TO.
+         *
+         * Sent alongside the rows so the surface can name the promise rather
+         * than only the verdict, and so a workspace with no resolvable policy
+         * renders no SLA anything instead of a silent default.
+         */
+        sla: slaPolicy
+          ? {
+              responseHours: slaPolicy.responseHours,
+              resolutionHours: slaPolicy.resolutionHours,
+              dueSoonHours: slaPolicy.dueSoonHours,
+              attentionPostures: [...SLA_ATTENTION_POSTURES],
+            }
+          : null,
         pagination: {
           nextCursor: page.nextCursor,
           returned: page.incidents.length,
@@ -1051,7 +1080,12 @@ export async function opsRoutes(app: FastifyInstance) {
         },
       );
 
-      return reply.code(200).send({ incident: detail, remediation });
+      // The drawer reads the SAME posture the row does, from the same helper.
+      const detailPolicy = await loadIncidentSlaPolicy(q.teamId);
+      return reply.code(200).send({
+        incident: withSla(detail, detailPolicy, new Date()),
+        remediation,
+      });
     },
   );
 
@@ -2043,6 +2077,48 @@ export async function opsRoutes(app: FastifyInstance) {
   // Every bulk action fans out to the underlying lifecycle service per
   // target — the bulk runner is NOT a permission bypass.
   // ---------------------------------------------------------------------------
+
+  /**
+   * ATTACH SLA POSTURE TO A PROJECTED CONDITION.
+   *
+   * ONE place, used by the list and the detail alike, so the queue and the
+   * drawer can never disagree about whether something is late.
+   *
+   * A null policy means the workspace's commitment could not be resolved. The
+   * envelope is then OMITTED rather than defaulted: a posture computed from
+   * hours the workspace never agreed to would read exactly like a measurement.
+   */
+  function withSla<
+    T extends {
+      status: string;
+      firstSeenAtUtc: string;
+      acknowledgedAtUtc: string | null;
+      resolvedAtUtc: string | null;
+    },
+  >(
+    projected: T,
+    policy: IncidentSlaPolicy | null,
+    now: Date,
+  ): T & { sla?: ReturnType<typeof projectIncidentSla> } {
+    if (!policy) return projected;
+    return {
+      ...projected,
+      sla: projectIncidentSla(
+        {
+          status: projected.status,
+          firstSeenAtUtc: new Date(projected.firstSeenAtUtc),
+          acknowledgedAtUtc: projected.acknowledgedAtUtc
+            ? new Date(projected.acknowledgedAtUtc)
+            : null,
+          resolvedAtUtc: projected.resolvedAtUtc
+            ? new Date(projected.resolvedAtUtc)
+            : null,
+        },
+        policy,
+        now,
+      ),
+    };
+  }
 
   const BulkActionBody = z.object({
     teamId: z.string().uuid(),

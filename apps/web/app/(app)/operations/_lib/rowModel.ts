@@ -10,11 +10,14 @@
 
 import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
 
-import type { Incident, OperationsCapabilities } from "./types";
+import type { Incident, OperationsCapabilities, SlaPosture } from "./types";
 import {
   SEVERITY_VOCABULARY,
   STATUS_VOCABULARY,
   categoryLabel,
+  slaExplanation,
+  slaLabel,
+  slaTone,
 } from "./vocabulary";
 
 export type OwnerDisplay =
@@ -65,6 +68,24 @@ export type OperationsRowModel = {
    * server uses, so the row and the Overdue card cannot disagree.
    */
   overdue: boolean;
+
+  /**
+   * SLA POSTURE, resolved by the server against the workspace's own policy.
+   *
+   * Carried through verbatim rather than recomputed: a threshold in the
+   * browser would be a second SLA authority, and the two would disagree the
+   * first time a workspace edited its policy. Null when the server sent none,
+   * in which case the surface makes no claim about lateness.
+   */
+  sla: {
+    label: string;
+    tone: AppTone;
+    explanation: string;
+    posture: SlaPosture;
+    dueAtUtc: string | null;
+    /** True when the SERVER classed this posture as needing attention. */
+    needsAttention: boolean;
+  } | null;
 
   /** Which mutations may be offered for THIS row, in THIS state. */
   canAcknowledge: boolean;
@@ -126,6 +147,12 @@ export function buildRowModel(
     viewerUserId: string | null;
     operatorLabels: ReadonlyMap<string, string>;
     now: number;
+    /**
+     * The postures the SERVER classed as needing attention, sent with the
+     * page. Passed in rather than hard-coded so the emphasis this surface
+     * applies is the server's judgement, not a duplicate of it.
+     */
+    slaAttentionPostures?: ReadonlyArray<SlaPosture>;
   },
 ): OperationsRowModel {
   const severity = SEVERITY_VOCABULARY[i.severity] ?? SEVERITY_VOCABULARY.INFO;
@@ -164,6 +191,22 @@ export function buildRowModel(
     assignedOperatorUserId: i.assignedOperatorUserId,
     overdue:
       isOpen && ctx.now - new Date(i.firstSeenAtUtc).getTime() >= OVERDUE_MS,
+
+    sla: i.sla
+      ? {
+          label: slaLabel(i.sla.posture),
+          tone: slaTone(i.sla.posture),
+          explanation: slaExplanation(i.sla),
+          posture: i.sla.posture,
+          dueAtUtc: i.sla.dueAtUtc,
+          // Membership is decided by the SERVER's list, not by a set repeated
+          // here — so the queue's emphasis, the filter and any future alert
+          // all agree by construction.
+          needsAttention: (ctx.slaAttentionPostures ?? []).includes(
+            i.sla.posture,
+          ),
+        }
+      : null,
 
     // STATE, then permission. An operator who may acknowledge still gets no
     // Acknowledge button on a condition that is already acknowledged: the

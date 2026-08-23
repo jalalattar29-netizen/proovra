@@ -22,6 +22,7 @@
  */
 
 import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
+import type { IncidentSla, SlaPosture } from "./types";
 
 import type {
   IncidentCategory,
@@ -304,3 +305,83 @@ export const SORT_LABEL: Readonly<Record<SortValue, string>> = Object.freeze({
   oldest: "Oldest first",
   occurrences: "Most occurrences",
 });
+
+// ---------------------------------------------------------------------------
+// SLA
+//
+// Plain language, and deliberately about the COMMITMENT rather than about the
+// acronym: an operator reading a queue needs to know whether something is
+// late, not to learn a vocabulary first.
+// ---------------------------------------------------------------------------
+
+export function slaLabel(posture: SlaPosture): string {
+  switch (posture) {
+    case "BREACHED":
+      return "Overdue";
+    case "DUE_SOON":
+      return "Due soon";
+    case "ON_TRACK":
+      return "On time";
+    case "MET":
+      return "Met";
+    case "MET_LATE":
+      // Recorded rather than rounded up to "Met": it WAS handled, and it was
+      // handled late, and a workspace reviewing its own performance needs
+      // both halves.
+      return "Handled late";
+    case "NOT_APPLICABLE":
+    default:
+      return "Not tracked";
+  }
+}
+
+export function slaTone(posture: SlaPosture): AppTone {
+  switch (posture) {
+    case "BREACHED":
+      return "red";
+    case "DUE_SOON":
+      return "amber";
+    case "MET":
+      return "green";
+    case "MET_LATE":
+      return "orange";
+    case "ON_TRACK":
+      return "blue";
+    case "NOT_APPLICABLE":
+    default:
+      return "slate";
+  }
+}
+
+/**
+ * What the posture MEANS, in one sentence, for the drawer.
+ *
+ * States the obligation and the promise, because "Overdue" alone leaves the
+ * reader to guess whether the workspace promised four hours or four days.
+ */
+export function slaExplanation(sla: IncidentSla): string {
+  const duty =
+    sla.obligation === "RESPONSE"
+      ? "for someone to take this on"
+      : "for this to be resolved";
+  const promise =
+    sla.targetHours === null
+      ? ""
+      : ` This workspace allows ${sla.targetHours} ${sla.targetHours === 1 ? "hour" : "hours"} ${duty}.`;
+
+  switch (sla.posture) {
+    case "BREACHED":
+      return `Past the time this workspace allows ${duty}.${promise}`;
+    case "DUE_SOON":
+      return `Approaching the time this workspace allows ${duty}.${promise}`;
+    case "ON_TRACK":
+      return `Within the time this workspace allows ${duty}.${promise}`;
+    case "MET":
+      return "This was handled within the time this workspace allows.";
+    case "MET_LATE":
+      return "This was handled, but after the time this workspace allows.";
+    case "NOT_APPLICABLE":
+    default:
+      return "Notifications are stopped for this condition, so no time commitment applies.";
+  }
+}

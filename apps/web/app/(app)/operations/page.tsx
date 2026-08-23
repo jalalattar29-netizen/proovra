@@ -131,6 +131,7 @@ import type {
   IncidentDetail,
   IncidentDetailResponse,
   BulkActionResponse,
+  SlaEnvelope,
   ProjectedRemediation,
   RemediationOutcome,
   IncidentListResponse,
@@ -255,6 +256,14 @@ function OperationsWorkbench() {
   const [incidents, setIncidents] =
     React.useState<SourceState<Incident[]>>(LOADING);
   const [complete, setComplete] = React.useState(true);
+  /**
+   * The workspace's own SLA commitment, sent with the list.
+   *
+   * Null until a page arrives, and null forever for a workspace whose policy
+   * could not be resolved — in which case no row makes a claim about
+   * lateness rather than measuring against a default nobody agreed to.
+   */
+  const [sla, setSla] = React.useState<SlaEnvelope | null>(null);
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -386,6 +395,10 @@ function OperationsWorkbench() {
         const v = incidentsR.value as IncidentListResponse;
         setIncidents({ kind: "ready", data: v.incidents ?? [] });
         setComplete(v.completeness?.complete ?? true);
+        // The commitment travels WITH the rows it governs, so a page that
+        // failed to load cannot leave the previous workspace's promise on
+        // screen beside a different workspace's conditions.
+        setSla(v.sla ?? null);
         setNextCursor(v.pagination?.nextCursor ?? null);
       } else {
         setIncidents({
@@ -724,10 +737,11 @@ function OperationsWorkbench() {
               viewerUserId,
               operatorLabels,
               now,
+              slaAttentionPostures: sla?.attentionPostures,
             }),
           )
         : [],
-    [incidents, capabilities, viewerUserId, operatorLabels, now],
+    [incidents, capabilities, viewerUserId, operatorLabels, now, sla],
   );
 
   /**
