@@ -202,6 +202,9 @@ const OPS_SUMMARY = {
   info: 0,
   acknowledged: 1,
   assignedToMe: 1,
+  // The counterpart to `assignedToMe`, and the field a shared workspace
+  // triages from. Counted in the SAME scan as every other field here.
+  unassigned: 4,
   overdue: 1,
   complete: true,
   mayAssertAllClear: true,
@@ -620,6 +623,23 @@ function projectArchiveScenario(url: URL) {
   };
 }
 
+/**
+ * Platform-runtime requests observed since the last `resetPlatformCalls()`.
+ *
+ * A tenant surface reading platform runtime is a boundary defect, and the only
+ * honest way to prove it is absent is to watch for it rather than to grep for
+ * it — a request built from a variable would pass a grep and still fire.
+ */
+const platformCalls: string[] = [];
+
+export function resetPlatformCalls(): void {
+  platformCalls.length = 0;
+}
+
+export function observedPlatformCalls(): readonly string[] {
+  return [...platformCalls];
+}
+
 export async function installApi(
   page: Page,
   context: AttentionContext,
@@ -645,7 +665,48 @@ export async function installApi(
       // EVERY context reads this, including Personal Free: the endpoint is
       // gated on the role-based `operations.view` permission, not on the
       // OPERATIONS_VIEW capability that gates the workbench.
-      return route.fulfill(json({ summary: OPS_SUMMARY }));
+      //
+      // `workspace.operatorCount` is what tells the workbench whether
+      // OWNERSHIP is a meaningful axis here. A sole operator gets no owner
+      // column, no owner filter and no assigned/unassigned cards — and that
+      // falls out of this COUNT rather than the caller's own assign
+      // capability, so a read-only viewer in a shared workspace keeps the
+      // axis they need in order to ask who is on something.
+      return route.fulfill(
+        json({
+          summary: OPS_SUMMARY,
+          workspace: { operatorCount: context === "personal-pro" || context === "personal-free" ? 1 : 3 },
+        }),
+      );
+    }
+    if (/\/v1\/ops\/incidents\/[^/]+$/.test(path)) {
+      // ONE condition plus its bounded history — the first read of
+      // OperationalIncidentEvent the product has. Six code paths write that
+      // history; until the workbench there was nothing that could show it.
+      const id = path.slice(path.lastIndexOf("/") + 1);
+      const index = Number(id.slice(-1)) || 1;
+      return route.fulfill(
+        json({
+          incident: {
+            ...incident(index),
+            timeline: [
+              {
+                id: "evt-2",
+                eventType: "occurrence",
+                safeMessage: "The condition was observed again.",
+                occurredAtUtc: "2026-08-22T09:00:00.000Z",
+              },
+              {
+                id: "evt-1",
+                eventType: "opened",
+                safeMessage: "The condition was opened by the integrity scan.",
+                occurredAtUtc: "2026-08-18T09:00:00.000Z",
+              },
+            ],
+            timelineComplete: true,
+          },
+        }),
+      );
     }
     if (path.endsWith("/v1/ops/incidents")) {
       return route.fulfill(
@@ -667,29 +728,26 @@ export async function installApi(
         }),
       );
     }
-    if (path.endsWith("/v1/ops/health")) {
-      return route.fulfill(
-        json({
-          ok: true,
-          database: "ok",
-          observability: { enabled: true, provider: "none", ready: true },
-          alerts: { provider: "none", ready: true },
-          incidents: { openTotal: 7, openHigh: 3, openCritical: 2 },
-          violations: [],
-          snapshot: {
-            isProduction: false,
-            database: { configured: true },
-            communications: { configured: true },
-            identitySecurity: { configured: true },
-            notifications: { configured: true },
-            ai: { configured: true },
-            integrations: { configured: true },
-          },
-        }),
-      );
-    }
-    if (path.endsWith("/v1/ops/metrics")) {
-      return route.fulfill(json({ metrics: { uptimeSeconds: 1000, counters: {}, gauges: {} } }));
+    // PLATFORM RUNTIME — deliberately NOT served.
+    //
+    // These describe the API process: database status, Sentry status, process
+    // uptime, in-process counters, gauge counts. They are identical for every
+    // tenant on the instance, they reset on deploy, and no tenant can act on
+    // any of them. The tenant workbench stopped reading them, and answering
+    // here would let that regress silently. Every request is recorded so a
+    // spec can assert the count is zero, and refused with a 410 so a
+    // regression fails loudly rather than rendering stale platform chrome.
+    if (
+      path.endsWith("/v1/ops/health") ||
+      path.endsWith("/v1/ops/metrics") ||
+      path.endsWith("/v1/ops/alerts")
+    ) {
+      platformCalls.push(path);
+      return route.fulfill({
+        status: 410,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "platform_runtime_not_for_tenants" } }),
+      });
     }
     if (path.includes("/v1/me/inbox/summary")) {
       if (options.metricScenario) {

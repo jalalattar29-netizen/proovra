@@ -129,33 +129,62 @@ test.describe("Personal Pro — same information, plus a workbench", () => {
     ).toBeVisible();
   });
 
-  test("the console shows NO person picker for a sole operator", async ({
+  test("the workbench shows NO ownership axis for a sole operator", async ({
     page,
   }) => {
     await open(page, "/operations", "personal-pro");
-    await expect(page.locator("[data-hub-page-id='operations']")).toBeVisible();
-    // OPERATIONS_ASSIGN is not granted where there is nobody to assign to.
-    await expect(page.locator("[data-ops-assignment-select]")).toHaveCount(0);
-    // …and the acting controls it DOES have are present.
+    await expect(page.locator('[data-testid="operations-page"]')).toBeVisible();
+    // The hub bar is gone: one page, one header, one <h1>.
+    await expect(page.locator("[data-hub-page-id='operations']")).toHaveCount(0);
+    await expect(page.locator("h1")).toHaveCount(1);
+
+    // Ownership partitions work between PEOPLE. With one operator there is
+    // nothing to partition, so the column, the filter and the two
+    // collaborative cards are all absent — from ONE server-projected count,
+    // not from a plan branch.
+    await expect(page.locator("[data-ops-owner-filter]")).toHaveCount(0);
+    await expect(page.locator('[data-ops-metric="assignedToMe"]')).toHaveCount(0);
+    await expect(page.locator('[data-ops-metric="unassigned"]')).toHaveCount(0);
+    await expect(page.locator("[data-ops-owner]")).toHaveCount(0);
+
+    // …and the acting controls it DOES have are reachable through the row menu.
+    await page.locator("[data-ops-row-menu-trigger]").first().click();
     await expect(
-      page.locator('[data-ops-action="acknowledge"]').first(),
+      page.locator('[data-ops-row-action="acknowledge"]').first(),
     ).toBeVisible();
   });
 });
 
 test.describe("Team / Organization — the full workbench", () => {
-  test("assignment is offered and opens", async ({ page }) => {
+  test("ownership renders, and assignment opens from the inspector", async ({
+    page,
+  }) => {
     await open(page, "/operations", "team-admin");
-    const select = page.locator("[data-ops-assignment-select]").first();
-    await expect(select).toBeVisible();
-    // The eligible set is the server's, rendered as real options.
-    await expect(select.locator("option")).toHaveCount(3); // Unassigned + 2
-    await expect(page.locator('[data-ops-action="self-assign"]').first()).toBeVisible();
+
+    // The axis exists: a column, a filter and the two collaborative cards.
+    await expect(page.locator("[data-ops-owner-filter]")).toBeVisible();
+    await expect(page.locator('[data-ops-metric="assignedToMe"]')).toBeVisible();
+    await expect(page.locator('[data-ops-metric="unassigned"]')).toBeVisible();
+    // "Unassigned" is a WORD, never an empty cell.
+    await expect(
+      page.locator('[data-ops-table-surface] [data-ops-owner]').first(),
+    ).toHaveText(/Unassigned|You|\S/);
+
+    // Ownership is a DECISION, so it lives where the context to make it is.
+    await page.locator("[data-ops-open]").first().click();
+    await expect(page.locator("[data-ops-inspector]")).toBeVisible();
+    await expect(page.locator("[data-ops-assignment-control]")).toBeVisible();
+    await expect(page.locator('[data-ops-action="self-assign"]')).toBeVisible();
   });
 
-  test("an already-owned row offers UNASSIGN", async ({ page }) => {
+  test("the owner listbox is the canonical one, not a native select", async ({
+    page,
+  }) => {
     await open(page, "/operations", "team-admin");
-    await expect(page.locator('[data-ops-action="unassign"]').first()).toBeVisible();
+    // The whole route: zero native option popups. The OS popup cannot be
+    // styled, cannot escape a clipping ancestor, and cannot be audited.
+    await expect(page.locator("select")).toHaveCount(0);
+    await expect(page.locator(".app-listbox__trigger").first()).toBeVisible();
   });
 });
 
@@ -164,11 +193,22 @@ test.describe("Viewer — sees the work, acts on none of it", () => {
     page,
   }) => {
     await open(page, "/operations", "viewer");
-    await expect(page.locator("[data-hub-page-id='operations']")).toBeVisible();
-    for (const action of ["acknowledge", "resolve", "suppress", "self-assign", "unassign"]) {
+    await expect(page.locator('[data-testid="operations-page"]')).toBeVisible();
+
+    // Nothing to press: no row menu, no selection checkbox, no bulk bar.
+    await expect(page.locator("[data-ops-row-menu-trigger]")).toHaveCount(0);
+    await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
+    await expect(page.locator("[data-ops-bulk-toolbar]")).toHaveCount(0);
+    for (const action of ["acknowledge", "resolve", "suppress", "self-assign"]) {
       await expect(page.locator(`[data-ops-action="${action}"]`)).toHaveCount(0);
     }
-    await expect(page.locator("[data-ops-assignment-select]")).toHaveCount(0);
+
+    // …and ownership is still READABLE. A viewer in a shared workspace is
+    // there to answer "who is on this", which needs the axis without the verb.
+    await expect(page.locator("[data-ops-owner-filter]")).toBeVisible();
+    await expect(
+      page.locator('[data-ops-table-surface] [data-ops-owner]').first(),
+    ).toBeVisible();
   });
 });
 
@@ -293,40 +333,41 @@ test.describe("Accessibility", () => {
     }
   });
 
-  test("the assignment select is labelled and keyboard operable", async ({
+  test("the assignment control is a labelled listbox, keyboard operable", async ({
     page,
   }) => {
     await open(page, "/operations", "team-admin");
-    const select = page.locator("[data-ops-assignment-select]").first();
-    await expect(select).toBeVisible();
+    await page.locator("[data-ops-open]").first().click();
+    const control = page.locator("[data-ops-assignment-control]");
+    await expect(control).toBeVisible();
 
-    // A real <select> with a real <label for>. The accessible name must
-    // identify the action AND the condition.
-    const id = await select.getAttribute("id");
-    expect(id).toBeTruthy();
-    const labelText = await page
-      .locator(`label[for="${id}"]`)
-      .textContent();
-    expect(labelText ?? "").toMatch(/assign/i);
+    // It WAS a native <select>. It is now the canonical AppListbox, whose
+    // accessible name is the same word the operator reads above it.
+    const trigger = control.locator(".app-listbox__trigger");
+    await expect(trigger).toBeVisible();
+    const labelledBy = await trigger.getAttribute("aria-labelledby");
+    expect(labelledBy).toBeTruthy();
+    const labelText = await page.locator(`#${labelledBy}`).textContent();
+    expect((labelText ?? "").trim()).toMatch(/owner/i);
 
-    await select.focus();
+    await trigger.focus();
     expect(
-      await page.evaluate(
-        () => document.activeElement?.tagName.toLowerCase(),
+      await page.evaluate(() =>
+        document.activeElement?.getAttribute("aria-haspopup"),
       ),
-    ).toBe("select");
+    ).toBeTruthy();
   });
 
-  test("every interactive control in the row cluster is a real element", async ({
+  test("every interactive control on a row is a real element", async ({
     page,
   }) => {
     await open(page, "/operations", "team-admin");
     const tags = await page
-      .locator("[data-ops-row-actions] [data-ops-action]")
+      .locator("[data-ops-table-surface] tbody button, [data-ops-table-surface] tbody a, [data-ops-table-surface] tbody input")
       .evaluateAll((els) => els.map((e) => e.tagName.toLowerCase()));
     expect(tags.length).toBeGreaterThan(0);
     for (const tag of tags) {
-      expect(["button", "a"]).toContain(tag);
+      expect(["button", "a", "input"]).toContain(tag);
     }
   });
 });
@@ -363,7 +404,10 @@ test.describe("Screenshots", () => {
       await open(page, shot.path, shot.context);
       if (shot.rtl) await setDirection(page, "rtl");
       if (shot.openAssignment) {
-        await page.locator("[data-ops-assignment-select]").first().focus();
+        // Ownership moved into the inspector, where the operator has the
+        // context to decide it.
+        await page.locator("[data-ops-open]").first().click();
+        await page.locator("[data-ops-inspector]").waitFor();
       }
       await page.screenshot({
         path: `${SHOT_DIR}/${shot.file}.png`,

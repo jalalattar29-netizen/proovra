@@ -49,6 +49,17 @@ const EVIDENCE_LAYOUT_BASE = `http://127.0.0.1:${EVIDENCE_LAYOUT_PORT}`;
 const ATTENTION_LAYOUT_PORT = 3013;
 const ATTENTION_LAYOUT_BASE = `http://127.0.0.1:${ATTENTION_LAYOUT_PORT}`;
 
+/**
+ * The Operations WORKBENCH matrix serves its own production build here.
+ *
+ * Its own port because the matrix is combinatorial — fifteen workspace
+ * contexts by fifteen data states by eight widths by two directions — and it
+ * must be runnable beside the attention gate without either owning the other's
+ * server lifetime.
+ */
+const OPERATIONS_LAYOUT_PORT = 3014;
+const OPERATIONS_LAYOUT_BASE = `http://127.0.0.1:${OPERATIONS_LAYOUT_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   // Phase 1 tests are deliberately small and serial — they share an
@@ -182,6 +193,29 @@ export default defineConfig({
         baseURL: ATTENTION_LAYOUT_BASE,
       },
     },
+    /**
+     * OPERATIONS WORKBENCH — the capability, responsive, RTL and a11y matrix.
+     *
+     * Same reasoning as every layout project above: the API is intercepted and
+     * only the web tier is real, because none of the properties measured here
+     * belong to a database. What they DO need is the production bundle, the
+     * real cascade and a real layout engine — jsdom answers 0 to every
+     * geometry question, resolves no cascade, and cannot say whether a
+     * listbox popup is clipped by the toolbar it opens from.
+     *
+     * It carries the workspace-context acceptance the brief requires: fifteen
+     * contexts, each proven separately rather than folded into one assertion,
+     * because "Personal Free is refused" and "a suspended workspace is
+     * refused" are different product statements that happen to look alike.
+     */
+    {
+      name: "operations-layout",
+      testDir: "./e2e/operations-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: OPERATIONS_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
@@ -231,6 +265,17 @@ export default defineConfig({
           {
             command: `pnpm --filter proovra-web exec next start -p ${ATTENTION_LAYOUT_PORT} -H 127.0.0.1`,
             url: `${ATTENTION_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
+    ...(process.env.OPERATIONS_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${OPERATIONS_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${OPERATIONS_LAYOUT_BASE}/login`,
             reuseExistingServer: true,
             timeout: 180_000,
             env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
