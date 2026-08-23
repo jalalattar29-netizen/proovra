@@ -45,8 +45,17 @@ const RESOLVER = read(
   "services/api/src/services/operations/assignable-operators.service.ts",
 );
 const SERVICE = read("services/api/src/services/observability/incident.service.ts");
-const CONTROL = read("apps/web/components/operations/IncidentAssignmentControl.tsx");
+// The assignment control moved into the Operations route when the workbench
+// was rebuilt: it is presentation for ONE route, and living under
+// components/operations/ implied a second surface would mount it.
+const CONTROL = read(
+  "apps/web/app/(app)/operations/_components/AssignmentControl.tsx",
+);
+const INSPECTOR = read(
+  "apps/web/app/(app)/operations/_components/IncidentInspector.tsx",
+);
 const CONSOLE_PAGE = read("apps/web/app/(app)/operations/page.tsx");
+const ROW_MODEL = read("apps/web/app/(app)/operations/_lib/rowModel.ts");
 
 // ============================================================================
 // The eligible-assignee resolver
@@ -270,67 +279,69 @@ describe("Closure — unassign and the audit trail", () => {
 // ============================================================================
 
 describe("Closure — the assignment control is reachable and accessible", () => {
-  it("the console renders it", () => {
-    expect(CONSOLE_PAGE).toContain("<IncidentAssignmentControl");
-    expect(CONSOLE_PAGE).toContain("canAssign={canAssign}");
+  it("the workbench reaches it through the incident inspector", () => {
+    // Ownership is a DECISION, so it lives where the operator has the
+    // context to make it. The row offers Change owner, which opens the
+    // inspector; the inspector renders the control.
+    expect(CONSOLE_PAGE).toContain("<IncidentInspector");
+    expect(INSPECTOR).toContain("<AssignmentControl");
+    expect(INSPECTOR).toContain("canAssign={capabilities.canAssign}");
   });
 
   it("the current owner is projected by the API so it can be shown", () => {
-    expect(SERVICE).toMatch(/assignedOperatorUserId: i\.assignedOperatorUserId/);
-    expect(CONSOLE_PAGE).toContain("assignedOperatorUserId: string | null;");
+    expect(SERVICE).toMatch(/assignedOperatorUserId: i.assignedOperatorUserId/);
+    expect(ROW_MODEL).toContain("assignedOperatorUserId: i.assignedOperatorUserId");
   });
 
   it("offers assign, self-assign and unassign", () => {
-    expect(CONTROL).toContain('data-ops-assignment-select');
+    // Unassign is the first OPTION rather than a second button: assign,
+    // reassign and unassign are one transition on one column, and giving
+    // that column two controls gives it two ways to disagree with itself.
+    expect(CONTROL).toContain("const UNASSIGNED =");
+    expect(CONTROL).toContain('label: "Unassigned"');
+    expect(CONTROL).toContain("onAssign(v === UNASSIGNED ? null : v)");
     expect(CONTROL).toContain('data-ops-action="self-assign"');
-    expect(CONTROL).toContain('data-ops-action="unassign"');
   });
 
   it("a caller who may NOT assign still sees who owns it, read-only", () => {
     expect(CONTROL).toContain("data-ops-assignee-readonly");
-    expect(CONTROL).toMatch(/if \(!canAssign\) \{/);
+    expect(CONTROL.includes("if (!canAssign) {")).toBe(true);
   });
 
-  it("uses a native select — keyboard and screen-reader operable", () => {
-    // The repository bans reinventing a listbox, and a native control is
-    // mobile-native for free.
-    expect(CONTROL).toMatch(/<select/);
-    expect(CONTROL).not.toMatch(/role="listbox"/);
-    expect(CONTROL).toContain("htmlFor={`assign-${incidentId}`}");
-    expect(CONTROL).toContain("id={`assign-${incidentId}`}");
-  });
-
-  it("the label names the action AND the condition", () => {
-    expect(CONTROL).toContain("Assign this condition to an operator");
-    expect(CONTROL).toContain("ops-visually-hidden");
-  });
-
-  it("busy and error states are ANNOUNCED, not only shown", () => {
-    expect(CONTROL).toMatch(/role="status"/);
-    expect(CONTROL).toMatch(/role="alert"/);
-  });
-
-  it("errors flow through the sanctioned feedback path", () => {
-    expect(CONTROL).toContain("toSafeUserError");
-    expect(CONTROL).not.toMatch(/err\.message/);
+  it("uses the canonical AppListbox, not a native select", () => {
+    // It WAS a native select. Every other redesigned surface in the product
+    // uses AppListbox, whose popup can be styled, escapes a clipping
+    // ancestor through a portal, and has an audited keyboard contract; the
+    // OS popup beside it read as a control from a different product.
+    expect(CONTROL).toContain("AppListbox");
+    // Asserted over CODE: the module header explains the control it replaced
+    // and names the element by hand, so a whole-file search would match the
+    // explanation rather than a live mount. `stripComments` is the same
+    // tightening this file already applies to the single-operator check.
+    const controlCode = stripComments(CONTROL);
+    expect(controlCode.includes("<select")).toBe(false);
+    expect(CONTROL).toContain("ariaLabelledby={labelId}");
   });
 
   it("the eligible set is fetched once per workspace, not per row", () => {
-    // A console showing fifty conditions must not make fifty identical
-    // membership queries.
-    expect(CONTROL).toMatch(
-      /if \(state\.kind === "ready" \|\| state\.kind === "loading"\) return;/,
-    );
+    // A queue of fifty conditions must not make fifty identical membership
+    // queries. The ORCHESTRATOR owns the read and passes the result down, so
+    // the control cannot fetch at all.
+    expect(CONSOLE_PAGE).toContain("/v1/ops/assignable-operators");
+    expect(CONTROL).not.toContain("apiFetch");
   });
 
   it("assignment re-reads from the server rather than patching locally", () => {
     // The server re-checks eligibility, so an optimistic write could show an
     // owner the backend refused.
-    expect(CONSOLE_PAGE).toContain("setReloadToken((n) => n + 1)");
-    expect(CONSOLE_PAGE).toMatch(/\}, \[teamId, status, severity, reloadToken\]\)/);
+    expect(CONSOLE_PAGE).toContain("const refresh = React.useCallback(() => setReloadToken((n) => n + 1)");
+  });
+
+  it("errors flow through the sanctioned feedback path", () => {
+    expect(CONSOLE_PAGE).toContain("toSafeUserError");
+    expect(CONSOLE_PAGE).not.toMatch(/err.message/);
   });
 });
-
 // ============================================================================
 // Personal Pro — no meaningless picker
 // ============================================================================

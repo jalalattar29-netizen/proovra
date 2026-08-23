@@ -119,6 +119,30 @@
   --orange-ink: #C2410C;
 
   /* ------------------------------------------------------------------
+   * SEMANTIC TONE RAILS
+   *
+   * The seven AppStatusBadge tones, exposed as tokens so a route can draw a
+   * metric-card rail, a table accent or a card edge in the SAME colour the
+   * badge uses without copying its hex into page CSS.
+   *
+   * Every one is an ALIAS. Nothing new is defined here: a rail that agreed
+   * with its badge by coincidence would be one edit away from not agreeing,
+   * and the disagreement would be invisible until somebody noticed the
+   * "critical" strip beside a red badge was a slightly different red.
+   *
+   * tone-orange is a CLASSIFICATION colour, not a caution -- see the
+   * AppStatusBadge contract. tone-amber is the one that means "needs
+   * attention"; the two must not be swapped for looking similar.
+   * ------------------------------------------------------------------ */
+  --tone-red: var(--error);
+  --tone-orange: var(--orange-ink);
+  --tone-amber: var(--warning-ink);
+  --tone-green: var(--success-ink);
+  --tone-blue: var(--info);
+  --tone-indigo: var(--accent-600);
+  --tone-slate: var(--ink-secondary);
+
+  /* ------------------------------------------------------------------
    * LAYERS
    *
    * Named because "how high should this z-index be" was previously answered

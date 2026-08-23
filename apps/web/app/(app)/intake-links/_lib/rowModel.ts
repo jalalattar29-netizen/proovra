@@ -11,6 +11,7 @@
  */
 
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
+import { describeRelativeTime } from "../../../../lib/relative-time";
 import {
   canArchiveLink,
   canRevokeLink,
@@ -90,24 +91,16 @@ export type IntakeRowModel = {
   computedLifecycle: string;
 };
 
-export function describeRelativeTime(
-  iso: string | null | undefined,
-  now: number = Date.now(),
-): string {
-  if (!iso) return "—";
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "—";
-  const past = t <= now;
-  const deltaMs = Math.abs(now - t);
-  const minutes = Math.floor(deltaMs / 60_000);
-  if (minutes < 1) return past ? "just now" : "in under a minute";
-  if (minutes < 60) return past ? `${minutes}m ago` : `in ${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return past ? `${hours}h ago` : `in ${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return past ? `${days}d ago` : `in ${days}d`;
-  return formatUserDate(iso);
-}
+/**
+ * Re-exported, not redefined.
+ *
+ * The implementation moved to `lib/relative-time` when Operations needed the
+ * same phrasing: two surfaces of one product must not describe the same age
+ * two ways. The name stays exported here because this route's components
+ * already import it from this module, and moving the call sites would be a
+ * larger diff than the move itself.
+ */
+export { describeRelativeTime };
 
 export function expiryStateOf(
   expiresAtUtc: string,

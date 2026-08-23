@@ -59,6 +59,22 @@ export type OperationsSummary = {
   acknowledged: number;
   /** Open and assigned to the CALLER, when a caller is supplied. */
   assignedToMe: number;
+  /**
+   * Open and owned by NOBODY.
+   *
+   * The counterpart to `assignedToMe`, and the field a shared workspace
+   * triages from: work with an owner is being handled, work without one is
+   * waiting on whoever looks first. It is derived from the SAME scan as every
+   * other field here — a second query could disagree with `open` in the gap
+   * between two reads, and a summary whose parts do not add up is worse than
+   * one that is coarse.
+   *
+   * In a single-operator workspace this is `open` minus whatever that one
+   * operator has taken, which is not a distinction worth a card. The CONSUMER
+   * declines to render it (there is no OPERATIONS_ASSIGN there); the number
+   * itself stays correct for every workspace.
+   */
+  unassigned: number;
   /** Open and past the age at which an unattended condition is overdue. */
   overdue: number;
 
@@ -154,6 +170,7 @@ export async function buildOperationsSummary(
   let info = 0;
   let acknowledged = 0;
   let assignedToMe = 0;
+  let unassigned = 0;
   let overdue = 0;
 
   for (const row of bounded) {
@@ -174,6 +191,7 @@ export async function buildOperationsSummary(
     if (viewerUserId && row.assignedOperatorUserId === viewerUserId) {
       assignedToMe += 1;
     }
+    if (row.assignedOperatorUserId === null) unassigned += 1;
     // Overdue means UNATTENDED and old. An acknowledged condition has an
     // owner, so ageing it into "overdue" would punish the operator who picked
     // it up and reward the workspace that ignored it.
@@ -195,6 +213,7 @@ export async function buildOperationsSummary(
     info,
     acknowledged,
     assignedToMe,
+    unassigned,
     overdue,
     complete,
     mayAssertAllClear: complete,
@@ -225,6 +244,7 @@ export function unavailableSummary(
     info: 0,
     acknowledged: 0,
     assignedToMe: 0,
+    unassigned: 0,
     overdue: 0,
     complete: false,
     mayAssertAllClear: false,

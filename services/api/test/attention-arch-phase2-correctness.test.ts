@@ -357,9 +357,29 @@ describe("Phase 2.7 — deterministic order, cursor paging", () => {
 
   it("the incident list orders totally and pages by keyset", () => {
     const SVC = readSource("../src/services/observability/incident.service.ts");
-    expect(SVC).toMatch(
-      /orderBy: \[\{ status: "asc" \}, \{ lastSeenAtUtc: "desc" \}, \{ id: "desc" \}\]/,
+    // The clause moved into `orderByFor` when the workbench gained a sort
+    // control. What matters is unchanged and is now stated FOUR times instead
+    // of once: every branch ends in `id`, so every order is TOTAL. A keyset
+    // cursor over a non-deterministic order silently skips and repeats rows,
+    // and on a surface whose question is "have we dealt with everything?" a
+    // skipped row is a condition nobody ever sees.
+    const resolver = SVC.slice(
+      SVC.indexOf("function orderByFor("),
+      SVC.indexOf("export async function listIncidents("),
     );
+    expect(resolver.length).toBeGreaterThan(0);
+    const branches = resolver.match(/return \[/g) ?? [];
+    expect(branches.length).toBeGreaterThanOrEqual(4);
+    for (const line of resolver.split("\n").filter((l) => l.includes("return ["))) {
+      expect(line, `${line.trim()} must end in a unique tie-break`).toMatch(
+        /\{ id: "(asc|desc)" \}\]/,
+      );
+    }
+    // The default is still the triage order.
+    expect(resolver).toMatch(
+      /\{ status: "asc" \}, \{ lastSeenAtUtc: "desc" \}, \{ id: "desc" \}/,
+    );
+    expect(SVC).toMatch(/orderBy: orderByFor\(input\.sort\)/);
     expect(SVC).toMatch(/cursor: \{ id: input\.cursor \}, skip: 1/);
     // limit + 1 is how "is there more" is answered without a second read of a
     // collection that can change between the two.

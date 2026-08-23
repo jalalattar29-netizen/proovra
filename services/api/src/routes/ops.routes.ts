@@ -66,6 +66,7 @@ import {
   IncidentError,
   acknowledgeIncident,
   assignIncident,
+  getIncidentDetail,
   listIncidents,
   projectIncident,
   resolveIncident,
@@ -840,7 +841,32 @@ export async function opsRoutes(app: FastifyInstance) {
         workspaceId: q.teamId,
         viewerUserId: actor.userId,
       });
-      return reply.code(200).send({ summary });
+      // ======================================================================
+      // WHY A COUNT OF OPERATORS TRAVELS WITH THE SUMMARY
+      // ======================================================================
+      // The workbench has to decide whether OWNERSHIP is a meaningful axis in
+      // this workspace: whether to render "Assigned to me" / "Unassigned"
+      // cards and an owner filter at all. In a space with one operator those
+      // controls partition work between a person and themselves.
+      //
+      // The obvious client-side signal is the caller's own OPERATIONS_ASSIGN
+      // capability, and it is wrong. A VIEWER in a shared Team workspace holds
+      // no assign capability and absolutely should still be able to filter by
+      // owner — "who is on this?" is the question they are there to answer.
+      // Branching on the workspace KIND instead would be a plan-shaped branch
+      // in the UI, which this program has spent a phase removing.
+      //
+      // So the server answers the workspace-shape question directly, from the
+      // SAME resolver that decides who may be assigned. It is a COUNT and
+      // never the identities: eligibility to see how many operators exist is
+      // not eligibility to enumerate them, and the picker route stays gated on
+      // `operations.assign`.
+      const operatorCount = (await listAssignableOperators({ teamId: q.teamId }))
+        .length;
+      return reply.code(200).send({
+        summary,
+        workspace: { operatorCount },
+      });
     },
   );
 
@@ -860,6 +886,25 @@ export async function opsRoutes(app: FastifyInstance) {
           category: z
             .enum(INCIDENT_CATEGORIES as unknown as [string, ...string[]])
             .optional(),
+          /**
+           * Ownership. "me" is resolved to the CALLER below rather than
+           * accepted as a magic id, so a caller cannot pass "me" and have it
+           * mean somebody else, and the service layer never learns who is
+           * asking.
+           */
+          owner: z
+            .union([
+              z.literal("any"),
+              z.literal("me"),
+              z.literal("unassigned"),
+              z.string().uuid(),
+            ])
+            .optional(),
+          /** Free text over title + safe summary. Bounded. */
+          q: z.string().trim().max(120).optional(),
+          sort: z
+            .enum(["recent", "severity", "oldest", "occurrences"])
+            .optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
           // PHASE 2.7 — keyset cursor. Opaque to the client; echoed back
           // verbatim from `nextCursor` on the previous page.
@@ -868,11 +913,22 @@ export async function opsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
+      const owner =
+        q.owner === undefined || q.owner === "any"
+          ? ({ kind: "ANY" } as const)
+          : q.owner === "unassigned"
+            ? ({ kind: "UNASSIGNED" } as const)
+            : q.owner === "me"
+              ? ({ kind: "USER", userId: actor.userId } as const)
+              : ({ kind: "USER", userId: q.owner } as const);
       const page = await listIncidents({
         teamId: q.teamId,
         status: q.status as never,
         severity: q.severity as never,
         category: q.category as never,
+        owner,
+        q: q.q,
+        sort: q.sort,
         limit: q.limit,
         cursor: q.cursor ?? null,
       });
@@ -899,6 +955,44 @@ export async function opsRoutes(app: FastifyInstance) {
   );
 
   const ParamsIncidentId = z.object({ id: z.string().uuid() });
+
+  /**
+   * GET /v1/ops/incidents/:id — ONE condition, with its history.
+   *
+   * The read behind the workbench inspector. It exists because
+   * `OperationalIncidentEvent` was written by six code paths and read by none:
+   * the console could say a condition was ACKNOWLEDGED and not by whom, or
+   * when, or how many times it had re-fired since — so an operator deciding
+   * whether to pick something up had to ask a colleague.
+   *
+   * Gated on `operations.view` exactly like the list, through the same
+   * `requireOpsActor`. There is no separate "detail" permission: a caller who
+   * may see that a condition exists may see what happened to it, and inventing
+   * a second gate here would be a place for the two to drift apart.
+   *
+   * Anti-enumeration: an id belonging to ANOTHER workspace is indistinguishable
+   * from an id that does not exist. Both are 404, and the tenant predicate is
+   * in the query rather than in a comparison after the read.
+   */
+  app.get(
+    "/v1/ops/incidents/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsIncidentId.parse(req.params);
+      const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const detail = await getIncidentDetail({
+        incidentId: id,
+        teamId: q.teamId,
+      });
+      if (!detail) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
+      return reply.code(200).send({ incident: detail });
+    },
+  );
+
   const TeamIdOnly = z.object({ teamId: z.string().uuid() });
   const ResolveBody = TeamIdOnly.extend({
     resolutionNote: z.string().min(1).max(400).optional(),

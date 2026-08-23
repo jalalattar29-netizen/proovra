@@ -1,0 +1,697 @@
+/* ==========================================================================
+ * Operations workbench — route-owned presentation (`opsw-*`).
+ *
+ * The route consumes the canonical `app-*` primitives for everything shared:
+ * page header, panels, table surface, listbox, checkbox, status badge,
+ * metric card, dialog, empty and alert states, and the three action tiers.
+ * THIS file describes only what is specific to the workbench:
+ *
+ *   1. the compact queue summary strip
+ *   2. the filter toolbar and result bar
+ *   3. the incident surface — table geometry, then the narrow card anatomy
+ *   4. the bulk toolbar
+ *   5. the inspector drawer, its timeline and its identifier rows
+ *
+ * PREFIX. `ops-*` is already owned by the Notifications design system, so this
+ * route is `opsw-*` (operations WORKBENCH). Two surfaces sharing a prefix
+ * share a namespace, and the collision is only discovered when one of them
+ * changes a shared-looking rule and breaks the other.
+ *
+ * RULES OBSERVED HERE
+ *   - no colour literals: every accent is a `--tone-*` token, which is itself
+ *     an alias of the same value AppStatusBadge paints, so a rail and its
+ *     badge cannot drift apart
+ *   - no `!important`, no compatibility overrides, no `:where()` escapes
+ *   - logical properties throughout, so the surface mirrors in RTL without a
+ *     second stylesheet
+ *   - nothing here scrolls the page sideways: the table scrolls inside its own
+ *     surface, and below the cutover it is REPLACED rather than squeezed
+ * ========================================================================== */
+
+/* --------------------------------------------------------------------------
+ * 0. Page + tone rails
+ * ------------------------------------------------------------------------ */
+.opsw-page {
+  /* PageShell owns the column and the section rhythm. This adds one guard: a
+     grid/flex child with no `min-inline-size: 0` refuses to shrink below its
+     content, which is how one wide table teaches a whole page to scroll
+     sideways. */
+  min-inline-size: 0;
+}
+
+[data-opsw-tone="slate"] {
+  --opsw-tone: var(--tone-slate);
+}
+[data-opsw-tone="indigo"] {
+  --opsw-tone: var(--tone-indigo);
+}
+[data-opsw-tone="blue"] {
+  --opsw-tone: var(--tone-blue);
+}
+[data-opsw-tone="green"] {
+  --opsw-tone: var(--tone-green);
+}
+[data-opsw-tone="amber"] {
+  --opsw-tone: var(--tone-amber);
+}
+[data-opsw-tone="orange"] {
+  --opsw-tone: var(--tone-orange);
+}
+[data-opsw-tone="red"] {
+  --opsw-tone: var(--tone-red);
+}
+
+/* Shared muted note voice. */
+.opsw-muted {
+  font: var(--font-meta);
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+ * 1. HEADER CONTEXT
+ * ------------------------------------------------------------------------ */
+.opsw-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+.opsw-context strong {
+  color: var(--ink-secondary);
+  font-weight: 650;
+}
+.opsw-context__stamp {
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * 2. COMPACT QUEUE SUMMARY
+ *
+ * Four to six equal cards on ONE row wherever the viewport allows. This is
+ * deliberately not `app-grid-kpis`: that grid is sized for a cockpit, and the
+ * whole point of this strip is that it must not become one. The cards are the
+ * smallest thing on the page that is still legible, so the queue below them
+ * starts inside the first screen.
+ * ------------------------------------------------------------------------ */
+.opsw-summary {
+  margin-block-end: var(--section-gap, 20px);
+}
+.opsw-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.opsw-summary__note {
+  margin: 8px 0 0;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+
+/* The metric card is the shared primitive; this adds the tone rail and the
+   compact proportions. The rail is an inline-start edge, so it mirrors in RTL
+   without a second rule. */
+.opsw-metric {
+  position: relative;
+  inline-size: 100%;
+  text-align: start;
+  padding-inline-start: 14px;
+  cursor: pointer;
+}
+.opsw-metric::before {
+  content: "";
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--opsw-tone, var(--tone-slate));
+}
+.opsw-metric__value {
+  color: var(--ink-primary);
+}
+/* A zero is still a fact. The card keeps its full surface and its rail so the
+   strip does not develop holes where the good news is. */
+.opsw-metric__label {
+  color: var(--ink-secondary);
+}
+.opsw-metric__meta {
+  color: var(--ink-muted);
+}
+.opsw-metric[aria-pressed="true"] {
+  border-color: var(--opsw-tone, var(--tone-slate));
+  box-shadow: var(--shadow-card);
+}
+.opsw-metric:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+ * 3. TOOLBAR + RESULT BAR
+ * ------------------------------------------------------------------------ */
+.opsw-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--surface-translucent-border);
+  border-radius: var(--radius-card);
+  background: var(--surface-translucent-outer);
+}
+.opsw-toolbar__search {
+  flex: 2 1 240px;
+  min-inline-size: 0;
+}
+.opsw-toolbar__filter {
+  flex: 1 1 160px;
+  min-inline-size: 0;
+}
+/* Sort is the one control an operator sets once and leaves, so it goes last
+   and takes the remaining room rather than competing for the first row. */
+.opsw-toolbar__filter--sort {
+  flex: 1 1 200px;
+  margin-inline-start: auto;
+}
+
+.opsw-resultbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 10px;
+}
+.opsw-resultbar__count {
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+}
+
+.opsw-refreshing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * 4. BULK TOOLBAR
+ *
+ * Mounted only when something is marked, so it is never a row of controls
+ * that do nothing. It is visually distinct from the filter toolbar because
+ * the two answer different questions — one narrows the view, the other
+ * changes shared state.
+ * ------------------------------------------------------------------------ */
+.opsw-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-block-start: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent-200);
+  border-radius: var(--radius-card);
+  background: var(--accent-050);
+}
+.opsw-bulk__count {
+  margin: 0;
+  font: var(--font-label);
+  color: var(--ink-primary);
+}
+.opsw-bulk__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+ * 5. THE INCIDENT SURFACE — table
+ * ------------------------------------------------------------------------ */
+.opsw-table-surface {
+  margin-block-start: 12px;
+}
+.opsw-table {
+  inline-size: 100%;
+}
+
+/* Column geometry. `Condition` is the only elastic column; everything else is
+   sized to its content so the queue reads down consistent edges. */
+.opsw-col-select {
+  inline-size: 40px;
+}
+.opsw-col-severity {
+  inline-size: 104px;
+}
+.opsw-col-status {
+  inline-size: 132px;
+}
+.opsw-col-owner {
+  inline-size: 148px;
+}
+.opsw-col-age,
+.opsw-col-activity {
+  inline-size: 150px;
+}
+.opsw-col-actions {
+  inline-size: 92px;
+  text-align: end;
+}
+
+.opsw-row[data-ops-row-open="true"] {
+  background: var(--surface-translucent-selected);
+}
+.opsw-row[data-ops-row-marked="true"] {
+  background: var(--accent-050);
+}
+
+/* The title is a button so it is reachable by keyboard and announces itself.
+   It is styled as text: a queue of fifty links is a queue of fifty blue
+   underlines, and none of them is the thing being scanned. */
+.opsw-open {
+  display: block;
+  inline-size: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.opsw-open:hover .opsw-condition__title,
+.opsw-open:focus-visible .opsw-condition__title {
+  text-decoration: underline;
+}
+.opsw-open:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.opsw-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.opsw-condition__title {
+  /* Long titles wrap to a bounded two lines rather than pushing the columns
+     beside them off the surface. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.opsw-condition__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+.opsw-condition__source {
+  color: var(--ink-secondary);
+}
+
+.opsw-owner {
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+}
+.opsw-owner[data-ops-owner="unassigned"] {
+  color: var(--ink-muted);
+}
+
+.opsw-activity,
+.opsw-age {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+}
+.opsw-activity__count {
+  color: var(--ink-muted);
+}
+
+.opsw-more {
+  display: flex;
+  justify-content: center;
+  margin-block-start: 14px;
+}
+
+/* --------------------------------------------------------------------------
+ * 6. THE INCIDENT SURFACE — cards
+ *
+ * THE CUTOVER IS 1040px.
+ *
+ * The table carries eight columns at its widest: selection, severity,
+ * condition, status, owner, first seen, latest activity and actions. Six of
+ * them are fixed-width, so the elastic Condition column is the first thing to
+ * be squeezed — and a condition title compressed to two words is a queue that
+ * cannot be triaged. The measurement that set this number is the width at
+ * which Condition still holds roughly forty characters on one line with the
+ * owner column present. Below it the cards take over and lose nothing: every
+ * column becomes a labelled fact.
+ * ------------------------------------------------------------------------ */
+.opsw-cards {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 1040px) {
+  .opsw-table-surface {
+    display: none;
+  }
+  .opsw-cards {
+    display: flex;
+  }
+}
+
+.opsw-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--surface-translucent-border);
+  border-radius: var(--radius-card);
+  background: var(--surface-translucent-outer);
+}
+.opsw-card[data-ops-card-open="true"] {
+  border-color: var(--accent-200);
+  background: var(--surface-translucent-selected);
+}
+.opsw-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.opsw-card__open {
+  min-inline-size: 0;
+}
+.opsw-card__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.opsw-card__fact dt {
+  font: var(--font-label);
+  color: var(--ink-muted);
+  margin-block-end: 2px;
+}
+.opsw-card__fact dd {
+  margin: 0;
+}
+.opsw-card__foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* The word beside the row-menu icon stands down where the row is tight. The
+   trigger keeps its `aria-label` at every width, so the compact form is never
+   an unlabelled icon. */
+.opsw-when-wide {
+  display: inline;
+}
+@media (max-width: 1240px) {
+  .opsw-when-wide {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * 7. ROW MENU
+ * ------------------------------------------------------------------------ */
+.opsw-menu {
+  min-inline-size: 220px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+.opsw-menu__sep {
+  block-size: 1px;
+  margin: 5px 4px;
+  background: var(--border-subtle);
+}
+.opsw-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  text-align: start;
+  font: var(--font-label);
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+.opsw-menu__item:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+.opsw-menu__item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.opsw-menu__item:disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+.opsw-menu__item--danger {
+  color: var(--error);
+}
+
+/* --------------------------------------------------------------------------
+ * 8. INSPECTOR DRAWER
+ * ------------------------------------------------------------------------ */
+.opsw-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-dialog);
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(15 23 42 / 42%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.opsw-drawer {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(580px, 100%);
+  block-size: 100%;
+  background: var(--surface-elevated);
+  border-inline-start: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-elevated);
+}
+.opsw-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 20px 22px 14px;
+  border-block-end: 1px solid var(--border-subtle);
+}
+.opsw-drawer__heading {
+  min-inline-size: 0;
+}
+.opsw-drawer__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-end: 8px;
+}
+/* The body is the ONLY scrolling region, so the head and the action footer
+   stay reachable however long the history is. */
+.opsw-drawer__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.opsw-drawer__section-title {
+  margin: 0 0 8px;
+  font: var(--font-label);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.opsw-drawer__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 14px 22px;
+  border-block-start: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+
+.opsw-summary-text {
+  margin: 0 0 12px;
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+.opsw-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+.opsw-fact dt {
+  font: var(--font-label);
+  color: var(--ink-muted);
+  margin-block-end: 2px;
+}
+.opsw-fact dd {
+  margin: 0;
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+.opsw-affected-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --------------------------------------------------------------------------
+ * 9. TIMELINE
+ * ------------------------------------------------------------------------ */
+.opsw-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.opsw-timeline__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 10px 0;
+  border-block-end: 1px solid var(--border-subtle);
+}
+.opsw-timeline__item:last-child {
+  border-block-end: 0;
+}
+.opsw-timeline__type {
+  font: var(--font-label);
+  color: var(--ink-primary);
+}
+.opsw-timeline__when {
+  grid-row: 1;
+  grid-column: 2;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.opsw-timeline__message {
+  grid-column: 1 / -1;
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+ * 10. IDENTIFIERS
+ *
+ * A request id is a bidi-neutral run. Inside an Arabic sentence it renders
+ * back-to-front and is copied wrong, so it is isolated rather than merely
+ * marked `dir="ltr"` — isolation is what stops it re-ordering the text AROUND
+ * it as well.
+ * ------------------------------------------------------------------------ */
+.opsw-ltr {
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+.opsw-ident {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  min-inline-size: 0;
+}
+.opsw-ident__label {
+  flex: 0 0 auto;
+  font: var(--font-label);
+  color: var(--ink-muted);
+}
+.opsw-ident__value {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+.opsw-ident__copy {
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+ * 11. OWNERSHIP
+ * ------------------------------------------------------------------------ */
+.opsw-assign {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.opsw-assign__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.opsw-assign__row > :first-child {
+  flex: 1 1 200px;
+  min-inline-size: 0;
+}
+.opsw-owner-readonly {
+  margin: 0;
+  color: var(--ink-primary);
+}
+.opsw-owner-readonly__label {
+  font: var(--font-label);
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * 12. MOTION
+ * ------------------------------------------------------------------------ */
+.opsw-spin {
+  animation: opsw-rotate 900ms linear infinite;
+}
+@keyframes opsw-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .opsw-spin {
+    animation: none;
+  }
+}

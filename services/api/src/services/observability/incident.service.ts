@@ -422,11 +422,49 @@ async function transitionIncident(
 // Read + projections
 // -----------------------------------------------------------------------------
 
+/**
+ * How the workbench asks for an ORDER.
+ *
+ * Every one of these resolves to an orderBy whose LAST key is `id`, so the
+ * ordering is total. That is not tidiness: keyset pagination over a
+ * non-deterministic order silently skips and repeats rows, and on a surface
+ * whose job is "have we dealt with everything?" a skipped row is a condition
+ * nobody ever sees.
+ */
+export type IncidentSort = "recent" | "severity" | "oldest" | "occurrences";
+
+/**
+ * Ownership filter.
+ *
+ * UNASSIGNED is a first-class value rather than `userId: null`, because
+ * "nobody owns this" is the state a shared workspace triages from and it must
+ * not be expressible only as the absence of a filter.
+ */
+export type IncidentOwnerFilter =
+  | { kind: "ANY" }
+  | { kind: "UNASSIGNED" }
+  | { kind: "USER"; userId: string };
+
 export type ListIncidentsInput = {
   teamId: string;
   status?: IncidentStatus;
   severity?: IncidentSeverity;
   category?: IncidentCategory;
+  /**
+   * Ownership. Resolved by the ROUTE — "assigned to me" becomes a concrete
+   * user id before it reaches here, so this layer never has to know who is
+   * asking and cannot accidentally scope a workspace read to a caller.
+   */
+  owner?: IncidentOwnerFilter;
+  /**
+   * Free-text over the operator-facing strings ONLY (title + safe summary).
+   *
+   * Deliberately not over `fingerprint`, `requestId` or `traceId`: those are
+   * exact-match identifiers, and a substring search across them turns a typo
+   * into a plausible-looking wrong row.
+   */
+  q?: string;
+  sort?: IncidentSort;
   limit?: number;
   /**
    * PHASE 2.7 — keyset cursor. The `id` of the last row the caller received.
@@ -465,21 +503,66 @@ export type ListIncidentsPage = {
  * collection without offsets, so rows inserted or resolved between pages
  * cannot cause a skip or a duplicate the way `OFFSET n` does.
  */
+/**
+ * Sort key to a TOTAL order.
+ *
+ * The default ("recent") keeps the ordering the console has always had: OPEN
+ * before ACKNOWLEDGED before the closed states, then most-recently-seen. That
+ * is the triage order, and it stays the default because the answer to "what
+ * should I look at" should not depend on remembering to pick a sort.
+ *
+ * `severity: "desc"` relies on the enum being declared INFO, WARNING, HIGH,
+ * CRITICAL in schema.prisma — Postgres orders an enum by declaration order, so
+ * descending puts CRITICAL first. Reordering that enum would silently invert
+ * this sort, which is why `incident-list-order.test.ts` asserts the resulting
+ * sequence rather than the clause.
+ */
+function orderByFor(
+  sort: IncidentSort | undefined,
+): prismaPkg.Prisma.OperationalIncidentOrderByWithRelationInput[] {
+  switch (sort) {
+    case "severity":
+      return [{ severity: "desc" }, { lastSeenAtUtc: "desc" }, { id: "desc" }];
+    case "oldest":
+      return [{ firstSeenAtUtc: "asc" }, { id: "asc" }];
+    case "occurrences":
+      return [{ occurrenceCount: "desc" }, { lastSeenAtUtc: "desc" }, { id: "desc" }];
+    default:
+      return [{ status: "asc" }, { lastSeenAtUtc: "desc" }, { id: "desc" }];
+  }
+}
+
 export async function listIncidents(
   input: ListIncidentsInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<ListIncidentsPage> {
   const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+  const owner = input.owner ?? { kind: "ANY" };
+  // A blank or whitespace-only search is NO search. Treating it as a match on
+  // the empty string would be harmless here and is exactly the kind of thing
+  // that later becomes a filter nobody can clear.
+  const q = input.q?.trim() ?? "";
   const rows = await client.operationalIncident.findMany({
     where: {
       teamId: input.teamId,
       ...(input.status ? { status: input.status as prismaPkg.IncidentStatus } : {}),
       ...(input.severity ? { severity: input.severity as prismaPkg.IncidentSeverity } : {}),
       ...(input.category ? { category: input.category as prismaPkg.IncidentCategory } : {}),
+      ...(owner.kind === "UNASSIGNED"
+        ? { assignedOperatorUserId: null }
+        : owner.kind === "USER"
+          ? { assignedOperatorUserId: owner.userId }
+          : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" as const } },
+              { safeSummary: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
     },
-    // OPEN first, then most-recently-seen, then `id` as the unique tie-break
-    // that makes the whole ordering total.
-    orderBy: [{ status: "asc" }, { lastSeenAtUtc: "desc" }, { id: "desc" }],
+    orderBy: orderByFor(input.sort),
     // One extra row is the honest way to answer "is there more?" — a count
     // query would be a second read of a collection that can change between
     // the two.
@@ -553,6 +636,89 @@ export function projectIncident(
     resolvedByUserId: i.resolvedByUserId,
     assignedOperatorUserId: i.assignedOperatorUserId,
     assignedAtUtc: i.assignedAtUtc ? i.assignedAtUtc.toISOString() : null,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Incident detail — the bounded read behind the workbench inspector.
+//
+// `OperationalIncidentEvent` rows have been WRITTEN since Phase 21 by every
+// path that opens, re-fires, acknowledges, resolves, suppresses or reassigns a
+// condition, and until now nothing could READ them. The console could show
+// that a condition existed and not what had happened to it, so "has anyone
+// dealt with this?" — the question a shared operations surface exists to
+// answer — was only answerable by asking a colleague.
+//
+// This is a PROJECTION of the existing authority, not a second one. It opens
+// no lifecycle, writes nothing, and returns null rather than throwing so the
+// route can answer a cross-workspace probe with the same 404 a genuinely
+// absent id gets.
+// -----------------------------------------------------------------------------
+
+/** One entry in an incident's history. Bounded, operator-safe strings only. */
+export type IncidentTimelineEntry = {
+  id: string;
+  eventType: string;
+  safeMessage: string;
+  occurredAtUtc: string;
+};
+
+export type IncidentDetail = IncidentProjection & {
+  timeline: IncidentTimelineEntry[];
+  /**
+   * False when the incident has more history than this read returned.
+   *
+   * The inspector says so rather than letting a truncated list read as the
+   * whole story — the same honesty contract the list and the summary carry,
+   * for the same reason: an operator deciding whether a condition was already
+   * handled must be able to tell "nothing happened" from "I was shown part".
+   */
+  timelineComplete: boolean;
+};
+
+/** A generous bound on one inspector read. Reaching it is reported. */
+const TIMELINE_BOUND = 50;
+
+export async function getIncidentDetail(
+  input: { incidentId: string; teamId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<IncidentDetail | null> {
+  // TENANT SCOPE IS THE WHERE CLAUSE, not a post-read comparison. A row that
+  // belongs to another workspace is not found here at all, so there is no
+  // branch that could be reordered into leaking its existence.
+  const incident = await client.operationalIncident.findFirst({
+    where: { id: input.incidentId, teamId: input.teamId },
+  });
+  if (!incident) return null;
+
+  const events = await client.operationalIncidentEvent.findMany({
+    where: { incidentId: incident.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: TIMELINE_BOUND + 1,
+    select: {
+      id: true,
+      eventType: true,
+      safeMessage: true,
+      createdAt: true,
+    },
+  });
+  const timelineComplete = events.length <= TIMELINE_BOUND;
+  const bounded = timelineComplete ? events : events.slice(0, TIMELINE_BOUND);
+
+  return {
+    ...projectIncident(incident),
+    // `metadataJson` is deliberately NOT projected. It is sanitised at write
+    // time, but "sanitised" is a property somebody has to keep true on every
+    // future writer, and `safeMessage` is the bounded field that was designed
+    // to be read by a person. Shipping the blob would make every new emitter a
+    // potential provider-error leak into the browser.
+    timeline: bounded.map((e) => ({
+      id: e.id,
+      eventType: e.eventType,
+      safeMessage: e.safeMessage,
+      occurredAtUtc: e.createdAt.toISOString(),
+    })),
+    timelineComplete,
   };
 }
 

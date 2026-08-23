@@ -124,6 +124,9 @@ const EXPECTED_CONSUMERS = [
   "app/(app)/collaboration-teams/page.tsx",
   "app/(app)/intake-links/_components/LinkCreatedDialog.tsx",
   "app/(app)/intake-links/_components/wizard/fields.tsx",
+  // The Operations workbench labels its ownership control with the canonical
+  // field label, so the picker announces the same word the operator reads.
+  "app/(app)/operations/_components/AssignmentControl.tsx",
   "components/cases-experience/matter-modals/StatusChangeModal.tsx",
   "components/search/SearchAuditLogPanel.tsx",
 ];
