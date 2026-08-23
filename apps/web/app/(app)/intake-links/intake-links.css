@@ -706,58 +706,13 @@
    overlay's end edge and grows toward the start — which is the correct
    direction in both LTR and RTL, and keeps it inside the viewport because the
    actions column is always at the end edge of the surface. */
-.ilk-menu {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  box-sizing: border-box;
-  min-inline-size: 216px;
-  max-inline-size: min(280px, calc(100vw - 24px));
-  padding: 6px;
-  margin: 0;
-  list-style: none;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
-}
-.ilk-menu__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  inline-size: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  color: var(--app-ink-control, #263247);
-  text-align: start;
-  cursor: pointer;
-}
-.ilk-menu__item:hover:not(:disabled) {
-  background: rgba(99, 91, 255, 0.07);
-}
-.ilk-menu__item:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.34);
-}
-.ilk-menu__item:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.ilk-menu__item--danger {
-  color: var(--ilk-tone-red);
-}
-.ilk-menu__item--danger:hover:not(:disabled) {
-  background: #fff1f2;
-}
-.ilk-menu__sep {
-  block-size: 1px;
-  margin: 5px 4px;
-  background: rgba(15, 23, 42, 0.07);
-}
+/* The row-actions menu panel moved to `app-primitives.css` (`.app-menu`)
+   when Operations needed the same one. It is a shared PRESENTATION
+   contract, not a route detail: the anchored-overlay primitive supplies
+   position and z-index only, so a consumer that owns the surface is a
+   consumer that can forget it — and the second one did, shipping a menu of
+   bare text over the rows beneath. Geometry here was the proven original
+   and moved unchanged. */
 
 /* --------------------------------------------------------------------------
  * 5. DRAWERS (link details, delivery history, submissions)

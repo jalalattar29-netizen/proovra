@@ -187,7 +187,9 @@ test("every checkbox is the canonical one and every radio is a choice card", () 
 });
 
 test("the row actions menu is a menu, not a selector", () => {
-  const menu = read(join(ROUTE, "_components/RowActionsMenu.tsx"));
+  // The menu is a SHARED primitive now — Operations needed the same one, and
+  // the duplicate shipped without its surface.
+  const menu = read(resolve(WEB, "components/app-primitives/AppRowMenu.tsx"));
   assert.match(menu, /role="menu"/);
   assert.match(menu, /role="menuitem"/);
   assert.match(menu, /aria-haspopup="menu"/);

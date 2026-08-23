@@ -20,8 +20,11 @@ import * as React from "react";
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import type { IntakeLinkListItem } from "../_lib/types";
 import { buildRowModel, type IntakeRowModel } from "../_lib/rowModel";
-import { DeliveryChannelIcon } from "./icons";
-import { RowActionsMenu, type RowAction } from "./RowActionsMenu";
+import { DeliveryChannelIcon, IconDots, IconSpinner } from "./icons";
+import {
+  AppRowMenu,
+  type AppRowAction,
+} from "../../../../components/app-primitives/AppRowMenu";
 
 export type RecordsHandlers = {
   onOpenDetails: (linkId: string) => void;
@@ -43,9 +46,9 @@ const CHANNEL_ICON: Record<string, "link" | "mail" | "sms" | "whatsapp"> = {
 function buildActions(
   row: IntakeRowModel,
   handlers: RecordsHandlers,
-): ReadonlyArray<RowAction> {
+): ReadonlyArray<AppRowAction> {
   const pending = handlers.pendingArchiveId === row.id;
-  const actions: RowAction[] = [
+  const actions: AppRowAction[] = [
     {
       key: "details",
       label: "View details",
@@ -302,9 +305,14 @@ function TableRow({
         <SubmissionsCell row={row} onOpenSubmissions={handlers.onOpenSubmissions} />
       </td>
       <td data-col="actions">
-        <RowActionsMenu
+        <AppRowMenu
           label={`Actions for ${row.requestName}`}
           actions={buildActions(row, handlers)}
+          dataPrefix="intake-links"
+          triggerLabel="Actions"
+          triggerLabelClassName="ilk-when-wide"
+          icon={<IconDots size={16} />}
+          pendingIcon={<IconSpinner size={14} />}
         />
       </td>
     </tr>
@@ -401,9 +409,14 @@ function RecordCard({
 
       <div className="ilk-card__foot">
         <SubmissionsCell row={row} onOpenSubmissions={handlers.onOpenSubmissions} />
-        <RowActionsMenu
+        <AppRowMenu
           label={`Actions for ${row.requestName}`}
           actions={buildActions(row, handlers)}
+          dataPrefix="intake-links"
+          triggerLabel="Actions"
+          triggerLabelClassName="ilk-when-wide"
+          icon={<IconDots size={16} />}
+          pendingIcon={<IconSpinner size={14} />}
         />
       </div>
     </li>

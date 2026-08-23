@@ -187,7 +187,12 @@ test("each action renders only with its own capability AND its own state", () =>
 test("a read-only operator gets NO mutation controls and no empty action column", () => {
   // The row menu returns null rather than an empty panel: a menu of nothing
   // reads as "these actions failed to load".
-  const MENU = read("app/(app)/operations/_components/RowActionsMenu.tsx");
+  //
+  // It lives in app-primitives now: Intake Links and Operations had two copies
+  // of one interaction, and the second shipped without the panel's surface —
+  // five items of bare text over the rows beneath. A shared component whose
+  // surface is not the caller's to remember cannot repeat that.
+  const MENU = read("components/app-primitives/AppRowMenu.tsx");
   assert.match(MENU, /if \(actions\.length === 0\) return null;/);
   // And the bulk toolbar never mounts without a selection.
   const BULK = read("app/(app)/operations/_components/BulkToolbar.tsx");

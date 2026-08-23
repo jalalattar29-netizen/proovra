@@ -1214,6 +1214,77 @@ textarea.app-form-input {
   z-index: var(--layer-anchored-overlay, 100000);
 }
 
+/* ---- ROW ACTIONS MENU -------------------------------------------------
+ *
+ * The panel `AppRowMenu` paints inside the anchored overlay.
+ *
+ * It lives here rather than in a route stylesheet because the overlay
+ * primitive supplies position and z-index and NOTHING else: a consumer that
+ * forgets the surface ships a menu of bare text over whatever is beneath it,
+ * which is precisely what happened to the second copy. A shared component
+ * whose surface is not the caller's to remember cannot repeat that.
+ *
+ * Geometry matches the proven Intake Links panel exactly, so the migration
+ * is a move rather than a redesign.
+ * --------------------------------------------------------------------- */
+.app-menu {
+  /* NO positioning here, deliberately.
+     `AppRowMenu` opens its overlay with `matchAnchorWidth: false`, so the
+     overlay sizes itself to this panel and pins to whichever edge keeps it on
+     screen. Absolutely positioning the panel inside that box — as the original
+     route-local copy did — defeats the overlay's upward flip: a flipped
+     overlay is positioned by `bottom` and has zero height, so a child pinned
+     to its block-start grows downward out of the flip and off the bottom of
+     the viewport. Positioning belongs to the primitive that owns it. */
+  box-sizing: border-box;
+  min-inline-size: 216px;
+  max-inline-size: min(280px, calc(100vw - 24px));
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+.app-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-ink-control, #263247);
+  text-align: start;
+  cursor: pointer;
+}
+.app-menu__item:hover:not(:disabled) {
+  background: rgba(99, 91, 255, 0.07);
+}
+.app-menu__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.34);
+}
+.app-menu__item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.app-menu__item--danger {
+  color: var(--tone-red);
+}
+.app-menu__item--danger:hover:not(:disabled) {
+  background: var(--error-050);
+}
+.app-menu__sep {
+  block-size: 1px;
+  margin: 5px 4px;
+  background: rgba(15, 23, 42, 0.07);
+}
+
 .app-listbox__popup {
   /* Positioning and layering belong to `.app-anchored-overlay`, the portaled
      element this list now sits inside. Keeping a second `position: fixed` and
