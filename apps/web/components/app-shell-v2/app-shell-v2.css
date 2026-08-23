@@ -620,7 +620,14 @@
 
 .app-account-toolbar-inner {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(360px, 520px) auto;
+  /* No hard minimum on the left or the centre.
+     The right track is `auto` and holds real controls — workspace chip, New
+     Case, runtime pill, notifications, language, avatar — so it must take what
+     it needs. A 360px floor on the centre made that impossible: the tracks
+     overflowed and the search painted over New Case. The centre now absorbs
+     the squeeze, and `.app-header-search` carries its own target floor so it
+     degrades to an icon rather than to a sliver. */
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 20px;
   padding: 0 20px;
@@ -647,7 +654,11 @@
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  min-width: 0;
+  /* NOT `min-width: 0`.
+     These are real controls at their natural size. Allowing the zone to be
+     sized below its contents is what let them overflow out of its start edge
+     and paint over the centre zone. The centre absorbs the squeeze instead. */
+  min-width: max-content;
 }
 
 .app-account-toolbar-mobile-menu {
@@ -672,6 +683,14 @@
 /* Search command surface */
 .app-header-search {
   width: 100%;
+  /* Its former fixed track width, now a MAXIMUM. The wide header is unchanged;
+     the difference is that the control yields on narrow ones instead of
+     holding 520px while the action cluster overflows on top of it. */
+  max-inline-size: 520px;
+  /* The target floor, independent of the viewport. A grid track can shrink for
+     reasons a media query cannot see — a long workspace name, a wider action
+     cluster — and 22x36 is what that produced before this line existed. */
+  min-inline-size: 36px;
   height: 36px;
   display: inline-flex;
   align-items: center;
@@ -998,6 +1017,19 @@
     background 120ms ease,
     border-color 120ms ease,
     color 120ms ease;
+}
+
+/* The runtime indicator is a PILL, not an icon button.
+   The shared rule above pins a 36px square and centres its child, which makes
+   a ~118px severity pill overflow ~41px in each direction — the left half
+   landing on top of New Case. It keeps the square as a FLOOR (so a
+   count-less state is still a 36px target) and takes its natural width
+   otherwise. `flex-shrink: 0` stops the header's flex row squeezing it back
+   into an overflow. */
+.app-topbar-v2-runtime {
+  inline-size: auto;
+  min-inline-size: 36px;
+  flex: 0 0 auto;
 }
 
 .app-topbar-v2-runtime:hover,
@@ -1546,8 +1578,40 @@
     display: inline-flex;
   }
 
+  /* An icon button, with the same 36px square as every other control in this
+     header. `flex` rather than `width` is what actually stops the squeeze:
+     the centre zone is a flex item, and a percentage width inside it still
+     collapses when its siblings claim the row. */
   .app-header-search {
     max-width: none;
+    flex: 0 0 auto;
+    inline-size: 36px;
+    min-inline-size: 36px;
+    block-size: 36px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  /* The centre zone stops stretching so the button keeps its square. */
+  .app-header-zone-center {
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+
+  /* Below this breakpoint the shell has already collapsed the action cluster
+     into the mobile menu, so the right zone no longer needs a max-content
+     floor — and holding one there is what makes the narrow header wider than
+     the viewport. */
+  .app-header-zone-right {
+    min-width: 0;
+  }
+
+  /* The label and the shortcut hint stand down. The button keeps its
+     `aria-label`, so its accessible name is unchanged at every width and the
+     collapsed form is never an unlabelled icon. */
+  .app-header-search-text {
+    display: none;
   }
 
   .app-header-search-kbd {

@@ -90,6 +90,7 @@ import {
   usePlatformContext,
 } from "../../../lib/platform-context";
 import type { CapabilityKey } from "../../../lib/platform-context/types";
+import { resolveRuntimeReadAccess } from "../../../lib/platform-context/runtimeReadAccess";
 
 import "./operations.css";
 
@@ -98,6 +99,7 @@ import { FilterToolbar } from "./_components/FilterToolbar";
 import { IncidentInspector } from "./_components/IncidentInspector";
 import { IncidentSurface } from "./_components/IncidentSurface";
 import { QueueSummary } from "./_components/QueueSummary";
+import type { RestrictedReason } from "./_components/States";
 import {
   ClearState,
   DegradedNotice,
@@ -280,13 +282,38 @@ function OperationsWorkbench() {
    */
   const requestSeq = React.useRef(0);
 
-  const gate: null | "no_envelope" | "not_included" | "no_workspace" = !envelope
+  /**
+   * MAY THIS CONTEXT READ OPERATIONAL DATA AT ALL?
+   *
+   * The SAME predicate the application shell asks before its runtime poller
+   * fires. Sharing it is the point: two gates over one boundary drift, and
+   * these two already had — the route would read on an envelope that
+   * disagreed with itself about which workspace was active, because
+   * self-consistency was a question only the shell's resolver asked.
+   *
+   * It answers whether to ASK. What the answer MEANS still belongs to the
+   * canonical incident projection, and the server remains authoritative.
+   */
+  const readAccess = resolveRuntimeReadAccess({ envelope, teamId });
+
+  // ORDER MATTERS, and it is the reverse of the obvious one.
+  //
+  // `useActiveWorkspaceId` returns null for a workspace that has not resolved,
+  // which includes a SUSPENDED or INACTIVE one — so checking `!teamId` first
+  // told a suspended operator "No workspace is selected yet", which is both
+  // wrong and unactionable. The envelope knows the real reason; it is asked
+  // before the symptom is.
+  const gate: null | RestrictedReason = !envelope
     ? "no_envelope"
-    : !canView
-      ? "not_included"
-      : !teamId
-        ? "no_workspace"
-        : null;
+    : readAccess.refusedReason === "context_mismatch"
+      ? "context_mismatch"
+      : readAccess.refusedReason === "account_not_active"
+        ? "account_not_active"
+        : !teamId
+          ? "no_workspace"
+          : !canView || !readAccess.incidents
+            ? "not_included"
+            : null;
 
   // -------------------------------------------------------------------------
   // THE READ
@@ -335,7 +362,17 @@ function OperationsWorkbench() {
       }
 
       setRefreshing(false);
-      setLastLoadedAtUtc(new Date().toISOString());
+      // FRESHNESS IS A CLAIM ABOUT DATA THE PAGE HAS.
+      //
+      // This stamped unconditionally, so a failed read still produced
+      // "Updated 17:59" in the header — a statement about a queue that was not
+      // fetched, sitting above a panel saying it could not be fetched. The
+      // stamp now moves only when the INCIDENT read succeeded, because that is
+      // the source the page is showing; when it fails, the previous successful
+      // stamp stands and describes what is actually on screen.
+      if (incidentsR.status === "fulfilled") {
+        setLastLoadedAtUtc(new Date().toISOString());
+      }
     });
     // `summary.kind` / `incidents.kind` are read only to decide whether this is
     // the FIRST load; including them would re-fire the effect on its own result.

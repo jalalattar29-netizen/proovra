@@ -433,3 +433,62 @@ test("overdue posture is a WORD as well as a colour", async ({ page }) => {
   expect(badges.length).toBeGreaterThan(0);
   for (const b of badges) expect(b.trim()).toBe("Overdue");
 });
+
+// ===========================================================================
+// 7. THE FALSE-CLEAR SWEEP
+//
+// One assertion, every failure mode. "Workspace operations are clear" is the
+// most consequential sentence this page can say: an operator who reads it
+// stops looking. It may be rendered ONLY over a source that succeeded, reached
+// the end of its collection, and was not filtered.
+// ===========================================================================
+
+const NEVER_CLEAR: ReadonlyArray<{ scenario: OpsScenario; why: string }> = [
+  { scenario: "unavailable-incidents", why: "the incident source failed" },
+  { scenario: "degraded-summary", why: "the summary source failed" },
+  { scenario: "truncated", why: "the population was truncated" },
+  { scenario: "filtered-empty", why: "a filter excluded everything" },
+];
+
+for (const { scenario, why } of NEVER_CLEAR) {
+  test(`false-clear sweep — ${scenario}: cannot say "clear" because ${why}`, async ({
+    page,
+  }) => {
+    await openOperations(page, "team-admin", {
+      scenario,
+      query: scenario === "filtered-empty" ? "?severity=CRITICAL" : undefined,
+    });
+    await expect(page.locator('[data-ops-empty="clear"]')).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(
+      "Workspace operations are clear",
+    );
+  });
+}
+
+test("freshness is stamped only after a source actually succeeded", async ({
+  page,
+}) => {
+  // A "last updated" that appears over a failed read is a claim about data the
+  // page does not have.
+  await openOperations(page, "team-admin", { scenario: "unavailable-incidents" });
+  await expect(page.locator("[data-ops-unavailable]")).toBeVisible();
+  await expect(page.locator("[data-ops-last-loaded]")).toHaveCount(0);
+
+  await openOperations(page, "team-admin");
+  await expect(page.locator("[data-ops-last-loaded]")).toBeVisible();
+  await expect(page.locator("[data-ops-last-loaded]")).toContainText(/Updated/);
+});
+
+test("a timeout is a failure, not an empty collection", async ({ page }) => {
+  // A source that never answers must not decay into "nothing to show".
+  await openOperations(page, "team-admin");
+  await page.route("**/v1/ops/incidents?*", () => {
+    /* never fulfilled */
+  });
+  await page.locator("[data-ops-refresh]").click();
+  await page.waitForTimeout(1200);
+  await expect(page.locator('[data-ops-empty="clear"]')).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(
+    "Workspace operations are clear",
+  );
+});

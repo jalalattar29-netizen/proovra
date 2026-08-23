@@ -96,17 +96,28 @@ export function NoMatchState({ onClear }: { onClear: () => void }) {
  * when the capability is absent, so a restricted visit produces zero calls to
  * the Operations API rather than a 403 the panel then explains.
  */
-export function RestrictedState({
-  reason,
-}: {
-  reason: "not_included" | "no_envelope" | "no_workspace";
-}) {
+export type RestrictedReason =
+  | "not_included"
+  | "no_envelope"
+  | "no_workspace"
+  | "context_mismatch"
+  | "account_not_active";
+
+export function RestrictedState({ reason }: { reason: RestrictedReason }) {
   const copy =
     reason === "not_included"
       ? "Operations is available to workspaces that produce operational conditions, or that more than one person shares. This workspace does neither right now, so there is no shared triage queue to show."
       : reason === "no_workspace"
         ? "No workspace is selected yet. Choose a workspace to see its operational conditions."
-        : "Your access for this workspace hasn't been confirmed. Reload the page, or ask a workspace owner to check your role.";
+        : reason === "context_mismatch"
+          ? // The envelope disagrees with itself about which workspace is
+            // active, so the permissions it carries may describe a different
+            // one. Reading anything here would be authorised by the wrong
+            // evidence, which is worse than showing nothing.
+            "This workspace couldn't be confirmed. Reload the page, or switch workspace again."
+          : reason === "account_not_active"
+            ? "This account is suspended, so operational work can't be shown or acted on. Contact a workspace owner."
+            : "Your access for this workspace hasn't been confirmed. Reload the page, or ask a workspace owner to check your role.";
   return (
     <div
       className="app-empty"

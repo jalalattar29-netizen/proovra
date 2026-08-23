@@ -85,7 +85,14 @@ type Shape = {
   isPlatformAdmin?: boolean;
   /** No envelope at all — the shell never resolved authority. */
   noEnvelope?: boolean;
-  /** The envelope names a DIFFERENT workspace than the one being read. */
+  /**
+   * The envelope DISAGREES WITH ITSELF about which workspace is active.
+   *
+   * `contextOptions.activeContext` names one workspace and the legacy
+   * `workspace` block names another. Whichever the shell derives its id from,
+   * the capability map it consults may describe the other — so the read would
+   * be authorised by the wrong evidence, and is refused.
+   */
   wrongWorkspace?: boolean;
 };
 
@@ -98,6 +105,14 @@ const ACTS = {
   OPERATIONS_SUPPRESS: true,
 };
 const ACTS_AND_ASSIGNS = { ...ACTS, OPERATIONS_ASSIGN: true };
+
+/**
+ * What the registry grants a TEAM-shaped workspace beside its operational
+ * keys. `ESCALATIONS_VIEW` matters here because it is the authority behind
+ * the shell's third runtime source: a personal space has no reviewer
+ * escalations and must not ask for them.
+ */
+const TEAM_SHAPE = { REVIEWER_OPS_VIEW: true, SLA_VIEW: true, ESCALATIONS_VIEW: true };
 
 const CONTEXTS: Record<OpsContext, Shape> = {
   // No condition-producing package and one operator: no workbench at all.
@@ -121,7 +136,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
   // A paid workspace that is shared but not an organization. It must render
   // exactly what a Team does — the distinction is not a product fork.
   "owned-workspace": {
-    capabilities: ACTS_AND_ASSIGNS,
+    capabilities: { ...ACTS_AND_ASSIGNS, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "PRO",
     enterprise: false,
@@ -129,7 +144,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
     role: "OWNER",
   },
   "team-admin": {
-    capabilities: ACTS_AND_ASSIGNS,
+    capabilities: { ...ACTS_AND_ASSIGNS, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "TEAM",
     enterprise: false,
@@ -137,7 +152,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
     role: "ADMIN",
   },
   "organization-admin": {
-    capabilities: ACTS_AND_ASSIGNS,
+    capabilities: { ...ACTS_AND_ASSIGNS, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "ENTERPRISE",
     enterprise: true,
@@ -145,7 +160,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
     role: "ADMIN",
   },
   "enterprise-active": {
-    capabilities: ACTS_AND_ASSIGNS,
+    capabilities: { ...ACTS_AND_ASSIGNS, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "ENTERPRISE",
     enterprise: true,
@@ -163,7 +178,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
    * `isEnterpriseWorkspace` or on a contract flag.
    */
   "enterprise-retained": {
-    capabilities: ACTS,
+    capabilities: { ...ACTS, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "ENTERPRISE",
     enterprise: true,
@@ -171,7 +186,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
     role: "ADMIN",
   },
   viewer: {
-    capabilities: { ...VIEW_ONLY, OPERATIONS_VIEW: true },
+    capabilities: { ...VIEW_ONLY, OPERATIONS_VIEW: true, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "TEAM",
     enterprise: false,
@@ -196,7 +211,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
   },
   /** The same person WITH a membership: ordinary tenant authority, no more. */
   "platform-admin-member": {
-    capabilities: ACTS_AND_ASSIGNS,
+    capabilities: { ...ACTS_AND_ASSIGNS, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "ENTERPRISE",
     enterprise: true,
@@ -263,7 +278,7 @@ const CONTEXTS: Record<OpsContext, Shape> = {
   },
   /** In the workspace, may look, may not act. Distinct from `viewer` by role. */
   "insufficient-role": {
-    capabilities: { ...VIEW_ONLY, OPERATIONS_VIEW: true },
+    capabilities: { ...VIEW_ONLY, OPERATIONS_VIEW: true, ...TEAM_SHAPE },
     spaceType: "ORGANIZATION",
     plan: "ENTERPRISE",
     enterprise: true,
@@ -284,7 +299,11 @@ export function isRefusedContext(context: OpsContext): boolean {
 
 export function envelopeFor(context: OpsContext): Record<string, unknown> {
   const shape = CONTEXTS[context];
-  const workspaceId = shape.wrongWorkspace ? OTHER_WORKSPACE_ID : WORKSPACE_ID;
+  // The legacy `workspace` block, which is where the sidebar derives its id.
+  const workspaceId = WORKSPACE_ID;
+  // The canonical active context. For `wrong-workspace` these deliberately
+  // disagree, which is the whole point of that fixture.
+  const activeContextId = shape.wrongWorkspace ? OTHER_WORKSPACE_ID : WORKSPACE_ID;
   const name =
     shape.spaceType === "PERSONAL" ? "Personal Space" : "Meridian Legal";
   return {
@@ -306,7 +325,7 @@ export function envelopeFor(context: OpsContext): Record<string, unknown> {
     },
     activeSpace: {
       type: shape.spaceType,
-      id: workspaceId,
+      id: activeContextId,
       displayName: name,
       roleLabel: shape.role,
       plan: shape.plan,
@@ -317,7 +336,7 @@ export function envelopeFor(context: OpsContext): Record<string, unknown> {
       ownedWorkspaces: [],
       organizations: [],
       activeContext: {
-        workspaceId,
+        workspaceId: activeContextId,
         kind: shape.spaceType,
         organizationId: null,
         displayName: name,
@@ -533,6 +552,24 @@ export function observedPlatformCalls(): readonly string[] {
 
 /** Every `/v1/ops/*` path the page asked for, in order. */
 const opsCalls: Array<{ method: string; path: string; query: string }> = [];
+
+/**
+ * Every SHELL runtime source, in order.
+ *
+ * `useGlobalRuntimeState` reads three endpoints and only one of them lives
+ * under `/v1/ops/`. Counting that one alone would let the other two keep
+ * firing from a refused context while the test reported zero.
+ */
+const shellRuntimeCalls: Array<{ source: string; path: string }> = [];
+export function resetShellRuntimeCalls(): void {
+  shellRuntimeCalls.length = 0;
+}
+export function observedShellRuntimeCalls(): ReadonlyArray<{
+  source: string;
+  path: string;
+}> {
+  return [...shellRuntimeCalls];
+}
 export function resetOpsCalls(): void {
   opsCalls.length = 0;
 }
@@ -579,6 +616,19 @@ export async function installApi(
 
     if (path.includes("/v1/ops/")) {
       opsCalls.push({ method, path, query: url.search });
+    }
+    if (path.endsWith("/v1/ops/incidents") && method === "GET") {
+      // The shell polls this with `status=OPEN&limit=50`; the workbench never
+      // sends that exact pair. Distinguishing them is what lets one assertion
+      // say "the route asked" and another say "the shell asked".
+      const q = url.searchParams;
+      if (q.get("status") === "OPEN" && q.get("limit") === "50") {
+        shellRuntimeCalls.push({ source: "incidents", path });
+      }
+    }
+    if (path.endsWith("/v1/reviewer-ops/escalations")) {
+      shellRuntimeCalls.push({ source: "escalations", path });
+      return route.fulfill(json({ escalations: [] }));
     }
 
     // ---- authority -------------------------------------------------------
@@ -689,6 +739,22 @@ export async function installApi(
     return route.fulfill(json({}));
   });
 
+  // `/admin/runtime/readiness` is the shell's third runtime source and does
+  // not match the `**/v1/**` pattern above.
+  await page.route("**/admin/runtime/**", async (route) => {
+    shellRuntimeCalls.push({
+      source: "readiness",
+      path: new URL(route.request().url()).pathname,
+    });
+    return route.fulfill(
+      json({
+        status: "HEALTHY",
+        ranAtUtc: NOW,
+        subsystems: [],
+      }),
+    );
+  });
+
   await page.route("**/auth/**", (route) =>
     route.fulfill(
       json({ user: { id: SELF_USER_ID, email: "operator@example.invalid" } }),
@@ -707,6 +773,7 @@ export async function openOperations(
 ): Promise<void> {
   resetPlatformCalls();
   resetOpsCalls();
+  resetShellRuntimeCalls();
   await installApi(page, context, options);
   await page.goto(`/operations${options.query ?? ""}`, {
     waitUntil: "domcontentloaded",
