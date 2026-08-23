@@ -176,16 +176,22 @@ test("an open listbox is not clipped by the toolbar it opens from", async ({
   const popup = page.locator(".app-listbox__popup");
   await expect(popup).toBeVisible();
 
-  // It escapes through the portal: its box is not contained by the toolbar's.
+  // It escapes through the portal: its box is not CONTAINED by the toolbar's.
+  //
+  // Escape is checked in EITHER direction. The overlay flips upward when
+  // there is not room below — which is correct behaviour and happens for real
+  // whenever the toolbar sits low in the viewport — so requiring the popup to
+  // overflow downward would fail the surface for doing the right thing while
+  // still passing a genuinely clipped popup that happened to open downward.
   const clipped = await page.evaluate(() => {
     const pop = document.querySelector(".app-listbox__popup");
     const bar = document.querySelector("[data-ops-controls]");
     if (!pop || !bar) return true;
     const p = pop.getBoundingClientRect();
     const b = bar.getBoundingClientRect();
-    const overflowsBar = p.bottom > b.bottom + 1;
+    const escapesBar = p.bottom > b.bottom + 1 || p.top < b.top - 1;
     const visible = p.width > 0 && p.height > 0;
-    return !(overflowsBar && visible);
+    return !(escapesBar && visible);
   });
   expect(clipped, "the popup must escape the toolbar").toBe(false);
   expect(await hasHorizontalOverflow(page)).toBe(false);
@@ -429,9 +435,29 @@ test("a large page offers a bounded next page rather than an unbounded DOM", asy
 
 test("overdue posture is a WORD as well as a colour", async ({ page }) => {
   await openOperations(page, "team-admin", { scenario: "overdue" });
-  const badges = await page.locator("[data-ops-overdue-badge]").allTextContents();
-  expect(badges.length).toBeGreaterThan(0);
-  for (const b of badges) expect(b.trim()).toBe("Overdue");
+
+  // The PROPERTY is unchanged and still the point: an operator who cannot
+  // distinguish the two reds must still be able to triage, so lateness is
+  // stated in words. What changed in Phase B is WHICH authority says it —
+  // the workspace's own SLA policy now supersedes the fixed age heuristic,
+  // and exactly ONE of the two renders so they cannot disagree on a row.
+  const sla = await page.locator("[data-ops-sla-badge]").allTextContents();
+  const heuristic = await page
+    .locator("[data-ops-overdue-badge]")
+    .allTextContents();
+
+  expect(
+    sla.length + heuristic.length,
+    "a late condition must say so in words",
+  ).toBeGreaterThan(0);
+  expect(
+    sla.length === 0 || heuristic.length === 0,
+    "only ONE time signal may render per queue",
+  ).toBe(true);
+
+  for (const b of [...sla, ...heuristic]) {
+    expect(["Overdue", "Due soon"]).toContain(b.trim());
+  }
 });
 
 // ===========================================================================

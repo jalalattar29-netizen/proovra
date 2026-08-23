@@ -34,6 +34,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  capabilitiesFor,
   observedOpsCalls,
   observedPlatformCalls,
   observedShellRuntimeCalls,
@@ -119,8 +120,27 @@ test("insufficient-role reads nothing operational either", async ({ page }) => {
   await openOperations(page, "insufficient-role");
   const c = await counts(page);
   expect(c.platform).toEqual([]);
+
+  // Each permitted source is tied to the CAPABILITY that permits it, rather
+  // than to a hand-kept list. A list drifts silently when the fixture's shape
+  // changes; this fails the moment a source appears whose capability this
+  // context does not hold, which is the property being defended.
+  const PERMITTED_BY_CAPABILITY: Record<string, string> = {
+    incidents: "OPERATIONS_VIEW",
+    escalations: "ESCALATIONS_VIEW",
+    readiness: "OPERATIONS_VIEW",
+  };
+  const held = capabilitiesFor("insufficient-role");
   for (const source of c.shell) {
-    expect(["incidents", "readiness"]).toContain(source);
+    const capability = PERMITTED_BY_CAPABILITY[source];
+    expect(
+      capability,
+      `${source} is read by the shell but no capability is declared for it`,
+    ).toBeTruthy();
+    expect(
+      held[capability] === true,
+      `${source} was read without ${capability}`,
+    ).toBe(true);
   }
 });
 

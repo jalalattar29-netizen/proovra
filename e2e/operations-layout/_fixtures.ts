@@ -440,6 +440,51 @@ export function incident(i: number, over: IncidentOver = {}) {
     resolvedByUserId: null,
     assignedOperatorUserId: over.owner ?? null,
     assignedAtUtc: over.owner ? hoursAgo(1) : null,
+    // The lifecycle instants the SLA posture is measured from.
+    acknowledgedAtUtc: over.status === "ACKNOWLEDGED" ? hoursAgo(1) : null,
+    resolvedAtUtc: over.status === "RESOLVED" ? hoursAgo(1) : null,
+    /**
+     * SLA POSTURE, exactly as the server resolves it.
+     *
+     * Derived here from the SAME inputs the real projection uses — the age
+     * of the row against a 4h response window — rather than pinned to a
+     * constant, so a fixture row that is old reads as BREACHED for the
+     * reason a real one would.
+     *
+     * A SUPPRESSED row carries NOT_APPLICABLE and no deadline, which is the
+     * refusal the surface has to render correctly.
+     */
+    sla: slaFor(over.status ?? "OPEN", over.firstSeenHoursAgo ?? 5),
+  };
+}
+
+const SLA_RESPONSE_HOURS = 4;
+const SLA_DUE_SOON_HOURS = 2;
+
+function slaFor(status: string, ageHours: number) {
+  if (status === "SUPPRESSED") {
+    return {
+      posture: "NOT_APPLICABLE",
+      obligation: "RESPONSE",
+      dueAtUtc: null,
+      targetHours: null,
+    };
+  }
+  const acknowledged = status === "ACKNOWLEDGED" || status === "RESOLVED";
+  const target = acknowledged ? 24 : SLA_RESPONSE_HOURS;
+  const remaining = target - ageHours;
+  return {
+    posture:
+      status === "RESOLVED"
+        ? "MET"
+        : remaining < 0
+          ? "BREACHED"
+          : remaining <= SLA_DUE_SOON_HOURS
+            ? "DUE_SOON"
+            : "ON_TRACK",
+    obligation: acknowledged ? "RESOLUTION" : "RESPONSE",
+    dueAtUtc: hoursAgo(ageHours - target),
+    targetHours: target,
   };
 }
 
@@ -639,6 +684,49 @@ export async function installApi(
       return route.fulfill(json(envelopeFor(context)));
     }
 
+    // ---- saved views ------------------------------------------------------
+    //
+    // Handled BEFORE the generic `/v1/ops/` mutation branch: a save is a
+    // POST, and letting the mutation branch swallow it would make the strip
+    // untestable in exactly the scenarios that exist to test mutations.
+    if (path.endsWith("/v1/ops/saved-views") && method === "GET") {
+      return route.fulfill(
+        json({
+          views: [
+            {
+              id: "view-mine",
+              name: "Unassigned critical",
+              description: null,
+              visibility: "PRIVATE",
+              pinned: false,
+              createdByUserId: "user-self",
+              ownedByViewer: true,
+              createdAt: hoursAgo(48),
+              updatedAt: hoursAgo(2),
+              filter: { teamId: WORKSPACE_ID, severity: "CRITICAL", owner: "unassigned" },
+            },
+            {
+              id: "view-shared",
+              name: "Evidence integrity",
+              description: null,
+              visibility: "TEAM",
+              pinned: false,
+              // Somebody ELSE's shared view, so the matrix covers the case
+              // where the reader may see a view and may not delete it.
+              createdByUserId: "user-other",
+              ownedByViewer: false,
+              createdAt: hoursAgo(72),
+              updatedAt: hoursAgo(6),
+              filter: { teamId: WORKSPACE_ID, category: "EVIDENCE_INTEGRITY" },
+            },
+          ],
+        }),
+      );
+    }
+    if (path.includes("/v1/ops/saved-views")) {
+      return route.fulfill(json({ ok: true }, method === "DELETE" ? 204 : 201));
+    }
+
     // ---- mutations -------------------------------------------------------
     if (method === "POST" && path.includes("/v1/ops/")) {
       if (scenario === "mutation-pending") {
@@ -687,6 +775,33 @@ export async function installApi(
             ],
             timelineComplete: true,
           },
+          // The server decides what this caller may DO. A viewer's fixture
+          // offers nothing, so the matrix proves the panel is withheld rather
+          // than merely disabled.
+          remediation: shape.capabilities.OPERATIONS_ACKNOWLEDGE === true
+            ? {
+                disposition: "DIRECT_REMEDIATION",
+                actions: [
+                  {
+                    actionId: "ots.resume_anchoring",
+                    label: "Resume anchoring",
+                    description:
+                      "Queues the anchoring step again for this record.",
+                    confirm: true,
+                    async: true,
+                  },
+                ],
+                deepLink: null,
+                guidance: null,
+                unsafeReason: null,
+              }
+            : {
+                disposition: "READ_ONLY_GUIDANCE",
+                actions: [],
+                deepLink: null,
+                guidance: null,
+                unsafeReason: null,
+              },
         }),
       );
     }
@@ -708,6 +823,13 @@ export async function installApi(
           completeness: {
             complete: !truncated,
             mayAssertAllClear: !truncated,
+          },
+          // The workspace's commitment travels with the rows it governs.
+          sla: {
+            responseHours: 4,
+            resolutionHours: 24,
+            dueSoonHours: 2,
+            attentionPostures: ["BREACHED", "DUE_SOON"],
           },
         }),
       );
@@ -868,4 +990,14 @@ export async function isWithinViewport(
     const r = el.getBoundingClientRect();
     return r.left >= -1 && r.right <= window.innerWidth + 1;
   }, selector);
+}
+
+/**
+ * The capabilities a context holds, for tests that must assert a behaviour
+ * against its PERMISSION rather than against a hand-kept list of allowed
+ * behaviours. A list drifts silently when a shape changes; a capability
+ * lookup fails the moment the two disagree.
+ */
+export function capabilitiesFor(context: OpsContext): Record<string, boolean> {
+  return CONTEXTS[context].capabilities;
 }

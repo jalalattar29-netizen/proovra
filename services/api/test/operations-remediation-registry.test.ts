@@ -31,7 +31,6 @@ import {
   integrityClassOf,
   registeredCategories,
   resolveRemediations,
-  type RemediationPermission,
 } from "../src/services/operations/remediation-registry.js";
 
 function read(rel: string): string {
@@ -65,7 +64,7 @@ const CATEGORIES: string[] = (() => {
 })();
 
 const ALLOW_ALL = {
-  can: (_: RemediationPermission) => true,
+  can: () => true,
   hasPermission: () => true,
   workspaceCanMutate: true,
   incidentStatus: "OPEN",

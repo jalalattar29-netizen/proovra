@@ -117,7 +117,10 @@ export function BulkToolbar({
           </button>
         ) : null}
         {canAssign ? (
-          <div className="opsw-bulk__assign">
+          // The hook sits on the WRAPPER: AppListbox does not forward
+          // arbitrary data-* props, and a contract attribute that silently
+          // never renders is a test that passes by finding nothing.
+          <div className="opsw-bulk__assign" data-ops-bulk-assign>
             <AppListbox
               value={assignee}
               onChange={(next) => {
@@ -144,7 +147,6 @@ export function BulkToolbar({
                       o.userId.slice(0, 8),
                   })),
               ]}
-              data-ops-bulk-assign
             />
           </div>
         ) : null}

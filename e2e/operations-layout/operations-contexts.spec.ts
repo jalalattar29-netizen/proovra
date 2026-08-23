@@ -437,7 +437,10 @@ for (const context of MOUNTED) {
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) {
       expect(call.path, `${call.path} must be an ops endpoint`).toMatch(
-        /\/v1\/ops\/(summary|incidents|assignable-operators|bulk-actions)/,
+        // `saved-views` joined the set in Phase B. It is listed by NAME
+        // rather than loosened to a prefix, so a future surface still has to
+        // declare itself here instead of arriving unnoticed.
+        /\/v1\/ops\/(summary|incidents|assignable-operators|bulk-actions|saved-views)/,
       );
       expect(
         new URLSearchParams(call.query).get("teamId"),
