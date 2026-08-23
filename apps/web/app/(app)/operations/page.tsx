@@ -805,6 +805,7 @@ function OperationsWorkbench() {
           row={openRow}
           detail={detail}
           capabilities={capabilities}
+          showOwnership={collaborative}
           operators={operators}
           selfUserId={selfUserId}
           pending={busy}

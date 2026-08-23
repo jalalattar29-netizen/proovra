@@ -31,7 +31,11 @@ import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusB
 import { formatUserDateTime } from "../../../../lib/date";
 import { describeRelativeTime } from "../../../../lib/relative-time";
 import type { OperationsRowModel } from "../_lib/rowModel";
-import { RowActionsMenu, type RowAction } from "./RowActionsMenu";
+import {
+  AppRowMenu,
+  type AppRowAction,
+} from "../../../../components/app-primitives/AppRowMenu";
+import { IconDots, IconSpinner } from "./icons";
 
 export type SurfaceHandlers = {
   onOpen: (incidentId: string) => void;
@@ -47,7 +51,7 @@ export type SurfaceHandlers = {
 function buildActions(
   row: OperationsRowModel,
   handlers: SurfaceHandlers,
-): ReadonlyArray<RowAction> {
+): ReadonlyArray<AppRowAction> {
   const pending = handlers.pendingId === row.id;
 
   // ==========================================================================
@@ -63,7 +67,7 @@ function buildActions(
   // So the mutations are collected FIRST, and the open item is prepended only
   // if any of them survived the capability and state checks.
   // ==========================================================================
-  const actions: RowAction[] = [];
+  const actions: AppRowAction[] = [];
   if (row.canAssign) {
     actions.push({
       key: "assign",
@@ -320,10 +324,15 @@ export function IncidentSurface({
                     <Activity row={row} />
                   </td>
                   <td className="opsw-col-actions">
-                    <RowActionsMenu
+                    <AppRowMenu
                       actions={actions}
                       label={`Actions for ${row.title}`}
+                      dataPrefix="ops"
                       testId={`ops-row-menu-${row.id}`}
+                      triggerLabel="Actions"
+                      triggerLabelClassName="opsw-when-wide"
+                      icon={<IconDots size={16} />}
+                      pendingIcon={<IconSpinner size={14} />}
                     />
                   </td>
                 </tr>
@@ -354,6 +363,7 @@ export function IncidentSurface({
                     checked={markedIds.has(row.id)}
                     onChange={() => handlers.onToggleMark(row.id)}
                     aria-label={`Select ${row.title} for a bulk action`}
+                    data-ops-row-mark={row.id}
                   />
                 ) : null}
                 <SeverityBadge row={row} />
@@ -364,6 +374,7 @@ export function IncidentSurface({
                 type="button"
                 className="opsw-open opsw-card__open"
                 onClick={() => handlers.onOpen(row.id)}
+                data-ops-open={row.id}
               >
                 <Condition row={row} />
               </button>
@@ -392,9 +403,13 @@ export function IncidentSurface({
               </dl>
 
               <div className="opsw-card__foot">
-                <RowActionsMenu
+                <AppRowMenu
                   actions={actions}
                   label={`Actions for ${row.title}`}
+                  dataPrefix="ops"
+                  testId={`ops-card-menu-${row.id}`}
+                  icon={<IconDots size={16} />}
+                  pendingIcon={<IconSpinner size={14} />}
                 />
               </div>
             </li>

@@ -24,11 +24,15 @@
  * ---------------------------------------------------------------------------
  * SINGLE-OPERATOR COMPOSITION
  * ---------------------------------------------------------------------------
- * "Assigned to me" and "Unassigned" are dropped when the workspace has no
- * assignment capability. That is not a Personal-Pro branch: it reads
- * `canAssign`, which the server grants only where more than one operator
- * shares the workspace. A sole operator gets four cards and no invitation to
- * partition work with themselves.
+ * "Assigned to me" and "Unassigned" are dropped where ownership is not a real
+ * axis. That is not a Personal-Pro branch, and it is not the caller's own
+ * assign capability either: it reads `showCollaborative`, which the
+ * orchestrator derives from the server-projected count of eligible operators.
+ *
+ * A sole operator gets four cards and no invitation to partition work with
+ * themselves. A read-only VIEWER in a shared workspace keeps both cards,
+ * because "who is on this?" is precisely the question they are there to
+ * answer and they will never hold OPERATIONS_ASSIGN.
  */
 
 import * as React from "react";
@@ -40,6 +44,19 @@ import {
   QUEUE_METRIC_VOCABULARY,
   type QueueMetricKey,
 } from "../_lib/vocabulary";
+
+/**
+ * A count, or an honest mark that it is missing.
+ *
+ * A metric card whose value is `undefined` renders its label and its note
+ * above empty space — a caption for a number that is not there, which reads as
+ * a rendering fault rather than as missing data. Falling back to `0` would be
+ * worse: it is a confident FALSE statement about a field the server did not
+ * send, on a surface whose entire job is not making those.
+ */
+function metricValue(raw: number | undefined): string {
+  return typeof raw === "number" && Number.isFinite(raw) ? String(raw) : "—";
+}
 
 export function QueueSummary({
   summary,
@@ -78,14 +95,14 @@ export function QueueSummary({
                 className="app-metric-card opsw-metric"
                 data-opsw-tone={entry.tone}
                 data-ops-metric={key}
-                data-ops-metric-value={summary[key]}
+                data-ops-metric-value={metricValue(summary[key])}
                 data-ops-metric-active={isCurrent ? "true" : "false"}
                 aria-pressed={isCurrent}
                 aria-describedby={descId}
                 onClick={() => onSelect(key)}
               >
                 <span className="app-metric-card__value opsw-metric__value">
-                  {summary[key]}
+                  {metricValue(summary[key])}
                 </span>
                 <span className="app-metric-card__label opsw-metric__label">
                   {entry.label}

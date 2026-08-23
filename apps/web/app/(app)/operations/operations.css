@@ -267,6 +267,16 @@
   text-align: end;
 }
 
+/* The selection control is the WHOLE target here — there is no label beside
+   it to press — so it meets the 24px AA floor rather than the 18px a form
+   checkbox gets away with. It arms a bulk action over shared state; a missed
+   tap on a phone is the wrong row acknowledged. */
+.opsw-table .app-checkbox,
+.opsw-card__head .app-checkbox {
+  inline-size: 24px;
+  block-size: 24px;
+}
+
 .opsw-row[data-ops-row-open="true"] {
   background: var(--surface-translucent-selected);
 }
@@ -439,47 +449,12 @@
 
 /* --------------------------------------------------------------------------
  * 7. ROW MENU
+ *
+ * Owned by `app-primitives.css` (`.app-menu`). It lived here, without a
+ * background, a border or a shadow, and rendered five items of bare text
+ * over the table beneath them — a defect no source or jsdom test could see,
+ * because a class that styles nothing looks exactly like one that does.
  * ------------------------------------------------------------------------ */
-.opsw-menu {
-  min-inline-size: 220px;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-}
-.opsw-menu__sep {
-  block-size: 1px;
-  margin: 5px 4px;
-  background: var(--border-subtle);
-}
-.opsw-menu__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  inline-size: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  text-align: start;
-  font: var(--font-label);
-  color: var(--ink-primary);
-  cursor: pointer;
-}
-.opsw-menu__item:hover:not(:disabled) {
-  background: var(--surface-muted);
-}
-.opsw-menu__item:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
-}
-.opsw-menu__item:disabled {
-  color: var(--ink-muted);
-  cursor: default;
-}
-.opsw-menu__item--danger {
-  color: var(--error);
-}
-
 /* --------------------------------------------------------------------------
  * 8. INSPECTOR DRAWER
  * ------------------------------------------------------------------------ */

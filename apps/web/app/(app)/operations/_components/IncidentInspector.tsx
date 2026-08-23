@@ -96,6 +96,7 @@ export function IncidentInspector({
   row,
   detail,
   capabilities,
+  showOwnership,
   operators,
   selfUserId,
   onClose,
@@ -110,6 +111,15 @@ export function IncidentInspector({
   /** Its history, loaded separately. */
   detail: SourceState<IncidentDetail>;
   capabilities: OperationsCapabilities;
+  /**
+   * Whether ownership is a real axis in this workspace.
+   *
+   * Server-projected from the count of eligible operators — NOT from the
+   * caller's own assign capability, and NOT from whether this particular
+   * condition happens to have an owner. Both of those hide "Unassigned" from
+   * the reader who most needs it.
+   */
+  showOwnership: boolean;
   operators: ReadonlyArray<AssignableOperator>;
   selfUserId: string | null;
   onClose: () => void;
@@ -246,7 +256,7 @@ export function IncidentInspector({
           {/* ---------------------------------------------------------- */}
           {/* Ownership                                                   */}
           {/* ---------------------------------------------------------- */}
-          {capabilities.canAssign || row.owner.kind !== "unassigned" ? (
+          {showOwnership ? (
             <section className="opsw-drawer__section">
               <h3 className="opsw-drawer__section-title">Ownership</h3>
               <AssignmentControl
