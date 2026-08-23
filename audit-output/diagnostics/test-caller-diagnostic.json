@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "dc46a78301b550ca8cbe833e6fa225ad0ce2ee9d68fb0405b1e7912ec21d006e",
+  "capabilityRouteInventoryHash": "8d66fd6717263da2181d8e56535c23fe9e020f1e430deab63698fb4bccd2dc53",
   "totals": {
-    "routes": 1093,
+    "routes": 1096,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -162,6 +162,12 @@
     },
     {
       "routeId": "DELETE /v1/identity/mfa/factors/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/ops/saved-views/:id",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -2214,6 +2220,12 @@
     },
     {
       "routeId": "GET /v1/ops/metrics",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/ops/saved-views",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5574,6 +5586,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/ops/saved-views",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/ops/seed/reviewer-ops",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6640,5 +6658,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "bd8261861b69de6163291ebbc7e06f4d597ea3107f86b57597ea070bafbb706a"
+  "contentHash": "572a05283bd2875798b00a9fa0a2769482a52a8bbe71b262be85949190a42cd7"
 }

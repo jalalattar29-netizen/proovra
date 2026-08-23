@@ -737,3 +737,64 @@
   display: block;
   margin-block-start: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   SAVED VIEWS
+   A strip above the filters, because a view SETS the filters — putting it
+   below them would read as another filter rather than as what replaces them.
+   --------------------------------------------------------------------------- */
+.opsw-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 10px;
+}
+
+.opsw-views__label {
+  font: var(--font-label);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.opsw-views__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.opsw-views__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.opsw-views__scope {
+  margin-inline-start: 6px;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+
+.opsw-views__save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.opsw-views__save .app-input {
+  inline-size: 200px;
+}
+
+.opsw-views__share {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+}

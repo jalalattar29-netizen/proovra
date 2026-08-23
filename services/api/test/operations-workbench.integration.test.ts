@@ -1354,4 +1354,179 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(listed.sla.obligation).toBe("RESOLUTION");
     });
   });
+  // =========================================================================
+  // 12. SAVED VIEWS
+  //
+  // A saved view is a stored query that a LATER read replays, which makes its
+  // isolation properties queries too: who can see one, whose it is, and what
+  // it may carry. None of that is checkable from a shape.
+  // =========================================================================
+
+  describe("saved views", () => {
+    async function del(path: string, token: string) {
+      return harness.app.inject({
+        method: "DELETE",
+        url: path,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    }
+
+    async function save(
+      token: string,
+      teamId: string,
+      name: string,
+      over: Record<string, unknown> = {},
+    ) {
+      return post("/v1/ops/saved-views", token, {
+        teamId,
+        name,
+        visibility: "PRIVATE",
+        filter: { teamId, status: "OPEN" },
+        ...over,
+      });
+    }
+
+    it("saves a view and lists it back with its filter intact", async () => {
+      const created = await save(A.ownerToken, A.teamId, `mine-${randomUUID()}`, {
+        filter: { teamId: A.teamId, severity: "CRITICAL", owner: "unassigned" },
+      });
+      expect(created.statusCode).toBe(201);
+
+      const listed = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).views;
+      const mine = listed.find(
+        (v: { id: string }) => v.id === JSON.parse(created.body).view.id,
+      );
+      expect(mine.filter.severity).toBe("CRITICAL");
+      expect(mine.filter.owner).toBe("unassigned");
+      expect(mine.ownedByViewer).toBe(true);
+    });
+
+    it("a PRIVATE view is invisible to a colleague in the same workspace", async () => {
+      const created = await save(
+        A.ownerToken,
+        A.teamId,
+        `private-${randomUUID()}`,
+      );
+      const id = JSON.parse(created.body).view.id;
+
+      const theirs = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.memberToken)).body,
+      ).views;
+      expect(theirs.some((v: { id: string }) => v.id === id)).toBe(false);
+    });
+
+    it("a TEAM view is visible to a colleague — and still not theirs to delete", async () => {
+      const created = await save(A.ownerToken, A.teamId, `shared-${randomUUID()}`, {
+        visibility: "TEAM",
+      });
+      const id = JSON.parse(created.body).view.id;
+
+      const theirs = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.memberToken)).body,
+      ).views;
+      const seen = theirs.find((v: { id: string }) => v.id === id);
+      expect(seen, "a shared view must be visible").toBeTruthy();
+      // Sharing results must not also hand over the ability to remove them.
+      expect(seen.ownedByViewer).toBe(false);
+
+      const attempt = await del(
+        `/v1/ops/saved-views/${id}?teamId=${A.teamId}`,
+        A.memberToken,
+      );
+      expect(attempt.statusCode).toBe(404);
+      // The critical half: it is still there.
+      const after = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).views;
+      expect(after.some((v: { id: string }) => v.id === id)).toBe(true);
+    });
+
+    it("the author may delete their own view", async () => {
+      const created = await save(A.ownerToken, A.teamId, `own-${randomUUID()}`);
+      const id = JSON.parse(created.body).view.id;
+      const removed = await del(
+        `/v1/ops/saved-views/${id}?teamId=${A.teamId}`,
+        A.ownerToken,
+      );
+      expect(removed.statusCode).toBe(204);
+      const after = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).views;
+      expect(after.some((v: { id: string }) => v.id === id)).toBe(false);
+    });
+
+    it("workspace B never sees workspace A's views, shared or not", async () => {
+      await save(A.ownerToken, A.teamId, `a-shared-${randomUUID()}`, {
+        visibility: "TEAM",
+      });
+      const theirs = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${B.teamId}`, B.ownerToken)).body,
+      ).views;
+      expect(theirs).toHaveLength(0);
+    });
+
+    it("refuses a view whose stored filter names a DIFFERENT workspace", async () => {
+      // It is the FILTER that gets replayed, so a view saved into A carrying
+      // a query bound to B would run B's query on A's next read.
+      const res = await save(A.ownerToken, A.teamId, `x-${randomUUID()}`, {
+        filter: { teamId: B.teamId, status: "OPEN" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error.code).toBe("workspace_mismatch");
+    });
+
+    it("refuses a filter key the queue cannot apply", async () => {
+      // `.strict()`: a stored view must not be able to express something the
+      // queue would ignore or, worse, replay into a builder that changed.
+      const res = await save(A.ownerToken, A.teamId, `y-${randomUUID()}`, {
+        filter: { teamId: A.teamId, deletedAt: null, rawSql: "1=1" },
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode).toBeLessThan(500);
+    });
+
+    it("reports a duplicate name as its own answer, not as a generic failure", async () => {
+      const name = `dupe-${randomUUID()}`;
+      expect((await save(A.ownerToken, A.teamId, name)).statusCode).toBe(201);
+      const second = await save(A.ownerToken, A.teamId, name);
+      expect(second.statusCode).toBe(409);
+      expect(JSON.parse(second.body).error.code).toBe("duplicate_name");
+    });
+
+    it("two operators may each keep a view of the same name", async () => {
+      // The uniqueness is per AUTHOR. A workspace-wide name collision would
+      // make one colleague's naming choice block another's.
+      const name = `same-${randomUUID()}`;
+      expect((await save(A.ownerToken, A.teamId, name)).statusCode).toBe(201);
+      expect((await save(A.memberToken, A.teamId, name)).statusCode).toBe(201);
+    });
+
+    it("a viewer may save and read views — a bookmark is not a mutation", async () => {
+      // Gating this behind a mutation capability would make the operator who
+      // can only READ the queue unable to bookmark the slice they watch.
+      const res = await save(A.viewerToken, A.teamId, `viewer-${randomUUID()}`);
+      expect(res.statusCode).toBe(201);
+      const listed = await get(
+        `/v1/ops/saved-views?teamId=${A.teamId}`,
+        A.viewerToken,
+      );
+      expect(listed.statusCode).toBe(200);
+    });
+
+    it("a saved view stores no count, timestamp of results or cached rows", async () => {
+      const created = await save(A.ownerToken, A.teamId, `shape-${randomUUID()}`);
+      const view = JSON.parse(created.body).view;
+      // A view is a QUESTION. Anything resembling an answer would be stale
+      // the instant it was written, and a stale count on this surface is the
+      // false-clear the whole page exists to avoid.
+      for (const forbidden of ["count", "total", "incidents", "results"]) {
+        expect(
+          Object.keys(view.filter),
+          `a saved view must not store ${forbidden}`,
+        ).not.toContain(forbidden);
+      }
+    });
+  });
 });

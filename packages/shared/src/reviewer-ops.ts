@@ -24,6 +24,12 @@
 import { z } from "zod";
 
 import {
+  INCIDENT_CATEGORIES,
+  INCIDENT_SEVERITIES,
+  INCIDENT_STATUSES,
+} from "./observability.js";
+
+import {
   isAllowedReviewStageTransition,
   type ReviewStage,
 } from "./review-operations.js";
@@ -736,12 +742,73 @@ export const REVIEWER_OPS_BULK_HIGH_RISK_ACTIONS: ReadonlySet<ReviewerOpsBulkAct
 
 export const REVIEWER_OPS_SAVED_VIEW_SCOPE = "REVIEWER_OPS" as const;
 export const SEARCH_SAVED_VIEW_SCOPE = "SEARCH" as const;
+/**
+ * PHASE B §7 — the operations workbench's own scope on the SAME table.
+ *
+ * `SavedSearchView.scope` is a plain VARCHAR precisely so a new surface is a
+ * new discriminator rather than a new table, so this needs no migration. Every
+ * read and write on the operations side pins this value, which is what keeps
+ * one surface's views from appearing in another's list.
+ */
+export const OPERATIONS_SAVED_VIEW_SCOPE = "OPERATIONS" as const;
 
 export const SAVED_VIEW_SCOPES = [
   SEARCH_SAVED_VIEW_SCOPE,
   REVIEWER_OPS_SAVED_VIEW_SCOPE,
+  OPERATIONS_SAVED_VIEW_SCOPE,
 ] as const;
 export type SavedViewScope = (typeof SAVED_VIEW_SCOPES)[number];
+
+/**
+ * WHAT AN OPERATIONS VIEW MAY STORE.
+ *
+ * `.strict()`, deliberately: a saved view is a stored query that a later
+ * release will replay, and an unrecognised key would either be dropped
+ * silently or replayed into a filter that no longer means what it did. It is
+ * also the boundary that stops a saved view from becoming a place to smuggle
+ * arbitrary JSON into a query builder.
+ *
+ * The fields are EXACTLY the queue's filters and nothing else — no result
+ * count, no timestamp, no cached rows. A view describes a question; storing
+ * any part of an answer with it would make the answer stale the moment it
+ * was saved.
+ */
+export const OperationsSavedViewFilterSchema = z
+  .object({
+    teamId: z.string().uuid(),
+    // Each field mirrors the queue route's own parameter EXACTLY — same
+    // names, same values, same bounds. A saved view that could express a
+    // filter the queue cannot apply is a view that silently does something
+    // else when it is replayed.
+    status: z
+      .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+      .optional(),
+    severity: z
+      .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])
+      .optional(),
+    category: z
+      .enum(INCIDENT_CATEGORIES as unknown as [string, ...string[]])
+      .optional(),
+    /**
+     * Ownership. "me" is stored as the WORD, never resolved to the saver's
+     * id: a shared view called "Mine" must mean the reader's own work, not
+     * permanently the author's.
+     */
+    owner: z
+      .union([
+        z.literal("any"),
+        z.literal("me"),
+        z.literal("unassigned"),
+        z.string().uuid(),
+      ])
+      .optional(),
+    q: z.string().trim().max(120).optional(),
+    sort: z.enum(["recent", "severity", "oldest", "occurrences"]).optional(),
+  })
+  .strict();
+export type OperationsSavedViewFilter = z.infer<
+  typeof OperationsSavedViewFilterSchema
+>;
 
 export const ReviewerOpsSavedViewFilterSchema = z
   .object({

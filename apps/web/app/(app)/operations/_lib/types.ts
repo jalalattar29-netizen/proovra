@@ -284,3 +284,38 @@ export type BulkActionResponse = {
   }>;
   idempotentReplay?: boolean;
 };
+
+// ---------------------------------------------------------------------------
+// SAVED VIEWS
+// ---------------------------------------------------------------------------
+
+/**
+ * A named set of queue filters.
+ *
+ * It stores a QUESTION and never an answer: no count, no timestamp of what
+ * was true when it was saved, no cached rows. Anything resembling a result
+ * would be stale the instant it was written.
+ */
+export type OperationsSavedView = {
+  id: string;
+  name: string;
+  description: string | null;
+  /** PRIVATE is the author's alone; TEAM is visible to the workspace. */
+  visibility: "PRIVATE" | "TEAM";
+  pinned: boolean;
+  createdByUserId: string;
+  /** Only the author may delete it, and only the server decides who that is. */
+  ownedByViewer: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** The stored filters, in the queue's own vocabulary. */
+  filter: {
+    teamId: string;
+    status?: string;
+    severity?: string;
+    category?: string;
+    owner?: string;
+    q?: string;
+    sort?: string;
+  };
+};

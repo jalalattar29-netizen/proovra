@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1092
-RegisteredRoutes                            1093
+ProductionRegisteredRoutes                  1095
+RegisteredRoutes                            1096
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (ten disjoint buckets, identity asserted)
-TerminalWriters                             1219
-ROUTE_ATTRIBUTED_REACHABLE                  1093
+TerminalWriters                             1221
+ROUTE_ATTRIBUTED_REACHABLE                  1095
 JOB_ATTRIBUTED_REACHABLE                     114
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -73,7 +73,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        864
+ProductConsumedRoutes                        867
 NonProductDispositionedRoutes                228
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true

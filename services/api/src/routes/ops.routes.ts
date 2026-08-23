@@ -69,6 +69,11 @@ import {
 } from "../services/operations/remediation-registry.js";
 import { executeRemediation } from "../services/operations/remediation-executor.js";
 import {
+  createOperationsSavedView,
+  deleteOperationsSavedView,
+  listOperationsSavedViews,
+} from "../services/operations/saved-views.service.js";
+import {
   loadIncidentSlaPolicy,
   projectIncidentSla,
   SLA_ATTENTION_POSTURES,
@@ -88,6 +93,7 @@ import {
   INCIDENT_CATEGORIES,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
+  OperationsSavedViewFilterSchema,
 } from "@proovra/shared";
 import { runSchemaValidation } from "../runtime/schema-validation.js";
 // PHASE 12 — VERTICAL B. Server authority for Command Center workflow
@@ -2119,6 +2125,114 @@ export async function opsRoutes(app: FastifyInstance) {
       ),
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // SAVED VIEWS
+  //
+  //   GET    /v1/ops/saved-views      the reader's own, plus the workspace's
+  //   POST   /v1/ops/saved-views      save the current filters under a name
+  //   DELETE /v1/ops/saved-views/:id  remove one the reader owns
+  //
+  // Gated on OPERATIONS_VIEW and nothing more. A saved view GRANTS nothing:
+  // opening one issues the ordinary queue read under the reader's own
+  // authority, so a view shared by an administrator shows a viewer exactly
+  // what that viewer could already have filtered to by hand. Requiring a
+  // mutation capability to save one would be gating a bookmark behind the
+  // permission to change things.
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    "/v1/ops/saved-views",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireOpsCapability(req, reply, q.teamId, "operations.view");
+      if (!actor) return;
+
+      const views = await listOperationsSavedViews({
+        teamId: q.teamId,
+        userId: actor.userId,
+      });
+      return reply.code(200).send({ views });
+    },
+  );
+
+  app.post(
+    "/v1/ops/saved-views",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          name: z.string().trim().min(1).max(120),
+          description: z.string().trim().max(400).optional(),
+          visibility: z.enum(["PRIVATE", "TEAM"]),
+          pinned: z.boolean().optional(),
+          // Validated against the SAME strict schema the queue's own
+          // parameters define, so a view cannot express a filter the queue
+          // could not apply — which would silently do something else when
+          // the view was replayed.
+          filter: OperationsSavedViewFilterSchema,
+        })
+        .parse(req.body ?? {});
+
+      const actor = await requireOpsCapability(
+        req,
+        reply,
+        body.teamId,
+        "operations.view",
+      );
+      if (!actor) return;
+
+      const created = await createOperationsSavedView({
+        teamId: body.teamId,
+        actorUserId: actor.userId,
+        name: body.name,
+        description: body.description ?? null,
+        visibility: body.visibility,
+        pinned: body.pinned ?? false,
+        filter: body.filter,
+      });
+
+      if (!created.ok) {
+        // Distinguishable answers: saving over your own view is not the same
+        // problem as a workspace mismatch, and one of them the operator can
+        // fix by choosing another name.
+        return reply
+          .code(created.reason === "duplicate_name" ? 409 : 400)
+          .send({ error: { code: created.reason } });
+      }
+      return reply.code(201).send({ view: created.view });
+    },
+  );
+
+  app.delete(
+    "/v1/ops/saved-views/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsIncidentId.parse(req.params);
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireOpsCapability(req, reply, q.teamId, "operations.view");
+      if (!actor) return;
+
+      const removed = await deleteOperationsSavedView({
+        teamId: q.teamId,
+        actorUserId: actor.userId,
+        id,
+      });
+      // 404 rather than 403 for somebody else's view: sharing a view exposes
+      // its results, and must not also confirm which ids exist to a caller
+      // who cannot act on them.
+      if (!removed) {
+        return reply.code(404).send({ error: { code: "saved_view_not_found" } });
+      }
+      return reply.code(204).send();
+    },
+  );
 
   const BulkActionBody = z.object({
     teamId: z.string().uuid(),

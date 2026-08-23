@@ -1538,6 +1538,7 @@ export type {
   ReviewerOpsBulkItemResult,
   ReviewerOpsReminderKind,
   ReviewerOpsReminderStatus,
+  OperationsSavedViewFilter,
   ReviewerOpsSavedViewFilter,
   ReviewerOpsSlaPolicyOverride,
   ReviewerPerformanceProjection,
@@ -1547,6 +1548,8 @@ export type {
 } from "./reviewer-ops.js";
 
 export {
+  OPERATIONS_SAVED_VIEW_SCOPE,
+  OperationsSavedViewFilterSchema,
   REVIEWER_OPS_BULK_ACTIONS,
   REVIEWER_OPS_BULK_HIGH_RISK_ACTIONS,
   REVIEWER_OPS_BULK_MAX_ITEMS,

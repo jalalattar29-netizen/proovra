@@ -157,14 +157,19 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
     //   `tier === "ENTERPRISE"` the static SURFACE tier — a classification of
     //                       screens, whose decision then reads the
     //                       server-projected `isEnterpriseWorkspace`;
-    //   `leadTrack === "ENTERPRISE"` a sales lead track.
+    //   `leadTrack === "ENTERPRISE"` a sales lead track;
+    //   `visibility === "TEAM"` a saved view VISIBILITY (PRIVATE | TEAM),
+    //                       which says who can SEE a stored query and grants
+    //                       no authority at all — replaying one issues the
+    //                       ordinary read under the reader's own permissions.
     //
     // Counting those would produce a metric that is impossible to drive to
     // zero without renaming unrelated concepts, which is how a metric gets
     // quietly deleted instead of satisfied.
     const COMPARISON =
       /\b([A-Za-z_$][\w$.?]*)\s*[=!]==\s*["'](FREE|PAYG|PRO|TEAM|ENTERPRISE)["']/g;
-    const NOT_A_PLAN = /scope|tier|kind|track|target|type|status|role/i;
+    const NOT_A_PLAN =
+      /scope|tier|kind|track|target|type|status|role|visibility/i;
 
     const offenders = WEB_SOURCES.filter((f) => {
       const relPath = rel(f);

@@ -101,6 +101,7 @@ import {
   useStepUpAction,
 } from "../../../components/identity-security/StepUpModal";
 import { IncidentInspector } from "./_components/IncidentInspector";
+import { SavedViews } from "./_components/SavedViews";
 import { IncidentSurface } from "./_components/IncidentSurface";
 import { QueueSummary } from "./_components/QueueSummary";
 import type { RestrictedReason } from "./_components/States";
@@ -131,6 +132,7 @@ import type {
   IncidentDetail,
   IncidentDetailResponse,
   BulkActionResponse,
+  OperationsSavedView,
   SlaEnvelope,
   ProjectedRemediation,
   RemediationOutcome,
@@ -247,6 +249,34 @@ function OperationsWorkbench() {
     [applyFilters],
   );
 
+  /**
+   * APPLY A SAVED VIEW.
+   *
+   * It writes the URL, exactly as every other filter change does, so the URL
+   * remains the ONE shareable description of what the queue is showing. A view
+   * that set state directly would leave the address bar describing something
+   * else, and a link copied from it would open a different queue.
+   *
+   * Every field the view did not set falls back to the DEFAULT rather than to
+   * the filters currently on screen: a named view must mean the same thing
+   * whatever the operator happened to be looking at when they clicked it.
+   */
+  const applyView = React.useCallback(
+    (view: OperationsSavedView) => {
+      const f = view.filter;
+      applyFilters({
+        ...DEFAULT_FILTERS,
+        status: (f.status ?? "") as FilterState["status"],
+        severity: (f.severity ?? "") as FilterState["severity"],
+        category: (f.category ?? "") as FilterState["category"],
+        owner: (f.owner ?? "any") as FilterState["owner"],
+        q: f.q ?? "",
+        sort: (f.sort ?? DEFAULT_FILTERS.sort) as FilterState["sort"],
+      });
+    },
+    [applyFilters],
+  );
+
   // -------------------------------------------------------------------------
   // SOURCES
   // -------------------------------------------------------------------------
@@ -271,6 +301,9 @@ function OperationsWorkbench() {
     null,
   );
   const [reloadToken, setReloadToken] = React.useState(0);
+
+  const [savedViews, setSavedViews] = React.useState<OperationsSavedView[]>([]);
+  const [savedViewsLoading, setSavedViewsLoading] = React.useState(false);
 
   const [operators, setOperators] = React.useState<AssignableOperator[]>([]);
   const [selfUserId, setSelfUserId] = React.useState<string | null>(null);
@@ -485,6 +518,106 @@ function OperationsWorkbench() {
   React.useEffect(() => {
     setRemediationOutcome(null);
   }, [openId]);
+
+  /**
+   * SAVED VIEWS.
+   *
+   * Loaded on the same gate as the queue itself: a context that may not read
+   * operational data issues no request here either, so a refused workspace
+   * makes zero `/v1/ops/*` calls of ANY kind. A failed load leaves the strip
+   * empty rather than raising a banner — a missing bookmark list must not look
+   * like a failure of the conditions themselves.
+   */
+  const loadSavedViews = React.useCallback(() => {
+    // `gate` is a REFUSAL REASON, so truthy means refused. Same predicate,
+    // same direction, as every other read on this page.
+    if (gate || !teamId) {
+      setSavedViews([]);
+      return;
+    }
+    setSavedViewsLoading(true);
+    void apiFetch(
+      `/v1/ops/saved-views?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )
+      .then((res) => {
+        setSavedViews((res as { views: OperationsSavedView[] }).views ?? []);
+      })
+      .catch(() => setSavedViews([]))
+      .finally(() => setSavedViewsLoading(false));
+  }, [teamId, gate]);
+
+  React.useEffect(() => {
+    loadSavedViews();
+  }, [loadSavedViews]);
+
+  const saveView = React.useCallback(
+    async (input: { name: string; visibility: "PRIVATE" | "TEAM" }) => {
+      if (!teamId || busy) return;
+      setBusy(true);
+      setMutationError(null);
+      try {
+        await apiFetch("/v1/ops/saved-views", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            name: input.name,
+            visibility: input.visibility,
+            // Only the filters that are actually SET. Persisting the empty
+            // defaults would make every saved view carry the whole filter
+            // vocabulary, so a later change to a default would silently
+            // rewrite what old views mean.
+            filter: {
+              teamId,
+              ...(filters.status ? { status: filters.status } : {}),
+              ...(filters.severity ? { severity: filters.severity } : {}),
+              ...(filters.category ? { category: filters.category } : {}),
+              ...(filters.owner && filters.owner !== "any"
+                ? { owner: filters.owner }
+                : {}),
+              ...(filters.q.trim() ? { q: filters.q.trim() } : {}),
+              ...(filters.sort ? { sort: filters.sort } : {}),
+            },
+          }),
+        });
+        loadSavedViews();
+      } catch (err) {
+        setMutationError(
+          toSafeUserError(err, {
+            message: "That view could not be saved.",
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [teamId, busy, filters, loadSavedViews],
+  );
+
+  const deleteView = React.useCallback(
+    async (view: OperationsSavedView) => {
+      if (!teamId || busy) return;
+      setBusy(true);
+      setMutationError(null);
+      try {
+        await apiFetch(
+          `/v1/ops/saved-views/${encodeURIComponent(view.id)}?teamId=${encodeURIComponent(teamId)}`,
+          { method: "DELETE" },
+        );
+        loadSavedViews();
+      } catch (err) {
+        setMutationError(
+          toSafeUserError(err, {
+            message: "That view could not be removed.",
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [teamId, busy, loadSavedViews],
+  );
 
   const loadMore = React.useCallback(() => {
     if (!teamId || !nextCursor || loadingMore) return;
@@ -917,6 +1050,18 @@ function OperationsWorkbench() {
               showCollaborative={collaborative}
             />
           ) : null}
+
+          <SavedViews
+            views={savedViews}
+            loading={savedViewsLoading}
+            busy={busy}
+            // Nothing to name until something is filtered. "Save this view"
+            // over the default queue would save the default queue.
+            canSave={anyFilterActive(filters)}
+            onApply={applyView}
+            onSave={(input) => void saveView(input)}
+            onDelete={(view) => void deleteView(view)}
+          />
 
           <FilterToolbar
             filters={filters}
