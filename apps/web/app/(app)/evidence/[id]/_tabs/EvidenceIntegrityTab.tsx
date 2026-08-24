@@ -182,6 +182,7 @@ function MatrixGrid({ items }: { items: MatrixItem[] }) {
               {presentation ? (
                 <span
                   className="app-status-text evidence-detail-matrix-cell__state"
+                  data-size="md"
                   data-tone={presentation.tone}
                 >
                   {presentation.label}

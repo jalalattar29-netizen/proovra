@@ -44,7 +44,7 @@ const WIDTHS = [
   { name: "320", width: 320, height: 800 },
 ] as const;
 
-type Box = { background: string; border: string; shadow: string; radius: string; padding: string; color: string };
+type Box = { background: string; border: string; shadow: string; radius: string; padding: string; color: string; fontSize: string };
 
 /** The computed properties that decide whether an element is a capsule. */
 async function boxOf(el: Locator): Promise<Box> {
@@ -57,8 +57,22 @@ async function boxOf(el: Locator): Promise<Box> {
       radius: [s.borderTopLeftRadius, s.borderBottomRightRadius].join(" "),
       padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(" "),
       color: s.color,
+      fontSize: s.fontSize,
     };
   });
+}
+
+/**
+ * Assert a label renders at its restored compact size, not the parent's.
+ *
+ * This is the regression this whole pass exists to catch: `font: inherit` made
+ * a 12px status balloon to the 16px of its container. The size is read as a
+ * COMPUTED px value from the production bundle, so an inherited size or a
+ * dropped `data-size` fails here rather than only looking wrong.
+ */
+async function expectSize(el: Locator, px: string, what: string): Promise<void> {
+  const box = await boxOf(el);
+  expect(box.fontSize, `${what} is ${box.fontSize}, expected ${px}`).toBe(px);
 }
 
 /**
@@ -135,6 +149,9 @@ for (const dir of DIRECTIONS) {
       const status = page.locator("[data-search-result-status]").first();
       await expect(status).toBeVisible();
       await expectNoSurface(status, "search result status");
+      // Restored to the 12px the status badge always was, not the 16px it
+      // ballooned to when it inherited the result row.
+      await expectSize(status, "12px", "search result status");
       // It is the TEXT primitive, not a flattened badge.
       await expect(status).toHaveClass(/app-status-text/);
       await expect(status).not.toHaveClass(/app-status-badge/);
@@ -295,11 +312,15 @@ for (const dir of DIRECTIONS) {
       expect(count, "no case status rendered").toBeGreaterThan(0);
       for (let i = 0; i < count; i += 1) {
         await expectNoSurface(statuses.nth(i), `case status #${i}`);
+        // 12px, the status size — not the 16px table row it sits in.
+        await expectSize(statuses.nth(i), "12px", `case status #${i}`);
       }
 
       const readiness = page.locator("[data-matter-queue-row-readiness]");
       for (let i = 0; i < (await readiness.count()); i += 1) {
         await expectNoSurface(readiness.nth(i), `readiness #${i}`);
+        // Readiness was 11.5px, and stays smaller than the status beside it.
+        await expectSize(readiness.nth(i), "11.5px", `readiness #${i}`);
       }
 
       expect(await horizontalOverflow(page), "the page scrolls sideways").toBeLessThanOrEqual(1);

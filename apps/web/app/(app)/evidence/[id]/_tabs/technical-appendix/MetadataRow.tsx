@@ -115,6 +115,7 @@ export function AppendixBadge({
   return (
     <span
       className="app-status-text"
+      data-size="xs"
       data-tone={appendixAppTone(tone)}
       data-testid="ta-badge"
     >

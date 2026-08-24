@@ -110,11 +110,12 @@ export function EvidenceLibraryRow({
           `.app-status-text-row`, which exists for the surfaces that have no
           such container. */}
       <span className="evidence-library-row__badges">
-        <span className="app-status-text" data-tone={getStatusBadgeTone(item)}>
+        <span className="app-status-text" data-size="md" data-tone={getStatusBadgeTone(item)}>
           {getRecordStatusLabel(item.status)}
         </span>
         <span
           className="app-status-text"
+          data-size="md"
           data-tone={getReviewPriorityTone(priority.level)}
           data-evidence-row-priority={priority.level}
         >

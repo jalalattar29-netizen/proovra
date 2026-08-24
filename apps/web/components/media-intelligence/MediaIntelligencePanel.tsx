@@ -816,15 +816,19 @@ function SignalRow({
           `.evd-badge` is untouched — it still carries "Required" and the
           intake-source label elsewhere; only this call site moved. */}
       <div className="app-status-text-row" data-media-intelligence-statuses>
-        <span className="app-status-text" data-tone={severityTone(signal.severity)}>
+        {/* Severity and status were 12px status badges; confidence was the
+            smaller 10.5px metadata chip. Restoring each to the size it had
+            keeps their original relationship rather than flattening all three
+            to one size. */}
+        <span className="app-status-text" data-size="md" data-tone={severityTone(signal.severity)}>
           {severityLabel(signal.severity)}
         </span>
         {/* Confidence has no semantic tone of its own and never had one — it
             was a neutral chip. It stays neutral, now as neutral TEXT. */}
-        <span className="app-status-text" data-tone="slate">
+        <span className="app-status-text" data-size="xs" data-tone="slate">
           {confidenceLabel(signal.confidence)}
         </span>
-        <span className="app-status-text" data-tone={statusTone(signal.status)}>
+        <span className="app-status-text" data-size="md" data-tone={statusTone(signal.status)}>
           {statusLabel(signal.status)}
         </span>
       </div>

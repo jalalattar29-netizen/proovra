@@ -1257,6 +1257,7 @@ function MatterQueueRow({
           <AppStatusText
             className="cases-readiness"
             tone={readiness.tone}
+            size="sm"
             data-matter-queue-row-readiness={readiness.key}
           >
             {readiness.label}

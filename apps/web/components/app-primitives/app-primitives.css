@@ -983,6 +983,23 @@ textarea.app-form-input {
 .app-status-text[data-tone="slate"] { --app-status-tone: var(--ink-secondary); }
 .app-status-text[data-tone="ink"] { --app-status-tone: var(--ink-primary); }
 
+/* SIZE — a status is intrinsically compact, the way the capsule it replaced was
+ * a FIXED size regardless of the text around it. The base above sets
+ * `font: inherit`, which makes size follow the PARENT — and in a 16px body or
+ * a 16px table cell that balloons a status that was always 12px up to 16px.
+ * These OPT-IN tiers restore the exact fixed sizes the badges had.
+ *
+ * Deliberately NOT a blanket `font-size` on the base: the tiers DIFFER, because
+ * the labels always did — the Technical Appendix's were 10.5px, readiness and
+ * the media-type label 11.5px, the status badge 12px. One size on the base
+ * would shrink the badge-sized labels correctly and ENLARGE the 10.5px ones,
+ * which is its own regression. A surface asks for the size its label always had
+ * instead of every status being forced to one; a label with no tier still
+ * inherits, so this adds a capability rather than a global rule. */
+.app-status-text[data-size="md"] { font-size: 12px; line-height: 1.4; }
+.app-status-text[data-size="sm"] { font-size: 11.5px; line-height: 1.4; }
+.app-status-text[data-size="xs"] { font-size: 10.5px; line-height: 1.4; }
+
 /* Several states side by side.
  *
  * Without a container the removed padding takes the separation with it and

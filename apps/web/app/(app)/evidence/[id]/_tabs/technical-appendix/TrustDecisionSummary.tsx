@@ -259,6 +259,7 @@ export function TrustDecisionSummary({
                           tone are all unchanged — only the surface is gone. */}
                       <span
                         className="app-status-text ta-signal-state"
+                        data-size="xs"
                         data-tone={appendixAppTone(state.tone)}
                         data-trust-signal-pill
                       >

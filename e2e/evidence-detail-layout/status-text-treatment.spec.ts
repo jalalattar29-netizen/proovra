@@ -51,6 +51,7 @@ async function boxOf(el: Locator) {
       radius: [s.borderTopLeftRadius, s.borderBottomRightRadius].join(" "),
       padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(" "),
       color: s.color,
+      fontSize: s.fontSize,
     };
   });
 }
@@ -63,6 +64,16 @@ async function expectNoSurface(el: Locator, what: string): Promise<void> {
   expect(box.radius, `${what} keeps a capsule radius`).toBe("0px 0px");
   expect(box.padding, `${what} keeps pill padding`).toBe("0px 0px 0px 0px");
   expect(box.color, `${what} lost its ink`).not.toBe("rgba(0, 0, 0, 0)");
+}
+
+/**
+ * Assert a label renders at its restored compact size, not the parent's — the
+ * exact regression this pass fixes: `font: inherit` let a 12px status inherit
+ * a 16px cell. Read as a computed px value from the production bundle.
+ */
+async function expectSize(el: Locator, px: string, what: string): Promise<void> {
+  const box = await boxOf(el);
+  expect(box.fontSize, `${what} is ${box.fontSize}, expected ${px}`).toBe(px);
 }
 
 async function horizontalOverflow(page: Page): Promise<number> {
@@ -98,6 +109,8 @@ for (const dir of DIRECTIONS) {
       expect(n, "no matrix state rendered").toBeGreaterThan(0);
       for (let i = 0; i < n; i += 1) {
         await expectNoSurface(states.nth(i), `matrix state #${i}`);
+        // 12px — restored from the 16px it inherited from the matrix cell.
+        await expectSize(states.nth(i), "12px", `matrix state #${i}`);
         // It is the text primitive, never a flattened badge.
         await expect(states.nth(i)).toHaveClass(/app-status-text/);
         await expect(states.nth(i)).not.toHaveClass(/app-status-badge/);
@@ -152,6 +165,9 @@ for (const dir of DIRECTIONS) {
       expect(sn, "no per-signal state rendered").toBeGreaterThan(0);
       for (let i = 0; i < sn; i += 1) {
         await expectNoSurface(signalStates.nth(i), `signal state #${i}`);
+        // 10.5px — the compact Technical Appendix size, not the 12.5px it
+        // inherited from the disclosure row.
+        await expectSize(signalStates.nth(i), "10.5px", `signal state #${i}`);
         await expect(signalStates.nth(i)).toHaveClass(/app-status-text/);
       }
 
@@ -160,6 +176,8 @@ for (const dir of DIRECTIONS) {
       const roles = page.locator('[data-testid="ta-badge"]');
       for (let i = 0; i < (await roles.count()); i += 1) {
         await expectNoSurface(roles.nth(i), `part role #${i}`);
+        // 10.5px — every AppendixBadge, restored from the 12–16px it inherited.
+        await expectSize(roles.nth(i), "10.5px", `part role #${i}`);
         await expect(roles.nth(i)).toHaveClass(/app-status-text/);
       }
 
@@ -201,6 +219,8 @@ for (const dir of DIRECTIONS) {
     const status = page.locator(".evidence-detail-hero-meta .app-status-text").first();
     await expect(status).toBeVisible();
     await expectNoSurface(status, "hero status");
+    // 12px — restored from the 12.5px it inherited from the hero meta line.
+    await expectSize(status, "12px", "hero status");
     await expect(status).not.toHaveClass(/app-status-badge/);
     await page.screenshot({
       path: `test-results/status-text/evidence-detail-overview-hero-${dir}.png`,

@@ -654,6 +654,7 @@ export function CaseDetailHeader({
           <span
             className="app-status-text"
             data-tone={caseStatusTone(caseDetail.status)}
+            data-size="md"
             data-status={caseDetail.status}
             data-simple-case-status
           >

@@ -22,9 +22,25 @@ import * as React from "react";
 
 import type { AppTone } from "./AppStatusBadge";
 
+/**
+ * The compact size the label carries, restoring the FIXED size the capsule had
+ * regardless of the surrounding text.
+ *
+ *   md  12px   — the status-badge default; most states
+ *   sm  11.5px — the readiness / media-type label
+ *   xs  10.5px — the Technical Appendix labels
+ *
+ * Defaults to `md` because a status is a compact label, not body copy — the
+ * whole reason this exists is that inheriting a 16px parent made a 12px status
+ * balloon. `inherit` opts back into the parent size for the rare surface that
+ * genuinely wants it.
+ */
+export type AppStatusTextSize = "md" | "sm" | "xs" | "inherit";
+
 export interface AppStatusTextProps {
   tone: AppTone;
   children: React.ReactNode;
+  size?: AppStatusTextSize;
   className?: string;
   title?: string;
   /**
@@ -39,6 +55,7 @@ export interface AppStatusTextProps {
 export function AppStatusText({
   tone,
   children,
+  size = "md",
   className,
   title,
   ...dataAttrs
@@ -47,6 +64,7 @@ export function AppStatusText({
     <span
       className={`app-status-text${className ? ` ${className}` : ""}`}
       data-tone={tone}
+      data-size={size === "inherit" ? undefined : size}
       title={title}
       {...dataAttrs}
     >

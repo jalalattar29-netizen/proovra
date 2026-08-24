@@ -863,7 +863,11 @@ export function PreviewWorkspace({
             >
               <div className="evidence-detail-item-row">
                 <strong>{item.label}</strong>
-                <span className="app-status-text" data-tone={mediaKindTone(item.kind)}>
+                <span
+                  className="app-status-text"
+                  data-size="sm"
+                  data-tone={mediaKindTone(item.kind)}
+                >
                   {item.kind}
                 </span>
               </div>

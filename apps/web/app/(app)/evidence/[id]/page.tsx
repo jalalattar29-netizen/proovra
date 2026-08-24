@@ -1229,6 +1229,7 @@ function EvidenceDetailPageInner() {
               <span
                 className="app-status-text"
                 data-tone={getRecordStatusBadgeTone(evidence.status)}
+                data-size="md"
               >
                 {evidence.status.replace(/_/g, " ")}
               </span>

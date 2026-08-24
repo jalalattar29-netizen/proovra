@@ -180,6 +180,82 @@ test("4. several states side by side are separated by a GAP, never by a capsule"
   assert.doesNotMatch(STATUS_TEXT, /dot/);
 });
 
+test("4b. size is an OPT-IN tier that restores the original fixed sizes — the base never blanket-sizes", () => {
+  // THE REGRESSION THIS GUARDS. `font: inherit` on the base made a status
+  // follow its parent, so a 12px label in a 16px body rendered at 16px. The
+  // fix restores the FIXED sizes the badges had — as opt-in tiers, because the
+  // labels' original sizes DIFFER (10.5 / 11.5 / 12), so one blanket size would
+  // shrink the badge-sized labels and enlarge the appendix ones.
+
+  // The base still inherits by default: a label with no tier is not forced to a
+  // size, so this is a capability and not a global rule. The FORBIDDEN fix — a
+  // bare `.app-status-text { font-size }` — must not appear.
+  const base = rule(PRIM_CSS, ".app-status-text");
+  assert.match(base, /font: inherit;/);
+  assert.doesNotMatch(base, /font-size/, "the base must not carry a blanket font-size");
+
+  // The three tiers, at the exact original sizes the badges/labels had.
+  assert.match(
+    rule(PRIM_CSS, '.app-status-text[data-size="md"]'),
+    /font-size: 12px;/,
+    "md must be the 12px status-badge default",
+  );
+  assert.match(
+    rule(PRIM_CSS, '.app-status-text[data-size="sm"]'),
+    /font-size: 11\.5px;/,
+    "sm must be the 11.5px readiness / media-type size",
+  );
+  assert.match(
+    rule(PRIM_CSS, '.app-status-text[data-size="xs"]'),
+    /font-size: 10\.5px;/,
+    "xs must be the 10.5px Technical Appendix size",
+  );
+  // The tiers set SIZE only — a tier is not a place to smuggle a surface back.
+  for (const t of ["md", "sm", "xs"]) {
+    const body = rule(PRIM_CSS, `.app-status-text[data-size="${t}"]`);
+    assert.doesNotMatch(body, /background|border|box-shadow|border-radius/, `${t} tier does more than size`);
+  }
+
+  // The component defaults to a compact size rather than inheriting: a status
+  // is a compact label, and the whole defect was it ballooning to body size.
+  assert.match(STATUS_TEXT, /size = "md"/);
+  assert.match(STATUS_TEXT, /data-size=\{size === "inherit" \? undefined : size\}/);
+});
+
+test("4c. every regressed label asks for the size its badge had", () => {
+  // The exact tier each surface must carry, so a future edit that drops a
+  // `data-size`/`size` and lets a label inherit 16px again is caught here.
+
+  // 12px (the status-badge default) — read from the shipped source.
+  const simpleDetail = read(
+    "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+  );
+  assert.match(
+    simpleDetail,
+    /className="app-status-text"\s*\n\s*data-tone=\{caseStatusTone\(caseDetail\.status\)\}\s*\n\s*data-size="md"/,
+  ); // case status under the title
+  assert.match(EV_DETAIL_PAGE, /className="app-status-text"\s*\n\s*data-tone=\{getRecordStatusBadgeTone[\s\S]{0,60}?data-size="md"/);
+  assert.match(EV_ROW, /className="app-status-text" data-size="md" data-tone=\{getStatusBadgeTone/);
+  assert.match(EV_ROW, /className="app-status-text"\s*\n\s*data-size="md"\s*\n\s*data-tone=\{getReviewPriorityTone/);
+  assert.match(EV_INTEGRITY, /className="app-status-text evidence-detail-matrix-cell__state"\s*\n\s*data-size="md"/);
+
+  // The AppStatusText component defaults to md, so the Cases-list status, the
+  // Copilot row, the rail and all three Search states are 12px without an
+  // explicit prop. Readiness overrides DOWN to its original 11.5px.
+  assert.match(CASES_INDEX, /className="cases-readiness"\s*\n\s*tone=\{readiness\.tone\}\s*\n\s*size="sm"/);
+
+  // 11.5px — the media-type label (was 0.72rem).
+  assert.match(EV_LIB, /className="app-status-text"\s*\n\s*data-size="sm"\s*\n\s*data-tone=\{mediaKindTone/);
+
+  // 10.5px — the Technical Appendix labels and the media-intelligence
+  // confidence chip, which were the smaller `.ta-badge` / `.evd-badge`.
+  assert.match(TA_TRUST, /className="app-status-text ta-signal-state"\s*\n\s*data-size="xs"/);
+  assert.match(TA_ROW, /className="app-status-text"\s*\n\s*data-size="xs"/);
+  assert.match(MEDIA_INTEL, /data-size="md" data-tone=\{severityTone/);
+  assert.match(MEDIA_INTEL, /data-size="xs" data-tone="slate"/);
+  assert.match(MEDIA_INTEL, /data-size="md" data-tone=\{statusTone/);
+});
+
 // ===========================================================================
 // 5–6. The capsule primitives are STILL THERE
 // ===========================================================================
@@ -324,8 +400,8 @@ test("13. the Case Copilot row states its status as text and keeps the KIND chip
 // ===========================================================================
 
 test("14. Evidence Library rows state their status and review signal as text", () => {
-  assert.match(EV_ROW, /className="app-status-text" data-tone=\{getStatusBadgeTone\(item\)\}/);
-  assert.match(EV_ROW, /className="app-status-text"\s*\n\s*data-tone=\{getReviewPriorityTone/);
+  assert.match(EV_ROW, /className="app-status-text" data-size="md" data-tone=\{getStatusBadgeTone\(item\)\}/);
+  assert.match(EV_ROW, /className="app-status-text"\s*\n\s*data-size="md"\s*\n\s*data-tone=\{getReviewPriorityTone/);
   assert.doesNotMatch(EV_ROW, /app-status-badge/);
   // The container was already a wrapping flex row with its own gap, so the two
   // phrases cannot run together.
@@ -396,7 +472,7 @@ test("18. the Technical Appendix states every signal and role as text", () => {
   assert.match(TA_TRUST, /data-tone=\{appendixAppTone\(state\.tone\)\}/);
   assert.doesNotMatch(TA_TRUST, /ta-badge/);
   // `Supporting` (and every other part role) is text, through ONE component.
-  assert.match(TA_ROW, /className="app-status-text"\s*\n\s*data-tone=\{appendixAppTone\(tone\)\}/);
+  assert.match(TA_ROW, /className="app-status-text"\s*\n\s*data-size="xs"\s*\n\s*data-tone=\{appendixAppTone\(tone\)\}/);
   assert.doesNotMatch(TA_ROW, /ta-badge ta-badge-/);
   // The appendix keeps its own tone WORDS and translates once.
   assert.match(TA_ROW, /success: "green",[\s\S]{0,120}?neutral: "slate",/);
@@ -437,7 +513,7 @@ test("20. media TYPE labels take the required colours, from their own table", ()
   assert.match(EV_LIB, /video: "orange",/);
   assert.match(EV_LIB, /pdf: "blue",/);
   assert.match(EV_LIB, /audio: "ink",/);
-  assert.match(EV_LIB, /className="app-status-text" data-tone=\{mediaKindTone\(item\.kind\)\}/);
+  assert.match(EV_LIB, /className="app-status-text"\s*\n\s*data-size="sm"\s*\n\s*data-tone=\{mediaKindTone\(item\.kind\)\}/);
   // DOCUMENT is deliberately NOT given a colour of its own: this product has
   // no documented type colour for a document, and inventing one would be a
   // fourth type palette rather than a reuse.
