@@ -29,13 +29,37 @@
  * make it permanently about one person while still being named for everyone.
  *
  * ---------------------------------------------------------------------------
- * VISIBILITY IS NOT A PERMISSION
+ * VISIBILITY IS NOT A PERMISSION — IN EITHER DIRECTION
  * ---------------------------------------------------------------------------
  * `TEAM` makes a view VISIBLE to the workspace. It grants nothing: replaying
  * one issues the ordinary queue read under the reader's own authority, so a
  * shared view held by an administrator shows a viewer exactly what that viewer
- * could already have filtered to by hand. A saved view that widened what its
- * reader could see would be an authority, and this is not one.
+ * could already have filtered to by hand.
+ *
+ * The converse also holds, and it is what this module now enforces: being able
+ * to READ the queue does not confer the right to PUBLISH configuration into
+ * it. A TEAM view appears in every authorized colleague's toolbar, so creating
+ * or changing one is an administrative act over shared state — the same class
+ * of decision as assignment or suppression — and it requires
+ * `operations.saved_views.manage`.
+ *
+ * ---------------------------------------------------------------------------
+ * TWO OWNERSHIP MODELS, DELIBERATELY DIFFERENT
+ * ---------------------------------------------------------------------------
+ * PRIVATE  strictly CREATOR-owned, with no administrative override at all. An
+ *          administrator cannot read, rename or delete somebody else's private
+ *          bookmark; "admin" is authority over the WORKSPACE, not over a
+ *          colleague's own working notes.
+ *
+ * TEAM     managed by anyone holding the management capability in that
+ *          workspace, including an administrator who did not create it. The
+ *          alternative — creator-only — strands shared configuration the
+ *          moment somebody leaves, which is precisely when a workspace most
+ *          needs to be able to clean it up.
+ *
+ * An administrator acting on somebody else's TEAM view does NOT become its
+ * creator: `createdByUserId` is preserved and the audit event records the
+ * real actor alongside it, so the history says who made it and who changed it.
  */
 
 import type { PrismaClient, SavedSearchView } from "@prisma/client";
@@ -115,6 +139,17 @@ export async function listOperationsSavedViews(
   return rows.map((r) => projectView(r, input.userId));
 }
 
+/**
+ * Whether the caller may manage SHARED views in this workspace.
+ *
+ * Passed in as a resolved boolean rather than looked up here, so there is one
+ * authorization authority (the route's `evaluateMemberAccess`) and this
+ * service cannot drift into being a second one.
+ */
+export type SavedViewAuthority = {
+  canManageShared: boolean;
+};
+
 export type CreateOperationsSavedViewInput = {
   teamId: string;
   actorUserId: string;
@@ -123,11 +158,14 @@ export type CreateOperationsSavedViewInput = {
   visibility: SavedViewVisibility;
   pinned?: boolean;
   filter: OperationsSavedViewFilter;
-};
+} & SavedViewAuthority;
 
 export type CreateOperationsSavedViewResult =
   | { ok: true; view: OperationsSavedViewProjection }
-  | { ok: false; reason: "duplicate_name" | "workspace_mismatch" };
+  | {
+      ok: false;
+      reason: "duplicate_name" | "workspace_mismatch" | "not_permitted";
+    };
 
 export async function createOperationsSavedView(
   input: CreateOperationsSavedViewInput,
@@ -138,6 +176,12 @@ export async function createOperationsSavedView(
   // bound to workspace B — and it is the FILTER that gets replayed.
   if (input.filter.teamId !== input.teamId) {
     return { ok: false, reason: "workspace_mismatch" };
+  }
+  // Publishing into every colleague's toolbar is an administrative act.
+  // PRIVATE is deliberately unguarded: a bookmark nobody else can see is not
+  // shared state, and gating it would make the feature useless to readers.
+  if (input.visibility === "TEAM" && !input.canManageShared) {
+    return { ok: false, reason: "not_permitted" };
   }
   try {
     const row = await client.savedSearchView.create({
@@ -171,13 +215,26 @@ export type UpdateOperationsSavedViewInput = {
   description?: string | null;
   visibility?: SavedViewVisibility;
   filter?: OperationsSavedViewFilter;
-};
+} & SavedViewAuthority;
 
 export type UpdateOperationsSavedViewResult =
-  | { ok: true; view: OperationsSavedViewProjection }
+  | {
+      ok: true;
+      view: OperationsSavedViewProjection;
+      /** True when an administrator acted on somebody else's shared view. */
+      adminOverride: boolean;
+      /** Preserved through the write, for the audit record. */
+      creatorUserId: string;
+      previousVisibility: SavedViewVisibility;
+    }
   | {
       ok: false;
-      reason: "not_found" | "conflict" | "duplicate_name" | "workspace_mismatch";
+      reason:
+        | "not_found"
+        | "conflict"
+        | "duplicate_name"
+        | "workspace_mismatch"
+        | "not_permitted";
     };
 
 /**
@@ -206,13 +263,59 @@ export async function updateOperationsSavedView(
   const expected = new Date(input.expectedUpdatedAt);
   if (Number.isNaN(expected.getTime())) return { ok: false, reason: "conflict" };
 
+  // Resolve the row FIRST, under tenant scope only.
+  //
+  // The ownership rule depends on the row's VISIBILITY, so it cannot be
+  // expressed as a single WHERE clause: PRIVATE is creator-only, TEAM is
+  // manageable by any holder of the capability. Reading first also lets a
+  // refusal distinguish "you may not" from "it is not there", which are
+  // different sentences an operator needs.
+  const existing = await client.savedSearchView.findFirst({
+    where: {
+      id: input.id,
+      teamId: input.teamId,
+      scope: OPERATIONS_SAVED_VIEW_SCOPE,
+    },
+  });
+
+  // Not in this workspace at all. 404 for a cross-tenant id, so a probe
+  // learns nothing about which ids exist elsewhere.
+  if (!existing) return { ok: false, reason: "not_found" };
+
+  const isOwner = existing.createdByUserId === input.actorUserId;
+  const isShared = existing.visibility === "TEAM";
+
+  // PRIVATE: strictly the creator's, with NO administrative override.
+  // Somebody else's private bookmark is NOT FOUND rather than forbidden —
+  // "admin" is authority over the workspace, not over a colleague's own
+  // working notes, and confirming the id exists would already be too much.
+  if (!isShared && !isOwner) return { ok: false, reason: "not_found" };
+
+  // TEAM: visible to the workspace, so its existence is not a secret. A
+  // caller without the capability is told plainly that they may not act.
+  if (isShared && !input.canManageShared) {
+    return { ok: false, reason: "not_permitted" };
+  }
+
+  // Converting a PRIVATE view to TEAM is a publish, and needs the same
+  // authority creating one does.
+  if (
+    input.visibility === "TEAM" &&
+    existing.visibility !== "TEAM" &&
+    !input.canManageShared
+  ) {
+    return { ok: false, reason: "not_permitted" };
+  }
+
   try {
     const result = await client.savedSearchView.updateMany({
       where: {
         id: input.id,
         teamId: input.teamId,
         scope: OPERATIONS_SAVED_VIEW_SCOPE,
-        createdByUserId: input.actorUserId,
+        // The concurrency token, and NOT the creator: authorization was
+        // decided above against the visibility rule. Re-adding the creator
+        // here would silently reinstate creator-only management for TEAM.
         updatedAt: expected,
       },
       data: {
@@ -228,27 +331,28 @@ export async function updateOperationsSavedView(
               queryJson: input.filter as unknown as prismaPkg.Prisma.InputJsonValue,
             }
           : {}),
+        // `createdByUserId` is deliberately NOT written. An administrator
+        // managing somebody else's shared view does not become its author;
+        // the history must still say who made it.
       },
     });
 
     if (result.count === 0) {
-      // Nothing matched. Re-read WITHOUT the token to tell "gone" from
-      // "changed underneath you", because those need different words.
-      const still = await client.savedSearchView.findFirst({
-        where: {
-          id: input.id,
-          teamId: input.teamId,
-          scope: OPERATIONS_SAVED_VIEW_SCOPE,
-          createdByUserId: input.actorUserId,
-        },
-      });
-      return { ok: false, reason: still ? "conflict" : "not_found" };
+      // The row existed a moment ago and the id matched, so the only thing
+      // that can have failed is the token: somebody else wrote first.
+      return { ok: false, reason: "conflict" };
     }
 
     const row = await client.savedSearchView.findFirstOrThrow({
       where: { id: input.id, teamId: input.teamId },
     });
-    return { ok: true, view: projectView(row, input.actorUserId) };
+    return {
+      ok: true,
+      view: projectView(row, input.actorUserId),
+      adminOverride: isShared && !isOwner,
+      creatorUserId: existing.createdByUserId,
+      previousVisibility: existing.visibility as SavedViewVisibility,
+    };
   } catch {
     // The unique key is (team, creator, name): a rename onto a name the same
     // operator already uses is a distinguishable answer, not a failure.
@@ -259,24 +363,64 @@ export async function updateOperationsSavedView(
 /**
  * Delete one view.
  *
- * The WHERE clause carries the creator, so a view belonging to somebody else
- * is not found rather than refused: sharing a view exposes its results, and
- * exposing it must not also expose the ability to remove it. A workspace
- * administrator is not exempt — an admin who could silently delete a
- * colleague's saved view has an authority nobody asked for, and the colleague
- * would have no record of what happened.
+ * PRIVATE is strictly the creator's, with no administrative override:
+ * somebody else's private bookmark is NOT FOUND, because confirming that an
+ * id exists is already more than a caller who cannot act on it should learn.
+ *
+ * TEAM is manageable by any holder of the capability, including an
+ * administrator who did not create it. Creator-only deletion would strand
+ * shared configuration the moment somebody leaves the workspace — precisely
+ * when it most needs cleaning up.
  */
+export type DeleteOperationsSavedViewResult =
+  | {
+      ok: true;
+      adminOverride: boolean;
+      creatorUserId: string;
+      visibility: SavedViewVisibility;
+      name: string;
+    }
+  | { ok: false; reason: "not_found" | "not_permitted" };
+
 export async function deleteOperationsSavedView(
-  input: { teamId: string; actorUserId: string; id: string },
+  input: {
+    teamId: string;
+    actorUserId: string;
+    id: string;
+  } & SavedViewAuthority,
   client: PrismaClient = defaultPrisma,
-): Promise<boolean> {
+): Promise<DeleteOperationsSavedViewResult> {
+  const existing = await client.savedSearchView.findFirst({
+    where: {
+      id: input.id,
+      teamId: input.teamId,
+      scope: OPERATIONS_SAVED_VIEW_SCOPE,
+    },
+  });
+  if (!existing) return { ok: false, reason: "not_found" };
+
+  const isOwner = existing.createdByUserId === input.actorUserId;
+  const isShared = existing.visibility === "TEAM";
+
+  if (!isShared && !isOwner) return { ok: false, reason: "not_found" };
+  if (isShared && !input.canManageShared) {
+    return { ok: false, reason: "not_permitted" };
+  }
+
   const result = await client.savedSearchView.deleteMany({
     where: {
       id: input.id,
       teamId: input.teamId,
       scope: OPERATIONS_SAVED_VIEW_SCOPE,
-      createdByUserId: input.actorUserId,
     },
   });
-  return result.count > 0;
+  if (result.count === 0) return { ok: false, reason: "not_found" };
+
+  return {
+    ok: true,
+    adminOverride: isShared && !isOwner,
+    creatorUserId: existing.createdByUserId,
+    visibility: existing.visibility as SavedViewVisibility,
+    name: existing.name,
+  };
 }

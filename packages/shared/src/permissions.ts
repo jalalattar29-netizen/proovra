@@ -195,6 +195,27 @@ export const PERMISSIONS = [
   "operations.assign",
   "operations.resolve",
   "operations.suppress",
+  // ==========================================================================
+  // SHARED SAVED VIEWS.
+  //
+  // A saved view scoped TEAM is workspace CONFIGURATION: it appears in every
+  // authorized colleague's toolbar and names a slice of the queue on their
+  // behalf. Creating and managing one is therefore an administrative act, and
+  // it was previously gated on `operations.view` — a READ capability — so
+  // anybody who could look at the queue could also publish configuration into
+  // everybody else's workbench.
+  //
+  // A read capability must not implicitly grant authority over shared state.
+  //
+  // WHAT THIS DOES NOT COVER
+  // ------------------------
+  // PRIVATE views. Those are one person's own bookmarks, they appear to
+  // nobody else, and requiring an administrative capability to keep a
+  // bookmark would make the feature useless to the readers who most need it.
+  // PRIVATE remains available to any authorized Operations reader and remains
+  // strictly creator-owned — an administrator holding this capability still
+  // cannot read, rename or delete somebody else's PRIVATE view.
+  "operations.saved_views.manage",
 ] as const;
 
 export const PermissionSchema = z.enum(PERMISSIONS);
@@ -365,6 +386,9 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "operations.assign",
     "operations.resolve",
     "operations.suppress",
+    // Shared workspace configuration, alongside assignment and suppression:
+    // all three decide something on a colleague's behalf.
+    "operations.saved_views.manage",
   ],
 
   REVIEWER: [
@@ -423,6 +447,10 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "operations.acknowledge",
     "operations.resolve",
     // NOT: operations.assign, operations.suppress
+    // NOT: operations.saved_views.manage — publishing a view into every
+    // colleague's toolbar is shared workspace configuration, which is the
+    // same class of decision as assignment and suppression. A reviewer keeps
+    // full authority over their own PRIVATE views.
     // NOT: delete, archive, governance.manage, legal_hold.manage,
     // retention.manage, audit.export, workflow.template.manage,
     // any identity.member.{invite,suspend,revoke,restore,role.change},

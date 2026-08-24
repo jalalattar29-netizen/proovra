@@ -318,6 +318,22 @@ export const CAPABILITY_KEYS = [
   "OPERATIONS_ASSIGN",
   "OPERATIONS_RESOLVE",
   "OPERATIONS_SUPPRESS",
+  /**
+   * May create and manage WORKSPACE-SHARED saved views.
+   *
+   * A TEAM saved view is workspace configuration: it appears in every
+   * authorized colleague's toolbar and names a slice of the queue on their
+   * behalf. That is the same class of decision as assignment and
+   * suppression, and it was previously implied by OPERATIONS_VIEW — a read
+   * capability — so any reader could publish configuration into everybody
+   * else's workbench.
+   *
+   * PRIVATE views are deliberately NOT covered: they are one person's own
+   * bookmarks, invisible to anybody else, and requiring an administrative
+   * capability to keep one would make the feature useless to the readers who
+   * most need it.
+   */
+  "OPERATIONS_SAVED_VIEWS_MANAGE",
   // Administration
   "TEAM_VIEW",
   "TEAM_MANAGE",

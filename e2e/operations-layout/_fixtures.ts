@@ -104,7 +104,19 @@ const ACTS = {
   OPERATIONS_RESOLVE: true,
   OPERATIONS_SUPPRESS: true,
 };
-const ACTS_AND_ASSIGNS = { ...ACTS, OPERATIONS_ASSIGN: true };
+/**
+ * The shared-workspace shape: assignment AND shared-view management.
+ *
+ * Both are conditioned on the workspace actually being shared, for the same
+ * reason — in a single-operator workspace there is nobody to assign to and
+ * nobody to share with, so offering either control would be offering a
+ * decision that cannot mean anything.
+ */
+const ACTS_AND_ASSIGNS = {
+  ...ACTS,
+  OPERATIONS_ASSIGN: true,
+  OPERATIONS_SAVED_VIEWS_MANAGE: true,
+};
 
 /**
  * What the registry grants a TEAM-shaped workspace beside its operational

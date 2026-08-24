@@ -226,6 +226,14 @@ export type OperationsCapabilities = {
   canResolve: boolean;
   canSuppress: boolean;
   canAssign: boolean;
+  /**
+   * May create and manage WORKSPACE-SHARED saved views.
+   *
+   * Deliberately separate from every other flag here: it is the only one that
+   * governs shared CONFIGURATION rather than an incident. A reader keeps full
+   * authority over their own PRIVATE views without it.
+   */
+  canManageSharedViews: boolean;
   /** True when ANY mutation is available — decides whether actions render. */
   canActOnAnything: boolean;
 };

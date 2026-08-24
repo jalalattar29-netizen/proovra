@@ -68,6 +68,7 @@ import {
   type RemediationPermission,
 } from "../services/operations/remediation-registry.js";
 import { executeRemediation } from "../services/operations/remediation-executor.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   createOperationsSavedView,
   deleteOperationsSavedView,
@@ -2205,6 +2206,76 @@ export async function opsRoutes(app: FastifyInstance) {
   // permission to change things.
   // ---------------------------------------------------------------------------
 
+  /**
+   * MAY THIS CALLER MANAGE SHARED VIEWS HERE?
+   *
+   * Resolved through the SAME canonical authority every other Operations
+   * permission uses, so there is one place that decides and no route-local
+   * role string, plan name or workspace label anywhere near this question.
+   * Fails CLOSED: an authority that cannot be resolved is not a grant.
+   */
+  async function canManageSharedViews(
+    teamId: string,
+    userId: string,
+  ): Promise<boolean> {
+    return evaluateMemberAccess({
+      teamId,
+      userId,
+      permission: "operations.saved_views.manage" as never,
+    })
+      .then((d) => d.allowed === true)
+      .catch(() => false);
+  }
+
+  /**
+   * The canonical tenant audit record for a shared-view mutation.
+   *
+   * Only TEAM views are audited here. A PRIVATE view is one person's own
+   * bookmark and auditing every rename of one would bury the shared-state
+   * changes an access review is actually looking for — existing product
+   * policy, deliberately not widened.
+   *
+   * `adminOverride` and `creatorUserId` are both recorded: an administrator
+   * acting on somebody else's view does NOT become its author, and the
+   * history has to say who made it and who changed it.
+   */
+  async function auditSharedView(input: {
+    operation: "created" | "renamed" | "updated" | "deleted";
+    teamId: string;
+    actorUserId: string;
+    savedViewId: string;
+    creatorUserId: string;
+    adminOverride: boolean;
+    previousVisibility?: string;
+    newVisibility?: string;
+    changedFields?: string[];
+    req: FastifyRequest;
+  }): Promise<void> {
+    await emitTenantAudit({
+      action: `operations.saved_view.${input.operation}`,
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "operations_saved_view",
+      resourceId: input.savedViewId,
+      metadata: {
+        creatorUserId: input.creatorUserId,
+        adminOverride: input.adminOverride,
+        previousVisibility: input.previousVisibility ?? null,
+        newVisibility: input.newVisibility ?? null,
+        // FIELD NAMES ONLY. The stored query can name a colleague or a case
+        // an operator is chasing, and an audit row is read by more people
+        // than the view is.
+        changedFields: input.changedFields ?? [],
+        ipAddress: requestIp(input.req) ?? null,
+        userAgent: requestUa(input.req) ?? null,
+      },
+    }).catch(() => {
+      /* an audit sink outage must not undo an authorized, completed write */
+    });
+  }
+
   app.get(
     "/v1/ops/saved-views",
     { preHandler: requireAuth },
@@ -2258,15 +2329,32 @@ export async function opsRoutes(app: FastifyInstance) {
         visibility: body.visibility,
         pinned: body.pinned ?? false,
         filter: body.filter,
+        canManageShared: await canManageSharedViews(body.teamId, actor.userId),
       });
 
       if (!created.ok) {
         // Distinguishable answers: saving over your own view is not the same
-        // problem as a workspace mismatch, and one of them the operator can
-        // fix by choosing another name.
-        return reply
-          .code(created.reason === "duplicate_name" ? 409 : 400)
-          .send({ error: { code: created.reason } });
+        // problem as a workspace mismatch or a missing authority, and only
+        // one of them the operator can fix by choosing another name.
+        const status =
+          created.reason === "duplicate_name"
+            ? 409
+            : created.reason === "not_permitted"
+              ? 403
+              : 400;
+        return reply.code(status).send({ error: { code: created.reason } });
+      }
+      if (created.view.visibility === "TEAM") {
+        await auditSharedView({
+          operation: "created",
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          savedViewId: created.view.id,
+          creatorUserId: actor.userId,
+          adminOverride: false,
+          newVisibility: "TEAM",
+          req,
+        });
       }
       return reply.code(201).send({ view: created.view });
     },
@@ -2318,16 +2406,44 @@ export async function opsRoutes(app: FastifyInstance) {
           : {}),
         ...(body.visibility !== undefined ? { visibility: body.visibility } : {}),
         ...(body.filter !== undefined ? { filter: body.filter } : {}),
+        canManageShared: await canManageSharedViews(body.teamId, actor.userId),
       });
 
       if (!updated.ok) {
         const status =
           updated.reason === "not_found"
             ? 404
-            : updated.reason === "conflict" || updated.reason === "duplicate_name"
-              ? 409
-              : 400;
+            : updated.reason === "not_permitted"
+              ? 403
+              : updated.reason === "conflict" || updated.reason === "duplicate_name"
+                ? 409
+                : 400;
         return reply.code(status).send({ error: { code: updated.reason } });
+      }
+
+      // Audited when the view IS or WAS shared: converting one out of TEAM is
+      // as much a change to shared state as changing one inside it.
+      if (
+        updated.view.visibility === "TEAM" ||
+        updated.previousVisibility === "TEAM"
+      ) {
+        await auditSharedView({
+          operation: body.name !== undefined ? "renamed" : "updated",
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          savedViewId: updated.view.id,
+          creatorUserId: updated.creatorUserId,
+          adminOverride: updated.adminOverride,
+          previousVisibility: updated.previousVisibility,
+          newVisibility: updated.view.visibility,
+          changedFields: [
+            ...(body.name !== undefined ? ["name"] : []),
+            ...(body.description !== undefined ? ["description"] : []),
+            ...(body.visibility !== undefined ? ["visibility"] : []),
+            ...(body.filter !== undefined ? ["filter"] : []),
+          ],
+          req,
+        });
       }
       return reply.code(200).send({ view: updated.view });
     },
@@ -2348,12 +2464,32 @@ export async function opsRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         actorUserId: actor.userId,
         id,
+        canManageShared: await canManageSharedViews(q.teamId, actor.userId),
       });
-      // 404 rather than 403 for somebody else's view: sharing a view exposes
-      // its results, and must not also confirm which ids exist to a caller
-      // who cannot act on them.
-      if (!removed) {
-        return reply.code(404).send({ error: { code: "saved_view_not_found" } });
+
+      if (!removed.ok) {
+        // 404 for a PRIVATE view that is not the caller's, or an id that is
+        // not in this workspace: confirming existence is already more than a
+        // caller who cannot act on it should learn.
+        //
+        // 403 for a TEAM view they can SEE but may not manage — its
+        // existence is not a secret, so the honest answer is the authority.
+        return removed.reason === "not_permitted"
+          ? reply.code(403).send({ error: { code: "not_permitted" } })
+          : reply.code(404).send({ error: { code: "saved_view_not_found" } });
+      }
+
+      if (removed.visibility === "TEAM") {
+        await auditSharedView({
+          operation: "deleted",
+          teamId: q.teamId,
+          actorUserId: actor.userId,
+          savedViewId: id,
+          creatorUserId: removed.creatorUserId,
+          adminOverride: removed.adminOverride,
+          previousVisibility: "TEAM",
+          req,
+        });
       }
       return reply.code(204).send();
     },

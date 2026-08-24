@@ -150,15 +150,30 @@ test.describe("saved views", () => {
     await expect(shared).toContainText("Shared");
   });
 
-  test("only the author is offered a way to delete", async ({ page }) => {
+  test("management follows OWNERSHIP for private and CAPABILITY for shared", async ({
+    page,
+  }) => {
+    // SUPERSEDED ASSERTION: this expected NO management menu on the shared
+    // view, i.e. creator-only management for TEAM views too.
+    //
+    // WHY THAT WAS WRONG: it stranded shared configuration the moment its
+    // author left the workspace — precisely when a workspace needs to be
+    // able to clean it up — and it left the real question (who may publish
+    // into everybody's toolbar) answered by a READ capability.
+    //
+    // THE ORIGINAL INTENT — that merely SEEING a shared view confers no
+    // right to remove it — is preserved and proven in the reader case below:
+    // a viewer sees `view-shared` and is offered no menu at all.
     await openOperations(page, "owned-workspace");
-    // Sharing results must not also hand over the ability to remove them.
+    // Own private view: ownership.
     await expect(
       page.locator('[data-testid="ops-view-menu-view-mine"]'),
     ).toBeVisible();
+    // Somebody else's SHARED view, held by a caller with the management
+    // capability: offered, because shared configuration must stay manageable.
     await expect(
       page.locator('[data-testid="ops-view-menu-view-shared"]'),
-    ).toHaveCount(0);
+    ).toBeVisible();
   });
 
   test("applying a view rewrites the URL, so the queue stays shareable", async ({
@@ -242,6 +257,70 @@ test.describe("bulk assignment", () => {
     await mark.click();
     await expect(page.locator("[data-ops-bulk-assign]")).toHaveCount(0);
     await expect(page.locator('[data-ops-bulk-action="acknowledge"]')).toHaveCount(
+      0,
+    );
+  });
+});
+
+// ===========================================================================
+// SHARED SAVED VIEWS — the capability decides what the toolbar offers
+// ===========================================================================
+
+test.describe("shared saved views", () => {
+  test("a manager is offered the SHARE choice", async ({ page }) => {
+    await openOperations(page, "team-admin");
+    await page.locator('[data-ops-saved-view="view-mine"]').click();
+    await page.locator("[data-ops-view-start-save]").click();
+    await expect(page.locator("[data-ops-view-share]")).toBeVisible();
+  });
+
+  test("a reader is offered PRIVATE saving and NO share choice", async ({
+    page,
+  }) => {
+    await openOperations(page, "viewer");
+    await page.locator('[data-ops-saved-view="view-mine"]').click();
+    // Saving a personal bookmark is still available: requiring an
+    // administrative capability to keep one would make the feature useless
+    // to the readers who most need it.
+    await expect(page.locator("[data-ops-view-start-save]")).toBeVisible();
+    await page.locator("[data-ops-view-start-save]").click();
+    await expect(page.locator("[data-ops-view-name]")).toBeVisible();
+    // …and the shared choice is ABSENT, not disabled. A disabled shared
+    // control would leak the shape of somebody else's authority.
+    await expect(page.locator("[data-ops-view-share]")).toHaveCount(0);
+  });
+
+  test("a reader gets no management menu on a SHARED view they do not own", async ({
+    page,
+  }) => {
+    await openOperations(page, "viewer");
+    await expect(
+      page.locator('[data-ops-saved-view="view-shared"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid="ops-view-menu-view-shared"]'),
+    ).toHaveCount(0);
+  });
+
+  test("a manager gets the management menu on ANOTHER creator's shared view", async ({
+    page,
+  }) => {
+    await openOperations(page, "team-admin");
+    // `view-shared` is authored by somebody else in the fixture. Creator-only
+    // management would strand it the moment that person left.
+    await expect(
+      page.locator('[data-testid="ops-view-menu-view-shared"]'),
+    ).toBeVisible();
+  });
+
+  test("no disabled shared control is ever rendered", async ({ page }) => {
+    await openOperations(page, "viewer");
+    await page.locator('[data-ops-saved-view="view-mine"]').click();
+    await page.locator("[data-ops-view-start-save]").click();
+    const disabled = await page
+      .locator("[data-ops-view-share][disabled], [data-ops-view-share]:disabled")
+      .count();
+    expect(disabled, "authorization is absence here, not a dimmed control").toBe(
       0,
     );
   });

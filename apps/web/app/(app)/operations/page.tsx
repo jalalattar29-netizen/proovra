@@ -194,11 +194,17 @@ function OperationsWorkbench() {
     const canResolve = capabilityMap.OPERATIONS_RESOLVE === true;
     const canSuppress = capabilityMap.OPERATIONS_SUPPRESS === true;
     const canAssign = capabilityMap.OPERATIONS_ASSIGN === true;
+    const canManageSharedViews =
+      capabilityMap.OPERATIONS_SAVED_VIEWS_MANAGE === true;
     return {
       canAcknowledge,
       canResolve,
       canSuppress,
       canAssign,
+      canManageSharedViews,
+      // Deliberately NOT including `canManageSharedViews`: this decides
+      // whether INCIDENT actions render, and managing a saved view acts on
+      // configuration rather than on any condition in the queue.
       canActOnAnything:
         canAcknowledge || canResolve || canSuppress || canAssign,
     };
@@ -208,6 +214,7 @@ function OperationsWorkbench() {
     capabilityMap.OPERATIONS_RESOLVE,
     capabilityMap.OPERATIONS_SUPPRESS,
     capabilityMap.OPERATIONS_ASSIGN,
+    capabilityMap.OPERATIONS_SAVED_VIEWS_MANAGE,
   ]);
   const canView = capabilityMap.OPERATIONS_VIEW === true;
   const viewerUserId = envelope?.account?.userId ?? null;
@@ -1111,6 +1118,7 @@ function OperationsWorkbench() {
             onApply={applyView}
             onSave={(input) => void saveView(input)}
             onRename={(view, name) => void renameView(view, name)}
+            canManageShared={capabilities.canManageSharedViews}
             onDelete={(view) => void deleteView(view)}
           />
 

@@ -1534,10 +1534,23 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(theirs.some((v: { id: string }) => v.id === id)).toBe(false);
     });
 
-    it("a TEAM view is visible to a colleague — and still not theirs to delete", async () => {
+    it("a TEAM view is visible to a colleague, whose authority decides what they may do", async () => {
+      // SUPERSEDED ASSERTION: this expected a plain 404 for any colleague,
+      // i.e. creator-only management of shared views.
+      //
+      // WHY THAT WAS WRONG: it stranded shared configuration the moment its
+      // author left the workspace, and it left the real question — who may
+      // publish into everybody's toolbar — answered by a READ capability.
+      //
+      // THE ORIGINAL INTENT is preserved and sharpened: merely SEEING a
+      // shared view still confers nothing. The member below holds
+      // acknowledge/resolve — real operational authority — and is still
+      // refused, because managing shared configuration is a different
+      // decision from acting on an incident.
       const created = await save(A.ownerToken, A.teamId, `shared-${randomUUID()}`, {
         visibility: "TEAM",
       });
+      expect(created.statusCode, "the owner may publish a shared view").toBe(201);
       const id = JSON.parse(created.body).view.id;
 
       const theirs = JSON.parse(
@@ -1545,15 +1558,16 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       ).views;
       const seen = theirs.find((v: { id: string }) => v.id === id);
       expect(seen, "a shared view must be visible").toBeTruthy();
-      // Sharing results must not also hand over the ability to remove them.
       expect(seen.ownedByViewer).toBe(false);
 
       const attempt = await del(
         `/v1/ops/saved-views/${id}?teamId=${A.teamId}`,
         A.memberToken,
       );
-      expect(attempt.statusCode).toBe(404);
-      // The critical half: it is still there.
+      // 403, not 404: the view is visible to them, so its existence is not a
+      // secret and the honest refusal names the missing authority.
+      expect(attempt.statusCode).toBe(403);
+
       const after = JSON.parse(
         (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.ownerToken)).body,
       ).views;
@@ -1711,7 +1725,13 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(listed.name.startsWith("first-")).toBe(true);
     });
 
-    it("a colleague cannot rename a shared view, and is told NOT FOUND", async () => {
+    it("a colleague without the management capability cannot rename a shared view", async () => {
+      // SUPERSEDED ASSERTION: 404 for any non-creator.
+      //
+      // A visible shared view is not a secret, so 404 would be a lie that
+      // makes the product look broken to somebody looking straight at it.
+      // 403 names the authority instead. PRIVATE views keep the 404, and
+      // that distinction is proven in the dedicated authority suite.
       const created = await save(A.ownerToken, A.teamId, `sh-${randomUUID()}`, {
         visibility: "TEAM",
       });
@@ -1726,9 +1746,11 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
           name: "hijacked",
         } as never,
       });
-      // Not 403: sharing a view exposes its results and must not also confirm
-      // which ids exist to a caller who cannot act on them.
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(403);
+      const row = await prisma.savedSearchView.findUniqueOrThrow({
+        where: { id: view.id },
+      });
+      expect(row.name).not.toBe("hijacked");
     });
 
     it("a rename cannot move a view's filter into another workspace", async () => {

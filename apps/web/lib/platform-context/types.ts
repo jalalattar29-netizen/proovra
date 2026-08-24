@@ -297,6 +297,14 @@ export const CAPABILITY_KEYS = [
   "OPERATIONS_ASSIGN",
   "OPERATIONS_RESOLVE",
   "OPERATIONS_SUPPRESS",
+  /**
+   * May create and manage WORKSPACE-SHARED saved views.
+   *
+   * Governs shared CONFIGURATION rather than any incident: a TEAM view
+   * appears in every authorized colleague's toolbar. PRIVATE views need no
+   * capability — they are one person's own bookmarks.
+   */
+  "OPERATIONS_SAVED_VIEWS_MANAGE",
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 

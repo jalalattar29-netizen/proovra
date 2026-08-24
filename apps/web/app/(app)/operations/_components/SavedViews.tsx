@@ -44,6 +44,7 @@ export function SavedViews({
   onSave,
   onRename,
   onDelete,
+  canManageShared,
 }: {
   views: ReadonlyArray<OperationsSavedView>;
   loading: boolean;
@@ -54,6 +55,16 @@ export function SavedViews({
   onSave: (input: { name: string; visibility: "PRIVATE" | "TEAM" }) => void;
   onRename: (view: OperationsSavedView, name: string) => void;
   onDelete: (view: OperationsSavedView) => void;
+  /**
+   * Server-projected: may this caller create and manage SHARED views?
+   *
+   * Withholding a control is not authorization — the server refuses these
+   * mutations independently — but a surface that OFFERS an action it knows
+   * will be refused teaches an operator to distrust it. And a DISABLED shared
+   * control would leak the shape of somebody else's authority, so the choice
+   * is simply absent.
+   */
+  canManageShared: boolean;
 }) {
   const { confirm: confirmAction } = useConfirmAction();
   const [naming, setNaming] = React.useState(false);
@@ -108,7 +119,7 @@ export function SavedViews({
                 <span className="opsw-views__scope">Shared</span>
               ) : null}
             </button>
-            {view.ownedByViewer ? (
+            {(view.visibility === "TEAM" ? canManageShared : view.ownedByViewer) ? (
               <AppRowMenu
                 label={`Actions for the view ${view.name}`}
                 dataPrefix="ops-view"
@@ -190,7 +201,7 @@ export function SavedViews({
               }
             }}
           />
-          {renaming ? null : (
+          {renaming || !canManageShared ? null : (
           <label className="opsw-views__share">
             <input
               type="checkbox"

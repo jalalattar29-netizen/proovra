@@ -394,6 +394,17 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         map.OPERATIONS_ASSIGN = true;
       }
       map.OPERATIONS_SUPPRESS = true;
+
+      // SHARED SAVED VIEWS — an administrative act over shared state.
+      //
+      // Conditioned on `workspaceIsShared` for the same reason assignment
+      // is: in a single-operator workspace a "shared" view is shared with
+      // nobody, so offering the choice would be a control that cannot mean
+      // anything. The moment a second operator joins it appears, with no
+      // code change and no plan involved.
+      if (workspaceIsShared) {
+        map.OPERATIONS_SAVED_VIEWS_MANAGE = true;
+      }
     }
   }
 

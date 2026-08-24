@@ -61,11 +61,21 @@ describe("Phase 4B.2 — canonical Operations permissions replace D29", () => {
     // Retry is a DOMAIN action. A generic retry permission would be
     // Operations acquiring authority over every domain it displays.
     expect(PERMISSIONS as readonly string[]).not.toContain("operations.retry");
-    expect(
-      (PERMISSIONS as readonly string[]).filter((p) =>
-        p.startsWith("operations."),
-      ).length,
-    ).toBe(5);
+    expect(PERMISSIONS as readonly string[]).not.toContain("operations.remediate");
+
+    // SIX, since operations.saved_views.manage joined the family.
+    //
+    // The count is pinned rather than left open BECAUSE of the rule above: a
+    // new operations.* permission is exactly how a generic retry authority
+    // would arrive, so adding one has to be a deliberate edit here. This one
+    // governs shared workspace CONFIGURATION — a TEAM saved view appears in
+    // every colleague's toolbar — and confers nothing over any domain
+    // Operations displays.
+    const opsPermissions = (PERMISSIONS as readonly string[]).filter((p) =>
+      p.startsWith("operations."),
+    );
+    expect(opsPermissions.length).toBe(6);
+    expect(opsPermissions).toContain("operations.saved_views.manage");
   });
 
   it("no Operations route is authorized by identity.access_review.action", () => {
