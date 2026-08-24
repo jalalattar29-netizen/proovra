@@ -72,9 +72,32 @@ export const REMEDIATION_ACTION_IDS = [
 export type RemediationActionId = (typeof REMEDIATION_ACTION_IDS)[number];
 
 /** Which canonical permission the executor demands. */
+/**
+ * WHICH PERMISSION AUTHORIZES A REMEDIATION.
+ *
+ * The DOMAIN's own, never a generic Operations one. This is not a preference:
+ * `packages/shared/src/permissions.ts` states it as a rule, under
+ * "WHAT IS DELIBERATELY ABSENT" —
+ *
+ *   "There is no `operations.retry`. Retrying a report, re-anchoring a record
+ *    or re-sending a message is a DOMAIN action, authorized by that domain's
+ *    own permission (`evidence.generate_report`, …). Operations may link to
+ *    it; it does not acquire the right to perform it. A generic retry
+ *    permission would be Operations quietly becoming a second authority over
+ *    every domain it displays."
+ *
+ * Re-anchoring is named in that sentence. So the earlier mapping — OTS behind
+ * `operations.acknowledge` — was wrong twice over: it used an Operations
+ * permission for a domain action, and it used the WEAKEST one, so anybody who
+ * could say "I've seen this" could also spend real work and change the
+ * record's proof state.
+ *
+ * `operations.view` is still required to reach the route at all, so the
+ * effective rule is: be an operator here AND hold the domain right.
+ */
 export type RemediationPermission =
-  | "operations.acknowledge"
-  | "operations.resolve";
+  | "evidence.publish_verify"
+  | "evidence.generate_report";
 
 /**
  * How the caller learns what happened.
@@ -156,7 +179,7 @@ const RESUME_OTS: RemediationAction = {
   label: "Resume OTS anchoring",
   description:
     "Re-runs the OpenTimestamps upgrade for this record. Anchoring completes on Bitcoin's schedule, not ours, so this asks the pipeline to try again — it cannot make an anchor appear.",
-  permission: "operations.acknowledge",
+  permission: "evidence.publish_verify",
   confirm: false,
   async: true,
   auditFamily: "ots.upgrade",
@@ -168,7 +191,7 @@ const REGENERATE_ARTIFACTS: RemediationAction = {
   label: "Regenerate report & verification package",
   description:
     "Re-runs the artifact pipeline for this record. The report and the verification package are produced by ONE job, so this is one action; previous versions are preserved.",
-  permission: "operations.resolve",
+  permission: "evidence.generate_report",
   confirm: true,
   async: true,
   auditFamily: "report.generation",

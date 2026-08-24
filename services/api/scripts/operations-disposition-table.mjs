@@ -73,19 +73,61 @@ if (process.argv.includes("--json")) {
   process.exit(0);
 }
 
-const ELIGIBLE = "OPEN, ACKNOWLEDGED";
+/**
+ * The columns that are PROPERTIES OF THE ACTION rather than of the registry
+ * entry, derived from the one authority that owns each.
+ *
+ * Kept here rather than in the registry because they describe the DOMAIN the
+ * action dispatches into — the registry's job is to say which action applies,
+ * not to restate the domain's own rules.
+ */
+const ACTION_FACTS = {
+  "ots.resume_anchoring": {
+    authority: "enqueueCanonicalWork(JOB_NAMES.UPGRADE_OTS)",
+    incidentStates: "OPEN, ACKNOWLEDGED",
+    // Read from the executor: ANCHORED/UPGRADED short-circuit to
+    // ALREADY_SATISFIED rather than spending work to reach a state the record
+    // is already in.
+    sourceStates: "otsStatus NOT IN (ANCHORED, UPGRADED); evidence not deleted",
+  },
+  "report.regenerate_artifacts": {
+    authority: "requestReportGeneration()",
+    incidentStates: "OPEN, ACKNOWLEDGED",
+    sourceStates:
+      "evidence not deleted; domain refuses on legal hold / lifecycle / already-terminal",
+  },
+};
+
+const rows = data.rows.map((r) => {
+  const facts = r.actionId ? ACTION_FACTS[r.actionId] : null;
+  return {
+    ...r,
+    authority: facts?.authority ?? "—",
+    incidentStates: facts?.incidentStates ?? "—",
+    sourceStates: facts?.sourceStates ?? "—",
+    // Every action and every deep link is tenant-scoped and requires an
+    // ACTIVE workspace: `requireOpsCapability` refuses suspended, inactive
+    // and wrong-workspace contexts before the registry is consulted.
+    restrictions: "ACTIVE workspace; tenant-scoped; operations.view required",
+  };
+});
+
 console.log(
-  "| Incident category | Disposition | Direct action | Queue/domain authority | Safe deep link | Required capability | Eligible states | Workspace restrictions | Why |",
+  "| Incident category | Subtype/source | Disposition | User-facing action | Domain/queue authority | Required capability | Eligible incident states | Eligible source states | Workspace restrictions | Deep link | Why |",
 );
-console.log("|---|---|---|---|---|---|---|---|---|");
-for (const r of data.rows) {
-  const authority =
-    r.actionId === "ots.resume_anchoring"
-      ? "enqueueCanonicalWork(UPGRADE_OTS)"
-      : r.actionId === "report.regenerate_artifacts"
-        ? "requestReportGeneration()"
-        : "—";
+console.log("|---|---|---|---|---|---|---|---|---|---|---|");
+for (const r of rows) {
+  const [category, subtype] = r.category.includes("(")
+    ? [r.category.split(" (")[0], r.category.split("(")[1].replace(")", "")]
+    : [r.category, "—"];
+  const why =
+    r.unsafeReason ??
+    (r.action
+      ? "the domain owns the work; Operations dispatches to it"
+      : r.deepLink
+        ? "the fix lives in another surface the caller can already open"
+        : "no safe action exists from here; the condition clears when its source recovers");
   console.log(
-    `| ${r.category} | ${r.disposition} | ${r.action ?? "—"} | ${authority} | ${r.deepLink ?? "—"} | ${r.permission ?? r.deepLinkPermission ?? "—"} | ${r.action ? ELIGIBLE : "—"} | ACTIVE workspace; tenant-scoped | ${r.unsafeReason ? r.unsafeReason.slice(0, 120) : "see registry"} |`,
+    `| ${category} | ${subtype} | ${r.disposition} | ${r.action ?? "—"} | ${r.authority} | ${r.permission ?? r.deepLinkPermission ?? "—"} | ${r.incidentStates} | ${r.sourceStates} | ${r.restrictions} | ${r.deepLink ?? "—"} | ${why.replace(/\s+/g, " ").slice(0, 150)} |`,
   );
 }

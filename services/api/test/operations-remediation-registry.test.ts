@@ -339,3 +339,76 @@ describe("the executor owns no infrastructure", () => {
     }
   });
 });
+
+// ===========================================================================
+// LEAST PRIVILEGE — a remediation is a DOMAIN action
+// ===========================================================================
+
+describe("remediation authorization is the domain's, not Operations'", () => {
+  const PERMISSIONS_SRC = readFileSync(
+    fileURLToPath(
+      new URL("../../../packages/shared/src/permissions.ts", import.meta.url),
+    ),
+    "utf8",
+  );
+
+  it("the canonical model forbids a generic Operations retry permission", () => {
+    // This is the citation the decision rests on, asserted so a later pass
+    // cannot quietly add one and leave this table looking arbitrary.
+    expect(PERMISSIONS_SRC).toContain("There is no `operations.retry`");
+    expect(PERMISSIONS_SRC).toContain("is a DOMAIN action");
+    expect(PERMISSIONS_SRC).not.toContain('"operations.retry"');
+    expect(PERMISSIONS_SRC).not.toContain('"operations.remediate"');
+  });
+
+  it("every registered action requires a DOMAIN permission, never an Operations one", () => {
+    for (const action of Object.values(REMEDIATION_ACTION_IDS).map((id) =>
+      actionById(id),
+    )) {
+      expect(action, "every declared action id must resolve").toBeTruthy();
+      // The failure this prevents: OTS behind `operations.acknowledge`, which
+      // let anybody who could say "I have seen this" spend real work and
+      // change the record's proof state.
+      expect(
+        action!.permission.startsWith("operations."),
+        `${action!.actionId} must not be authorized by an Operations permission`,
+      ).toBe(false);
+      expect(action!.permission).toMatch(/^[a-z]+\.[a-z_]+$/);
+    }
+  });
+
+  it("each action's permission matches the domain it actually acts on", () => {
+    // Re-anchoring changes what the PUBLISHED VERIFICATION asserts about the
+    // record; regenerating artifacts is the report pipeline, which the
+    // canonical note names explicitly.
+    expect(actionById("ots.resume_anchoring")!.permission).toBe(
+      "evidence.publish_verify",
+    );
+    expect(actionById("report.regenerate_artifacts")!.permission).toBe(
+      "evidence.generate_report",
+    );
+  });
+
+  it("the route requires BOTH operations entry AND the domain right", () => {
+    // Either alone is wrong: only the first makes Operations a second
+    // authority over every domain it displays; only the second lets somebody
+    // with an evidence right act inside a workspace they do not operate.
+    expect(ALL_ROUTES).toContain('"operations.view"');
+    expect(ALL_ROUTES).toContain("remediation_not_permitted");
+    expect(ALL_ROUTES).toMatch(
+      /permission: action\.permission as never/,
+    );
+  });
+
+  it("the permissions each action names are real values in the canonical union", () => {
+    for (const id of Object.values(REMEDIATION_ACTION_IDS)) {
+      const permission = actionById(id)!.permission;
+      // A typo here would fail CLOSED at runtime — nobody would hold it — so
+      // it would look like a policy decision rather than a defect.
+      expect(
+        PERMISSIONS_SRC,
+        `${permission} must exist in the canonical permission list`,
+      ).toContain(`"${permission}"`);
+    }
+  });
+});

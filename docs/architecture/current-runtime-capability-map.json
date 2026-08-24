@@ -18533,8 +18533,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@2512",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:2512",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@2550",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:2550",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -43795,8 +43795,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@336",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:336",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@341",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:341",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -44631,8 +44631,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@421",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:421",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@426",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:426",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -46305,8 +46305,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@347",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:347",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@352",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:352",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -47141,8 +47141,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@426",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:426",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@431",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:431",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -48623,8 +48623,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/incident-sla-cycle.service.ts#operationalIncident.updateMany@363",
-      "terminalLocation": "services/api/src/services/operations/incident-sla-cycle.service.ts:363",
+      "writerId": "services/api/src/services/operations/incident-sla-cycle.service.ts#operationalIncident.updateMany@394",
+      "terminalLocation": "services/api/src/services/operations/incident-sla-cycle.service.ts:394",
       "file": "services/api/src/services/operations/incident-sla-cycle.service.ts",
       "enclosingDeclaration": "escalateIncidentSeverity",
       "kind": "DATABASE",
@@ -52805,8 +52805,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/incident-sla-cycle.service.ts#operationalIncidentSlaCycle.update@358",
-      "terminalLocation": "services/api/src/services/operations/incident-sla-cycle.service.ts:358",
+      "writerId": "services/api/src/services/operations/incident-sla-cycle.service.ts#operationalIncidentSlaCycle.update@389",
+      "terminalLocation": "services/api/src/services/operations/incident-sla-cycle.service.ts:389",
       "file": "services/api/src/services/operations/incident-sla-cycle.service.ts",
       "enclosingDeclaration": "escalateIncidentSeverity",
       "kind": "DATABASE",
@@ -71764,7 +71764,7 @@
       "method": "DELETE",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2298",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2336",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92760,7 +92760,7 @@
       "method": "GET",
       "path": "/v1/ops/assignable-operators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1318",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1356",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92815,7 +92815,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2544",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2582",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92861,7 +92861,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2019",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2057",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92916,7 +92916,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2042",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2080",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -93231,7 +93231,7 @@
       "method": "GET",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2170",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2208",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -93398,7 +93398,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1590",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1628",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -93453,7 +93453,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1628",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1666",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104767,7 +104767,7 @@
       "method": "PATCH",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2248",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2286",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129456,7 +129456,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2389",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2427",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129530,7 +129530,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/ack",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1223",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1261",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129593,7 +129593,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1349",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1387",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129653,7 +129653,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/remediate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1170",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1173",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129725,7 +129725,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1247",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1285",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129788,7 +129788,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1272",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1310",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129851,7 +129851,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2713",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2751",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129906,7 +129906,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2688",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2726",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129952,7 +129952,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2632",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2670",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130072,7 +130072,7 @@
       "method": "POST",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2188",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2226",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130220,7 +130220,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2781",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2819",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130270,7 +130270,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1686",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1724",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130335,7 +130335,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1780",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1818",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130400,7 +130400,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/mitigation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1819",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1857",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130465,7 +130465,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1938",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1976",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130530,7 +130530,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1859",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1897",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130595,7 +130595,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/schedule-retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1977",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2015",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130660,7 +130660,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1741",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1779",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130725,7 +130725,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1899",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1937",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

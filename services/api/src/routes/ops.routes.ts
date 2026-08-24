@@ -1094,8 +1094,11 @@ export async function opsRoutes(app: FastifyInstance) {
       // Resolve the small closed set of permissions the registry can ask for,
       // once, before the pure resolver runs.
       for (const permission of [
-        "operations.acknowledge",
-        "operations.resolve",
+        // The DOMAIN permissions the registry's actions require. Operations
+        // permissions are NOT in this list: a remediation is a domain action
+        // and this route does not confer the right to perform one.
+        "evidence.publish_verify",
+        "evidence.generate_report",
         "evidence.read",
         "integration.webhook.manage",
         "governance.policy.read",
@@ -1188,13 +1191,48 @@ export async function opsRoutes(app: FastifyInstance) {
           .send({ error: { code: "unknown_remediation_action" } });
       }
 
+      /**
+       * TWO GATES, AND BOTH ARE NECESSARY.
+       *
+       *   1. `operations.view` — be an operator in THIS workspace at all.
+       *      This is what refuses a suspended workspace, a wrong-workspace
+       *      context and a platform admin with no membership, and it is what
+       *      resolves the actor identity everything below is attributed to.
+       *
+       *   2. the ACTION's own DOMAIN permission — hold the right to perform
+       *      the underlying work. `packages/shared/src/permissions.ts` states
+       *      this as a rule: re-anchoring a record and retrying a report are
+       *      domain actions, and "Operations may link to it; it does not
+       *      acquire the right to perform it."
+       *
+       * Requiring only the first would make Operations a second authority
+       * over every domain it displays. Requiring only the second would let
+       * somebody with an evidence right act inside a workspace they are not
+       * an operator of.
+       */
       const actor = await requireOpsCapability(
         req,
         reply,
         body.teamId,
-        action.permission,
+        "operations.view",
       );
       if (!actor) return;
+
+      const domainAllowed = await evaluateMemberAccess({
+        teamId: body.teamId,
+        userId: actor.userId,
+        permission: action.permission as never,
+      })
+        .then((d) => d.allowed === true)
+        .catch(() => false);
+      if (!domainAllowed) {
+        // 403, not 404: the caller legitimately reached this route and this
+        // condition. What they lack is the domain right, and saying so is not
+        // a disclosure — they can already see the condition.
+        return reply
+          .code(403)
+          .send({ error: { code: "remediation_not_permitted" } });
+      }
 
       const result = await executeRemediation({
         incidentId: id,

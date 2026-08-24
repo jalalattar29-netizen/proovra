@@ -382,7 +382,13 @@ export type OpsScenario =
   | "hundred-plus"
   | "mutation-pending"
   | "mutation-error"
-  | "mutation-success";
+  | "mutation-success"
+  /** The incident source answers 403. The route must LATCH it off, not retry. */
+  | "source-403"
+  /** The incident source answers 404. Same latch, different cause. */
+  | "source-404"
+  /** The work queue is down. Remediation must say so, never claim completion. */
+  | "queue-unavailable";
 
 /** A title nobody would shorten by hand, in a language that does not wrap. */
 const LONG_TITLE =
@@ -766,6 +772,22 @@ export async function installApi(
 
     // ---- mutations -------------------------------------------------------
     if (method === "POST" && path.includes("/v1/ops/")) {
+      if (scenario === "queue-unavailable" && path.includes("/remediate")) {
+        // Durable but unscheduled. The operator must be told THAT, and must
+        // never be told the work completed.
+        return route.fulfill(
+          json(
+            {
+              remediation: {
+                result: "QUEUE_UNAVAILABLE",
+                message:
+                  "The work was recorded but could not be scheduled yet. It will be picked up automatically.",
+              },
+            },
+            503,
+          ),
+        );
+      }
       if (scenario === "mutation-pending") {
         // Never settles. The page must show a pending state and refuse a
         // second press rather than firing the same transition twice.
@@ -844,6 +866,15 @@ export async function installApi(
     }
 
     if (path.endsWith("/v1/ops/incidents")) {
+      if (scenario === "source-403") {
+        // A refusal, not an outage. The route must stop asking: a poller that
+        // retries a 403 forever produces a request storm the operator cannot
+        // see and cannot stop.
+        return route.fulfill(json({ error: { code: "forbidden" } }, 403));
+      }
+      if (scenario === "source-404") {
+        return route.fulfill(json({ error: { code: "not_found" } }, 404));
+      }
       if (scenario === "unavailable-incidents") {
         return route.fulfill(json({ error: { code: "unavailable" } }, 503));
       }
