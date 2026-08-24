@@ -946,9 +946,23 @@ if (path.includes("/technical-metadata")) {
   return { items: [] };
 }
 /** Intercept every API call the route and its children make. */
+/**
+ * A per-test override of the fixture's Evidence record.
+ *
+ * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — Evidence Detail's lifecycle
+ * section renders four mutually exclusive shapes (ACTIVE / ARCHIVED / TRASHED /
+ * DESTROYED), and which one appears is decided ENTIRELY by the server's
+ * canonical `lifecycle` projection. Which is exactly why the browser gate needs
+ * to drive it: source inspection proves the component reads the projection, and
+ * only a real engine proves that each projection paints the right controls and
+ * the right retention copy.
+ */
+export type EvidenceOverride = Record<string, unknown>;
+
 export async function installApi(
   page: Page,
   context: EvidenceContext,
+  evidenceOverride?: EvidenceOverride,
 ): Promise<void> {
   const envelope = envelopeFor(context);
   await page.route("**/v1/**", async (route) => {
@@ -968,7 +982,17 @@ export async function installApi(
     ) {
       return json({ id: "user-1", email: "reviewer@example.invalid" });
     }
-    return json(respond(path));
+    const body = respond(path);
+    if (
+      evidenceOverride &&
+      body &&
+      typeof body === "object" &&
+      "evidence" in (body as Record<string, unknown>)
+    ) {
+      const w = body as { evidence: Record<string, unknown> };
+      return json({ ...w, evidence: { ...w.evidence, ...evidenceOverride } });
+    }
+    return json(body);
   });
 }
 

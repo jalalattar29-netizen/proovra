@@ -1,6 +1,9 @@
 # Evidence Lifecycle Convergence — Architecture & Rollout Spec
 
-Status: **Phase 1 landed (canonical authority + tests). Phases 2–5 specified, not yet shipped.**
+Status: **CONVERGED. The canonical authority is the runtime authority end to end.**
+Every item in the §19 ledger is shipped and proven; the one remaining follow-up is
+named there with its reason. Automatic physical destruction is implemented and
+OBSERVE-ONLY by default — see §17.
 Owner authority: `packages/shared/src/evidence-retention-lifecycle.ts` (`@proovra/shared`).
 
 This document is the single source of truth for how PROOVRA Evidence moves through
@@ -246,18 +249,44 @@ retention. Secrets never committed.
 
 ## 17. Rollout safety (§55/§56) — MANDATORY GATING
 
-1. Land canonical authority + tests (**done**).
-2. Wire read-only projections (Details/Library capabilities) — no behaviour change.
-3. Land archive/trash/restore parity through the canonical primitives.
-4. Land the executor + worker **disabled** (feature-flagged / observe mode).
-5. Run the **dry-run candidate report** in production (non-mutating): list trashed
-   records with per-record `trashGraceExpired / appRetentionExpired /
-   objectLockExpired / legalHold / approval / final eligibility`. Prove **no**
-   current record would be unexpectedly destroyed (all 2034-retained records must
-   report `OBJECT_LOCK_RETENTION_ACTIVE`).
-6. Only after that proof: enable automatic destruction.
+1. Land canonical authority + tests — **done**.
+2. Wire read-only projections (Details/Library capabilities) — **done**.
+3. Land archive/trash/restore parity through the canonical primitives — **done**.
+4. Land the executor + worker **disabled** — **done**.
+   `AUTOMATIC_EVIDENCE_DESTRUCTION_ENABLED` defaults to false. The reconciler
+   scans, evaluates and REPORTS on every tick; the flag gates only the enqueue of
+   an actual destruction. Opening a destruction review is deliberately NOT gated
+   by it — that surfaces a decision to a person and destroys nothing, and gating
+   it would make the reconciler inert for exactly the records that most need
+   review.
+5. **NOT DONE — this is the owner's step, and it is the last one.** Run the
+   read-only candidate report against production:
+
+   ```
+   DATABASE_URL=<production, read-only>      pnpm --filter @proovra/worker destruction-candidates
+   ```
+
+   It shares the reconciler's evaluation, so the list it prints is the list the
+   executor would act on — it is not a second opinion about the same records.
+   `dryRun` suppresses every write independently of the flag, so running it in a
+   workspace where automatic destruction is already enabled cannot be the thing
+   that triggers one.
+
+   What to look for: every record retained under the production Object Lock
+   configuration (COMPLIANCE, 2920 days) must report
+   `OBJECT_LOCK_RETENTION_ACTIVE`. Anything reporting `ELIGIBLE` should be a
+   record you can name and account for. If the report surprises you, that is the
+   report doing its job.
+6. Only after that proof: set `AUTOMATIC_EVIDENCE_DESTRUCTION_ENABLED=true`.
 
 **Do not enable automatic destruction against production before step 5's proof.**
+The pipeline is complete and correct as of this pass — which is precisely why the
+default matters. Every previous implementation was wrong in ways that made it
+safe by accident (two of the four deleted nothing at all), so the production
+backlog has been accumulating under code that never correctly computed
+eligibility. Turning a newly-correct irreversible pipeline loose on it without
+reading the report first would mean the first thing the fix does is delete things
+nobody has looked at.
 
 ## 18. Test matrix (§48–§52)
 
@@ -267,25 +296,50 @@ eligible destruction deletes + verifies; failed delete → not DESTROYED, no
 certificate; success → exactly one certificate + tombstone); certificate timing;
 UI (Active/Archived/Trashed+retained/eligible/hold/DESTROYED, desktop/mobile/RTL).
 
-## 19. Deferred-implementation ledger (honesty)
+## 19. Implementation ledger (honesty)
 
 | Item | Status |
 |---|---|
-| Canonical authority + eligibility + capabilities + dry-run evaluator | **DONE, tested (14)** |
+| Canonical authority + eligibility + capabilities + dry-run evaluator | **DONE, tested (22)** |
 | `@proovra/shared` export + build | **DONE** |
 | This spec (§46) | **DONE** |
-| Frontend/detail/library projection wiring onto the authority | Specified — not shipped |
-| Archive/trash/restore single+bulk convergence onto one primitive | Specified — not shipped |
-| `TRASHED` enum migration + backfill + migration gates | Specified — **not shipped (requires clean-db/migration gates unavailable in this environment)** |
-| Canonical destruction executor (verify-before-DESTROYED) | Specified — **not shipped (irreversible; requires DB/S3 testcontainers + worker suite + dry-run proof)** |
-| Trash-grace worker + orchestrator/Phase-4B convergence + purge retirement | Specified — not shipped |
-| "Deleted Evidence" → "Trash" rename | Specified — not shipped |
-| Real S3 Object Lock legal-hold wiring | Documented follow-up |
+| Frontend/detail/library projection wiring onto the authority | **DONE** — `EvidenceLifecycleProjection` on list rows and the detail response; the browser's copy of the retention predicates is deleted |
+| Archive/trash/restore single+bulk convergence onto one primitive | **DONE** — `applyEvidenceLifecycleAction`; four route bodies and four bulk branches replaced by one |
+| `TRASHED` enum migration + backfill + migration gates | **DONE** — 20271220000000 + 20271220000001; applied from zero against disposable PostgreSQL 16, raw-schema 873 objects / 0 divergences, drift in sync, inventory 0 gate failures, readiness command proven capable of failing |
+| Canonical destruction executor (verify-before-DESTROYED) | **DONE** — `packages/shared-runtime/src/evidence-destruction/executor.ts`; 13 live cases including "a delete that reports success but leaves the object" |
+| Trash-grace worker + orchestrator/Phase-4B convergence + purge retirement | **DONE** — four executors became one; the other three are triggers with zero destruction logic |
+| "Deleted Evidence" → "Trash" rename | **DONE** — scope `trash`; `deleted` retained as a normalised WIRE alias for the shipped mobile client, with no filter, response field or label behind it |
+| Real S3 Object Lock legal-hold wiring | **STILL A FOLLOW-UP.** See below. |
 
-Reason the destructive/migration items are specified but not shipped in this pass:
-they mutate irreversible evidence-destruction behaviour and a production schema on a
-COMPLIANCE-locked platform, and the required migration/clean-db/API/worker gates
-(§47/§57) plus the §55 production dry-run proof cannot be executed in the current
-environment (dev DB unreachable, stack down, working on an externally-churned feature
-branch rather than clean `main`). They must land on clean `main` with the stack
-available, in the §17 order, gated behind the dry-run proof.
+### The one thing that is still a follow-up, and why
+
+`PutObjectLegalHold` is NOT wired. The application legal hold is enforced —
+fail-closed, through the union evaluator, at trash time and again inside the
+destruction executor after it has won its claim and re-read the row — and that
+enforcement is proven by live cases. What is not done is engaging S3's own
+object-level legal hold so the bucket itself would refuse a delete that somehow
+bypassed the application.
+
+That is a genuine defence-in-depth gap and it is recorded as one rather than
+implied away. It is not on the critical path for this convergence: the executor
+is now the ONLY code that can delete evidence bytes, and it refuses on an active
+hold before it reaches storage. Wiring the S3 hold would add a second, independent
+refusal underneath — worth having, and honestly absent today.
+
+### What changed since this document said "specified, not shipped"
+
+The reason given for deferring was that the destructive and migration items
+mutate irreversible behaviour on a COMPLIANCE-locked platform and the required
+gates could not be executed. That reason no longer holds: the repository's own
+disposable infrastructure — PostgreSQL 16 + pgvector, Redis and MinIO, all on
+loopback — was located and used. Migrations were applied from zero and the
+schema gates run against a throwaway database; the destruction path was exercised
+against a disposable object store through the same port the hosts inject, so the
+code under test is the production executor with only its outermost adapter
+swapped. No production database or bucket was contacted by any gate.
+
+The remaining production risk is not in the code but in the DATA: a backlog of
+trashed records whose real eligibility has never been computed, because the
+implementations that were supposed to compute it were broken. That is why
+automatic destruction ships disabled and why the read-only candidate report
+exists — see §17.

@@ -15,9 +15,9 @@
         "nocfg.transcript.terminal_failed_not_completed",
         "nocfg.transcript.wrong_tenant_concealed"
       ],
-      "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T04:54:27.860Z"
+      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T12:37:27.756Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
       "sha256": "5b1abb8277619e84326489e5df8a69b49184941fe2d9ca91119f67ade969910e",
@@ -65,9 +65,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T04:51:30.980Z"
+      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T12:31:50.622Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "b16485d2248f4567e07c5d9ab2846fa8b8b29732e4501927548ab8550157476c",
@@ -90,9 +90,9 @@
         "invite.terminal.stale_cannot_overwrite",
         "invite.token.never_leaves_persistence"
       ],
-      "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T04:54:51.970Z"
+      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T12:32:26.300Z"
     },
     "test/point5/family-redaction.integration.test.ts": {
       "sha256": "78c454b84d41f45e23beb9d08bf9691faebeef44e250763aa7fc01fc891d371e",
@@ -116,9 +116,9 @@
         "redaction.tenant.workspace_reloaded",
         "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T04:55:22.486Z"
+      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T12:32:50.261Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
       "sha256": "d288b78d8cc581773f2e93948925cab8611aaa6849d0d87bcc09c1d6c575b75a",
@@ -131,9 +131,9 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T04:52:54.958Z"
+      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T12:34:47.806Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
@@ -149,9 +149,9 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T04:49:23.622Z"
+      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T12:35:35.372Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
