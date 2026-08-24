@@ -124,16 +124,16 @@ for (const dir of DIRECTIONS) {
   }
 }
 
-test("integrity: Recorded is orange, Available is purple, Verified stays green", async ({
+test("integrity: Recorded is blue, Available is purple, Verified stays green", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openIntegrity(page);
   // Read the states by their tone attribute; the fixture carries a RECORDED,
   // an ANCHORED and a VERIFIED preservation record, so all three tones appear.
-  // Each is a REQUIRED remapping: Recorded and Available used to share blue.
+  // The three stay distinct — the card's job is telling them apart.
   const cases: Array<[string, string, string]> = [
-    ["orange", "rgb(194, 65, 12)", "Recorded"], // --orange-ink
+    ["blue", "rgb(37, 99, 235)", "Recorded"], // --info
     ["indigo", "rgb(109, 40, 217)", "Available"], // --accent-600
     ["green", "rgb(21, 128, 61)", "Verified"], // --success-standard
   ];

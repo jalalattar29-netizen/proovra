@@ -40,6 +40,14 @@ export function EvidenceLibraryRow({
 }) {
   const priority = buildReviewPriority(item);
   const title = getDisplayTitle(item);
+  // Make the review-state label EXPLAINABLE at the point the operator reads it.
+  // "Operational notes" alone is the vague label a user cannot act on — so the
+  // concrete notes the canonical resolver used to decide the level are surfaced
+  // as the label's tooltip ("No case assigned"). `stable` states so plainly.
+  const reviewStateTitle =
+    priority.notes.length > 0
+      ? priority.notes.map((note) => `${note.label}: ${note.detail}`).join("\n")
+      : "No review or operational notes are currently surfaced for this record.";
 
   return (
     <li
@@ -118,6 +126,7 @@ export function EvidenceLibraryRow({
           data-size="md"
           data-tone={getReviewPriorityTone(priority.level)}
           data-evidence-row-priority={priority.level}
+          title={reviewStateTitle}
         >
           {priority.label}
         </span>

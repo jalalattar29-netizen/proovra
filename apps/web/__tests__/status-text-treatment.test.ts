@@ -410,22 +410,22 @@ test("14. Evidence Library rows state their status and review signal as text", (
   assert.match(badges, /gap: 8px;/);
 });
 
-test("15. `Stable review state` is the canonical standard orange", () => {
-  // The label and the level are unchanged; only the tone moved. `stable` and
-  // `informational` used to share blue, which made the settled majority of the
-  // library indistinguishable from the rows that actually carry notes.
-  assert.match(EV_STATUS, /stable: "orange",/);
-  assert.match(EV_STATUS, /informational: "blue",/);
-  assert.doesNotMatch(EV_STATUS, /stable: "blue",/);
+test("15. `Stable review state` is blue and `Operational notes` is orange", () => {
+  // The labels and the levels are unchanged; only the tones moved. Stable (the
+  // settled majority) is the calm informational blue; Operational notes (a
+  // record carrying a concrete note) is orange, the classification tone.
+  assert.match(EV_STATUS, /stable: "blue",/);
+  assert.match(EV_STATUS, /informational: "orange",/);
+  // The previous swap — every settled record painted orange — must not return.
+  assert.doesNotMatch(EV_STATUS, /stable: "orange",/);
+  assert.doesNotMatch(EV_STATUS, /informational: "blue",/);
   assert.match(
     read("apps/web/app/(app)/evidence/lib/evidence-library-alerts.ts"),
-    /return \{ level: "stable", label: "Stable review state" \};/,
+    /return \{ level: "stable", label: "Stable review state", notes: \[\] \};/,
   );
-  // And the orange it resolves to is the AA-safe ink, not the sub-AA fill.
-  assert.match(
-    rule(PRIM_CSS, '.app-status-text[data-tone="orange"]'),
-    /var\(--orange-ink\)/,
-  );
+  // Blue resolves to the AA-safe --info; orange to the AA-safe --orange-ink.
+  assert.match(rule(PRIM_CSS, '.app-status-text[data-tone="blue"]'), /var\(--info\)/);
+  assert.match(rule(PRIM_CSS, '.app-status-text[data-tone="orange"]'), /var\(--orange-ink\)/);
 });
 
 test("16. the Evidence Detail hero states the record's status as text", () => {
@@ -444,14 +444,16 @@ test("17. every row of Verification & Preservation is text, from ONE render site
   );
   assert.doesNotMatch(EV_INTEGRITY, /app-status-badge/);
   assert.equal([...EV_INTEGRITY.matchAll(/matrix-cell__state/g)].length, 1);
-  // The required remapping, plus the states that keep what they had.
-  assert.match(EV_INTEGRITY, /recorded: \{ label: "Recorded", tone: "orange" \}/);
+  // The required mapping, plus the states that keep what they had.
+  assert.match(EV_INTEGRITY, /recorded: \{ label: "Recorded", tone: "blue" \}/);
   assert.match(EV_INTEGRITY, /available: \{ label: "Available", tone: "indigo" \}/);
   assert.match(EV_INTEGRITY, /verified: \{ label: "Verified", tone: "green" \}/);
   assert.match(EV_INTEGRITY, /unavailable: \{ label: "Unavailable", tone: "slate" \}/);
-  // Recorded and Available are no longer the same colour: "a proof exists" and
-  // "an artifact can be fetched" are the two claims this card exists to separate.
-  assert.doesNotMatch(EV_INTEGRITY, /recorded: \{ label: "Recorded", tone: "blue" \}/);
+  // Recorded, Available and Verified stay three distinct tones — the card's job
+  // is telling "a proof exists" / "an artifact can be fetched" / "confirmed"
+  // apart. Recorded is the informational blue, not orange.
+  assert.doesNotMatch(EV_INTEGRITY, /recorded: \{ label: "Recorded", tone: "orange" \}/);
+  assert.match(rule(PRIM_CSS, '.app-status-text[data-tone="blue"]'), /var\(--info\)/);
   // The cell's containment survives; its capsule does not.
   assert.doesNotMatch(
     rule(EV_DETAIL_CSS, ".evidence-detail-matrix-cell__state"),

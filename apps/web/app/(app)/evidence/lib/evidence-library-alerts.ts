@@ -89,20 +89,35 @@ export function buildReviewAlerts(
 export function buildReviewPriority(item: EvidenceListItem, detail?: DetailWorkspaceState | null): {
   level: "critical" | "operational" | "informational" | "stable";
   label: string;
+  /**
+   * The concrete notes that DROVE this level — the exact `buildReviewAlerts`
+   * entries at the deciding severity. This is what makes the summary label
+   * explainable: "Operational notes" without a note beside it is the vague
+   * label a reader cannot act on, so the same canonical alerts that decide the
+   * level travel with it for the row to surface (e.g. as a tooltip). `stable`
+   * has none by definition. No second computation — one source, read twice.
+   */
+  notes: ReviewAlert[];
 } {
   const alerts = buildReviewAlerts(item, detail);
 
-  if (alerts.some((alert) => alert.severity === "critical")) {
-    return { level: "critical", label: "Critical follow-up" };
+  const at = (severity: ReviewAlert["severity"]) =>
+    alerts.filter((alert) => alert.severity === severity);
+
+  const critical = at("critical");
+  if (critical.length > 0) {
+    return { level: "critical", label: "Critical follow-up", notes: critical };
   }
 
-  if (alerts.some((alert) => alert.severity === "operational")) {
-    return { level: "operational", label: "Reviewer action recommended" };
+  const operational = at("operational");
+  if (operational.length > 0) {
+    return { level: "operational", label: "Reviewer action recommended", notes: operational };
   }
 
-  if (alerts.some((alert) => alert.severity === "informational")) {
-    return { level: "informational", label: "Operational notes" };
+  const informational = at("informational");
+  if (informational.length > 0) {
+    return { level: "informational", label: "Operational notes", notes: informational };
   }
 
-  return { level: "stable", label: "Stable review state" };
+  return { level: "stable", label: "Stable review state", notes: [] };
 }

@@ -77,21 +77,19 @@ type IntegrityState =
  * RECORDED, AVAILABLE and VERIFIED are three different claims, and this card
  * makes all three about the same record at once.
  *
- * `recorded` and `available` used to share blue, so "a proof exists" and "an
- * artifact can be fetched" were indistinguishable in a card whose entire job
- * is telling those apart. They are now orange and indigo respectively, and
- * `verified` keeps the green it has always had — the strongest claim on the
- * card stays the one colour a reader already reads as "confirmed".
- *
- * Orange is the CLASSIFICATION tone, not a caution: "Recorded" is not asking
- * for attention. `amber`, which `pending` uses, is the tone that does.
+ * `recorded` is BLUE — the informational tone for a deterministic fact the
+ * record carries ("a proof exists"). `available` is indigo ("an artifact can
+ * be fetched") and `verified` keeps the green it has always had; the three
+ * stay distinct, which is the whole job of a card whose reader is comparing
+ * them. Blue here is the canonical `--info` text token, the same AA-safe blue
+ * the app uses for informational state elsewhere — not a new colour.
  */
 const STATE_PRESENTATION: Record<
   IntegrityState,
   { label: string; tone: AppTone }
 > = {
   verified: { label: "Verified", tone: "green" },
-  recorded: { label: "Recorded", tone: "orange" },
+  recorded: { label: "Recorded", tone: "blue" },
   available: { label: "Available", tone: "indigo" },
   pending: { label: "Pending", tone: "amber" },
   unavailable: { label: "Unavailable", tone: "slate" },
