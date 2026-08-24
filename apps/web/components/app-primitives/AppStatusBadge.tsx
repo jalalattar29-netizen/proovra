@@ -34,7 +34,16 @@ export type AppTone =
    * opposite of what a type label says.
    */
   | "orange"
-  | "slate";
+  | "slate"
+  /**
+   * INK is the DARKEST NEUTRAL — a TERMINAL state ("Closed").
+   *
+   * Distinct from `slate`, which is the tone for absent, unknown or genuinely
+   * neutral. A record that has reached its end state is not missing
+   * information; it is a settled fact, and it reads as ordinary ink rather
+   * than as one more grey among the greys the page uses for absence.
+   */
+  | "ink";
 
 /**
  * How the tone is painted.

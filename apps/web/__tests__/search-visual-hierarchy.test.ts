@@ -33,6 +33,8 @@ const CSS = read(`${ROUTE}/search.css`);
 const TONES = read(`${ROUTE}/searchTones.ts`);
 const PRIM_CSS = read("apps/web/components/app-primitives/app-primitives.css");
 const TOKENS = read("apps/web/lib/design-tokens/tokens.css");
+/** The app-wide lifecycle table this console delegates its states to. */
+const LIFECYCLE_SRC = read("apps/web/lib/status-tone/lifecycleTone.ts");
 const OVERLAY = read("apps/web/components/app-primitives/AppAnchoredOverlay.tsx");
 
 /**
@@ -145,10 +147,23 @@ test("4b. a Note reads neutral", () => {
 // ===========================================================================
 
 test("5. Open is success green in the row AND in the Inspector's workflow fact", () => {
-  assert.equal(kindToneOf("open"), "green");
-  assert.match(TONES, /\bopen:\s*"open"/);
-  // The row's badge and the Inspector's head badge read the SAME derivation,
-  // so the list and the panel cannot describe one record two ways.
+  // OPEN is no longer classified here. It belongs to the app-wide lifecycle
+  // table, because Cases renders the same state and the two used to disagree.
+  // This console DELEGATES, and the delegation leads — a shadowed local copy
+  // is a second answer that the next edit starts reading again.
+  assert.match(LIFECYCLE_SRC, /\bopen: "green",/);
+  assert.match(TONES, /const canonical = lifecycleToneOrNull\(value\);\s*\n\s*if \(canonical\) return canonical;/);
+  const lifecycleBlock = TONES.slice(
+    TONES.indexOf("const LIFECYCLE_KIND"),
+    TONES.indexOf("function searchLifecycleKind"),
+  );
+  assert.doesNotMatch(
+    lifecycleBlock,
+    /\b(open|closed|resolved|archived|investigating|on_hold):/,
+    "a lifecycle state the shared table owns must not be re-classified here",
+  );
+  // The row's status and the Inspector's head read the SAME derivation, so the
+  // list and the panel cannot describe one record two ways.
   assert.match(PAGE, /function rowLifecycleState\(row: ResultRow\)/);
   const uses = [...PAGE.matchAll(/rowLifecycleState\(row\)/g)];
   assert.equal(uses.length, 2);
@@ -157,10 +172,20 @@ test("5. Open is success green in the row AND in the Inspector's workflow fact",
   assert.match(PAGE, /tone=\{kind\}/);
 });
 
-test("6. Closed is neutral, and is not green", () => {
-  assert.equal(kindToneOf("closed"), "slate");
-  assert.notEqual(kindToneOf("closed"), kindToneOf("open"));
-  assert.match(TONES, /\bclosed:\s*"closed"/);
+test("6. Closed is the darkest neutral, and is not green", () => {
+  // CLOSED is a TERMINAL state, and it is now `ink` rather than `slate`. The
+  // distinction is real: `slate` is what this console paints for ABSENT and
+  // unknown, and "this record is finished" is not "we do not know". A settled
+  // fact reads as ordinary ink.
+  assert.match(LIFECYCLE_SRC, /\bclosed: "ink",/);
+  assert.doesNotMatch(LIFECYCLE_SRC, /\bclosed: "(green|slate)",/);
+  // ARCHIVED is red and must not collapse back onto the terminal neutral: it
+  // is the one lifecycle transition here with real consequences.
+  assert.match(LIFECYCLE_SRC, /\barchived: "red",/);
+  // `ink` is a real declaration on both primitives, so a shared mapping cannot
+  // return a tone that only one of the two can paint.
+  assert.ok(PRIM_CSS.includes('.app-status-text[data-tone="ink"]'));
+  assert.ok(PRIM_CSS.includes('.app-status-badge[data-tone="ink"]'));
 });
 
 test("6b. destructive states are red; a missing value is neither", () => {

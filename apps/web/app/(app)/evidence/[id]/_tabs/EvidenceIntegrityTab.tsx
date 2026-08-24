@@ -36,6 +36,7 @@
 import type { ReactNode } from "react";
 import { Camera, History, MapPin, ShieldCheck, type LucideIcon } from "lucide-react";
 import CaptureLocationMapPanel from "../../../../../components/capture-location/CaptureLocationMapPanel";
+import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import {
   describeClientSignalState,
   describePackageManifestStatus,
@@ -72,13 +73,26 @@ type IntegrityState =
   | "failed"
   | "not-applicable";
 
+/**
+ * RECORDED, AVAILABLE and VERIFIED are three different claims, and this card
+ * makes all three about the same record at once.
+ *
+ * `recorded` and `available` used to share blue, so "a proof exists" and "an
+ * artifact can be fetched" were indistinguishable in a card whose entire job
+ * is telling those apart. They are now orange and indigo respectively, and
+ * `verified` keeps the green it has always had — the strongest claim on the
+ * card stays the one colour a reader already reads as "confirmed".
+ *
+ * Orange is the CLASSIFICATION tone, not a caution: "Recorded" is not asking
+ * for attention. `amber`, which `pending` uses, is the tone that does.
+ */
 const STATE_PRESENTATION: Record<
   IntegrityState,
-  { label: string; tone: "green" | "blue" | "amber" | "red" | "slate" }
+  { label: string; tone: AppTone }
 > = {
   verified: { label: "Verified", tone: "green" },
-  recorded: { label: "Recorded", tone: "blue" },
-  available: { label: "Available", tone: "blue" },
+  recorded: { label: "Recorded", tone: "orange" },
+  available: { label: "Available", tone: "indigo" },
   pending: { label: "Pending", tone: "amber" },
   unavailable: { label: "Unavailable", tone: "slate" },
   failed: { label: "Failed", tone: "red" },
@@ -159,9 +173,15 @@ function MatrixGrid({ items }: { items: MatrixItem[] }) {
           >
             <div className="evidence-detail-matrix-cell__head">
               <span className="evidence-detail-matrix-cell__label">{item.label}</span>
+              {/* The state word, as TEXT. Every cell in this card carries one,
+                  so a grid of capsules put a tinted box beside every label on
+                  the page — a wall of surfaces competing with the values
+                  underneath them, which is what the reader is actually here to
+                  read. One render site, so no row can keep the old treatment
+                  by being an uncommon state. */}
               {presentation ? (
                 <span
-                  className="app-status-badge evidence-detail-matrix-cell__state"
+                  className="app-status-text evidence-detail-matrix-cell__state"
                   data-tone={presentation.tone}
                 >
                   {presentation.label}

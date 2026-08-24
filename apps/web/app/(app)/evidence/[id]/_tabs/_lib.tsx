@@ -220,6 +220,42 @@ export function describeContentItemRole(item: {
   return checklistLabel ? `${roleLabel} • ${checklistLabel}` : roleLabel;
 }
 
+/**
+ * A media KIND's tone.
+ *
+ * SEPARATE FROM `pillTone` ON PURPOSE. `pillTone` classifies a STATE by
+ * substring — "READY", "PENDING", "FAILED" — and the content-item card was
+ * passing it a media kind. "IMAGE" matches none of its branches, so every kind
+ * fell through to the neutral default and the card's type label was the same
+ * grey for a photo, a video and a PDF. A kind is a CLASSIFICATION, not a
+ * state; it needed its own table, and this is it.
+ *
+ * The vocabulary is the content item's own — `image | video | audio | pdf |
+ * text | other` (see `evidence-library-types`), lowercase off the wire.
+ *
+ * `text` and `other` are deliberately NOT given a colour of their own. They
+ * are what a document arrives as, and this product has no documented type
+ * colour for a document; inventing one here would be a fourth type palette
+ * rather than a reuse. They keep the neutral the label already had.
+ *
+ * NOTE ON PDF: `detectEvidenceKind` in the Evidence LIBRARY folds
+ * `application/pdf` into `document`, so the library does not know a PDF as a
+ * PDF. This card does — its own preview switch branches on `kind === "pdf"` to
+ * choose a PDF viewer — so the blue applies here and the library's classifier
+ * is left alone. Changing that classifier would be a change to how records are
+ * categorised, not to how a label is painted.
+ */
+const MEDIA_KIND_TONE: Readonly<Record<string, AppTone>> = {
+  image: "indigo",
+  video: "orange",
+  pdf: "blue",
+  audio: "ink",
+};
+
+export function mediaKindTone(kind: string): AppTone {
+  return MEDIA_KIND_TONE[kind.trim().toLowerCase()] ?? "slate";
+}
+
 export function pillTone(status: string) {
   const normalized = status.trim().toUpperCase();
 
@@ -827,7 +863,9 @@ export function PreviewWorkspace({
             >
               <div className="evidence-detail-item-row">
                 <strong>{item.label}</strong>
-                <span className={`evidence-detail-pill ${pillTone(item.kind)}`}>{item.kind}</span>
+                <span className="app-status-text" data-tone={mediaKindTone(item.kind)}>
+                  {item.kind}
+                </span>
               </div>
               <p>{item.originalFileName || "Original filename not recorded"}</p>
               <div className="evidence-detail-definition-inline">

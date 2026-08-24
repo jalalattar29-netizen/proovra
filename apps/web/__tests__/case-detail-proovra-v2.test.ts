@@ -61,6 +61,8 @@ const CASES_INDEX = read("apps/web/components/cases-experience/CasesIndex.tsx");
 const HELPERS = read(
   "apps/web/components/cases-experience/simple-case-detail/helpers.ts",
 );
+/** The ONE lifecycle status -> tone table, which `caseStatusTone` delegates to. */
+const LIFECYCLE_SRC = read("apps/web/lib/status-tone/lifecycleTone.ts");
 
 /** Source text with comments removed — so a doc comment describing a banned
  *  literal never trips a "this literal must not appear" assertion. */
@@ -843,7 +845,11 @@ test("disclosure + metadata labels never concatenate", () => {
     /<li>AI-generated<\/li>\{" "\}\s*\n\s*<li>Advisory only<\/li>\{" "\}\s*\n\s*<li>Metadata only<\/li>/,
   );
   // The row's kind and status are separate statements and are separated too.
-  assert.match(COPILOT, /<\/span>\{" "\}\s*\n\s*<AppStatusBadge/);
+  //
+  // The status is now `AppStatusText` — the capsule is gone, which makes this
+  // whitespace node LOAD-BEARING rather than belt-and-braces: a pill had its
+  // own padding to hold the two apart, and toned text has nothing but this.
+  assert.match(COPILOT, /<\/span>\{" "\}\s*\n\s*\{\/\*[\s\S]*?\*\/\}\s*\n\s*<AppStatusText/);
   assert.ok(
     (COPILOT.match(/\{" "\}/g) ?? []).length >= 3,
     "separator text nodes between labels were removed",
@@ -908,37 +914,87 @@ test("RTL is handled with logical properties + bidi isolation for identifiers", 
 });
 
 test("status labels stay display-only and cover every case status", () => {
-  // ONE status pill app-wide: `.app-status-badge[data-tone]`. The per-domain
-  // `.case-status-badge[data-status]` colour table was DELETED, and the
-  // status -> tone mapping now lives in TypeScript so a single badge
-  // definition can serve every surface.
+  // The status under the case title is TEXT, not a capsule. The per-domain
+  // `.case-status-badge[data-status]` colour table was DELETED long ago, and
+  // the status -> tone mapping lives in TypeScript so ONE definition serves
+  // every surface.
   assert.doesNotMatch(CASES_CSS, /\.case-status-badge\b/);
-  assert.match(PRIMITIVES_CSS, /^\.app-status-badge \{/m);
+  assert.match(PRIMITIVES_CSS, /^\.app-status-text \{/m);
   assert.match(
     SIMPLE_DETAIL,
-    /className="app-status-badge"\s*\n\s*data-tone=\{caseStatusTone\(caseDetail\.status\)\}/,
+    /className="app-status-text"\s*\n\s*data-tone=\{caseStatusTone\(caseDetail\.status\)\}/,
   );
-  // Every status still resolves to a defined tone, and every tone the map can
-  // return is actually painted by the canonical badge.
-  const tones = new Set();
+  // No capsule survives on the status: a leftover `app-status-badge` on this
+  // element is the exact regression this test exists to catch.
+  assert.doesNotMatch(
+    SIMPLE_DETAIL,
+    /className="[^"]*app-status-badge[^"]*"\s*\n\s*data-tone=\{caseStatusTone/,
+  );
+
+  // `caseStatusTone` is a THIN DELEGATION. A local switch here would be a
+  // second answer to "what colour is ARCHIVED", which is how Cases, Search and
+  // the Cases list came to disagree in the first place.
   const block = fnBody(HELPERS, "caseStatusTone");
-  for (const s of ["OPEN", "INVESTIGATING", "ON_HOLD", "RESOLVED", "CLOSED", "ARCHIVED"]) {
-    assert.ok(
-      block.includes(`case "${s}"`) || block.includes("default:"),
-      `status ${s} has no tone`,
-    );
-  }
-  for (const m of block.matchAll(/return "([a-z]+)"/g)) tones.add(m[1]);
-  assert.ok(tones.size >= 3, "expected a real tone spread");
-  for (const t of tones) {
-    assert.ok(
-      PRIMITIVES_CSS.includes(`.app-status-badge[data-tone="${t}"]`),
-      `tone ${t} is returned but the canonical badge does not define it`,
-    );
-  }
+  assert.match(block, /return lifecycleTone\(status\);/);
+  assert.doesNotMatch(block, /case "|switch \(/);
+
   // It must not participate in transition logic or any write path.
   assert.doesNotMatch(block, /apiFetch|ALLOWED_STATUS_TRANSITIONS/);
   // The canonical status list and transition mirror are untouched.
   assert.match(HELPERS, /export const CASE_STATUS_OPTIONS/);
   assert.match(HELPERS, /export const ALLOWED_STATUS_TRANSITIONS/);
+});
+
+test("every case status maps to the REQUIRED canonical tone, and the text primitive paints it", () => {
+  // THE FULL MATRIX, read from the shipped mapping rather than reproduced
+  // here. A test that restates the table it is checking proves only that it
+  // can copy.
+  const table = LIFECYCLE_SRC.slice(
+    LIFECYCLE_SRC.indexOf("const LIFECYCLE_TONE"),
+    LIFECYCLE_SRC.indexOf("export function lifecycleToneOrNull"),
+  );
+  const required: Array<[string, string]> = [
+    ["open", "green"],
+    ["investigating", "indigo"],
+    ["on_hold", "indigo"],
+    ["resolved", "orange"],
+    ["archived", "red"],
+    ["closed", "ink"],
+  ];
+  for (const [state, tone] of required) {
+    assert.match(
+      table,
+      new RegExp(`${state}: "${tone}",`),
+      `${state} must resolve to ${tone}`,
+    );
+  }
+
+  // RESOLVED is not OPEN's green, and ARCHIVED is not CLOSED's ink. These two
+  // collapses are what made a finished case indistinguishable from a live one
+  // and an archived case indistinguishable from a closed one.
+  assert.notEqual(
+    required.find(([s]) => s === "resolved")![1],
+    required.find(([s]) => s === "open")![1],
+  );
+  assert.notEqual(
+    required.find(([s]) => s === "archived")![1],
+    required.find(([s]) => s === "closed")![1],
+  );
+
+  // Every tone the mapping can return is PAINTED by the text primitive — and
+  // as an ink, never as a background.
+  const tones = new Set([...table.matchAll(/: "([a-z]+)",/g)].map((m) => m[1]));
+  assert.ok(tones.size >= 5, "expected a real tone spread");
+  for (const t of tones) {
+    const rule = `.app-status-text[data-tone="${t}"]`;
+    assert.ok(
+      PRIMITIVES_CSS.includes(rule),
+      `tone ${t} is returned but the text primitive does not define it`,
+    );
+    const decl = PRIMITIVES_CSS.slice(
+      PRIMITIVES_CSS.indexOf(rule),
+      PRIMITIVES_CSS.indexOf("}", PRIMITIVES_CSS.indexOf(rule)),
+    );
+    assert.doesNotMatch(decl, /background|border|box-shadow|padding/);
+  }
 });

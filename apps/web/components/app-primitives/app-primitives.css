@@ -828,6 +828,16 @@ textarea.app-form-input {
 .app-status-badge[data-tone="slate"] {
   background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
 }
+/* INK is the DARKEST NEUTRAL — a state that has reached its end and is not a
+   warning, a success or a caution ("Closed"). `slate` is the tone for absent
+   or genuinely neutral; a terminal state is a fact, and it reads as ordinary
+   ink rather than as another grey among greys. Declared here as well as on
+   `.app-status-text` so the badge tone vocabulary stays COMPLETE: a mapping
+   shared by the capsule and the text form must not be able to return a tone
+   that only one of the two can paint. */
+.app-status-badge[data-tone="ink"] {
+  background: #F1F5F9; color: var(--ink-primary); border-color: rgba(15, 23, 42, 0.12);
+}
 .app-status-badge__dot {
   width: 6px;
   height: 6px;
@@ -901,6 +911,94 @@ textarea.app-form-input {
 }
 .app-status-badge[data-fill="solid"][data-tone="slate"] {
   background: var(--ink-secondary);
+}
+.app-status-badge[data-fill="solid"][data-tone="ink"] {
+  background: var(--ink-primary);
+}
+
+/* ---- TEXT-ONLY status -------------------------------------------------
+ *
+ * A state rendered as WORDS, with no surface of its own.
+ *
+ * The capsule above is the right treatment where a state is the thing a dense
+ * row is scanned BY. It is the wrong treatment where a state is one labelled
+ * fact among many — a card header, a key/value detail row, a per-signal
+ * result — because each capsule sizes to its own words, so a column of them
+ * becomes a ragged stack of boxes that reads as the busiest thing on the page
+ * while carrying some of its quietest facts.
+ *
+ * This is the GENERALISATION of `.ilk-state-text`, which established the
+ * pattern for the Intake Links tables. That class stays where it is: it is
+ * route-local and carries the table cell's own containment. What is shared —
+ * "no surface, semantic ink, one tone vocabulary" — lives here so the next
+ * surface reuses it instead of writing `background: transparent` into a
+ * twentieth stylesheet.
+ *
+ * NOT A REDEFINITION OF `.app-status-badge`. Both primitives remain available
+ * and unchanged, and both read the SAME `data-tone`, so a surface may choose
+ * how a state LOOKS without being able to change what its colour MEANS.
+ *
+ * Every removal below is EXPLICIT rather than inherited. These labels replaced
+ * capsules at their call sites, and an author who reaches for this class is
+ * removing one; leaving the reset implicit is how 8px of pill padding survives
+ * as a mysterious gap after the background is gone.
+ *
+ * COLOUR IS NEVER THE ONLY CUE: the state's word IS the element's content, so
+ * a reader who cannot separate these hues still reads the status. Every ink is
+ * a canonical token, and every one is >= 4.5:1 on #FFFFFF (measured):
+ *   green  --success-standard  5.02:1
+ *   amber  --warning-ink       5.02:1
+ *   red    --error             4.83:1
+ *   indigo --accent-600        7.10:1
+ *   blue   --info              5.17:1
+ *   orange --orange-ink        5.18:1
+ *   slate  --ink-secondary     7.58:1
+ *   ink    --ink-primary      17.85:1
+ * There is no sub-AA ink here. The fill exemption `--orange-fill` documents is
+ * a FILL exemption; a word carries meaning and does not get to spend it.
+ * ------------------------------------------------------------------------- */
+.app-status-text {
+  /* Text in the flow — not an inline-flex box with its own line box, which is
+     what left the old capsules sitting a pixel off their neighbours' baseline. */
+  display: inline;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  /* Inherit the surrounding type scale. A status is emphasised by WEIGHT and
+     colour, not by becoming its own font size. */
+  font: inherit;
+  font-weight: 600;
+  color: var(--app-status-tone, var(--ink-secondary));
+}
+.app-status-text[data-tone="green"] { --app-status-tone: var(--success-standard); }
+.app-status-text[data-tone="amber"] { --app-status-tone: var(--warning-ink); }
+.app-status-text[data-tone="red"] { --app-status-tone: var(--error); }
+.app-status-text[data-tone="indigo"] { --app-status-tone: var(--accent-600); }
+.app-status-text[data-tone="blue"] { --app-status-tone: var(--info); }
+.app-status-text[data-tone="orange"] { --app-status-tone: var(--orange-ink); }
+/* Slate is the FALLBACK an unmapped state resolves to, so it is a real
+   declaration rather than whatever the base happens to paint. */
+.app-status-text[data-tone="slate"] { --app-status-tone: var(--ink-secondary); }
+.app-status-text[data-tone="ink"] { --app-status-tone: var(--ink-primary); }
+
+/* Several states side by side.
+ *
+ * Without a container the removed padding takes the separation with it and
+ * "Review recommended" "High confidence" "Awaiting review" render as one
+ * run-together phrase. The GAP is the separator — reintroducing a capsule to
+ * push words apart would undo the point of the class.
+ *
+ * `flex-wrap` rather than `white-space: nowrap` on the child: at 320px a
+ * three-state row has to go somewhere, and wrapping between STATES keeps each
+ * phrase whole, where nowrap would push the third one out of the card. */
+.app-status-text-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  min-inline-size: 0;
 }
 
 /* Metadata / disclosure CHIP — a compact, non-status label.

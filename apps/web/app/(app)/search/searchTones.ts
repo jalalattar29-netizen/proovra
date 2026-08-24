@@ -22,6 +22,7 @@
  */
 
 import type { AppTone } from "../../../components/app-primitives/AppStatusBadge";
+import { lifecycleToneOrNull } from "../../../lib/status-tone/lifecycleTone";
 
 /**
  * What a token MEANS. Tone is derived from this, never chosen directly, so a
@@ -150,6 +151,14 @@ function searchBadgeKind(badge: string): SearchStateKind {
 }
 
 export function searchBadgeTone(badge: string): AppTone {
+  // A badge code that IS a lifecycle value takes the app-wide lifecycle
+  // colour. `archived` arrives on this surface as a badge and on the Cases
+  // surfaces as a status; before this delegation it was slate here and red
+  // there, which is exactly the disagreement the shared mapping exists to
+  // end. Codes this console owns alone — `legal-hold`, `in_trash`, `locked` —
+  // are SIGNALS, not lifecycle, and keep their own classification below.
+  const canonical = lifecycleToneOrNull(badge);
+  if (canonical) return canonical;
   return toneForKind(searchBadgeKind(badge));
 }
 
@@ -166,18 +175,21 @@ function normalise(value: string): string {
   return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
+/**
+ * The states this console owns ALONE.
+ *
+ * open / active / live / in_progress / investigating / on_hold / resolved /
+ * closed / complete / completed / done / sealed / archived were all removed
+ * from this table when the shared lifecycle mapping took them over. They are
+ * not absent — they are OWNED ELSEWHERE, and leaving a shadowed copy here
+ * would be a second answer that nothing reads today and that the next edit
+ * would silently start reading again.
+ *
+ * What remains is the wider operational vocabulary the Search index carries
+ * and the lifecycle table deliberately does not: things in flight, things
+ * withheld, and things being destroyed.
+ */
 const LIFECYCLE_KIND: Readonly<Record<string, SearchStateKind>> = {
-  open: "open",
-  active: "open",
-  live: "open",
-  in_progress: "open",
-  closed: "closed",
-  complete: "closed",
-  completed: "closed",
-  done: "closed",
-  resolved: "closed",
-  sealed: "closed",
-  archived: "closed",
   pending: "pending",
   queued: "pending",
   processing: "pending",
@@ -185,7 +197,6 @@ const LIFECYCLE_KIND: Readonly<Record<string, SearchStateKind>> = {
   under_review: "pending",
   review: "pending",
   awaiting_review: "pending",
-  on_hold: "restricted",
   restricted: "restricted",
   locked: "restricted",
   in_trash: "restricted",
@@ -216,6 +227,14 @@ function searchLifecycleKind(
 }
 
 export function searchLifecycleTone(value: string | null | undefined): AppTone {
+  // The shared lifecycle mapping LEADS. It owns open / investigating /
+  // on_hold / resolved / archived / closed, and it owns them for every
+  // surface; this console must not paint a case's status differently from the
+  // Cases list that the same operator just came from. `null` back means "not a
+  // lifecycle value I own", so the wider vocabulary below — pending,
+  // in_review, locked, pending_destruction — still answers for its own states.
+  const canonical = lifecycleToneOrNull(value);
+  if (canonical) return canonical;
   return toneForKind(searchLifecycleKind(value));
 }
 
@@ -239,7 +258,13 @@ export function searchLifecycleLabel(value: string | null | undefined): string {
  * beside it. The console renders a fact once.
  */
 export function isLifecycleValue(value: string | null | undefined): boolean {
-  return searchLifecycleKind(value) !== "neutral";
+  // BOTH vocabularies, or the answer changed the moment the shared mapping
+  // took the lifecycle states over: `Open` would have stopped counting as a
+  // lifecycle value, and the result row's subtitle would have started
+  // repeating the status beside it again.
+  return (
+    lifecycleToneOrNull(value) !== null || searchLifecycleKind(value) !== "neutral"
+  );
 }
 
 // ---------------------------------------------------------------------------

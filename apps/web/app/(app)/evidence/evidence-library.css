@@ -619,8 +619,8 @@
 }
 
 /* ---- Badge zone ---------------------------------------------------------- */
-.evidence-library-row__badges .app-status-badge {
-  /* Readable at every width — badges never shrink into fragments. */
+.evidence-library-row__badges .app-status-text {
+  /* Readable at every width — a state never shrinks into a fragment. */
   flex: none;
   max-width: 100%;
 }

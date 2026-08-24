@@ -671,9 +671,11 @@
    declaration rather than whatever the base class happens to paint. */
 .search-type-badge[data-tone="slate"] { background: var(--ink-secondary); color: #FFFFFF; }
 
-/* The Inspector's LIFECYCLE chip. A STATE, so it keeps the soft capsule every
-   other state on this surface wears — only its containment is set here, which
-   is all it ever borrowed from the type class. */
+/* The Inspector's LIFECYCLE label. A STATE, so it is TEXT — the same
+   treatment every other state on this surface now wears, and the reason the
+   filled type label beside it still reads as a different kind of claim. Only
+   its containment is set here, which is all it ever borrowed from the type
+   class; `.app-status-text` carries the ink. */
 .search-inspector__lifecycle {
   justify-self: start;
   align-self: start;
@@ -1379,19 +1381,22 @@
  * from `searchMatchReasonTone` — the one Search authority — so the row and the
  * Inspector cannot colour the same reason differently.
  *
- * Colours are the Figma reference fills, sampled from the design rather than
- * chosen here. MEASURED against their own backgrounds:
+ * THE TINTS ARE GONE. These were three filled rectangles — a reference fill
+ * per reason — and they made the quietest fact on a result card compete with
+ * its title. The reason is now the TEXT: weight and a semantic ink, on the
+ * card's own surface.
  *
- *   title    #7C3AED on #F5EEFF  5.04:1  — WCAG AA
- *   summary  #2563EB on #DBEAFE  4.24:1  — BELOW AA (4.5:1)
- *   neutral  #475569 on #F1F5F9  6.92:1  — WCAG AA
+ * MEASURED on #FFFFFF, which is now what each ink actually sits on:
  *
- * The summary pair is recorded as a deliberate visual-reference decision, not
- * as a passing measurement: the design is the authority for this label and the
- * figure is stated rather than rounded up. The reason is never carried by
- * colour alone — each label states its meaning in words — so the shortfall
- * costs legibility margin, not information. Nothing else on this surface is
- * relaxed to accommodate it. */
+ *   title    var(--accent-600)    #6D28D9  7.10:1  — WCAG AA
+ *   summary  var(--info)          #2563EB  5.17:1  — WCAG AA
+ *   neutral  var(--ink-secondary) #475569  7.58:1  — WCAG AA
+ *
+ * The `summary` pair previously measured 4.24:1 and was recorded here as a
+ * deliberate sub-AA visual-reference decision. Removing the tint RETIRED that
+ * exception rather than moving it: there is no shortfall left to record. The
+ * reason is still never carried by colour alone — each label states its
+ * meaning in words. */
 .search-match-reason {
   display: inline-flex;
   align-items: center;
@@ -1405,27 +1410,38 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  /* A rectangle, not a capsule — the same restrained radius the type label
-     uses, so the two read as one system. */
-  border-radius: 4px;
-  border: 1px solid transparent;
-  padding: 2px 8px;
+  /* NO SURFACE. A match reason is a quiet aside about WHY this row is here;
+     as a tinted rectangle it drew more attention than the title it was
+     explaining. The removals are explicit because this class used to carry a
+     rectangle and the padding is what would otherwise survive as an
+     unexplained gap. `.search-result__reasons` supplies the separation. */
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
   font-size: 11.5px;
   font-weight: 600;
   line-height: 1.5;
 }
 
-/* TINT + FOREGROUND, per tone — the base above carries geometry only, the same
-   split `.search-type-badge` uses, so a tone can never move a label. Every
-   reason resolves to one of these through `searchMatchReasonTone`. */
+/* FOREGROUND ONLY, per tone — the base above carries geometry, the same split
+   `.search-type-badge` uses, so a tone can never move a label. Every reason
+   resolves to one of these through `searchMatchReasonTone`.
+ *
+ * Each ink is now a CANONICAL TOKEN rather than a private literal. The three
+ * hexes that used to live here were chosen against the tints that have just
+ * been removed; re-measuring them against the card instead of re-using the
+ * app's inks would have been picking three new colours by hand. Measured on
+ * #FFFFFF: --accent-600 7.10:1, --info 5.17:1, --ink-secondary 7.58:1 — every
+ * one WCAG AA, where the old `summary` pair measured 4.24:1 and was recorded
+ * as a deliberate shortfall. Removing the tint retired that exception. */
 .search-match-reason[data-match-tone="title"] {
-  background: #F5EEFF;
-  color: #7C3AED;
+  color: var(--accent-600);
 }
 
 .search-match-reason[data-match-tone="summary"] {
-  background: #DBEAFE;
-  color: #2563EB;
+  color: var(--info);
 }
 
 /* Neutral is the FALLBACK an unrecognised reason resolves to, so it is a real
@@ -1438,8 +1454,7 @@
 .search-match-reason[data-match-tone="workflow"],
 .search-match-reason[data-match-tone="semantic"],
 .search-match-reason[data-match-tone="neutral"] {
-  background: #F1F5F9;
-  color: #475569;
+  color: var(--ink-secondary);
 }
 
 /* ===========================================================================

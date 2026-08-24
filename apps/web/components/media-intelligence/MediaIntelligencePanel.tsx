@@ -804,14 +804,27 @@ function SignalRow({
   const helpId = "mi-action-help";
   return (
     <li className="evd-card">
-      <div className="evd-card-header" data-media-intelligence-statuses>
-        <span className="app-status-badge" data-tone={severityTone(signal.severity)}>
+      {/* THREE DESCRIPTORS, THREE PHRASES.
+          Severity, confidence and workflow status each said their piece inside
+          its own capsule, so an observation opened with a row of three boxes
+          before it said anything about what was observed.
+          `.app-status-text-row` replaces `.evd-card-header` here rather than
+          joining it: this is a run of statuses, not a two-part header, and
+          `space-between` would push three plain phrases to opposite edges of
+          the card. The row's GAP is what keeps them from reading as one
+          run-together phrase.
+          `.evd-badge` is untouched — it still carries "Required" and the
+          intake-source label elsewhere; only this call site moved. */}
+      <div className="app-status-text-row" data-media-intelligence-statuses>
+        <span className="app-status-text" data-tone={severityTone(signal.severity)}>
           {severityLabel(signal.severity)}
         </span>
-        <span className="evd-badge">
+        {/* Confidence has no semantic tone of its own and never had one — it
+            was a neutral chip. It stays neutral, now as neutral TEXT. */}
+        <span className="app-status-text" data-tone="slate">
           {confidenceLabel(signal.confidence)}
         </span>
-        <span className="app-status-badge" data-tone={statusTone(signal.status)}>
+        <span className="app-status-text" data-tone={statusTone(signal.status)}>
           {statusLabel(signal.status)}
         </span>
       </div>

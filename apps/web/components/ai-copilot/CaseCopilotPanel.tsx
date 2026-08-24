@@ -54,7 +54,8 @@ import {
 } from "@proovra/shared";
 
 import { apiFetch, ApiError } from "../../lib/api";
-import { AppStatusBadge, type AppTone } from "../app-primitives/AppStatusBadge";
+import type { AppTone } from "../app-primitives/AppStatusBadge";
+import { AppStatusText } from "../app-primitives/AppStatusText";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
 import "./case-copilot.css";
 
@@ -414,12 +415,17 @@ export function CaseCopilotPanel({
                         <KindIcon type={e.type} />
                         {e.type}
                       </span>{" "}
-                      <AppStatusBadge
+                      {/* The record's STATE, as text. The KIND beside it keeps
+                          its chip: a kind is a classification and a state is a
+                          state, and giving both the same capsule is what made
+                          this row read as two interchangeable boxes. Tone is
+                          unchanged — `statusTone` still owns it. */}
+                      <AppStatusText
                         tone={statusTone(e.status)}
                         data-case-copilot-status={e.status}
                       >
                         {statusLabel(e.status)}
-                      </AppStatusBadge>
+                      </AppStatusText>
                     </span>
                     {disabled ? (
                       <span

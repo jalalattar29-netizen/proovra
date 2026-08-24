@@ -182,36 +182,83 @@ test("5. blue is one CSS rule, so Case and Evidence cannot render differently", 
 // 6–9. Match reasons
 // ===========================================================================
 
-test("6. match reasons carry the exact reference tints", () => {
-  assert.match(rule('.search-match-reason[data-match-tone="title"]'), /background: #F5EEFF;/);
-  assert.match(rule('.search-match-reason[data-match-tone="title"]'), /color: #7C3AED;/);
-  assert.match(rule('.search-match-reason[data-match-tone="summary"]'), /background: #DBEAFE;/);
-  assert.match(rule('.search-match-reason[data-match-tone="summary"]'), /color: #2563EB;/);
+test("6. a match reason is an INK on the card, with no tint of its own", () => {
+  // THE TINTS ARE GONE. A match reason is a quiet aside about why the row is
+  // here; as a filled rectangle it outweighed the title it was explaining.
+  // `workflow`, `semantic` and `neutral` share ONE rule by a comma selector, so
+  // the two tinted rules and the shared neutral one are read as they are
+  // written rather than as three separate blocks.
+  const toneRules = [
+    rule('.search-match-reason[data-match-tone="title"]'),
+    rule('.search-match-reason[data-match-tone="summary"]'),
+    rule('.search-match-reason[data-match-tone="neutral"]'),
+  ];
+  for (const body of toneRules) {
+    assert.doesNotMatch(body, /background|border|box-shadow/, "no tone may paint a surface");
+    assert.match(body, /color:/, "every tone must still declare an ink");
+  }
+  // Every tone the mapping can return resolves to one of those declarations —
+  // no reason may arrive unstyled because its rule was never written.
+  for (const tone of ["workflow", "semantic", "neutral"]) {
+    assert.ok(
+      CSS.includes(`.search-match-reason[data-match-tone="${tone}"]`),
+      `${tone} has no declaration at all`,
+    );
+  }
+  // The base carries the removals EXPLICITLY. This class used to be a
+  // rectangle, and an implicit reset is how 8px of pill padding survives as an
+  // unexplained gap after the background goes.
+  const base = rule(".search-match-reason");
+  assert.match(base, /background: none;/);
+  assert.match(base, /border: 0;/);
+  assert.match(base, /box-shadow: none;/);
+  assert.match(base, /padding: 0;/);
+  assert.match(base, /border-radius: 0;/);
 });
 
-test("7. each reason pair is measured, and the shortfall is recorded", () => {
-  const pairs: Array<[string, string, string]> = [
-    ["title", "#7C3AED", "#F5EEFF"],
-    ["summary", "#2563EB", "#DBEAFE"],
-    ["neutral", "#475569", "#F1F5F9"],
-  ];
-  const measured = pairs.map(([tone, fg, bg]) => [tone, contrast(fg, bg).toFixed(2)]);
-  assert.deepEqual(measured, [
-    ["title", "5.04"],
-    ["summary", "4.24"],
-    ["neutral", "6.92"],
-  ]);
+test("7. every reason ink is a canonical token, and every one now clears AA", () => {
+  // The three private literals went with the tints. They had been chosen
+  // against backgrounds that no longer exist, so re-measuring them against the
+  // card would have been picking three new colours by hand.
+  for (const literal of ["#F5EEFF", "#DBEAFE", "#7C3AED", "#F1F5F9"]) {
+    assert.ok(
+      !rule('.search-match-reason[data-match-tone="title"]').includes(literal) &&
+        !rule('.search-match-reason[data-match-tone="summary"]').includes(literal),
+      `${literal} must not survive as a match-reason value`,
+    );
+  }
+  assert.match(rule('.search-match-reason[data-match-tone="title"]'), /var\(--accent-600\)/);
+  assert.match(rule('.search-match-reason[data-match-tone="summary"]'), /var\(--info\)/);
+  assert.match(
+    rule('.search-match-reason[data-match-tone="neutral"]'),
+    /var\(--ink-secondary\)/,
+  );
 
-  // `summary` is 4.24:1 — BELOW AA, like the classification orange, and for the
-  // same reason: the tint is the design's, not a value picked to clear a bar.
-  // The reason is never carried by colour alone — every label states its
-  // meaning in words — so the shortfall costs margin, not information.
+  // MEASURED on the card, which is what each ink now actually sits on.
+  const measured = [
+    ["title", contrast(token("accent-600"), "#FFFFFF").toFixed(2)],
+    ["summary", contrast(token("info"), "#FFFFFF").toFixed(2)],
+    ["neutral", contrast(token("ink-secondary"), "#FFFFFF").toFixed(2)],
+  ];
+  assert.deepEqual(measured, [
+    ["title", "7.10"],
+    ["summary", "5.17"],
+    ["neutral", "7.58"],
+  ]);
+  // `summary` used to measure 4.24:1 and was recorded here as a deliberate
+  // sub-AA decision. Removing the tint RETIRED that exception rather than
+  // moving it — so every reason now clears AA and there is no shortfall left
+  // to record. If one of these drops back under, that is a regression, not a
+  // new exception to write down.
+  for (const [tone, ratio] of measured) {
+    assert.ok(Number(ratio) >= 4.5, `${tone} measures ${ratio}:1, below AA`);
+  }
   const comment = CSS.slice(
     CSS.lastIndexOf("/*", CSS.indexOf(".search-match-reason {")),
     CSS.indexOf(".search-match-reason {"),
   );
-  assert.match(comment, /4\.24:1/);
-  assert.match(comment, /BELOW AA/);
+  assert.match(comment, /THE TINTS ARE GONE/);
+  assert.doesNotMatch(comment, /BELOW AA/);
 });
 
 test("8. the tone comes from ONE function, with a neutral fallback", () => {
@@ -225,12 +272,13 @@ test("8. the tone comes from ONE function, with a neutral fallback", () => {
   assert.match(TONES, /if \(!reason\) return "neutral";/);
 
   // Neutral is a real declaration, not whatever the base happens to paint —
-  // the same split `.search-type-badge` uses. The base carries geometry only.
+  // the same split `.search-type-badge` uses. The base carries geometry and
+  // the explicit removals; the tone carries the ink and nothing else.
   assert.match(
     rule('.search-match-reason[data-match-tone="neutral"]'),
-    /background: #F1F5F9;/,
+    /color: var\(--ink-secondary\);/,
   );
-  assert.doesNotMatch(rule(".search-match-reason"), /background|color:/);
+  assert.doesNotMatch(rule(".search-match-reason"), /color:/);
 });
 
 test("9. a match reason has exactly one rendering, and it derives its tone", () => {
@@ -259,19 +307,20 @@ test("9. a match reason has exactly one rendering, and it derives its tone", () 
 // 10. Geometry
 // ===========================================================================
 
-test("10. a match reason is a content-sized rectangle that cannot stretch", () => {
+test("10. a match reason is content-sized text that cannot stretch", () => {
   const base = rule(".search-match-reason");
 
   // Content-sized in a grid or flex parent — the defect that made the type
-  // label a full-width slab in the Inspector was exactly this omission.
+  // label a full-width slab in the Inspector was exactly this omission, and
+  // removing the background does not remove the need for the containment.
   assert.match(base, /inline-size: fit-content;/);
   assert.match(base, /flex: 0 0 auto;/);
   assert.match(base, /justify-self: start;/);
 
-  // A rectangle, not a capsule, and on the same restrained radius the type
-  // label uses so the two read as one system.
-  assert.match(base, /border-radius: 4px;/);
-  assert.doesNotMatch(base, /border-radius: 999px|border-radius: 50%/);
+  // Neither a capsule NOR a rectangle now — no radius at all, because there is
+  // no surface left for a radius to shape.
+  assert.match(base, /border-radius: 0;/);
+  assert.doesNotMatch(base, /border-radius: 999px|border-radius: 4px|border-radius: 50%/);
 
   // No tone may change geometry: a row carrying both reasons must not shift
   // when the second appears.
@@ -279,6 +328,10 @@ test("10. a match reason is a content-sized rectangle that cannot stretch", () =
     const body = rule(`.search-match-reason[data-match-tone="${tone}"]`);
     assert.doesNotMatch(body, /padding|font-size|border-radius|line-height|inline-size/);
   }
+
+  // The reasons are separated by their CONTAINER's gap, not by padding they no
+  // longer have — otherwise "Matched title" and "Matched summary" run together.
+  assert.match(rule(".search-result__reasons"), /gap: 6px;/);
 
   // And nothing here is forced.
   assert.doesNotMatch(base, /!important/);

@@ -101,12 +101,20 @@ export function EvidenceLibraryRow({
         </time>
       </span>
 
+      {/* THE RECORD'S STATE AND ITS REVIEW SIGNAL, as text.
+          Two tinted capsules per row, on every row, made this column the
+          loudest thing in the library while it repeated the same handful of
+          phrases down the whole page. The tones are unchanged — the same two
+          mappers still own them; only the surfaces are gone. This container is
+          already a wrapping flex row with its own gap — it does not also need
+          `.app-status-text-row`, which exists for the surfaces that have no
+          such container. */}
       <span className="evidence-library-row__badges">
-        <span className="app-status-badge" data-tone={getStatusBadgeTone(item)}>
+        <span className="app-status-text" data-tone={getStatusBadgeTone(item)}>
           {getRecordStatusLabel(item.status)}
         </span>
         <span
-          className="app-status-badge"
+          className="app-status-text"
           data-tone={getReviewPriorityTone(priority.level)}
           data-evidence-row-priority={priority.level}
         >

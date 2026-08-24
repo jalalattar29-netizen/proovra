@@ -76,6 +76,20 @@
      words; it simply had no name, so every surface that wanted readable green
      text wrote the hex out by hand. 5.4:1 on #FFFFFF. */
   --success-ink: #167A5B;
+  /* THE STANDARD GREEN, for a state rendered as TEXT rather than as a capsule.
+     `--success-ink` (#167A5B) sits at hue ~161deg — a teal-leaning green that
+     reads as "dark green" once the tinted capsule behind it is removed and the
+     word has to carry the colour on its own. This is the same family at hue
+     ~137deg: a true green, visibly lighter and less teal, and still readable.
+     5.02:1 on #FFFFFF — WCAG AA for normal-size text, so the text-only status
+     primitive never spends the sub-AA fill exemption documented further down
+     this block. (Named without naming it: a comment that mentions that token
+     ahead of its own declaration moves where the declaration appears to start.)
+     Not a novel value: it is already the green used in ~23 places across the
+     app; naming it here is what stops the 24th from being a slightly different
+     one. `--success` stays DECORATIVE (2.54:1 as text) and `--success-ink`
+     stays the badge/capsule ink; this is the one for words on a plain surface. */
+  --success-standard: #15803D;
   --error: #DC2626;
   --error-050: #FEF2F2;
   /* The destructive OUTLINE weight, on the --orange-200 / --accent-200

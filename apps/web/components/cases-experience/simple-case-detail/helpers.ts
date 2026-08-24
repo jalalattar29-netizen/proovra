@@ -12,6 +12,8 @@
  *     used on the Cases list page so the two surfaces feel uniform.
  */
 
+import type { AppTone } from "../../app-primitives/AppStatusBadge";
+import { lifecycleTone } from "../../../lib/status-tone/lifecycleTone";
 import type { MatterWorkspaceEnvelope } from "../types";
 
 /** Friendly case-status labels (UPPER_SNAKE enum → Sentence case). */
@@ -30,29 +32,24 @@ export function caseStatusLabel(status: string | null | undefined): string {
 }
 
 /**
- * Case status → the canonical `.app-status-badge[data-tone]` vocabulary.
+ * Case status → the canonical semantic tone vocabulary.
  *
  * DISPLAY ONLY: it never changes which statuses exist, which transitions are
  * allowed, or who may perform them (the backend state machine stays
- * authoritative). Mapping here rather than in CSS is what lets ONE badge
+ * authoritative). Mapping in TypeScript rather than in CSS is what lets ONE
  * definition serve every surface instead of a per-domain `[data-status]`
  * colour table.
+ *
+ * A THIN DELEGATION, deliberately. The table itself moved to
+ * `lib/status-tone/lifecycleTone` because Cases was not its only reader:
+ * Search renders the same six states, and while each surface owned its own
+ * switch they disagreed — ARCHIVED was slate in one and RESOLVED shared OPEN's
+ * green in another. This function stays because it is the name every Cases
+ * call site already imports, and because "case status" is the domain question;
+ * what it must not stay is a second answer to it.
  */
-export function caseStatusTone(
-  status: string | null | undefined,
-): "green" | "amber" | "indigo" | "slate" {
-  switch (status) {
-    case "OPEN":
-      return "green";
-    case "INVESTIGATING":
-      return "indigo";
-    case "ON_HOLD":
-      return "amber";
-    case "RESOLVED":
-      return "green";
-    default:
-      return "slate";
-  }
+export function caseStatusTone(status: string | null | undefined): AppTone {
+  return lifecycleTone(status);
 }
 
 /**

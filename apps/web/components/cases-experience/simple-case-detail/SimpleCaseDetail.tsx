@@ -643,12 +643,16 @@ export function CaseDetailHeader({
             last updated. Reference number is surfaced only when the
             envelope actually carries one (never fabricated). */}
         <div data-simple-case-subtitle className="case-detail-meta">
-          {/* CANONICAL STATUS BADGE — `.app-status-badge[data-tone]`, the ONE
-              status pill for every internal surface. The status enum is mapped
-              to a semantic tone by `caseStatusTone()`; `data-status` is kept
-              because it is a load-bearing test hook. */}
+          {/* CANONICAL STATUS TEXT — `.app-status-text[data-tone]`.
+              A capsule here was competing with the case NAME directly above
+              it, on a line whose other items (reference, counts, dates) are
+              all plain text. The state is the same fact it always was; it is
+              now stated in the same voice as the facts beside it. The status
+              enum is mapped to a semantic tone by `caseStatusTone()`, which
+              delegates to the one app-wide lifecycle table; `data-status` is
+              kept because it is a load-bearing test hook. */}
           <span
-            className="app-status-badge"
+            className="app-status-text"
             data-tone={caseStatusTone(caseDetail.status)}
             data-status={caseDetail.status}
             data-simple-case-status

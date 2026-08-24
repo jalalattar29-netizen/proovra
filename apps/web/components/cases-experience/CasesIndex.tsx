@@ -83,6 +83,11 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import type { BadgeTone } from "../ui/Badge";
+// A case's STATUS and its READINESS are states, and a state on this table is
+// TEXT. `Badge` above stays for the things that are not states — priority and
+// the risk chip — so the two kinds of claim stop looking alike.
+import { AppStatusText } from "../app-primitives/AppStatusText";
+import { lifecycleTone } from "../../lib/status-tone/lifecycleTone";
 // Phase 2.1 — surfaces `POST /v1/cases` from the canonical Cases page.
 import { CreateCaseModal } from "./matter-modals";
 import type {
@@ -1115,11 +1120,15 @@ function MatterQueueRow({
   // otherwise it is "Ready". This replaces the backend recommendedAction
   // string (which for many cases is the invalid "operating within risk
   // tolerance" line) as the row's readiness signal.
+  // The readiness SEMANTICS are unchanged — the same three derived states from
+  // the same evidence/gap facts. What changed is only that each carries the
+  // canonical tone it always meant, so the column can render as text instead
+  // of as a third private palette of tinted capsules.
   const readiness = isEmptyCase
-    ? { label: "Not started", tone: "muted" as const, key: "not-started" }
+    ? { label: "Not started", tone: "slate" as const, key: "not-started" }
     : hasMissingArtifact
-      ? { label: "Needs attention", tone: "warning" as const, key: "needs-attention" }
-      : { label: "Ready", tone: "ready" as const, key: "ready" };
+      ? { label: "Needs attention", tone: "amber" as const, key: "needs-attention" }
+      : { label: "Ready", tone: "green" as const, key: "ready" };
   return (
     <li
       className="cases-row"
@@ -1195,15 +1204,19 @@ function MatterQueueRow({
             </span>
           ) : null}
         </span>
-        {/* Status */}
+        {/* Status — TEXT, in the ONE app-wide lifecycle colour.
+            This cell used to render the legacy `Badge` through a THIRD status
+            mapping (`info`/`pending`/`verified`/`neutral`), so the same case
+            was one colour here, another on its detail page and a third in
+            Search. `lifecycleTone` is now the only answer. */}
         <span className="cases-cell cases-cell-status">
-          <Badge
-            tone={statusBadgeTone(row.status)}
+          <AppStatusText
+            tone={lifecycleTone(row.status)}
             data-matter-queue-row-chip="status"
             data-status={row.status}
           >
             {STATUS_LABEL[row.status as CaseStatus] ?? row.status}
-          </Badge>
+          </AppStatusText>
           {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
             <Badge
               tone="neutral"
@@ -1241,12 +1254,13 @@ function MatterQueueRow({
         </span>
         {/* Readiness — honest, derived state (§1). */}
         <span className="cases-cell cases-cell-readiness">
-          <span
-            className={`cases-readiness cases-readiness--${readiness.tone}`}
+          <AppStatusText
+            className="cases-readiness"
+            tone={readiness.tone}
             data-matter-queue-row-readiness={readiness.key}
           >
             {readiness.label}
-          </span>
+          </AppStatusText>
           {/* Advanced-only operational signals stay available for the
               enterprise surface (and its contract tests) without crowding
               the personal table — they wrap beneath the readiness pill. */}
@@ -1512,28 +1526,14 @@ function RowActions({
   );
 }
 
-/**
- * Phase 7C — map the case status enum onto a semantic Badge tone so the
- * status pill reads for colour-blind users and matches the app-wide
- * status vocabulary. Presentation-only; the enum value is preserved on
- * `data-status`.
- */
-function statusBadgeTone(status: string): BadgeTone {
-  switch (status) {
-    case "OPEN":
-    case "INVESTIGATING":
-      return "info";
-    case "ON_HOLD":
-      return "pending";
-    case "RESOLVED":
-      return "verified";
-    case "CLOSED":
-    case "ARCHIVED":
-      return "neutral";
-    default:
-      return "neutral";
-  }
-}
+/* `statusBadgeTone` USED TO LIVE HERE.
+ *
+ * It mapped the case status enum onto the legacy Badge vocabulary
+ * (info/pending/verified/neutral) — a THIRD status palette beside the one on
+ * the case detail page and the one in Search, which is why OPEN and
+ * INVESTIGATING were the same colour here and different colours there. The
+ * status cell now reads `lifecycleTone` directly. Deleted rather than left
+ * unused: an unread second mapping is one edit away from being read again. */
 
 function RiskBadge({
   level,

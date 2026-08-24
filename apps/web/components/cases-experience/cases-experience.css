@@ -325,36 +325,21 @@
   justify-content: flex-end;
 }
 
-/* §1 — readiness pill: honest, semantic (green ready · amber attention ·
+/* §1 — readiness: honest, semantic (green ready · amber attention ·
    slate not-started). Never purple. */
+/* READINESS — the derived state, as TEXT.
+ *
+ * This was a tinted capsule with a leading dot, in its own three-colour
+ * palette. Every row in the table carried one, so the column read as the
+ * loudest thing on the page while saying the same three words over and over.
+ *
+ * The tone now arrives as `data-tone` on `.app-status-text`, from the SAME
+ * vocabulary the status cell beside it uses — the dot and the tint rules that
+ * used to live here are deleted, not overridden. What remains is only this
+ * cell's own containment, so the label cannot stretch in a grid parent. */
 .cases-readiness {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 650;
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  white-space: nowrap;
-}
-.cases-readiness::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: currentColor;
-  flex: none;
-  opacity: 0.85;
-}
-.cases-readiness--ready {
-  background: #EAF7F1; color: #167A5B; border-color: rgba(22, 122, 91, 0.18);
-}
-.cases-readiness--warning {
-  background: #FFF6E5; color: #A86612; border-color: rgba(168, 102, 18, 0.20);
-}
-.cases-readiness--muted {
-  background: #F1F5F9; color: #5F6B7D; border-color: rgba(15, 23, 42, 0.08);
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 .cases-readiness-signals {
   display: inline-flex;

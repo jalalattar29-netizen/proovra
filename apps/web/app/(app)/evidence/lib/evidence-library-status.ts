@@ -307,16 +307,22 @@ export type ReviewPriorityLevel =
   | "stable";
 
 /**
- * Review priority is an OPERATIONAL signal, not a workflow status, so its
- * settled states use the blue informational tone. Green stays reserved for
- * integrity-ready workflow states (Reported / Signed) — sharing it made a
- * record with operational notes look like a completed one.
+ * Review priority is an OPERATIONAL signal, not a workflow status. Green stays
+ * reserved for integrity-ready workflow states (Reported / Signed) — sharing
+ * it made a record with operational notes look like a completed one.
+ *
+ * `stable` is ORANGE, and `informational` keeps the blue it had. The two were
+ * the same colour, which meant the settled majority of the library and the
+ * rows that actually carry notes were indistinguishable — the one distinction
+ * this column exists to draw. Orange here is the CLASSIFICATION tone, not a
+ * caution: "Stable review state" is not asking for attention, and `amber`
+ * (which `operational` uses) is the tone that does.
  */
 const PRIORITY_LEVEL_TO_APP_TONE = {
   critical: "red",
   operational: "amber",
   informational: "blue",
-  stable: "blue",
+  stable: "orange",
 } as const satisfies Record<ReviewPriorityLevel, AppTone>;
 
 export function getReviewPriorityTone(level: ReviewPriorityLevel): AppTone {

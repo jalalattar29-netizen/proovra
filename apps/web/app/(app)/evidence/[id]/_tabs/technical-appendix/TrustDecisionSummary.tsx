@@ -28,6 +28,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import { appendixAppTone } from "./MetadataRow";
 import { TechnicalDisclosure } from "./TechnicalDisclosure";
 
 export type TrustSignalForRender = {
@@ -251,8 +252,14 @@ export function TrustDecisionSummary({
                   leading={<StateIcon size={15} strokeWidth={2.4} aria-hidden="true" />}
                   trailing={
                     <span className="ta-signal-trailing">
+                      {/* The signal's OUTCOME, as text. Eight signal rows each
+                          carried a tinted pill next to a score, which made the
+                          column of outcomes compete with the scores that
+                          quantify them. The state vocabulary, the icon and the
+                          tone are all unchanged — only the surface is gone. */}
                       <span
-                        className={`ta-badge ta-badge-${state.tone}`}
+                        className="app-status-text ta-signal-state"
+                        data-tone={appendixAppTone(state.tone)}
                         data-trust-signal-pill
                       >
                         {state.label}

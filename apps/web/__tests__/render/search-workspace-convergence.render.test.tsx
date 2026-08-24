@@ -1177,9 +1177,15 @@ describe("polish — the type label is one authority", () => {
   it("27. lifecycle tone is a SEPARATE authority from type tone", async () => {
     // A Case is blue whether it is open or closed; the lifecycle chip carries
     // the state colour and does NOT wear the filled type shape.
+    // CLOSED is `ink`, the darkest neutral, not `slate`. `slate` is what this
+    // console paints for ABSENT and unknown, and "this record is finished" is a
+    // settled fact rather than a missing one. ARCHIVED is red — the one
+    // lifecycle transition here with real consequences — and both now come from
+    // the app-wide lifecycle table rather than from a Search-local switch.
     for (const [lifecycle, tone] of [
       ["OPEN", "green"],
-      ["CLOSED", "slate"],
+      ["CLOSED", "ink"],
+      ["ARCHIVED", "red"],
     ] as Array<[string, string]>) {
       await mountRendered("organization", {
         rows: [makeRow({ documentType: "CASE", workflowState: lifecycle })],
@@ -1193,9 +1199,14 @@ describe("polish — the type label is one authority", () => {
       expect(type.getAttribute("data-tone")).toBe("blue");
       expect(life, `${lifecycle} rendered no lifecycle chip`).not.toBeNull();
       expect(life.getAttribute("data-tone")).toBe(tone);
-      // The lifecycle chip is NOT a type label: a state must not wear the
+      // The lifecycle label is NOT a type label: a state must not wear the
       // filled classification slab.
       expect(life.className).not.toContain("search-type-badge");
+      // Nor a capsule of its own. The state is TEXT on this surface, and the
+      // filled type label beside it is what makes the two read as different
+      // kinds of claim.
+      expect(life.className).toContain("app-status-text");
+      expect(life.className).not.toContain("app-status-badge");
       cleanup();
     }
   });

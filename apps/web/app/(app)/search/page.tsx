@@ -49,6 +49,11 @@ import {
   AppStatusBadge,
   type AppTone,
 } from "../../../components/app-primitives/AppStatusBadge";
+// A record's own STATE is text on this surface, not a capsule. The record TYPE
+// beside it stays a filled label: a classification and a state are different
+// kinds of claim, and giving both the same treatment is what made a result
+// card read as a row of interchangeable boxes.
+import { AppStatusText } from "../../../components/app-primitives/AppStatusText";
 // One authority for what a type, a badge and a lifecycle state look like —
 // consumed by the result rows and by the Inspector, so the two can no longer
 // disagree about the same record.
@@ -2377,23 +2382,23 @@ function SearchInner() {
                         </AppStatusBadge>
                         <span className="search-result__title">{row.title}</span>
                         {status ? (
-                          <AppStatusBadge
+                          <AppStatusText
                             className="search-result__status"
                             tone={searchBadgeTone(status)}
                             data-search-result-status={status}
                             data-search-result-badge={status}
                           >
                             {renderBadgeLabel(status)}
-                          </AppStatusBadge>
+                          </AppStatusText>
                         ) : lifecycle ? (
-                          <AppStatusBadge
+                          <AppStatusText
                             className="search-result__status"
                             tone={searchLifecycleTone(lifecycle)}
                             data-search-result-status={lifecycle}
                             data-search-lifecycle={lifecycle}
                           >
                             {searchLifecycleLabel(lifecycle)}
-                          </AppStatusBadge>
+                          </AppStatusText>
                         ) : null}
                       </span>
 
@@ -2660,14 +2665,16 @@ function Inspector({
       {/* Bounded: a long record name wraps rather than widening the column. */}
       <h2 className="search-inspector__title">{row.title}</h2>
       {lifecycle ? (
-        <AppStatusBadge
+        /* The dot went with the capsule. It was a second rendering of the same
+           tone the word already carries, and a colour-only cue is exactly what
+           a state must not lean on. */
+        <AppStatusText
           className="search-inspector__lifecycle"
           tone={searchLifecycleTone(lifecycle)}
-          dot
           data-search-inspector-lifecycle={lifecycle}
         >
           {searchLifecycleLabel(lifecycle)}
-        </AppStatusBadge>
+        </AppStatusText>
       ) : null}
       {subtitle ? (
         <p className="search-inspector__status">{subtitle}</p>
@@ -2924,7 +2931,7 @@ function FilterSection({
 
 /**
  * One lifecycle fact. Informational — a state is something the console
- * REPORTS, so it is a badge and never a control.
+ * REPORTS, so it is toned TEXT and never a control.
  */
 function LifecycleFact({
   label,
@@ -2938,13 +2945,13 @@ function LifecycleFact({
     <div className="search-fact">
       <span className="search-fact__label">{label}</span>
       {isLifecycleValue(value) ? (
-        <AppStatusBadge
+        <AppStatusText
           className="search-fact__badge"
           tone={kind}
           data-search-lifecycle-fact={label}
         >
           {searchLifecycleLabel(value)}
-        </AppStatusBadge>
+        </AppStatusText>
       ) : (
         <span className="search-fact__value" data-search-lifecycle-fact={label}>
           {searchLifecycleLabel(value)}

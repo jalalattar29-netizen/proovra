@@ -1222,8 +1222,12 @@ function EvidenceDetailPageInner() {
                 item count, exactly as the record header reads in the
                 reference. The record id stays LTR so it is readable in RTL. */}
             <div className="evidence-detail-hero-meta">
+              {/* The record's STATE, as text. Every other item on this
+                  identity line — package type, record id, item count — is
+                  plain text beside the title; the state was the one capsule,
+                  and it read as a control rather than as the fact it is. */}
               <span
-                className="app-status-badge"
+                className="app-status-text"
                 data-tone={getRecordStatusBadgeTone(evidence.status)}
               >
                 {evidence.status.replace(/_/g, " ")}

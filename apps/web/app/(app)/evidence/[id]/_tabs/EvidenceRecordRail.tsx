@@ -19,7 +19,10 @@
 
 "use client";
 
-import { AppStatusBadge } from "../../../../../components/app-primitives";
+// The rail's states are LABELLED FACTS in a key/value column, not states a
+// dense row is scanned by — so they are text, and the label beside them is
+// what tells the reader which fact they are.
+import { AppStatusText } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   getPriorityTone,
@@ -82,13 +85,13 @@ export function EvidenceRecordRail({
       >
         <h2 className="evidence-detail-rail-heading">Review Workflow</h2>
         <p className="evidence-detail-rail-lede">Operational summary</p>
-        <AppStatusBadge
+        <AppStatusText
           tone={getWorkflowStatusTone(workspace.reviewWorkflow.status)}
         >
           {workspace.reviewWorkflow.status
             ? workspace.reviewWorkflow.status.replace(/_/g, " ")
             : "Not started"}
-        </AppStatusBadge>
+        </AppStatusText>
         <div className="evidence-detail-rail-field">
           <span className="evidence-detail-rail-field__label">Priority</span>
           <span
@@ -134,13 +137,13 @@ export function EvidenceRecordRail({
       >
         <div className="evidence-detail-rail-heading-row">
           <h2 className="evidence-detail-rail-heading">Public Verification</h2>
-          <AppStatusBadge
+          <AppStatusText
             tone={getPublicVerificationTone(
               workspace.publicVerificationSummary.state,
             )}
           >
             {publicVerificationLabel}
-          </AppStatusBadge>
+          </AppStatusText>
         </div>
         {shareUrl ? (
           <a

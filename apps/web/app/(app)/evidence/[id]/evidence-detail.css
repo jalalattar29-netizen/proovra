@@ -1013,27 +1013,17 @@ button.evidence-detail-item-card[aria-pressed="true"] {
   outline-offset: 1px;
 }
 
-/* ---- Status badge --------------------------------------------------------
- * Text plus tone, never tone alone. Tones match the app-status-badge family
- * so a reader carries one colour vocabulary across the whole record. */
-.ta-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.ta-badge-success { background: #E7F6EF; color: #167a5b; border-color: #BFE7D6; }
-.ta-badge-info { background: #EAF0FD; color: #2563EB; border-color: #C7D8FA; }
-.ta-badge-warning { background: #FDF3E4; color: #b8861f; border-color: #F2DFBB; }
-.ta-badge-danger { background: #FCEDEA; color: #b54738; border-color: #F4CFC8; }
-.ta-badge-neutral { background: #F1F3F7; color: var(--app-ink-secondary); border-color: #DDE2EA; }
+/* ---- Status word --------------------------------------------------------
+ * `.ta-badge` AND ITS FIVE TINTED PAIRS USED TO LIVE HERE.
+ *
+ * Text plus tone, never tone alone — that rule is unchanged and is now carried
+ * by the canonical `.app-status-text[data-tone]`, which `AppendixBadge` and the
+ * per-signal row both render. The five private hex pairs went with the capsule:
+ * they approximated the app tones by hand, which is a colour vocabulary that
+ * agrees by coincidence rather than by construction.
+ *
+ * The uppercasing went too. It was part of the pill's typography, and a state
+ * that is no longer a pill reads as a word in the sentence around it. */
 
 .ta-empty,
 .ta-advisory {
@@ -4536,21 +4526,21 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   overflow-wrap: anywhere;
 }
 
-/* The badge and the score are separate tracks, so `ta-signal-trailing` is no
+/* The state and the score are separate tracks, so `ta-signal-trailing` is no
    longer a flex box that owned both. It becomes `display: contents` so its two
    children land in the grid directly. */
 .ta-signals .ta-signal-trailing {
   display: contents;
 }
 
-/* Identical badge geometry on every row, whatever the label says. */
-.ta-signals .ta-badge {
+/* The state word starts on ONE axis on every row, whatever the label says.
+   Placement only — the pill geometry it used to carry here (a fixed 22px block
+   size and 10px of inline padding, which existed to make capsules the same
+   height) went with the capsule. The declared grid track below is what keeps
+   the column straight now. */
+.ta-signals .ta-signal-state {
   justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  block-size: 22px;
-  padding-inline: 10px;
+  align-self: center;
   white-space: nowrap;
 }
 
@@ -4580,7 +4570,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
     grid-template-columns: 18px minmax(0, 1fr) 16px;
     row-gap: 6px;
   }
-  .ta-signals .ta-badge {
+  .ta-signals .ta-signal-state {
     grid-column: 2;
     justify-self: start;
   }

@@ -796,14 +796,17 @@ describe("one panel anatomy", () => {
     const kind = document.querySelector("[data-case-copilot-kind]")!;
     expect(kind.className).toContain("case-copilot__kind");
     expect(kind.className).not.toContain("app-status-badge");
-    // …the status is the canonical semantic badge, and the two states do not
-    // look equivalent.
+    // …the status is the canonical semantic STATE, as text, and the two states
+    // do not look equivalent.
     const statuses = Array.from(
       document.querySelectorAll("[data-case-copilot-status]"),
     );
     expect(statuses[0]!.getAttribute("data-tone")).toBe("green");
     expect(statuses[1]!.getAttribute("data-tone")).toBe("amber");
-    expect(statuses[0]!.className).toContain("app-status-badge");
+    // TEXT, not a capsule — and the kind keeps its own chip, which is what
+    // stops a classification and a state from reading as the same thing.
+    expect(statuses[0]!.className).toContain("app-status-text");
+    expect(statuses[0]!.className).not.toContain("app-status-badge");
   });
 
   it("23e. selection changes no class on the row", async () => {
