@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 242,
-    "classifiedMigrations": 242,
+    "filesystemMigrations": 244,
+    "classifiedMigrations": 244,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 242,
+    "productionSnapshotUnknown": 244,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 242,
-    "classifiedMigrations": 242,
+    "filesystemMigrations": 244,
+    "classifiedMigrations": 244,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 242,
+    "productionSnapshotUnknown": 244,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 27,
+      "EXPAND": 29,
       "BACKFILL": 17,
       "CONTRACT_DROP": 10,
       "REPAIR": 3
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 34,
+      "SAFE_TO_APPLY_NOW": 36,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 242
+    "ProductionMigrationStateUnknown": 244
   },
   "gateFailures": [],
   "migrations": [
@@ -19140,8 +19140,138 @@
       "evidence": "EVIDENCE LIFECYCLE CONVERGENCE part 2 of 2 — the backfill. Two UPDATE statements that converge evidence.lifecycle_state with the timestamps that were, until now, the de-facto product-state authority: deleted_at IS NOT NULL -> TRASHED, then archived_at IS NOT NULL -> ARCHIVED, both excluding rows already DESTROYED and both excluding rows already in the target state, so the migration is idempotent and a second run is a no-op. No schema object changes; destructiveStatements is empty. Safe BEFORE the code deployment because the old application does not read lifecycle_state for product state at all — it reads the timestamps, which this migration does not touch — so the converged column is inert until the new readers ship. DESTRUCTION IS NEVER INFERRED: deleted_at maps to TRASHED and to nothing else, because it has never been proof that bytes were removed (the purge worker set it 90 days BEFORE deleting anything, and the two paths that emitted destruction certificates deleted no bytes at all); reading it as destruction would manufacture a tombstone for every recoverable record in every workspace's trash. Rows with a governance-internal posture (UNDER_REVIEW, ON_HOLD, RETENTION_LOCKED, PENDING_DESTRUCTION) and no lifecycle event timestamp are LEFT ALONE rather than reset to ACTIVE: no other column records those postures, so writing ACTIVE would be a silent loss of governance state, and the canonical authority already resolves such a record to the ACTIVE product state from its timestamps."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271222000000_workspace_operations_reconciliation_kind",
       "order": 241,
+      "sqlPresent": true,
+      "byteLength": 1222,
+      "checksumSha256": "37792e08b891f5e3090e64ff730423610fb94c73ecad731ea29d0a735d96308e",
+      "checksumSha256Raw": "37792e08b891f5e3090e64ff730423610fb94c73ecad731ea29d0a735d96308e",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "b208169a233a55cbd6abd94d06a128367e53223c",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "governancereconciliationkind"
+        ],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "WORKSPACE-SCOPE CONVERGENCE — scheduled Operations discovery joins the existing reconciliation-run authority. One ALTER TYPE \"GovernanceReconciliationKind\" ADD VALUE IF NOT EXISTS 'WORKSPACE_OPERATIONS'. No table is created, no column changes type, no constraint or index is added and no row is rewritten; destructiveStatements is empty. Safe BEFORE the code that uses it: a build that never selects the new label behaves identically. The REVERSE order is a measured outage, not a theoretical one — SEARCH_INDEX shipped code-before-migration once and every reconciler tick died on 'invalid input value for enum' at its first workspace, silently, because the claim row could not be written and 'no run has ever been recorded' is indistinguishable from 'never visited'. It is deliberately its OWN migration: PostgreSQL will not let a value added by ADD VALUE be USED in the transaction that adds it, so the addition must commit before the migration that writes it. NO BACKFILL — there is no historical Operations run to record, and inventing one would hand every workspace a freshness it never had."
+    },
+    {
+      "name": "20271223000000_operational_incident_scope",
+      "order": 242,
+      "sqlPresent": true,
+      "byteLength": 4654,
+      "checksumSha256": "f603b276bb9358e743e861452e616e5a3c43138f86dfed52a182251f09c87a7b",
+      "checksumSha256Raw": "f603b276bb9358e743e861452e616e5a3c43138f86dfed52a182251f09c87a7b",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "b208169a233a55cbd6abd94d06a128367e53223c",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): operational_incidents",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "operational_incidents"
+        ],
+        "addedColumns": [
+          "scope"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [
+          "incidentscope"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "operational_incidents_scope_team_status_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "operational_incidents"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "operational_incidents"
+      ],
+      "dependencies": [
+        "20260529100000_add_operational_incidents_phase21"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 2,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "WORKSPACE-SCOPE CONVERGENCE — the incident scope discriminator. Creates the IncidentScope enum, adds operational_incidents.scope NOT NULL DEFAULT 'WORKSPACE', reclassifies NULL-team rows to LEGACY_UNSCOPED, and adds one guarded index. Nothing is dropped, no type narrowed, no row deleted; destructiveStatements is empty. The ON DELETE SET NULL foreign key is left exactly as it is — proving the retention and deletion requirements that would justify changing it is separate work, and a destructive FK change made on the way past is how incident history disappears. Every statement is guarded so a partial apply can be re-run. Safe BEFORE the code: an older build ignores the column and keeps its previous behaviour; the new predicate is additive. THE RECLASSIFICATION CLAIMS NOTHING AS PLATFORM — no writer in this codebase records a deliberate platform-wide incident (the only producer of a NULL team id is security-event.service.ts, whose input.teamId ?? null is an account-tier event), so deriving PLATFORM from a NULL would invent the intent the column exists to record. Counted as requiresBackfill:false because the UPDATE is not a data migration in the release-wave sense: it is bounded by 'team_id IS NULL AND scope <> LEGACY_UNSCOPED', touches only rows the new column just defaulted, and is a pure function of data still present — re-applying reproduces the identical classification. The index guard names EVERY column it touches, because an index over three columns fails if any one is absent and the safety gate treats a partial guard as no guard."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 243,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

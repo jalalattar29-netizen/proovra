@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 290,
+    "AuditFilesInventoried": 293,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -137,7 +137,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 171
+    "ProductBehaviorTestsInventoried": 172
   },
   "reportRoles": {
     "counts": {
@@ -156,7 +156,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 171,
+    "PRODUCT_BEHAVIOR_TEST": 172,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -168,7 +168,7 @@
     "HISTORICAL_REPORT": 22,
     "HISTORICAL_PROOF": 17,
     "DOMAIN_REPORT_TEMPLATE": 1,
-    "DOMAIN_AUTHORITY": 40,
+    "DOMAIN_AUTHORITY": 42,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
@@ -2318,6 +2318,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/scripts/verify-operations-authorities.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/scripts/verify-release-identity.mjs",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
@@ -2351,6 +2366,21 @@
       "packageScripts": [
         "services/api/package.json:verify:route-consumers"
       ],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/scripts/verify-workspace-scope-authorities.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
       "ciConsumers": [],
       "sourceOfTruthFor": [],
       "disposition": "RETAINED"
@@ -4786,6 +4816,21 @@
     },
     {
       "path": "services/api/test/workspace-capability-snapshot-discussion.contract.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/workspace-operations-reconciliation.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

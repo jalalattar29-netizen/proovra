@@ -15,12 +15,12 @@
         "nocfg.transcript.terminal_failed_not_completed",
         "nocfg.transcript.wrong_tenant_concealed"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:14:05.012Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:19:05.353Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
-      "sha256": "5b1abb8277619e84326489e5df8a69b49184941fe2d9ca91119f67ade969910e",
+      "sha256": "2504d01c0bf486f577995170e779982fc5f3d4ee86bd4859f53166ec0cc4c036",
       "cases": [
         "archive.claim.active_not_stolen",
         "archive.claim.one_winner",
@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:17:01.096Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:16:22.077Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "aca0fd5a22026bf09ab0c9b9b78043b38881e64fc61dd100741d458899636ca8",
@@ -166,9 +166,9 @@
         "searchrecon.tenant.workspace_reloaded",
         "searchrecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:10:20.604Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:15:30.284Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -200,9 +200,9 @@
         "digest.tenant.workspace_reloaded",
         "digest.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:27:16.940Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:16:47.311Z"
     },
     "test/point5/family-evidence-finalization.integration.test.ts": {
       "sha256": "2125abb01f714a2ac1c615835136615cae633c4fa50c80bcb6f42844fecc7002",
@@ -217,9 +217,9 @@
         "ots.tenant.workspace_reloaded",
         "ots.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:22:01.179Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:20:30.777Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "5cb1f4b32023939063997087d289affde9a058d34497ed2fa35588700c0d8ab5",
@@ -258,9 +258,9 @@
         "mirun.tenant.workspace_reloaded",
         "mirun.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:23:07.243Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:20:05.956Z"
     },
     "test/point5/family-exchange-package.integration.test.ts": {
       "sha256": "822ca15e9fab4d8e0993698b7aaf19d058ba8444f8061d3165d561516b56e4f4",
@@ -273,9 +273,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:27:51.629Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:17:55.044Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "b16485d2248f4567e07c5d9ab2846fa8b8b29732e4501927548ab8550157476c",
@@ -298,9 +298,9 @@
         "invite.terminal.stale_cannot_overwrite",
         "invite.token.never_leaves_persistence"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:33:07.363Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:21:15.896Z"
     },
     "test/point5/family-redaction.integration.test.ts": {
       "sha256": "78c454b84d41f45e23beb9d08bf9691faebeef44e250763aa7fc01fc891d371e",
@@ -324,9 +324,9 @@
         "redaction.tenant.workspace_reloaded",
         "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:17:42.227Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:15:54.394Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
       "sha256": "d288b78d8cc581773f2e93948925cab8611aaa6849d0d87bcc09c1d6c575b75a",
@@ -357,9 +357,9 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:13:09.802Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:21:49.781Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
@@ -375,9 +375,9 @@
         "webhook.tenant.workspace_reloaded",
         "webhook.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
-      "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
-      "recordedAtUtc": "2026-08-24T12:33:34.622Z"
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:18:44.100Z"
     },
     "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
       "sha256": "3d33613e8756b4b6f6ec57f903d23cebb41a747724e53fc9d6f1444f319e1eb1",
@@ -396,6 +396,22 @@
       "runId": "7b7d4c61-1839-49dc-9b69-358d143bdb34",
       "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
       "recordedAtUtc": "2026-08-24T12:05:40.803Z"
+    },
+    "test/point5/family-trash-grace.integration.test.ts": {
+      "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",
+      "cases": [
+        "trashgrace.claim.active_not_stolen",
+        "trashgrace.claim.one_winner",
+        "trashgrace.durable.intent_before_work",
+        "trashgrace.idempotency.duplicate_is_noop",
+        "trashgrace.observe_only_by_default",
+        "trashgrace.tenant.cross_workspace_denied",
+        "trashgrace.tenant.workspace_reloaded",
+        "trashgrace.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "021bd9c0-8c77-4a53-a914-e7926576e457",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T14:17:21.700Z"
     }
   }
 }

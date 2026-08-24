@@ -3,9 +3,9 @@
   "generatorVersion": "2.0.0",
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
-  "generatorHash": "15739b9cf4239e4c645f4e90a5f2aef3366a1d79c3d63fa85383282cf0bff5d0",
+  "generatorHash": "ff456b346eaf2b62ab4813c84a75dd8c5bb765e828f44a5b1062c2b455776b28",
   "routeInventoryHash": "ff08d125c0297f3647c347324f3a7475817b80a08ca757d58e69c0e52349e312",
-  "consumerInventoryHash": "a8c5a19f178a2c4f4f85b52db6727fbce7c1acbcacfc0f62e992529bb8d712fa",
+  "consumerInventoryHash": "54ee5f06651024a3e5d65c5d008647eb07a0c463fe58aeed37a5eb8094a266e1",
   "dispositionsHash": "57b1dc947d2dcce5e0ee11272e021a4279c6fadd7be8b55480d53201535bd7e9",
   "totals": {
     "RegisteredRoutes": 1097,
@@ -56,28 +56,29 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
-    "TerminalWriters": 1229,
-    "ReachableSensitiveMutations": 1223,
-    "ClassifiedSensitiveMutations": 1223,
+    "TerminalWriters": 1223,
+    "ReachableSensitiveMutations": 1215,
+    "ClassifiedSensitiveMutations": 1215,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
-    "NonRequestWriters": 6,
+    "NonRequestWriters": 8,
     "ModuleScopedAttributionWriters": 0,
     "DeadUnreachableWriters": 0,
     "DeadUnreachableWritersPending": 0,
     "PreservedPlannedWriters": 0,
+    "PortAttributedWriters": 2,
     "AuthorizationAfterMutation": 0,
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
       "ACCOUNT_SESSION_SECURITY": 218,
-      "ORGANIZATION": 33,
+      "ORGANIZATION": 32,
       "ORGANIZATION_MEMBERSHIP": 29,
       "WORKSPACE": 46,
       "WORKSPACE_MEMBERSHIP_INVITATION": 62,
       "CASE": 85,
-      "EVIDENCE_CUSTODY_FINALIZATION": 286,
-      "LEGAL_HOLD_RETENTION_DELETION": 49,
+      "EVIDENCE_CUSTODY_FINALIZATION": 279,
+      "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 47,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
@@ -93,19 +94,21 @@
       "STARTUP_TASK": 0,
       "RECONCILER_OR_SWEEP": 2,
       "SEED": 1,
+      "INJECTED_PORT_IMPLEMENTATION": 2,
       "PRESERVED_PLANNED_WRITER": 0,
       "DEAD_UNREACHABLE_WRITER": 0
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1103,
-      "JOB_ATTRIBUTED_REACHABLE": 114,
+      "JOB_ATTRIBUTED_REACHABLE": 106,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 9,
       "MIGRATION_ONLY": 0,
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
+      "PORT_ATTRIBUTED_REACHABLE": 2,
       "DEAD_UNREACHABLE": 0,
       "UNRESOLVED": 0
     },
@@ -121,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7890,
-      "UNRESOLVED_IDENTIFIER": 995
+      "METHOD_ON_VALUE": 7893,
+      "UNRESOLVED_IDENTIFIER": 1002
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -529,7 +532,7 @@
       "route": "/v1/admin/demo-requests/follow-up/run",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:489",
-      "machineConsumer": "services/worker/src/index.ts:408",
+      "machineConsumer": "services/worker/src/index.ts:412",
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
@@ -13463,52 +13466,52 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:1885"
+        "services/worker/src/index.ts:1948"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:1900"
+        "services/worker/src/index.ts:1963"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:1915"
+        "services/worker/src/index.ts:1978"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:1931"
+        "services/worker/src/index.ts:1994"
       ],
       "mediaIntelligenceQueueName": [
-        "services/worker/src/index.ts:1951"
-      ],
-      "derivedAssetsQueueName": [
-        "services/worker/src/index.ts:1971"
-      ],
-      "redactionDerivativeQueueName": [
-        "services/worker/src/index.ts:1991"
-      ],
-      "exifQueueName": [
         "services/worker/src/index.ts:2014"
       ],
+      "derivedAssetsQueueName": [
+        "services/worker/src/index.ts:2034"
+      ],
+      "redactionDerivativeQueueName": [
+        "services/worker/src/index.ts:2054"
+      ],
+      "exifQueueName": [
+        "services/worker/src/index.ts:2077"
+      ],
       "miSearchIndexQueueName": [
-        "services/worker/src/index.ts:2050"
+        "services/worker/src/index.ts:2113"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2065"
+        "services/worker/src/index.ts:2128"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2084"
+        "services/worker/src/index.ts:2147"
       ],
       "graphDomainSyncQueueName": [
-        "services/worker/src/index.ts:2103"
+        "services/worker/src/index.ts:2166"
       ],
       "graphTimelineSyncQueueName": [
-        "services/worker/src/index.ts:2118"
+        "services/worker/src/index.ts:2181"
       ],
       "graphSearchProjectionQueueName": [
-        "services/worker/src/index.ts:2135"
+        "services/worker/src/index.ts:2198"
       ],
       "orgHealthRefreshQueueName": [
-        "services/worker/src/index.ts:2156"
+        "services/worker/src/index.ts:2219"
       ]
     },
-    "registryEntries": 33,
+    "registryEntries": 34,
     "bullmqEntries": 15,
     "orphanProducers": [],
     "parallelAuthorities": [],
@@ -13519,6 +13522,416 @@
   },
   "mutationReachabilityUnresolved": [],
   "mutationWriters": [
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#custodyEvent.create@600",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:600",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "appendCustodyEventInTx",
+      "kind": "DATABASE",
+      "target": "custodyEvent",
+      "mutationKind": "create",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.update@454",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:454",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "update",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@256",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:256",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@303",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:303",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "releaseClaim",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceLifecycleEvent.create@476",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:476",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "evidenceLifecycleEvent",
+      "mutationKind": "create",
+      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePart.deleteMany@451",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:451",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "evidencePart",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#OBJECT_STORAGE.deleteObject@361",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:361",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#report.deleteMany@450",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:450",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "report",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationPackage.deleteMany@447",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:447",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "verificationPackage",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationView.deleteMany@446",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:446",
+      "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "enclosingDeclaration": "executeEvidenceDestruction",
+      "kind": "DATABASE",
+      "target": "verificationView",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/lifecycle/destruction/requests/:id/execute"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration",
+        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
     {
       "writerId": "packages/shared-runtime/src/graph/domain-sync.service.ts#investigation_graph_edges.$executeRawUnsafe@245",
       "terminalLocation": "packages/shared-runtime/src/graph/domain-sync.service.ts:245",
@@ -14536,6 +14949,41 @@
       }
     },
     {
+      "writerId": "packages/shared-runtime/src/org-health-projection.ts#orgHealthProjection.upsert@204",
+      "terminalLocation": "packages/shared-runtime/src/org-health-projection.ts:204",
+      "file": "packages/shared-runtime/src/org-health-projection.ts",
+      "enclosingDeclaration": "refreshOrgHealthProjection",
+      "kind": "DATABASE",
+      "target": "orgHealthProjection",
+      "mutationKind": "upsert",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/dashboard/command-center"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/subsystem-queue-processors.ts#processOrgHealthRefreshJob"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/dashboard.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.create@202",
       "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:202",
       "file": "packages/shared-runtime/src/reconciliation-run.ts",
@@ -14564,15 +15012,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:983#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:988#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:973#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1046#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1051#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -14618,15 +15066,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:983#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:988#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:973#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1046#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1051#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -14672,15 +15120,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:983#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:988#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:973#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1046#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1051#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -14726,8 +15174,8 @@
         "MODULE services/api/src/routes/ops.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:687#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:701#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:691#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:705#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -16492,8 +16940,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.update@4926",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4926",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.update@5023",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5023",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16525,8 +16973,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@4934",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4934",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5031",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5031",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16558,8 +17006,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.delete@4756",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4756",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.delete@4853",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4853",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16591,8 +17039,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@10821",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10821",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@10495",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10495",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16624,8 +17072,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12118",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12118",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11799",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11799",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16657,8 +17105,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12484",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12484",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12165",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12165",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16690,8 +17138,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@4875",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4875",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@4972",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4972",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16723,8 +17171,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5165",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5165",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5262",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5262",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16756,8 +17204,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5741",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5741",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5838",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5838",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16789,8 +17237,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5853",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5853",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5950",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5950",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -16822,272 +17270,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5989",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5989",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/:id/archive"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6096",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6096",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/:id/unarchive"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6290",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6290",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/evidence/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6382",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6382",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/:id/restore"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6922",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6922",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/bulk"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6939",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6939",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/bulk"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6975",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6975",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/bulk"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@7005",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7005",
-      "file": "services/api/src/routes/evidence.routes.ts",
-      "enclosingDeclaration": "evidenceRoutes",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/evidence/bulk"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@5663",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5663",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@5760",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5760",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17119,8 +17303,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8395",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8395",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8062",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8062",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17152,8 +17336,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7436",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7436",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7103",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7103",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17185,8 +17369,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7512",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7512",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7179",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7179",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17218,8 +17402,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7591",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7591",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7258",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7258",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17251,8 +17435,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7263",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7263",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@6930",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6930",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17284,8 +17468,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7319",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7319",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@6986",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6986",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17317,8 +17501,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7374",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7374",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7041",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7041",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17350,8 +17534,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidencePart.create@5406",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5406",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidencePart.create@5503",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5503",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17383,8 +17567,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7105",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7105",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@6772",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6772",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17416,8 +17600,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7161",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7161",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@6828",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6828",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17449,8 +17633,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7216",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7216",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@6883",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6883",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17482,8 +17666,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@5668",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5668",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@5765",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5765",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17515,8 +17699,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@12488",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12488",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@12169",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12169",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -28797,7 +28981,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "AUTHENTICATED_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -29347,39 +29531,6 @@
       "kind": "DATABASE",
       "target": "organizationalHealthSnapshot",
       "mutationKind": "create",
-      "primaryFamily": "ORGANIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "GET /v1/dashboard/command-center"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/dashboard.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts#orgHealthProjection.upsert@158",
-      "terminalLocation": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts:158",
-      "file": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts",
-      "enclosingDeclaration": "refreshOrgHealthProjection",
-      "kind": "DATABASE",
-      "target": "orgHealthProjection",
-      "mutationKind": "upsert",
       "primaryFamily": "ORGANIZATION",
       "insideTransaction": false,
       "entryRoutes": [
@@ -32228,6 +32379,43 @@
       }
     },
     {
+      "writerId": "services/api/src/services/evidence/evidence-lifecycle.service.ts#evidence.update@354",
+      "terminalLocation": "services/api/src/services/evidence/evidence-lifecycle.service.ts:354",
+      "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+      "enclosingDeclaration": "applyEvidenceLifecycleAction",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "update",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "DELETE /v1/evidence/:id",
+        "POST /v1/evidence/:id/archive",
+        "POST /v1/evidence/:id/restore",
+        "POST /v1/evidence/:id/unarchive",
+        "POST /v1/evidence/bulk"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "deterministic_job_id+unique_constraint",
+        "retrySemantics": "SWEEP",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
       "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.create@151",
       "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:151",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
@@ -33541,8 +33729,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.create@228",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:228",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.create@244",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:244",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "createDestructionReview",
       "kind": "DATABASE",
@@ -33574,8 +33762,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@413",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:413",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@429",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:429",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "transitionDestructionReview",
       "kind": "DATABASE",
@@ -33607,8 +33795,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@681",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:681",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@720",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:720",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "executeApprovedReview",
       "kind": "DATABASE",
@@ -33640,8 +33828,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@239",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:239",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@255",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:255",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "createDestructionReview",
       "kind": "DATABASE",
@@ -33673,8 +33861,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@452",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:452",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@468",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:468",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "transitionDestructionReview",
       "kind": "DATABASE",
@@ -33706,8 +33894,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@691",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:691",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@730",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:730",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "executeApprovedReview",
       "kind": "DATABASE",
@@ -33739,8 +33927,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidenceLifecycleEvent.create@243",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:243",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidenceLifecycleEvent.create@259",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:259",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "createDestructionReview",
       "kind": "DATABASE",
@@ -34204,8 +34392,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance.service.ts#evidence.update@1177",
-      "terminalLocation": "services/api/src/services/governance.service.ts:1177",
+      "writerId": "services/api/src/services/governance.service.ts#evidence.update@1187",
+      "terminalLocation": "services/api/src/services/governance.service.ts:1187",
       "file": "services/api/src/services/governance.service.ts",
       "enclosingDeclaration": "applyRetentionPolicyOnCreate",
       "kind": "DATABASE",
@@ -35010,7 +35198,6 @@
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": false,
       "entryRoutes": [
-        "DELETE /v1/evidence/:id",
         "GET /v1/evidence/:id/verification-package",
         "POST /v1/governance/policies",
         "POST /v1/governance/policies/:id/activate",
@@ -35141,6 +35328,11 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/evidence/:id",
+        "POST /v1/evidence/:id/archive",
+        "POST /v1/evidence/:id/restore",
+        "POST /v1/evidence/:id/unarchive",
+        "POST /v1/evidence/bulk",
         "POST /v1/governance/evidence/:id/publish",
         "POST /v1/governance/evidence/:id/restore",
         "POST /v1/governance/evidence/:id/suspend",
@@ -35148,11 +35340,12 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/governance.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -40839,8 +41032,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.create@298",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:298",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.create@304",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:304",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "createDestructionRequest",
       "kind": "DATABASE",
@@ -40872,8 +41065,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@375",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:375",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@381",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:381",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "recordApproval",
       "kind": "DATABASE",
@@ -40905,8 +41098,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@423",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:423",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@429",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:429",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "rejectDestructionRequest",
       "kind": "DATABASE",
@@ -40938,8 +41131,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@488",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:488",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@494",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:494",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "executeDestruction",
       "kind": "DATABASE",
@@ -40971,8 +41164,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@496",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:496",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@502",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:502",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "executeDestruction",
       "kind": "DATABASE",
@@ -41004,8 +41197,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@548",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:548",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@592",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:592",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "executeDestruction",
       "kind": "DATABASE",
@@ -41037,8 +41230,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@576",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:576",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@610",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:610",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "executeDestruction",
       "kind": "DATABASE",
@@ -41070,8 +41263,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@590",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:590",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@626",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:626",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "executeDestruction",
       "kind": "DATABASE",
@@ -41103,8 +41296,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@768",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:768",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#destructionRequest.update@825",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:825",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "certifyDestruction",
       "kind": "DATABASE",
@@ -41136,41 +41329,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#evidence.updateMany@568",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:568",
-      "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
-      "enclosingDeclaration": "executeDestruction",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "updateMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/lifecycle/destruction/requests/:id/execute"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "unique_constraint+conditional_state_claim",
-        "retrySemantics": "DESTRUCTIVE",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#intelligenceActivityEvent.create@193",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:193",
+      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#intelligenceActivityEvent.create@199",
+      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:199",
       "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
       "enclosingDeclaration": "emitDestructionLifecycle",
       "kind": "DATABASE",
@@ -41198,39 +41358,6 @@
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "unique_constraint+conditional_state_claim",
-        "retrySemantics": "DESTRUCTIVE",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/lifecycle/destruction-governance.service.ts#OBJECT_STORAGE.deleteObject@539",
-      "terminalLocation": "services/api/src/services/lifecycle/destruction-governance.service.ts:539",
-      "file": "services/api/src/services/lifecycle/destruction-governance.service.ts",
-      "enclosingDeclaration": "executeDestruction",
-      "kind": "EXTERNAL",
-      "target": "OBJECT_STORAGE",
-      "mutationKind": "deleteObject",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/lifecycle/destruction/requests/:id/execute"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "unique_constraint+conditional_state_claim",
         "retrySemantics": "DESTRUCTIVE",
         "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
@@ -42565,6 +42692,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -43403,6 +43531,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -44240,6 +44369,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -45076,6 +45206,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -45913,6 +46044,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -46750,6 +46882,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -47586,6 +47719,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -49076,6 +49210,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -49913,6 +50048,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -50750,6 +50886,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -51586,6 +51723,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -52422,6 +52560,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -53258,6 +53397,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -54095,6 +54235,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -62925,6 +63066,7 @@
         "POST /v1/evidence/:id/lock",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/evidence/:id/restore",
         "POST /v1/evidence/:id/unarchive",
         "POST /v1/evidence/:id/unlock",
         "POST /v1/evidence/bulk",
@@ -66444,27 +66586,35 @@
       "mutationKind": "DeleteObjectCommand",
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/lifecycle/destruction/requests/:id/execute"
-      ],
+      "entryRoutes": [],
       "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
-      ],
+      "entryModules": [],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
+        "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "INJECTED_PORT_IMPLEMENTATION",
+      "portImplementation": {
+        "port": "EvidenceDestructionStoragePort.deleteObject",
+        "adapter": "services/api/src/services/evidence/destruction-storage-port.ts",
+        "executor": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+        "entrypoints": [
+          "services/api/src/services/lifecycle/destruction-governance.service.ts",
+          "services/api/src/services/governance-lifecycle/destruction-review.service.ts"
+        ],
+        "evidence": "The ONE physical evidence-destruction executor deletes storage objects through the injected port. The API host supplies `apiEvidenceDestructionStorage`, whose `deleteObject` IS this function by direct reference. Both entrypoints are route-driven: `executeDestruction` (POST /v1/product-and-lifecycle destruction execute) and `executeApprovedReview` (destruction-review execute). Exercised end to end against a disposable object store by services/api/test/evidence-destruction-storage.integration.test.ts, which drives the real executor through the real port shape.",
+        "reviewedAtUtc": "2026-08-24"
       }
     },
     {
@@ -66587,8 +66737,8 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:561#reapExpiredCaptureDrafts",
-        "SCHEDULE services/worker/src/index.ts:575#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:565#reapExpiredCaptureDrafts",
+        "SCHEDULE services/worker/src/index.ts:579#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66619,8 +66769,8 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:561#reapExpiredCaptureDrafts",
-        "SCHEDULE services/worker/src/index.ts:575#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:565#reapExpiredCaptureDrafts",
+        "SCHEDULE services/worker/src/index.ts:579#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66650,8 +66800,7 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
-        "SWEEP services/worker/src/processor.ts#processGenerateReport",
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -66684,9 +66833,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1347#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1356#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1346#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1410#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1419#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1409#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66717,9 +66866,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1347#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1356#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1346#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1410#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1419#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1409#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66752,8 +66901,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1258#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1276#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1321#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1339#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66771,8 +66920,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.create@416",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:416",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.create@467",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:467",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "claimDestructionExecution",
       "kind": "DATABASE",
@@ -66786,8 +66935,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66805,8 +66954,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@196",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:196",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@222",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:222",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -66820,8 +66969,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66839,8 +66988,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@228",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:228",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@291",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:291",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -66854,8 +67003,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66873,8 +67022,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@240",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:240",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@317",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:317",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -66888,8 +67037,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66907,8 +67056,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@289",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:289",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@340",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:340",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -66922,8 +67071,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66941,8 +67090,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@299",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:299",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@350",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:350",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -66956,8 +67105,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -66975,8 +67124,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@582",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:582",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@633",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:633",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "failExecution",
       "kind": "DATABASE",
@@ -66990,8 +67139,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67009,8 +67158,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@324",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:324",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@375",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:375",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -67024,8 +67173,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67043,8 +67192,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@457",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:457",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@508",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:508",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "claimDestructionExecution",
       "kind": "DATABASE",
@@ -67058,8 +67207,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67077,23 +67226,23 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionReview.update@258",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:258",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionReview.update@331",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:331",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
       "target": "destructionReview",
       "mutationKind": "update",
       "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67102,75 +67251,7 @@
         "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#evidence.update@251",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:251",
-      "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
-      "enclosingDeclaration": "runDestructionOrchestration",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
-      ],
-      "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
-      ],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#evidenceLifecycleEvent.create@266",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:266",
-      "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
-      "enclosingDeclaration": "runDestructionOrchestration",
-      "kind": "DATABASE",
-      "target": "evidenceLifecycleEvent",
-      "mutationKind": "create",
-      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
-      ],
-      "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler"
-      ],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -67194,8 +67275,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67228,8 +67309,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67266,12 +67347,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67308,12 +67389,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67350,12 +67431,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67392,12 +67473,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67432,12 +67513,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67472,12 +67553,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67512,12 +67593,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1141#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1191#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1159#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1215#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1204#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1254#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1222#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1278#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67550,8 +67631,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67584,8 +67665,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67618,8 +67699,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67652,8 +67733,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67686,8 +67767,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67720,8 +67801,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1067#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1085#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1130#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1148#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67731,6 +67812,176 @@
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#destructionReview.create@357",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:357",
+      "file": "services/worker/src/governance/trash-grace-reconciler.ts",
+      "enclosingDeclaration": "ensureDestructionReview",
+      "kind": "DATABASE",
+      "target": "destructionReview",
+      "mutationKind": "create",
+      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/trash-grace-reconciler.ts#runTrashGraceReconciliation"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:913#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:926#startTrashGraceReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.update@350",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:350",
+      "file": "services/worker/src/governance/trash-grace-reconciler.ts",
+      "enclosingDeclaration": "ensureDestructionReview",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "update",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/trash-grace-reconciler.ts#runTrashGraceReconciliation"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:913#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:926#startTrashGraceReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.update@366",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:366",
+      "file": "services/worker/src/governance/trash-grace-reconciler.ts",
+      "enclosingDeclaration": "ensureDestructionReview",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "update",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/trash-grace-reconciler.ts#runTrashGraceReconciliation"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:913#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:926#startTrashGraceReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.updateMany@335",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:335",
+      "file": "services/worker/src/governance/trash-grace-reconciler.ts",
+      "enclosingDeclaration": "ensureDestructionReview",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/trash-grace-reconciler.ts#runTrashGraceReconciliation"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:913#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:926#startTrashGraceReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidenceLifecycleEvent.create@370",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:370",
+      "file": "services/worker/src/governance/trash-grace-reconciler.ts",
+      "enclosingDeclaration": "ensureDestructionReview",
+      "kind": "DATABASE",
+      "target": "evidenceLifecycleEvent",
+      "mutationKind": "create",
+      "primaryFamily": "LEGAL_HOLD_RETENTION_DELETION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/trash-grace-reconciler.ts#runTrashGraceReconciliation"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:913#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:926#startTrashGraceReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -67816,8 +68067,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1026#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1037#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1089#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1100#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -67850,8 +68101,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1026#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1037#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1089#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1100#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68070,7 +68321,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:759#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:763#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68103,7 +68354,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:759#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:763#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68136,7 +68387,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:759#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:763#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68169,7 +68420,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68202,7 +68453,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68235,7 +68486,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68268,7 +68519,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68301,7 +68552,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68334,7 +68585,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68367,7 +68618,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68400,7 +68651,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68433,7 +68684,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68466,7 +68717,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68499,7 +68750,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68532,7 +68783,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68565,7 +68816,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68598,7 +68849,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:819#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:823#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -68803,70 +69054,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#custodyEvent.deleteMany@5003",
-      "terminalLocation": "services/worker/src/processor.ts:5003",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "custodyEvent",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidence.delete@5007",
-      "terminalLocation": "services/worker/src/processor.ts:5007",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "delete",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3126",
-      "terminalLocation": "services/worker/src/processor.ts:3126",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3122",
+      "terminalLocation": "services/worker/src/processor.ts:3122",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -68896,8 +69085,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3159",
-      "terminalLocation": "services/worker/src/processor.ts:3159",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3155",
+      "terminalLocation": "services/worker/src/processor.ts:3155",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -68927,8 +69116,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3178",
-      "terminalLocation": "services/worker/src/processor.ts:3178",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3174",
+      "terminalLocation": "services/worker/src/processor.ts:3174",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -68958,8 +69147,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3283",
-      "terminalLocation": "services/worker/src/processor.ts:3283",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3279",
+      "terminalLocation": "services/worker/src/processor.ts:3279",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -68989,8 +69178,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4036",
-      "terminalLocation": "services/worker/src/processor.ts:4036",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4032",
+      "terminalLocation": "services/worker/src/processor.ts:4032",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -69020,8 +69209,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4155",
-      "terminalLocation": "services/worker/src/processor.ts:4155",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4151",
+      "terminalLocation": "services/worker/src/processor.ts:4151",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -69051,132 +69240,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidenceAnchor.deleteMany@4995",
-      "terminalLocation": "services/worker/src/processor.ts:4995",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "evidenceAnchor",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidenceCertification.deleteMany@4999",
-      "terminalLocation": "services/worker/src/processor.ts:4999",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "evidenceCertification",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidencePart.deleteMany@4991",
-      "terminalLocation": "services/worker/src/processor.ts:4991",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "evidencePart",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#OBJECT_STORAGE.deleteObject@1152",
-      "terminalLocation": "services/worker/src/processor.ts:1152",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "deleteObjectIfExists",
-      "kind": "EXTERNAL",
-      "target": "OBJECT_STORAGE",
-      "mutationKind": "deleteObject",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#report.create@3465",
-      "terminalLocation": "services/worker/src/processor.ts:3465",
+      "writerId": "services/worker/src/processor.ts#report.create@3461",
+      "terminalLocation": "services/worker/src/processor.ts:3461",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -69206,39 +69271,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.deleteMany@4987",
-      "terminalLocation": "services/worker/src/processor.ts:4987",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "report",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "REPORT_EXPORT_REDACTION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#report.updateMany@4180",
-      "terminalLocation": "services/worker/src/processor.ts:4180",
+      "writerId": "services/worker/src/processor.ts#report.updateMany@4176",
+      "terminalLocation": "services/worker/src/processor.ts:4176",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -69268,8 +69302,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4131",
-      "terminalLocation": "services/worker/src/processor.ts:4131",
+      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4127",
+      "terminalLocation": "services/worker/src/processor.ts:4127",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -69280,68 +69314,6 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/processor.ts#processGenerateReport"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.deleteMany@4983",
-      "terminalLocation": "services/worker/src/processor.ts:4983",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "verificationPackage",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#verificationView.deleteMany@4979",
-      "terminalLocation": "services/worker/src/processor.ts:4979",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "processPurgeDeletedEvidence",
-      "kind": "DATABASE",
-      "target": "verificationView",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -69372,6 +69344,7 @@
       "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [
+        "SWEEP services/worker/src/governance/trash-grace-reconciler.ts#runTrashGraceReconciliation",
         "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler",
         "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
@@ -69384,13 +69357,15 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1026#runIntelligenceRunReconciler",
-        "BOOT services/worker/src/index.ts:687#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1037#startIntelligenceRunReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:701#startLifecycleRecoveryScheduler",
-        "SCHEDULE services/worker/src/index.ts:983#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:988#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1089#runIntelligenceRunReconciler",
+        "BOOT services/worker/src/index.ts:691#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:913#runTrashGraceReconciliation",
+        "BOOT services/worker/src/index.ts:973#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1046#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1051#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1100#startIntelligenceRunReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:705#startLifecycleRecoveryScheduler",
+        "SCHEDULE services/worker/src/index.ts:926#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -69705,9 +69680,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:910#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:983#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:988#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:973#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1046#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1051#startSearchIndexReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -70014,9 +69989,7 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence"
-      ],
+      "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [],
       "invariants": {
@@ -70032,6 +70005,18 @@
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "INJECTED_PORT_IMPLEMENTATION",
+      "portImplementation": {
+        "port": "EvidenceDestructionStoragePort.deleteObject",
+        "adapter": "services/worker/src/governance/destruction-storage-port.ts",
+        "executor": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+        "entrypoints": [
+          "services/worker/src/processor.ts",
+          "services/worker/src/governance/destruction-orchestrator.worker.ts"
+        ],
+        "evidence": "The worker half of the same one executor. `workerEvidenceDestructionStorage.deleteObject` wraps this function to normalise its throw-on-failure into the port's result shape (the API's already returns a result). Both entrypoints are queue- or sweep-driven: `processPurgeDeletedEvidence` (PurgeDeletedEvidenceJob) and `runDestructionOrchestration` (DestructionOrchestratorSweep). Before the convergence this function was reached directly from the purge job's own inline storage loop; the loop is gone because the purge job no longer decides or performs destruction.",
+        "reviewedAtUtc": "2026-08-24"
       }
     },
     {
@@ -70052,9 +70037,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1347#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1356#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1346#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1410#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1419#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1409#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -70065,37 +70050,6 @@
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/subsystem-queue-processors.ts#orgHealthProjection.upsert@680",
-      "terminalLocation": "services/worker/src/subsystem-queue-processors.ts:680",
-      "file": "services/worker/src/subsystem-queue-processors.ts",
-      "enclosingDeclaration": "processOrgHealthRefreshJob",
-      "kind": "DATABASE",
-      "target": "orgHealthProjection",
-      "mutationKind": "upsert",
-      "primaryFamily": "ORGANIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/subsystem-queue-processors.ts#processOrgHealthRefreshJob"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -70116,7 +70070,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2471#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2534#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -70147,7 +70101,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2471#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2534#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -70180,9 +70134,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1306#runWebhookDispatcherTick",
-        "BOOT services/worker/src/index.ts:1313#runWebhookDispatcherTick",
-        "SCHEDULE services/worker/src/index.ts:1305#startWebhookDispatcherScheduler"
+        "BOOT services/worker/src/index.ts:1369#runWebhookDispatcherTick",
+        "BOOT services/worker/src/index.ts:1376#runWebhookDispatcherTick",
+        "SCHEDULE services/worker/src/index.ts:1368#startWebhookDispatcherScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -71014,7 +70968,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6144",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6147",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -71049,22 +71003,26 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "caseEvidenceLink",
         "custodyEvent",
         "evidence",
+        "evidenceLegalHold",
         "teamMember"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: evidence.update — no tenant or self predicate"
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.update — no tenant or self predicate",
+        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -71077,7 +71035,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7567",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7234",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -71139,7 +71097,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7195",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6862",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -71201,7 +71159,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7353",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7020",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -71263,7 +71221,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8159",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7826",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -73337,7 +73295,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11524",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11198",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -80462,7 +80420,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6419",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6191",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81117,7 +81075,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9511",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9178",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81224,7 +81182,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8195",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7862",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81291,7 +81249,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7390",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7057",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81350,7 +81308,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10236",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9910",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81428,7 +81386,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11307",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10981",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81481,7 +81439,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7074",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6741",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81540,7 +81498,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7607",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7274",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81603,7 +81561,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7691",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7358",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81666,7 +81624,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8023",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7690",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81797,7 +81755,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7232",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6899",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81916,7 +81874,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10732",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10406",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81998,7 +81956,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5507",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5604",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82060,7 +82018,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8062",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7729",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82111,7 +82069,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10450",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10124",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82249,7 +82207,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8449",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8116",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82337,7 +82295,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7894",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7561",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82405,7 +82363,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8039",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7706",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82466,7 +82424,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5088",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5185",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82523,7 +82481,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10958",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10632",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82614,7 +82572,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6576",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6348",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103990,7 +103948,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7487",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7154",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104043,7 +104001,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7139",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6806",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104105,7 +104063,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5121",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5218",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104167,7 +104125,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7297",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6964",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104229,7 +104187,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8113",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7780",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104285,7 +104243,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7906",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -106178,7 +106136,7 @@
       "nonProductConsumers": [
         {
           "file": "services/worker/src/index.ts",
-          "line": 408,
+          "line": 412,
           "caller": "runDemoFollowUps",
           "class": "WORKER",
           "primitive": "fetch"
@@ -114366,7 +114324,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:4615",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:4712",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115499,7 +115457,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8270",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7937",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115571,7 +115529,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7423",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7090",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115633,7 +115591,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5898",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6103",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115668,22 +115626,26 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "caseEvidenceLink",
         "custodyEvent",
         "evidence",
+        "evidenceLegalHold",
         "teamMember"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: evidence.update — no tenant or self predicate"
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.update — no tenant or self predicate",
+        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -115696,7 +115658,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11403",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11077",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115750,7 +115712,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11342",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11016",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115804,7 +115766,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11466",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11140",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115858,7 +115820,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7099",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6766",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115919,7 +115881,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9675",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116056,7 +116018,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7257",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6924",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116117,7 +116079,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5699",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5796",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116180,7 +116142,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5224",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5321",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116251,7 +116213,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8076",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7743",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116316,7 +116278,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10336",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10010",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116395,7 +116357,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6334",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6166",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116414,7 +116376,7 @@
         },
         {
           "file": "apps/mobile/app/(tabs)/deleted.tsx",
-          "line": 102,
+          "line": 104,
           "caller": "DeletedEvidenceScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116424,7 +116386,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:846 (restoreTrash, WEB); apps/mobile/app/(tabs)/deleted.tsx:102 (DeletedEvidenceScreen, MOBILE)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:846 (restoreTrash, WEB); apps/mobile/app/(tabs)/deleted.tsx:104 (DeletedEvidenceScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116434,12 +116396,15 @@
       "authorizationAuthority": "AUTHENTICATED",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "resource-owner-identity",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "caseEvidenceLink",
         "custodyEvent",
-        "evidence"
+        "evidence",
+        "evidenceLegalHold",
+        "teamMember"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -116448,13 +116413,17 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/evidence.routes.ts: an owner column is compared against the session-bound actor (`ownerUserId === ownerUserId`) and the mismatch is refused (services/api/src/routes/evidence.routes.ts)",
-        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: evidence.update — no tenant or self predicate"
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.update — no tenant or self predicate",
+        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
-      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -116463,7 +116432,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6034",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6122",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116506,22 +116475,26 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "caseEvidenceLink",
         "custodyEvent",
         "evidence",
+        "evidenceLegalHold",
         "teamMember"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: evidence.update — no tenant or self predicate"
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "services/api/src/services/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "services/api/src/services/evidence/evidence-lifecycle.service.ts: evidence.update — no tenant or self predicate",
+        "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -116534,7 +116507,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5812",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5909",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116595,7 +116568,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6724",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6496",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116634,6 +116607,7 @@
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
+        "evidenceLegalHold",
         "teamMember"
       ],
       "modelsWritten": [
@@ -116671,7 +116645,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5618",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5715",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -119969,15 +119943,18 @@
         "authenticatedSession",
         "automationRule",
         "caseEvidenceLink",
+        "custodyEvent",
         "destructionReview",
         "enterpriseContract",
         "entitlement",
         "evidence",
         "evidenceLegalHold",
+        "evidencePart",
         "evidenceRetentionPolicyVersion",
         "mfaFactor",
         "operationalIncident",
         "organization",
+        "redactionDerivative",
         "report",
         "revokedSession",
         "riskSignal",
@@ -119991,14 +119968,19 @@
       ],
       "modelsWritten": [
         "automationRun",
+        "custodyEvent",
         "destructionReview",
         "entitlement",
         "evidence",
         "evidenceLifecycleEvent",
+        "evidencePart",
         "operationalIncident",
         "operationalIncidentEvent",
+        "report",
         "securityEvent",
-        "stepUpChallenge"
+        "stepUpChallenge",
+        "verificationPackage",
+        "verificationView"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -120020,9 +120002,10 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
-        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts: evidenceLifecycleEvent.create",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.create",
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create"
       ],
       "tenantUnboundInsertSites": []
@@ -127388,24 +127371,34 @@
       "modelsRead": [
         "authenticatedSession",
         "caseEvidenceLink",
+        "custodyEvent",
         "delegatedAdminGrant",
         "destructionRequest",
         "evidence",
         "evidenceLegalHold",
+        "evidencePart",
         "redactionDerivative",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "webhookEndpoint"
       ],
       "modelsWritten": [
+        "custodyEvent",
         "destructionRequest",
         "evidence",
+        "evidenceLifecycleEvent",
+        "evidencePart",
         "integrationWebhookDelivery",
         "intelligenceActivityEvent",
+        "report",
         "securityEvent",
+        "verificationPackage",
+        "verificationView",
         "webhookEndpoint"
       ],
       "tenantBindingResolved": true,
@@ -127417,17 +127410,18 @@
         "services/api/src/services/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/lifecycle/destruction-governance.service.ts: destructionRequest.update — no tenant or self predicate",
         "services/api/src/services/lifecycle/destruction-governance.service.ts: destructionRequest.update — no tenant or self predicate",
-        "services/api/src/services/lifecycle/destruction-governance.service.ts: evidence.findMany — no tenant or self predicate",
-        "services/api/src/services/lifecycle/destruction-governance.service.ts: destructionRequest.update — no tenant or self predicate",
-        "services/api/src/services/lifecycle/destruction-governance.service.ts: evidence.updateMany — no tenant or self predicate",
-        "services/api/src/services/lifecycle/destruction-governance.service.ts: destructionRequest.update — no tenant or self predicate",
-        "services/api/src/services/lifecycle/destruction-governance.service.ts: destructionRequest.update — no tenant or self predicate"
+        "services/api/src/services/lifecycle/destruction-governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts: evidence.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts: evidence.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/intelligence/intelligence-activity.service.ts: intelligenceActivityEvent.create",
+        "packages/shared-runtime/src/evidence-destruction/executor.ts: evidenceLifecycleEvent.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
         "services/api/src/services/trust/trust-and-governance-audit.service.ts: intelligenceActivityEvent.create"
       ],
