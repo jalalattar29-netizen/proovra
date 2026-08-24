@@ -210,16 +210,40 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     expect(result.ok).toBe(true);
   });
 
+  /**
+   * Sweep until nothing is due, bounded.
+   *
+   * The sweep is DELIBERATELY bounded per tick — that is the property that
+   * stops one tick turning into a full-table scan on a large deployment — so a
+   * single call reaches at most `batchSize` workspaces, oldest-first. An
+   * earlier version of these two cases called it once and assumed the batch had
+   * covered the whole database. That held in a small fixture and failed the
+   * moment the suite ran against a database with more workspaces than the
+   * batch, which is exactly the condition the bound exists for.
+   *
+   * Draining is what the scheduler does across successive ticks, so this is
+   * the honest way to assert "eventually reaches everything" without asserting
+   * "reaches everything at once", which is the opposite of the design.
+   */
+  async function drainSweep(maxTicks = 40): Promise<number> {
+    let ticks = 0;
+    for (; ticks < maxTicks; ticks += 1) {
+      const r = await sweep.runWorkspaceOperationsSweep({
+        trigger: "cli",
+        batchSize: 50,
+      });
+      expect(r.ok, "a sweep tick failed outright").toBe(true);
+      if (r.reconciled === 0 && r.locked === 0) return ticks + 1;
+    }
+    throw new Error(`sweep did not drain within ${maxTicks} ticks`);
+  }
+
   it("the sweep reaches workspaces nobody has opened", async () => {
     // The whole point of §7: discovery no longer depends on a page visit.
     await prisma.governanceReconciliationRun.deleteMany({
       where: { kind: "WORKSPACE_OPERATIONS" },
     });
-    const result = await sweep.runWorkspaceOperationsSweep({
-      trigger: "scheduler",
-      batchSize: 50,
-    });
-    expect(result.reconciled).toBeGreaterThan(0);
+    await drainSweep();
 
     for (const workspaceId of [personal.teamId, teamA.teamId, teamB.teamId]) {
       const run = await runtime.latestWorkspaceOperationsRun(prisma, workspaceId);
@@ -228,7 +252,8 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
   });
 
   it("a workspace inside its freshness window is not re-swept", async () => {
-    await sweep.runWorkspaceOperationsSweep({ trigger: "cli", batchSize: 50 });
+    // Drain first: "nothing is due" is only assertable once nothing IS due.
+    await drainSweep();
     const second = await sweep.runWorkspaceOperationsSweep({
       trigger: "cli",
       batchSize: 50,
