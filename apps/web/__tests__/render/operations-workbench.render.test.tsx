@@ -34,6 +34,7 @@ import {
   cleanup,
   fireEvent,
 } from "@testing-library/react";
+import { QUEUE_METRIC_ORDER } from "../../app/(app)/operations/_lib/vocabulary";
 
 // ---------------------------------------------------------------------------
 // Seams
@@ -477,9 +478,19 @@ describe("Operations — one design, three densities", () => {
     expect(metric("unassigned")).toBeNull();
     expect(q("[data-ops-owner]")).toBeNull();
     // The severity axis is untouched — this is not a smaller product.
+    //
+    // `overdue` is deliberately NOT here. The Overdue card counted conditions
+    // open past a fixed 48 hours, which was a SECOND authority on lateness
+    // competing with the workspace's own SLA promise: a four-hour promise was
+    // breached at hour five while the card called it fine, and a seven-day
+    // promise had conditions called overdue on day two. Lateness is now
+    // measured in exactly one place — the persisted SLA cycle — and the cards
+    // that replaced it are `slaBreached` / `slaAtRisk`.
     expect(metric("open")).not.toBeNull();
     expect(metric("critical")).not.toBeNull();
-    expect(metric("overdue")).not.toBeNull();
+    expect(metric("slaBreached")).not.toBeNull();
+    expect(metric("slaAtRisk")).not.toBeNull();
+    expect(metric("overdue")).toBeNull();
     // And it never asked who could be assigned, because nobody could be.
     expect(gets().some((p) => p.includes("assignable-operators"))).toBe(false);
   });
@@ -712,13 +723,62 @@ describe("Operations — two renderers, one model", () => {
     expect(document.body.textContent).not.toContain("ACKNOWLEDGED");
   });
 
-  it("an unattended condition past the overdue age is marked in words", async () => {
+  it("a condition that is late against its OWN promise is marked in words", async () => {
+    // Was "past the overdue age" — a fixed 48-hour heuristic that has been
+    // removed. Lateness is now the workspace's own recorded commitment, so the
+    // row carries an SLA POSTURE rather than an age verdict.
+    //
+    // The assertion is stronger than the one it replaces: it requires the
+    // posture to be one of the bounded values AND the badge to say so in
+    // words, because an operator who cannot distinguish two reds still has to
+    // be able to triage.
+    incidentsReply = () => ({
+      // The SLA VOCABULARY travels with the rows it governs. `needsAttention`
+      // is derived from `attentionPostures` — the postures the SERVER
+      // considers late — so a page that never received the envelope makes no
+      // claim about lateness at all. That is the correct default and it is why
+      // the badge is absent without this.
+      sla: {
+        postures: [
+          "UNTRACKED_LEGACY",
+          "NOT_APPLICABLE",
+          "ON_TRACK",
+          "AT_RISK",
+          "BREACHED",
+          "ACKNOWLEDGED",
+          "RESOLVED",
+        ],
+        attentionPostures: ["BREACHED", "AT_RISK"],
+      },
+      ...list([
+        {
+          ...incident({ id: "11111111-1111-4111-8111-111111111111" }),
+          // The workspace's OWN recorded promise, breached. The posture and
+          // its words come from the server projection; the browser renders the
+          // verdict and never recomputes it, which is what stopped the page
+          // from becoming a second SLA authority.
+          sla: {
+            posture: "BREACHED",
+            obligation: "RESOLUTION",
+            dueAtUtc: HOURS_AGO(1),
+            targetHours: 4,
+            policyVersionId: "22222222-2222-4222-8222-222222222222",
+            cycleNumber: 1,
+            acknowledgementBreached: false,
+            resolutionBreached: true,
+          },
+        },
+      ]),
+    });
     await mount(envelope(TEAM_ADMIN));
-    const overdue = qa('[data-ops-overdue="true"]');
-    expect(overdue.length).toBeGreaterThan(0);
-    expect(
-      qa("[data-ops-overdue-badge]").some((el) => el.textContent === "Overdue"),
-    ).toBe(true);
+    const late = qa("[data-ops-sla-badge]");
+    expect(late.length).toBeGreaterThan(0);
+    for (const badge of late) {
+      expect(badge.getAttribute("data-ops-sla-badge")).toMatch(
+        /^(BREACHED|AT_RISK)$/,
+      );
+      expect((badge.textContent ?? "").trim().length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -1004,7 +1064,12 @@ describe("Operations — accessibility", () => {
     summaryReply = () => summary({ operatorCount: 3 });
     await mount(envelope(TEAM_ADMIN));
     const cards = qa("[data-ops-metric]");
-    expect(cards.length).toBe(6);
+    // SEVEN, from `QUEUE_METRIC_ORDER`: open, critical, high, slaBreached,
+    // slaAtRisk, assignedToMe, unassigned. The count is asserted against the
+    // vocabulary rather than a literal so a card added there cannot pass here
+    // by coincidence.
+    expect(cards.length).toBe(QUEUE_METRIC_ORDER.length);
+    expect(cards.length).toBe(7);
     for (const card of cards) {
       expect(card.tagName).toBe("BUTTON");
       expect(card.getAttribute("aria-pressed")).toMatch(/^(true|false)$/);
