@@ -256,19 +256,27 @@ test("the blocked notice carries the SERVER's reason and the archive alternative
   assert.doesNotMatch(REVIEW_CODE, /\b20\d\d\b/);
 });
 
-test("archive is disabled once the record is archived or trashed", () => {
-  assert.match(
-    REVIEW,
-    /const archiveDisabled = evidence\.deletedAt != null \|\| evidence\.archivedAt != null/,
-  );
-  assert.match(REVIEW, /disabled=\{archiveDisabled\}/);
+test("archive is offered only when the canonical projection allows it", () => {
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — this pinned a local
+  // `archiveDisabled` re-derived from two timestamps, which made this component
+  // a fifth place that decided lifecycle availability. The projection answers
+  // it now, and the control is ABSENT rather than disabled when it does not
+  // apply: each state has a different set of actions, and a greyed-out button
+  // for an operation that is meaningless in the current state is noise.
+  assert.match(REVIEW, /const lifecycle = getEvidenceLifecycle\(evidence\);/);
+  assert.match(REVIEW, /\{lifecycle\?\.canArchive \? \(/);
+  assert.doesNotMatch(REVIEW, /const archiveDisabled =/);
 });
 
 test("restore controls appear only in the state they apply to", () => {
-  assert.match(REVIEW, /\{evidence\.archivedAt \? \(/);
-  assert.match(REVIEW, /\{evidence\.deletedAt \? \(/);
+  // Same source, different capability — and a DESTROYED record gets neither,
+  // only a tombstone.
+  assert.match(REVIEW, /\{lifecycle\?\.canUnarchive \? \(/);
+  assert.match(REVIEW, /\{lifecycle\?\.canRestoreFromTrash \? \(/);
   assert.match(REVIEW, /data-evidence-action="restore-archive"/);
   assert.match(REVIEW, /data-evidence-action="restore-trash"/);
+  assert.match(REVIEW, /productState === "DESTROYED"/);
+  assert.match(REVIEW, /data-evidence-tombstone/);
 });
 
 test("no lifecycle action uses the purple primary style", () => {

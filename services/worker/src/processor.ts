@@ -76,9 +76,14 @@ import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
+// `deleteObject` is deliberately NOT imported here any more. This module used
+// to delete evidence objects during the purge; it no longer performs physical
+// deletion at all, and the canonical executor reaches storage through the
+// injected port in `governance/destruction-storage-port.ts`. Removing the
+// import is not tidying — an unused deletion primitive in the worker's largest
+// module is an invitation to re-open the second delete path this pass closed.
 import {
   applyDefaultObjectRetention,
-  deleteObject,
   getObjectStream,
   headObject,
   putObjectBuffer,

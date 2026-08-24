@@ -54,5 +54,29 @@ ALTER TABLE "evidence"
 ALTER TABLE "evidence"
   ADD COLUMN IF NOT EXISTS "destruction_claimed_at_utc" TIMESTAMPTZ(6);
 
-CREATE INDEX IF NOT EXISTS "evidence_lifecycle_state_delete_scheduled_for_utc_idx"
-  ON "evidence" ("lifecycle_state", "delete_scheduled_for_utc");
+-- GUARDED, in the Phase O-Final pattern, and the guard is not ceremony: this
+-- index names two columns this migration does NOT create. The repository's
+-- migration audit classifies an unguarded CREATE INDEX over columns added
+-- elsewhere as the same failure class as the "mentioned_user_id does not exist"
+-- incident — a migration that runs green on the developer's database and dies
+-- on one whose history took a different route. Both columns are ancient here,
+-- which is exactly the assumption worth checking rather than trusting.
+DO $do$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'evidence'
+       AND column_name  = 'lifecycle_state'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'evidence'
+       AND column_name  = 'delete_scheduled_for_utc'
+  ) THEN
+    EXECUTE $idx$
+      CREATE INDEX IF NOT EXISTS "evidence_lifecycle_state_delete_scheduled_for_utc_idx"
+        ON "evidence" ("lifecycle_state", "delete_scheduled_for_utc")
+    $idx$;
+  END IF;
+END $do$;

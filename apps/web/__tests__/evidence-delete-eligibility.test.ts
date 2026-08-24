@@ -163,7 +163,7 @@ test("the legacy deleteEligibility field is used verbatim when the projection is
 });
 
 test("getEvidenceLifecycle returns the projection, or null", () => {
-  assert.equal(getEvidenceLifecycle(projection()).productState, "ACTIVE");
+  assert.equal(getEvidenceLifecycle(projection())?.productState, "ACTIVE");
   assert.equal(getEvidenceLifecycle(null), null);
   assert.equal(getEvidenceLifecycle({} as never), null);
 });

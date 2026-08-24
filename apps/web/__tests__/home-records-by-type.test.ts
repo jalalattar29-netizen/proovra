@@ -285,10 +285,19 @@ test("source contract — /v1/evidence list filters deletedAt: null by default",
     ),
     "utf8",
   );
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the filter is keyed off
+  // `lifecycle_state`, the authority, rather than off the presence of a
+  // timestamp, and the scope is named `trash` because nothing in it is deleted.
+  //
+  // The assumption this case protects is unchanged and is now stronger in one
+  // respect the old filter got wrong: a DESTROYED tombstone still carries
+  // `deleted_at` from its time in the trash, so `deletedAt: null` alone would
+  // have excluded it — but so would it have excluded nothing else about it, and
+  // the tombstone is now excluded from every regular scope by name.
   assert.match(
     ROUTES,
-    /query\.scope\s*===\s*"deleted"\s*\?\s*\{\s*deletedAt:\s*\{\s*not:\s*null\s*\}\s*\}\s*:\s*\{\s*deletedAt:\s*null\s*\}/,
-    "buildEvidenceListBaseWhere must exclude soft-deleted unless scope=deleted",
+    /query\.scope\s*===\s*"trash"\s*\n?\s*\?\s*\{\s*lifecycleState:\s*"TRASHED"\s*\}\s*\n?\s*:\s*\{\s*lifecycleState:\s*\{\s*not:\s*"DESTROYED"\s*\},\s*deletedAt:\s*null\s*\}/,
+    "buildEvidenceListBaseWhere must exclude trashed and destroyed records unless scope=trash",
   );
 });
 

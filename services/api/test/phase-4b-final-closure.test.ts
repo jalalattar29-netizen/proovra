@@ -430,14 +430,46 @@ describe("7. C2 — executeDestruction with real S3 deletion", () => {
     // EvidenceLifecycleState, NOT of EvidenceStatus, so Postgres rejected the
     // enum value at runtime and the tombstone was never recorded — the cast
     // was the only reason the compiler allowed it.
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — this service no longer
+    // writes the tombstone at all, which retires the whole class of bug rather
+    // than the one instance. It also never verified that the S3 deletes it had
+    // just issued took effect, so on a versioned or COMPLIANCE-locked bucket
+    // the write above marked DESTROYED over objects that were still fully
+    // retrievable.
+    //
+    // The tombstone is written once, by the canonical executor, after it
+    // re-reads the record, re-computes eligibility, deletes, and CONFIRMS
+    // absence by asking the store again. The regression this case exists for —
+    // the enum the write targets — is asserted there.
     const src = readSrc("services/lifecycle/destruction-governance.service.ts");
-    const idx = src.indexOf("prisma.evidence.updateMany(");
-    expect(idx).toBeGreaterThan(-1);
-    const call = src.slice(idx, idx + 400);
-    expect(call).toMatch(/lifecycleState:\s*"DESTROYED"/);
-    expect(call).not.toMatch(/status:\s*"DESTROYED"/);
+    // Comments stripped: the module explains in prose what it stopped writing,
+    // and describing a removed write is not the write.
+    const live = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/[^\n]*$/gm, "");
+    expect(live).toContain("executeEvidenceDestruction(");
+    expect(live).not.toMatch(/lifecycleState:\s*"DESTROYED"/);
+    expect(live).not.toMatch(/status:\s*"DESTROYED"/);
     // And no cast may reintroduce it anywhere in the module.
-    expect(src).not.toMatch(/"DESTROYED"\s+as\s+(any|never)/);
+    expect(live).not.toMatch(/"DESTROYED"\s+as\s+(any|never)/);
+
+    const executor = fs.readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../packages/shared-runtime/src/evidence-destruction/executor.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    const write = executor.slice(executor.indexOf("await tx.evidence.update("));
+    expect(write).toMatch(/lifecycleState:\s*"DESTROYED"/);
+    expect(write).not.toMatch(/status:\s*"DESTROYED"/);
+    expect(executor).not.toMatch(/"DESTROYED"\s+as\s+(any|never)/);
+    // Verified deletion precedes the tombstone. That ordering is the point.
+    expect(executor.indexOf("objectExists(target)")).toBeLessThan(
+      executor.indexOf('lifecycleState: "DESTROYED"'),
+    );
   });
 
   it("EvidenceStatus does not contain DESTROYED (the enum the old write used)", () => {

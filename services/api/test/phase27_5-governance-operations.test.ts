@@ -444,9 +444,30 @@ describe("Phase 27.5 — Worker wiring", () => {
     expect(destructionSrc).toContain("canonicalEvaluateLifecycleTransition");
     expect(destructionSrc).toContain("certificateHash");
     expect(destructionSrc).toContain("lineageHash");
-    expect(destructionSrc).toContain("destruction_executed");
-    expect(destructionSrc).toContain("PENDING_DESTRUCTION");
-    expect(destructionSrc).toContain("DESTROYED");
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the orchestrator no longer
+    // MINTS the certificate or writes the state. It used to do both without
+    // making a single storage call: it wrote status "STORAGE_DELETED" and then
+    // DESTROYED, and the bytes stayed in the bucket. It now triggers the ONE
+    // executor, which deletes, VERIFIES the objects are gone, and only then
+    // tombstones and certifies — and the orchestrator mirrors the hash it
+    // earned. The PENDING_DESTRUCTION -> DESTROYED transition is asserted where
+    // it now happens.
+    expect(destructionSrc).toContain("executeEvidenceDestruction(");
+    expect(destructionSrc).toContain(
+      "destruction.certificateHash",
+    );
+    const executorSrc = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../packages/shared-runtime/src/evidence-destruction/executor.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    expect(executorSrc).toContain("destruction_executed");
+    expect(executorSrc).toContain("PENDING_DESTRUCTION");
+    expect(executorSrc).toContain("DESTROYED");
     // Idempotency + rollback support.
     expect(destructionSrc).toContain("destructionExecution.findFirst");
     expect(destructionSrc).toContain("attemptCount: { increment: 1 }");

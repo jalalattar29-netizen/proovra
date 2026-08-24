@@ -31,13 +31,11 @@ function bulkHandlerRegion(): string {
   return nextRoute === -1 ? rest : rest.slice(0, nextRoute);
 }
 
-function caseBlock(region: string, label: string): string {
-  const start = region.indexOf(`case "${label}":`);
-  expect(start).toBeGreaterThan(-1);
-  const rest = region.slice(start + `case "${label}":`.length);
-  const next = rest.search(/\n\s*case "|\n\s*default:/);
-  return next === -1 ? rest : rest.slice(0, next);
-}
+// `caseBlock` sliced ONE `case "X":` block out of the bulk switch, because each
+// lifecycle action had its own body to inspect. The four now share a single
+// body that dispatches to the canonical service, so there is no per-action block
+// left to slice — which is the property this file asserts rather than a detail
+// it works around.
 
 describe("bulk ARCHIVE — request bounds and per-record isolation", () => {
   const region = bulkHandlerRegion();
@@ -118,8 +116,29 @@ describe("bulk ARCHIVE — request bounds and per-record isolation", () => {
   });
 
   it("authorizes ARCHIVE per record against the persisted tenant", () => {
-    expect(region).toMatch(
-      /body\.action === "ARCHIVE" \|\| body\.action === "RESTORE_ARCHIVED"[\s\S]{0,200}getEvidenceWithRecordAccess\([\s\S]{0,120}"evidence\.archive"/,
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the per-record capability
+    // resolution moved INTO `applyEvidenceLifecycleAction`, which the single
+    // routes call too. Resolving it here as well would mean two places could
+    // answer differently, which is precisely the drift that let bulk
+    // RESTORE_TRASH require `evidence.delete` while single restore required
+    // only creator identity.
+    expect(region).toContain("applyEvidenceLifecycleAction");
+    expect(region).toContain("action: BULK_LIFECYCLE_ACTION[body.action]");
+
+    const service = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../src/services/evidence/evidence-lifecycle.service.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    expect(service).toContain('ARCHIVE: "evidence.archive"');
+    expect(service).toContain('UNARCHIVE: "evidence.archive"');
+    // Against the PERSISTED row, never a client-supplied workspace.
+    expect(service).toMatch(
+      /resolveEvidenceDestructiveAccess\(\s*\{\s*userId: input\.actorUserId,\s*evidenceId: input\.evidenceId,/,
     );
   });
 
@@ -133,28 +152,56 @@ describe("bulk ARCHIVE — request bounds and per-record isolation", () => {
 });
 
 describe("bulk ARCHIVE — an already-archived record is reported, not re-stamped", () => {
-  const archive = caseBlock(bulkHandlerRegion(), "ARCHIVE");
+  const service = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../src/services/evidence/evidence-lifecycle.service.ts",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
 
-  it("skips before the update and answers with a categorisable reason", () => {
-    expect(archive).toMatch(
-      /if \(evidence\.archivedAt\) \{\s*throw new Error\("ALREADY_ARCHIVED"\);/,
+  it("answers before the update, so the original archive time is never overwritten", () => {
+    // The guarantee is unchanged; where it lives is not. The bulk branch used
+    // to throw "ALREADY_ARCHIVED" and the single route returned 200 for the
+    // same situation — two answers to one question. The canonical service
+    // resolves it ONCE, and in favour of the idempotent reading: a record
+    // already where the caller wants it is a success with nothing to do,
+    // reported honestly as `changed: false`.
+    expect(service).toMatch(
+      /const already =[\s\S]{0,120}?input\.action === "ARCHIVE" && caps\.productState === "ARCHIVED"/,
     );
-    // The guard must come BEFORE the mutation, or the archive time is already
-    // overwritten by the time the record is recognised.
-    expect(archive.indexOf("ALREADY_ARCHIVED")).toBeLessThan(
-      archive.indexOf("prisma.evidence.update"),
+    // …and it returns BEFORE the write, which is what protects the timestamp.
+    expect(service.indexOf("const already =")).toBeLessThan(
+      service.indexOf("const patch = buildLifecyclePatch("),
+    );
+    expect(service).toMatch(
+      /if \(already\) \{\s*return \{\s*ok: true,\s*changed: false,/,
     );
   });
 
-  it("still runs the lock assertion and the canonical destructive gate", () => {
-    expect(archive).toContain("assertEvidenceNotLocked");
-    expect(archive).toContain("runDestructiveActionGate");
-    expect(archive).toContain('action: "archive_evidence"');
+  it("still runs the lock check and the canonical destructive gate", () => {
+    // Both survive — as ONE invocation covering single and bulk, rather than
+    // one copy per branch.
+    expect(service).toContain("runDestructiveActionGate");
+    expect(service).toContain('"archive_evidence"');
+    // The lock is no longer a hand-rolled assert: it is part of the canonical
+    // capability projection, which is what the whole convergence is for.
+    expect(service).toContain("computeEvidenceLifecycleCapabilities");
+    expect(service).toContain("caps.canArchive");
   });
 
-  it("archives by stamping archivedAt — it is not a delete", () => {
-    expect(archive).toMatch(/data: \{ archivedAt: new Date\(\) \}/);
-    expect(archive).not.toMatch(/deletedAt|delete\(/);
-    expect(archive).toContain("CustodyEventType.EVIDENCE_ARCHIVED");
+  it("archives by writing the ARCHIVED state and its event timestamp — it is not a delete", () => {
+    const patch = service.slice(service.indexOf('case "ARCHIVE":'));
+    expect(patch).toContain(
+      'data: { lifecycleState: "ARCHIVED", archivedAt: now }',
+    );
+    expect(patch).toContain("CustodyEventType.EVIDENCE_ARCHIVED");
+    // The state pointer and the event timestamp are written TOGETHER — writing
+    // one without the other is what let the two disagree.
+    const archiveCase = patch.slice(0, patch.indexOf('case "UNARCHIVE":'));
+    expect(archiveCase).not.toContain("deletedAt");
+    expect(archiveCase).not.toContain(".delete(");
   });
 });

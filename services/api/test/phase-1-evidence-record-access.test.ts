@@ -197,10 +197,32 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     expect(count("evidence.read")).toBe(1); // GET technical-metadata
     // label + parts + lock + complete + bulk case-link = 5
     expect(count("evidence.update_metadata")).toBe(5);
-    // unlock + bulk (un)archive = 2
-    expect(count("evidence.archive")).toBe(2);
-    // bulk trash/restore = 1
-    expect(count("evidence.delete")).toBe(1);
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the bulk (un)archive and
+    // bulk trash/restore callers are GONE from this file. Their authorization
+    // moved into `applyEvidenceLifecycleAction`, alongside the single routes',
+    // so there is one resolution per action rather than one per code path —
+    // which is what stopped bulk RESTORE_TRASH and single restore from
+    // requiring different things. What remains here is `unlock`, the one
+    // `evidence.archive` caller that is not a lifecycle action.
+    expect(count("evidence.archive")).toBe(1);
+    expect(count("evidence.delete")).toBe(0);
+
+    // The lifecycle capabilities are asserted where they now live.
+    const service = readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "src",
+        "services",
+        "evidence",
+        "evidence-lifecycle.service.ts",
+      ),
+      "utf8",
+    );
+    expect(service).toContain('ARCHIVE: "evidence.archive"');
+    expect(service).toContain('UNARCHIVE: "evidence.archive"');
+    expect(service).toContain('TRASH: "evidence.delete"');
+    expect(service).toContain('RESTORE_FROM_TRASH: "evidence.delete"');
     // regenerate + cert request + cert attest + cert revoke = 4
     // (the attest route was wired in Phase 12 Point 4 Pass H — the service,
     // request schema and CERTIFICATION_ATTESTED custody event already

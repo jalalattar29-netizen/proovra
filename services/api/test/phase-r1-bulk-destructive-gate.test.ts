@@ -1,21 +1,28 @@
 /**
- * Phase R1 — Bulk destructive-action gate parity (regression).
+ * Phase R1 — bulk/single destructive-gate PARITY (regression).
  *
- * Finding (Global Enterprise Forensic Audit, Critical #1): the bulk
- * endpoint `POST /v1/evidence/bulk` applied only `assertEvidenceNotLocked`
- * + `assertEvidenceDeletionAllowedByRetention` (object-lock retention) to
- * the TRASH and ARCHIVE actions, and did NOT run `runDestructiveActionGate`
- * — the only path that enforces the canonical `EvidenceLegalHold`
- * (Phase 27 / 4A) legal-hold model. Consequence: team-scoped evidence
- * under an active legal hold could be trashed/archived via the bulk path,
- * while the single-record DELETE/archive routes correctly blocked it.
+ * THE ORIGINAL FINDING (Global Enterprise Forensic Audit, Critical #1):
+ * `POST /v1/evidence/bulk` applied only `assertEvidenceNotLocked` +
+ * `assertEvidenceDeletionAllowedByRetention` to its TRASH and ARCHIVE branches
+ * and did NOT run `runDestructiveActionGate` — the only path that enforces the
+ * canonical legal-hold model. Team-scoped evidence under an active hold could
+ * therefore be trashed in bulk while the single-record route blocked it.
  *
- * These are source-contract assertions (the pattern already used by
- * `phase-x1-architecture-closure.test.ts` for this same gate) so they run
- * without database infrastructure. They pin that the bulk TRASH and
- * ARCHIVE cases invoke the canonical gate with the same SensitiveAction /
- * routeLabel pair as their single-record counterparts, and prevent the
- * bypass from silently regressing.
+ * WHY THIS SUITE NOW READS DIFFERENTLY (Evidence Lifecycle Convergence,
+ * 2026-08-24). The original fix added the gate to the bulk branches — a second
+ * copy of the same call, kept in step by review. This suite pinned both copies,
+ * which made the duplication permanent: it would have FAILED if anyone removed
+ * one, including by unifying them.
+ *
+ * There is now ONE implementation. `applyEvidenceLifecycleAction` runs the gate,
+ * and both the single routes and every bulk lifecycle branch call it. Parity is
+ * no longer a property two code paths happen to share — it is the same code.
+ *
+ * So the assertions moved up a level: the bulk branches must hold NO gate, NO
+ * lock assert and NO lifecycle write of their own (any of which would be the
+ * bypass returning by a different door), they must dispatch to the canonical
+ * service, and the service must run the gate with the same SensitiveAction /
+ * routeLabel pair for both actions.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -27,59 +34,101 @@ function readSource(rel: string): string {
 }
 
 const routesSrc = readSource("../src/routes/evidence.routes.ts");
+const serviceSrc = readSource(
+  "../src/services/evidence/evidence-lifecycle.service.ts",
+);
 
 /** Extract the body of the `POST /v1/evidence/bulk` handler. */
 function bulkHandlerRegion(): string {
   const start = routesSrc.indexOf('"/v1/evidence/bulk"');
   expect(start).toBeGreaterThan(-1);
-  // End at the next top-level route registration after the bulk handler.
   const rest = routesSrc.slice(start + 1);
   const nextRoute = rest.search(/app\.(get|post|put|patch|delete)\(/);
   const end = nextRoute === -1 ? rest.length : nextRoute;
   return rest.slice(0, end);
 }
 
-/** Slice a single `case "X": { ... }` block out of a region. */
-function caseBlock(region: string, label: string): string {
-  const start = region.indexOf(`case "${label}":`);
+/** The four lifecycle branches, which now share one body. */
+function lifecycleBranchBlock(region: string): string {
+  const start = region.indexOf('case "ARCHIVE":');
   expect(start).toBeGreaterThan(-1);
-  const rest = region.slice(start + `case "${label}":`.length);
-  const next = rest.search(/\n\s*case "|\n\s*default:/);
-  return next === -1 ? rest : rest.slice(0, next);
+  const rest = region.slice(start);
+  const end = rest.indexOf('case "EXPORT_METADATA_CSV"');
+  return end === -1 ? rest : rest.slice(0, end);
 }
 
-describe("Phase R1 — bulk destructive-action gate parity", () => {
+describe("Phase R1 — bulk/single destructive-gate parity", () => {
   const region = bulkHandlerRegion();
+  const lifecycleBranches = lifecycleBranchBlock(region);
 
-  it("bulk handler imports the canonical destructive-action gate", () => {
-    expect(region).toContain("runDestructiveActionGate");
-    expect(region).toContain(
-      "governance/destructive-action-gate.service.js",
+  it("the four bulk lifecycle actions share ONE branch body", () => {
+    // Fall-through case labels with a single body. Four separate blocks is the
+    // shape that drifted.
+    expect(lifecycleBranches).toMatch(
+      /case "ARCHIVE":\s*\n\s*case "RESTORE_ARCHIVED":\s*\n\s*case "TRASH":\s*\n\s*case "RESTORE_TRASH": \{/,
     );
   });
 
-  it("bulk TRASH runs the gate with the delete SensitiveAction", () => {
-    const trash = caseBlock(region, "TRASH");
-    expect(trash).toContain("runDestructiveActionGate");
-    expect(trash).toContain('action: "delete_evidence"');
-    expect(trash).toContain('routeLabel: "delete"');
-    // The gate must still sit alongside the pre-existing lock/retention asserts.
-    expect(trash).toContain("assertEvidenceNotLocked");
-    expect(trash).toContain("assertEvidenceDeletionAllowedByRetention");
+  it("the bulk branches dispatch to the canonical lifecycle service", () => {
+    expect(lifecycleBranches).toContain("applyEvidenceLifecycleAction");
+    expect(lifecycleBranches).toContain(
+      "action: BULK_LIFECYCLE_ACTION[body.action]",
+    );
+    expect(lifecycleBranches).toContain('source: "bulk"');
   });
 
-  it("bulk ARCHIVE runs the gate with the archive SensitiveAction", () => {
-    const archive = caseBlock(region, "ARCHIVE");
-    expect(archive).toContain("runDestructiveActionGate");
-    expect(archive).toContain('action: "archive_evidence"');
-    expect(archive).toContain('routeLabel: "archive"');
-    expect(archive).toContain("assertEvidenceNotLocked");
+  it("the bulk action mapping covers all four, with no default", () => {
+    const table = routesSrc.slice(
+      routesSrc.indexOf("const BULK_LIFECYCLE_ACTION = {"),
+      routesSrc.indexOf("} as const satisfies Record<string, EvidenceLifecycleAction>"),
+    );
+    expect(table).toContain('ARCHIVE: "ARCHIVE"');
+    expect(table).toContain('RESTORE_ARCHIVED: "UNARCHIVE"');
+    expect(table).toContain('TRASH: "TRASH"');
+    expect(table).toContain('RESTORE_TRASH: "RESTORE_FROM_TRASH"');
   });
 
-  it("a gated bulk record is recorded as a failed row (throws the gate code)", () => {
-    // The bulk loop's per-record catch records `error.message` as `reason`;
-    // the gate integrates by throwing the decision code on block.
-    const trash = caseBlock(region, "TRASH");
-    expect(trash).toMatch(/if \(gate\.gated\)\s*\{\s*throw new Error\(gate\.body\.code\)/);
+  it("the bulk branches hold NO gate, NO lock assert and NO lifecycle write", () => {
+    // Any of these reappearing here is the bypass returning by another door:
+    // a second decision beside the canonical one, free to disagree with it.
+    expect(lifecycleBranches).not.toContain("runDestructiveActionGate");
+    expect(lifecycleBranches).not.toContain("assertEvidenceNotLocked");
+    expect(lifecycleBranches).not.toContain(
+      "assertEvidenceDeletionAllowedByRetention",
+    );
+    expect(lifecycleBranches).not.toMatch(/prisma\.evidence\.update\(/);
+    expect(lifecycleBranches).not.toMatch(/archivedAt:/);
+    expect(lifecycleBranches).not.toMatch(/deletedAt:/);
+  });
+
+  it("a refused bulk record is recorded as a failed row carrying the canonical code", () => {
+    // The bulk loop's per-record catch records `error.message` as `reason`, so
+    // the branch integrates by throwing the code the service returned.
+    expect(lifecycleBranches).toMatch(
+      /if \(!outcome\.ok\) \{\s*throw new Error\(outcome\.code\);/,
+    );
+  });
+
+  it("the canonical service runs the gate with the delete SensitiveAction for TRASH", () => {
+    expect(serviceSrc).toContain("runDestructiveActionGate");
+    expect(serviceSrc).toContain('"delete_evidence"');
+    expect(serviceSrc).toContain('routeLabel: input.action === "ARCHIVE" ? "archive" : "delete"');
+  });
+
+  it("the canonical service runs the gate with the archive SensitiveAction for ARCHIVE", () => {
+    expect(serviceSrc).toContain('"archive_evidence"');
+    expect(serviceSrc).toMatch(
+      /if \(input\.action === "ARCHIVE" \|\| input\.action === "TRASH"\) \{/,
+    );
+  });
+
+  it("the legal-hold verdict is the union evaluator, fail-closed", () => {
+    // The protection the original finding was about. It is resolved ONCE, for
+    // single and bulk alike, and a lookup failure refuses the action rather
+    // than reporting "no hold".
+    expect(serviceSrc).toContain("evaluateEffectiveLegalHold");
+    expect(serviceSrc).toMatch(
+      /\} catch \{\s*return \{\s*ok: false,\s*statusCode: 503,\s*code: "GOVERNANCE_CHECK_FAILED"/,
+    );
   });
 });

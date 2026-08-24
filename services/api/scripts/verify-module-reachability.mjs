@@ -114,6 +114,12 @@ const ENTRYPOINTS = Object.freeze({
     "services/worker/src/scripts/diagnose-ots-evidence.ts",
     "services/worker/src/scripts/repair-ots-hybrid-state.ts",
     "services/worker/src/scripts/smoke-ots-retry-state.ts",
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the read-only destruction
+    // candidate report (`pnpm --filter @proovra/worker destruction-candidates`).
+    // An operator entrypoint, and the one an operator is expected to read
+    // BEFORE enabling automatic physical destruction, so it is emphatically
+    // live code rather than a leftover.
+    "services/worker/src/scripts/destruction-candidates.ts",
   ],
 });
 

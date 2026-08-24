@@ -61,18 +61,27 @@ describe("computeEvidenceDeleteEligibilitySync — reason precedence", () => {
     expect(r.reasonCode).toBe("EVIDENCE_LOCKED");
   });
 
-  it("returns COMPLIANCE_RETENTION when Object Lock mode=COMPLIANCE AND retain-until is in the future", () => {
-    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // +1y
+  it("COMPLIANCE Object Lock does NOT block a recoverable move to trash", () => {
+    // CORRECTED (Evidence Lifecycle Convergence, 2026-08-24). This asserted the
+    // opposite, faithfully, and the behaviour it pinned was the headline bug: a
+    // record under COMPLIANCE retention until 2034 was told it could not be
+    // moved to trash until 2034 — for an operation that deletes nothing and
+    // restores intact.
+    //
+    // Object Lock is a boundary on PHYSICAL DESTRUCTION and is enforced there,
+    // absolutely, by the canonical executor immediately before it deletes a
+    // byte — and again by a post-delete verification, because a DeleteObject
+    // against a locked bucket can return success while the object survives.
+    // Nothing is weakened; the check moved to the operation it describes.
+    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const r = computeEvidenceDeleteEligibilitySync(
       baseEvidence({
         storageObjectLockMode: "COMPLIANCE",
         storageObjectLockRetainUntilUtc: future.toISOString(),
       }),
     );
-    expect(r.canMoveToTrash).toBe(false);
-    expect(r.reasonCode).toBe("COMPLIANCE_RETENTION");
-    expect(r.blockedUntil).toBe(future.toISOString());
-    expect(r.message).toMatch(/compliance retention until \d{4}-\d{2}-\d{2}/);
+    expect(r.canMoveToTrash).toBe(true);
+    expect(r.reasonCode).toBeNull();
   });
 
   it("does NOT block on COMPLIANCE when retain-until is in the PAST (retention expired)", () => {
@@ -107,14 +116,16 @@ describe("computeEvidenceDeleteEligibilitySync — reason precedence", () => {
     expect(r.reasonCode).toBe("LEGAL_HOLD");
   });
 
-  it("returns RETENTION_UNTIL when retentionUntilUtc is in the future and nothing else blocks", () => {
+  it("workspace retention does NOT block a recoverable move to trash", () => {
+    // Same correction as the COMPLIANCE case above, for the application-level
+    // deadline. A retained record can now be TRASHED + RETAINED, and the
+    // reconciler refuses to destroy it until the deadline passes.
     const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const r = computeEvidenceDeleteEligibilitySync(
       baseEvidence({ retentionUntilUtc: future }),
     );
-    expect(r.canMoveToTrash).toBe(false);
-    expect(r.reasonCode).toBe("RETENTION_UNTIL");
-    expect(r.blockedUntil).toBe(future);
+    expect(r.canMoveToTrash).toBe(true);
+    expect(r.reasonCode).toBeNull();
   });
 
   it("does NOT block on retentionUntil when it is in the PAST", () => {
@@ -125,7 +136,11 @@ describe("computeEvidenceDeleteEligibilitySync — reason precedence", () => {
     expect(r.canMoveToTrash).toBe(true);
   });
 
-  it("COMPLIANCE precedence: when COMPLIANCE active AND legal-hold ON, reports COMPLIANCE_RETENTION", () => {
+  it("with COMPLIANCE retention AND a legal hold, the HOLD is the reason", () => {
+    // The precedence question survives the correction, with a different answer:
+    // retention no longer competes for the reason slot because it no longer
+    // blocks trash at all, so the hold — which does — is what the surface
+    // reports. A user reading it is told the thing that is actually true.
     const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     const r = computeEvidenceDeleteEligibilitySync(
       baseEvidence({
@@ -134,7 +149,8 @@ describe("computeEvidenceDeleteEligibilitySync — reason precedence", () => {
         storageObjectLockLegalHoldStatus: "ON",
       }),
     );
-    expect(r.reasonCode).toBe("COMPLIANCE_RETENTION");
+    expect(r.canMoveToTrash).toBe(false);
+    expect(r.reasonCode).toBe("LEGAL_HOLD");
   });
 
   it("EVIDENCE_LOCKED precedence: locked beats every retention reason", () => {

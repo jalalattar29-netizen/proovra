@@ -1075,6 +1075,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // rewriting history. Nothing to do with Phase 32.7.2's security-event
       // mapping; permitted by exact name, like every entry above.
       "20271219000000_incident_sla_history",
+      // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the TRASHED lifecycle
+      // state, the physical-destruction timestamp and the destruction lease,
+      // then their backfill. Two migrations because PostgreSQL refuses to USE
+      // an enum value added in the same transaction. Nothing to do with Phase
+      // 32.7.2's security-event mapping; permitted by exact name, like every
+      // entry above.
+      "20271220000000_evidence_lifecycle_trashed_state",
+      "20271220000001_evidence_lifecycle_state_backfill",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

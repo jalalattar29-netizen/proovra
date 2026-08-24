@@ -269,7 +269,17 @@ describe("Phase X.1 — Part C: correlation ID propagation", () => {
     expect(src).toContain("const correlationId = newCorrelationId()");
     expect(src).toContain("correlationId,");
     expect(src).toContain("reconciliationRunId: ctx.runId");
-    expect(src).toContain("requestId: correlationId.slice(0, 64)");
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ledger row is written
+    // by the canonical destruction executor now, not here, so the
+    // `requestId: correlationId.slice(0, 64)` stamp moved with it. What matters
+    // for correlation is that the orchestrator still MINTS the id per attempt
+    // and HANDS it to the executor, which is what keeps the chain stitchable
+    // end to end. Asserted at both ends.
+    expect(src).toMatch(/executeEvidenceDestruction\([\s\S]{0,600}?correlationId,/);
+    const executorSrc = readSource(
+      "../../../packages/shared-runtime/src/evidence-destruction/executor.ts",
+    );
+    expect(executorSrc).toContain("input.correlationId?.slice(0, 64)");
   });
 
   it("immutable storage worker threads correlation through metadata + emitters", () => {
@@ -333,15 +343,38 @@ describe("Phase X.1 — Part D: destructive-action gate orchestrator", () => {
     expect(gateSrc).toMatch(/409/);
   });
 
-  it("delete endpoint calls runDestructiveActionGate (route is thinner)", () => {
-    expect(routesSrc).toContain("runDestructiveActionGate");
-    expect(routesSrc).toContain('action: "delete_evidence"');
-    expect(routesSrc).toContain('routeLabel: "delete"');
+  /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — "the route is thinner" was
+   * the direction of travel; it has now arrived. The gate is not in the route
+   * at all: it is in `applyEvidenceLifecycleAction`, which the single routes
+   * AND the bulk branches call, so there is one invocation rather than six that
+   * have to agree.
+   */
+  const lifecycleServiceSrc = readSource(
+    "../src/services/evidence/evidence-lifecycle.service.ts",
+  );
+
+  it("the delete path runs the gate with the delete SensitiveAction", () => {
+    expect(lifecycleServiceSrc).toContain("runDestructiveActionGate");
+    expect(lifecycleServiceSrc).toContain('"delete_evidence"');
+    expect(routesSrc).toContain('action: "TRASH"');
   });
 
-  it("archive endpoint calls runDestructiveActionGate (same orchestrator)", () => {
-    expect(routesSrc).toContain('action: "archive_evidence"');
-    expect(routesSrc).toContain('routeLabel: "archive"');
+  it("the archive path runs the gate with the archive SensitiveAction", () => {
+    expect(lifecycleServiceSrc).toContain('"archive_evidence"');
+    expect(routesSrc).toContain('action: "ARCHIVE"');
+  });
+
+  it("the routes hold no gate invocation of their own", () => {
+    // The whole point: one caller. A route that re-acquires the gate is a
+    // second decision free to drift from the first.
+    //
+    // Comments stripped — the bulk handler explains in prose why the import it
+    // used to hold is gone, and a note about a removed call is not the call.
+    const live = routesSrc
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/[^\n]*$/gm, "");
+    expect(live).not.toContain("runDestructiveActionGate");
   });
 
   it("delete handler no longer has the inline membership + enforceSensitiveAction loop", () => {
@@ -437,10 +470,46 @@ describe("Phase X.1 — Part E: cross-runtime alignment", () => {
     const workerSrc = readSource(
       "../../worker/src/governance/destruction-orchestrator.worker.ts",
     );
-    expect(apiSrc).toContain('eventType: "destruction_executed"');
-    expect(workerSrc).toContain('eventType: "destruction_executed"');
-    expect(apiSrc).toContain("certificateHash");
-    expect(workerSrc).toContain("certificateHash");
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — "the same lifecycle ledger"
+    // used to mean two files that each wrote a `destruction_executed` row and
+    // were expected to write compatible ones. They did not: the API path wrote
+    // it with a certificate hash it had computed itself and no storage call,
+    // and the worker path did the same with a different body. Two attestations
+    // of two destructions, neither of which had deleted anything.
+    //
+    // Both are now TRIGGERS for the one executor, which writes the single
+    // ledger row after it has verified the deletion. The assertion is therefore
+    // that neither writes the event itself, both route through the executor,
+    // and the executor writes it.
+    const executorSrc = readSource(
+      "../../../packages/shared-runtime/src/evidence-destruction/executor.ts",
+    );
+    expect(executorSrc).toContain('eventType: "destruction_executed"');
+    expect(executorSrc).toContain("certificateHash");
+
+    for (const [label, src] of [
+      ["api destruction-review", apiSrc],
+      ["worker orchestrator", workerSrc],
+    ] as const) {
+      expect(src, `${label} must trigger the canonical executor`).toContain(
+        "executeEvidenceDestruction(",
+      );
+      // The LEDGER row specifically. Both still emit a security event and an
+      // audit line named "destruction_executed" — those are observations of
+      // what happened, not the attestation that it happened, and they are
+      // supposed to stay.
+      expect(
+        src,
+        `${label} must not write the destruction LEDGER row itself`,
+      ).not.toMatch(
+        /evidenceLifecycleEvent\.create[\s\S]{0,400}?eventType: "destruction_executed"/,
+      );
+      expect(src).not.toMatch(
+        /transitionLifecycle\([\s\S]{0,400}?eventType: "destruction_executed"/,
+      );
+      // Both still RECORD the hash the executor minted, on their own row.
+      expect(src).toContain("certificateHash");
+    }
   });
 });
 

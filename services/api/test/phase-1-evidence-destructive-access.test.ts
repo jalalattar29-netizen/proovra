@@ -250,20 +250,77 @@ describe("evidence.routes — archive/unarchive/delete compose the canonical gat
     return SRC.slice(idx, idx + 2600);
   };
 
-  for (const [marker, permission] of [
-    ['"/v1/evidence/:id/archive"', "evidence.archive"],
-    ['"/v1/evidence/:id/unarchive"', "evidence.archive"],
-    [/app\.delete\(\s*"\/v1\/evidence\/:id"/, "evidence.delete"],
+  /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the gate moved, and moving it
+   * made the guarantee stronger rather than weaker.
+   *
+   * These cases used to read each route handler's own body and find
+   * `resolveEvidenceDestructiveAccess` inline. Four handlers each carried their
+   * own copy, which is exactly how `POST /v1/evidence/:id/restore` ended up
+   * authorizing on `evidence.ownerUserId === caller` while its bulk twin used
+   * the capability: nothing forced the four to agree.
+   *
+   * There is now ONE authorization, in `applyEvidenceLifecycleAction`, which
+   * every single AND bulk lifecycle path calls. So the assertions come in two
+   * parts: the routes DISPATCH to the service and map its 404 onto the
+   * anti-enumeration body, and the service resolves the right capability per
+   * action. A route that grew its own gate again fails the first part; a
+   * capability that drifted fails the second.
+   */
+  const SERVICE = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "src",
+      "services",
+      "evidence",
+      "evidence-lifecycle.service.ts",
+    ),
+    "utf8",
+  );
+
+  for (const [marker, action] of [
+    ['"/v1/evidence/:id/archive"', "ARCHIVE"],
+    ['"/v1/evidence/:id/unarchive"', "UNARCHIVE"],
+    [/app\.delete\(\s*"\/v1\/evidence\/:id"/, "TRASH"],
+    ['"/v1/evidence/:id/restore"', "RESTORE_FROM_TRASH"],
   ] as const) {
-    it(`${marker} → resolveEvidenceDestructiveAccess(${permission}) + PUBLIC_NOT_FOUND_BODY`, () => {
+    it(`${marker} dispatches to the canonical lifecycle service (${action})`, () => {
       const block = routeBlock(marker);
-      expect(block).toContain("resolveEvidenceDestructiveAccess");
-      expect(block).toContain(`permission: "${permission}"`);
-      expect(block).toContain("PUBLIC_NOT_FOUND_BODY");
-      // Owner-identity gate must NOT be the authorization on these routes.
+      expect(block).toContain(`action: "${action}"`);
+      // Owner-identity gates must NOT be the authorization on these routes.
       expect(block).not.toContain("getEvidenceWithOwnerAccess");
+      expect(block).not.toMatch(/ownerUserId !== /);
       // The internal reason is logged, never sent.
       expect(block).not.toMatch(/send\([^)]*internalReason/);
     });
   }
+
+  it("the route adapter maps every service denial onto the anti-enumeration body", () => {
+    const helper = SRC.slice(
+      SRC.indexOf("async function replyWithLifecycleResult"),
+    ).slice(0, 2600);
+    expect(helper).toContain("applyEvidenceLifecycleAction");
+    expect(helper).toMatch(/outcome\.statusCode === 404/);
+    expect(helper).toContain("PUBLIC_NOT_FOUND_BODY");
+    expect(helper).not.toMatch(/send\([^)]*internalReason/);
+  });
+
+  it("the canonical service resolves the right capability for each action", () => {
+    expect(SERVICE).toContain("resolveEvidenceDestructiveAccess");
+    // The action -> capability table, entry by entry, so a new action cannot
+    // quietly default to a weaker one.
+    for (const [action, permission] of [
+      ["ARCHIVE", "evidence.archive"],
+      ["UNARCHIVE", "evidence.archive"],
+      ["TRASH", "evidence.delete"],
+      ["RESTORE_FROM_TRASH", "evidence.delete"],
+    ] as const) {
+      expect(SERVICE).toContain(`${action}: "${permission}"`);
+    }
+    // Every denial class collapses to one public 404.
+    expect(SERVICE).toMatch(
+      /if \(!access\.allowed\) \{\s*return \{\s*ok: false,\s*statusCode: 404,/,
+    );
+  });
 });

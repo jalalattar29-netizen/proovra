@@ -181,18 +181,60 @@ describe("Wave A CHAIN 6 — destruction: retention → legal-hold precedence �
     expect(evaluator).toMatch(/throw err;/);
   });
 
+  /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the chain is unchanged; its
+   * links moved into the canonical destruction executor, which the purge job
+   * now triggers. Each assertion below is made where the behaviour lives, and
+   * each is STRONGER there than it was here:
+   *
+   *   - the hold is re-evaluated AFTER a durable claim and a re-read, so a hold
+   *     placed mid-flight still wins;
+   *   - retention is no longer a hand-rolled `isRetentionStillActive` helper in
+   *     the worker but one of the boundaries the shared authority applies, and
+   *     it now covers application retention and Object Lock together;
+   *   - the custody event is written in the same transaction as the TOMBSTONE
+   *     rather than the same transaction as a hard delete, because the hard
+   *     delete is gone: it removed the Evidence row AND its custody chain, so a
+   *     destroyed record left no trace it had ever existed.
+   */
+  const executor = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../packages/shared-runtime/src/evidence-destruction/executor.ts",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+
   it("an active hold RESCHEDULES (zero destruction), it does not proceed", () => {
-    expect(processor).toMatch(/rescheduled because evidence is under an active legal hold/);
+    // The trigger reschedules on any block reason…
+    expect(processor).toMatch(/rescheduled: destruction is not yet permitted/);
+    expect(processor).toMatch(/legalHold: hold\.held/);
+    // …and the executor is what refuses, fail-closed, before any storage call.
+    const blockIdx = executor.indexOf("if (!eligibility.eligible)");
+    const deleteIdx = executor.indexOf("storage.deleteObject(target)");
+    expect(blockIdx).toBeGreaterThan(-1);
+    expect(deleteIdx).toBeGreaterThan(blockIdx);
+    expect(executor).toMatch(/await releaseClaim\(\);\s*return \{\s*ok: false,\s*outcome: "BLOCKED"/);
   });
 
   it("object-lock retention still active → no destruction", () => {
-    expect(processor).toMatch(/isRetentionStillActive/);
+    // Enforced by the shared authority, which applies application retention AND
+    // Object Lock retain-until — the worker's old helper only knew about one.
+    expect(executor).toMatch(/computeEvidenceDestructionEligibility\(/);
+    expect(executor).toMatch(/objectLockRetainUntil: evidence\.storageObjectLockRetainUntilUtc/);
+    expect(executor).toMatch(/appRetentionUntil: evidence\.retentionUntilUtc/);
   });
 
-  it("custody EVIDENCE_PURGED event is written in the SAME transaction as the delete", () => {
-    const txIdx = processor.indexOf("appendCustodyEventTx(tx, {");
-    const delIdx = processor.indexOf("await tx.evidence.delete(");
-    expect(txIdx).toBeGreaterThan(-1);
-    expect(delIdx).toBeGreaterThan(txIdx); // custody event precedes the delete in one tx
+  it("custody EVIDENCE_PURGED is written in the SAME transaction as the tombstone", () => {
+    const tx = executor.slice(executor.indexOf("await prisma.$transaction("));
+    const custodyIdx = tx.indexOf("appendCustodyEventInTx(tx, {");
+    const tombstoneIdx = tx.indexOf('lifecycleState: "DESTROYED"');
+    expect(custodyIdx).toBeGreaterThan(-1);
+    expect(tombstoneIdx).toBeGreaterThan(custodyIdx);
+    // And the chain is PRESERVED, not deleted with the row.
+    expect(executor).not.toMatch(/custodyEvent\.deleteMany/);
+    expect(executor).not.toMatch(/\bevidence\.delete\s*\(/);
   });
 });

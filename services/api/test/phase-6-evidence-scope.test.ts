@@ -79,16 +79,35 @@ describe("Phase 6 §9.7 — purge worker legal-hold re-check", () => {
     // No retired store may reappear.
     expect(evaluator).not.toMatch(/prisma\.caseLegalHold\./);
     expect(evaluator).not.toMatch(/prisma\.legalHold\./);
-    // Hold ordering: the checks precede the storage-delete section.
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ORDERING assertion moved
+    // with the code it was about. The purge job no longer reads retention
+    // columns or deletes objects: it resolves the hold, hands the verdict to
+    // the ONE canonical destruction executor, and translates the outcome. So
+    // "the hold check precedes the storage-delete section" is now a property of
+    // the executor, where it is stronger than it was here — the executor
+    // re-computes the hold AFTER winning a durable claim and re-reading the
+    // row, so a hold placed mid-flight still wins.
     const holdIdx = body.indexOf("evaluateEffectiveLegalHold(prisma");
-    const retentionIdx = body.indexOf(
-      "storageObjectLockRetainUntilUtc;",
-    );
+    const executeIdx = body.indexOf("executeEvidenceDestruction(");
     expect(holdIdx).toBeGreaterThan(-1);
-    expect(holdIdx).toBeLessThan(retentionIdx);
-    // A held purge reschedules (nothing orphaned; hold release resumes).
+    expect(executeIdx).toBeGreaterThan(holdIdx);
+    expect(body).toMatch(/legalHold: hold.held/);
+
+    const executor = read(
+      "../../packages/shared-runtime/src/evidence-destruction/executor.ts",
+    );
+    // Fail-closed on the hold, BEFORE any storage call.
+    const eligibilityIdx = executor.indexOf(
+      "computeEvidenceDestructionEligibility(",
+    );
+    const deleteIdx = executor.indexOf("storage.deleteObject(target)");
+    expect(eligibilityIdx).toBeGreaterThan(-1);
+    expect(deleteIdx).toBeGreaterThan(eligibilityIdx);
+    expect(executor).toMatch(/legalHold: input.legalHold/);
+
+    // A blocked purge reschedules (nothing orphaned; hold release resumes).
     expect(body).toMatch(
-      /rescheduled because evidence is under an active legal hold/,
+      /rescheduled: destruction is not yet permitted/,
     );
   });
 });

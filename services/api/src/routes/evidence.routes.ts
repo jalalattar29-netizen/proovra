@@ -117,10 +117,11 @@ import { noteCustodyFailure } from "../services/custody-events-observability.js"
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
 // canonical membership+lifecycle+capability for workspace-bound evidence).
-import {
-  PUBLIC_NOT_FOUND_BODY,
-  resolveEvidenceDestructiveAccess,
-} from "../services/evidence/evidence-destructive-access.service.js";
+// `resolveEvidenceDestructiveAccess` is no longer imported here: the lifecycle
+// routes were its only callers and they now dispatch to the canonical service,
+// which resolves it once for single and bulk alike. Only the anti-enumeration
+// body is still needed at this layer.
+import { PUBLIC_NOT_FOUND_BODY } from "../services/evidence/evidence-destructive-access.service.js";
 // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE archive/unarchive/
 // trash/restore implementation. Both the single routes below and every
 // lifecycle branch of POST /v1/evidence/bulk call it, so the two cannot drift.
@@ -1373,9 +1374,9 @@ function buildEvidenceSubtitle(params: {
   )} • ${formatDisplayDateUtc(params.createdAt)}`;
 }
 
-function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
-}
+// `addDays` lived here to compute the trash deadline. It moved to the canonical
+// lifecycle service alongside `TRASH_GRACE_DAYS`, so the window's length and
+// the arithmetic that applies it sit together and cannot drift apart.
 
 function getCompletedEvidenceLabel(itemCount: number | null): string {
   const count =
@@ -6526,18 +6527,16 @@ return {
       }
     }
 
-    // Phase R1 — bulk destructive actions (TRASH / ARCHIVE) must run the
-    // SAME canonical destructive-action gate as the single-record routes
-    // (DELETE `/v1/evidence/:id`, POST `/v1/evidence/:id/archive`). The
-    // gate is the ONLY path that enforces the canonical `EvidenceLegalHold`
-    // (Phase 27 / 4A) legal-hold model; the pre-R1 bulk path only ran
-    // `assertEvidenceNotLocked` + `assertEvidenceDeletionAllowedByRetention`
-    // (object-lock retention), so team-scoped evidence under an active
-    // legal hold could be trashed/archived in bulk. The gate is imported
-    // once here (not per-record) and applied inside the switch below.
-    const { runDestructiveActionGate } = await import(
-      "../services/governance/destructive-action-gate.service.js"
-    );
+    // Phase R1 imported `runDestructiveActionGate` here so the bulk TRASH and
+    // ARCHIVE branches could run the same governance gate as the single-record
+    // routes — the only path that enforces the canonical legal-hold model,
+    // which the pre-R1 bulk path skipped entirely.
+    //
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the import is gone because
+    // the second invocation is gone. The gate runs inside
+    // `applyEvidenceLifecycleAction`, which both the single routes and these
+    // branches call, so parity is no longer two call sites kept in step by
+    // review: it is one call site.
 
     for (const evidenceId of uniqueIds) {
       try {
