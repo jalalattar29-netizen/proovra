@@ -26,9 +26,12 @@ import {
   type IncidentSeverity,
 } from "@proovra/shared";
 
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
+import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
 
 // ---------- Thresholds — every one is real platform state -----------------
 
@@ -48,6 +51,18 @@ const COORDINATION_STALE_HIGH_COUNT = 10;
 
 type GenerationContext = {
   teamId: string;
+  /**
+   * The canonical workspace evidence scope, resolved ONCE per sweep.
+   *
+   * Every evidence-derived scan below filters through this rather than a raw
+   * `teamId` equality. On a PERSONAL workspace the records live under the
+   * owner's legacy `team_id = NULL` rows, which a strict filter misses — the
+   * same defect that made the Operations page render "clear" over a workspace
+   * Home was reporting as CRITICAL. `workspaceEvidenceWhere` widens to those
+   * owner-bound NULL-team rows for personal workspaces only, so a shared team
+   * keeps its strict filter and nothing leaks across tenants.
+   */
+  evidenceWhere: Prisma.EvidenceWhereInput;
 };
 
 type Generated = {
@@ -64,11 +79,21 @@ type Generated = {
  * incidents persisted (created or incremented) and any per-rule errors.
  */
 export async function generateIncidentsForWorkspace(
-  ctx: GenerationContext,
+  input: { teamId: string },
 ): Promise<{ recorded: number; failed: number; rules: string[] }> {
   const rules: string[] = [];
   let recorded = 0;
   let failed = 0;
+
+  // Resolve the canonical workspace evidence scope ONCE, and thread it through
+  // every evidence-derived scan below. This is the whole correction: a raw
+  // `teamId` equality misses a personal workspace's legacy `team_id = NULL`
+  // records, so the sweep found nothing and Operations rendered "clear" over a
+  // workspace with real, unresolved conditions.
+  const ctx: GenerationContext = {
+    teamId: input.teamId,
+    evidenceWhere: await workspaceEvidenceWhere(input.teamId),
+  };
 
   // ---------------------------------------------------------------------
   // ATTENTION ARCHITECTURE PHASE 3 — per-Evidence integrity conditions.
@@ -145,9 +170,7 @@ async function scanReportBacklog(
 ): Promise<Generated | null> {
   const backlog = await prisma.evidence.count({
     where: {
-      teamId: ctx.teamId,
-      status: "SIGNED",
-      latestReportVersion: null,
+      AND: [ctx.evidenceWhere, { status: "SIGNED", latestReportVersion: null }],
     },
   });
   if (backlog < REPORT_BACKLOG_HIGH) return null;
@@ -168,9 +191,10 @@ async function scanPackageBacklog(
 ): Promise<Generated | null> {
   const backlog = await prisma.evidence.count({
     where: {
-      teamId: ctx.teamId,
-      status: "REPORTED",
-      verificationPackageVersion: null,
+      AND: [
+        ctx.evidenceWhere,
+        { status: "REPORTED", verificationPackageVersion: null },
+      ],
     },
   });
   if (backlog < PACKAGE_BACKLOG_HIGH) return null;
@@ -299,9 +323,7 @@ async function scanUnsignedFinalizedAged(
   );
   const aged = await prisma.evidence.count({
     where: {
-      teamId: ctx.teamId,
-      status: "UPLOADED",
-      createdAt: { lt: cutoff },
+      AND: [ctx.evidenceWhere, { status: "UPLOADED", createdAt: { lt: cutoff } }],
     },
   });
   if (aged < UNSIGNED_FINALIZED_HIGH_COUNT) return null;
@@ -328,7 +350,9 @@ async function scanCoordinationBacklogStale(
     prisma.evidenceReviewerComment
       .count({
         where: {
-          evidence: { teamId: ctx.teamId },
+          // Scoped through the SAME canonical evidence filter: a comment on a
+          // personal workspace's legacy NULL-team record must still count.
+          evidence: ctx.evidenceWhere,
           resolvedAtUtc: null,
           createdAt: { lt: cutoff },
         },
@@ -337,7 +361,7 @@ async function scanCoordinationBacklogStale(
     prisma.evidenceAnnotation
       .count({
         where: {
-          evidence: { teamId: ctx.teamId },
+          evidence: ctx.evidenceWhere,
           resolvedAtUtc: null,
           createdAt: { lt: cutoff },
         },

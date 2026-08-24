@@ -72,6 +72,7 @@ import * as prismaPkg from "@prisma/client";
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
 import { recordIncident } from "../observability/incident.service.js";
 import {
   classifyIntegrityFailure,
@@ -233,12 +234,27 @@ export async function syncEvidenceIntegrityConditions(
 
   // -------------------------------------------------------------------------
   // 1. OPEN / RE-OBSERVE — every record currently failing either proof.
-  // -------------------------------------------------------------------------
+  //
+  // WORKSPACE SCOPE IS RESOLVED BY THE CANONICAL AUTHORITY, not by a raw
+  // `teamId` equality. On a PERSONAL workspace the failing records are the
+  // legacy `team_id = NULL` rows the capture path wrote, owned by the personal
+  // user; a strict `teamId` filter matches NONE of them, so this scan found
+  // nothing, materialised nothing, and Operations rendered "clear" while Home
+  // — which already uses `workspaceEvidenceWhere` — counted the same failures
+  // as CRITICAL. `workspaceEvidenceWhere` widens to the owner's NULL-team rows
+  // for a personal workspace ONLY, bound to that one owner's userId, so a real
+  // team workspace keeps the strict filter and no cross-tenant row can leak.
+  //
+  // Combined under AND: the scope filter can itself be an `OR` (personal), and
+  // the failure filter is a second `OR`, so they cannot share one object level.
+  const scopeWhere = await workspaceEvidenceWhere(input.teamId, client);
   const failing = (await client.evidence.findMany({
     where: {
-      teamId: input.teamId,
-      deletedAt: null,
-      OR: [{ tsaStatus: FAILED }, { otsStatus: FAILED }],
+      AND: [
+        scopeWhere,
+        { deletedAt: null },
+        { OR: [{ tsaStatus: FAILED }, { otsStatus: FAILED }] },
+      ],
     },
     select: EVIDENCE_SELECT,
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -284,7 +300,7 @@ export async function syncEvidenceIntegrityConditions(
   // open condition's own Evidence row is re-read by id instead.
   // -------------------------------------------------------------------------
   result.resolved = await resolveRecoveredConditions(
-    { teamId: input.teamId, now },
+    { teamId: input.teamId, scopeWhere, now },
     client,
   );
 
@@ -433,7 +449,12 @@ async function recordIntegrityCondition(
  * know that it recovered, and "we could not check" is not "it is fine".
  */
 async function resolveRecoveredConditions(
-  args: { teamId: string; now: Date },
+  args: {
+    teamId: string;
+    /** The canonical workspace scope, resolved once by the caller. */
+    scopeWhere: prismaPkg.Prisma.EvidenceWhereInput;
+    now: Date;
+  },
   client: PrismaClient,
 ): Promise<number> {
   const open = await client.operationalIncident.findMany({
@@ -465,10 +486,17 @@ async function resolveRecoveredConditions(
     );
   if (parsed.length === 0) return 0;
 
+  // The SAME canonical scope the discovery pass used. A personal workspace's
+  // recovered records are legacy `team_id = NULL` rows; a strict `teamId`
+  // filter here would read zero of them, so a condition opened for a personal
+  // record could never observe its own recovery and would stay open forever.
+  // Still an AND with the id set: the scope may itself be an `OR`.
   const evidenceRows = await client.evidence.findMany({
     where: {
-      id: { in: [...new Set(parsed.map((e) => e.parts.evidenceId))] },
-      teamId: args.teamId,
+      AND: [
+        { id: { in: [...new Set(parsed.map((e) => e.parts.evidenceId))] } },
+        args.scopeWhere,
+      ],
     },
     select: { id: true, tsaStatus: true, otsStatus: true },
   });

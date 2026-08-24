@@ -24,19 +24,26 @@
  * indexed primary-key lookup).
  */
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
-import { prisma } from "../db.js";
+import { prisma as defaultPrisma } from "../db.js";
 
 export type PersonalScope = {
   isPersonal: boolean;
   ownerUserId: string | null;
 };
 
+/**
+ * The client is optional and defaults to the module prisma. It exists so a
+ * caller that already holds a transaction — or a test with an in-memory fake —
+ * resolves the scope through the SAME connection it runs its query on, rather
+ * than silently reaching a second one.
+ */
 export async function resolvePersonalScope(
   teamId: string,
+  client: PrismaClient = defaultPrisma,
 ): Promise<PersonalScope> {
-  const team = await prisma.team.findUnique({
+  const team = await client.team.findUnique({
     where: { id: teamId },
     select: { isPersonal: true, ownerUserId: true },
   });
@@ -52,8 +59,9 @@ export async function resolvePersonalScope(
  */
 export async function workspaceEvidenceWhere(
   teamId: string,
+  client: PrismaClient = defaultPrisma,
 ): Promise<Prisma.EvidenceWhereInput> {
-  const scope = await resolvePersonalScope(teamId);
+  const scope = await resolvePersonalScope(teamId, client);
   if (scope.isPersonal && scope.ownerUserId) {
     return {
       OR: [
@@ -71,8 +79,9 @@ export async function workspaceEvidenceWhere(
  */
 export async function workspaceCaseWhere(
   teamId: string,
+  client: PrismaClient = defaultPrisma,
 ): Promise<Prisma.CaseWhereInput> {
-  const scope = await resolvePersonalScope(teamId);
+  const scope = await resolvePersonalScope(teamId, client);
   if (scope.isPersonal && scope.ownerUserId) {
     return {
       OR: [

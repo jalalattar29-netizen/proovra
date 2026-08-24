@@ -304,6 +304,15 @@ describe("Closure — the producer persists and propagates", () => {
     ];
     let seq = 0;
     const client = {
+      // The reconciler resolves the workspace scope via `resolvePersonalScope`,
+      // which reads this row. A SHARED team (isPersonal:false) collapses the
+      // canonical scope to the strict filter this fixture already assumes.
+      team: {
+        findUnique: vi.fn(async () => ({
+          isPersonal: false,
+          ownerUserId: null,
+        })),
+      },
       evidence: { findMany: vi.fn(async () => evidence) },
       evidenceLegalHold: { findMany: vi.fn(async () => []) },
       operationalIncident: {

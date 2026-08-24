@@ -83,7 +83,18 @@ function makeClient(evidence: FakeEvidence[]) {
   const events: Array<{ incidentId: string; eventType: string }> = [];
   let seq = 0;
 
-  const matchesWhere = (row: FakeEvidence, where: Record<string, unknown>) => {
+  const matchesWhere = (
+    row: FakeEvidence,
+    where: Record<string, unknown>,
+  ): boolean => {
+    // The reconciler now composes its filter as `{ AND: [scope, ...] }`, where
+    // `scope` comes from the canonical `workspaceEvidenceWhere`. Recurse into
+    // each AND clause so the mock evaluates the same shape the query does.
+    if (Array.isArray(where.AND)) {
+      return (where.AND as Array<Record<string, unknown>>).every((clause) =>
+        matchesWhere(row, clause),
+      );
+    }
     if (where.teamId && row.teamId !== where.teamId) return false;
     if ("deletedAt" in where && where.deletedAt === null && row.deletedAt) {
       return false;
@@ -102,6 +113,15 @@ function makeClient(evidence: FakeEvidence[]) {
   };
 
   const client = {
+    // The reconciler resolves the workspace scope through
+    // `resolvePersonalScope`, which reads this row. These fixtures model
+    // SHARED team workspaces (isPersonal:false), so the canonical scope
+    // collapses to the strict `{ teamId }` these assertions already expect —
+    // the personal-scope widening is proven separately in the live-PG
+    // convergence suite.
+    team: {
+      findUnique: vi.fn(async () => ({ isPersonal: false, ownerUserId: null })),
+    },
     evidence: {
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
         evidence.filter((row) => matchesWhere(row, where)),
