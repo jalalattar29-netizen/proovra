@@ -44,7 +44,13 @@ import {
   assertNoLegalHoldOrBlock,
 } from "./legal-hold.service.js";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
-import { deleteObject, putObjectBuffer, getObjectStream } from "../../storage.js";
+import { putObjectBuffer, getObjectStream } from "../../storage.js";
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — `deleteObject` is no longer
+// imported here. This service does not delete storage objects; the ONE
+// canonical executor does, and only after it can verify the deletion.
+import { executeEvidenceDestruction } from "@proovra/shared-runtime";
+import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
+import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -505,46 +511,84 @@ export async function executeDestruction(
     reason: "EXECUTING",
   });
 
-  // C2 — Real S3 deletion of every evidence byte + redaction derivatives.
+  // EXECUTE — through the ONE canonical destruction executor, per record.
+  //
+  // WHAT THIS REPLACES: an inline storage loop that gathered `storageKey` from
+  // the Evidence rows plus READY redaction derivatives, deleted each key, and
+  // then wrote `lifecycleState: "DESTROYED"` across the whole batch. Three
+  // things were wrong with it beyond the duplication:
+  //
+  //   * it never re-read the record and never re-evaluated eligibility, so
+  //     application retention, Object Lock retain-until and the trash grace
+  //     window were simply not consulted at execution time — approval plus an
+  //     absent legal hold was the whole test;
+  //   * it never verified that the deletes had taken effect. Against a bucket
+  //     with a COMPLIANCE lock, `DeleteObject` succeeds by writing a delete
+  //     marker while the object version remains fully retrievable, and this
+  //     code read that success as destruction;
+  //   * it missed `EvidencePart`, `Report` and `VerificationPackage` objects
+  //     entirely — for a multipart record, only the primary key was deleted and
+  //     every part survived.
+  //
+  // The executor holds a durable lease, re-reads, re-computes the canonical
+  // eligibility, deletes everything the record owns, and VERIFIES absence
+  // before it will tombstone or certify.
+  const perEvidenceCertificateHashes: string[] = [];
   try {
-    const bucket = getS3Bucket();
-    const failedKeys: string[] = [];
+    const failures: Array<{ evidenceId: string; outcome: string }> = [];
 
-    if (bucket) {
-      // Gather primary storage keys from Evidence rows.
-      const evidenceRows = await prisma.evidence.findMany({
-        where: { id: { in: evidenceIds } },
-        select: { id: true, storageKey: true },
+    for (const evidenceId of evidenceIds) {
+      const row = await prisma.evidence.findUnique({
+        where: { id: evidenceId },
+        select: { id: true, teamId: true, caseLinks: { select: { caseId: true } } },
+      });
+      if (!row) continue;
+
+      const hold = await evaluateEffectiveLegalHold(prisma, {
+        teamId: row.teamId ?? null,
+        evidenceId: row.id,
+        caseIds: (row.caseLinks ?? []).map((l) => l.caseId),
       });
 
-      // Gather redaction derivative keys attached to these evidence items.
-      // RedactionDerivative → RedactionVersion → RedactionProject (evidenceId).
-      const derivativeRows = await prisma.redactionDerivative.findMany({
-        where: {
-          teamId: input.teamId,
-          version: {
-            project: { evidenceId: { in: evidenceIds } },
-          },
-          state: "READY",
+      const result = await executeEvidenceDestruction(
+        prisma,
+        {
+          evidenceId: row.id,
+          trigger: "destruction_request",
+          actorUserId: input.executorUserId,
+          destructionRequestId: input.requestId,
+          legalHold: hold.held,
+          // An APPROVED DestructionRequest with a recorded approver chain IS
+          // the approval for this path — that is what `executeDestruction`
+          // means. The requirement is still declared so the executor's fail-
+          // closed branch stays exercised rather than bypassed.
+          destructionApprovalRequired: true,
+          destructionApproved: true,
         },
-        select: { storageKey: true },
-      });
+        apiEvidenceDestructionStorage,
+      );
 
-      const allKeys: string[] = [
-        ...evidenceRows.map((r) => r.storageKey).filter((k): k is string => Boolean(k)),
-        ...derivativeRows.map((r) => r.storageKey).filter((k): k is string => Boolean(k)),
-      ];
-
-      for (const key of allKeys) {
-        const res = await deleteObject({ bucket, key });
-        if (!res.ok) {
-          failedKeys.push(key.slice(0, 200));
-        }
+      if (result.ok && result.outcome === "DESTROYED") {
+        perEvidenceCertificateHashes.push(result.certificateHash);
+        continue;
       }
+      if (result.ok) {
+        // Already destroyed by an earlier attempt — a redelivery, not a
+        // failure, and deliberately NOT re-certified: the attestation for that
+        // record was minted when its deletion was verified and there must be
+        // exactly one.
+        continue;
+      }
+      failures.push({
+        evidenceId: row.id,
+        outcome:
+          result.outcome === "BLOCKED" ? `BLOCKED_${result.reason}` : result.outcome,
+      });
     }
 
-    if (failedKeys.length > 0) {
-      const reason = `destruction_partial_failure:${failedKeys.length}_keys_failed`.slice(0, 199);
+    if (failures.length > 0) {
+      const reason =
+        `destruction_partial_failure:${failures.length}_records_failed`.slice(0, 199);
       await prisma.destructionRequest.update({
         where: { id: input.requestId },
         data: { state: "FAILED" },
@@ -555,28 +599,20 @@ export async function executeDestruction(
         actorUserId: input.executorUserId,
         reason,
       });
-      throw Object.assign(new Error("DESTRUCTION_PARTIAL_FAILURE"), { failedKeys, denial: "DESTRUCTION_PARTIAL_FAILURE" });
+      throw Object.assign(new Error("DESTRUCTION_PARTIAL_FAILURE"), {
+        failedKeys: failures.map((f) => `${f.evidenceId}:${f.outcome}`),
+        denial: "DESTRUCTION_PARTIAL_FAILURE",
+      });
     }
-
-    // Mark evidence rows as destroyed (tombstone — row preserved for audit).
-    //
-    // This wrote `status: "DESTROYED"` behind an `as any`. DESTROYED is a
-    // member of EvidenceLifecycleState, NOT of EvidenceStatus, so the write
-    // was rejected by the Postgres enum at runtime and the tombstone was
-    // never recorded — the cast was the only reason the compiler allowed it.
-    // `lifecycleState` is the canonical Phase-27 state-machine pointer.
-    await prisma.evidence.updateMany({
-      where: { id: { in: evidenceIds } },
-      data: { lifecycleState: "DESTROYED" },
-    });
   } catch (err) {
-    // Re-throw partial-failure errors as-is; wrap unexpected errors.
     if ((err as { denial?: string }).denial === "DESTRUCTION_PARTIAL_FAILURE") throw err;
     const reason = (err instanceof Error ? err.message : String(err)).slice(0, 199);
-    await prisma.destructionRequest.update({
-      where: { id: input.requestId },
-      data: { state: "FAILED" },
-    }).catch(() => null);
+    await prisma.destructionRequest
+      .update({
+        where: { id: input.requestId },
+        data: { state: "FAILED" },
+      })
+      .catch(() => null);
     void emitDestructionLifecycle(prisma, "DESTRUCTION_FAILED", {
       teamId: input.teamId,
       requestId: input.requestId,
@@ -602,6 +638,7 @@ export async function executeDestruction(
     prisma,
     teamId: input.teamId,
     requestId: input.requestId,
+    verifiedEvidenceCertificateHashes: perEvidenceCertificateHashes,
   });
   return { ok: true, certificateId: cert.certificateId };
 }
@@ -614,6 +651,20 @@ export type CertifyDestructionInput = {
   prisma?: PrismaClient;
   teamId: string;
   requestId: string;
+  /**
+   * The PER-EVIDENCE destruction certificates the canonical executor minted
+   * during this execution, each of which exists only because that record's
+   * storage deletion was verified.
+   *
+   * Binding them into the request-level certificate body is what stops this
+   * artifact from over-claiming. Before the convergence the batch certificate
+   * was computed purely from the REQUEST — the id list, the approver chain, the
+   * timestamps — so it said the same thing whether the bytes had gone or not.
+   * Now the hash of a batch certificate changes with the set of records that
+   * actually passed verification, and a batch where nothing was verified
+   * carries an empty attestation list that is visible on its face.
+   */
+  verifiedEvidenceCertificateHashes?: string[];
 };
 
 export async function certifyDestruction(
@@ -669,6 +720,12 @@ export async function certifyDestruction(
     retentionPolicyVersionIds,
     legalHoldClearedAtExecute: true,
     snapshotVersion: CERTIFICATE_VERSION,
+    // The per-record attestations this batch is built on, sorted so the hash is
+    // order-independent. Empty means no record's deletion was verified — which
+    // the certificate then says plainly instead of implying otherwise.
+    verifiedEvidenceCertificateHashes: [
+      ...(input.verifiedEvidenceCertificateHashes ?? []),
+    ].sort(),
   };
 
   // Build canonical certificate body — binds the request, evidence hash,

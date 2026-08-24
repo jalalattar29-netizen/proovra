@@ -40,3 +40,10 @@ export * from "./config/secrets-recording-provider.js";
 // @proovra/shared precisely because the browser bundle cannot import this
 // package: a client may CARRY a revision and may never compute one.
 export * from "./evidence-analysis-revision.js";
+
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE physical evidence
+// destruction executor. It lives here, not in either service, because BOTH had
+// their own: four independent destroyers, two of which certified destructions
+// they never performed. Every trigger in both processes now calls this.
+export * from "./evidence-destruction/executor.js";
+export * from "./evidence-destruction/approval.js";

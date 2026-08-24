@@ -121,6 +121,29 @@ import {
   PUBLIC_NOT_FOUND_BODY,
   resolveEvidenceDestructiveAccess,
 } from "../services/evidence/evidence-destructive-access.service.js";
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE archive/unarchive/
+// trash/restore implementation. Both the single routes below and every
+// lifecycle branch of POST /v1/evidence/bulk call it, so the two cannot drift.
+import {
+  applyEvidenceLifecycleAction,
+  type EvidenceLifecycleAction,
+} from "../services/evidence/evidence-lifecycle.service.js";
+
+/**
+ * Bulk action name -> canonical lifecycle action.
+ *
+ * The wire vocabulary and the domain vocabulary are deliberately allowed to
+ * differ (the API has shipped `RESTORE_TRASH` for a long time and renaming it
+ * would break clients), but the mapping between them is a table rather than a
+ * chain of ternaries inside the loop, so a new bulk action cannot quietly
+ * default to the wrong lifecycle operation.
+ */
+const BULK_LIFECYCLE_ACTION = {
+  ARCHIVE: "ARCHIVE",
+  RESTORE_ARCHIVED: "UNARCHIVE",
+  TRASH: "TRASH",
+  RESTORE_TRASH: "RESTORE_FROM_TRASH",
+} as const satisfies Record<string, EvidenceLifecycleAction>;
 import {
   resolveEvidenceRecordAccess,
   type EvidenceRecordPermission,
@@ -404,19 +427,14 @@ function assertEvidenceNotLocked(evidence: SelectedEvidence) {
   }
 }
 
-function assertEvidenceDeletionAllowedByRetention(evidence: SelectedEvidence) {
-  const mode = String(evidence.storageObjectLockMode ?? "").toUpperCase();
-  const retainUntil = evidence.storageObjectLockRetainUntilUtc;
-
-  if (mode === "COMPLIANCE" && retainUntil && retainUntil > new Date()) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Evidence is under compliance retention and cannot be deleted before retention expiry"
-    );
-    err.statusCode = 409;
-    err.code = "COMPLIANCE_RETENTION_ACTIVE";
-    throw err;
-  }
-}
+// `assertEvidenceDeletionAllowedByRetention` used to live here. It refused the
+// soft-trash action whenever S3 Object Lock COMPLIANCE retention was still
+// running, which is the check that told users a record retained until 2034
+// could not be moved to trash until 2034 — for an operation that deletes
+// nothing. It had two call sites (single trash, bulk trash) and both are gone;
+// the boundary it enforced is now one of the conditions
+// `computeEvidenceDestructionEligibility` applies to PHYSICAL destruction,
+// re-evaluated by the canonical executor against a freshly re-read row.
 
 function getErrorCode(err: unknown, fallback = "OPERATION_BLOCKED"): string {
   return err instanceof Error && "code" in err
@@ -2212,15 +2230,28 @@ function buildEvidenceListBaseWhere(params: {
 }): Prisma.EvidenceWhereInput {
   const { query } = params;
 
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the scopes are selected by
+  // `lifecycle_state`, the authority, and no longer by the presence of a
+  // timestamp. The two disagreed in both directions: a record the governance
+  // orchestrator had flipped to ARCHIVED without stamping `archived_at` stayed
+  // in Active, and a DESTROYED tombstone (which carries `deleted_at` from its
+  // time in the trash) was listed as an ordinary trashed record a user could
+  // try to restore.
+  //
+  // DESTROYED is excluded from EVERY regular scope, including Trash. A
+  // tombstone is governance material, not a recoverable item, and it belongs on
+  // the governance surfaces that ask for it by name.
   const archivedFilter: Prisma.EvidenceWhereInput =
     query.scope === "archived"
-      ? { archivedAt: { not: null } }
+      ? { lifecycleState: "ARCHIVED" }
       : query.scope === "active" || query.scope === "locked"
-        ? { archivedAt: null }
+        ? { lifecycleState: { notIn: ["ARCHIVED", "TRASHED", "DESTROYED"] } }
         : {};
 
   const deletedFilter: Prisma.EvidenceWhereInput =
-    query.scope === "deleted" ? { deletedAt: { not: null } } : { deletedAt: null };
+    query.scope === "trash"
+      ? { lifecycleState: "TRASHED" }
+      : { lifecycleState: { not: "DESTROYED" }, deletedAt: null };
 
   const lockedFilter: Prisma.EvidenceWhereInput =
     query.scope === "locked"
@@ -2760,10 +2791,28 @@ function must(name: string): string {
   return v.trim();
 }
 
+/**
+ * Library scopes.
+ *
+ * `trash` is the canonical name. `deleted` is a WIRE ALIAS retained for
+ * clients that shipped before the convergence (the mobile app's Deleted tab,
+ * saved views persisted with the old value) and is normalised to `trash`
+ * immediately on parse — it never reaches a query builder, a projection or a
+ * label. It is an alias, not a second scope: there is no filter, no response
+ * field and no user-visible string in which the two behave differently.
+ *
+ * The rename is not cosmetic. "Deleted" described an operation the scope never
+ * performed: every record in it is fully retained, physically present in
+ * storage, and restorable by its owner.
+ */
+const EVIDENCE_LIST_SCOPE_WIRE_ALIASES: Record<string, string> = {
+  deleted: "trash",
+};
+
 const EvidenceListScopeSchema = z.enum([
   "active",
   "archived",
-  "deleted",
+  "trash",
   "locked",
   "all",
 ]);
@@ -2928,14 +2977,17 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
       ? z.string().uuid().parse(query.caseId)
       : null;
 
-  const scope =
+  const rawScope =
     typeof query.scope === "string" && query.scope.trim().length > 0
-      ? EvidenceListScopeSchema.parse(query.scope.trim().toLowerCase())
+      ? query.scope.trim().toLowerCase()
       : query.includeDeleted === "true"
-        ? "deleted"
+        ? "trash"
         : query.includeArchived === "true"
           ? "all"
           : "active";
+  const scope = EvidenceListScopeSchema.parse(
+    EVIDENCE_LIST_SCOPE_WIRE_ALIASES[rawScope] ?? rawScope,
+  );
 
   const limit = EvidenceListLimitSchema.parse(query.limit ?? undefined);
   const cursor = decodeEvidenceListCursor(
@@ -5895,120 +5947,91 @@ return {
 
 
 
-  app.post(
-    "/v1/evidence/:id/archive",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply) => {
-      const ownerUserId = getAuthUserId(req);
-      const id = z.string().uuid().parse((req.params as ParamsId).id);
+  // =========================================================================
+  // LIFECYCLE ROUTES — thin adapters over the ONE canonical mutation service.
+  //
+  // Archive, unarchive, trash and restore-from-trash used to carry ~270 lines
+  // of hand-maintained policy here: four different authorization rules, three
+  // different retention checks, two different lock checks, and a restore path
+  // that authorized on creator identity alone. All of it now lives in
+  // `applyEvidenceLifecycleAction`, which the bulk route calls too — so single
+  // and bulk cannot diverge, because there is only one implementation to
+  // diverge from.
+  //
+  // What is left in each handler is transport: parse the id, call the service,
+  // map the result onto a status code and the route's established response
+  // shape, and write the audit line. No handler decides anything.
+  // =========================================================================
 
-      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-      req.log = req.log.child({ evidenceId: id });
-
-      // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive
-      // gate. Personal-scope evidence keeps the owner rule; workspace-bound
-      // evidence requires ACTIVE membership + org lifecycle +
-      // `evidence.archive` against the PERSISTED teamId (creator identity
-      // grants nothing). Every denial — missing record, cross-tenant record,
-      // missing/inactive membership, no capability — is the SAME public 404
-      // (anti-enumeration); the internal reason stays in logs/audit only.
-      const access = await resolveEvidenceDestructiveAccess({
-        userId: ownerUserId,
-        evidenceId: id,
-        permission: "evidence.archive",
-      });
-      if (!access.allowed) {
-        req.log.info(
-          { internalReason: access.internalReason },
-          "evidence archive denied",
-        );
-        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
-      }
-      const archiveTarget = await prisma.evidence.findUnique({
-        where: { id },
-        select: SAFE_EVIDENCE_SELECT,
-      });
-      if (!archiveTarget) {
-        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
-      }
-      const evidence: SelectedEvidence = archiveTarget;
-      try {
-  assertEvidenceNotLocked(evidence);
-} catch (err) {
-  return reply.code(409).send({
-    code: getErrorCode(err, "EVIDENCE_LOCKED"),
-    message: "Evidence is permanently locked and cannot be archived",
-  });
-}
-
-// Phase 9.5 / Phase X.1 — legal hold check (fail-closed). Archive is
-// destructive for downstream UX (hides the evidence from list views),
-// so a hold must block it. Routed through the canonical gate
-// orchestrator — same module the delete endpoint uses.
-{
-  const { runDestructiveActionGate } = await import(
-    "../services/governance/destructive-action-gate.service.js"
-  );
-  const gate = await runDestructiveActionGate({
-    action: "archive_evidence",
-    actorUserId: ownerUserId,
-    evidence: {
-      id: evidence.id,
-      teamId: evidence.teamId,
-      retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+  /**
+   * Run one canonical lifecycle action and reply in the archive/unarchive
+   * response shape (`{ evidence: { …safe, storage } }`).
+   */
+  async function replyWithLifecycleResult(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    input: {
+      id: string;
+      actorUserId: string;
+      action: EvidenceLifecycleAction;
+      auditAction: string;
+      shape: "evidence" | "deleted" | "restored";
     },
-    routeLabel: "archive",
-    req,
-  });
-  if (gate.gated) {
-    return reply.code(gate.statusCode).send(gate.body);
-  }
-}
+  ) {
+    const outcome = await applyEvidenceLifecycleAction({
+      evidenceId: input.id,
+      actorUserId: input.actorUserId,
+      action: input.action,
+      source: "single",
+      req,
+    });
 
-      if (evidence.archivedAt) {
-        const storage = await getStorageProtectionSummary(
-          evidence.storageBucket,
-          evidence.storageKey,
-          {
-            storageRegion: evidence.storageRegion,
-            storageObjectLockMode: evidence.storageObjectLockMode,
-            storageObjectLockRetainUntilUtc:
-              evidence.storageObjectLockRetainUntilUtc,
-            storageObjectLockLegalHoldStatus:
-              evidence.storageObjectLockLegalHoldStatus,
-          }
+    if (!outcome.ok) {
+      // The anti-enumeration 404 keeps its bare public body; every other
+      // refusal reports the canonical block code so the UI can branch on the
+      // same literal the shared authority produced.
+      if (outcome.statusCode === 404) {
+        req.log.info(
+          { lifecycleAction: input.action },
+          "evidence lifecycle action denied",
         );
-        return reply.code(200).send({
-          evidence: {
-            ...toSafeEvidence(evidence),
-            storage,
-          },
-        });
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
       }
-
-      const updated = await prisma.evidence.update({
-        where: { id },
-        data: { archivedAt: new Date() },
-        select: SAFE_EVIDENCE_SELECT,
-      });
-
-      await appendCustodyEvent({
-        evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_ARCHIVED,
-        payload: { archivedByUserId: ownerUserId },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
-
       auditEvidenceAction(req, {
-        userId: ownerUserId,
-        action: "evidence.archive",
-        outcome: "success",
-        resourceId: id,
-        teamId: evidence.teamId,
-        metadata: { archivedByUserId: ownerUserId },
+        userId: input.actorUserId,
+        action: input.auditAction,
+        outcome: "blocked",
+        severity: "warning",
+        resourceId: input.id,
+        metadata: { reason: outcome.code },
       });
+      return reply
+        .code(outcome.statusCode)
+        .send({ code: outcome.code, message: outcome.message });
+    }
 
+    const updated = await prisma.evidence.findUnique({
+      where: { id: input.id },
+      select: SAFE_EVIDENCE_SELECT,
+    });
+    if (!updated) {
+      return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+    }
+
+    auditEvidenceAction(req, {
+      userId: input.actorUserId,
+      action: input.auditAction,
+      outcome: "success",
+      resourceId: input.id,
+      teamId: outcome.teamId,
+      metadata: {
+        actorUserId: input.actorUserId,
+        productState: outcome.productState,
+        changed: outcome.changed,
+      },
+    });
+
+    if (input.shape === "evidence") {
       const storage = await getStorageProtectionSummary(
         updated.storageBucket,
         updated.storageKey,
@@ -6019,16 +6042,36 @@ return {
             updated.storageObjectLockRetainUntilUtc,
           storageObjectLockLegalHoldStatus:
             updated.storageObjectLockLegalHoldStatus,
-        }
-      );
-
-      return reply.code(200).send({
-        evidence: {
-          ...toSafeEvidence(updated),
-          storage,
         },
+      );
+      return reply.code(200).send({
+        evidence: { ...toSafeEvidence(updated), storage },
       });
     }
+
+    return reply.code(200).send({
+      ...(input.shape === "deleted" ? { deleted: true } : { restored: true }),
+      evidence: toJsonSafe({ ...toSafeEvidence(updated) }),
+    });
+  }
+
+  app.post(
+    "/v1/evidence/:id/archive",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      return replyWithLifecycleResult(req, reply, {
+        id,
+        actorUserId: ownerUserId,
+        action: "ARCHIVE",
+        auditAction: "evidence.archive",
+        shape: "evidence",
+      });
+    },
   );
 
   app.post(
@@ -6037,298 +6080,42 @@ return {
     async (req: FastifyRequest, reply) => {
       const ownerUserId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      // PHASE 1 (2026-07-21) — same canonical destructive gate as /archive
-      // (evidence.archive capability; anti-enumeration 404 on every denial).
-      const access = await resolveEvidenceDestructiveAccess({
-        userId: ownerUserId,
-        evidenceId: id,
-        permission: "evidence.archive",
+      return replyWithLifecycleResult(req, reply, {
+        id,
+        actorUserId: ownerUserId,
+        action: "UNARCHIVE",
+        auditAction: "evidence.unarchive",
+        shape: "evidence",
       });
-      if (!access.allowed) {
-        req.log.info(
-          { internalReason: access.internalReason },
-          "evidence unarchive denied",
-        );
-        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
-      }
-      const unarchiveTarget = await prisma.evidence.findUnique({
-        where: { id },
-        select: SAFE_EVIDENCE_SELECT,
-      });
-      if (!unarchiveTarget) {
-        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
-      }
-      const evidence: SelectedEvidence = unarchiveTarget;
-      try {
-  assertEvidenceNotLocked(evidence);
-} catch (err) {
-  return reply.code(409).send({
-    code: getErrorCode(err, "EVIDENCE_LOCKED"),
-    message: "Evidence is permanently locked and cannot be restored from archive",
-  });
-}
-
-      if (!evidence.archivedAt) {
-        const storage = await getStorageProtectionSummary(
-          evidence.storageBucket,
-          evidence.storageKey,
-          {
-            storageRegion: evidence.storageRegion,
-            storageObjectLockMode: evidence.storageObjectLockMode,
-            storageObjectLockRetainUntilUtc:
-              evidence.storageObjectLockRetainUntilUtc,
-            storageObjectLockLegalHoldStatus:
-              evidence.storageObjectLockLegalHoldStatus,
-          }
-        );
-        return reply.code(200).send({
-          evidence: {
-            ...toSafeEvidence(evidence),
-            storage,
-          },
-        });
-      }
-
-      const updated = await prisma.evidence.update({
-        where: { id },
-        data: { archivedAt: null },
-        select: SAFE_EVIDENCE_SELECT,
-      });
-
-await appendCustodyEvent({
-  evidenceId: id,
-  eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
-  payload: {
-    restoredByUserId: ownerUserId,
-    restoreSource: "archive",
-  },
-  ip: req.ip,
-  userAgent: req.headers["user-agent"],
-}).catch(noteCustodyFailure);
-
-      auditEvidenceAction(req, {
-        userId: ownerUserId,
-        action: "evidence.unarchive",
-        outcome: "success",
-        resourceId: id,
-        teamId: evidence.teamId,
-        metadata: { restoredByUserId: ownerUserId },
-      });
-
-      const storage = await getStorageProtectionSummary(
-        updated.storageBucket,
-        updated.storageKey,
-        {
-          storageRegion: updated.storageRegion,
-          storageObjectLockMode: updated.storageObjectLockMode,
-          storageObjectLockRetainUntilUtc:
-            updated.storageObjectLockRetainUntilUtc,
-          storageObjectLockLegalHoldStatus:
-            updated.storageObjectLockLegalHoldStatus,
-        }
-      );
-
-      return reply.code(200).send({
-        evidence: {
-          ...toSafeEvidence(updated),
-          storage,
-        },
-      });
-    }
+    },
   );
 
+  /**
+   * MOVE TO TRASH. The verb in the URL is `DELETE` for wire compatibility; the
+   * operation is a recoverable soft-trash and deletes nothing. Physical
+   * destruction is a separate, governed pipeline that only the canonical
+   * destruction executor can run.
+   */
   app.delete(
     "/v1/evidence/:id",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const ownerUserId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      // PHASE 1 (2026-07-21) — canonical destructive gate. Personal evidence:
-      // owner rule. Workspace evidence: ACTIVE membership + org lifecycle +
-      // `evidence.delete` against the PERSISTED teamId. Anti-enumeration 404
-      // for every denial class; internal reason logged only.
-      const access = await resolveEvidenceDestructiveAccess({
-        userId: ownerUserId,
-        evidenceId: id,
-        permission: "evidence.delete",
+      return replyWithLifecycleResult(req, reply, {
+        id,
+        actorUserId: ownerUserId,
+        action: "TRASH",
+        auditAction: "evidence.delete",
+        shape: "deleted",
       });
-      if (!access.allowed) {
-        req.log.info(
-          { internalReason: access.internalReason },
-          "evidence delete denied",
-        );
-        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
-      }
-      const deleteTarget = await prisma.evidence.findUnique({
-        where: { id },
-        select: SAFE_EVIDENCE_SELECT,
-      });
-      if (!deleteTarget) {
-        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
-      }
-      const evidence: SelectedEvidence = deleteTarget;
-
-      try {
-  assertEvidenceNotLocked(evidence);
-  assertEvidenceDeletionAllowedByRetention(evidence);
-} catch (err) {
-  return reply.code(409).send({
-    code: getErrorCode(err, "DELETE_BLOCKED"),
-    message:
-      err instanceof Error
-        ? err.message
-        : "Evidence cannot be deleted in its current preservation state",
-  });
-}
-
-// Phase 9.5 / Phase X.1 — fail-closed governance enforcement on
-// destructive delete. The inline glue that previously lived here is
-// extracted to `runDestructiveActionGate` (orchestrator service). The
-// gate consolidates the membership lookup, sensitive-action decision,
-// custody-event-on-block, and HTTP-status mapping in one place. The
-// route handler stays a thin adapter: dispatch → branch on `gated`.
-{
-  const { runDestructiveActionGate } = await import(
-    "../services/governance/destructive-action-gate.service.js"
-  );
-  const gate = await runDestructiveActionGate({
-    action: "delete_evidence",
-    actorUserId: ownerUserId,
-    evidence: {
-      id: evidence.id,
-      teamId: evidence.teamId,
-      retentionUntilUtc: evidence.retentionUntilUtc ?? null,
     },
-    routeLabel: "delete",
-    req,
-  });
-  if (gate.gated) {
-    return reply.code(gate.statusCode).send(gate.body);
-  }
-}
-
-      // Phase 4A Closure — RETENTION policy gate. The Phase 4A
-      // governance engine evaluates effective RETENTION policies for the
-      // workspace (e.g. minRetentionDays, deleteRequiresApproval) and
-      // BLOCKs the soft-delete when the policy says the evidence is not
-      // yet eligible. Fail-closed on BLOCK; fail-open only when the
-      // evidence has no resolvable teamId (personal-space orphan).
-      if (evidence.teamId) {
-        const { gateRetentionAction } = await import(
-          "../services/governance/policy-runtime-gates.service.js"
-        );
-        const retentionGate = await gateRetentionAction({
-          teamId: evidence.teamId,
-          evidenceId: evidence.id,
-          action: "DELETE",
-        });
-        if (!retentionGate.ok) {
-          await appendCustodyEvent({
-            evidenceId: id,
-            // EXPORT_BLOCKED_BY_POLICY is the canonical "blocked by workspace
-            // policy" event — used for any policy-engine denial (export,
-            // retention, verification). Phase 4A retention denials reuse it so
-            // the audit chain stays single-typed; the payload carries the
-            // specific policy kind that fired.
-            eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-            payload: {
-              action: "evidence_delete_retention_gate",
-              actorUserId: ownerUserId,
-              denial: retentionGate.denial,
-              reason: retentionGate.reason,
-            },
-            ip: req.ip,
-            userAgent: req.headers["user-agent"],
-          }).catch(noteCustodyFailure);
-          auditEvidenceAction(req, {
-            userId: ownerUserId,
-            action: "evidence.delete",
-            outcome: "blocked",
-            severity: "warning",
-            resourceId: id,
-            teamId: evidence.teamId,
-            metadata: {
-              reason: "retention_policy_blocked",
-              denial: retentionGate.denial,
-              detail: retentionGate.reason,
-            },
-          });
-          return reply.code(409).send({
-            code: "RETENTION_POLICY_BLOCKED",
-            denial: retentionGate.denial,
-            reason: retentionGate.reason,
-            message:
-              "Evidence deletion is blocked by the workspace retention policy.",
-          });
-        }
-      }
-
-      if (evidence.deletedAt) {
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.delete",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: evidence.teamId,
-          metadata: { reason: "already_deleted" },
-        });
-        return reply.code(409).send({ message: "Evidence is already deleted" });
-      }
-
-      const now = new Date();
-      const deleteScheduledForUtc = addDays(now, 90);
-
-      const updated = await prisma.evidence.update({
-        where: { id },
-        data: {
-          deletedAt: now,
-          deletedAtUtc: now,
-          deletedByUserId: ownerUserId,
-          deleteScheduledForUtc,
-        },
-        select: SAFE_EVIDENCE_SELECT,
-      });
-
-      await appendCustodyEvent({
-        evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETE_SCHEDULED,
-        payload: {
-          deletedByUserId: ownerUserId,
-          deletedAtUtc: now.toISOString(),
-          deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
-        },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
-
-      auditEvidenceAction(req, {
-        userId: ownerUserId,
-        action: "evidence.delete",
-        outcome: "success",
-        resourceId: id,
-        teamId: evidence.teamId,
-        metadata: {
-          deletedByUserId: ownerUserId,
-          deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
-        },
-      });
-
-      return reply.code(200).send({
-        deleted: true,
-        evidence: toJsonSafe({
-          ...toSafeEvidence(updated),
-        }),
-      });
-    }
   );
 
   app.post(
@@ -6342,78 +6129,18 @@ await appendCustodyEvent({
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      let evidence: SelectedEvidence | null;
-      try {
-        evidence = await prisma.evidence.findUnique({
-          where: { id },
-          select: SAFE_EVIDENCE_SELECT,
-        });
-
-        if (!evidence) {
-          return reply.code(404).send({ message: "Evidence not found" });
-        }
-
-        if (evidence.ownerUserId !== ownerUserId) {
-          return reply.code(403).send({ message: "Forbidden" });
-        }
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
-      }
-      if (evidence.lockedAt) {
-  return reply.code(409).send({
-    code: "EVIDENCE_LOCKED",
-    message: "Evidence is permanently locked and cannot be restored from trash",
-  });
-}
-
       if (!body.restore) {
         return reply.code(400).send({ message: "Restore is required" });
       }
 
-      if (!evidence.deletedAt) {
-        return reply.code(409).send({ message: "Evidence is not deleted" });
-      }
-
-      const updated = await prisma.evidence.update({
-        where: { id },
-        data: {
-          deletedAt: null,
-          deletedAtUtc: null,
-          deletedByUserId: null,
-          deleteScheduledForUtc: null,
-        },
-        select: SAFE_EVIDENCE_SELECT,
+      return replyWithLifecycleResult(req, reply, {
+        id,
+        actorUserId: ownerUserId,
+        action: "RESTORE_FROM_TRASH",
+        auditAction: "evidence.restore",
+        shape: "restored",
       });
-
-      await appendCustodyEvent({
-        evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
-        payload: { restoredByUserId: ownerUserId, restoreSource: "trash" },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
-
-      auditEvidenceAction(req, {
-        userId: ownerUserId,
-        action: "evidence.restore",
-        outcome: "success",
-        resourceId: id,
-        teamId: evidence.teamId,
-        metadata: { restoredByUserId: ownerUserId, restoreSource: "trash" },
-      });
-
-      return reply.code(200).send({
-        restored: true,
-        evidence: toJsonSafe({
-          ...toSafeEvidence(updated),
-        }),
-      });
-    }
+    },
   );
 
   app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
@@ -6779,8 +6506,14 @@ await appendCustodyEvent({
       try {
         // PHASE 1 (2026-07-21) — per-action canonical capability against the
         // PERSISTED evidence.teamId (owner rule only for personal-scope
-        // evidence): case linking → update_metadata; (un)archive →
-        // evidence.archive; trash/restore → evidence.delete.
+        // evidence): case linking → update_metadata; everything else read.
+        //
+        // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the four lifecycle
+        // actions are NOT resolved here any more. Their authorization is part
+        // of `applyEvidenceLifecycleAction`, which resolves it against the
+        // persisted row with the same primitive the single routes use. Doing it
+        // twice would mean two places could answer differently, which is the
+        // class of drift this pass exists to remove.
         const evidence =
           body.action === "ADD_TO_CASE" || body.action === "REMOVE_FROM_CASE"
             ? await getEvidenceWithRecordAccess(
@@ -6788,19 +6521,7 @@ await appendCustodyEvent({
                 evidenceId,
                 "evidence.update_metadata",
               )
-            : body.action === "ARCHIVE" || body.action === "RESTORE_ARCHIVED"
-              ? await getEvidenceWithRecordAccess(
-                  userId,
-                  evidenceId,
-                  "evidence.archive",
-                )
-              : body.action === "TRASH" || body.action === "RESTORE_TRASH"
-                ? await getEvidenceWithRecordAccess(
-                    userId,
-                    evidenceId,
-                    "evidence.delete",
-                  )
-                : await getEvidenceWithReadAccess(userId, evidenceId);
+            : await getEvidenceWithReadAccess(userId, evidenceId);
 
         switch (body.action) {
           case "ADD_TO_CASE": {
@@ -6893,132 +6614,35 @@ await appendCustodyEvent({
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }
-          case "ARCHIVE": {
-            assertEvidenceNotLocked(evidence);
-            // An already-archived record is reported, not re-archived. The
-            // update below stamps a NEW `archivedAt`, so re-running the action
-            // over a selection that already contains archived records used to
-            // silently overwrite the lifecycle time at which each record was
-            // actually archived.
-            if (evidence.archivedAt) {
-              throw new Error("ALREADY_ARCHIVED");
-            }
-            {
-              const gate = await runDestructiveActionGate({
-                action: "archive_evidence",
-                actorUserId: userId,
-                evidence: {
-                  id: evidence.id,
-                  teamId: evidence.teamId,
-                  retentionUntilUtc: evidence.retentionUntilUtc ?? null,
-                },
-                routeLabel: "archive",
-                req,
-              });
-              if (gate.gated) {
-                throw new Error(gate.body.code);
-              }
-            }
-            const updated = await prisma.evidence.update({
-              where: { id: evidenceId },
-              data: { archivedAt: new Date() },
-              select: EVIDENCE_LIST_SELECT,
-            });
-            await appendCustodyEvent({
-              evidenceId,
-              eventType: prismaPkg.CustodyEventType.EVIDENCE_ARCHIVED,
-              payload: { archivedByUserId: userId, source: "bulk" },
-              ip: req.ip,
-              userAgent: normalizeUserHeader(req),
-            }).catch(noteCustodyFailure);
-            updatedItems.push(mapEvidenceListItem(updated));
-            break;
-          }
-          case "RESTORE_ARCHIVED": {
-            assertEvidenceNotLocked(evidence);
-            const updated = await prisma.evidence.update({
-              where: { id: evidenceId },
-              data: { archivedAt: null },
-              select: EVIDENCE_LIST_SELECT,
-            });
-            await appendCustodyEvent({
-              evidenceId,
-              eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
-              payload: { restoredByUserId: userId, restoreSource: "archive_bulk" },
-              ip: req.ip,
-              userAgent: normalizeUserHeader(req),
-            }).catch(noteCustodyFailure);
-            updatedItems.push(mapEvidenceListItem(updated));
-            break;
-          }
-          case "TRASH": {
-            assertEvidenceNotLocked(evidence);
-            assertEvidenceDeletionAllowedByRetention(evidence);
-            {
-              const gate = await runDestructiveActionGate({
-                action: "delete_evidence",
-                actorUserId: userId,
-                evidence: {
-                  id: evidence.id,
-                  teamId: evidence.teamId,
-                  retentionUntilUtc: evidence.retentionUntilUtc ?? null,
-                },
-                routeLabel: "delete",
-                req,
-              });
-              if (gate.gated) {
-                throw new Error(gate.body.code);
-              }
-            }
-            const now = new Date();
-            const deleteScheduledForUtc = addDays(now, 90);
-            const updated = await prisma.evidence.update({
-              where: { id: evidenceId },
-              data: {
-                deletedAt: now,
-                deletedAtUtc: now,
-                deletedByUserId: userId,
-                deleteScheduledForUtc,
-              },
-              select: EVIDENCE_LIST_SELECT,
-            });
-            await appendCustodyEvent({
-              evidenceId,
-              eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETE_SCHEDULED,
-              payload: {
-                deletedByUserId: userId,
-                deletedAtUtc: now.toISOString(),
-                deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
-                source: "bulk",
-              },
-              ip: req.ip,
-              userAgent: normalizeUserHeader(req),
-            }).catch(noteCustodyFailure);
-            updatedItems.push(mapEvidenceListItem(updated));
-            break;
-          }
+          // ===================================================================
+          // LIFECYCLE BRANCHES — the SAME canonical service the single routes
+          // call. Each branch is now four lines: dispatch, map the refusal onto
+          // the per-record `reason`, re-read the row for the list projection.
+          //
+          // The four hand-written copies that stood here carried their own lock
+          // checks, their own retention check, their own governance gate on two
+          // of the four actions, and their own already-in-state error. They are
+          // gone; the parity between single and bulk is now structural rather
+          // than reviewed.
+          // ===================================================================
+          case "ARCHIVE":
+          case "RESTORE_ARCHIVED":
+          case "TRASH":
           case "RESTORE_TRASH": {
-            if (!evidence.deletedAt) {
-              throw new Error("Evidence is not deleted");
+            const outcome = await applyEvidenceLifecycleAction({
+              evidenceId,
+              actorUserId: userId,
+              action: BULK_LIFECYCLE_ACTION[body.action],
+              source: "bulk",
+              req,
+            });
+            if (!outcome.ok) {
+              throw new Error(outcome.code);
             }
-            assertEvidenceNotLocked(evidence);
-            const updated = await prisma.evidence.update({
+            const updated = await prisma.evidence.findUniqueOrThrow({
               where: { id: evidenceId },
-              data: {
-                deletedAt: null,
-                deletedAtUtc: null,
-                deletedByUserId: null,
-                deleteScheduledForUtc: null,
-              },
               select: EVIDENCE_LIST_SELECT,
             });
-            await appendCustodyEvent({
-              evidenceId,
-              eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
-              payload: { restoredByUserId: userId, restoreSource: "trash_bulk" },
-              ip: req.ip,
-              userAgent: normalizeUserHeader(req),
-            }).catch(noteCustodyFailure);
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }

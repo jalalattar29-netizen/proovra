@@ -42,7 +42,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { canonicalJson, sha256Hex } from "../../crypto.js";
+// `canonicalJson` / `sha256Hex` used to be imported here so this service could
+// mint its own destruction certificate hash. It no longer mints one: the
+// canonical executor does, after verifying the deletion, and this service
+// mirrors that hash onto the review row.
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -51,8 +54,12 @@ import {
   preflightLifecycleTransition,
   recordLifecycleEvent,
   transitionLifecycle,
-  LifecycleOrchestratorError,
 } from "./lifecycle-orchestrator.service.js";
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — this service triggers the ONE
+// canonical destruction executor instead of writing DESTROYED itself.
+import { executeEvidenceDestruction } from "@proovra/shared-runtime";
+import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
+import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -611,57 +618,69 @@ async function executeApprovedReview(
     );
   }
 
-  // Build the canonical destruction certificate body. The hash is
-  // anchored in the DestructionReview row; the full body is written
-  // into the lifecycle ledger event metadata for forensic recall.
+  // EXECUTE — through the ONE canonical destruction executor.
+  //
+  // WHAT THIS REPLACES: this function built its OWN destruction certificate
+  // body, hashed it, and then called `transitionLifecycle(..., toState:
+  // "DESTROYED")`. It contacted storage at no point. An operator who approved a
+  // destruction review therefore received a certificate hash, a DESTROYED
+  // lifecycle state and a `destruction_executed` ledger entry for a record
+  // whose every byte was still in the bucket and still downloadable through the
+  // ordinary evidence routes. There was no asynchronous follow-up that would
+  // have finished the job: the purge worker only ever considered records it had
+  // itself scheduled, and it skipped anything already in a terminal state.
+  //
+  // The executor holds a lease, re-reads the record, re-computes the canonical
+  // eligibility (retention, Object Lock, trash grace, hold, approval, lock),
+  // deletes every object the record owns, VERIFIES they are gone, and only then
+  // tombstones and mints the certificate. This function no longer produces a
+  // certificate of its own — it records the one the executor earned.
   const executedAt = new Date();
-  const certificateBody = {
-    kind: "evidence_destruction_certificate",
-    version: 1,
-    teamId: existing.teamId,
-    evidenceId: existing.evidenceId,
-    destructionReviewId: existing.id,
-    retentionPolicyId: existing.retentionPolicyId,
-    retentionPolicyVersion: existing.retentionPolicyVersion,
-    reason: existing.reason,
-    initiatedByUserId: existing.initiatedByUserId,
-    approvedByUserId: existing.decidedByUserId,
-    executedByUserId: input.actorUserId,
-    executedAtUtc: executedAt.toISOString(),
-  };
-  const certificateHash = sha256Hex(canonicalJson(certificateBody));
 
-  // The orchestrator owns the lifecycleState write. We do it FIRST so
-  // an orchestrator refusal (e.g. concurrent hold landed) leaves the
-  // DestructionReview in APPROVED state — recoverable.
-  try {
-    await transitionLifecycle(
-      {
-        teamId: input.teamId,
-        evidenceId: existing.evidenceId,
-        toState: "DESTROYED",
-        actorUserId: input.actorUserId,
-        summary: "Evidence destroyed by approved destruction review",
-        eventType: "destruction_executed",
-        metadata: {
-          destructionReviewId: existing.id,
-          certificateHash,
-          certificate: certificateBody,
-          reason: existing.reason,
-        },
-        requestId: input.requestId ?? null,
-      },
-      client,
-    );
-  } catch (err) {
-    if (err instanceof LifecycleOrchestratorError) {
-      if (err.code === "LIFECYCLE_BLOCKED_BY_HOLD") {
+  const evidenceRow = await client.evidence.findUnique({
+    where: { id: existing.evidenceId },
+    select: { id: true, teamId: true, caseLinks: { select: { caseId: true } } },
+  });
+  if (!evidenceRow) {
+    throw new DestructionReviewError("DESTRUCTION_REVIEW_NOT_FOUND");
+  }
+
+  const hold = await evaluateEffectiveLegalHold(client, {
+    teamId: evidenceRow.teamId ?? null,
+    evidenceId: evidenceRow.id,
+    caseIds: (evidenceRow.caseLinks ?? []).map((l) => l.caseId),
+  });
+
+  const destruction = await executeEvidenceDestruction(
+    client,
+    {
+      evidenceId: existing.evidenceId,
+      trigger: "destruction_review",
+      actorUserId: input.actorUserId,
+      destructionReviewId: existing.id,
+      legalHold: hold.held,
+      // The APPROVED review IS the approval. Declaring the requirement rather
+      // than omitting it keeps the executor's fail-closed branch live: if this
+      // review ever stops being the thing that satisfies approval, the executor
+      // refuses instead of assuming.
+      destructionApprovalRequired: true,
+      destructionApproved: true,
+      correlationId: input.requestId ?? null,
+    },
+    apiEvidenceDestructionStorage,
+  );
+
+  if (!destruction.ok) {
+    if (destruction.outcome === "BLOCKED") {
+      if (destruction.reason === "LEGAL_HOLD_ACTIVE") {
         bump("destruction_blocked_by_hold_total");
-        throw new DestructionReviewError(
-          "DESTRUCTION_REVIEW_BLOCKED_BY_HOLD",
-        );
+        throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_HOLD");
       }
-      if (err.code === "LIFECYCLE_BLOCKED_BY_IMMUTABLE") {
+      if (
+        destruction.reason === "EVIDENCE_LOCKED" ||
+        destruction.reason === "APP_RETENTION_ACTIVE" ||
+        destruction.reason === "OBJECT_LOCK_RETENTION_ACTIVE"
+      ) {
         bump("destruction_blocked_by_immutable_total");
         throw new DestructionReviewError(
           "DESTRUCTION_REVIEW_BLOCKED_BY_IMMUTABLE",
@@ -669,11 +688,22 @@ async function executeApprovedReview(
       }
       throw new DestructionReviewError(
         "DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE",
-        { code: err.code },
+        { code: destruction.reason },
       );
     }
-    throw err;
+    // Storage refused, or an object survived the delete. The review stays
+    // APPROVED — recoverable, retryable, and honestly NOT executed.
+    throw new DestructionReviewError(
+      "DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE",
+      { code: destruction.outcome },
+    );
   }
+
+  // The hash the executor minted, mirrored onto the review row. There is no
+  // second certificate: a redelivery that finds the record already destroyed
+  // records the review as executed without minting anything.
+  const certificateHash =
+    destruction.outcome === "DESTROYED" ? destruction.certificateHash : null;
 
   // Flip the review to EXECUTED + clear the active pointer.
   const updated = await client.$transaction(async (tx) => {

@@ -601,13 +601,23 @@ export async function canDeleteEvidence(input: {
     return { allowed: false, reason: "deletion_restricted_to_admin" };
   }
 
-  // Retention check — never delete before retentionUntilUtc.
-  if (
-    input.evidence.retentionUntilUtc &&
-    input.evidence.retentionUntilUtc.getTime() > Date.now()
-  ) {
-    return { allowed: false, reason: "blocked_by_retention" };
-  }
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the retention branch that
+  // stood here is GONE, and its absence is the fix rather than a relaxation.
+  //
+  // This function gates the "delete_evidence" SENSITIVE ACTION, and the only
+  // caller of that action is the soft-trash path: `runDestructiveActionGate`
+  // from the canonical lifecycle mutation service. Refusing on
+  // `retentionUntilUtc > now` therefore refused a RECOVERABLE move to trash
+  // because bytes had to survive until a future date — which trashing them
+  // does not contradict, since trashing deletes nothing and restores intact.
+  // It is where "cannot move to trash until 2034" came from.
+  //
+  // Application retention is still absolute where it applies. It is one of the
+  // boundaries `computeEvidenceDestructionEligibility` enforces, and the
+  // canonical destruction executor re-evaluates that eligibility against a
+  // freshly re-read row immediately before it deletes anything — so a retained
+  // record can now sit in the trash and still cannot lose a single byte before
+  // its deadline.
 
   // Legal hold check — pull holds via the client.
   const client = input.client ?? defaultPrisma;

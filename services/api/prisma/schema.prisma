@@ -167,6 +167,17 @@ model Evidence {
   /// never updated directly). Hold-aware: while a hold is active, the
   /// orchestrator refuses transitions to PENDING_DESTRUCTION / DESTROYED.
   lifecycleState            EvidenceLifecycleState @default(ACTIVE) @map("lifecycle_state")
+  /// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the PHYSICAL destruction
+  /// event timestamp. Written by the ONE canonical destruction executor and
+  /// only AFTER storage deletion has been verified, so a non-null value is a
+  /// positive record that the bytes are gone. Never written by a route.
+  destroyedAtUtc            DateTime?              @map("destroyed_at_utc") @db.Timestamptz(6)
+  /// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the destruction LEASE stamp.
+  /// Set when an executor wins the TRASHED -> PENDING_DESTRUCTION claim and
+  /// cleared when it finishes or stands down. A row lock cannot serve here: the
+  /// claim has to survive minutes of storage round-trips. A stale stamp is what
+  /// lets a later executor take over a claim whose owner died mid-flight.
+  destructionClaimedAtUtc   DateTime?              @map("destruction_claimed_at_utc") @db.Timestamptz(6)
   /// Pointer to the currently-applied retention policy version (Phase
   /// 27 RetentionPolicyVersion). NULL = no first-class policy applied;
   /// the legacy `retentionPolicySource` enum still annotates legacy
@@ -310,6 +321,7 @@ model Evidence {
   @@index([retentionPolicyVersionId])
   @@index([deletedAtUtc])
   @@index([deleteScheduledForUtc])
+  @@index([lifecycleState, deleteScheduledForUtc])
   @@index([ownerUserId, deletedAt])
   @@index([ownerUserId, deleteScheduledForUtc])
   @@index([ownerUserId, createdAt(sort: Desc)])
@@ -4638,6 +4650,14 @@ enum EvidenceLifecycleState {
   /// Operator-archived (not destroyed). Retains all integrity
   /// metadata but is hidden from active surfaces.
   ARCHIVED
+  /// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — recoverable soft-trash.
+  /// The bytes are STILL STORED and the record is fully restorable; only
+  /// physical destruction is gated (by trash grace, application retention,
+  /// S3 Object Lock, legal hold and any required approval). TRASHED is a
+  /// PRODUCT state, distinct from DESTROYED, and is never inferred from
+  /// `deleted_at` by a runtime reader — `lifecycle_state` is the authority
+  /// and `deleted_at` is the trash EVENT timestamp.
+  TRASHED
 }
 
 // =============================================================================

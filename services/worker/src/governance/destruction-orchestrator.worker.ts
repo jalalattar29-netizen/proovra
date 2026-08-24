@@ -60,6 +60,14 @@ import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE destruction executor.
+// The orchestrator no longer deletes, tombstones or certifies; it triggers and
+// records.
+import {
+  executeEvidenceDestruction,
+  resolveDestructionApproval,
+} from "@proovra/shared-runtime";
+import { workerEvidenceDestructionStorage } from "./destruction-storage-port.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 200;
@@ -191,31 +199,112 @@ export async function runDestructionOrchestration(
             continue;
           }
 
-          // 3. Move into EXECUTING — emit certificate + lineage.
+          // 3. EXECUTE — through the ONE canonical destruction executor.
+          //
+          //    WHAT THIS REPLACES, precisely: the block that stood here minted
+          //    a certificate hash, wrote `status: "STORAGE_DELETED"` and
+          //    `storageDeletedAtUtc` WITHOUT MAKING A SINGLE STORAGE CALL, then
+          //    flipped the Evidence row to DESTROYED and wrote a
+          //    `destruction_executed` ledger entry carrying the certificate. Its
+          //    own comment said storage deletion was "owned by the existing
+          //    evidence-purge processor" and would finish asynchronously — but
+          //    that processor only ever ran for records with a `deleteScheduledForUtc`
+          //    it had set itself, and it refused to touch a record whose
+          //    lifecycle state had already gone terminal. So for a
+          //    review-driven destruction, nothing deleted the bytes. Ever. The
+          //    workspace held a signed certificate of destruction for evidence
+          //    that was still fully downloadable.
+          //
+          //    The executor deletes, VERIFIES the objects are gone, and only
+          //    then tombstones and certifies. The orchestrator's remaining job
+          //    is to record what the executor reported on the execution row.
           const executionId = execution.id;
           await prisma.destructionExecution.update({
             where: { id: executionId },
             data: {
               status: "EXECUTING",
-              phase: "creating_certificate",
+              phase: "deleting_storage",
               startedAtUtc: new Date(),
             },
           });
 
-          const certificateBody = {
-            kind: "evidence_destruction_certificate",
-            version: 1,
-            teamId: review.teamId,
+          const approval = await resolveDestructionApproval(prisma, {
             evidenceId: review.evidenceId,
-            destructionReviewId: review.id,
-            destructionExecutionId: executionId,
-            retentionPolicyId: review.retentionPolicyId,
-            retentionPolicyVersion: review.retentionPolicyVersion,
-            reason: review.reason,
-            approvedByUserId: review.decidedByUserId,
-            executedAtUtc: new Date().toISOString(),
-          };
-          const certificateHash = sha256OfCanonicalJson(certificateBody);
+            teamId: review.teamId,
+          });
+
+          const destruction = await executeEvidenceDestruction(
+            prisma,
+            {
+              evidenceId: review.evidenceId,
+              trigger: "destruction_review",
+              actorUserId: review.decidedByUserId ?? null,
+              destructionReviewId: review.id,
+              legalHold: facts.hasActiveDirectHold || facts.hasActiveCaseHold,
+              destructionApprovalRequired: approval.required,
+              destructionApproved: approval.approved,
+              correlationId,
+            },
+            workerEvidenceDestructionStorage,
+          );
+
+          if (!destruction.ok) {
+            // Nothing was destroyed and nothing was certified. Report the real
+            // reason on the execution row so an operator sees "storage refused"
+            // as distinct from "a hold landed in flight".
+            const blocked =
+              destruction.outcome === "BLOCKED" ||
+              destruction.outcome === "CLAIM_HELD";
+            await failExecution(executionId, {
+              code: blocked
+                ? destruction.outcome === "CLAIM_HELD"
+                  ? "EXECUTION_CLAIM_HELD"
+                  : `BLOCKED_${destruction.outcome === "BLOCKED" ? destruction.reason : "UNKNOWN"}`.slice(
+                      0,
+                      64,
+                    )
+                : destruction.outcome,
+              detail: blocked
+                ? "Canonical destruction eligibility refused the transition at execution time."
+                : `Storage deletion could not be verified. Keys still present or refused: ${
+                    destruction.outcome === "NOT_FOUND"
+                      ? "evidence row disappeared"
+                      : destruction.failedKeys.slice(0, 5).join(", ")
+                  }`,
+              phase: blocked ? "verifying_no_hold" : "deleting_storage",
+            });
+            if (destruction.outcome === "BLOCKED") {
+              await emitDestructionBlockedNotification(
+                review.teamId,
+                review.evidenceId,
+                destruction.reason === "LEGAL_HOLD_ACTIVE" ? "hold" : "immutable",
+                correlationId,
+              );
+            }
+            ctx.reportProgress({ skipped: 1 });
+            continue;
+          }
+
+          if (destruction.outcome === "ALREADY_DESTROYED") {
+            // A redelivery. The certificate for this record already exists and
+            // a second one must not be minted.
+            await prisma.destructionExecution.update({
+              where: { id: executionId },
+              data: {
+                status: "COMPLETED",
+                completedAtUtc: new Date(),
+                phase: "completing",
+              },
+            });
+            ctx.reportProgress({ skipped: 1 });
+            continue;
+          }
+
+          // The certificate the EXECUTOR minted. The orchestrator mirrors its
+          // hash; it does not compute one of its own, so the review row, the
+          // execution row and the lifecycle ledger can only ever carry the same
+          // value as the attestation that was actually earned.
+          const certificateHash = destruction.certificateHash;
 
           // Lineage = previous lifecycle ledger digest + certificate hash.
           const previousLedgerDigest = await mostRecentLifecycleLedgerDigest(
@@ -228,62 +317,24 @@ export async function runDestructionOrchestration(
           await prisma.destructionExecution.update({
             where: { id: executionId },
             data: {
-              phase: "deleting_storage",
+              status: "STORAGE_DELETED",
+              storageDeletedAtUtc: new Date(),
+              phase: "tombstoning_evidence",
               certificateHash,
               lineageHash,
             },
           });
 
-          // 4. Storage deletion is owned by the existing evidence-purge
-          //    processor. We mark the boundary and let that processor
-          //    finish; the lifecycle ledger captures the intent.
-          await prisma.destructionExecution.update({
-            where: { id: executionId },
+          // 5. The Evidence row is ALREADY tombstoned by the executor — that is
+          //    the only place the DESTROYED state is written. What is left is
+          //    the review's own terminal status.
+          await prisma.destructionReview.update({
+            where: { id: review.id },
             data: {
-              status: "STORAGE_DELETED",
-              storageDeletedAtUtc: new Date(),
-              phase: "tombstoning_evidence",
+              status: "EXECUTED",
+              executedAtUtc: new Date(),
+              certificateHash,
             },
-          });
-
-          // 5. Tombstone — flip Evidence.lifecycleState + DestructionReview.
-          await prisma.$transaction(async (tx) => {
-            await tx.evidence.update({
-              where: { id: review.evidenceId },
-              data: {
-                lifecycleState: "DESTROYED",
-                activeDestructionReviewId: null,
-              },
-            });
-            await tx.destructionReview.update({
-              where: { id: review.id },
-              data: {
-                status: "EXECUTED",
-                executedAtUtc: new Date(),
-                certificateHash,
-              },
-            });
-            await tx.evidenceLifecycleEvent.create({
-              data: {
-                teamId: review.teamId,
-                evidenceId: review.evidenceId,
-                fromState: "PENDING_DESTRUCTION",
-                toState: "DESTROYED",
-                eventType: "destruction_executed",
-                summary: "Evidence destroyed by destruction orchestrator",
-                metadata: {
-                  correlationId,
-                  destructionExecutionId: executionId,
-                  destructionReviewId: review.id,
-                  certificateHash,
-                  lineageHash,
-                  reason: review.reason,
-                  certificate: certificateBody,
-                } as unknown as prismaPkg.Prisma.InputJsonValue,
-                actorUserId: review.decidedByUserId ?? undefined,
-                requestId: correlationId.slice(0, 64),
-              },
-            });
           });
 
           await prisma.destructionExecution.update({
@@ -652,19 +703,10 @@ function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalize).join(",")}]`;
-  }
-  const entries = Object.entries(value as Record<string, unknown>).sort(
-    (a, b) => a[0].localeCompare(b[0]),
-  );
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalize(v)}`).join(",")}}`;
-}
-
-function sha256OfCanonicalJson(value: unknown): string {
-  return sha256Hex(canonicalize(value));
-}
+// `canonicalize` + `sha256OfCanonicalJson` used to live here. They were this
+// file's private copy of canonical JSON serialisation, and their only purpose
+// was minting a destruction certificate hash locally — which is precisely the
+// duplication that let this worker attest to a destruction it had not carried
+// out. The certificate is now minted once, by the canonical executor, using the
+// ONE `canonicalJsonValue` in @proovra/shared; this file mirrors the hash it
+// returns. `sha256Hex` remains: the lineage chain is still computed here.

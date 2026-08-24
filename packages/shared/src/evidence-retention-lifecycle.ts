@@ -148,9 +148,39 @@ function maxDate(a: Date | null, b: Date | null): Date | null {
 export function resolveEvidenceProductState(
   input: EvidenceRetentionLifecycleInput,
 ): EvidenceProductState {
-  if (String(input.lifecycleState ?? "").toUpperCase() === "DESTROYED" || toDate(input.destroyedAt)) {
-    return "DESTROYED";
-  }
+  // DESTROYED is terminal and is asserted two ways: the state pointer, and the
+  // physical-destruction timestamp the canonical executor writes only after it
+  // has verified the objects are gone. Either is sufficient; neither is
+  // inferred from a trash timestamp.
+  const state = String(input.lifecycleState ?? "").toUpperCase();
+  if (state === "DESTROYED" || toDate(input.destroyedAt)) return "DESTROYED";
+
+  // `lifecycle_state` IS the product-state authority once the convergence
+  // migration has run. A pointer that names a product state is taken verbatim.
+  if (state === "TRASHED") return "TRASHED";
+  if (state === "ARCHIVED") return "ARCHIVED";
+
+  // ACTIVE is deliberately NOT taken verbatim, and the asymmetry is the
+  // conservative direction. ACTIVE is the column DEFAULT, so it is also what a
+  // row reads as when nobody has set it — which makes "pointer says ACTIVE" a
+  // weaker claim than "pointer says TRASHED". If a stale projection, an
+  // un-migrated row, or a future writer that forgets the pointer leaves ACTIVE
+  // next to a trash timestamp, resolving ACTIVE would put a trashed record back
+  // on the active shelf and re-expose it. Falling through cannot: the only way
+  // to reach ACTIVE below is for every lifecycle event timestamp to be clear.
+
+  // Fallback for the cases the pointer cannot answer:
+  //
+  //   1. a GOVERNANCE-INTERNAL posture (UNDER_REVIEW / ON_HOLD /
+  //      RETENTION_LOCKED / PENDING_DESTRUCTION). Those are not product states
+  //      and deliberately survive the backfill, so the product state of such a
+  //      record still comes from its lifecycle EVENT timestamps;
+  //   2. a caller that projected only the timestamps (a list row from an older
+  //      client, a fixture, a wire payload that predates the migration).
+  //
+  // The timestamps are read here as compatibility evidence, never as a
+  // competing authority: when the pointer names a product state, this code is
+  // unreachable.
   if (toDate(input.trashedAt)) return "TRASHED";
   if (toDate(input.archivedAt)) return "ARCHIVED";
   return "ACTIVE";
@@ -273,6 +303,16 @@ export interface EvidenceLifecycleCapabilities {
   canRestoreFromTrash: boolean;
   canDestroy: boolean;
 
+  /**
+   * Why recoverable soft-trash is unavailable, or null when it is available.
+   *
+   * Distinct from `destructionBlockReason`, and the distinction is the point:
+   * a record retained until 2034 has `destructionBlockReason` set and
+   * `trashBlockReason` NULL. The UI must never render a retention deadline as
+   * a reason it cannot trash something.
+   */
+  trashBlockReason: EvidenceLifecycleBlockReason | null;
+
   trashGraceUntil: Date | null;
   appRetentionUntil: Date | null;
   objectLockRetainUntil: Date | null;
@@ -311,6 +351,28 @@ export function computeEvidenceLifecycleCapabilities(
   const trashed = productState === "TRASHED";
   const destroyed = productState === "DESTROYED";
 
+  // The trash verdict, computed once and reported both as a boolean and as a
+  // reason so no surface has to re-derive "why not".
+  //
+  // A LEGAL HOLD blocks trash; retention and Object Lock do NOT. That is not an
+  // inconsistency — the two are different kinds of obligation. A retention
+  // deadline says "these bytes must still exist on <date>", which a recoverable
+  // soft-trash does not contradict: nothing is deleted and the record restores
+  // intact. A legal hold says "preserve this record and suspend routine
+  // disposition on it", and moving a record to trash IS routine disposition —
+  // it hides the record from the working set and starts the grace clock that
+  // the reconciler later reads. Blocking it is the conservative reading, and it
+  // preserves the protection the pre-convergence code already had.
+  const trashBlockReason: EvidenceLifecycleBlockReason | null = destroyed
+    ? "TERMINAL_DESTROYED"
+    : trashed
+      ? "ALREADY_IN_STATE"
+      : locked
+        ? "EVIDENCE_LOCKED"
+        : elig.legalHold
+          ? "LEGAL_HOLD_ACTIVE"
+          : null;
+
   return {
     productState,
 
@@ -319,10 +381,12 @@ export function computeEvidenceLifecycleCapabilities(
     canArchive: active && !locked,
     canUnarchive: archived && !locked,
     // Recoverable soft-trash: allowed from the working set regardless of
-    // retention/hold; blocked only by a permanent lock or a terminal state.
-    canTrash: (active || archived) && !locked && !destroyed,
+    // retention or Object Lock; blocked only by a permanent lock, a legal hold,
+    // or a terminal state.
+    canTrash: (active || archived) && trashBlockReason === null,
     canRestoreFromTrash: trashed && !locked,
     canDestroy: elig.eligible,
+    trashBlockReason,
 
     trashGraceUntil: elig.trashGraceUntil,
     appRetentionUntil: toDate(input.appRetentionUntil),

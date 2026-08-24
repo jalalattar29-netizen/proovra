@@ -20,6 +20,13 @@ import {
 } from "./preview/extract.js";
 // PHASE 6 §9.7 (2026-07-22) — purge-time legal-hold re-check (4B holds).
 import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE destruction executor
+// and the ONE approval rule. The purge job is a trigger for them now.
+import {
+  executeEvidenceDestruction,
+  resolveDestructionApproval,
+} from "@proovra/shared-runtime";
+import { workerEvidenceDestructionStorage } from "./governance/destruction-storage-port.js";
 import {
   assertWorkspaceAllowsReportArtifact,
   assertWorkspaceAllowsVerificationPackageArtifact,
@@ -1147,28 +1154,12 @@ async function applyRetentionOrThrow(
   }
 }
 
-async function deleteObjectIfExists(params: { bucket: string; key: string }) {
-  try {
-    await deleteObject({
-      bucket: params.bucket,
-      key: params.key,
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message.toLowerCase() : "unknown_error";
-
-    if (
-      message.includes("not found") ||
-      message.includes("no such key") ||
-      message.includes("nosuchkey") ||
-      message.includes("404")
-    ) {
-      return;
-    }
-
-    throw error;
-  }
-}
+// `deleteObjectIfExists` used to live here. Its only caller was the purge
+// job's inline storage loop, which is gone: physical deletion is performed by
+// the canonical destruction executor through the injected storage port, whose
+// worker adapter (`governance/destruction-storage-port.ts`) does the same
+// not-found normalisation with a typed check instead of a substring match on an
+// error message.
 
 function buildReportLegalLimitations(): ReportLegalLimitations {
   return {
@@ -4669,30 +4660,41 @@ async function recordReportFailureIncident(input: {
   }
 }
 
-function isRetentionStillActive(retainUntilUtc: Date | null | undefined): boolean {
-  if (!retainUntilUtc) return false;
-  return retainUntilUtc.getTime() > Date.now();
-}
-
-export async function processPurgeDeletedEvidence(
-  job: Job<unknown>
-) {
+/**
+ * `PurgeDeletedEvidenceJob` — now a TRIGGER, not an executor.
+ *
+ * What this function used to be, and why none of it is left:
+ *
+ *   * it re-implemented destruction eligibility (its own retention, lock,
+ *     archive and hold checks) beside three other implementations that
+ *     disagreed with it — most visibly by SKIPPING any archived record, so an
+ *     archived-then-trashed record was never destroyed;
+ *   * it deleted the evidence, part, report and verification-package objects
+ *     but not redaction derivatives, so a "purged" record could leave a fully
+ *     readable redacted rendering behind;
+ *   * it then ran `tx.evidence.delete` and `tx.custodyEvent.deleteMany`, which
+ *     removed the row AND its custody chain. A destroyed record left no trace
+ *     that it had ever existed and no certificate that it had been destroyed —
+ *     the exact opposite of a tombstone.
+ *
+ * All of that is now `executeEvidenceDestruction` in `@proovra/shared-runtime`,
+ * shared with every other destruction trigger. What remains here is the queue
+ * contract: decode the envelope strictly, resolve the two facts the executor
+ * refuses to guess (the effective legal-hold verdict and the approval posture),
+ * call it, and translate the outcome into a reschedule, a no-op or a log line.
+ *
+ * A blocked outcome reschedules rather than fails. Every block reason this can
+ * see is a TIME boundary or a hold, and both lift on their own; a failed job
+ * would need an operator where a re-tick needs nobody.
+ */
+export async function processPurgeDeletedEvidence(job: Job<unknown>) {
   const start = Date.now();
   const requestId = randomUUID();
 
-  // PHASE 12 — POINT 5. This decoded a Phase-X.1 `QueuePayloadEnvelope`
-  // (`{ kind, idempotencyKey, body: { evidenceId }, correlationId, teamId }`)
-  // through a TOLERANT parser that synthesised whatever was missing. Two things
-  // were wrong with that for a DESTRUCTIVE job:
-  //
-  //   * tolerance is the opposite of what a hard-delete needs — a malformed or
-  //     tampered payload was repaired into a runnable command rather than
-  //     refused;
-  //   * the envelope carried a `teamId` the processor could have believed.
-  //
-  // It now goes through the same strict decoder as every other chain: unknown
-  // field, unknown version or missing reference is a counted refusal before the
-  // first database read, and the evidence row is the sole source of tenancy.
+  // PHASE 12 — POINT 5. Strict decode before the first database read: a
+  // destructive job must refuse a malformed or tampered payload rather than
+  // repair it into a runnable command, and the evidence row is the only source
+  // of tenancy.
   const decoded = decodeCanonicalJob(JOB_NAMES.PURGE_DELETED_EVIDENCE, job, {
     requestId,
   });
@@ -4715,340 +4717,133 @@ export async function processPurgeDeletedEvidence(
   try {
     const evidence = await prisma.evidence.findUnique({
       where: { id: evidenceId },
-select: {
-  id: true,
-  ownerUserId: true,
-  teamId: true,
-  // PHASE 12 POINT 3 — selected so the purge audit row can bind V3 tenant
-  // scope from the PERSISTED evidence row rather than leaving it NULL.
-  organizationId: true,
-  // PHASE 12B — a hold on ANY linked case blocks the purge (fail closed).
-  caseLinks: { select: { caseId: true } },
-  deletedAt: true,
-  deleteScheduledForUtc: true,
-  archivedAt: true,
-  lockedAt: true,
-  storageBucket: true,
-  storageKey: true,
-  storageObjectLockMode: true,
-  storageObjectLockRetainUntilUtc: true,
-},
+      select: {
+        id: true,
+        teamId: true,
+        deleteScheduledForUtc: true,
+        caseLinks: { select: { caseId: true } },
+      },
     });
 
     if (!evidence) {
       logger.info(
         ctx,
-        "PurgeDeletedEvidenceJob skipped because evidence does not exist"
+        "PurgeDeletedEvidenceJob skipped because evidence does not exist",
       );
       return;
     }
 
-    if (!evidence.deletedAt || !evidence.deleteScheduledForUtc) {
-      logger.info(
-        ctx,
-        "PurgeDeletedEvidenceJob skipped because evidence is not pending deletion"
-      );
-      return;
-    }
-
-    if (evidence.archivedAt) {
-      logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence is archived");
-      return;
-    }
-
-    if (evidence.lockedAt) {
-      logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence is locked");
-      return;
-    }
-
-    // PHASE 6 §9.7 (2026-07-22) — LEGAL HOLD PREVAILS at purge-execute
-    // time. The destruction paths re-assert holds before deleting; purge
-    // previously relied only on lockedAt/object-lock, so an application
-    // hold placed after deletion was scheduled could be purged through.
-    //
-    // PHASE 12B CLUSTER 8 — the three hand-rolled per-store lookups are
-    // replaced by THE union evaluator, which reads all three stores and
-    // FAILS CLOSED (a transient database error throws instead of reporting
-    // "no hold"). A held purge is rescheduled daily — releasing the hold
-    // lets the next tick proceed; nothing is orphaned.
-    const purgeLinkedCaseIds = (evidence.caseLinks ?? []).map((l) => l.caseId);
-    const purgeHold = await evaluateEffectiveLegalHold(prisma, {
+    // The effective hold verdict, from THE union evaluator, fail-closed: a
+    // transient database error throws rather than reporting "no hold".
+    const hold = await evaluateEffectiveLegalHold(prisma, {
       teamId: evidence.teamId ?? null,
       evidenceId: evidence.id,
-      caseIds: purgeLinkedCaseIds,
-    });
-    if (purgeHold.held) {
-      const recheckAtIso = new Date(
-        Date.now() + 24 * 60 * 60 * 1000,
-      ).toISOString();
-      await enqueueEvidencePurgeJob(evidence.id, recheckAtIso);
-      logger.info(
-        {
-          ...ctx,
-          holdKind: purgeHold.reasonCode,
-          holdSources: purgeHold.sources.join(","),
-          rescheduledFor: recheckAtIso,
-        },
-        "PurgeDeletedEvidenceJob rescheduled because evidence is under an active legal hold"
-      );
-      return;
-    }
-
-    const retentionUntilUtc = evidence.storageObjectLockRetainUntilUtc;
-
-    if (retentionUntilUtc && isRetentionStillActive(retentionUntilUtc)) {
-      const retentionUntilIso = retentionUntilUtc.toISOString();
-
-      await enqueueEvidencePurgeJob(
-        evidence.id,
-        retentionUntilIso
-      );
-
-      logger.info(
-        {
-          ...ctx,
-          retentionUntilUtc: retentionUntilIso,
-        },
-        "PurgeDeletedEvidenceJob rescheduled because storage retention is still active"
-      );
-      return;
-    }
-
-    const now = new Date();
-    if (evidence.deleteScheduledForUtc.getTime() > now.getTime()) {
-      await enqueueEvidencePurgeJob(
-        evidence.id,
-        evidence.deleteScheduledForUtc.toISOString()
-      );
-
-      logger.info(
-        {
-          ...ctx,
-          rescheduledFor: evidence.deleteScheduledForUtc.toISOString(),
-        },
-        "PurgeDeletedEvidenceJob rescheduled because delete date is still in the future"
-      );
-      return;
-    }
-
-const [parts, reports, verificationPackages] = await Promise.all([
-  prisma.evidencePart.findMany({
-    where: { evidenceId: evidence.id },
-    select: {
-      id: true,
-      storageBucket: true,
-      storageKey: true,
-      storageObjectLockRetainUntilUtc: true,
-    },
-  }),
-  prisma.report.findMany({
-    where: { evidenceId: evidence.id },
-    select: {
-      id: true,
-      storageBucket: true,
-      storageKey: true,
-      storageObjectLockRetainUntilUtc: true,
-    },
-  }),
-  prisma.verificationPackage.findMany({
-    where: { evidenceId: evidence.id },
-    select: {
-      id: true,
-      storageBucket: true,
-      storageKey: true,
-      storageObjectLockRetainUntilUtc: true,
-    },
-  }),
-]);
-
-const artifactRetentionDates = [
-  evidence.storageObjectLockRetainUntilUtc ?? null,
-  ...parts.map((item) => item.storageObjectLockRetainUntilUtc ?? null),
-  ...reports.map((item) => item.storageObjectLockRetainUntilUtc ?? null),
-  ...verificationPackages.map(
-    (item) => item.storageObjectLockRetainUntilUtc ?? null
-  ),
-].filter((value): value is Date => value instanceof Date);
-
-const latestRetentionUntilUtc =
-  artifactRetentionDates.length > 0
-    ? new Date(
-        Math.max(...artifactRetentionDates.map((value) => value.getTime()))
-      )
-    : null;
-
-if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) {
-  await enqueueEvidencePurgeJob(
-    evidence.id,
-    latestRetentionUntilUtc.toISOString()
-  );
-
-  logger.info(
-    {
-      ...ctx,
-      retentionUntilUtc: latestRetentionUntilUtc.toISOString(),
-    },
-    "PurgeDeletedEvidenceJob rescheduled because one or more stored artifacts are still under retention"
-  );
-  return;
-}
-
-    if (evidence.storageBucket && evidence.storageKey) {
-      await deleteObjectIfExists({
-        bucket: evidence.storageBucket,
-        key: evidence.storageKey,
-      });
-    }
-
-    for (const part of parts) {
-      await deleteObjectIfExists({
-        bucket: part.storageBucket,
-        key: part.storageKey,
-      });
-    }
-
-    for (const report of reports) {
-      await deleteObjectIfExists({
-        bucket: report.storageBucket,
-        key: report.storageKey,
-      });
-    }
-
-    for (const pkg of verificationPackages) {
-      await deleteObjectIfExists({
-        bucket: pkg.storageBucket,
-        key: pkg.storageKey,
-      });
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // PHASE 12 POINT 5 — LOCK the record, do not merely re-read it.
-      //
-      // Everything above this line was read outside the transaction. If a
-      // concurrent purge of the same record is in flight — which BullMQ's
-      // deterministic job id makes unlikely rather than impossible, and which
-      // a manual re-enqueue can produce — the first write below is a custody
-      // event referencing a row the other transaction is about to delete, and
-      // the job dies on a raw foreign-key violation (P2003) and retries, for
-      // work that was already correctly complete.
-      //
-      // A plain re-read does NOT fix that. At READ COMMITTED both
-      // transactions see the row, because neither has committed its delete
-      // yet. A row lock is what actually serialises them.
-      //
-      // SKIP LOCKED, not a bare FOR UPDATE. The intent was always "the loser
-      // finds nothing and returns a bounded no-op" — but a bare FOR UPDATE
-      // reaches that outcome by WAITING for the winner to commit, and that wait
-      // has no bound. PostgreSQL applies no `lock_timeout` by default, and a
-      // query already blocked on a row lock is not interrupted by Prisma's
-      // interactive-transaction timer, so the loser sits in an open transaction
-      // holding a pool connection for as long as the winner takes. On a
-      // two-core CI runner the winner's transaction — a custody event plus ten
-      // cascade deletes — is slow enough that the two losers were still blocked
-      // when the next test began, and every later write that touched those rows
-      // queued behind them. Three tests then burned the full 300s Vitest
-      // deadline each, and the failure surfaced as a timeout with no cause.
-      //
-      // SKIP LOCKED gives the SAME outcome without the wait: if another
-      // transaction holds this row, we get zero rows immediately and stand
-      // down. Exactly one worker can hold the lock, so exactly one destruction
-      // still happens; the difference is that the losers cost nothing instead
-      // of blocking. Standing down is also the conservative choice for an
-      // irreversible operation — the queue redelivers if the winner fails.
-      //
-      // This is the last check before an irreversible write, not a substitute
-      // for the queue-level claim.
-      const locked = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT "id" FROM "evidence"
-         WHERE "id" = ${evidence.id}::uuid
-           AND "deleted_at" IS NOT NULL
-         FOR UPDATE SKIP LOCKED
-      `;
-      if (locked.length === 0) return;
-
-      await appendCustodyEventTx(tx, {
-        evidenceId: evidence.id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_PURGED,
-        atUtc: now,
-        payload: {
-          purgedAtUtc: now.toISOString(),
-          deletedAtUtc: evidence.deletedAt?.toISOString() ?? null,
-        } as Prisma.InputJsonValue,
-      });
-
-      await tx.verificationView.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.verificationPackage.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.report.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.evidencePart.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.evidenceAnchor.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.evidenceCertification.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.custodyEvent.deleteMany({
-        where: { evidenceId: evidence.id },
-      });
-
-      await tx.evidence.delete({
-        where: { id: evidence.id },
-      });
+      caseIds: (evidence.caseLinks ?? []).map((l) => l.caseId),
     });
 
-    appendWorkerAuditLog({
-      userId: evidence.ownerUserId,
-      // PHASE 12 POINT 3 — V3 binds tenant scope INTO the hash. Taken from the
-      // persisted evidence row being audited, never from ambient context.
-      organizationId: evidence.organizationId ?? null,
-      workspaceId: evidence.teamId ?? null,
-      action: "evidence.purged",
-      category: "evidence",
-      severity: "warning",
-      source: "worker_purge",
-      outcome: "success",
-      resourceType: "evidence",
-      resourceId: evidence.id,
-      requestId,
-      metadata: {
-        evidenceId: evidence.id,
-        deletedAtUtc: evidence.deletedAt.toISOString(),
-        purgedAtUtc: now.toISOString(),
-      },
-    }).catch(() => null);
+    // Does this record need an approved destruction, and does it have one?
+    // Resolved by the ONE shared rule, fail-closed. This job is the AUTOMATIC
+    // path: it carries no approval of its own, so a workspace record without an
+    // approved review is refused here and only the governance pipeline can move
+    // it forward.
+    const approval = await resolveDestructionApproval(prisma, {
+      evidenceId: evidence.id,
+      teamId: evidence.teamId ?? null,
+    });
 
-    const durationMs = Date.now() - start;
-
-    logger.info(
+    const result = await executeEvidenceDestruction(
+      prisma,
       {
-        ...withJobContext({
-          requestId,
-          jobId: job.id,
-          evidenceId,
-          attempt: job.attemptsMade + 1,
-          durationMs,
-          status: "purged",
-        }),
+        evidenceId: evidence.id,
+        trigger: "purge_job",
+        legalHold: hold.held,
+        destructionApprovalRequired: approval.required,
+        destructionApproved: approval.approved,
+        destructionReviewId: approval.destructionReviewId,
+        correlationId: decoded.traceId || null,
       },
-      "PurgeDeletedEvidenceJob completed"
+      workerEvidenceDestructionStorage,
     );
+
+    if (result.ok && result.outcome === "DESTROYED") {
+      appendWorkerAuditLog({
+        userId: null,
+        organizationId: null,
+        workspaceId: evidence.teamId ?? null,
+        action: "evidence.destroyed",
+        category: "evidence",
+        severity: "warning",
+        source: "worker_purge",
+        outcome: "success",
+        resourceType: "evidence",
+        resourceId: evidence.id,
+        requestId,
+        metadata: {
+          evidenceId: evidence.id,
+          certificateHash: result.certificateHash,
+          destroyedObjectCount: result.destroyedObjectCount,
+        },
+      }).catch(() => null);
+
+      logger.info(
+        {
+          ...withJobContext({
+            requestId,
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            durationMs: Date.now() - start,
+            status: "destroyed",
+          }),
+          certificateHash: result.certificateHash,
+          destroyedObjectCount: result.destroyedObjectCount,
+        },
+        "PurgeDeletedEvidenceJob completed",
+      );
+      return;
+    }
+
+    if (result.ok) {
+      logger.info(ctx, "PurgeDeletedEvidenceJob skipped: already destroyed");
+      return;
+    }
+
+    if (result.outcome === "BLOCKED") {
+      // Re-tick at the boundary the executor named when it is a date we know,
+      // otherwise daily. Nothing is orphaned: releasing the hold or passing the
+      // deadline lets the next tick proceed.
+      const recheckAt =
+        evidence.deleteScheduledForUtc &&
+        evidence.deleteScheduledForUtc.getTime() > Date.now()
+          ? evidence.deleteScheduledForUtc
+          : new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await enqueueEvidencePurgeJob(evidence.id, recheckAt.toISOString());
+      logger.info(
+        { ...ctx, blockReason: result.reason, rescheduledFor: recheckAt.toISOString() },
+        "PurgeDeletedEvidenceJob rescheduled: destruction is not yet permitted",
+      );
+      return;
+    }
+
+    if (result.outcome === "CLAIM_HELD" || result.outcome === "NOT_FOUND") {
+      logger.info(
+        { ...ctx, outcome: result.outcome },
+        "PurgeDeletedEvidenceJob stood down",
+      );
+      return;
+    }
+
+    // Storage refused, or an object survived the delete. The record is back in
+    // TRASHED, uncertified and undestroyed. This IS a failure — it needs the
+    // queue's retry and an operator's eyes, and it must never look like a
+    // completed destruction.
+    logger.error(
+      { ...ctx, outcome: result.outcome, failedKeys: result.failedKeys },
+      "PurgeDeletedEvidenceJob failed: storage deletion could not be verified",
+    );
+    throw new Error(result.outcome);
   } catch (error) {
     captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
-
-    const durationMs = Date.now() - start;
 
     logger.error(
       {
@@ -5057,12 +4852,12 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
           jobId: job.id,
           evidenceId,
           attempt: job.attemptsMade + 1,
-          durationMs,
+          durationMs: Date.now() - start,
           status: "failed",
         }),
         err: error,
       },
-      "PurgeDeletedEvidenceJob failed"
+      "PurgeDeletedEvidenceJob failed",
     );
 
     throw error;
