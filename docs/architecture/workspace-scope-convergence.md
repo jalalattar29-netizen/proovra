@@ -1,7 +1,9 @@
 # Workspace-scope and Operations data convergence
 
-Branch: `fix/workspace-scope-convergence`, cut from `09767811`, integrated onto
-`origin/main` at `6e1fbfc7`.
+Branch: `fix/workspace-scope-convergence`, cut from `09767811`, rebased onto
+`origin/main` at `9d902eea`. Developed in an isolated worktree
+(`git worktree add`) so the Evidence retention-lifecycle work landing in
+parallel on `main` was never carried into these commits and never disturbed.
 
 ---
 
@@ -157,6 +159,17 @@ as evidence of shared causation, and closing a group is not an operation.
   and were inverted.
 * **Direct timestamp formatting in new UI**, caught by the shared timestamp
   policy guard before it shipped.
+* **The grouped projection had no production consumer** — 15 passing tests over
+  dead code, caught by the reachability verifier. It is now built inside
+  `buildOperationsSummary` from the same scan the counters use, so conservation
+  is true by construction.
+* **`GET /v1/teams` read as tenant-UNBOUND after conversion.** The binding got
+  stricter and the instrument reported it weaker, because
+  `capability-authority/tenant-binding.mjs` matched tenant COLUMN NAMES and the
+  canonical helper removes the literal name. The analyzer now recognises the
+  helpers; `TenantBindingUnresolved` is back to 0.
+* **The facts artifact pinned a stale inventory hash**, so every audit run
+  re-dirtied the tree — caught by `phase-0-audit-self-reference`.
 * **An index referencing a column created in the same migration**, caught by the
   migration safety gate; now wrapped in a column-existence guard naming every
   column it touches, because a partial guard proves nothing.
@@ -181,7 +194,7 @@ migration-free but behaviour-visible risk.
 | `verify-workspace-scope-authorities.mjs` | CLEAN — 0 violations, 4 reviewed exceptions |
 | `verify-operations-authorities.mjs` | CLEAN — 11/11 authority audits |
 | `migration-risk-scan.mjs` | both migrations SAFE / WARNING, 0 blocking, 0 destructive |
-| API unit | 22,767 tests |
+| API unit | 22,857 tests |
 | API integration (live PG 16) | full project |
 | Worker | 877 |
 | Web render | operations workbench incl. 7 new state cases |
