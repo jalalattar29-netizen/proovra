@@ -191,6 +191,12 @@ function makeClient(seed: {
       }),
     },
     team: {
+      // WORKSPACE-SCOPE CONVERGENCE — the canonical scope authority resolves
+      // the workspace's kind and owner before any Evidence/Case read, so the
+      // mock must answer this too. NON-personal, which keeps every assertion
+      // below meaning exactly what it meant: a shared workspace's scope IS
+      // the strict `{ teamId }` filter these tests were written for.
+      findUnique: async () => ({ isPersonal: false, ownerUserId: null }),
       findMany: vi.fn(async ({ where }: WhereArgs) => {
         return teams
           .filter((t) => t.organizationId === where?.organizationId && !t.isPersonal)

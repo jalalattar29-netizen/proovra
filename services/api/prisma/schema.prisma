@@ -6680,9 +6680,55 @@ enum IncidentCategory {
 // fingerprint is the dedup key (`category:safeKey`). Subsequent
 // occurrences increment `occurrenceCount` and refresh `lastSeenAtUtc`
 // instead of creating a new row.
+/// WORKSPACE-SCOPE CONVERGENCE — what a NULL `team_id` MEANS.
+///
+/// `OperationalIncident.team_id` is nullable and, until this enum existed, that
+/// one absence carried two incompatible meanings:
+///
+///   * an incident that belongs to no tenant (an account-tier security event
+///     recorded before any workspace was resolved), and
+///   * an ORPHAN — the `team` relation is `onDelete: SetNull`, so deleting a
+///     workspace silently rewrites its incidents into the same NULL bucket.
+///
+/// Four tenant surfaces read `OR: [{ teamId: X }, { teamId: null }]` to pick up
+/// the first kind, and therefore also picked up every other tenant's orphans.
+/// The overload is the defect; a discriminator is the fix.
+///
+/// The backfill deliberately claims NOTHING as PLATFORM. This codebase has no
+/// writer that records a deliberate platform-wide incident — the only producer
+/// of a NULL team id is `security-event.service.ts`, whose `input.teamId ?? null`
+/// is an account-tier event, not a platform declaration. Guessing PLATFORM from
+/// a NULL would be inventing the very intent the column exists to record, so
+/// every existing NULL row becomes LEGACY_UNSCOPED and stays out of tenant
+/// surfaces until somebody classifies it deliberately.
+enum IncidentScope {
+  /// Belongs to exactly one workspace. `team_id` is NOT NULL for these.
+  WORKSPACE
+
+  /// A deliberate platform-wide condition, visible ONLY through protected
+  /// platform authorities and never through a tenant surface. Written only by
+  /// an explicit caller; never inferred.
+  PLATFORM
+
+  /// A NULL-team row whose intent cannot be proven: an orphan of a deleted
+  /// workspace, or an account-tier event that predates this column. Invisible
+  /// in every tenant surface AND in the platform surface. Retained, never
+  /// deleted — the audit history of a condition survives the loss of its
+  /// workspace.
+  LEGACY_UNSCOPED
+}
+
 model OperationalIncident {
   id     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String? @map("team_id") @db.Uuid
+
+  /// The explicit scope discriminator. See `IncidentScope`.
+  ///
+  /// Defaults to WORKSPACE because that is what every incident with a
+  /// `team_id` is, and a workspace-scoped write is overwhelmingly the common
+  /// case. `recordIncident` sets it from the resolved team id rather than
+  /// relying on the default, so a NULL-team write can never land as WORKSPACE.
+  scope IncidentScope @default(WORKSPACE)
 
   category IncidentCategory
   severity IncidentSeverity @default(WARNING)
@@ -6753,6 +6799,15 @@ model OperationalIncident {
   @@index([lastSeenAtUtc(sort: Desc)])
   @@index([status])
   @@index([assignedOperatorUserId])
+  // WORKSPACE-SCOPE CONVERGENCE — every tenant read is now
+  // `(scope = WORKSPACE AND team_id = :workspace)`, so the discriminator leads
+  // the index. The platform surface reads `scope` alone, which this also
+  // serves. EXPLICIT name: Prisma's default would be
+  // `operational_incidents_scope_team_id_status_idx` (48 bytes) which is
+  // within PostgreSQL's limit, but the SLA-cycle indexes above show what
+  // happens when it is not, and naming it here keeps clean-DB creation and the
+  // shipped migration producing identical names for `db:raw-schema-verify`.
+  @@index([scope, teamId, status], map: "operational_incidents_scope_team_status_idx")
   @@map("operational_incidents")
 }
 
@@ -8597,6 +8652,21 @@ enum GovernanceReconciliationKind {
   /// deliberately: a second run table would be a second lock, and two locks
   /// over one population exclude nothing.
   SEARCH_INDEX
+
+  /// WORKSPACE-SCOPE CONVERGENCE — discovery of a workspace's operational
+  /// conditions, on a schedule.
+  ///
+  /// Joins this authority for the same reason SEARCH_INDEX did. Operations
+  /// discovery previously ran ONLY as a lazy side effect of somebody opening
+  /// Home, which meant a workspace nobody visited was never scanned and its
+  /// Operations page rendered "clear" — not because it was, but because
+  /// nothing had ever looked. Making it a scheduled run needs exactly what
+  /// this table already provides: one durable lock per workspace (the partial
+  /// unique index on `(kind, lock_key) WHERE status = 'RUNNING'`), a lease so
+  /// a crashed sweep frees its slot, terminal SUCCEEDED/FAILED/PARTIAL states,
+  /// and append-only history. A second run table would be a second lock, and
+  /// two locks over one workspace exclude nothing.
+  WORKSPACE_OPERATIONS
 }
 
 enum GovernanceReconciliationStatus {

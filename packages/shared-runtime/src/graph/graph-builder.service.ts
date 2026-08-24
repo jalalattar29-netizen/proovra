@@ -43,6 +43,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { getRegisteredPrisma } from "../prisma-registry.js";
+import { workspaceEvidenceWhere } from "../workspace-scope.js";
 import { bump } from "../ops/metrics.service.js";
 import type { GraphEdgeType, GraphNodeKind, GraphVisibilityScope } from "./graph-catalog.js";
 
@@ -139,6 +140,11 @@ export async function reconcileTeamGraph(
   client: PrismaClient = getRegisteredPrisma(),
   hooks: ReconcileTeamGraphHooks = {},
 ): Promise<ReconcileResult> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(teamId, client);
   bump("graph_reconcile_started_total");
   let nodesUpserted = 0;
   let edgesUpserted = 0;
@@ -146,7 +152,7 @@ export async function reconcileTeamGraph(
   try {
     // 1. Materialize EVIDENCE nodes for every Evidence row in this team.
     const evidence = await client.evidence.findMany({
-      where: { teamId, deletedAt: null },
+      where: { AND: [scope], deletedAt: null },
       select: {
         id: true,
         type: true,

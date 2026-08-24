@@ -41,6 +41,10 @@ import {
   resolveActiveWorkspace,
   type JobLike,
 } from "./canonical-job.js";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 /**
  * PHASE 12 — POINT 5: the shared preamble for the workspace-scoped subsystem
@@ -613,6 +617,17 @@ export async function processOrgHealthRefreshJob(
   );
   if (!ctx) return;
   const teamId = ctx.workspaceId;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace populations.
+  //
+  // This job writes the projection Home reads. Before this, it counted with a
+  // strict `teamId` equality while Home's live aggregator counted through the
+  // canonical scope, so a personal workspace saw one number from the cached
+  // projection and a larger one the moment the projection went stale and the
+  // live path took over. Both now read the same population.
+  const [scope, caseScope] = await Promise.all([
+    workspaceEvidenceWhere(teamId),
+    workspaceCaseWhere(teamId),
+  ]);
   logger.info(
     {
       requestId: ctx.requestId,
@@ -645,13 +660,13 @@ export async function processOrgHealthRefreshJob(
       pendingReportCount,
       pendingPackageCount,
     ] = await Promise.all([
-      prisma.evidence.count({ where: { teamId, deletedAt: null } }),
-      prisma.case.count({ where: { teamId } }),
+      prisma.evidence.count({ where: { AND: [scope], deletedAt: null } }),
+      prisma.case.count({ where: { AND: [caseScope] } }),
       prisma.evidence.count({
-        where: { teamId, deletedAt: null, reports: { none: {} } },
+        where: { AND: [scope], deletedAt: null, reports: { none: {} } },
       }),
       prisma.evidence.count({
-        where: { teamId, deletedAt: null, verificationPackages: { none: {} } },
+        where: { AND: [scope], deletedAt: null, verificationPackages: { none: {} } },
       }),
     ]);
 

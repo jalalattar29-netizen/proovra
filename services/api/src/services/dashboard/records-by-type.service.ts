@@ -38,7 +38,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
-import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 export type RecordsByTypeResponse = {
   /** Evidence-row aggregation — the canonical "Records by type" donut. */
@@ -50,7 +50,7 @@ export type RecordsByTypeResponse = {
 export async function buildRecordsByType(input: {
   teamId: string;
 }): Promise<RecordsByTypeResponse> {
-  const scopeWhere = await workspaceEvidenceWhere(input.teamId);
+  const scopeWhere = await workspaceEvidenceWhere(input.teamId, prisma);
 
   // RECORDS — every active Evidence row's (mimeType, type, captureMethod).
   // Single bounded query: only the three columns the classifier reads.

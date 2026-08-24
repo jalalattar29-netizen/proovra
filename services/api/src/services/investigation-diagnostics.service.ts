@@ -40,6 +40,10 @@ import {
   resolveProducerModeStatuses,
   type ProducerModeStatus,
 } from "@proovra/shared-runtime/media-intelligence";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 // ---------------------------------------------------------------------------
 // Public envelope shape
@@ -245,6 +249,14 @@ async function buildWorkspaceCounts(
   prisma: PrismaClient,
   warnings: string[],
 ): Promise<InvestigationDiagnosticsWorkspace> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const [scope, caseScope] = await Promise.all([
+    workspaceEvidenceWhere(teamId),
+    workspaceCaseWhere(teamId),
+  ]);
   const out: InvestigationDiagnosticsWorkspace = {
     evidenceCount: 0,
     finalizedEvidenceCount: 0,
@@ -278,13 +290,13 @@ async function buildWorkspaceCounts(
 
   // Evidence + finalized (SIGNED|REPORTED) + parts.
   try {
-    out.evidenceCount = await prisma.evidence.count({ where: { teamId } });
+    out.evidenceCount = await prisma.evidence.count({ where: { AND: [scope] } });
   } catch {
     warnings.push("evidence_count_unavailable");
   }
   try {
     out.finalizedEvidenceCount = await prisma.evidence.count({
-      where: { teamId, status: { in: ["SIGNED", "REPORTED"] } },
+      where: { AND: [scope], status: { in: ["SIGNED", "REPORTED"] } },
     });
   } catch {
     warnings.push("finalized_evidence_count_unavailable");
@@ -292,7 +304,9 @@ async function buildWorkspaceCounts(
   try {
     // EvidencePart has no direct teamId — count via Evidence join.
     out.evidencePartCount = await prisma.evidencePart.count({
-      where: { evidence: { teamId } },
+      // Scoped through the canonical Evidence population, not a raw teamId:
+      // a part belongs to the workspace its Evidence belongs to.
+      where: { evidence: scope },
     });
   } catch {
     warnings.push("evidence_part_count_unavailable");
@@ -300,7 +314,7 @@ async function buildWorkspaceCounts(
 
   // Cases + case→evidence links.
   try {
-    out.caseCount = await prisma.case.count({ where: { teamId } });
+    out.caseCount = await prisma.case.count({ where: { AND: [caseScope] } });
   } catch {
     warnings.push("case_count_unavailable");
   }
@@ -316,7 +330,9 @@ async function buildWorkspaceCounts(
   // Custody journal — no direct team_id; route via evidence.team_id.
   try {
     out.custodyEventCount = await prisma.custodyEvent.count({
-      where: { evidence: { teamId } },
+      // Scoped through the canonical Evidence population, not a raw teamId:
+      // a part belongs to the workspace its Evidence belongs to.
+      where: { evidence: scope },
     });
   } catch {
     warnings.push("custody_event_count_unavailable");
@@ -509,7 +525,9 @@ async function buildWorkspaceCounts(
   }
   try {
     out.extractedTextCount = await prisma.evidenceExtractedText.count({
-      where: { evidence: { teamId } },
+      // Scoped through the canonical Evidence population, not a raw teamId:
+      // a part belongs to the workspace its Evidence belongs to.
+      where: { evidence: scope },
     });
   } catch {
     warnings.push("extracted_text_count_unavailable");
@@ -540,7 +558,9 @@ async function buildWorkspaceCounts(
   // Entities — extracted-entity surface (Phase 13).
   try {
     out.entityCount = await prisma.evidenceEntity.count({
-      where: { evidence: { teamId } },
+      // Scoped through the canonical Evidence population, not a raw teamId:
+      // a part belongs to the workspace its Evidence belongs to.
+      where: { evidence: scope },
     });
   } catch {
     warnings.push("entity_count_unavailable");
@@ -573,14 +593,18 @@ async function buildWorkspaceCounts(
   // Reports + verification packages.
   try {
     out.reportCount = await prisma.report.count({
-      where: { evidence: { teamId } },
+      // Scoped through the canonical Evidence population, not a raw teamId:
+      // a part belongs to the workspace its Evidence belongs to.
+      where: { evidence: scope },
     });
   } catch {
     warnings.push("report_count_unavailable");
   }
   try {
     out.verificationPackageCount = await prisma.verificationPackage.count({
-      where: { evidence: { teamId } },
+      // Scoped through the canonical Evidence population, not a raw teamId:
+      // a part belongs to the workspace its Evidence belongs to.
+      where: { evidence: scope },
     });
   } catch {
     warnings.push("verification_package_count_unavailable");

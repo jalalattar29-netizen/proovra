@@ -212,9 +212,20 @@ describe("E4 Test 3 — analytics service source contract", () => {
     const countCalls = SERVICE.match(/\.count\(\{[\s\S]*?\}\)/g) ?? [];
     expect(countCalls.length).toBeGreaterThanOrEqual(15);
     for (const c of countCalls) {
-      // Either teamId is filtered directly OR scoped through evidence.teamId
-      // (Report + VerificationPackage path — those models have no teamId column).
-      const ok = /teamId/.test(c) || /evidence:\s*\{\s*teamId/.test(c);
+      // A count is bounded when it names one of:
+      //   * the canonical workspace scope (`scope` / `caseScope`), which is
+      //     what the two mixed-ownership models MUST use — a bare `teamId`
+      //     equality on Evidence or Case omits a personal workspace's legacy
+      //     NULL-team rows, so accepting one here would have kept passing
+      //     while the numbers were wrong;
+      //   * a strict `teamId`, correct for the models whose column is NOT
+      //     NULL (ReviewEscalation, TeamMember);
+      //   * a relation into either of the above (Report and VerificationPackage
+      //     have no workspace column of their own).
+      const ok =
+        /\bAND:\s*\[\s*(scope|caseScope)\b/.test(c) ||
+        /\bevidence:\s*(scope|\{)/.test(c) ||
+        /teamId/.test(c);
       expect(ok, `count call without team scope: ${c.slice(0, 120)}`).toBe(true);
     }
   });

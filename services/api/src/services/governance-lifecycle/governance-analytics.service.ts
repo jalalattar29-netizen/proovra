@@ -30,6 +30,9 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 export type GovernanceAnalyticsResult = {
   generatedAtUtc: string;
@@ -74,6 +77,11 @@ export async function computeGovernanceAnalytics(
   input: { teamId: string; window?: AnalyticsWindow },
   client: PrismaClient = defaultPrisma,
 ): Promise<GovernanceAnalyticsResult> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, client);
   const window = normalizeWindow(input.window);
   const windowMs = analyticsWindowToMilliseconds(window);
   const since = new Date(Date.now() - windowMs);
@@ -126,7 +134,7 @@ export async function computeGovernanceAnalytics(
     }),
     client.evidence.count({
       where: {
-        teamId: input.teamId,
+        AND: [scope],
         retentionUntilUtc: { gte: since, lt: new Date(Date.now() + windowMs) },
       },
     }),
@@ -213,7 +221,7 @@ export async function computeGovernanceAnalytics(
     }),
     client.evidence.groupBy({
       by: ["lifecycleState"],
-      where: { teamId: input.teamId },
+      where: { AND: [scope] },
       _count: { _all: true },
     }),
     client.destructionReview.groupBy({

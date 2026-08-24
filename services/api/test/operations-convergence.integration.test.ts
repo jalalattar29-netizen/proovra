@@ -142,7 +142,7 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
   /** What Home would count for this workspace, via the canonical authority. */
   async function homeFailingCount(teamId: string) {
     const { workspaceEvidenceWhere } = await import(
-      "../src/services/workspace-personal-scope.service.js"
+      "@proovra/shared-runtime"
     );
     const scope = await workspaceEvidenceWhere(teamId);
     return prisma.evidence.count({

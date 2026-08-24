@@ -58,6 +58,7 @@ import {
 } from "../reviewer-ops/reviewer-operations-engine.service.js";
 import { snapshotWorkspaceWorkload } from "../reviewer-ops/workload.service.js";
 import { recordIncident } from "../observability/incident.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -429,11 +430,16 @@ async function findSeedableEvidence(
   needed: number,
   client: PrismaClient,
 ): Promise<Array<{ id: string }>> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(teamId, client);
   // Use existing Evidence with no review workflow yet, so we never
   // disturb production rows that already entered review.
   return client.evidence.findMany({
     where: {
-      teamId,
+      AND: [scope],
       reviewWorkflow: null,
       deletedAt: null,
     },

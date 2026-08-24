@@ -106,9 +106,13 @@ describe("Phase HOME-RECORDS-BY-TYPE — backend service", () => {
   });
 
   it("uses workspaceEvidenceWhere for personal-team scope parity with trust-summary", () => {
-    expect(SERVICE).toMatch(
-      /from\s*["']\.\.\/workspace-personal-scope\.service\.js["']/,
-    );
+    // WORKSPACE-SCOPE CONVERGENCE — the authority moved from
+    // `services/api/src/services/workspace-personal-scope.service.ts` into
+    // `@proovra/shared-runtime`, because the Worker reads these same
+    // populations and could not import from the API. The assertion follows
+    // the authority; what it pins is unchanged — this service must consume
+    // the shared rule rather than write its own.
+    expect(SERVICE).toMatch(/from\s*["']@proovra\/shared-runtime["']/);
     expect(SERVICE).toMatch(/await\s+workspaceEvidenceWhere\(/);
   });
 

@@ -29,6 +29,7 @@ import {
   PROOVRA_SPAN_NAMES,
   withProovraSpan,
 } from "../../observability/otel.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 export type RunSiuPreflightInput = {
   caseId: string;
@@ -48,6 +49,11 @@ export async function runSiuExportPreflight(
 async function runSiuExportPreflightInner(
   input: RunSiuPreflightInput,
 ): Promise<SiuPreflightResult | null> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   const profile = await loadSiuProfile({
     caseId: input.caseId,
     teamId: input.teamId,
@@ -77,7 +83,7 @@ async function runSiuExportPreflightInner(
   const evidence = await prisma.evidence.findMany({
     where: {
       caseLinks: { some: { caseId: input.caseId } },
-      teamId: input.teamId,
+      AND: [scope],
     },
     select: {
       id: true,

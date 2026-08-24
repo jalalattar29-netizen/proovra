@@ -34,6 +34,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  scopeForWorkspaceId,
+  workspaceIncidentWhere,
+} from "./incident-scope.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeJsonSnapshot } from "./redact.js";
@@ -113,6 +117,11 @@ export async function recordIncident(
     row = await client.operationalIncident.create({
       data: {
         teamId: input.teamId ?? null,
+        // WORKSPACE-SCOPE CONVERGENCE — the scope is DERIVED here, never
+        // defaulted. Relying on the column default would write WORKSPACE onto
+        // a NULL-team row, which is precisely the contradiction the
+        // discriminator exists to make impossible.
+        scope: scopeForWorkspaceId(input.teamId),
         category: input.category as prismaPkg.IncidentCategory,
         severity: input.severity as prismaPkg.IncidentSeverity,
         status: prismaPkg.IncidentStatus.OPEN,
@@ -331,7 +340,7 @@ export async function assignIncident(
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalIncident> {
   const existing = await client.operationalIncident.findFirst({
-    where: { id: input.incidentId, teamId: input.teamId },
+    where: { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
   });
   if (!existing) throw new IncidentError("incident_not_found");
   // Captured BEFORE the write, so the audit event can record what the
@@ -399,7 +408,7 @@ async function transitionIncident(
   client: PrismaClient,
 ): Promise<prismaPkg.OperationalIncident> {
   const existing = await client.operationalIncident.findFirst({
-    where: { id: input.incidentId, teamId: input.teamId },
+    where: { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
   });
   if (!existing) throw new IncidentError("incident_not_found");
   if (
@@ -708,7 +717,11 @@ export async function listIncidents(
   const q = input.q?.trim() ?? "";
   const rows = await client.operationalIncident.findMany({
     where: {
-      teamId: input.teamId,
+      // WORKSPACE-SCOPE CONVERGENCE — the canonical tenant predicate. It pins
+      // `scope = WORKSPACE` as well as the workspace id, so a platform
+      // incident and an unclassified orphan are both outside this list by
+      // construction rather than by a filter somebody has to remember.
+      ...workspaceIncidentWhere(input.teamId),
       ...slaWhere(input.sla ?? null, input.now ?? new Date()),
       ...(input.status ? { status: input.status as prismaPkg.IncidentStatus } : {}),
       ...(input.severity ? { severity: input.severity as prismaPkg.IncidentSeverity } : {}),
@@ -864,7 +877,7 @@ export async function getIncidentDetail(
   // belongs to another workspace is not found here at all, so there is no
   // branch that could be reordered into leaking its existence.
   const incident = await client.operationalIncident.findFirst({
-    where: { id: input.incidentId, teamId: input.teamId },
+    where: { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
   });
   if (!incident) return null;
 

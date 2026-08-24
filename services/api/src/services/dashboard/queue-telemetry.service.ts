@@ -21,6 +21,9 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 export type QueueTelemetryDomain =
   | "REPORT"
@@ -98,6 +101,11 @@ export async function recordQueueTelemetrySnapshot(input: {
 export async function recordDbDerivedSnapshotsForWorkspace(input: {
   teamId: string;
 }): Promise<{ persisted: number; failed: number }> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   let persisted = 0;
   let failed = 0;
 
@@ -127,7 +135,7 @@ export async function recordDbDerivedSnapshotsForWorkspace(input: {
   try {
     const waiting = await prisma.evidence.count({
       where: {
-        teamId: input.teamId,
+        AND: [scope],
         status: "SIGNED",
         latestReportVersion: null,
       },
@@ -150,7 +158,7 @@ export async function recordDbDerivedSnapshotsForWorkspace(input: {
   try {
     const waiting = await prisma.evidence.count({
       where: {
-        teamId: input.teamId,
+        AND: [scope],
         status: "REPORTED",
         verificationPackageVersion: null,
       },

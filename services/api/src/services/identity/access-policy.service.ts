@@ -72,6 +72,23 @@ export type MemberAccessSnapshot = {
   // CUSTOMER-org lifecycle. Team.organizationId is NOT NULL in the schema, so
   // production always loads the org.
   workspaceKind: ResolvedWorkspaceKind;
+  /**
+   * WORKSPACE-SCOPE CONVERGENCE — the workspace's OWNER, loaded alongside the
+   * facts the decision already rests on.
+   *
+   * A PERSONAL workspace has exactly one owner, and that owner's id is what
+   * binds the legacy `team_id IS NULL` rows to it. Reads that need the
+   * canonical workspace scope previously re-read the Team row for this on
+   * every call (`resolvePersonalScope`); carrying it on the snapshot the
+   * authorization chain ALREADY loaded means the scope is derived from the
+   * same proven row as the permission, in the same round trip, and cannot
+   * drift from it between the two reads.
+   *
+   * Null for a workspace with no owner recorded. It is NEVER used as an
+   * authorization input — only to bound a read that membership has already
+   * authorized.
+   */
+  workspaceOwnerUserId: string | null;
   organizationStatus: string | null;
   // PHASE 12 REMEDIATION (2026-08-06) — the parent Organization's IDENTITY,
   // additive alongside its lifecycle `organizationStatus`. Required so the
@@ -345,6 +362,10 @@ export async function loadMemberAccessSnapshot(
           workspaceKind: true,
           billingPlan: true,
           organizationId: true,
+          // WORKSPACE-SCOPE CONVERGENCE — the owner id that binds a personal
+          // workspace's legacy NULL-team rows. Selected here so the canonical
+          // scope and the canonical permission come from ONE read of ONE row.
+          ownerUserId: true,
           organization: { select: { status: true } },
         },
       },
@@ -373,6 +394,7 @@ export async function loadMemberAccessSnapshot(
       workspaceKind?: string | null;
       billingPlan?: string | null;
       organizationId?: string | null;
+      ownerUserId?: string | null;
       organization?: { status?: string | null } | null;
     } | null;
   }).team;
@@ -389,6 +411,7 @@ export async function loadMemberAccessSnapshot(
       billingPlan: team?.billingPlan ?? null,
       teamLoaded: team != null,
     }),
+    workspaceOwnerUserId: team?.ownerUserId ?? null,
     organizationStatus: team?.organization?.status ?? null,
     organizationId: team?.organizationId ?? null,
     capabilityGrants: row.capabilityGrants.map((g) => ({

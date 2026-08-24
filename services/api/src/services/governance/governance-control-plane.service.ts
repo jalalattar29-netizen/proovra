@@ -20,6 +20,9 @@
 
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -153,6 +156,11 @@ export async function buildGovernanceControlPlane(input: {
   userId: string;
   role: string;
 }): Promise<GovernanceControlPlaneEnvelope> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical Evidence population.
+  // Named `evidenceScope` because `scope` in this module already means the
+  // SINGLE_OCCUPANT/SHARED display density, and one name for two facts is
+  // how the wrong one gets passed.
+  const evidenceScope = await workspaceEvidenceWhere(input.teamId, prisma);
   const memberCount = await prisma.teamMember.count({
     where: { teamId: input.teamId, status: "ACTIVE" },
   });
@@ -409,8 +417,7 @@ export async function buildGovernanceControlPlane(input: {
     });
     // Recent package-blocked metadata (bounded sample).
     const recent = await prisma.evidence.findMany({
-      where: {
-        teamId: input.teamId,
+      where: { AND: [evidenceScope],
         status: { in: ["SIGNED", "REPORTED"] },
         verificationPackageMetadata: { not: prismaPkg.Prisma.JsonNull },
       },

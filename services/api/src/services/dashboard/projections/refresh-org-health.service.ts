@@ -22,6 +22,10 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../../db.js";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 export type OrgHealthProjectionRow = {
   teamId: string;
@@ -72,19 +76,32 @@ export async function refreshOrgHealthProjection(
     throw new Error("refreshOrgHealthProjection requires a teamId");
   }
   const teamId = input.teamId;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace populations,
+  // resolved once for every count below, on THIS function's client.
+  //
+  // This projection is written by the Worker and read by Home. A strict
+  // `teamId` equality here omitted a personal workspace's legacy NULL-team
+  // rows, so the projection carried a smaller evidence and case count than
+  // the page that reads the same workspace directly — one workspace, two
+  // numbers, and the smaller one presented as settled fact.
+  const [scope, caseScope] = await Promise.all([
+    workspaceEvidenceWhere(teamId, client),
+    workspaceCaseWhere(teamId, client),
+  ]);
   const sampledAtUtc = orgHealthSampleBucket();
 
-  // Each count below is bounded by teamId. No cross-tenant join is
-  // possible. The counts use Prisma's `.count` so the SQL is a single
-  // aggregate per metric.
+  // Each count below is bounded by the canonical workspace population. No
+  // cross-tenant join is possible: the only widening arm is conjoined with
+  // this workspace's single owner. The counts use Prisma's `.count` so the
+  // SQL is a single aggregate per metric.
   const [
     evidenceCount,
     caseCount,
     pendingReportCount,
     pendingPackageCount,
   ] = await Promise.all([
-    client.evidence.count({ where: { teamId, deletedAt: null } }),
-    client.case.count({ where: { teamId } }),
+    client.evidence.count({ where: { AND: [scope], deletedAt: null } }),
+    client.case.count({ where: { AND: [caseScope] } }),
     // Phase HOME-TRUTH-FIX — "Pending" must be scoped to evidence that
     // has finished the upload+signature pipeline. Pre-SIGNED evidence
     // (CREATED / UPLOADING / UPLOADED / FAILED_HASH_MISMATCH) is not
@@ -96,7 +113,7 @@ export async function refreshOrgHealthProjection(
     // arithmetic (which IS correctly status-scoped).
     client.evidence.count({
       where: {
-        teamId,
+        AND: [scope],
         deletedAt: null,
         status: { in: ["SIGNED", "REPORTED"] as never },
         reports: { none: {} },
@@ -108,7 +125,7 @@ export async function refreshOrgHealthProjection(
     // package; they have not yet reached the package-generation stage.
     client.evidence.count({
       where: {
-        teamId,
+        AND: [scope],
         deletedAt: null,
         status: "REPORTED" as never,
         verificationPackages: { none: {} },

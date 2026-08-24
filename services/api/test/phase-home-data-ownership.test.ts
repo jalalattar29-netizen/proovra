@@ -50,19 +50,29 @@ function readSource(rel: string): string {
 
 const teamFindUnique = vi.fn();
 
-vi.mock("../src/db.js", () => ({
-  prisma: {
-    team: {
-      findUnique: (...args: unknown[]) => teamFindUnique(...args),
-    },
+/**
+ * WORKSPACE-SCOPE CONVERGENCE — the client is now passed EXPLICITLY rather
+ * than mocked out from under the module.
+ *
+ * The authority moved into `@proovra/shared-runtime` (the Worker reads the
+ * same populations and cannot import from the API), and shared-runtime never
+ * constructs a Prisma client — each host registers its own. Mocking
+ * `../src/db.js` would therefore no longer intercept anything. Passing the
+ * fake in is also the stronger test: it proves the optional-client parameter
+ * is honoured, which is what lets a caller inside a transaction resolve the
+ * scope on the same connection it runs its query on.
+ */
+const fakeClient = {
+  team: {
+    findUnique: (...args: unknown[]) => teamFindUnique(...args),
   },
-}));
+} as unknown as import("@prisma/client").PrismaClient;
 
 import {
   resolvePersonalScope,
   workspaceCaseWhere,
   workspaceEvidenceWhere,
-} from "../src/services/workspace-personal-scope.service.js";
+} from "@proovra/shared-runtime";
 
 beforeEach(() => {
   teamFindUnique.mockReset();
@@ -78,7 +88,7 @@ describe("workspace-personal-scope — personal-aware filters", () => {
 
   it("personal team → OR clause bound to the owner's legacy NULL rows", async () => {
     teamFindUnique.mockResolvedValue({ isPersonal: true, ownerUserId: OWNER });
-    const where = await workspaceEvidenceWhere(PERSONAL_TEAM);
+    const where = await workspaceEvidenceWhere(PERSONAL_TEAM, fakeClient);
     expect(where).toEqual({
       OR: [
         { teamId: PERSONAL_TEAM },
@@ -89,21 +99,21 @@ describe("workspace-personal-scope — personal-aware filters", () => {
 
   it("real team workspace → STRICT teamId filter (no legacy arm, no leak)", async () => {
     teamFindUnique.mockResolvedValue({ isPersonal: false, ownerUserId: OWNER });
-    const where = await workspaceEvidenceWhere(PERSONAL_TEAM);
+    const where = await workspaceEvidenceWhere(PERSONAL_TEAM, fakeClient);
     expect(where).toEqual({ teamId: PERSONAL_TEAM });
   });
 
   it("unknown team id → STRICT filter (matches nothing, never widens)", async () => {
     teamFindUnique.mockResolvedValue(null);
-    const where = await workspaceEvidenceWhere(PERSONAL_TEAM);
+    const where = await workspaceEvidenceWhere(PERSONAL_TEAM, fakeClient);
     expect(where).toEqual({ teamId: PERSONAL_TEAM });
-    const scope = await resolvePersonalScope(PERSONAL_TEAM);
+    const scope = await resolvePersonalScope(PERSONAL_TEAM, fakeClient);
     expect(scope).toEqual({ isPersonal: false, ownerUserId: null });
   });
 
   it("case filter mirrors the evidence contract", async () => {
     teamFindUnique.mockResolvedValue({ isPersonal: true, ownerUserId: OWNER });
-    const where = await workspaceCaseWhere(PERSONAL_TEAM);
+    const where = await workspaceCaseWhere(PERSONAL_TEAM, fakeClient);
     expect(where).toEqual({
       OR: [
         { teamId: PERSONAL_TEAM },

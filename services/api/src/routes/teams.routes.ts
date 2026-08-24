@@ -74,6 +74,10 @@ import {
   reopenClosedWorkspace,
   transferWorkspaceOwnership,
 } from "../services/workspace/workspace-lifecycle.service.js";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
@@ -607,7 +611,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
 
         const caseCount = await prisma.case.count({
-          where: { teamId: team.id },
+          where: { AND: [await workspaceCaseWhere(team.id, prisma)] },
         });
 
         return {
@@ -713,7 +717,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       const caseCount = await prisma.case.count({
-        where: { teamId },
+        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
       });
 
       // §9.7 — explicit WORKSPACE subject (existing-workspace seat display).
@@ -815,7 +819,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const items = await prisma.case.findMany({
-        where: { teamId },
+        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -1009,7 +1013,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const linkedEvidenceCount = await prisma.evidence.count({
-        where: { teamId },
+        where: { AND: [await workspaceEvidenceWhere(teamId, prisma)] },
       });
 
       if (linkedEvidenceCount > 0) {
@@ -1042,7 +1046,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       await prisma.case.updateMany({
-        where: { teamId },
+        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
         data: { teamId: null },
       });
 
@@ -1487,13 +1491,13 @@ export async function teamsRoutes(app: FastifyInstance) {
       const [ownedEvidence, ownedCases, openAssignments] = await Promise.all([
         prisma.evidence.count({
           where: {
-            teamId,
+            AND: [await workspaceEvidenceWhere(teamId, prisma)],
             ownerUserId: targetUserId,
             deletedAt: null,
           },
         }),
         prisma.case.count({
-          where: { teamId, ownerUserId: targetUserId },
+          where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: targetUserId },
         }),
         prisma.caseAssignment.count({
           where: {
@@ -1618,13 +1622,13 @@ export async function teamsRoutes(app: FastifyInstance) {
       const [ownedEvidenceCount, ownedCaseCount] = await Promise.all([
         prisma.evidence.count({
           where: {
-            teamId,
+            AND: [await workspaceEvidenceWhere(teamId, prisma)],
             ownerUserId: target.userId,
             deletedAt: null,
           },
         }),
         prisma.case.count({
-          where: { teamId, ownerUserId: target.userId },
+          where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
         }),
       ]);
       const hasOwnedRecords =
@@ -1693,14 +1697,14 @@ export async function teamsRoutes(app: FastifyInstance) {
         if (transferToUserId && hasOwnedRecords) {
           await tx.evidence.updateMany({
             where: {
-              teamId,
+              AND: [await workspaceEvidenceWhere(teamId, prisma)],
               ownerUserId: target.userId,
               deletedAt: null,
             },
             data: { ownerUserId: transferToUserId },
           });
           await tx.case.updateMany({
-            where: { teamId, ownerUserId: target.userId },
+            where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
             data: { ownerUserId: transferToUserId },
           });
         }
@@ -2242,7 +2246,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       // 2. All cases owned by this team.
       const teamCases = await prisma.case.findMany({
-        where: { teamId },
+        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
         select: { id: true, name: true },
       });
       const teamCaseIds = teamCases.map((c) => c.id);
@@ -2432,7 +2436,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       //    response shape stays self-contained.
       const teamMemberIdSet = new Set(memberUserIds);
       const teamCases = await prisma.case.findMany({
-        where: { teamId },
+        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
         select: { id: true, name: true },
       });
       const teamCaseIds = teamCases.map((c) => c.id);

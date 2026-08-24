@@ -72,7 +72,7 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     const after = SRC.indexOf("\nasync function ", start + 1);
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     expect(body).toMatch(
-      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"status"\s*\][\s\S]*?where:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}/,
+      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"status"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.evidence\],\s*deletedAt:\s*null\s*\}/,
     );
   });
 
@@ -81,7 +81,7 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     const after = SRC.indexOf("\nasync function ", start + 1);
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     expect(body).toMatch(
-      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"publicVerifyState"\s*\][\s\S]*?where:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}/,
+      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"publicVerifyState"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.evidence\],\s*deletedAt:\s*null\s*\}/,
     );
   });
 
@@ -91,11 +91,11 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     // reportsReady — distinct-evidence count with reports.some + deletedAt:null
     expect(body).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*teamId,\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
     // packagesReady — distinct-evidence count with verificationPackages.some + deletedAt:null
     expect(body).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*teamId,\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
     // versionsTotal rows also exclude deleted
     expect(body).toMatch(

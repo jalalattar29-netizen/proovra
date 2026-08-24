@@ -396,10 +396,28 @@ describe("Phase 32.8C control plane — envelope changes", () => {
     );
   });
 
-  it("runIncidents lazy-runs generator + correlator before reading", () => {
+  it("runIncidents ENSURES a fresh reconciliation rather than generating inline", () => {
+    // WORKSPACE-SCOPE CONVERGENCE (§7.3) — this contract INVERTED, deliberately.
+    //
+    // It used to pin `generateIncidentsForWorkspace({ teamId }).catch(...)`:
+    // opening Home ran the full multi-source discovery sweep inline, and it
+    // was the ONLY thing that ever ran it. A workspace nobody opened was never
+    // scanned and its Operations page rendered "clear" — not because it was,
+    // but because nothing had looked.
+    //
+    // Discovery is now a scheduled run under a durable per-workspace lock.
+    // Home ensures freshness and reads; it does not discover. The negative
+    // assertion is the load-bearing half: it is what stops the inline sweep
+    // being reintroduced by someone restoring "the missing generator call".
     expect(COMMAND_CENTER).toMatch(
-      /generateIncidentsForWorkspace\(\{\s*teamId\s*\}\)\.catch\(/,
+      /ensureWorkspaceOperationsFresh\(\{\s*workspaceId:\s*teamId\s*\}\)\.catch\(/,
     );
+    // Forbids the CALL, not the name: the comment above the replacement
+    // explains what was removed and why, and a rule that made the explanation
+    // unwritable would push the reasoning out of the file it belongs in.
+    expect(COMMAND_CENTER).not.toMatch(/await\s+generateIncidentsForWorkspace\(/);
+    // Correlation is a projection over conditions that already exist, not a
+    // discovery sweep, so it stays where it was.
     expect(COMMAND_CENTER).toMatch(
       /correlateWorkspaceIncidents\(\{\s*teamId\s*\}\)\.catch\(/,
     );

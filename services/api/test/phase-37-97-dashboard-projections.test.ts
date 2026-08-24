@@ -87,9 +87,18 @@ describe("Phase 37.97 — refresh service is tenant-scoped", () => {
     const counts = [...SRC.matchAll(/\.count\(\s*\{[\s\S]*?\}\s*\)/g)];
     expect(counts.length).toBeGreaterThan(0);
     for (const m of counts) {
+      // WORKSPACE-SCOPE CONVERGENCE — the bound is now the canonical workspace
+      // scope (`scope` / `caseScope`), not a literal `teamId` equality. That
+      // is a STRICTER contract, not a looser one: a bare `teamId: input.teamId`
+      // on Evidence or Case silently omits a personal workspace's legacy
+      // NULL-team rows, so the old assertion passed while this projection
+      // under-counted. The scope is strict for a shared workspace and
+      // owner-bound for a personal one.
+      const bounded =
+        /\bAND:\s*\[\s*(scope|caseScope)\b/.test(m[0]) || /teamId/.test(m[0]);
       expect(
-        /teamId/.test(m[0]),
-        `Every refresh count query must scope by teamId. Offender: ${m[0].slice(0, 200)}`,
+        bounded,
+        `Every refresh count query must be bounded by the canonical workspace scope. Offender: ${m[0].slice(0, 200)}`,
       ).toBe(true);
     }
   });
@@ -120,7 +129,14 @@ describe("Phase 37.97 — refresh service is tenant-scoped", () => {
 // =============================================================================
 
 // Mock Prisma BEFORE importing the refresh service.
+const teamFindUnique = vi.fn();
 const mockClient = {
+  // WORKSPACE-SCOPE CONVERGENCE — the refresh now resolves the workspace's
+  // kind and owner before counting, so the fake must model the Team row it
+  // reads. Defaulting to a NON-personal workspace keeps every existing
+  // assertion below meaning exactly what it meant: a shared workspace's scope
+  // is the strict  these tests already assert on.
+  team: { findUnique: (...args: unknown[]) => teamFindUnique(...args) },
   evidence: { count: vi.fn() },
   case: { count: vi.fn() },
   orgHealthProjection: {
@@ -136,6 +152,8 @@ const { refreshOrgHealthProjection, readLatestOrgHealthProjection } =
   );
 
 beforeEach(() => {
+  teamFindUnique.mockReset();
+  teamFindUnique.mockResolvedValue({ isPersonal: false, ownerUserId: null });
   mockClient.evidence.count.mockReset();
   mockClient.case.count.mockReset();
   mockClient.orgHealthProjection.upsert.mockReset();
@@ -164,9 +182,15 @@ describe("Phase 37.97 — refresh service tenant safety (behavioral)", () => {
     ];
     expect(allCalls.length).toBeGreaterThan(0);
     for (const call of allCalls) {
-      const arg = call[0] as { where?: { teamId?: string } };
+      const arg = call[0] as {
+        where?: { teamId?: string; AND?: Array<{ teamId?: string }> };
+      };
+      // A shared workspace's canonical scope IS `{ teamId }` — it is carried
+      // in the AND arm rather than written inline, so the tenant bound is
+      // asserted wherever the query actually puts it.
+      const bound = arg.where?.teamId ?? arg.where?.AND?.[0]?.teamId;
       expect(
-        arg.where?.teamId,
+        bound,
         `Every count must filter by the input teamId. Offender args: ${JSON.stringify(arg)}`,
       ).toBe("teamA");
     }

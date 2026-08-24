@@ -135,13 +135,13 @@ describe("HOME-TRUTH-FIX — Reports/Packages KPI uses evidence-distinct counts"
   it("reportsReady counts EVIDENCE records (with at least one Report), not Report rows", () => {
     // The new query: prisma.evidence.count({ where: { teamId, deletedAt: null, reports: { some: {} } } })
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*teamId,\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
   });
 
   it("packagesReady counts EVIDENCE records (with at least one VerificationPackage), not Package rows", () => {
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*teamId,\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
   });
 

@@ -22,7 +22,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
-import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 export type TrustSummary = {
   /** Total non-deleted evidence in the workspace. */
@@ -128,7 +128,7 @@ export async function buildTrustSummary(input: {
   // Phase HOME-DATA-OWNERSHIP — for personal workspaces the filter
   // also matches the owner's legacy `team_id NULL` rows (pre-backfill
   // databases). Strict teamId filter for real team workspaces.
-  const scopeWhere = await workspaceEvidenceWhere(input.teamId);
+  const scopeWhere = await workspaceEvidenceWhere(input.teamId, prisma);
   const baseWhere: Prisma.EvidenceWhereInput = {
     AND: [scopeWhere, { deletedAt: null }],
   };

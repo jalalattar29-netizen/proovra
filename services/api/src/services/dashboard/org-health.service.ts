@@ -13,6 +13,9 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 function clamp100(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -22,6 +25,11 @@ function clamp100(n: number): number {
 export async function recordOrgHealthSnapshotForWorkspace(input: {
   teamId: string;
 }): Promise<{ persisted: boolean; failed: boolean }> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   try {
     // Real counters
     const [
@@ -125,7 +133,7 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.evidence
         .count({
           where: {
-            teamId: input.teamId,
+            AND: [scope],
             status: "SIGNED",
             latestReportVersion: null,
           },
@@ -134,7 +142,7 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.evidence
         .count({
           where: {
-            teamId: input.teamId,
+            AND: [scope],
             status: "REPORTED",
             verificationPackageVersion: null,
           },

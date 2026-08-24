@@ -1,0 +1,20 @@
+-- Operations discovery joins the existing reconciliation-run authority.
+--
+-- Deliberately NOT a new table, and deliberately not a new lock.
+-- `governance_reconciliation_runs` already provides per-(kind, lock_key)
+-- database exclusion through the partial unique index
+-- `governance_reconciliation_runs_running_lock_uniq`, a lease that frees the
+-- slot when a sweep crashes, terminal SUCCEEDED / FAILED / PARTIAL transitions,
+-- and append-only history. Those are exactly the properties scheduled
+-- Operations discovery needs, and SEARCH_INDEX set the precedent for sharing
+-- them (migration 20271215000000).
+--
+-- WHY THIS IS ITS OWN MIGRATION: PostgreSQL will not let a value added to an
+-- enum by `ALTER TYPE ... ADD VALUE` be USED in the same transaction that adds
+-- it. Splitting the addition from every write that references it is what makes
+-- the deploy safe to run in one `prisma migrate deploy` pass.
+--
+-- EXPAND-ONLY. Adding a value neither rewrites a row nor invalidates a reader:
+-- an older API process that has never heard of WORKSPACE_OPERATIONS simply
+-- never selects it, and its own kinds are untouched.
+ALTER TYPE "GovernanceReconciliationKind" ADD VALUE IF NOT EXISTS 'WORKSPACE_OPERATIONS';

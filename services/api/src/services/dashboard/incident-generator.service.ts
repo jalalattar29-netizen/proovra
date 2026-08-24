@@ -30,8 +30,9 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
-import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // ---------- Thresholds — every one is real platform state -----------------
 
@@ -78,12 +79,38 @@ type Generated = {
  * Run the full scan for a workspace. Never throws. Returns the count of
  * incidents persisted (created or incremented) and any per-rule errors.
  */
+export type WorkspaceDiscoveryResult = {
+  recorded: number;
+  failed: number;
+  rules: string[];
+  /**
+   * WORKSPACE-SCOPE CONVERGENCE (§7/§8) — WHICH sources this run actually
+   * completed.
+   *
+   * The sweep used to return only `failed: <count>`, which cannot answer the
+   * question readiness has to ask: a count of two failures says nothing about
+   * WHICH two, so a run that lost the evidence-integrity scan and a run that
+   * lost platform telemetry were indistinguishable — and only one of those
+   * means the workspace's own picture is incomplete.
+   */
+  sources: {
+    attempted: string[];
+    successful: string[];
+    failed: string[];
+    truncated: string[];
+  };
+};
+
 export async function generateIncidentsForWorkspace(
   input: { teamId: string },
-): Promise<{ recorded: number; failed: number; rules: string[] }> {
+): Promise<WorkspaceDiscoveryResult> {
   const rules: string[] = [];
   let recorded = 0;
   let failed = 0;
+  const attempted: string[] = [];
+  const successful: string[] = [];
+  const failedSources: string[] = [];
+  const truncatedSources: string[] = [];
 
   // Resolve the canonical workspace evidence scope ONCE, and thread it through
   // every evidence-derived scan below. This is the whole correction: a raw
@@ -92,7 +119,7 @@ export async function generateIncidentsForWorkspace(
   // workspace with real, unresolved conditions.
   const ctx: GenerationContext = {
     teamId: input.teamId,
-    evidenceWhere: await workspaceEvidenceWhere(input.teamId),
+    evidenceWhere: await workspaceEvidenceWhere(input.teamId, prisma),
   };
 
   // ---------------------------------------------------------------------
@@ -110,6 +137,14 @@ export async function generateIncidentsForWorkspace(
   // can act on. Each record gets its own condition, its own acknowledgement
   // and its own resolution, driven by that record's own status column.
   // ---------------------------------------------------------------------
+  // The integrity scan covers three registered sources in one pass (TSA
+  // failure, OTS failure, aged OTS pending), so all three share its outcome.
+  const INTEGRITY_SOURCE_IDS = [
+    "evidence_integrity.tsa_failed",
+    "evidence_integrity.ots_failed",
+    "evidence_integrity.ots_pending_aged",
+  ];
+  attempted.push(...INTEGRITY_SOURCE_IDS);
   try {
     const integrity = await syncEvidenceIntegrityConditions({
       teamId: ctx.teamId,
@@ -119,23 +154,37 @@ export async function generateIncidentsForWorkspace(
       rules.push("evidence_integrity:per_record");
     }
     if (!integrity.complete) {
-      // Say so rather than reporting a tidy number over a bounded read.
+      // Say so rather than reporting a tidy number over a bounded read. A
+      // bounded read is not a complete one, and a workspace whose integrity
+      // scan hit its limit must not be describable as clear.
       rules.push("evidence_integrity:scan_incomplete");
+      truncatedSources.push(...INTEGRITY_SOURCE_IDS);
+    } else {
+      successful.push(...INTEGRITY_SOURCE_IDS);
     }
   } catch {
     failed += 1;
+    failedSources.push(...INTEGRITY_SOURCE_IDS);
   }
 
-  for (const rule of [
-    () => scanReportBacklog(ctx),
-    () => scanPackageBacklog(ctx),
-    () => scanStaleReviews(ctx),
-    () => scanRetryStorms(ctx),
-    () => scanStaleTelemetry(ctx),
-    () => scanWorkerHeartbeatStaleness(ctx),
-    () => scanUnsignedFinalizedAged(ctx),
-    () => scanCoordinationBacklogStale(ctx),
-  ]) {
+  // Each entry names the REGISTERED source it covers, so the run records
+  // which sources it completed rather than only how many failed. Per-source
+  // isolation is the load-bearing property: one broken scan marks ITS source
+  // failed and the sweep continues, and a broken source can never fabricate a
+  // clear result because its id is absent from `successful`.
+  const RULES: Array<[string, () => Promise<Generated | null>]> = [
+    ["pipeline.report_backlog", () => scanReportBacklog(ctx)],
+    ["pipeline.package_backlog", () => scanPackageBacklog(ctx)],
+    ["review.stale_workflows", () => scanStaleReviews(ctx)],
+    ["queue.retry_storm", () => scanRetryStorms(ctx)],
+    ["platform.telemetry_stale", () => scanStaleTelemetry(ctx)],
+    ["platform.worker_heartbeat_stale", () => scanWorkerHeartbeatStaleness(ctx)],
+    ["pipeline.signed_without_report_aged", () => scanUnsignedFinalizedAged(ctx)],
+    ["coordination.backlog_stale", () => scanCoordinationBacklogStale(ctx)],
+  ];
+
+  for (const [sourceId, rule] of RULES) {
+    attempted.push(sourceId);
     try {
       const result = await rule();
       if (result) {
@@ -151,16 +200,37 @@ export async function generateIncidentsForWorkspace(
             runbookSlug: result.runbookSlug ?? null,
           });
           recorded += 1;
+          successful.push(sourceId);
         } catch {
+          // The scan SAW the condition and the write failed. The source is not
+          // successful: its condition exists and is not recorded, which is
+          // exactly the state that must stop a clear assertion.
           failed += 1;
+          failedSources.push(sourceId);
         }
+      } else {
+        // Scanned, nothing above threshold. That IS a successful source — the
+        // distinction between "looked and found nothing" and "did not look" is
+        // the whole reason this accounting exists.
+        successful.push(sourceId);
       }
     } catch {
       failed += 1;
+      failedSources.push(sourceId);
     }
   }
 
-  return { recorded, failed, rules };
+  return {
+    recorded,
+    failed,
+    rules,
+    sources: {
+      attempted,
+      successful,
+      failed: failedSources,
+      truncated: truncatedSources,
+    },
+  };
 }
 
 // ---------- Per-rule scanners ---------------------------------------------
@@ -218,7 +288,18 @@ async function scanStaleReviews(
   );
   const stale = await prisma.evidenceReviewWorkflow.count({
     where: {
-      teamId: ctx.teamId,
+      // WORKSPACE-SCOPE CONVERGENCE — scoped through the Evidence the workflow
+      // belongs to, not through the workflow's own `team_id`.
+      //
+      // PROVEN, not assumed: `EvidenceReviewWorkflow.team_id` is nullable AND
+      // its writer (`reviewer-workflow.service.ts`) stores
+      // `params.teamId ?? null`, so every workflow created without an explicit
+      // workspace lands with a NULL that no strict predicate can see. The
+      // model has no owner column either, so the NULL arm could not be
+      // owner-bound even if it were added. The Evidence row IS the ownership
+      // authority here — the relation is `@unique` — so reading through it is
+      // both correct and one authority fewer.
+      evidence: ctx.evidenceWhere,
       status: { in: ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
       updatedAt: { lt: since },
     },
@@ -241,7 +322,11 @@ async function scanRetryStorms(
   // surfaces here even when the worker-side recorder is not the trigger.
   const stormCount = await prisma.operationalIncident.count({
     where: {
-      OR: [{ teamId: ctx.teamId }, { teamId: null }],
+      // WORKSPACE-SCOPE CONVERGENCE — was
+      // `OR: [{ teamId: ctx.teamId }, { teamId: null }]`. A retry storm in a
+      // DELETED workspace would have counted toward this one's threshold,
+      // because deleting a workspace rewrites its incidents' team_id to NULL.
+      ...workspaceIncidentWhere(ctx.teamId),
       status: { in: ["OPEN", "ACKNOWLEDGED"] },
       occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
     },

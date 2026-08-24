@@ -23,6 +23,7 @@ import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { workspaceEvidenceWhereMany } from "@proovra/shared-runtime";
 
 type TrendBucket = {
   date: string;
@@ -365,9 +366,19 @@ async function computeTeamWorkspaceHealth() {
     }),
   ]);
 
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical population across every
+  // workspace in the rollup. `teamId: { in: teamIds }` omitted the legacy
+  // NULL-team Evidence of every PERSONAL workspace in the list, so a rollup
+  // that included personal workspaces under-reported them.
+  //
+  // Built as a union of per-workspace scopes, so each personal arm stays bound
+  // to ITS OWN owner: a single flattened `ownerUserId: { in: owners }` would
+  // admit a row owned by someone in the list whose workspace is not.
+  const rollupEvidenceScope = await workspaceEvidenceWhereMany(teamIds, prisma);
+
   const evidenceRows = await prisma.evidence.findMany({
     where: {
-      teamId: { in: teamIds },
+      AND: [rollupEvidenceScope],
       deletedAt: null,
     },
     select: {

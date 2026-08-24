@@ -123,6 +123,14 @@ import {
 
 function makePrismaStub(overrides: Record<string, unknown> = {}) {
   const base: Record<string, unknown> = {
+    // WORKSPACE-SCOPE CONVERGENCE — the lifecycle services resolve the
+    // workspace's kind and owner before reading Evidence, so the stub must
+    // model the Team row. A NON-personal default keeps every assertion below
+    // meaning what it meant: a shared workspace's canonical scope is exactly
+    // the strict `{ teamId }` filter these tests were written against.
+    team: {
+      findUnique: async () => ({ isPersonal: false, ownerUserId: null }),
+    },
     entitlementGrant: {
       findUnique: async () => null,
       upsert: async (args: { create: { id?: string } }) => ({

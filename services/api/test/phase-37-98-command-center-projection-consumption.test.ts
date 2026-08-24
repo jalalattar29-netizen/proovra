@@ -78,6 +78,51 @@ type CountHit = {
   where: { ok: boolean; keys?: string[]; reason?: string };
 };
 
+/**
+ * WORKSPACE-SCOPE CONVERGENCE — what "tenant-scoped" means for a count now.
+ *
+ * These checks read the top-level KEYS of a `where` clause and used to demand
+ * a literal `teamId`. That was never quite the invariant: on `Evidence` and
+ * `Case` — the two models whose `team_id` is NULLABLE — a literal
+ * `teamId: <workspace>` is BOUNDED but INCOMPLETE. It omits a personal
+ * workspace's legacy NULL-team rows, so a projection built that way passed
+ * this test while silently under-counting the workspace it claimed to
+ * describe.
+ *
+ * The canonical scope is carried in an `AND` arm (`AND: [scope]`), so `AND` is
+ * accepted here. `AND` on its own would be a weaker assertion than the one it
+ * replaces, which is why every call site below ALSO asserts that the module
+ * under test resolves the canonical authority — see
+ * `expectResolvesCanonicalScope`. Together they say: bounded, and bounded by
+ * the one rule that is complete.
+ */
+function expectTenantScopedCount(hit: CountHit, context: string): void {
+  const keys = hit.where.keys ?? [];
+  const bounded = keys.includes("teamId") || keys.includes("AND");
+  expect(
+    bounded,
+    `prisma.${hit.model}.count ${context} is not tenant-scoped ` +
+      `(where keys: ${keys.join(", ") || "<none>"})`,
+  ).toBe(true);
+}
+
+/**
+ * The companion half: the module really does build its filter from the
+ * canonical workspace authority rather than assembling an `AND` of its own.
+ */
+function expectResolvesCanonicalScope(source: string, context: string): void {
+  // Both entry points into the ONE authority count. `workspaceEvidenceWhere` /
+  // `workspaceCaseWhere` resolve the workspace's owner themselves;
+  // `evidenceScopeFor` / `caseScopeFor` are the pure projections a caller that
+  // already holds a proven context uses, and the Command Center uses those
+  // because it resolves the workspace once per envelope rather than once per
+  // section. They are the same rule reached two ways, not two rules.
+  expect(
+    /workspace(Evidence|Case)Where\s*\(|(evidence|case)ScopeFor\s*\(/.test(source),
+    `${context} must resolve the canonical workspace scope`,
+  ).toBe(true);
+}
+
 /** Built once; the graph is the same for every case in this file. */
 let CALL_GRAPH: ReturnType<typeof buildCallGraph> | null = null;
 const callGraph = () => (CALL_GRAPH ??= buildCallGraph());
@@ -314,10 +359,10 @@ describe("Phase 37.98 — Command Center consumes projection", () => {
           `(${hit.where.reason}) — an unreadable predicate is an analysis gap, ` +
           "not proof of scoping",
       ).toBe(true);
-      expect(
-        hit.where.keys,
-        `prisma.${hit.model}.count in the bounded fallback is not tenant-scoped`,
-      ).toContain("teamId");
+      expectTenantScopedCount(hit, "in the bounded fallback");
+    }
+    expectResolvesCanonicalScope(CMD_CENTER, "the bounded fallback");
+    {
     }
   });
 
@@ -419,11 +464,10 @@ describe("Phase 37.98 — refresh pipeline wired in worker", () => {
         hit.where.ok,
         `${hit.model}.count has no statically readable where clause (${hit.where.reason})`,
       ).toBe(true);
-      expect(
-        hit.where.keys,
-        `Every refresh count must filter by teamId. Offender: ${hit.model}.count ` +
-          `where { ${(hit.where.keys ?? []).join(", ")} }`,
-      ).toContain("teamId");
+      expectTenantScopedCount(hit, "in the worker refresh processor");
+    }
+    expectResolvesCanonicalScope(WORKER_PROCESSORS, "the worker refresh processor");
+    {
     }
   });
 
@@ -556,10 +600,13 @@ describe("Phase 37.98 — refresh service contract reassertion", () => {
     expect(walk.reached, "the refresh authority issues no counts").toBe(true);
     for (const hit of walk.evidence as CountHit[]) {
       expect(hit.where.ok, `${hit.model}.count: ${hit.where.reason}`).toBe(true);
-      expect(
-        hit.where.keys,
-        `${hit.model}.count in the refresh authority is not tenant-scoped`,
-      ).toContain("teamId");
+      expectTenantScopedCount(hit, "in the refresh authority");
+    }
+    expectResolvesCanonicalScope(
+      readApi("src/services/dashboard/projections/refresh-org-health.service.ts"),
+      "the refresh authority",
+    );
+    {
     }
   });
 

@@ -73,6 +73,17 @@ export type AccessibleWorkspace = {
   role: CanonicalRole;
   organizationId: string | null;
   /**
+   * WORKSPACE-SCOPE CONVERGENCE — the workspace owner.
+   *
+   * Carried so a multi-workspace read can build the canonical Evidence scope
+   * for every workspace in this list WITHOUT a second query per workspace.
+   * The personal-workspace arm of that scope is owner-bound, and this is the
+   * id it binds to; without it a caller would have to guess that "the owner
+   * of a personal workspace I can reach is me", which is true today and is
+   * not a thing a read scope should be resting on.
+   */
+  ownerUserId: string | null;
+  /**
    * How this workspace entered the set:
    *   `membership` — an ACTIVE TeamMember row;
    *   `personal_ownership` — the identity-mode Personal Space path.
@@ -105,6 +116,7 @@ export async function listAccessibleWorkspaces(
           id: true,
           name: true,
           isPersonal: true,
+          ownerUserId: true,
           workspaceKind: true,
           billingPlan: true,
           organizationId: true,
@@ -148,6 +160,7 @@ export async function listAccessibleWorkspaces(
       kind,
       role: mapTeamRoleToCanonical(row.role),
       organizationId: team.organizationId ?? null,
+      ownerUserId: team.ownerUserId ?? null,
       via: "membership",
     });
   }
@@ -160,7 +173,7 @@ export async function listAccessibleWorkspaces(
   //    any other collaborative context.
   const ownedPersonal = await client.team.findMany({
     where: { ownerUserId: input.userId, isPersonal: true },
-    select: { id: true, name: true, organizationId: true },
+    select: { id: true, name: true, organizationId: true, ownerUserId: true },
   });
   for (const t of ownedPersonal) {
     if (out.has(t.id)) continue;
@@ -170,6 +183,7 @@ export async function listAccessibleWorkspaces(
       kind: "PERSONAL",
       role: "OWNER",
       organizationId: t.organizationId ?? null,
+      ownerUserId: t.ownerUserId ?? null,
       via: "personal_ownership",
     });
   }
