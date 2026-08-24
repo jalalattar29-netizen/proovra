@@ -35,6 +35,11 @@ import {
   fireEvent,
 } from "@testing-library/react";
 import { QUEUE_METRIC_ORDER } from "../../app/(app)/operations/_lib/vocabulary";
+// The SLA fixture below is typed against the PAGE'S OWN contract rather than
+// shaped by hand. A hand-written block drifts from the server projection
+// silently; borrowing the real type means a change to the contract breaks the
+// fixture at COMPILE time, which is where it should break.
+import type { IncidentSla } from "../../app/(app)/operations/_lib/types";
 
 // ---------------------------------------------------------------------------
 // Seams
@@ -143,6 +148,9 @@ type IncidentOver = {
 
 function incident(over: IncidentOver) {
   return {
+    // Absent by default: most conditions carry no recorded promise, and a
+    // fixture that always supplied one would hide the untracked case.
+    sla: undefined as IncidentSla | undefined,
     id: over.id,
     category: over.category ?? "EVIDENCE_INTEGRITY",
     severity: over.severity ?? "HIGH",
