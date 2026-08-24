@@ -99,14 +99,18 @@ test.describe("sla posture", () => {
     expect(["Overdue", "Due soon"]).toContain(text);
   });
 
-  test("ONE time signal per row — the heuristic yields to the policy", async ({
+  test("ONE time signal per row — the age heuristic is GONE", async ({
     page,
   }) => {
     await openOperations(page, "owned-workspace");
-    // With a policy present, the age-heuristic badge must not also render:
-    // two "Overdue" badges from different thresholds would eventually
-    // disagree on the same row and the reader could not tell which to trust.
+    // The age-derived badge no longer exists anywhere. Two "Overdue" badges
+    // built from different thresholds would eventually disagree on the same
+    // row, and the operator would have no way to tell which to act on.
     await expect(page.locator("[data-ops-overdue-badge]")).toHaveCount(0);
+    // And the surviving badge is the SERVER posture.
+    await expect(
+      page.locator("[data-ops-sla-badge]").first(),
+    ).toBeVisible();
   });
 
   test("the drawer states the promise, not only the verdict", async ({
@@ -119,7 +123,9 @@ test.describe("sla posture", () => {
     // "Overdue" alone leaves the reader guessing whether the workspace
     // promised four hours or four days.
     await expect(page.locator("[data-ops-inspector]")).toContainText(
-      "This workspace allows",
+      // Past tense, deliberately: the promise is a HISTORICAL fact about this
+      // condition, not a statement about what the workspace allows today.
+      "This workspace allowed",
     );
   });
 });

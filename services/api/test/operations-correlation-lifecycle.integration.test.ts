@@ -391,8 +391,15 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
       );
       expect(summary.open).toBe(1);
       expect(summary.acknowledged).toBe(1);
-      // …and it stops being OVERDUE, because somebody now has it.
-      expect(summary.overdue).toBe(0);
+      // …and it is not counted as a broken promise.
+      //
+      // The former `overdue` count was a fixed 48-hour age heuristic; it is
+      // gone, because it was a second authority on lateness competing with the
+      // workspace own recorded SLA. This condition was seeded without a cycle,
+      // so it has no recorded promise at all and is UNTRACKED — which is
+      // deliberately NOT a breach.
+      expect(summary.slaBreached).toBe(0);
+      expect(summary.slaUntracked).toBe(1);
     });
 
     it("OPERATOR resolution is distinguishable from SOURCE resolution", async () => {

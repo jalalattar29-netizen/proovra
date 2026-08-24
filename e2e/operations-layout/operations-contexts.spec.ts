@@ -209,7 +209,13 @@ test.describe("personal-pro: a workbench with no ownership axis", () => {
     expect(p.h1).toBe(1);
     // FOUR cards: the two that partition work between people are absent,
     // because there is only one person.
-    expect(p.metrics).toEqual(["open", "critical", "high", "overdue"]);
+    expect(p.metrics).toEqual([
+      "open",
+      "critical",
+      "high",
+      "slaBreached",
+      "slaAtRisk",
+    ]);
     expect(p.ownerFilter).toBe(0);
     expect(p.ownerCells).toBe(0);
     // It never even asked who could be assigned.
@@ -287,7 +293,8 @@ for (const { context, canAssign, note } of COLLABORATIVE) {
         "open",
         "critical",
         "high",
-        "overdue",
+        "slaBreached",
+        "slaAtRisk",
         "assignedToMe",
         "unassigned",
       ]);

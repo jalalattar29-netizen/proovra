@@ -130,7 +130,7 @@ test("every summary card carries a NUMBER, never an empty caption", async ({
   const values = await page
     .locator("[data-ops-metric] .app-metric-card__value")
     .allTextContents();
-  expect(values.length).toBe(6);
+  expect(values.length).toBe(7);
   for (const v of values) {
     expect(v.trim().length, "a card with no value is a caption for nothing").toBeGreaterThan(0);
   }
@@ -147,7 +147,7 @@ test("the summary cards share one geometry", async ({ page }) => {
         return { w: Math.round(r.width), h: Math.round(r.height) };
       }),
     );
-  expect(boxes.length).toBe(6);
+  expect(boxes.length).toBe(7);
   // Equal widths and equal heights: a strip whose cards disagree reads as a
   // rendering fault, and the eye uses the difference as meaning.
   expect(new Set(boxes.map((b) => b.w)).size).toBe(1);
@@ -442,20 +442,16 @@ test("overdue posture is a WORD as well as a colour", async ({ page }) => {
   // the workspace's own SLA policy now supersedes the fixed age heuristic,
   // and exactly ONE of the two renders so they cannot disagree on a row.
   const sla = await page.locator("[data-ops-sla-badge]").allTextContents();
+  // The age-derived badge no longer exists: after the Phase B closure there
+  // is exactly one authority on lateness, and it is the workspace own
+  // recorded promise.
   const heuristic = await page
     .locator("[data-ops-overdue-badge]")
     .allTextContents();
+  expect(heuristic.length, "the age heuristic must be gone").toBe(0);
 
-  expect(
-    sla.length + heuristic.length,
-    "a late condition must say so in words",
-  ).toBeGreaterThan(0);
-  expect(
-    sla.length === 0 || heuristic.length === 0,
-    "only ONE time signal may render per queue",
-  ).toBe(true);
-
-  for (const b of [...sla, ...heuristic]) {
+  expect(sla.length, "a late condition must say so in words").toBeGreaterThan(0);
+  for (const b of sla) {
     expect(["Overdue", "Due soon"]).toContain(b.trim());
   }
 });

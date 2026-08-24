@@ -211,6 +211,67 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
     return challenge.id;
   }
 
+  /**
+   * Seed a condition AND the SLA promise that production would record with it.
+   *
+   * `seed()` writes the incident row alone, which is precisely the shape of a
+   * condition that predates the SLA authority — useful, and used below to
+   * prove the legacy answer. Anything asserting a real posture has to go
+   * through this instead, because a promise nobody recorded cannot be
+   * reported on.
+   */
+  async function seedWithSla(
+    over: Seed & { ackHours?: number; resolutionHours?: number },
+  ) {
+    const row = await seed(over);
+    const version = await prisma.workspaceSlaPolicyVersion.upsert({
+      where: {
+        teamId_digest: {
+          teamId: over.teamId,
+          digest: `test-${over.ackHours ?? 4}-${over.resolutionHours ?? 24}`.padEnd(
+            64,
+            "0",
+          ),
+        },
+      },
+      update: {},
+      create: {
+        teamId: over.teamId,
+        digest: `test-${over.ackHours ?? 4}-${over.resolutionHours ?? 24}`.padEnd(
+          64,
+          "0",
+        ),
+        assignmentHours: 4,
+        firstReviewHours: over.ackHours ?? 4,
+        completionHours: over.resolutionHours ?? 24,
+        escalationHours: 48,
+        dueSoonHours: 2,
+        effectiveFromUtc: row.firstSeenAtUtc,
+      },
+    });
+    await prisma.operationalIncidentSlaCycle.create({
+      data: {
+        teamId: over.teamId,
+        incidentId: row.id,
+        cycleNumber: 1,
+        policyVersionId: version.id,
+        policyDigest: version.digest,
+        severityAtStart: row.severity,
+        startedAtUtc: row.firstSeenAtUtc,
+        acknowledgementTargetHours: version.firstReviewHours,
+        resolutionTargetHours: version.completionHours,
+        dueSoonHours: version.dueSoonHours,
+        acknowledgementDueAtUtc: new Date(
+          row.firstSeenAtUtc.getTime() + version.firstReviewHours * 3_600_000,
+        ),
+        resolutionDueAtUtc: new Date(
+          row.firstSeenAtUtc.getTime() + version.completionHours * 3_600_000,
+        ),
+      },
+    });
+    return row;
+  }
+
   const idsOf = (res: { body: string }) =>
     (JSON.parse(res.body).incidents as Array<{ id: string }>).map((i) => i.id);
 
@@ -1281,20 +1342,39 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
   // =========================================================================
 
   describe("sla posture", () => {
-    it("the list carries the workspace's commitment and a posture per row", async () => {
-      await seed({ teamId: A.teamId, minutesAgo: 1 });
+    it("the list carries the SLA VOCABULARY and a posture per row", async () => {
+      await seedWithSla({ teamId: A.teamId, minutesAgo: 1 });
       const body = JSON.parse(
         (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
       );
-      expect(body.sla, "the page must state the commitment").toBeTruthy();
-      expect(typeof body.sla.responseHours).toBe("number");
+      expect(body.sla, "the page must state its vocabulary").toBeTruthy();
+      // Deliberately NO hours here. Hours belong to an individual condition's
+      // recorded promise; a page-level number would invite the browser to
+      // recompute a deadline from it, which is the second authority this
+      // closure removed.
+      expect(body.sla.responseHours).toBeUndefined();
+      expect(Array.isArray(body.sla.postures)).toBe(true);
       expect(Array.isArray(body.sla.attentionPostures)).toBe(true);
       expect(body.incidents[0].sla).toBeTruthy();
       expect(body.incidents[0].sla.dueAtUtc).toBeTruthy();
+      expect(body.incidents[0].sla.policyVersionId).toBeTruthy();
+    });
+
+    it("a condition with NO recorded promise is UNTRACKED_LEGACY, not measured", async () => {
+      // `seed()` writes the incident row alone — the shape of a condition
+      // that predates the SLA authority. Applying today's policy to it would
+      // invent a deadline and then invent whether it was missed.
+      const row = await seed({ teamId: A.teamId, minutesAgo: 60 * 500 });
+      const listed = JSON.parse(
+        (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).incidents.find((i: { id: string }) => i.id === row.id);
+      expect(listed.sla.posture).toBe("UNTRACKED_LEGACY");
+      expect(listed.sla.dueAtUtc).toBeNull();
+      expect(listed.sla.targetHours).toBeNull();
     });
 
     it("the drawer reports the SAME posture the row does", async () => {
-      const row = await seed({ teamId: A.teamId, minutesAgo: 1 });
+      const row = await seedWithSla({ teamId: A.teamId, minutesAgo: 1 });
       const listed = JSON.parse(
         (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
       ).incidents.find((i: { id: string }) => i.id === row.id);
@@ -1314,16 +1394,16 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
     it("an old unattended condition is BREACHED against the workspace's own window", async () => {
       // 400 hours: past any policy the resolver can produce, so this asserts
       // the measurement happened rather than a particular number.
-      const row = await seed({ teamId: A.teamId, minutesAgo: 400 * 60 });
+      const row = await seedWithSla({ teamId: A.teamId, minutesAgo: 400 * 60 });
       const listed = JSON.parse(
         (await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken)).body,
       ).incidents.find((i: { id: string }) => i.id === row.id);
       expect(listed.sla.posture).toBe("BREACHED");
-      expect(listed.sla.obligation).toBe("RESPONSE");
+      expect(listed.sla.obligation).toBe("ACKNOWLEDGEMENT");
     });
 
     it("a suppressed condition reports no posture and no deadline", async () => {
-      const row = await seed({
+      const row = await seedWithSla({
         teamId: A.teamId,
         status: "SUPPRESSED",
         minutesAgo: 400 * 60,
@@ -1341,7 +1421,7 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
     });
 
     it("the recorded lifecycle instants are projected, since the posture is measured from them", async () => {
-      const row = await seed({ teamId: A.teamId });
+      const row = await seedWithSla({ teamId: A.teamId });
       await post(`/v1/ops/incidents/${row.id}/ack`, A.ownerToken, {
         teamId: A.teamId,
       });
@@ -1513,6 +1593,122 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         A.viewerToken,
       );
       expect(listed.statusCode).toBe(200);
+    });
+
+    it("carries a schema version, so a later release can tell what it understands", async () => {
+      const created = await save(A.ownerToken, A.teamId, `ver-${randomUUID()}`, {
+        filter: { teamId: A.teamId, v: 1, sla: "BREACHED" },
+      });
+      expect(created.statusCode).toBe(201);
+      const view = JSON.parse(created.body).view;
+      expect(view.filter.v).toBe(1);
+      expect(view.filter.sla).toBe("BREACHED");
+    });
+
+    it("refuses a view claiming a schema version this release does not know", async () => {
+      // A shape that changed meaning between releases would otherwise replay
+      // silently as a different query than the one that was saved.
+      const res = await save(A.ownerToken, A.teamId, `v9-${randomUUID()}`, {
+        filter: { teamId: A.teamId, v: 9 },
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode).toBeLessThan(500);
+    });
+
+    it("persists only the canonical SLA vocabulary", async () => {
+      const res = await save(A.ownerToken, A.teamId, `badsla-${randomUUID()}`, {
+        filter: { teamId: A.teamId, sla: "VERY_LATE" },
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode).toBeLessThan(500);
+    });
+
+    it("renames a view the caller owns", async () => {
+      const created = await save(A.ownerToken, A.teamId, `old-${randomUUID()}`);
+      const view = JSON.parse(created.body).view;
+      const renamed = `new-${randomUUID()}`;
+      const res = await harness.app.inject({
+        method: "PATCH",
+        url: `/v1/ops/saved-views/${view.id}`,
+        headers: { authorization: `Bearer ${A.ownerToken}` },
+        payload: {
+          teamId: A.teamId,
+          expectedUpdatedAt: view.updatedAt,
+          name: renamed,
+        } as never,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).view.name).toBe(renamed);
+    });
+
+    it("REFUSES a lost update — a stale token is a conflict, not an overwrite", async () => {
+      const created = await save(A.ownerToken, A.teamId, `race-${randomUUID()}`);
+      const view = JSON.parse(created.body).view;
+
+      const patch = (name: string, token: string) =>
+        harness.app.inject({
+          method: "PATCH",
+          url: `/v1/ops/saved-views/${view.id}`,
+          headers: { authorization: `Bearer ${A.ownerToken}` },
+          payload: {
+            teamId: A.teamId,
+            expectedUpdatedAt: token,
+            name,
+          } as never,
+        });
+
+      const first = await patch(`first-${randomUUID()}`, view.updatedAt);
+      expect(first.statusCode).toBe(200);
+
+      // The second caller read the SAME token before the first write landed.
+      // Without the check both saves succeed and the first person's change is
+      // gone with no error anywhere.
+      const second = await patch(`second-${randomUUID()}`, view.updatedAt);
+      expect(second.statusCode).toBe(409);
+      expect(JSON.parse(second.body).error.code).toBe("conflict");
+
+      // And the first write survived.
+      const listed = JSON.parse(
+        (await get(`/v1/ops/saved-views?teamId=${A.teamId}`, A.ownerToken)).body,
+      ).views.find((v: { id: string }) => v.id === view.id);
+      expect(listed.name.startsWith("first-")).toBe(true);
+    });
+
+    it("a colleague cannot rename a shared view, and is told NOT FOUND", async () => {
+      const created = await save(A.ownerToken, A.teamId, `sh-${randomUUID()}`, {
+        visibility: "TEAM",
+      });
+      const view = JSON.parse(created.body).view;
+      const res = await harness.app.inject({
+        method: "PATCH",
+        url: `/v1/ops/saved-views/${view.id}`,
+        headers: { authorization: `Bearer ${A.memberToken}` },
+        payload: {
+          teamId: A.teamId,
+          expectedUpdatedAt: view.updatedAt,
+          name: "hijacked",
+        } as never,
+      });
+      // Not 403: sharing a view exposes its results and must not also confirm
+      // which ids exist to a caller who cannot act on them.
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("a rename cannot move a view's filter into another workspace", async () => {
+      const created = await save(A.ownerToken, A.teamId, `mv-${randomUUID()}`);
+      const view = JSON.parse(created.body).view;
+      const res = await harness.app.inject({
+        method: "PATCH",
+        url: `/v1/ops/saved-views/${view.id}`,
+        headers: { authorization: `Bearer ${A.ownerToken}` },
+        payload: {
+          teamId: A.teamId,
+          expectedUpdatedAt: view.updatedAt,
+          filter: { teamId: B.teamId, status: "OPEN" },
+        } as never,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error.code).toBe("workspace_mismatch");
     });
 
     it("a saved view stores no count, timestamp of results or cached rows", async () => {

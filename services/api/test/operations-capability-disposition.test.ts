@@ -149,25 +149,65 @@ describe("SLA disposition", () => {
    * condition opened, and nothing was writing one, so every existing row would
    * have needed a policy invented for it retroactively.
    */
-  it("the incident SLA REUSES the canonical policy and defines no hours of its own", () => {
+  it("the SLA CYCLE authority reuses the canonical policy and defines no hours", () => {
+    // The hours still come from ONE resolver — the reviewer-ops one asserted
+    // above — but they are read ONCE, when a condition qualifies, and then
+    // persisted. Nothing invents an hour count of its own.
+    const CYCLE = read(
+      "../src/services/operations/incident-sla-cycle.service.ts",
+    );
+    expect(CYCLE).toContain("resolveEffectiveSlaPolicy");
+    for (const literal of ["= 24", "= 48", "= 72", "= 4;", "DEFAULT_HOURS"]) {
+      expect(
+        CYCLE,
+        `the cycle authority must not carry its own hours (${literal})`,
+      ).not.toContain(literal);
+    }
+  });
+
+  it("the PROJECTION reads persisted history and never the live policy", () => {
+    // THE CLOSURE. Deriving posture from the current policy was measured
+    // against a live database to flip an existing ON_TRACK condition to
+    // BREACHED when a workspace tightened its SLA, and to erase a real breach
+    // when it loosened one. A read-time policy lookup here would reintroduce
+    // exactly that.
     const SLA = read("../src/services/operations/incident-sla.ts");
-    // One authority: the hours come from the resolver asserted above.
-    expect(SLA).toContain("resolveEffectiveSlaPolicy");
-    // And it adds no persistence of its own — the point of deriving.
-    // It must not WRITE a deadline. The projection legitimately NAMES one —
-    // it is the derived value it returns — so the guard is on persistence,
-    // not on the word.
     for (const forbidden of [
-      "prisma.operationalIncident.update",
-      "operationalIncident.create",
-      ".update({",
-      ".upsert({",
+      "resolveEffectiveSlaPolicy",
+      "workspaceGovernancePolicy",
+      "REVIEWER_OPS_DEFAULT_SLA_POLICY",
     ]) {
       expect(
         SLA,
-        `the incident SLA must not persist a deadline (${forbidden})`,
+        `the projection must not read the live policy (${forbidden})`,
       ).not.toContain(forbidden);
     }
+    // And it writes nothing: a projection that mutated would be a second
+    // lifecycle beside the cycle service.
+    for (const forbidden of [".update({", ".upsert({", ".create({"]) {
+      expect(
+        SLA,
+        `the projection must not write (${forbidden})`,
+      ).not.toContain(forbidden);
+    }
+  });
+
+  it("a condition with no recorded promise is never given one", () => {
+    const SLA = read("../src/services/operations/incident-sla.ts");
+    const MIGRATION = read(
+      "../prisma/migrations/20271219000000_incident_sla_history/migration.sql",
+    );
+    // Fail closed, in both the code and the migration that created the tables.
+    expect(SLA).toContain("UNTRACKED_LEGACY");
+    expect(MIGRATION).toContain("NO BACKFILL");
+    // No UPDATE or INSERT over existing incidents anywhere in the migration:
+    // stamping a historical condition with today's policy would invent a
+    // deadline and then invent whether it was missed.
+    const sql = MIGRATION.split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n");
+    expect(sql).not.toMatch(/UPDATE\s+"?operational_incidents"?/i);
+    expect(sql).not.toMatch(/INSERT\s+INTO\s+"?operational_incident_sla_cycles"?/i);
   });
 
   it("the workbench renders the workspace's commitment, never a default", () => {
@@ -187,24 +227,39 @@ describe("SLA disposition", () => {
     }
   });
 
-  it("the AGE heuristic survives, and yields to the workspace's own policy", () => {
-    // The heuristic is still the answer for a workspace with no resolvable
-    // policy, and the summary card still counts by it — so it must not be
-    // quietly deleted.
-    expect(SUMMARY_SERVICE).toContain("UNATTENDED_OVERDUE_HOURS = 48");
-    expect(SUMMARY_SERVICE).toContain(
-      "Deliberately a property of the CONDITION rather than of any SLA",
-    );
-    expect(ROW_MODEL).toContain("const OVERDUE_MS = 48 * 60 * 60 * 1000");
+  it("the AGE heuristic is GONE — there is exactly one authority on lateness", () => {
+    // The previous pass left the SLA verdict on the row while the summary card
+    // still counted by a fixed 48-hour age. That is two answers to "is this
+    // late?" on one screen, and the operator has no way to tell which one to
+    // act on. The heuristic is removed rather than relabelled.
+    const strip = (src: string) =>
+      src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-    // ONE time signal per row: when a policy exists its verdict is shown and
-    // the heuristic badge is not, because two "Overdue" badges built from
-    // different thresholds would eventually disagree on the same row.
-    const SURFACE = read(
-      "../../../apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+    const SUMMARY = strip(SUMMARY_SERVICE);
+    expect(SUMMARY).not.toContain("UNATTENDED_OVERDUE_HOURS");
+    expect(SUMMARY).not.toContain("overdueBefore");
+    // Its counters come from the SHARED projection, not from a predicate
+    // written beside them.
+    expect(SUMMARY_SERVICE).toContain("projectIncidentSla");
+    expect(SUMMARY_SERVICE).toContain("slaBreached");
+
+    const ROWS = strip(ROW_MODEL);
+    expect(ROWS).not.toContain("OVERDUE_MS");
+    expect(ROWS).not.toContain("overdue:");
+
+    const SURFACE = strip(
+      read(
+        "../../../apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+      ),
     );
+    // One badge, from the server's posture. The age-derived one is gone.
     expect(SURFACE).toContain("data-ops-sla-badge");
-    expect(SURFACE).toContain("ONE time signal per row");
+    expect(SURFACE).not.toContain("data-ops-overdue-badge");
+
+    const VOCAB = strip(
+      read("../../../apps/web/app/(app)/operations/_lib/vocabulary.ts"),
+    );
+    expect(VOCAB).not.toContain("UNATTENDED_OVERDUE_HOURS");
   });
 });
 

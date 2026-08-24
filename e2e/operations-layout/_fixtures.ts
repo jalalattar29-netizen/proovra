@@ -458,33 +458,64 @@ export function incident(i: number, over: IncidentOver = {}) {
   };
 }
 
-const SLA_RESPONSE_HOURS = 4;
+const SLA_ACK_HOURS = 4;
+const SLA_RESOLUTION_HOURS = 24;
 const SLA_DUE_SOON_HOURS = 2;
 
+/**
+ * The SLA projection as the server produces it FROM A PERSISTED CYCLE.
+ *
+ * Mirrors `projectIncidentSla` rather than pinning constants, so a fixture
+ * row that is old reads BREACHED for the reason a real one would. The closed
+ * seven-value vocabulary is used verbatim — a fixture speaking a different
+ * dialect would let the surface pass while rendering something the server
+ * never sends.
+ */
 function slaFor(status: string, ageHours: number) {
+  const latched = { policyVersionId: "version-fixture", cycleNumber: 1 };
+
   if (status === "SUPPRESSED") {
     return {
       posture: "NOT_APPLICABLE",
-      obligation: "RESPONSE",
+      obligation: "NONE",
       dueAtUtc: null,
       targetHours: null,
+      ...latched,
+      acknowledgementBreached: ageHours > SLA_ACK_HOURS,
+      resolutionBreached: false,
     };
   }
-  const acknowledged = status === "ACKNOWLEDGED" || status === "RESOLVED";
-  const target = acknowledged ? 24 : SLA_RESPONSE_HOURS;
+
+  if (status === "RESOLVED") {
+    return {
+      posture: "RESOLVED",
+      obligation: "NONE",
+      dueAtUtc: hoursAgo(ageHours - SLA_RESOLUTION_HOURS),
+      targetHours: SLA_RESOLUTION_HOURS,
+      ...latched,
+      acknowledgementBreached: false,
+      resolutionBreached: false,
+    };
+  }
+
+  const acknowledged = status === "ACKNOWLEDGED";
+  const target = acknowledged ? SLA_RESOLUTION_HOURS : SLA_ACK_HOURS;
   const remaining = target - ageHours;
   return {
     posture:
-      status === "RESOLVED"
-        ? "MET"
-        : remaining < 0
-          ? "BREACHED"
-          : remaining <= SLA_DUE_SOON_HOURS
-            ? "DUE_SOON"
+      remaining < 0
+        ? "BREACHED"
+        : remaining <= SLA_DUE_SOON_HOURS
+          ? "AT_RISK"
+          : acknowledged
+            ? "ACKNOWLEDGED"
             : "ON_TRACK",
-    obligation: acknowledged ? "RESOLUTION" : "RESPONSE",
+    obligation: acknowledged ? "RESOLUTION" : "ACKNOWLEDGEMENT",
     dueAtUtc: hoursAgo(ageHours - target),
     targetHours: target,
+    ...latched,
+    acknowledgementBreached: !acknowledged && remaining < 0,
+    resolutionBreached: false,
   };
 }
 
@@ -548,7 +579,10 @@ function summaryFor(scenario: OpsScenario, operatorCount: number) {
     acknowledged: 1,
     assignedToMe: 1,
     unassigned: 3,
-    overdue: 1,
+    slaBreached: 1,
+    slaAtRisk: 0,
+    slaOnTrack: 3,
+    slaUntracked: 0,
     complete: true,
     mayAssertAllClear: true,
     incompleteReason: null,
@@ -564,11 +598,14 @@ function summaryFor(scenario: OpsScenario, operatorCount: number) {
       acknowledged: 0,
       assignedToMe: 0,
       unassigned: 0,
-      overdue: 0,
+      slaBreached: 0,
+      slaAtRisk: 0,
+      slaOnTrack: 0,
+      slaUntracked: 0,
     };
   }
   if (scenario === "one-incident") {
-    return { ...base, open: 1, critical: 1, high: 0, warning: 0, info: 0, unassigned: 1, assignedToMe: 0, acknowledged: 0, overdue: 0 };
+    return { ...base, open: 1, critical: 1, high: 0, warning: 0, info: 0, unassigned: 1, assignedToMe: 0, acknowledged: 0, slaBreached: 0, slaAtRisk: 0, slaOnTrack: 1, slaUntracked: 0 };
   }
   if (scenario === "hundred-plus") {
     return { ...base, open: 137, critical: 35, high: 34, warning: 34, info: 34, unassigned: 46, assignedToMe: 46, overdue: 22 };
@@ -824,12 +861,21 @@ export async function installApi(
             complete: !truncated,
             mayAssertAllClear: !truncated,
           },
-          // The workspace's commitment travels with the rows it governs.
+          // The VOCABULARY this page speaks. Deliberately no hours: those
+          // belong to an individual condition's recorded promise, and a
+          // page-level number would invite the browser to recompute a
+          // deadline from it.
           sla: {
-            responseHours: 4,
-            resolutionHours: 24,
-            dueSoonHours: 2,
-            attentionPostures: ["BREACHED", "DUE_SOON"],
+            postures: [
+              "UNTRACKED_LEGACY",
+              "NOT_APPLICABLE",
+              "ON_TRACK",
+              "AT_RISK",
+              "BREACHED",
+              "ACKNOWLEDGED",
+              "RESOLVED",
+            ],
+            attentionPostures: ["BREACHED", "AT_RISK"],
           },
         }),
       );
