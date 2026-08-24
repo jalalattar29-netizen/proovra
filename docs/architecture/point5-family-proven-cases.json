@@ -217,9 +217,9 @@
         "ots.tenant.workspace_reloaded",
         "ots.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:42:21.955Z"
+      "recordedAtUtc": "2026-08-24T13:34:48.306Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "5cb1f4b32023939063997087d289affde9a058d34497ed2fa35588700c0d8ab5",
@@ -258,9 +258,9 @@
         "mirun.tenant.workspace_reloaded",
         "mirun.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:43:13.167Z"
+      "recordedAtUtc": "2026-08-24T13:41:05.508Z"
     },
     "test/point5/family-exchange-package.integration.test.ts": {
       "sha256": "822ca15e9fab4d8e0993698b7aaf19d058ba8444f8061d3165d561516b56e4f4",
@@ -273,9 +273,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:58:15.009Z"
+      "recordedAtUtc": "2026-08-24T13:36:56.968Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "b16485d2248f4567e07c5d9ab2846fa8b8b29732e4501927548ab8550157476c",
@@ -298,9 +298,9 @@
         "invite.terminal.stale_cannot_overwrite",
         "invite.token.never_leaves_persistence"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T13:01:21.932Z"
+      "recordedAtUtc": "2026-08-24T13:38:09.387Z"
     },
     "test/point5/family-redaction.integration.test.ts": {
       "sha256": "78c454b84d41f45e23beb9d08bf9691faebeef44e250763aa7fc01fc891d371e",
@@ -324,9 +324,9 @@
         "redaction.tenant.workspace_reloaded",
         "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:58:35.734Z"
+      "recordedAtUtc": "2026-08-24T13:42:18.062Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
       "sha256": "d288b78d8cc581773f2e93948925cab8611aaa6849d0d87bcc09c1d6c575b75a",
@@ -339,9 +339,9 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:59:37.215Z"
+      "recordedAtUtc": "2026-08-24T13:44:08.879Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
@@ -357,9 +357,9 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:59:16.701Z"
+      "recordedAtUtc": "2026-08-24T13:45:10.876Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
@@ -375,9 +375,9 @@
         "webhook.tenant.workspace_reloaded",
         "webhook.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:50:27.780Z"
+      "recordedAtUtc": "2026-08-24T13:42:48.029Z"
     },
     "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
       "sha256": "3d33613e8756b4b6f6ec57f903d23cebb41a747724e53fc9d6f1444f319e1eb1",
@@ -409,9 +409,9 @@
         "trashgrace.tenant.workspace_reloaded",
         "trashgrace.terminal.stale_cannot_overwrite"
       ],
-      "runId": "b055aac1-a95d-481b-b3fb-cf7da4a3db3c",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T13:13:32.922Z"
+      "recordedAtUtc": "2026-08-24T13:45:54.943Z"
     }
   }
 }

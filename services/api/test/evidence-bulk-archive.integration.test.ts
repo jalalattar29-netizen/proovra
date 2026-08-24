@@ -141,7 +141,24 @@ describe("Evidence bulk ARCHIVE — persisted lifecycle (live PostgreSQL 16)", (
     for (const group of events) expect(group._count._all).toBe(1);
   });
 
-  it("reports an already-archived record instead of re-stamping its archive time", async () => {
+  it("leaves an already-archived record's archive time alone, and reports it as done", async () => {
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the PROPERTY this case
+    // protects is unchanged and is asserted below exactly as before: the
+    // original lifecycle time survives, and no second custody event is written.
+    // That is the thing re-archiving silently overwrote.
+    //
+    // What changed is the ANSWER given for it. The bulk branch used to throw
+    // "ALREADY_ARCHIVED" and report the record as a FAILURE, while the
+    // single-record route returned 200 for the identical situation — two
+    // answers to one question, from two implementations of one operation.
+    // The canonical service resolves it once, in favour of the idempotent
+    // reading: a record already where the caller asked for it is a success with
+    // nothing to do.
+    //
+    // The idempotent reading is also the one that matches what a user means. A
+    // person who selects forty records and presses Archive is asking for them
+    // to END UP archived, and reporting "1 succeeded, 1 failed" for a selection
+    // that is now entirely archived describes an error that did not occur.
     const already = await seedRecord({ archivedAt: new Date("2026-01-05T10:00:00.000Z") });
     const fresh = await seedRecord();
 
@@ -150,20 +167,18 @@ describe("Evidence bulk ARCHIVE — persisted lifecycle (live PostgreSQL 16)", (
       harness.fixtures.teamA.ownerToken,
     );
 
-    expect(body.successCount).toBe(1);
-    expect(body.failedCount).toBe(1);
-    const failure = body.results.find((r) => r.evidenceId === already);
-    expect(failure?.ok).toBe(false);
-    expect(failure?.reason).toBe("ALREADY_ARCHIVED");
+    expect(body.successCount).toBe(2);
+    expect(body.failedCount).toBe(0);
+    expect(body.results.find((r) => r.evidenceId === already)?.ok).toBe(true);
 
-    // The original lifecycle time survives — this is what re-archiving
-    // silently overwrote.
+    // THE PROPERTY. The original lifecycle time survives untouched.
     const row = await prisma.evidence.findUniqueOrThrow({
       where: { id: already },
       select: { archivedAt: true },
     });
     expect(row.archivedAt?.toISOString()).toBe("2026-01-05T10:00:00.000Z");
-    // No second custody event for a record that did not change.
+    // And no second custody event for a record that did not change — "reported
+    // as done" must not mean "written again".
     expect(await archiveEvents(already)).toBe(0);
     // The eligible record in the same batch still committed.
     expect(await archiveEvents(fresh)).toBe(1);
