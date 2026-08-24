@@ -6854,8 +6854,17 @@ model OperationalIncidentSlaCycle {
 
   @@unique([incidentId, cycleNumber])
   @@index([teamId, endedAtUtc])
-  @@index([teamId, acknowledgementDueAtUtc])
-  @@index([teamId, resolutionDueAtUtc])
+  // EXPLICIT names, matching the shipped migration. Prisma's DEFAULT name for
+  // these two would be `..._team_id_acknowledgement_due_at_utc_idx` (70 bytes)
+  // and `..._team_id_resolution_due_at_utc_idx` (65 bytes), both past
+  // PostgreSQL's 63-byte identifier limit, so Prisma silently truncates them
+  // to something that does NOT match the `_ack_due_idx` / `_res_due_idx` names
+  // the migration created. Naming them here makes clean-DB creation and the
+  // datamodel-derived schema produce identical names, which is what
+  // `db:raw-schema-verify` checks. `endedAtUtc` above needs no map: its
+  // default name is 56 bytes and already matches the migration.
+  @@index([teamId, acknowledgementDueAtUtc], map: "operational_incident_sla_cycles_team_id_ack_due_idx")
+  @@index([teamId, resolutionDueAtUtc], map: "operational_incident_sla_cycles_team_id_res_due_idx")
   @@map("operational_incident_sla_cycles")
 }
 
