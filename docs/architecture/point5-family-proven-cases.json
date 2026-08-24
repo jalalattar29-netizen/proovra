@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "51b9ea3a-b55c-44fc-80fc-ea1a4fe68e36",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T13:22:11.008Z"
+      "recordedAtUtc": "2026-08-24T13:29:38.855Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "aca0fd5a22026bf09ab0c9b9b78043b38881e64fc61dd100741d458899636ca8",
@@ -166,9 +166,9 @@
         "searchrecon.tenant.workspace_reloaded",
         "searchrecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:56:34.759Z"
+      "recordedAtUtc": "2026-08-24T13:30:30.990Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -200,9 +200,9 @@
         "digest.tenant.workspace_reloaded",
         "digest.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:42:42.846Z"
+      "recordedAtUtc": "2026-08-24T13:28:22.494Z"
     },
     "test/point5/family-evidence-finalization.integration.test.ts": {
       "sha256": "2125abb01f714a2ac1c615835136615cae633c4fa50c80bcb6f42844fecc7002",

@@ -22,8 +22,27 @@
  * automatic destruction is already enabled cannot be the thing that triggers a
  * destruction.
  *
- * Usage (after `pnpm --filter @proovra/worker build`):
- *   pnpm --filter @proovra/worker destruction-candidates -- [--team=<uuid>] [--limit=N] [--json]
+ * Usage (after building the worker):
+ *   pnpm --filter proovra-worker destruction-candidates -- [--team=<uuid>] [--limit=N] [--json]
+ *
+ * ENVIRONMENT. This reads the database and nothing else — it opens no queue,
+ * contacts no object store and writes nowhere. It nonetheless needs the worker's
+ * FULL environment, including the S3 variables, because `db.ts` imports
+ * `config.ts` and that module validates every variable at load. That is a
+ * property of the worker's configuration module, not of this command, and it is
+ * stated here rather than left for an operator to discover from a wall of Zod
+ * errors while trying to run a safety check. The S3 values are never used; any
+ * syntactically valid set satisfies the validator.
+ *
+ * Sample output:
+ *
+ *   scanned             2 trashed records past grace
+ *   eligible now        1
+ *   automatic destroy   DISABLED (observe only)
+ *
+ *   evidence   state                  grace       app-ret     obj-lock    reason
+ *   <uuid>     BLOCKED                2026-05-06  2034-06-14  2034-06-14  APP_RETENTION_ACTIVE
+ *   <uuid>     ELIGIBLE_OBSERVE_ONLY  2026-05-06  -           -           ELIGIBLE
  *
  * Exit codes:
  *   0  report produced (whatever it found — "nothing eligible" is a result)

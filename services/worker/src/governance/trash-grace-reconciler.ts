@@ -58,8 +58,16 @@ import { resolveDestructionApproval } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
-import { enqueueEvidencePurgeJob } from "../queue.js";
 import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
+// `enqueueEvidencePurgeJob` is imported LAZILY, at the one branch that enqueues.
+//
+// A static import pulls in `queue.js`, which pulls in the worker's `config.ts`,
+// which validates the FULL runtime environment — Redis, and every S3 variable.
+// That made the read-only candidate report refuse to start without object-store
+// credentials, for a command that never touches storage and never enqueues
+// anything. An operator running a non-mutating report against production should
+// not have to put S3 secrets in their shell to do it, and requiring them is how
+// a safety tool stops being run.
 
 /** Bounded per tick — a sweep is not a migration. */
 const DEFAULT_BATCH_SIZE = 200;
@@ -229,6 +237,7 @@ export async function runTrashGraceReconciliation(
         // existing purge trigger, which now calls the canonical executor — so
         // the reconciler nominates and the executor decides, again, against a
         // freshly re-read row.
+        const { enqueueEvidencePurgeJob } = await import("../queue.js");
         await enqueueEvidencePurgeJob(row.id, now.toISOString());
         enqueued += 1;
         disposition = "ELIGIBLE_ENQUEUED";
