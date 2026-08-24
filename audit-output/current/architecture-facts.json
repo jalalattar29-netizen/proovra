@@ -316,10 +316,10 @@
       "producer": "services/api/test/point5/family-coverage-manifest.ts",
       "producerPresent": true,
       "binding": "RUN_ID",
-      "bindingValue": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "bindingValue": "51b9ea3a-b55c-44fc-80fc-ea1a4fe68e36,ab39099d-d9d3-4a24-a90e-d1042286ce1f,b055aac1-a95d-481b-b3fb-cf7da4a3db3c,c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "schemaVersion": null,
-      "contentHash": "32d217f340ff904719267cf648135d6ba102b08617ad8fdc00e3e69d8b15af1e",
-      "byteLength": 19050,
+      "contentHash": "68289114a8a8ec6e7cf10a605556e50a6be91702c02084a41edeb7e231e3e586",
+      "byteLength": 19763,
       "present": true,
       "freshness": "BOUND",
       "why": "Family state machines are credited from EXECUTED cases plus the SHA-256 of the suite that executed them and the integration run that produced the record."
